@@ -98,32 +98,53 @@ function getEnvConfig(): EnvConfig {
 //
 // CSP is built from env vars at app construction time. SITE_URL hostname
 // determines whether HSTS is emitted (only when the deployment is HTTPS).
-// External origins reflect the few third-party resources actually loaded
-// today: cdnjs (PDF.js), Google Fonts, and Sentry (when SENTRY_DSN is set).
 // All Convex traffic — including storage uploads via `generateUploadUrl()`
 // and storage downloads — flows same-origin through Caddy (`/ws_api`,
 // `/api/storage/*`), so `'self'` covers it without needing any
-// `*.convex.cloud` / `*.convex.site` entries.
+// `*.convex.cloud` / `*.convex.site` entries. Every external origin below
+// is annotated with the specific feature that loads from it; if a feature
+// is removed, drop the entry too.
 // ---------------------------------------------------------------------------
 
 function buildContentSecurityPolicy(env: EnvConfig) {
+  // Sentry browser SDK posts events to `https://<orgKey>.ingest.sentry.io`
+  // when SENTRY_DSN is configured (services/platform/app/router.tsx
+  // initializes Sentry conditionally on getEnv('SENTRY_DSN')).
   const sentry = env.SENTRY_DSN ? ['https://*.ingest.sentry.io'] : [];
-  // `index.html` ships two inline `<script>` tags: the `__ENV__` runtime
-  // injection (load-bearing — without it the SPA can't read SITE_URL) and a
-  // localhost-only Figma MCP capture loader. Both are tagged with
-  // `nonce="…"` at HTML render time below; the NONCE token here makes the
-  // matching `nonce-…` source appear in the emitted script-src directive.
   return {
     defaultSrc: ["'self'"],
     scriptSrc: [
+      // `index.html` ships two inline `<script>` tags: the `__ENV__`
+      // runtime injection (load-bearing — without it the SPA can't read
+      // SITE_URL) and a localhost-only Figma MCP capture loader. Both are
+      // tagged with `nonce="…"` at HTML render time below; this NONCE
+      // token makes the matching `nonce-…` source appear in script-src.
       NONCE,
       "'self'",
+      // PDF.js library + worker loaded by the document preview component
+      // (services/platform/app/features/documents/components/document-preview-pdf.tsx)
+      // from cdnjs at a pinned version (pdf.js 3.11.174).
       'https://cdnjs.cloudflare.com',
+      // Figma MCP capture loader script appended at runtime by the inline
+      // bootstrap in services/platform/index.html — gated to localhost so
+      // it only activates during local development.
       'https://mcp.figma.com',
     ],
-    styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+    styleSrc: [
+      "'self'",
+      "'unsafe-inline'",
+      // Inter web font stylesheet linked from services/platform/index.html
+      // (`<link href="https://fonts.googleapis.com/css2?family=Inter…">`).
+      'https://fonts.googleapis.com',
+    ],
     imgSrc: ["'self'", 'data:', 'blob:'],
-    fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+    fontSrc: [
+      "'self'",
+      'data:',
+      // Actual font binaries served by Google Fonts; the stylesheet from
+      // fonts.googleapis.com references woff2 files under this origin.
+      'https://fonts.gstatic.com',
+    ],
     connectSrc: [
       "'self'",
       // Reverse-geocoding for the location-request approval card
@@ -133,7 +154,13 @@ function buildContentSecurityPolicy(env: EnvConfig) {
       'https://nominatim.openstreetmap.org',
       ...sentry,
     ],
-    workerSrc: ["'self'", 'blob:', 'https://cdnjs.cloudflare.com'],
+    workerSrc: [
+      "'self'",
+      'blob:',
+      // PDF.js worker script (see scriptSrc note) — loaded as a Web Worker
+      // by document-preview-pdf.tsx, so it also needs worker-src access.
+      'https://cdnjs.cloudflare.com',
+    ],
     frameSrc: ["'self'"],
     frameAncestors: ["'none'"],
     baseUri: ["'self'"],
