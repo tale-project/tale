@@ -3,7 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { Hono } from 'hono';
-import { secureHeaders } from 'hono/secure-headers';
+import { NONCE, secureHeaders } from 'hono/secure-headers';
 
 import { convexMetricsResponse } from './convex-metrics';
 import { createConfigWatcher } from './lib/config-watcher';
@@ -107,9 +107,19 @@ function getEnvConfig(): EnvConfig {
 
 function buildContentSecurityPolicy(env: EnvConfig) {
   const sentry = env.SENTRY_DSN ? ['https://*.ingest.sentry.io'] : [];
+  // `index.html` ships two inline `<script>` tags: the `__ENV__` runtime
+  // injection (load-bearing — without it the SPA can't read SITE_URL) and a
+  // localhost-only Figma MCP capture loader. Both are tagged with
+  // `nonce="…"` at HTML render time below; the NONCE token here makes the
+  // matching `nonce-…` source appear in the emitted script-src directive.
   return {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", 'https://cdnjs.cloudflare.com'],
+    scriptSrc: [
+      NONCE,
+      "'self'",
+      'https://cdnjs.cloudflare.com',
+      'https://mcp.figma.com',
+    ],
     styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
     imgSrc: [
       "'self'",
@@ -119,7 +129,16 @@ function buildContentSecurityPolicy(env: EnvConfig) {
       'https://*.convex.site',
     ],
     fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
-    connectSrc: ["'self'", 'https://*.convex.cloud', ...sentry],
+    connectSrc: [
+      "'self'",
+      'https://*.convex.cloud',
+      // Reverse-geocoding for the location-request approval card
+      // (services/platform/app/features/chat/components/location-request-card.tsx).
+      // The lat/lng→address lookup runs in the browser; without this entry
+      // CSP blocks the fetch and the card silently shows raw coordinates.
+      'https://nominatim.openstreetmap.org',
+      ...sentry,
+    ],
     workerSrc: ["'self'", 'blob:', 'https://cdnjs.cloudflare.com'],
     frameSrc: ["'self'"],
     frameAncestors: ["'none'"],
@@ -242,6 +261,11 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
 
     const acceptLanguage = c.req.header('accept-language') ?? '';
     const basePath = getBasePath();
+    // Per-request nonce produced by `secureHeaders` middleware. Injected
+    // into every <script> tag so the strict CSP `script-src` (which uses
+    // a nonce token instead of `'unsafe-inline'`) accepts the inline
+    // __ENV__ injection and any other inline scripts in index.html.
+    const nonce = c.get('secureHeadersNonce');
 
     let html = indexHtmlTemplate
       .replace(
@@ -252,6 +276,13 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
         /window\.__ACCEPT_LANGUAGE__\s*=\s*['"]__ACCEPT_LANGUAGE_PLACEHOLDER__['"];/,
         `window.__ACCEPT_LANGUAGE__ = ${JSON.stringify(acceptLanguage)};`,
       );
+
+    if (nonce) {
+      html = html.replace(
+        /<script(?![^>]*\bnonce=)/g,
+        `<script nonce="${nonce}"`,
+      );
+    }
 
     html = html.replace(
       '<head>',
