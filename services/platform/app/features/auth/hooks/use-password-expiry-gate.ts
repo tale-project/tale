@@ -28,7 +28,7 @@ export function usePasswordExpiryGate(organizationId: string): void {
     if (location.pathname.endsWith(FORCED_CHANGE_PATH)) return;
     const id = (params as { id?: string }).id ?? organizationId;
     void navigate({
-      to: '/dashboard/$id/forced-change-password',
+      to: '/forced-change-password/$id',
       params: { id },
       replace: true,
     });

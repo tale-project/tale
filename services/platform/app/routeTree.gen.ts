@@ -15,13 +15,13 @@ import { Route as ConvexDashboardRouteImport } from './routes/convex-dashboard'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as ForcedChangePasswordIdRouteImport } from './routes/forced-change-password.$id'
 import { Route as DashboardCreateOrganizationRouteImport } from './routes/dashboard/create-organization'
 import { Route as DashboardIdRouteImport } from './routes/dashboard/$id'
 import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up'
 import { Route as AuthLogInRouteImport } from './routes/_auth/log-in'
 import { Route as DashboardIdIndexRouteImport } from './routes/dashboard/$id/index'
 import { Route as DashboardIdSettingsRouteImport } from './routes/dashboard/$id/settings'
-import { Route as DashboardIdForcedChangePasswordRouteImport } from './routes/dashboard/$id/forced-change-password'
 import { Route as DashboardIdCustomAgentsRouteImport } from './routes/dashboard/$id/custom-agents'
 import { Route as DashboardIdConversationsRouteImport } from './routes/dashboard/$id/conversations'
 import { Route as DashboardIdChatRouteImport } from './routes/dashboard/$id/chat'
@@ -95,6 +95,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardRoute,
 } as any)
+const ForcedChangePasswordIdRoute = ForcedChangePasswordIdRouteImport.update({
+  id: '/forced-change-password/$id',
+  path: '/forced-change-password/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardCreateOrganizationRoute =
   DashboardCreateOrganizationRouteImport.update({
     id: '/create-organization',
@@ -126,12 +131,6 @@ const DashboardIdSettingsRoute = DashboardIdSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => DashboardIdRoute,
 } as any)
-const DashboardIdForcedChangePasswordRoute =
-  DashboardIdForcedChangePasswordRouteImport.update({
-    id: '/forced-change-password',
-    path: '/forced-change-password',
-    getParentRoute: () => DashboardIdRoute,
-  } as any)
 const DashboardIdCustomAgentsRoute = DashboardIdCustomAgentsRouteImport.update({
   id: '/custom-agents',
   path: '/custom-agents',
@@ -390,13 +389,13 @@ export interface FileRoutesByFullPath {
   '/sign-up': typeof AuthSignUpRoute
   '/dashboard/$id': typeof DashboardIdKnowledgeRouteWithChildren
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
+  '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/$id/agents': typeof DashboardIdAgentsRouteWithChildren
   '/dashboard/$id/automations': typeof DashboardIdAutomationsRouteWithChildren
   '/dashboard/$id/chat': typeof DashboardIdChatRouteWithChildren
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
   '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute
-  '/dashboard/$id/forced-change-password': typeof DashboardIdForcedChangePasswordRoute
   '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren
   '/dashboard/$id/': typeof DashboardIdIndexRoute
   '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute
@@ -444,11 +443,11 @@ export interface FileRoutesByTo {
   '/log-in': typeof AuthLogInRoute
   '/sign-up': typeof AuthSignUpRoute
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
+  '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute
   '/dashboard': typeof DashboardIndexRoute
   '/dashboard/$id': typeof DashboardIdIndexRoute
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
   '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute
-  '/dashboard/$id/forced-change-password': typeof DashboardIdForcedChangePasswordRoute
   '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute
   '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute
   '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute
@@ -496,6 +495,7 @@ export interface FileRoutesById {
   '/_auth/sign-up': typeof AuthSignUpRoute
   '/dashboard/$id': typeof DashboardIdRouteWithChildren
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
+  '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/$id/_knowledge': typeof DashboardIdKnowledgeRouteWithChildren
   '/dashboard/$id/agents': typeof DashboardIdAgentsRouteWithChildren
@@ -503,7 +503,6 @@ export interface FileRoutesById {
   '/dashboard/$id/chat': typeof DashboardIdChatRouteWithChildren
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
   '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute
-  '/dashboard/$id/forced-change-password': typeof DashboardIdForcedChangePasswordRoute
   '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren
   '/dashboard/$id/': typeof DashboardIdIndexRoute
   '/dashboard/$id/_knowledge/customers': typeof DashboardIdKnowledgeCustomersRoute
@@ -555,13 +554,13 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/dashboard/$id'
     | '/dashboard/create-organization'
+    | '/forced-change-password/$id'
     | '/dashboard/'
     | '/dashboard/$id/agents'
     | '/dashboard/$id/automations'
     | '/dashboard/$id/chat'
     | '/dashboard/$id/conversations'
     | '/dashboard/$id/custom-agents'
-    | '/dashboard/$id/forced-change-password'
     | '/dashboard/$id/settings'
     | '/dashboard/$id/'
     | '/dashboard/$id/customers'
@@ -609,11 +608,11 @@ export interface FileRouteTypes {
     | '/log-in'
     | '/sign-up'
     | '/dashboard/create-organization'
+    | '/forced-change-password/$id'
     | '/dashboard'
     | '/dashboard/$id'
     | '/dashboard/$id/conversations'
     | '/dashboard/$id/custom-agents'
-    | '/dashboard/$id/forced-change-password'
     | '/dashboard/$id/customers'
     | '/dashboard/$id/documents'
     | '/dashboard/$id/products'
@@ -660,6 +659,7 @@ export interface FileRouteTypes {
     | '/_auth/sign-up'
     | '/dashboard/$id'
     | '/dashboard/create-organization'
+    | '/forced-change-password/$id'
     | '/dashboard/'
     | '/dashboard/$id/_knowledge'
     | '/dashboard/$id/agents'
@@ -667,7 +667,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/chat'
     | '/dashboard/$id/conversations'
     | '/dashboard/$id/custom-agents'
-    | '/dashboard/$id/forced-change-password'
     | '/dashboard/$id/settings'
     | '/dashboard/$id/'
     | '/dashboard/$id/_knowledge/customers'
@@ -715,6 +714,7 @@ export interface RootRouteChildren {
   ConvexDashboardRoute: typeof ConvexDashboardRoute
   DashboardRoute: typeof DashboardRouteWithChildren
   DocsRoute: typeof DocsRoute
+  ForcedChangePasswordIdRoute: typeof ForcedChangePasswordIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -761,6 +761,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/forced-change-password/$id': {
+      id: '/forced-change-password/$id'
+      path: '/forced-change-password/$id'
+      fullPath: '/forced-change-password/$id'
+      preLoaderRoute: typeof ForcedChangePasswordIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard/create-organization': {
       id: '/dashboard/create-organization'
       path: '/create-organization'
@@ -801,13 +808,6 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/dashboard/$id/settings'
       preLoaderRoute: typeof DashboardIdSettingsRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
-    '/dashboard/$id/forced-change-password': {
-      id: '/dashboard/$id/forced-change-password'
-      path: '/forced-change-password'
-      fullPath: '/dashboard/$id/forced-change-password'
-      preLoaderRoute: typeof DashboardIdForcedChangePasswordRouteImport
       parentRoute: typeof DashboardIdRoute
     }
     '/dashboard/$id/custom-agents': {
@@ -1315,7 +1315,6 @@ interface DashboardIdRouteChildren {
   DashboardIdChatRoute: typeof DashboardIdChatRouteWithChildren
   DashboardIdConversationsRoute: typeof DashboardIdConversationsRouteWithChildren
   DashboardIdCustomAgentsRoute: typeof DashboardIdCustomAgentsRoute
-  DashboardIdForcedChangePasswordRoute: typeof DashboardIdForcedChangePasswordRoute
   DashboardIdSettingsRoute: typeof DashboardIdSettingsRouteWithChildren
   DashboardIdIndexRoute: typeof DashboardIdIndexRoute
 }
@@ -1327,7 +1326,6 @@ const DashboardIdRouteChildren: DashboardIdRouteChildren = {
   DashboardIdChatRoute: DashboardIdChatRouteWithChildren,
   DashboardIdConversationsRoute: DashboardIdConversationsRouteWithChildren,
   DashboardIdCustomAgentsRoute: DashboardIdCustomAgentsRoute,
-  DashboardIdForcedChangePasswordRoute: DashboardIdForcedChangePasswordRoute,
   DashboardIdSettingsRoute: DashboardIdSettingsRouteWithChildren,
   DashboardIdIndexRoute: DashboardIdIndexRoute,
 }
@@ -1358,6 +1356,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConvexDashboardRoute: ConvexDashboardRoute,
   DashboardRoute: DashboardRouteWithChildren,
   DocsRoute: DocsRoute,
+  ForcedChangePasswordIdRoute: ForcedChangePasswordIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

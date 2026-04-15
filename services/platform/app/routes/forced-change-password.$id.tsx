@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -8,25 +8,32 @@ import { ValidationCheckList } from '@/app/components/ui/feedback/validation-che
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { Stack } from '@/app/components/ui/layout/layout';
+import { Stack, VStack } from '@/app/components/ui/layout/layout';
+import { LogoLink } from '@/app/components/ui/logo/logo-link';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
-import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
 import { useUpdatePassword } from '@/app/features/settings/account/hooks/mutations';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
 
-export const Route = createFileRoute('/dashboard/$id/forced-change-password')({
+export const Route = createFileRoute('/forced-change-password/$id')({
+  beforeLoad: async () => {
+    const session = await authClient.getSession();
+    if (!session?.data?.user) {
+      throw redirect({ to: '/log-in' });
+    }
+  },
   component: ForcedChangePasswordPage,
 });
 
 type ForcedChangeFormData = {
-  currentPassword: string;
   newPassword: string;
   confirmPassword: string;
 };
@@ -41,13 +48,12 @@ function ForcedChangePasswordPage() {
   const { mutateAsync: updatePassword } = useUpdatePassword();
   const policy = usePasswordPolicy(organizationId);
 
-  // Users without a credential account can't be subject to rotation —
-  // bounce them home if they somehow land here.
   const { data: expiryStatus } = useConvexQuery(
     api.users.queries.getPasswordExpiryStatus,
   );
   useEffect(() => {
     if (!expiryStatus) return;
+    // OAuth-only or already-fresh credential: no reason to be here.
     if (!expiryStatus.hasCredential || !expiryStatus.expired) {
       void navigate({
         to: '/dashboard/$id',
@@ -61,9 +67,6 @@ function ForcedChangePasswordPage() {
     () =>
       z
         .object({
-          currentPassword: z
-            .string()
-            .min(1, tAuth('changePassword.validation.currentRequired')),
           newPassword: createPasswordSchema(
             {
               minLength: tAuth('validation.passwordMinLength', {
@@ -90,11 +93,7 @@ function ForcedChangePasswordPage() {
   const form = useForm<ForcedChangeFormData>({
     resolver: zodResolver(schema),
     mode: 'onChange',
-    defaultValues: {
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    },
+    defaultValues: { newPassword: '', confirmPassword: '' },
   });
 
   const { register, handleSubmit, formState, watch } = form;
@@ -105,7 +104,6 @@ function ForcedChangePasswordPage() {
   const onSubmit = async (data: ForcedChangeFormData) => {
     try {
       await updatePassword({
-        currentPassword: data.currentPassword,
         newPassword: data.newPassword,
         trigger: 'forced',
       });
@@ -127,67 +125,74 @@ function ForcedChangePasswordPage() {
   };
 
   return (
-    <AuthFormLayout title={tAuth('forcedChange.title')}>
-      <Stack gap={6}>
-        <Text variant="muted" className="text-sm">
-          {tAuth('forcedChange.description')}
-        </Text>
-        <FormSection>
-          <Form onSubmit={handleSubmit(onSubmit)} autoComplete="on">
-            <Input
-              id="current-password"
-              type="password"
-              size="lg"
-              autoComplete="current-password"
-              label={tAuth('changePassword.currentPassword')}
-              placeholder={tAuth('changePassword.placeholder.current')}
-              disabled={isSubmitting}
-              errorMessage={errors.currentPassword?.message}
-              {...register('currentPassword')}
-            />
-            <Stack gap={2}>
-              <Input
-                id="new-password"
-                type="password"
-                size="lg"
-                autoComplete="new-password"
-                label={tAuth('changePassword.newPassword')}
-                placeholder={tAuth('changePassword.placeholder.new')}
-                disabled={isSubmitting}
-                errorMessage={errors.newPassword?.message}
-                {...register('newPassword')}
-              />
-              {newPassword && (
-                <ValidationCheckList
-                  items={validationItems}
-                  className="text-xs"
-                />
-              )}
+    <VStack
+      gap={0}
+      align="stretch"
+      className="bg-background text-foreground min-h-screen"
+    >
+      <div className="px-4 pt-8 pb-16 sm:px-8">
+        <LogoLink href="/" />
+      </div>
+      <main id="main-content" className="flex-1">
+        <div className="mx-auto w-full max-w-md px-4">
+          <Stack gap={6}>
+            <Stack gap={2} className="text-center">
+              <Heading level={1} size="xl" className="tracking-[-0.12px]">
+                {tAuth('forcedChange.title')}
+              </Heading>
+              <Text variant="muted" className="text-sm">
+                {tAuth('forcedChange.description')}
+              </Text>
             </Stack>
-            <Input
-              id="confirm-password"
-              type="password"
-              size="lg"
-              autoComplete="new-password"
-              label={tAuth('changePassword.confirmPassword')}
-              placeholder={tAuth('changePassword.placeholder.confirm')}
-              disabled={isSubmitting}
-              errorMessage={errors.confirmPassword?.message}
-              {...register('confirmPassword')}
-            />
-            <Button
-              type="submit"
-              size="lg"
-              fullWidth
-              disabled={isSubmitting || !isValid}
-            >
-              {isSubmitting
-                ? tCommon('actions.saving')
-                : tAuth('forcedChange.submit')}
-            </Button>
-          </Form>
-        </FormSection>
-      </Stack>
-    </AuthFormLayout>
+            <div className="border-border bg-card rounded-lg border p-6 shadow-sm">
+              <FormSection>
+                <Form onSubmit={handleSubmit(onSubmit)} autoComplete="on">
+                  <Stack gap={2}>
+                    <Input
+                      id="new-password"
+                      type="password"
+                      size="lg"
+                      autoComplete="new-password"
+                      label={tAuth('changePassword.newPassword')}
+                      placeholder={tAuth('changePassword.placeholder.new')}
+                      disabled={isSubmitting}
+                      errorMessage={errors.newPassword?.message}
+                      {...register('newPassword')}
+                    />
+                    {newPassword && (
+                      <ValidationCheckList
+                        items={validationItems}
+                        className="text-xs"
+                      />
+                    )}
+                  </Stack>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    size="lg"
+                    autoComplete="new-password"
+                    label={tAuth('changePassword.confirmPassword')}
+                    placeholder={tAuth('changePassword.placeholder.confirm')}
+                    disabled={isSubmitting}
+                    errorMessage={errors.confirmPassword?.message}
+                    {...register('confirmPassword')}
+                  />
+                  <Button
+                    type="submit"
+                    size="lg"
+                    fullWidth
+                    disabled={isSubmitting || !isValid}
+                  >
+                    {isSubmitting
+                      ? tCommon('actions.saving')
+                      : tAuth('forcedChange.submit')}
+                  </Button>
+                </Form>
+              </FormSection>
+            </div>
+          </Stack>
+        </div>
+      </main>
+    </VStack>
   );
 }
