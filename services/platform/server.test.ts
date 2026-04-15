@@ -27,6 +27,8 @@ describe('security headers', () => {
     expect(csp).toContain('https://nominatim.openstreetmap.org');
     expect(csp).not.toContain('https://*.ingest.sentry.io');
     expect(csp).not.toContain('https://*.convex.cloud');
+    // mcp.figma.com is a localhost-only dev tool; production CSP omits it.
+    expect(csp).not.toContain('https://mcp.figma.com');
 
     expect(res.headers.get('strict-transport-security')).toBe(
       'max-age=15552000',
@@ -47,6 +49,13 @@ describe('security headers', () => {
     const app = createApp({ ...baseEnv, SITE_URL: 'http://localhost:3000' });
     const res = await app.fetch(new Request('http://localhost/api/health'));
     expect(res.headers.get('strict-transport-security')).toBeNull();
+  });
+
+  test('CSP includes mcp.figma.com only when SITE_URL is loopback', async () => {
+    const app = createApp({ ...baseEnv, SITE_URL: 'http://127.0.0.1:3000' });
+    const res = await app.fetch(new Request('http://localhost/api/health'));
+    const csp = res.headers.get('content-security-policy') ?? '';
+    expect(csp).toContain('https://mcp.figma.com');
   });
 
   test('CSP includes Sentry origin when SENTRY_DSN is set', async () => {

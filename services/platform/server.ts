@@ -111,6 +111,12 @@ function buildContentSecurityPolicy(env: EnvConfig) {
   // when SENTRY_DSN is configured (services/platform/app/router.tsx
   // initializes Sentry conditionally on getEnv('SENTRY_DSN')).
   const sentry = env.SENTRY_DSN ? ['https://*.ingest.sentry.io'] : [];
+  // Figma MCP capture loader is appended at runtime by the inline bootstrap
+  // in services/platform/index.html, but only when the page is served from
+  // a loopback host. Production deployments never hit that branch, so we
+  // omit the origin from CSP outside loopback to avoid leaking a dev-only
+  // dependency into production policy.
+  const figmaMcp = isLoopbackSite(env) ? ['https://mcp.figma.com'] : [];
   return {
     defaultSrc: ["'self'"],
     scriptSrc: [
@@ -125,10 +131,7 @@ function buildContentSecurityPolicy(env: EnvConfig) {
       // (services/platform/app/features/documents/components/document-preview-pdf.tsx)
       // from cdnjs at a pinned version (pdf.js 3.11.174).
       'https://cdnjs.cloudflare.com',
-      // Figma MCP capture loader script appended at runtime by the inline
-      // bootstrap in services/platform/index.html — gated to localhost so
-      // it only activates during local development.
-      'https://mcp.figma.com',
+      ...figmaMcp,
     ],
     styleSrc: [
       "'self'",
@@ -172,6 +175,18 @@ function buildContentSecurityPolicy(env: EnvConfig) {
 
 function isHttpsSite(env: EnvConfig): boolean {
   return !!env.SITE_URL && env.SITE_URL.startsWith('https://');
+}
+
+function isLoopbackSite(env: EnvConfig): boolean {
+  if (!env.SITE_URL) return false;
+  try {
+    const host = new URL(env.SITE_URL).hostname;
+    // `URL` strips brackets from IPv6 hostnames, so compare against `::1`
+    // rather than `[::1]`.
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
 }
 
 export function createApp(env: EnvConfig = getEnvConfig()): Hono {
