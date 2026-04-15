@@ -110,6 +110,53 @@ export function LogInPage() {
 
   const { isSubmitting, isValid } = form.formState;
 
+  const formatLockoutMessage = useCallback(
+    (retryAfterSec: number | undefined): string => {
+      if (!retryAfterSec || retryAfterSec <= 0) {
+        return t('login.accountLockedGeneric');
+      }
+      if (retryAfterSec < 60) {
+        return t('login.accountLockedSeconds', { seconds: retryAfterSec });
+      }
+      const minutes = Math.ceil(retryAfterSec / 60);
+      if (minutes < 60) {
+        return t('login.accountLockedMinutes', { minutes });
+      }
+      const hours = Math.ceil(retryAfterSec / 3600);
+      return t('login.accountLockedHours', { hours });
+    },
+    [t],
+  );
+
+  const handleAuthError = useCallback(
+    (ctx?: {
+      error?: { status?: number; retryAfter?: unknown } | null;
+      response?: Response;
+    }) => {
+      const status = ctx?.error?.status;
+      if (status === 429) {
+        const headerVal = ctx?.response?.headers.get('retry-after');
+        const headerSec = headerVal ? Number(headerVal) : NaN;
+        const errVal = ctx?.error?.retryAfter;
+        const errSec =
+          typeof errVal === 'number'
+            ? errVal
+            : typeof errVal === 'string'
+              ? Number(errVal)
+              : NaN;
+        const retryAfterSec = Number.isFinite(headerSec)
+          ? headerSec
+          : Number.isFinite(errSec)
+            ? errSec
+            : undefined;
+        setLoginError(formatLockoutMessage(retryAfterSec));
+        return;
+      }
+      setLoginError(t('login.wrongCredentials'));
+    },
+    [formatLockoutMessage, t],
+  );
+
   const handleSubmit = async (data: LogInFormData) => {
     setLoginError(null);
 
@@ -117,14 +164,13 @@ export function LogInPage() {
       const response = await authClient.signIn.email(
         { email: data.email, password: data.password },
         {
-          onError: () => {
-            setLoginError(t('login.wrongCredentials'));
-          },
+          onError: handleAuthError,
         },
       );
 
       if (!response.data?.user) {
-        setLoginError(t('login.wrongCredentials'));
+        // Fallback: signIn returned without a user but onError wasn't triggered.
+        if (!loginError) setLoginError(t('login.wrongCredentials'));
         return;
       }
 

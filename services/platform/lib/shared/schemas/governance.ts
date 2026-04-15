@@ -9,6 +9,7 @@ export const POLICY_TYPES = [
   'feature_flags',
   'pii_config',
   'model_access',
+  'login_policy',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -121,3 +122,41 @@ export type ModelAccessConfig = z.infer<typeof modelAccessConfigSchema>;
 export const auditRetentionConfigSchema = z.object({
   retentionDays: z.number().int().min(30).max(365),
 });
+
+export const DEFAULT_LOGIN_BACKOFF_MS = [1_000, 10_000, 60_000, 600_000];
+export const DEFAULT_LOGIN_MAX_ATTEMPTS = 5;
+// `proxy-addr` pre-defined groups: loopback (127/8, ::1) + uniquelocal
+// (RFC 1918 private ranges + fc00::/7). Safe default for self-hosted
+// deployments behind a single reverse proxy on the same host/network.
+export const DEFAULT_TRUSTED_PROXIES = ['loopback', 'uniquelocal'];
+
+export const loginPolicyConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  maxAttemptsBeforeLockout: z
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .default(DEFAULT_LOGIN_MAX_ATTEMPTS),
+  backoffSchedule: z
+    .array(z.number().int().min(0))
+    .min(1)
+    .max(10)
+    .default(DEFAULT_LOGIN_BACKOFF_MS),
+  perIpLimit: z
+    .object({
+      rate: z.number().int().min(1).max(1000),
+      periodSec: z.number().int().min(1).max(3600),
+    })
+    .optional(),
+  // IP address / CIDR / `proxy-addr` keyword (`loopback`, `uniquelocal`,
+  // `linklocal`) — these are the reverse proxies the deployment sits
+  // behind. Used to extract the real client IP from `X-Forwarded-For`
+  // (walks right-to-left, skipping entries matching any of these, and
+  // stops at the first non-trusted hop = real client).
+  trustedProxies: z
+    .array(z.string().min(1))
+    .max(32)
+    .default(DEFAULT_TRUSTED_PROXIES),
+});
+export type LoginPolicyConfig = z.infer<typeof loginPolicyConfigSchema>;

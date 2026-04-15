@@ -25,7 +25,12 @@ import { governancePoliciesTable, usageLedgerTable } from './governance/schema';
 import { integrationCredentialsTable } from './integrations/credentials_schema';
 import { integrationsTable } from './integrations/schema';
 import { llmResponseCacheTable } from './lib/response_cache/schema';
+import {
+  loginAttemptsTable,
+  loginBlockCountersTable,
+} from './login_attempts/schema';
 import { mcpServersTable } from './mcp_servers/schema';
+import { notificationsTable } from './notifications/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
 import { promptTemplatesTable } from './prompts/schema';
@@ -77,7 +82,10 @@ export default defineSchema({
   /** @deprecated Retained for backward compatibility with existing data. Use integrationCredentials + file-based config. */
   integrations: integrationsTable,
   llmResponseCache: llmResponseCacheTable,
+  loginAttempts: loginAttemptsTable,
+  loginBlockCounters: loginBlockCountersTable,
   messageMetadata: messageMetadataTable,
+  notifications: notificationsTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,
   threadBranches: threadBranchesTable,
   threadMetadata: threadMetadataTable,

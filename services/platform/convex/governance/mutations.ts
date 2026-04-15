@@ -5,6 +5,7 @@ import {
   budgetConfigSchema,
   defaultModelsConfigSchema,
   featureFlagsConfigSchema,
+  loginPolicyConfigSchema,
   modelAccessConfigSchema,
   piiConfigSchema,
   retentionPolicyConfigSchema,
@@ -107,6 +108,15 @@ export const upsertPolicy = mutation({
       if (!parsed.success) {
         throw new Error(
           `Invalid audit retention configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'login_policy') {
+      const parsed = loginPolicyConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid login policy configuration: ${parsed.error.message}`,
         );
       }
     }

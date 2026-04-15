@@ -3,6 +3,7 @@ import { type ReactNode, useMemo } from 'react';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { BudgetEditor } from '@/app/features/settings/governance/components/budget-editor';
 import { FeatureFlagsEditor } from '@/app/features/settings/governance/components/feature-flags-editor';
 import { ModelAccessEditor } from '@/app/features/settings/governance/components/model-access-editor';
@@ -25,6 +26,12 @@ const DefaultModelEditor = lazyComponent<{ organizationId: string }>(() =>
 const UploadPolicyEditor = lazyComponent(() =>
   import('@/app/features/settings/governance/components/upload-policy-editor').then(
     (m) => ({ default: m.UploadPolicyEditor }),
+  ),
+);
+
+const LoginPolicyEditor = lazyComponent(() =>
+  import('@/app/features/settings/governance/components/login-policy-editor').then(
+    (m) => ({ default: m.LoginPolicyEditor }),
   ),
 );
 
@@ -103,8 +110,27 @@ function GovernanceSettingsPage() {
         key: 'security-monitoring',
         label: t('groups.securityAndMonitoring'),
         sections: [
-          <PiiConfig key="pii" organizationId={organizationId} />,
-          <UsageDashboard key="usage" organizationId={organizationId} />,
+          <Tabs
+            key="security-tabs"
+            defaultValue="login"
+            items={[
+              {
+                value: 'login',
+                label: t('groups.subtabs.login'),
+                content: <LoginPolicyEditor organizationId={organizationId} />,
+              },
+              {
+                value: 'pii',
+                label: t('groups.subtabs.pii'),
+                content: <PiiConfig organizationId={organizationId} />,
+              },
+              {
+                value: 'usage',
+                label: t('groups.subtabs.usage'),
+                content: <UsageDashboard organizationId={organizationId} />,
+              },
+            ]}
+          />,
         ],
       },
     ],

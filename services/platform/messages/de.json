@@ -467,6 +467,10 @@
       "loginButton": "Anmelden",
       "continueWithSso": "Weiter mit SSO",
       "wrongCredentials": "Falsche E-Mail oder falsches Passwort",
+      "accountLockedGeneric": "Konto wegen wiederholter Fehlversuche vorübergehend gesperrt. Bitte später erneut versuchen oder einen Administrator kontaktieren.",
+      "accountLockedSeconds": "Konto vorübergehend gesperrt. In {seconds, plural, one {# Sekunde} other {# Sekunden}} erneut versuchen oder einen Administrator kontaktieren.",
+      "accountLockedMinutes": "Konto vorübergehend gesperrt. In {minutes, plural, one {# Minute} other {# Minuten}} erneut versuchen oder einen Administrator kontaktieren.",
+      "accountLockedHours": "Konto vorübergehend gesperrt. In {hours, plural, one {# Stunde} other {# Stunden}} erneut versuchen oder einen Administrator kontaktieren.",
       "forgotPassword": "Passwort vergessen? Wende dich an einen Admin.",
       "toast": {
         "success": "Erfolgreich angemeldet",
@@ -1638,6 +1642,18 @@
       "activityComingSoon": "Aktivitätsprotokolle sind bald verfügbar.",
       "errorDescription": "Systemfehler und Warnungen anzeigen.",
       "errorComingSoon": "Fehlerprotokolle sind bald verfügbar.",
+      "blockCounters": {
+        "tabLabel": "Anmeldeblockaden",
+        "description": "Stündliche Zähler abgelehnter Anmeldeversuche (Kontosperre oder IP-Flutschutz). Letzte 7 Tage.",
+        "empty": "Keine abgelehnten Anmeldeversuche in den letzten 7 Tagen.",
+        "columns": {
+          "window": "Stunde",
+          "email": "Konto",
+          "lockout": "Sperre",
+          "ipLimit": "IP-Limit",
+          "lastIp": "Letzte IP"
+        }
+      },
       "audit": {
         "tableCaption": "Audit-Protokoll-Datentabelle",
         "emptyTitle": "Keine Audit-Protokolle",
@@ -3736,7 +3752,12 @@
     "groups": {
       "contentAndModels": "Inhalte & Modelle",
       "policiesAndLimits": "Richtlinien & Limits",
-      "securityAndMonitoring": "Sicherheit & Überwachung"
+      "securityAndMonitoring": "Sicherheit & Überwachung",
+      "subtabs": {
+        "login": "Anmeldung & Authentifizierung",
+        "pii": "PII-Schutz",
+        "usage": "Nutzung"
+      }
     },
     "featureFlags": {
       "title": "Funktionskontrolle",
@@ -3886,6 +3907,23 @@
       "retentionDays": "Aufbewahrungszeitraum (Tage)",
       "scope": "Anwenden auf",
       "saved": "Aufbewahrungsrichtlinie gespeichert"
+    },
+    "loginPolicy": {
+      "title": "Anmeldeversuch-Limits",
+      "description": "Konten nach wiederholten fehlgeschlagenen Anmeldungen sperren und die Wartezeit zwischen Versuchen verlängern.",
+      "enabled": "Anmeldeversuch-Limits aktivieren",
+      "policyDisabledHint": "Solange diese Richtlinie deaktiviert ist, werden fehlgeschlagene Anmeldungen nicht gedrosselt.",
+      "maxAttempts": "Fehlversuche bis zur Sperre",
+      "maxAttemptsHint": "Anzahl aufeinanderfolgender Falscheingaben des Passworts, bevor das Konto vorübergehend gesperrt wird.",
+      "backoffSchedule": "Backoff-Zeitplan (Sekunden)",
+      "backoffScheduleHint": "Komma-getrennte Wartezeiten nach jeder Sperre, in Sekunden. Der letzte Wert wird für weitere Fehlversuche wiederverwendet. Standard: 1, 10, 60, 600.",
+      "trustedProxies": "Vertrauenswürdige Proxies",
+      "trustedProxiesHint": "Komma-getrennte Liste von IPs / CIDRs / Schlüsselwörtern (loopback, uniquelocal, linklocal) für Reverse-Proxies vor dieser Installation. Ermittelt die echte Client-IP aus X-Forwarded-For. Standard: loopback, uniquelocal.",
+      "invalidAttempts": "Schwellenwert muss eine ganze Zahl zwischen 1 und 50 sein.",
+      "invalidSchedule": "Backoff-Zeitplan muss eine komma-getrennte Liste nicht-negativer Zahlen sein.",
+      "invalidProxies": "Vertrauenswürdige Proxies müssen eine komma-getrennte Liste aus IPs, CIDRs oder Schlüsselwörtern sein (max. 32).",
+      "saved": "Anmelderichtlinie gespeichert",
+      "saveFailed": "Anmelderichtlinie konnte nicht gespeichert werden"
     },
     "featureFlags": {
       "title": "Feature-Steuerung",
@@ -4104,5 +4142,16 @@
     },
     "saved": "MCP-Server gespeichert",
     "deleted": "MCP-Server gelöscht"
+  },
+  "notifications": {
+    "title": "Benachrichtigungen",
+    "tooltip": "Benachrichtigungen",
+    "ariaLabel": "Benachrichtigungen öffnen",
+    "ariaUnread": "Ungelesen",
+    "unreadCount": "{count, plural, one {# ungelesen} other {# ungelesen}}",
+    "empty": "Keine Benachrichtigungen.",
+    "markAsRead": "Als gelesen markieren",
+    "accountLocked": "Konto vorübergehend gesperrt: {email}",
+    "lockoutDetails": "{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}."
   }
 }

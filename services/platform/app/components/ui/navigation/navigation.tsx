@@ -6,6 +6,7 @@ import { useBrandingContext } from '@/app/components/branding/branding-provider'
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { UserButton } from '@/app/components/user-button';
+import { NotificationBell } from '@/app/features/notifications/components/notification-bell';
 import { useAbility } from '@/app/hooks/use-ability';
 import {
   useNavigationItems,
@@ -147,7 +148,8 @@ export function Navigation({ organizationId }: NavigationProps) {
           ))}
         </NavigationMenuList>
       </div>
-      <div className="flex flex-shrink-0 items-center justify-center py-3">
+      <div className="flex flex-shrink-0 flex-col items-center gap-2 py-3">
+        <NotificationBell organizationId={organizationId} />
         <UserButton tooltipText={t('settingsAndMore')} />
       </div>
     </NavigationMenu>

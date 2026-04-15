@@ -452,6 +452,7 @@ import type * as lib_summarization_internal_actions from "../lib/summarization/i
 import type * as lib_summarize_context from "../lib/summarize_context.js";
 import type * as lib_team_access from "../lib/team_access.js";
 import type * as lib_type_cast_helpers from "../lib/type_cast_helpers.js";
+import type * as lib_utils_client_ip from "../lib/utils/client_ip.js";
 import type * as lib_validators_common from "../lib/validators/common.js";
 import type * as lib_validators_json from "../lib/validators/json.js";
 import type * as lib_variables_build_context from "../lib/variables/build_context.js";
@@ -461,6 +462,10 @@ import type * as lib_variables_replace_variables from "../lib/variables/replace_
 import type * as lib_variables_replace_variables_in_string from "../lib/variables/replace_variables_in_string.js";
 import type * as lib_variables_sanitize_convex_value from "../lib/variables/sanitize_convex_value.js";
 import type * as lib_variables_validate_template from "../lib/variables/validate_template.js";
+import type * as login_attempts_helpers from "../login_attempts/helpers.js";
+import type * as login_attempts_internal_mutations from "../login_attempts/internal_mutations.js";
+import type * as login_attempts_internal_queries from "../login_attempts/internal_queries.js";
+import type * as login_attempts_queries from "../login_attempts/queries.js";
 import type * as mcp_servers_actions from "../mcp_servers/actions.js";
 import type * as mcp_servers_client_factory from "../mcp_servers/client_factory.js";
 import type * as mcp_servers_execute_approved from "../mcp_servers/execute_approved.js";
@@ -510,6 +515,9 @@ import type * as node_only_sql_helpers_execute_query from "../node_only/sql/help
 import type * as node_only_sql_helpers_validate_query from "../node_only/sql/helpers/validate_query.js";
 import type * as node_only_sql_internal_actions from "../node_only/sql/internal_actions.js";
 import type * as node_only_sql_types from "../node_only/sql/types.js";
+import type * as notifications_helpers from "../notifications/helpers.js";
+import type * as notifications_mutations from "../notifications/mutations.js";
+import type * as notifications_queries from "../notifications/queries.js";
 import type * as oauth2 from "../oauth2.js";
 import type * as onedrive_actions from "../onedrive/actions.js";
 import type * as onedrive_create_sync_configs from "../onedrive/create_sync_configs.js";
@@ -1389,6 +1397,7 @@ declare const fullApi: ApiFromModules<{
   "lib/summarize_context": typeof lib_summarize_context;
   "lib/team_access": typeof lib_team_access;
   "lib/type_cast_helpers": typeof lib_type_cast_helpers;
+  "lib/utils/client_ip": typeof lib_utils_client_ip;
   "lib/validators/common": typeof lib_validators_common;
   "lib/validators/json": typeof lib_validators_json;
   "lib/variables/build_context": typeof lib_variables_build_context;
@@ -1398,6 +1407,10 @@ declare const fullApi: ApiFromModules<{
   "lib/variables/replace_variables_in_string": typeof lib_variables_replace_variables_in_string;
   "lib/variables/sanitize_convex_value": typeof lib_variables_sanitize_convex_value;
   "lib/variables/validate_template": typeof lib_variables_validate_template;
+  "login_attempts/helpers": typeof login_attempts_helpers;
+  "login_attempts/internal_mutations": typeof login_attempts_internal_mutations;
+  "login_attempts/internal_queries": typeof login_attempts_internal_queries;
+  "login_attempts/queries": typeof login_attempts_queries;
   "mcp_servers/actions": typeof mcp_servers_actions;
   "mcp_servers/client_factory": typeof mcp_servers_client_factory;
   "mcp_servers/execute_approved": typeof mcp_servers_execute_approved;
@@ -1447,6 +1460,9 @@ declare const fullApi: ApiFromModules<{
   "node_only/sql/helpers/validate_query": typeof node_only_sql_helpers_validate_query;
   "node_only/sql/internal_actions": typeof node_only_sql_internal_actions;
   "node_only/sql/types": typeof node_only_sql_types;
+  "notifications/helpers": typeof notifications_helpers;
+  "notifications/mutations": typeof notifications_mutations;
+  "notifications/queries": typeof notifications_queries;
   oauth2: typeof oauth2;
   "onedrive/actions": typeof onedrive_actions;
   "onedrive/create_sync_configs": typeof onedrive_create_sync_configs;
