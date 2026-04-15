@@ -16,6 +16,7 @@ type Verdict = 'a_better' | 'b_better' | 'tie' | 'both_bad';
 
 interface ArenaModeContextType {
   isArenaMode: boolean;
+  isExitingArena: boolean;
   modelA: string | null;
   modelB: string | null;
   setModelA: (modelId: string | null) => void;
@@ -51,6 +52,7 @@ interface ArenaModeProviderProps {
 
 export function ArenaModeProvider({ children }: ArenaModeProviderProps) {
   const [isArenaMode, setIsArenaMode] = useState(false);
+  const [isExitingArena, setIsExitingArena] = useState(false);
   const [modelA, setModelA] = useState<string | null>(null);
   const [modelB, setModelB] = useState<string | null>(null);
   const [arenaThreadIdA, setArenaThreadIdA] = useState<string | null>(null);
@@ -80,19 +82,28 @@ export function ArenaModeProvider({ children }: ArenaModeProviderProps) {
     const tidB = arenaThreadIdB;
     const currentVerdict = verdict;
 
-    // Reset UI state immediately for snappy UX
-    disableArenaMode();
-
-    // Fire-and-forget backend cleanup
-    if (tidA && tidB) {
-      void cleanupArenaBranch({
-        threadIdA: tidA,
-        threadIdB: tidB,
-        verdict: currentVerdict ?? undefined,
-      }).catch((err: unknown) => {
-        console.error('[arena] cleanup failed:', err);
-      });
+    // No backend state to clean up; exit immediately.
+    if (!tidA || !tidB) {
+      disableArenaMode();
+      return;
     }
+
+    // Show skeleton while the backend migrates messages and branch records.
+    // Only flip arena off after the mutation settles so the UI doesn't flash
+    // Thread A's pre-cleanup messages (especially under verdict='b_better').
+    setIsExitingArena(true);
+    void cleanupArenaBranch({
+      threadIdA: tidA,
+      threadIdB: tidB,
+      verdict: currentVerdict ?? undefined,
+    })
+      .catch((err: unknown) => {
+        console.error('[arena] cleanup failed:', err);
+      })
+      .finally(() => {
+        disableArenaMode();
+        setIsExitingArena(false);
+      });
   }, [
     arenaThreadIdA,
     arenaThreadIdB,
@@ -104,6 +115,7 @@ export function ArenaModeProvider({ children }: ArenaModeProviderProps) {
   const value = useMemo(
     () => ({
       isArenaMode,
+      isExitingArena,
       modelA,
       modelB,
       setModelA,
@@ -120,6 +132,7 @@ export function ArenaModeProvider({ children }: ArenaModeProviderProps) {
     }),
     [
       isArenaMode,
+      isExitingArena,
       modelA,
       modelB,
       enableArenaMode,

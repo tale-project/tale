@@ -301,7 +301,15 @@ export const createArenaBranchLink = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Find the last user message in the root thread to use as fork point
+    // Idempotent: one arena session ↔ one branch link, regardless of round count.
+    const existing = await ctx.db
+      .query('threadBranches')
+      .withIndex('by_branchThreadId', (q) =>
+        q.eq('branchThreadId', args.branchThreadId),
+      )
+      .first();
+    if (existing) return null;
+
     const { messages } = await getThreadMessages(ctx, args.rootThreadId);
 
     const userMessages = messages.filter((m) => m.role === 'user');
@@ -379,6 +387,20 @@ export const cleanupArenaBranch = mutation({
       throw new Error('Thread not found');
     }
 
+    // Defense-in-depth: also verify Thread B ownership and arena pairing.
+    const metaB = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadIdB))
+      .first();
+    if (
+      !metaB ||
+      metaB.userId !== authUser._id ||
+      !metaA.arenaGroupId ||
+      metaB.arenaGroupId !== metaA.arenaGroupId
+    ) {
+      throw new Error('Thread not found');
+    }
+
     // If B won, wipe Thread A and copy all of B's messages into it
     if (args.verdict === 'b_better') {
       // Get all messages from both threads
@@ -393,13 +415,30 @@ export const cleanupArenaBranch = mutation({
         });
       }
 
-      // Copy all of B's messages into A
+      // Copy all of B's messages into A, preserving metadata that saveMessage
+      // accepts. _creationTime is system-assigned on insert and cannot be
+      // overridden, so copied messages will have new timestamps; order is
+      // preserved by sequential iteration.
       for (const msg of messagesB) {
         if (!msg.message) continue;
         await saveMessage(ctx, components.agent, {
           threadId: args.threadIdA,
           userId: authUser._id,
+          agentName: msg.agentName,
           message: msg.message,
+          metadata: {
+            fileIds: msg.fileIds,
+            finishReason: msg.finishReason,
+            model: msg.model,
+            provider: msg.provider,
+            providerMetadata: msg.providerMetadata,
+            sources: msg.sources,
+            reasoning: msg.reasoning,
+            reasoningDetails: msg.reasoningDetails,
+            usage: msg.usage,
+            warnings: msg.warnings,
+            error: msg.error,
+          },
         });
       }
     }
@@ -407,15 +446,14 @@ export const cleanupArenaBranch = mutation({
     // Delete Thread B
     await deleteChatThreadHelper(ctx, args.threadIdB);
 
-    // Remove the branch link
-    const branchRecord = await ctx.db
+    // Remove all branch links for Thread B (there may be multiple from old
+    // data written before createArenaBranchLink was made idempotent).
+    for await (const record of ctx.db
       .query('threadBranches')
       .withIndex('by_branchThreadId', (q) =>
         q.eq('branchThreadId', args.threadIdB),
-      )
-      .first();
-    if (branchRecord) {
-      await ctx.db.delete(branchRecord._id);
+      )) {
+      await ctx.db.delete(record._id);
     }
 
     // Clean up arena metadata on Thread A
