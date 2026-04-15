@@ -14,6 +14,7 @@ export const GOVERNANCE_POLICY_TYPES = [
   'model_access',
   'audit_retention',
   'login_policy',
+  'password_policy',
 ] as const;
 
 const policyTypeValidator = v.union(
@@ -27,6 +28,12 @@ export const governancePoliciesTable = defineTable({
   enabled: v.optional(v.boolean()),
   updatedBy: v.optional(v.string()),
   updatedAt: v.optional(v.number()),
+  // Timestamp at which the policy's active enforcement window began.
+  // Used by password_policy rotation to grant a grace window: credential
+  // expiry = max(passwordChangedAt, effectiveAt) + rotationDays. Set the
+  // first time an enforcement-bearing field transitions to an active
+  // value; preserved across unrelated edits.
+  effectiveAt: v.optional(v.number()),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_org_policyType', ['organizationId', 'policyType']);

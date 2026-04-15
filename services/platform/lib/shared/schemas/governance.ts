@@ -9,7 +9,9 @@ export const POLICY_TYPES = [
   'feature_flags',
   'pii_config',
   'model_access',
+  'audit_retention',
   'login_policy',
+  'password_policy',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -160,3 +162,41 @@ export const loginPolicyConfigSchema = z.object({
     .default(DEFAULT_TRUSTED_PROXIES),
 });
 export type LoginPolicyConfig = z.infer<typeof loginPolicyConfigSchema>;
+
+export const passwordPolicyConfigSchema = z.object({
+  minLength: z.number().int().min(6).max(128).default(8),
+  requireUpper: z.boolean().default(true),
+  requireLower: z.boolean().default(true),
+  requireDigit: z.boolean().default(true),
+  requireSpecial: z.boolean().default(true),
+  rotationDays: z.number().int().min(0).max(3650).default(0),
+});
+export type PasswordPolicyConfig = z.infer<typeof passwordPolicyConfigSchema>;
+export const DEFAULT_PASSWORD_POLICY: PasswordPolicyConfig =
+  passwordPolicyConfigSchema.parse({});
+
+// Merges multiple policies into the strictest ("strongest") one — longest
+// minLength, OR of each require flag, shortest positive rotationDays.
+// Used when a user belongs to multiple orgs with divergent policies:
+// their single password must satisfy the strictest constraint.
+export function mergeStrictestPasswordPolicy(
+  policies: readonly PasswordPolicyConfig[],
+): PasswordPolicyConfig {
+  if (policies.length === 0) return DEFAULT_PASSWORD_POLICY;
+  return policies.reduce<PasswordPolicyConfig>(
+    (acc, p) => ({
+      minLength: Math.max(acc.minLength, p.minLength),
+      requireUpper: acc.requireUpper || p.requireUpper,
+      requireLower: acc.requireLower || p.requireLower,
+      requireDigit: acc.requireDigit || p.requireDigit,
+      requireSpecial: acc.requireSpecial || p.requireSpecial,
+      rotationDays:
+        acc.rotationDays === 0
+          ? p.rotationDays
+          : p.rotationDays === 0
+            ? acc.rotationDays
+            : Math.min(acc.rotationDays, p.rotationDays),
+    }),
+    policies[0],
+  );
+}

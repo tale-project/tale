@@ -492,16 +492,16 @@
       "microsoftSignInFailed": "Microsoft sign-in failed. Please try again."
     },
     "requirements": {
-      "length": "At least 8 characters",
+      "length": "At least {n} characters",
       "lowercase": "Lowercase letter",
       "uppercase": "Uppercase letter",
       "number": "Number",
       "specialChar": "Special character"
     },
     "validation": {
-      "passwordRequirements": "Password must be at least 8 characters with lowercase, uppercase, and number",
+      "passwordRequirements": "Password must meet the configured policy",
       "emailRequired": "Email is required",
-      "passwordMinLength": "Password must be at least 8 characters",
+      "passwordMinLength": "Password must be at least {n} characters",
       "passwordLowercase": "Password must contain a lowercase letter",
       "passwordUppercase": "Password must contain an uppercase letter",
       "passwordNumber": "Password must contain a number",
@@ -559,7 +559,7 @@
       },
       "requirements": {
         "title": "Password requirements",
-        "length": "At least 8 characters",
+        "length": "At least {n} characters",
         "lowercase": "One lowercase letter",
         "uppercase": "One uppercase letter",
         "number": "One number",
@@ -568,11 +568,16 @@
       "validation": {
         "currentRequired": "Current password is required",
         "newRequired": "New password is required",
-        "minLength": "Password must be at least 8 characters long",
+        "minLength": "Password must be at least {n} characters long",
         "confirmRequired": "Please confirm your new password",
         "mismatch": "Passwords do not match"
       },
       "ssoMessage": "Account details and passwords are managed by your identity provider and can't be changed here."
+    },
+    "forcedChange": {
+      "title": "Password change required",
+      "description": "Your password has expired per the organization's rotation policy. Set a new password to continue.",
+      "submit": "Update password"
     },
     "setPassword": {
       "title": "Set password",
@@ -3889,6 +3894,23 @@
       "tempFileRetentionHours": "Temporary file retention (hours)",
       "saved": "Retention policy saved"
     },
+    "passwordPolicy": {
+      "title": "Password policy",
+      "description": "Configure minimum password length, character-class requirements, and rotation.",
+      "minLength": "Minimum length",
+      "minLengthHint": "Minimum number of characters required in new passwords.",
+      "requireUpper": "Require uppercase letter",
+      "requireLower": "Require lowercase letter",
+      "requireDigit": "Require digit",
+      "requireSpecial": "Require special character",
+      "rotationEnabled": "Enable password rotation",
+      "rotationDays": "Rotation period (days)",
+      "rotationDaysHint": "Users will be required to change their password after this many days. The grace window starts when rotation is first enabled, so existing users are not forced to change immediately.",
+      "invalidMinLength": "Minimum length must be an integer between 6 and 128.",
+      "invalidRotationDays": "Rotation period must be an integer between 1 and 3650.",
+      "saved": "Password policy saved",
+      "saveFailed": "Failed to save password policy"
+    },
     "loginPolicy": {
       "title": "Login attempt limits",
       "description": "Lock accounts after repeated sign-in failures and grow the wait between attempts.",
@@ -4009,6 +4031,7 @@
       "securityAndMonitoring": "Security & Monitoring",
       "subtabs": {
         "login": "Login & authentication",
+        "password": "Password policy",
         "pii": "PII protection",
         "usage": "Usage",
         "systemPrompt": "System prompt",

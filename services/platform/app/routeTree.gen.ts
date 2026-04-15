@@ -21,6 +21,7 @@ import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up'
 import { Route as AuthLogInRouteImport } from './routes/_auth/log-in'
 import { Route as DashboardIdIndexRouteImport } from './routes/dashboard/$id/index'
 import { Route as DashboardIdSettingsRouteImport } from './routes/dashboard/$id/settings'
+import { Route as DashboardIdForcedChangePasswordRouteImport } from './routes/dashboard/$id/forced-change-password'
 import { Route as DashboardIdCustomAgentsRouteImport } from './routes/dashboard/$id/custom-agents'
 import { Route as DashboardIdConversationsRouteImport } from './routes/dashboard/$id/conversations'
 import { Route as DashboardIdChatRouteImport } from './routes/dashboard/$id/chat'
@@ -125,6 +126,12 @@ const DashboardIdSettingsRoute = DashboardIdSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => DashboardIdRoute,
 } as any)
+const DashboardIdForcedChangePasswordRoute =
+  DashboardIdForcedChangePasswordRouteImport.update({
+    id: '/forced-change-password',
+    path: '/forced-change-password',
+    getParentRoute: () => DashboardIdRoute,
+  } as any)
 const DashboardIdCustomAgentsRoute = DashboardIdCustomAgentsRouteImport.update({
   id: '/custom-agents',
   path: '/custom-agents',
@@ -389,6 +396,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/chat': typeof DashboardIdChatRouteWithChildren
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
   '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute
+  '/dashboard/$id/forced-change-password': typeof DashboardIdForcedChangePasswordRoute
   '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren
   '/dashboard/$id/': typeof DashboardIdIndexRoute
   '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute
@@ -440,6 +448,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id': typeof DashboardIdIndexRoute
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
   '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute
+  '/dashboard/$id/forced-change-password': typeof DashboardIdForcedChangePasswordRoute
   '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute
   '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute
   '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute
@@ -494,6 +503,7 @@ export interface FileRoutesById {
   '/dashboard/$id/chat': typeof DashboardIdChatRouteWithChildren
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
   '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute
+  '/dashboard/$id/forced-change-password': typeof DashboardIdForcedChangePasswordRoute
   '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren
   '/dashboard/$id/': typeof DashboardIdIndexRoute
   '/dashboard/$id/_knowledge/customers': typeof DashboardIdKnowledgeCustomersRoute
@@ -551,6 +561,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/chat'
     | '/dashboard/$id/conversations'
     | '/dashboard/$id/custom-agents'
+    | '/dashboard/$id/forced-change-password'
     | '/dashboard/$id/settings'
     | '/dashboard/$id/'
     | '/dashboard/$id/customers'
@@ -602,6 +613,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id'
     | '/dashboard/$id/conversations'
     | '/dashboard/$id/custom-agents'
+    | '/dashboard/$id/forced-change-password'
     | '/dashboard/$id/customers'
     | '/dashboard/$id/documents'
     | '/dashboard/$id/products'
@@ -655,6 +667,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/chat'
     | '/dashboard/$id/conversations'
     | '/dashboard/$id/custom-agents'
+    | '/dashboard/$id/forced-change-password'
     | '/dashboard/$id/settings'
     | '/dashboard/$id/'
     | '/dashboard/$id/_knowledge/customers'
@@ -788,6 +801,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/dashboard/$id/settings'
       preLoaderRoute: typeof DashboardIdSettingsRouteImport
+      parentRoute: typeof DashboardIdRoute
+    }
+    '/dashboard/$id/forced-change-password': {
+      id: '/dashboard/$id/forced-change-password'
+      path: '/forced-change-password'
+      fullPath: '/dashboard/$id/forced-change-password'
+      preLoaderRoute: typeof DashboardIdForcedChangePasswordRouteImport
       parentRoute: typeof DashboardIdRoute
     }
     '/dashboard/$id/custom-agents': {
@@ -1295,6 +1315,7 @@ interface DashboardIdRouteChildren {
   DashboardIdChatRoute: typeof DashboardIdChatRouteWithChildren
   DashboardIdConversationsRoute: typeof DashboardIdConversationsRouteWithChildren
   DashboardIdCustomAgentsRoute: typeof DashboardIdCustomAgentsRoute
+  DashboardIdForcedChangePasswordRoute: typeof DashboardIdForcedChangePasswordRoute
   DashboardIdSettingsRoute: typeof DashboardIdSettingsRouteWithChildren
   DashboardIdIndexRoute: typeof DashboardIdIndexRoute
 }
@@ -1306,6 +1327,7 @@ const DashboardIdRouteChildren: DashboardIdRouteChildren = {
   DashboardIdChatRoute: DashboardIdChatRouteWithChildren,
   DashboardIdConversationsRoute: DashboardIdConversationsRouteWithChildren,
   DashboardIdCustomAgentsRoute: DashboardIdCustomAgentsRoute,
+  DashboardIdForcedChangePasswordRoute: DashboardIdForcedChangePasswordRoute,
   DashboardIdSettingsRoute: DashboardIdSettingsRouteWithChildren,
   DashboardIdIndexRoute: DashboardIdIndexRoute,
 }

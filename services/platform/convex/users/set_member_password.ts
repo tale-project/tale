@@ -7,12 +7,18 @@
 
 import { hashPassword } from 'better-auth/crypto';
 
-import { isPasswordValid } from '../../lib/shared/schemas/password';
+import {
+  isPasswordValid,
+  passwordPolicyViolations,
+} from '../../lib/shared/schemas/password';
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
+import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
+import { getPasswordPolicy } from '../governance/helpers';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { recordPasswordChange } from './password_metadata';
 
 export interface SetMemberPasswordArgs {
   memberId: string;
@@ -26,12 +32,6 @@ export async function setMemberPassword(
   const authUser = await authComponent.getAuthUser(ctx);
   if (!authUser) {
     throw new Error('Unauthenticated');
-  }
-
-  if (!isPasswordValid(args.newPassword)) {
-    throw new Error(
-      'Password must be at least 8 characters with lowercase, uppercase, number, and special character',
-    );
   }
 
   // Look up the target member
@@ -77,6 +77,16 @@ export async function setMemberPassword(
     : undefined;
   if (!isAdmin(callerRole)) {
     throw new Error('Only admins can set member passwords');
+  }
+
+  // Validate against the target member's org policy (the password must
+  // satisfy the policy of the org whose credentials are being set).
+  const policy = await getPasswordPolicy(ctx, memberOrgId);
+  if (!isPasswordValid(args.newPassword, policy)) {
+    const violations = passwordPolicyViolations(args.newPassword, policy);
+    throw new Error(
+      `Password does not meet policy (failed: ${violations.join(', ')})`,
+    );
   }
 
   // Check if the target user already has a credential account
@@ -152,4 +162,19 @@ export async function setMemberPassword(
     );
     hasMoreSessions = (remaining?.page?.length ?? 0) > 0;
   }
+
+  await recordPasswordChange(ctx, memberUserId);
+
+  await createAuditLog(ctx, {
+    organizationId: memberOrgId,
+    actorId: String(authUser._id),
+    actorEmail: authUser.email,
+    actorType: 'user',
+    action: 'member_password.set',
+    category: 'auth',
+    resourceType: 'user',
+    resourceId: memberUserId,
+    status: 'success',
+    metadata: { memberId: args.memberId },
+  });
 }

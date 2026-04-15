@@ -12,6 +12,7 @@ import {
   AbilityContext,
   AbilityLoadingContext,
 } from '@/app/context/ability-context';
+import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-expiry-gate';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
@@ -25,6 +26,7 @@ export const Route = createFileRoute('/dashboard/$id')({
 
 function DashboardLayout() {
   const { id: organizationId } = Route.useParams();
+  usePasswordExpiryGate(organizationId);
   const { isLoading: isAuthLoading } = useConvexAuth();
   const {
     data: memberContext,

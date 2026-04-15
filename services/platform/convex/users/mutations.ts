@@ -29,6 +29,7 @@ export const updateUserPassword = mutation({
   args: {
     currentPassword: v.optional(v.string()),
     newPassword: v.string(),
+    trigger: v.optional(v.union(v.literal('voluntary'), v.literal('forced'))),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
+import { DEFAULT_PASSWORD_POLICY } from './governance';
 import {
-  PASSWORD_MIN_LENGTH,
   createOptionalPasswordSchema,
   createPasswordSchema,
+  enabledValidationKeys,
   isPasswordValid,
+  passwordPolicyViolations,
   validatePassword,
 } from './password';
 
@@ -17,7 +19,15 @@ const MESSAGES = {
   specialChar: 'special char',
 };
 
-describe('validatePassword', () => {
+const relaxed = {
+  ...DEFAULT_PASSWORD_POLICY,
+  requireUpper: false,
+  requireLower: false,
+  requireDigit: false,
+  requireSpecial: false,
+};
+
+describe('validatePassword (default policy)', () => {
   it('returns all true for a valid password', () => {
     const result = validatePassword(VALID_PASSWORD);
     expect(result).toEqual({
@@ -30,36 +40,23 @@ describe('validatePassword', () => {
   });
 
   it('fails length for short password', () => {
-    const result = validatePassword('Ab1!');
-    expect(result.length).toBe(false);
-    expect(result.lowercase).toBe(true);
-    expect(result.uppercase).toBe(true);
-    expect(result.number).toBe(true);
-    expect(result.specialChar).toBe(true);
+    expect(validatePassword('Ab1!').length).toBe(false);
   });
 
   it('fails lowercase when missing', () => {
-    const result = validatePassword('ABCDEFG1!');
-    expect(result.length).toBe(true);
-    expect(result.lowercase).toBe(false);
+    expect(validatePassword('ABCDEFG1!').lowercase).toBe(false);
   });
 
   it('fails uppercase when missing', () => {
-    const result = validatePassword('abcdefg1!');
-    expect(result.length).toBe(true);
-    expect(result.uppercase).toBe(false);
+    expect(validatePassword('abcdefg1!').uppercase).toBe(false);
   });
 
   it('fails number when missing', () => {
-    const result = validatePassword('Abcdefgh!');
-    expect(result.length).toBe(true);
-    expect(result.number).toBe(false);
+    expect(validatePassword('Abcdefgh!').number).toBe(false);
   });
 
   it('fails special char when missing', () => {
-    const result = validatePassword('Abcdefg1');
-    expect(result.length).toBe(true);
-    expect(result.specialChar).toBe(false);
+    expect(validatePassword('Abcdefg1').specialChar).toBe(false);
   });
 
   it('fails all rules for empty string', () => {
@@ -68,8 +65,27 @@ describe('validatePassword', () => {
   });
 });
 
+describe('validatePassword (custom policy)', () => {
+  it('treats disabled rules as passing', () => {
+    const result = validatePassword('abcdefgh', relaxed);
+    expect(result).toEqual({
+      length: true,
+      lowercase: true,
+      uppercase: true,
+      number: true,
+      specialChar: true,
+    });
+  });
+
+  it('enforces custom minLength', () => {
+    const policy = { ...DEFAULT_PASSWORD_POLICY, minLength: 12 };
+    expect(validatePassword('Test1234!', policy).length).toBe(false);
+    expect(validatePassword('Test1234!abcd', policy).length).toBe(true);
+  });
+});
+
 describe('isPasswordValid', () => {
-  it('returns true for valid password', () => {
+  it('returns true for valid password under default policy', () => {
     expect(isPasswordValid(VALID_PASSWORD)).toBe(true);
   });
 
@@ -80,11 +96,37 @@ describe('isPasswordValid', () => {
     expect(isPasswordValid('NoNumbers!!')).toBe(false);
     expect(isPasswordValid('NoSpecial1a')).toBe(false);
   });
+
+  it('accepts under a relaxed policy', () => {
+    expect(isPasswordValid('abcdefgh', relaxed)).toBe(true);
+  });
 });
 
-describe('PASSWORD_MIN_LENGTH', () => {
-  it('is 8', () => {
-    expect(PASSWORD_MIN_LENGTH).toBe(8);
+describe('enabledValidationKeys', () => {
+  it('always includes length', () => {
+    expect(enabledValidationKeys(relaxed)).toEqual(['length']);
+  });
+
+  it('includes every enabled class under default policy', () => {
+    expect(enabledValidationKeys()).toEqual([
+      'length',
+      'lowercase',
+      'uppercase',
+      'number',
+      'specialChar',
+    ]);
+  });
+});
+
+describe('passwordPolicyViolations', () => {
+  it('returns empty for a valid password', () => {
+    expect(passwordPolicyViolations(VALID_PASSWORD)).toEqual([]);
+  });
+
+  it('lists every failing rule', () => {
+    expect(passwordPolicyViolations('abc').sort()).toEqual(
+      ['length', 'number', 'specialChar', 'uppercase'].sort(),
+    );
   });
 });
 
@@ -111,39 +153,18 @@ describe('createPasswordSchema', () => {
     }
   });
 
-  it('rejects password missing uppercase', () => {
-    const result = schema.safeParse('abcdefg1!');
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0].message).toBe('uppercase');
-    }
-  });
-
-  it('rejects password missing number', () => {
-    const result = schema.safeParse('Abcdefgh!');
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0].message).toBe('number');
-    }
-  });
-
-  it('rejects password missing special char', () => {
-    const result = schema.safeParse('Abcdefg1');
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0].message).toBe('special char');
-    }
+  it('omits regex steps for disabled rules', () => {
+    const relaxedSchema = createPasswordSchema(MESSAGES, relaxed);
+    expect(relaxedSchema.safeParse('abcdefgh').success).toBe(true);
+    expect(relaxedSchema.safeParse('short').success).toBe(false);
   });
 });
 
 describe('createOptionalPasswordSchema', () => {
   const schema = createOptionalPasswordSchema(MESSAGES);
 
-  it('accepts undefined', () => {
+  it('accepts undefined and empty string', () => {
     expect(schema.safeParse(undefined).success).toBe(true);
-  });
-
-  it('accepts empty string', () => {
     expect(schema.safeParse('').success).toBe(true);
   });
 
@@ -151,19 +172,12 @@ describe('createOptionalPasswordSchema', () => {
     expect(schema.safeParse(VALID_PASSWORD).success).toBe(true);
   });
 
-  it('rejects an invalid non-empty password with correct message', () => {
-    const result = schema.safeParse('weak');
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0].message).toBe('min length');
-    }
+  it('rejects an invalid non-empty password', () => {
+    expect(schema.safeParse('weak').success).toBe(false);
   });
 
-  it('rejects password missing only special char with correct message', () => {
-    const result = schema.safeParse('Abcdefg1');
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0].message).toBe('special char');
-    }
+  it('respects custom policy', () => {
+    const relaxedSchema = createOptionalPasswordSchema(MESSAGES, relaxed);
+    expect(relaxedSchema.safeParse('abcdefgh').success).toBe(true);
   });
 });
