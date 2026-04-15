@@ -68,17 +68,17 @@ export async function updateUserPassword(
   const trigger = args.trigger ?? 'voluntary';
 
   if (hasPassword && trigger === 'forced') {
-    const currentSession = await auth.api.getSession({ headers });
-    const sessionObj: unknown = currentSession?.session;
-    const currentSessionId = isRecord(sessionObj)
-      ? getString(sessionObj, '_id')
-      : undefined;
     await forcedResetCredentialPassword(
       ctx,
       String(authUser._id),
       args.newPassword,
-      currentSessionId,
     );
+    // Revoke every session for this user EXCEPT the caller's current
+    // one. Delegating to Better Auth's own API (rather than matching
+    // session rows manually) guarantees we use the same identity it
+    // uses to decide which session is "current", independent of how
+    // the Convex adapter maps ids vs. tokens.
+    await auth.api.revokeOtherSessions({ headers });
   } else if (hasPassword) {
     if (!args.currentPassword) {
       throw new Error('Current password is required');
@@ -131,7 +131,6 @@ async function forcedResetCredentialPassword(
   ctx: MutationCtx,
   userId: string,
   newPassword: string,
-  preserveSessionId: string | undefined,
 ): Promise<void> {
   const accountRes = await ctx.runQuery(
     components.betterAuth.adapter.findMany,
@@ -162,32 +161,4 @@ async function forcedResetCredentialPassword(
     },
     paginationOpts: { cursor: null, numItems: 1 },
   });
-
-  // Revoke every OTHER session for this user, preserving the current
-  // one so the caller stays authenticated after the forced rotation
-  // (matches Better Auth's `revokeOtherSessions: true` semantics).
-  const SESSION_BATCH_SIZE = 100;
-  let cursor: string | null = null;
-  while (true) {
-    const page: { page: unknown[]; isDone: boolean; continueCursor: string } =
-      await ctx.runQuery(components.betterAuth.adapter.findMany, {
-        model: 'session',
-        paginationOpts: { cursor, numItems: SESSION_BATCH_SIZE },
-        where: [{ field: 'userId', value: userId, operator: 'eq' }],
-      });
-    for (const row of page.page) {
-      if (!isRecord(row)) continue;
-      const sid = getString(row, '_id');
-      if (!sid || sid === preserveSessionId) continue;
-      await ctx.runMutation(components.betterAuth.adapter.deleteMany, {
-        input: {
-          model: 'session',
-          where: [{ field: '_id', value: sid, operator: 'eq' }],
-        },
-        paginationOpts: { cursor: null, numItems: 1 },
-      });
-    }
-    if (page.isDone) break;
-    cursor = page.continueCursor;
-  }
 }
