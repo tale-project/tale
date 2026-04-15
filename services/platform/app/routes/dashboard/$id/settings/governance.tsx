@@ -76,17 +76,26 @@ function GovernanceSettingsPage() {
         key: 'content-models',
         label: t('groups.contentAndModels'),
         sections: [
-          <SystemPromptEditor
-            key="system-prompt"
-            organizationId={organizationId}
-          />,
-          <DefaultModelEditor
-            key="default-models"
-            organizationId={organizationId}
-          />,
-          <ModelAccessEditor
-            key="model-access"
-            organizationId={organizationId}
+          <Tabs
+            key="content-tabs"
+            defaultValue="system-prompt"
+            items={[
+              {
+                value: 'system-prompt',
+                label: t('groups.subtabs.systemPrompt'),
+                content: <SystemPromptEditor organizationId={organizationId} />,
+              },
+              {
+                value: 'default-models',
+                label: t('groups.subtabs.defaultModels'),
+                content: <DefaultModelEditor organizationId={organizationId} />,
+              },
+              {
+                value: 'model-access',
+                label: t('groups.subtabs.modelAccess'),
+                content: <ModelAccessEditor organizationId={organizationId} />,
+              },
+            ]}
           />,
         ],
       },
@@ -94,15 +103,31 @@ function GovernanceSettingsPage() {
         key: 'policies-limits',
         label: t('groups.policiesAndLimits'),
         sections: [
-          <BudgetEditor key="budgets" organizationId={organizationId} />,
-          <UploadPolicyEditor
-            key="upload-policy"
-            organizationId={organizationId}
-          />,
-          <RetentionEditor key="retention" organizationId={organizationId} />,
-          <FeatureFlagsEditor
-            key="feature-controls"
-            organizationId={organizationId}
+          <Tabs
+            key="policies-tabs"
+            defaultValue="budgets"
+            items={[
+              {
+                value: 'budgets',
+                label: t('groups.subtabs.budgets'),
+                content: <BudgetEditor organizationId={organizationId} />,
+              },
+              {
+                value: 'upload-policy',
+                label: t('groups.subtabs.uploadPolicy'),
+                content: <UploadPolicyEditor organizationId={organizationId} />,
+              },
+              {
+                value: 'retention',
+                label: t('groups.subtabs.retention'),
+                content: <RetentionEditor organizationId={organizationId} />,
+              },
+              {
+                value: 'feature-controls',
+                label: t('groups.subtabs.featureControls'),
+                content: <FeatureFlagsEditor organizationId={organizationId} />,
+              },
+            ]}
           />,
         ],
       },

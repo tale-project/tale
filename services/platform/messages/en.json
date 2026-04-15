@@ -4010,7 +4010,14 @@
       "subtabs": {
         "login": "Login & authentication",
         "pii": "PII protection",
-        "usage": "Usage"
+        "usage": "Usage",
+        "systemPrompt": "System prompt",
+        "defaultModels": "Default models",
+        "modelAccess": "Model access",
+        "budgets": "Budgets",
+        "uploadPolicy": "Upload policy",
+        "retention": "Retention",
+        "featureControls": "Feature controls"
       }
     },
     "modelAccess": {
