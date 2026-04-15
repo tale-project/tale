@@ -4170,6 +4170,11 @@
     "unreadCount": "{count, plural, one {# unread} other {# unread}}",
     "empty": "No notifications.",
     "markAsRead": "Mark as read",
+    "markAllAsRead": "Mark all as read",
+    "filterUnread": "Unread",
+    "filterAll": "All",
+    "loadMore": "Load more",
+    "loading": "Loading…",
     "accountLocked": "Account temporarily locked: {email}",
     "lockoutDetails": "{consecutiveFailures} failed sign-in attempts from {ip}."
   },

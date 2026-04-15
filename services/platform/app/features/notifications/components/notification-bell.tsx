@@ -1,7 +1,7 @@
 'use client';
 
 import { Bell, ChevronDown, ChevronRight } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Popover } from '@/app/components/ui/overlays/popover';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -11,10 +11,14 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
-import { useMarkNotificationRead } from '../hooks/mutations';
+import {
+  useMarkAllNotificationsRead,
+  useMarkNotificationRead,
+} from '../hooks/mutations';
 import {
   useNotificationsList,
   useNotificationsUnreadCount,
+  type NotificationsFilter,
 } from '../hooks/queries';
 
 interface NotificationBellProps {
@@ -26,6 +30,8 @@ const SEVERITY_DOT: Record<string, string> = {
   warning: 'bg-amber-500',
   critical: 'bg-red-500',
 };
+
+const LOAD_MORE_NUM_ITEMS = 25;
 
 // Strip a leading `notifications.` namespace prefix that was accidentally
 // stored in earlier rows — we already bind the namespace with
@@ -41,12 +47,20 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
   const [expandedId, setExpandedId] = useState<Id<'notifications'> | null>(
     null,
   );
+  const [filter, setFilter] = useState<NotificationsFilter>('unread');
+  // IDs the user just marked as read — hidden instantly while the Convex
+  // subscription catches up, so the row doesn't linger in the Unread view.
+  const [hiddenIds, setHiddenIds] = useState(new Set<string>());
   const { t } = useT('notifications');
   const { formatRelative, formatDate } = useFormatDate();
 
-  const { data: list } = useNotificationsList(organizationId);
+  const { results, status, loadMore } = useNotificationsList(
+    organizationId,
+    filter,
+  );
   const { data: unread } = useNotificationsUnreadCount(organizationId);
   const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
 
   const handleToggleExpand = useCallback(
     (notificationId: Id<'notifications'>) => {
@@ -59,13 +73,56 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
 
   const handleMarkRead = useCallback(
     (notificationId: Id<'notifications'>) => {
+      setHiddenIds((prev) => {
+        const next = new Set(prev);
+        next.add(notificationId);
+        return next;
+      });
       void markRead.mutateAsync({ notificationId });
     },
     [markRead],
   );
 
-  const items = list?.page ?? [];
+  const handleMarkAllRead = useCallback(() => {
+    // Optimistically hide everything currently visible in the Unread view.
+    if (filter === 'unread') {
+      setHiddenIds((prev) => {
+        const next = new Set(prev);
+        for (const n of results) {
+          if (!n.read) next.add(n._id);
+        }
+        return next;
+      });
+    }
+    void markAllRead.mutateAsync({ organizationId });
+  }, [filter, markAllRead, organizationId, results]);
+
+  const handleFilterChange = useCallback((next: NotificationsFilter) => {
+    setFilter(next);
+    setExpandedId(null);
+    setHiddenIds(new Set());
+  }, []);
+
+  // Drop hidden IDs from the set once they disappear from the query results
+  // (or flip to `read`) so the set doesn't grow unbounded.
+  useEffect(() => {
+    if (hiddenIds.size === 0) return;
+    const stillPresent = new Set<string>();
+    for (const n of results) {
+      if (hiddenIds.has(n._id) && !n.read) stillPresent.add(n._id);
+    }
+    if (stillPresent.size !== hiddenIds.size) {
+      setHiddenIds(stillPresent);
+    }
+  }, [results, hiddenIds]);
+
+  const items = useMemo(
+    () => results.filter((n) => !hiddenIds.has(n._id)),
+    [results, hiddenIds],
+  );
   const unreadCount = unread ?? 0;
+  const canLoadMore = status === 'CanLoadMore';
+  const isLoadingMore = status === 'LoadingMore';
 
   return (
     <Popover
@@ -93,19 +150,46 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
         </button>
       }
     >
-      <div className="flex max-h-[32rem] flex-col">
-        <div className="border-border flex items-center justify-between border-b px-4 py-3">
-          <span className="text-sm font-semibold">{t('title')}</span>
-          {unreadCount > 0 && (
-            <span className="text-muted-foreground text-xs">
-              {t('unreadCount', { count: unreadCount })}
-            </span>
-          )}
+      <div className="flex h-[24rem] flex-col">
+        <div className="border-border flex flex-col gap-2 border-b px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-semibold">{t('title')}</span>
+            {unreadCount > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={markAllRead.isPending}
+                onClick={handleMarkAllRead}
+              >
+                {t('markAllAsRead')}
+              </Button>
+            )}
+          </div>
+          <div
+            role="tablist"
+            aria-label={t('title')}
+            className="bg-muted flex w-fit rounded-md p-0.5"
+          >
+            <FilterPill
+              active={filter === 'unread'}
+              onClick={() => handleFilterChange('unread')}
+              label={
+                unreadCount > 0
+                  ? `${t('filterUnread')} (${unreadCount > 99 ? '99+' : unreadCount})`
+                  : t('filterUnread')
+              }
+            />
+            <FilterPill
+              active={filter === 'all'}
+              onClick={() => handleFilterChange('all')}
+              label={t('filterAll')}
+            />
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto">
           {items.length === 0 ? (
             <div className="text-muted-foreground px-4 py-8 text-center text-sm">
-              {t('empty')}
+              {status === 'LoadingFirstPage' ? t('loading') : t('empty')}
             </div>
           ) : (
             <ul className="divide-border divide-y">
@@ -195,8 +279,46 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
               })}
             </ul>
           )}
+          {(canLoadMore || isLoadingMore) && (
+            <div className="border-border border-t p-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="w-full"
+                disabled={!canLoadMore}
+                onClick={() => loadMore(LOAD_MORE_NUM_ITEMS)}
+              >
+                {isLoadingMore ? t('loading') : t('loadMore')}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </Popover>
+  );
+}
+
+interface FilterPillProps {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}
+
+function FilterPill({ active, onClick, label }: FilterPillProps) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+        active
+          ? 'bg-background text-foreground shadow-sm'
+          : 'text-muted-foreground hover:text-foreground',
+      )}
+    >
+      {label}
+    </button>
   );
 }
