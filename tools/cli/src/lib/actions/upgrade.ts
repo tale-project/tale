@@ -25,6 +25,7 @@ interface UpgradeOptions {
 interface ReleaseInfo {
   tag: string;
   version: string;
+  assetNames: string[];
 }
 
 function getAuthHeaders(): Record<string, string> {
@@ -75,7 +76,21 @@ async function fetchLatestRelease(): Promise<ReleaseInfo> {
       `Could not extract semver version from release tag "${tag}".`,
     );
   }
-  return { tag, version };
+  const assetNames = Array.isArray(data.assets)
+    ? data.assets
+        .map((a) => (a as { name?: unknown }).name)
+        .filter((n): n is string => typeof n === 'string')
+    : [];
+  return { tag, version, assetNames };
+}
+
+function assertAssetAvailable(release: ReleaseInfo, asset: string): void {
+  if (release.assetNames.includes(asset)) return;
+  throw new Error(
+    `Release ${release.tag} was just published but the ${asset} binary is not uploaded yet. ` +
+      `The CLI build typically completes within a few minutes — please retry. ` +
+      `(See https://github.com/${GITHUB_REPO}/releases/tag/${release.tag})`,
+  );
 }
 
 function getAssetName(): string {
@@ -335,6 +350,7 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
 
   if (options.dryRun) {
     const asset = getAssetName();
+    assertAssetAvailable(release, asset);
     logger.info(`${prefix}Would download ${asset} from ${release.tag}`);
     logger.info(`${prefix}Would replace ${getInstallPath()}`);
     logger.blank();
@@ -352,6 +368,7 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
 
   // Phase 2: Download & verify
   const asset = getAssetName();
+  assertAssetAvailable(release, asset);
   const tmpPath = join(tmpdir(), `tale-upgrade-${Date.now()}`);
 
   logger.step(`Downloading ${asset} (${release.tag})...`);

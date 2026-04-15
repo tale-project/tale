@@ -5,7 +5,7 @@
 # NEVER be exposed in production (5432, 8001-8003).
 #
 # For PRODUCTION deployments, use the Tale CLI:
-#   tale deploy <version>
+#   tale deploy
 #
 # The CLI generates secure compose configs inline with only ports 80/443 exposed.
 # =============================================================================
