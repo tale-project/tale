@@ -50,7 +50,7 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
   const [filter, setFilter] = useState<NotificationsFilter>('unread');
   // IDs the user just marked as read — hidden instantly while the Convex
   // subscription catches up, so the row doesn't linger in the Unread view.
-  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [hiddenIds, setHiddenIds] = useState(new Set<string>());
   const { t } = useT('notifications');
   const { formatRelative, formatDate } = useFormatDate();
 
