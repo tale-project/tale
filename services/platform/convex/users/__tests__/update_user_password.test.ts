@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockChangePassword = vi.fn();
 const mockSetPassword = vi.fn();
-const mockRevokeOtherSessions = vi.fn();
 const mockGetAuth = vi.fn();
 const mockGetAuthUser = vi.fn();
 
