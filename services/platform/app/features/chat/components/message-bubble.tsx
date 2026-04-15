@@ -419,7 +419,7 @@ function MessageBubbleComponent({
           </div>
         )}
         {!isUser && !isAssistantStreaming && !!displayContent && (
-          <div className="flex items-start pt-2">
+          <div className="flex items-start gap-1 pt-2">
             <Tooltip
               content={isCopied ? t('actions.copied') : t('actions.copy')}
               side="bottom"
@@ -447,6 +447,13 @@ function MessageBubbleComponent({
                 <Info className="size-4" />
               </Button>
             </Tooltip>
+            {!hideFeedback && organizationId && message.threadId && (
+              <MessageFeedback
+                messageId={message.id}
+                threadId={message.threadId}
+                organizationId={organizationId}
+              />
+            )}
             {onFork && (
               <Tooltip content={tChat('forkChat')} side="bottom">
                 <Button
@@ -458,13 +465,6 @@ function MessageBubbleComponent({
                   <GitFork className="size-4" />
                 </Button>
               </Tooltip>
-            )}
-            {!hideFeedback && organizationId && message.threadId && (
-              <MessageFeedback
-                messageId={message.id}
-                threadId={message.threadId}
-                organizationId={organizationId}
-              />
             )}
           </div>
         )}
