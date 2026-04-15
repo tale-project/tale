@@ -62,14 +62,24 @@ describe('security headers', () => {
     expect(csp).toContain('https://mcp.figma.com');
   });
 
-  test('CSP includes Sentry origin when SENTRY_DSN is set', async () => {
+  test('CSP includes Sentry origin parsed from SENTRY_DSN', async () => {
     const app = createApp({
       ...baseEnv,
-      SENTRY_DSN: 'https://abc@sentry.io/123',
+      SENTRY_DSN: 'https://abc@o1.ingest.us.sentry.io/123',
     });
     const res = await app.fetch(new Request('http://localhost/api/health'));
     const csp = res.headers.get('content-security-policy') ?? '';
-    expect(csp).toContain('https://*.ingest.sentry.io');
+    expect(csp).toContain('https://o1.ingest.us.sentry.io');
+  });
+
+  test('CSP supports self-hosted Sentry on a custom domain', async () => {
+    const app = createApp({
+      ...baseEnv,
+      SENTRY_DSN: 'https://abc@sentry.elintrio.com/123',
+    });
+    const res = await app.fetch(new Request('http://localhost/api/health'));
+    const csp = res.headers.get('content-security-policy') ?? '';
+    expect(csp).toContain('https://sentry.elintrio.com');
   });
 });
 
