@@ -22,10 +22,11 @@ describe('security headers', () => {
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("frame-src 'self'");
     expect(csp).toContain("object-src 'none'");
-    expect(csp).toContain('https://*.convex.cloud');
     expect(csp).toContain('https://cdnjs.cloudflare.com');
     expect(csp).toContain('https://fonts.googleapis.com');
+    expect(csp).toContain('https://nominatim.openstreetmap.org');
     expect(csp).not.toContain('https://*.ingest.sentry.io');
+    expect(csp).not.toContain('https://*.convex.cloud');
 
     expect(res.headers.get('strict-transport-security')).toBe(
       'max-age=15552000',

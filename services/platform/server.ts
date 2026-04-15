@@ -100,11 +100,10 @@ function getEnvConfig(): EnvConfig {
 // determines whether HSTS is emitted (only when the deployment is HTTPS).
 // External origins reflect the few third-party resources actually loaded
 // today: cdnjs (PDF.js), Google Fonts, and Sentry (when SENTRY_DSN is set).
-// All Convex traffic — including storage uploads via `generateUploadUrl()` —
-// flows same-origin through Caddy (`/ws_api`, `/api/storage/*`), so `'self'`
-// covers it without needing a `*.convex.cloud` connect-src entry.
-// `*.convex.cloud` / `*.convex.site` remain in `img-src` to render legacy
-// email content that may embed Convex Cloud–hosted images.
+// All Convex traffic — including storage uploads via `generateUploadUrl()`
+// and storage downloads — flows same-origin through Caddy (`/ws_api`,
+// `/api/storage/*`), so `'self'` covers it without needing any
+// `*.convex.cloud` / `*.convex.site` entries.
 // ---------------------------------------------------------------------------
 
 function buildContentSecurityPolicy(env: EnvConfig) {
@@ -123,13 +122,7 @@ function buildContentSecurityPolicy(env: EnvConfig) {
       'https://mcp.figma.com',
     ],
     styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-    imgSrc: [
-      "'self'",
-      'data:',
-      'blob:',
-      'https://*.convex.cloud',
-      'https://*.convex.site',
-    ],
+    imgSrc: ["'self'", 'data:', 'blob:'],
     fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
     connectSrc: [
       "'self'",
