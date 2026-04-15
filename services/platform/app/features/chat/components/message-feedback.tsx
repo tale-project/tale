@@ -107,7 +107,7 @@ export function MessageFeedback({
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center">
+      <div className="flex items-center gap-1">
         <Tooltip content={t('feedback.thumbsUp')} side="bottom">
           <Button
             variant="ghost"
