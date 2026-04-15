@@ -78,8 +78,7 @@ tale config                        # Manage CLI configuration
 ### Production
 
 ```bash
-tale deploy                        # Blue-green zero-downtime deployment
-tale deploy 1.0.0                  # Deploy a specific version
+tale deploy                        # Blue-green zero-downtime deployment of the current CLI version
 tale status                        # Show deployment status
 tale logs <service>                # View service logs
 tale logs platform -f              # Follow log output

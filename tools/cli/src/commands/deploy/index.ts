@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 
+import pkg from '../../../package.json';
 import { deploy } from '../../lib/actions/deploy';
 import {
   type ServiceName,
@@ -10,14 +11,12 @@ import {
 import { ensureEnv } from '../../lib/config/ensure-env';
 import { requireProject } from '../../lib/project/find-project';
 import { resolveOrAssignProjectContext } from '../../lib/project/project-context';
-import { selectVersion } from '../../lib/registry/select-version';
 import { loadEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 
 export function createDeployCommand(): Command {
   return new Command('deploy')
-    .description('Deploy a version to the environment')
-    .argument('[version]', 'Version to deploy (e.g., v1.0.0 or 1.0.0)')
+    .description('Deploy the current CLI version to the environment')
     .option(
       '-a, --all',
       `Also update infrastructure (${STATEFUL_SERVICES.join(', ')})`,
@@ -44,7 +43,7 @@ export function createDeployCommand(): Command {
       '[deprecated] alias for --yes; will be removed in a future release',
       false,
     )
-    .action(async (versionArg: string | undefined, options) => {
+    .action(async (options) => {
       try {
         const projectDir = requireProject();
         await resolveOrAssignProjectContext(projectDir);
@@ -56,13 +55,11 @@ export function createDeployCommand(): Command {
         }
         const env = loadEnv(projectDir);
 
-        let version = versionArg?.replace(/^v/, '');
-        if (!version) {
-          const selected = await selectVersion(env.GHCR_REGISTRY);
-          if (!selected) {
-            process.exit(1);
-          }
-          version = selected;
+        const version = pkg.version.includes('-dev') ? 'latest' : pkg.version;
+        if (version === 'latest') {
+          logger.info(
+            'Dev build detected — deploying `latest` images. Run `tale upgrade` for a release build.',
+          );
         }
 
         let services: ServiceName[] | undefined;

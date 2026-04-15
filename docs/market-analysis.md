@@ -282,7 +282,7 @@ Each integration includes: `config.json` (schema + operations), `connector.ts` (
 | -------------------- | ------------------------------------------------ |
 | `tale init`          | Create project, generate secrets, AI editor configs |
 | `tale start`         | Start local development (Docker Compose)         |
-| `tale deploy [ver]`  | Blue-green zero-downtime deployment              |
+| `tale deploy`        | Blue-green zero-downtime deployment (current CLI version) |
 | `tale status`        | Show active color, service health, versions      |
 | `tale logs <svc>`    | Stream service logs with filtering               |
 | `tale rollback`      | Switch traffic to previous version               |

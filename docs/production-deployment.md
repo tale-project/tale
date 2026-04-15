@@ -79,18 +79,19 @@ The CLI pulls pre-built images, starts all services, waits for health checks, an
 ### Deploy a new version
 
 ```bash
-# Interactive version selection
+# Deploy the current CLI version
 tale deploy
 
-# Deploy a specific version
-tale deploy 1.2.0
-
 # Preview changes without deploying
-tale deploy 1.2.0 --dry-run
+tale deploy --dry-run
 
 # Also update infrastructure services (db, proxy)
-tale deploy 1.2.0 --all
+tale deploy --all
 ```
+
+`tale deploy` always deploys the version of the CLI you are running. To
+move to a newer release, run `tale upgrade` first to update the CLI,
+then `tale deploy`.
 
 ### Check status
 

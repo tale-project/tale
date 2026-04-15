@@ -40,21 +40,21 @@ bun run build:linux
 ### Deploy Commands
 
 ```bash
-# Deploy with interactive version selection
+# Deploy the current CLI version (blue-green, zero-downtime)
 tale deploy
 
-# Deploy a specific version (blue-green, zero-downtime)
-tale deploy 1.0.0
-
-# Deploy with stateful services update
-tale deploy 1.0.0 --all
+# Also update stateful services
+tale deploy --all
 
 # Deploy specific services only (in-place update)
-tale deploy 1.0.0 --services platform,rag
+tale deploy --services platform,rag
 
 # Dry run to preview changes
-tale deploy 1.0.0 --dry-run
+tale deploy --dry-run
 ```
+
+The deployed version always matches the running CLI's version. To move
+to a newer version, run `tale upgrade` first, then `tale deploy`.
 
 ### Management Commands
 
@@ -85,9 +85,11 @@ tale reset --force --all
 
 ## Command Reference
 
-### `tale deploy [version]`
+### `tale deploy`
 
-Deploy a new version with blue-green strategy. If no version is specified, an interactive version selector is shown.
+Deploy the current CLI version with the blue-green strategy. The deployed
+platform version always matches the running CLI; to upgrade, run
+`tale upgrade` first.
 
 | Option                  | Description                                             |
 | ----------------------- | ------------------------------------------------------- |
