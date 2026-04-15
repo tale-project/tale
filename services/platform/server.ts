@@ -96,74 +96,48 @@ function getEnvConfig(): EnvConfig {
 // ---------------------------------------------------------------------------
 // Security headers
 //
-// CSP is built from env vars at app construction time. SITE_URL hostname
-// determines whether HSTS is emitted (only when the deployment is HTTPS).
+// Policy: all runtime assets (scripts, styles, fonts, images) are served
+// same-origin from the platform container. External origins MUST NOT be
+// added to CSP without a GDPR (third-party data-transfer) + offline-
+// availability review — self-deployed operators may run in air-gapped or
+// EU-data-residency environments where any CDN fetch is either blocked or
+// a non-contracted processor transfer. Libraries (PDF.js via pdfjs-dist),
+// fonts (Inter via @fontsource), and anything previously loaded from
+// cdnjs / fonts.g*.com / nominatim.openstreetmap.org are bundled or
+// dropped for this reason.
+//
+// Current exceptions are gated by explicit operator opt-in:
+//   - Sentry (`*.ingest.sentry.io`): only when SENTRY_DSN is set.
+//   - Figma MCP (`mcp.figma.com`): only when SITE_URL is a loopback host
+//     (dev-only; production policy never includes it).
+//
 // All Convex traffic — including storage uploads via `generateUploadUrl()`
 // and storage downloads — flows same-origin through Caddy (`/ws_api`,
 // `/api/storage/*`), so `'self'` covers it without needing any
-// `*.convex.cloud` / `*.convex.site` entries. Every external origin below
-// is annotated with the specific feature that loads from it; if a feature
-// is removed, drop the entry too.
+// `*.convex.cloud` / `*.convex.site` entries. SITE_URL hostname determines
+// whether HSTS is emitted (only when the deployment is HTTPS).
 // ---------------------------------------------------------------------------
 
 function buildContentSecurityPolicy(env: EnvConfig) {
-  // Sentry browser SDK posts events to `https://<orgKey>.ingest.sentry.io`
-  // when SENTRY_DSN is configured (services/platform/app/router.tsx
-  // initializes Sentry conditionally on getEnv('SENTRY_DSN')).
   const sentry = env.SENTRY_DSN ? ['https://*.ingest.sentry.io'] : [];
-  // Figma MCP capture loader is appended at runtime by the inline bootstrap
-  // in services/platform/index.html, but only when the page is served from
-  // a loopback host. Production deployments never hit that branch, so we
-  // omit the origin from CSP outside loopback to avoid leaking a dev-only
-  // dependency into production policy.
   const figmaMcp = isLoopbackSite(env) ? ['https://mcp.figma.com'] : [];
   return {
     defaultSrc: ["'self'"],
     scriptSrc: [
-      // `index.html` ships two inline `<script>` tags: the `__ENV__`
-      // runtime injection (load-bearing — without it the SPA can't read
-      // SITE_URL) and a localhost-only Figma MCP capture loader. Both are
-      // tagged with `nonce="…"` at HTML render time below; this NONCE
-      // token makes the matching `nonce-…` source appear in script-src.
+      // `index.html` ships an inline `<script>` for the `__ENV__` runtime
+      // injection (load-bearing — without it the SPA can't read SITE_URL)
+      // plus, on loopback only, a Figma MCP capture loader. Inline scripts
+      // are tagged with `nonce="…"` at HTML render time; this NONCE token
+      // makes the matching `nonce-…` source appear in script-src.
       NONCE,
       "'self'",
-      // PDF.js library + worker loaded by the document preview component
-      // (services/platform/app/features/documents/components/document-preview-pdf.tsx)
-      // from cdnjs at a pinned version (pdf.js 3.11.174).
-      'https://cdnjs.cloudflare.com',
       ...figmaMcp,
     ],
-    styleSrc: [
-      "'self'",
-      "'unsafe-inline'",
-      // Inter web font stylesheet linked from services/platform/index.html
-      // (`<link href="https://fonts.googleapis.com/css2?family=Inter…">`).
-      'https://fonts.googleapis.com',
-    ],
+    styleSrc: ["'self'", "'unsafe-inline'"],
     imgSrc: ["'self'", 'data:', 'blob:'],
-    fontSrc: [
-      "'self'",
-      'data:',
-      // Actual font binaries served by Google Fonts; the stylesheet from
-      // fonts.googleapis.com references woff2 files under this origin.
-      'https://fonts.gstatic.com',
-    ],
-    connectSrc: [
-      "'self'",
-      // Reverse-geocoding for the location-request approval card
-      // (services/platform/app/features/chat/components/location-request-card.tsx).
-      // The lat/lng→address lookup runs in the browser; without this entry
-      // CSP blocks the fetch and the card silently shows raw coordinates.
-      'https://nominatim.openstreetmap.org',
-      ...sentry,
-    ],
-    workerSrc: [
-      "'self'",
-      'blob:',
-      // PDF.js worker script (see scriptSrc note) — loaded as a Web Worker
-      // by document-preview-pdf.tsx, so it also needs worker-src access.
-      'https://cdnjs.cloudflare.com',
-    ],
+    fontSrc: ["'self'", 'data:'],
+    connectSrc: ["'self'", ...sentry],
+    workerSrc: ["'self'", 'blob:'],
     frameSrc: ["'self'"],
     frameAncestors: ["'none'"],
     baseUri: ["'self'"],

@@ -1,6 +1,15 @@
 @import 'tailwindcss';
 @import 'react-day-picker/style.css';
 @import 'react-datepicker/dist/react-datepicker.css';
+/* Inter webfont bundled locally. Hosting via Google Fonts would transfer
+   visitor IP + User-Agent to a third party (GDPR) and fail in air-gapped
+   self-deployed environments. @fontsource ships woff2 + @font-face rules
+   that Vite resolves to same-origin build assets. Keep weights aligned
+   with the usages in the app. */
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
 /* Configure dark mode to use class selector instead of media query */
 @variant dark (&:where(.dark, .dark *));
 
@@ -173,7 +182,7 @@
   }
 
   body {
-    font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+    font-family: var(--font-inter, 'Inter'), Arial, Helvetica, sans-serif;
     @apply bg-background text-foreground;
   }
 }
