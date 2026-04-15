@@ -107,7 +107,8 @@ function getEnvConfig(): EnvConfig {
 // dropped for this reason.
 //
 // Current exceptions are gated by explicit operator opt-in:
-//   - Sentry (`*.ingest.sentry.io`): only when SENTRY_DSN is set.
+//   - Sentry: origin is parsed from SENTRY_DSN (supports SaaS ingest and
+//     self-hosted Sentry on custom domains). Only emitted when DSN is set.
 //   - Figma MCP (`mcp.figma.com`): only when SITE_URL is a loopback host
 //     (dev-only; production policy never includes it).
 //
@@ -118,8 +119,20 @@ function getEnvConfig(): EnvConfig {
 // whether HSTS is emitted (only when the deployment is HTTPS).
 // ---------------------------------------------------------------------------
 
+function sentryOriginFromDsn(dsn: string | undefined): string | null {
+  if (!dsn) return null;
+  try {
+    const url = new URL(dsn);
+    return `${url.protocol}//${url.host}`;
+  } catch (err) {
+    console.warn('Invalid SENTRY_DSN, skipping CSP allow-list entry:', err);
+    return null;
+  }
+}
+
 function buildContentSecurityPolicy(env: EnvConfig) {
-  const sentry = env.SENTRY_DSN ? ['https://*.ingest.sentry.io'] : [];
+  const sentryOrigin = sentryOriginFromDsn(env.SENTRY_DSN);
+  const sentry = sentryOrigin ? [sentryOrigin] : [];
   const figmaMcp = isLoopbackSite(env) ? ['https://mcp.figma.com'] : [];
   return {
     defaultSrc: ["'self'"],
