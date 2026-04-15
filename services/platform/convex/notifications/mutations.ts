@@ -34,3 +34,30 @@ export const markRead = mutation({
     return null;
   },
 });
+
+export const markAllRead = mutation({
+  args: { organizationId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
+    const userId = String(authUser._id);
+    for await (const n of ctx.db
+      .query('notifications')
+      .withIndex('by_org_created', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (!n.readBy.includes(userId)) {
+        await ctx.db.patch(n._id, { readBy: [...n.readBy, userId] });
+      }
+    }
+    return null;
+  },
+});

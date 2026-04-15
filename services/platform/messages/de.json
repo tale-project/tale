@@ -4151,6 +4151,11 @@
     "unreadCount": "{count, plural, one {# ungelesen} other {# ungelesen}}",
     "empty": "Keine Benachrichtigungen.",
     "markAsRead": "Als gelesen markieren",
+    "markAllAsRead": "Alle als gelesen markieren",
+    "filterUnread": "Ungelesen",
+    "filterAll": "Alle",
+    "loadMore": "Mehr laden",
+    "loading": "Lädt…",
     "accountLocked": "Konto vorübergehend gesperrt: {email}",
     "lockoutDetails": "{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}."
   }
