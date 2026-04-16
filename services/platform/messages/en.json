@@ -577,6 +577,7 @@
     "forcedChange": {
       "title": "Password change required",
       "description": "Your password has expired per the organization's rotation policy. Set a new password to continue.",
+      "descriptionAdminSet": "Your password was set by an administrator. Please choose a new password to continue.",
       "submit": "Update password"
     },
     "setPassword": {

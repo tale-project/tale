@@ -71,6 +71,7 @@ export const getPasswordExpiryStatus = query({
     daysUntilExpiry: v.union(v.number(), v.null()),
     hasCredential: v.boolean(),
     rotationEnabled: v.boolean(),
+    reason: v.union(v.literal('admin_set'), v.literal('rotation'), v.null()),
   }),
   handler: async (
     ctx,
@@ -79,6 +80,7 @@ export const getPasswordExpiryStatus = query({
     daysUntilExpiry: number | null;
     hasCredential: boolean;
     rotationEnabled: boolean;
+    reason: 'admin_set' | 'rotation' | null;
   }> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
@@ -87,6 +89,7 @@ export const getPasswordExpiryStatus = query({
         daysUntilExpiry: null,
         hasCredential: false,
         rotationEnabled: false,
+        reason: null,
       };
     }
 
@@ -108,6 +111,22 @@ export const getPasswordExpiryStatus = query({
         daysUntilExpiry: null,
         hasCredential: false,
         rotationEnabled: false,
+        reason: null,
+      };
+    }
+
+    const meta = await ctx.db
+      .query('userPasswordMetadata')
+      .withIndex('by_userId', (q) => q.eq('userId', authUser.userId))
+      .first();
+
+    if (meta?.forceChangeOnNextLogin) {
+      return {
+        expired: true,
+        daysUntilExpiry: 0,
+        hasCredential: true,
+        rotationEnabled: false,
+        reason: 'admin_set',
       };
     }
 
@@ -123,20 +142,7 @@ export const getPasswordExpiryStatus = query({
         daysUntilExpiry: null,
         hasCredential: true,
         rotationEnabled: false,
-      };
-    }
-
-    const meta = await ctx.db
-      .query('userPasswordMetadata')
-      .withIndex('by_userId', (q) => q.eq('userId', authUser.userId))
-      .first();
-
-    if (meta?.forceChangeOnNextLogin) {
-      return {
-        expired: true,
-        daysUntilExpiry: 0,
-        hasCredential: true,
-        rotationEnabled: true,
+        reason: null,
       };
     }
 
@@ -151,17 +157,20 @@ export const getPasswordExpiryStatus = query({
         daysUntilExpiry: null,
         hasCredential: true,
         rotationEnabled: true,
+        reason: null,
       };
     }
 
     const expiresAt = anchor + policy.rotationDays * DAY_MS;
     const now = Date.now();
     const daysUntilExpiry = Math.ceil((expiresAt - now) / DAY_MS);
+    const expired = now >= expiresAt;
     return {
-      expired: now >= expiresAt,
+      expired,
       daysUntilExpiry,
       hasCredential: true,
       rotationEnabled: true,
+      reason: expired ? 'rotation' : null,
     };
   },
 });

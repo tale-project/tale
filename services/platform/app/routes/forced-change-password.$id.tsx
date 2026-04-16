@@ -142,7 +142,11 @@ function ForcedChangePasswordPage() {
                 {tAuth('forcedChange.title')}
               </Heading>
               <Text variant="muted" className="text-sm">
-                {tAuth('forcedChange.description')}
+                {tAuth(
+                  expiryStatus?.reason === 'admin_set'
+                    ? 'forcedChange.descriptionAdminSet'
+                    : 'forcedChange.description',
+                )}
               </Text>
             </Stack>
             <div className="border-border bg-card rounded-lg border p-6 shadow-sm">

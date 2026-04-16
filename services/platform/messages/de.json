@@ -574,6 +574,7 @@
     "forcedChange": {
       "title": "Passwortänderung erforderlich",
       "description": "Dein Passwort ist gemäß der Rotationsrichtlinie der Organisation abgelaufen. Lege ein neues Passwort fest, um fortzufahren.",
+      "descriptionAdminSet": "Dein Passwort wurde von einem Administrator festgelegt. Bitte wähle ein neues Passwort, um fortzufahren.",
       "submit": "Passwort aktualisieren"
     },
     "setPassword": {
