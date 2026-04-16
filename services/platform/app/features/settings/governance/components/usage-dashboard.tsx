@@ -84,7 +84,11 @@ export function UsageDashboard({ organizationId }: UsageDashboardProps) {
         id: 'user',
         header: 'User',
         cell: ({ row }) => (
-          <Text as="span" variant="label" className="text-sm">
+          <Text
+            as="span"
+            variant="label"
+            className="block max-w-[220px] truncate text-sm"
+          >
             {row.original.displayName}
           </Text>
         ),

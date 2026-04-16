@@ -189,7 +189,7 @@ function GovernanceSettingsPage() {
 
   if (abilityLoading) {
     return (
-      <div className="flex gap-6">
+      <div aria-busy="true" className="flex gap-6">
         <div className="w-[16rem] shrink-0 space-y-2">
           <Skeleton className="h-9 w-full rounded-md" />
           <Skeleton className="h-9 w-full rounded-md" />

@@ -45,7 +45,7 @@ export async function getUserNamesBatch(
     const user = isRecord(userRaw) ? userRaw : undefined;
 
     if (user) {
-      const displayName = getString(user, 'name') ?? getString(user, 'email');
+      const displayName = getString(user, 'name') || getString(user, 'email');
       if (displayName) {
         return { userId, displayName };
       }

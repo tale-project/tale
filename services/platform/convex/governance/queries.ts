@@ -139,7 +139,9 @@ export const getUsageSummary = query({
     const userNameMap = await getUserNamesBatch(ctx, userIds);
 
     const entries = rawEntries.map((e) =>
-      Object.assign(e, { displayName: userNameMap.get(e.userId) ?? e.userId }),
+      Object.assign({}, e, {
+        displayName: userNameMap.get(e.userId) ?? e.userId,
+      }),
     );
 
     return {
