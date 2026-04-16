@@ -256,16 +256,18 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
             </Text>
           </Stack>
 
-          <Button
-            onClick={handleSave}
-            disabled={cannotManage || upsertMutation.isPending || !isDirty}
-            size="sm"
-            className="self-start"
-          >
-            {upsertMutation.isPending
-              ? t('systemPrompt.saving')
-              : t('systemPrompt.save')}
-          </Button>
+          {isDirty && (
+            <Button
+              onClick={handleSave}
+              disabled={cannotManage || upsertMutation.isPending}
+              size="sm"
+              className="self-start"
+            >
+              {upsertMutation.isPending
+                ? t('systemPrompt.saving')
+                : t('systemPrompt.save')}
+            </Button>
+          )}
         </div>
       </Stack>
     </PageSection>

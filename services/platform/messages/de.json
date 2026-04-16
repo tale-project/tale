@@ -600,12 +600,14 @@
     },
     "organization": {
       "title": "Organisation (optional)",
+      "detailsTitle": "Organisationsdetails",
+      "detailsDescription": "Grundlegende Informationen über deine Organisation.",
       "organizationId": "Organisations-ID",
+      "organizationIdHint": "Für API-Integrationen verwendet",
       "membersTitle": "Organisationsmitglieder",
       "membersEntityLabel": "Mitglieder",
       "manageAccess": "Zugriff auf die Organisation verwalten",
-      "defaultLocale": "Standardsprache",
-      "defaultLocaleDescription": "Die Basissprache für Agentennamen, Beschreibungen und Gesprächseinstiege.",
+      "defaultLocale": "Welche Sprache sollen deine Agenten verwenden?",
       "searchMember": "Mitglied suchen",
       "addMember": "Mitglied hinzufügen",
       "members": {

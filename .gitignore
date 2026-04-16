@@ -87,6 +87,9 @@ build/
 # Local ARM64 Dockerfile for operator
 services/operator/Dockerfile.arm64
 
-# Examples
+# Examples – seed configs are tracked; runtime additions are ignored
 examples/**/.history/
+examples/providers/*
+!examples/providers/openrouter.json
+!examples/providers/openrouter.secrets.json
 delivery_report.html

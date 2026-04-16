@@ -77,23 +77,24 @@ describe('BrandingForm', () => {
     expect(screen.getByText('branding.accentColor')).toBeInTheDocument();
   });
 
-  it('renders save button', () => {
+  it('hides save button when form is clean', () => {
     render(<BrandingForm {...defaultProps} />);
 
-    const button = screen.getByRole('button', { name: 'actions.saveChanges' });
-    expect(button).toBeInTheDocument();
-    expect(button).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: 'actions.saveChanges' }),
+    ).not.toBeInTheDocument();
   });
 
-  it('enables save button when form is dirty', async () => {
+  it('shows save button when form is dirty', async () => {
     render(<BrandingForm {...defaultProps} />);
 
     const input = screen.getByLabelText('branding.appName', { exact: false });
     fireEvent.change(input, { target: { value: 'Acme Corp' } });
 
-    const button = screen.getByRole('button', { name: 'actions.saveChanges' });
     await waitFor(() => {
-      expect(button).not.toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: 'actions.saveChanges' }),
+      ).toBeInTheDocument();
     });
   });
 
