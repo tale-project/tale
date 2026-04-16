@@ -21,7 +21,7 @@ import {
 
 const debugLog = createDebugLog('DEBUG_RAG_QUERY', '[RAGQuery]');
 const DEFAULT_TOP_K = 10;
-const DEFAULT_SIMILARITY_THRESHOLD = 0.4;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.51;
 const RAG_REQUEST_TIMEOUT_MS = 10000; // 10 seconds
 
 // Query expansion constants
@@ -138,7 +138,7 @@ export interface RagContextOptions {
  *
  * @param userMessage - The user's message to search for relevant context
  * @param topK - Number of results to return (default: 5)
- * @param similarityThreshold - Minimum similarity score (default: 0.3)
+ * @param similarityThreshold - Minimum similarity score (default: 0.51)
  * @param signal - Optional AbortSignal for timeout control
  * @param recentMessages - Optional recent conversation messages for context expansion
  * @param options - Optional multi-tenant options (userId, datasets)

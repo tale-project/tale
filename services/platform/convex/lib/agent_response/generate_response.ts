@@ -550,6 +550,7 @@ export async function generateAgentResponse(
       maxHistoryTokens: effectiveMaxHistoryTokens,
       ragContext: knowledgeContextResult?.text ?? hookData?.ragContext,
       webContext: webContextResult?.text,
+      promptMessageId,
     });
     const contextBuildMs = Date.now() - contextBuildStart;
 
@@ -981,6 +982,7 @@ export async function generateAgentResponse(
             parentThreadId,
             maxHistoryTokens: effectiveMaxHistoryTokens,
             ragContext: hookData?.ragContext,
+            promptMessageId,
           });
 
           const continueAgent = createAgent(agentOptions);
@@ -1211,6 +1213,7 @@ export async function generateAgentResponse(
             parentThreadId,
             maxHistoryTokens: effectiveMaxHistoryTokens,
             ragContext: hookData?.ragContext,
+            promptMessageId,
           });
 
           const recoveryAgent = createAgent(agentOptions);

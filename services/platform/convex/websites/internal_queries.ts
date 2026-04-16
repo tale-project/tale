@@ -74,3 +74,36 @@ export const getWebsiteByDomain = internalQuery({
     return await WebsitesHelpers.getWebsiteByDomain(ctx, args);
   },
 });
+
+/**
+ * Lightweight website summaries for an organization.
+ * Used by the web tool to list available websites in no-results messages.
+ */
+export const listWebsiteSummaries = internalQuery({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const results: Array<{
+      domain: string;
+      title?: string;
+      description?: string;
+      pageCount?: number;
+    }> = [];
+    const excludeStatuses = new Set(['deleting', 'error']);
+    for await (const website of ctx.db
+      .query('websites')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (website.status && excludeStatuses.has(website.status)) continue;
+      results.push({
+        domain: website.domain,
+        title: website.title,
+        description: website.description,
+        pageCount: website.pageCount,
+      });
+    }
+    return results;
+  },
+});
