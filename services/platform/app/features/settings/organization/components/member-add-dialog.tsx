@@ -14,6 +14,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -51,21 +52,28 @@ export function AddMemberDialog({
   const { t: tAuth } = useT('auth');
   const { t: tToast } = useT('toast');
 
+  const policy = usePasswordPolicy(organizationId);
+
   const addMemberSchema = useMemo(
     () =>
       z.object({
         email: z.string().email(tCommon('validation.email')),
-        password: createOptionalPasswordSchema({
-          minLength: tAuth('validation.passwordMinLength'),
-          lowercase: tAuth('validation.passwordLowercase'),
-          uppercase: tAuth('validation.passwordUppercase'),
-          number: tAuth('validation.passwordNumber'),
-          specialChar: tAuth('validation.passwordSpecial'),
-        }),
+        password: createOptionalPasswordSchema(
+          {
+            minLength: tAuth('validation.passwordMinLength', {
+              n: policy.minLength,
+            }),
+            lowercase: tAuth('validation.passwordLowercase'),
+            uppercase: tAuth('validation.passwordUppercase'),
+            number: tAuth('validation.passwordNumber'),
+            specialChar: tAuth('validation.passwordSpecial'),
+          },
+          policy,
+        ),
         displayName: z.string().optional(),
         role: z.enum(['disabled', 'admin', 'developer', 'editor', 'member']),
       }),
-    [tCommon, tAuth],
+    [tCommon, tAuth, policy],
   );
 
   const [showCredentials, setShowCredentials] = useState(false);
@@ -93,7 +101,7 @@ export function AddMemberDialog({
   const selectedRole = watch('role');
   const password = watch('password') ?? '';
 
-  const passwordValidationItems = usePasswordValidation(password);
+  const passwordValidationItems = usePasswordValidation(password, policy);
 
   const onSubmit = async (data: AddMemberFormData) => {
     try {

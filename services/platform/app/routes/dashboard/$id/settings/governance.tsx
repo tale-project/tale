@@ -35,6 +35,12 @@ const LoginPolicyEditor = lazyComponent(() =>
   ),
 );
 
+const PasswordPolicyEditor = lazyComponent(() =>
+  import('@/app/features/settings/governance/components/password-policy-editor').then(
+    (m) => ({ default: m.PasswordPolicyEditor }),
+  ),
+);
+
 const GROUPS = [
   'content-models',
   'policies-limits',
@@ -143,6 +149,13 @@ function GovernanceSettingsPage() {
                 value: 'login',
                 label: t('groups.subtabs.login'),
                 content: <LoginPolicyEditor organizationId={organizationId} />,
+              },
+              {
+                value: 'password',
+                label: t('groups.subtabs.password'),
+                content: (
+                  <PasswordPolicyEditor organizationId={organizationId} />
+                ),
               },
               {
                 value: 'pii',

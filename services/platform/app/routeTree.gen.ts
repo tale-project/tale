@@ -15,6 +15,7 @@ import { Route as ConvexDashboardRouteImport } from './routes/convex-dashboard'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as ForcedChangePasswordIdRouteImport } from './routes/forced-change-password.$id'
 import { Route as DashboardCreateOrganizationRouteImport } from './routes/dashboard/create-organization'
 import { Route as DashboardIdRouteImport } from './routes/dashboard/$id'
 import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up'
@@ -93,6 +94,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardRoute,
+} as any)
+const ForcedChangePasswordIdRoute = ForcedChangePasswordIdRouteImport.update({
+  id: '/forced-change-password/$id',
+  path: '/forced-change-password/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardCreateOrganizationRoute =
   DashboardCreateOrganizationRouteImport.update({
@@ -383,6 +389,7 @@ export interface FileRoutesByFullPath {
   '/sign-up': typeof AuthSignUpRoute
   '/dashboard/$id': typeof DashboardIdKnowledgeRouteWithChildren
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
+  '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/$id/agents': typeof DashboardIdAgentsRouteWithChildren
   '/dashboard/$id/automations': typeof DashboardIdAutomationsRouteWithChildren
@@ -436,6 +443,7 @@ export interface FileRoutesByTo {
   '/log-in': typeof AuthLogInRoute
   '/sign-up': typeof AuthSignUpRoute
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
+  '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute
   '/dashboard': typeof DashboardIndexRoute
   '/dashboard/$id': typeof DashboardIdIndexRoute
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
@@ -487,6 +495,7 @@ export interface FileRoutesById {
   '/_auth/sign-up': typeof AuthSignUpRoute
   '/dashboard/$id': typeof DashboardIdRouteWithChildren
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
+  '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/$id/_knowledge': typeof DashboardIdKnowledgeRouteWithChildren
   '/dashboard/$id/agents': typeof DashboardIdAgentsRouteWithChildren
@@ -545,6 +554,7 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/dashboard/$id'
     | '/dashboard/create-organization'
+    | '/forced-change-password/$id'
     | '/dashboard/'
     | '/dashboard/$id/agents'
     | '/dashboard/$id/automations'
@@ -598,6 +608,7 @@ export interface FileRouteTypes {
     | '/log-in'
     | '/sign-up'
     | '/dashboard/create-organization'
+    | '/forced-change-password/$id'
     | '/dashboard'
     | '/dashboard/$id'
     | '/dashboard/$id/conversations'
@@ -648,6 +659,7 @@ export interface FileRouteTypes {
     | '/_auth/sign-up'
     | '/dashboard/$id'
     | '/dashboard/create-organization'
+    | '/forced-change-password/$id'
     | '/dashboard/'
     | '/dashboard/$id/_knowledge'
     | '/dashboard/$id/agents'
@@ -702,6 +714,7 @@ export interface RootRouteChildren {
   ConvexDashboardRoute: typeof ConvexDashboardRoute
   DashboardRoute: typeof DashboardRouteWithChildren
   DocsRoute: typeof DocsRoute
+  ForcedChangePasswordIdRoute: typeof ForcedChangePasswordIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -747,6 +760,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/'
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/forced-change-password/$id': {
+      id: '/forced-change-password/$id'
+      path: '/forced-change-password/$id'
+      fullPath: '/forced-change-password/$id'
+      preLoaderRoute: typeof ForcedChangePasswordIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/dashboard/create-organization': {
       id: '/dashboard/create-organization'
@@ -1336,6 +1356,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConvexDashboardRoute: ConvexDashboardRoute,
   DashboardRoute: DashboardRouteWithChildren,
   DocsRoute: DocsRoute,
+  ForcedChangePasswordIdRoute: ForcedChangePasswordIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -13,6 +13,13 @@ vi.mock('@tanstack/react-router', () => ({
     ...config,
   }),
   Outlet: () => <div data-testid="outlet" />,
+  useNavigate: () => vi.fn(),
+  useLocation: () => ({ pathname: '/dashboard/test-org-id' }),
+  useParams: () => mockUseParams(),
+}));
+
+vi.mock('@/app/features/auth/hooks/use-password-expiry-gate', () => ({
+  usePasswordExpiryGate: vi.fn(),
 }));
 
 const mockUseConvexAuth = vi.fn(() => ({

@@ -7,6 +7,7 @@ import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 import { createAuth, authComponent } from '../auth';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { recordPasswordChange } from './password_metadata';
 import type { Role } from './types';
 
 export interface CreateMemberArgs {
@@ -210,6 +211,10 @@ export async function createMember(
     (createdRecord ? getString(createdRecord, '_id') : undefined) ??
     (createdRecord ? getString(createdRecord, 'id') : undefined) ??
     String(created);
+
+  await recordPasswordChange(ctx, betterAuthUserId, {
+    forceChangeOnNextLogin: true,
+  });
 
   return {
     userId: betterAuthUserId,

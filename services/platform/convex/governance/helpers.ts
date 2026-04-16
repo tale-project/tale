@@ -1,6 +1,12 @@
 import type { GenericQueryCtx } from 'convex/server';
 
-import type { PolicyType } from '../../lib/shared/schemas/governance';
+import {
+  DEFAULT_PASSWORD_POLICY,
+  mergeStrictestPasswordPolicy,
+  type PasswordPolicyConfig,
+  passwordPolicyConfigSchema,
+  type PolicyType,
+} from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-guards';
 import type { DataModel } from '../_generated/dataModel';
 
@@ -31,6 +37,76 @@ export async function readPolicyConfig<T>(
 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- config is validated at write time via Zod schemas
   return config as T;
+}
+
+/**
+ * Load the governance policies row for password_policy and return both
+ * the parsed config (falling back to defaults when absent or malformed)
+ * and the row's `effectiveAt` timestamp (used by rotation to grant a
+ * grace window on first activation).
+ */
+export async function getPasswordPolicyRow(
+  ctx: GenericQueryCtx<DataModel>,
+  organizationId: string,
+): Promise<{ policy: PasswordPolicyConfig; effectiveAt: number | null }> {
+  const row = await ctx.db
+    .query('governancePolicies')
+    .withIndex('by_org_policyType', (q) =>
+      q
+        .eq('organizationId', organizationId)
+        .eq('policyType', 'password_policy'),
+    )
+    .first();
+
+  if (!row) {
+    return { policy: DEFAULT_PASSWORD_POLICY, effectiveAt: null };
+  }
+
+  const parsed = passwordPolicyConfigSchema.safeParse(row.config);
+  if (!parsed.success) {
+    console.warn(
+      `Invalid password_policy config for org ${organizationId}; using defaults`,
+      parsed.error,
+    );
+    return {
+      policy: DEFAULT_PASSWORD_POLICY,
+      effectiveAt: row.effectiveAt ?? null,
+    };
+  }
+
+  return { policy: parsed.data, effectiveAt: row.effectiveAt ?? null };
+}
+
+export async function getPasswordPolicy(
+  ctx: GenericQueryCtx<DataModel>,
+  organizationId: string,
+): Promise<PasswordPolicyConfig> {
+  return (await getPasswordPolicyRow(ctx, organizationId)).policy;
+}
+
+/**
+ * Resolve the effective password policy for a user across every org
+ * they belong to (strictest-wins), along with the earliest rotation
+ * `effectiveAt` across those orgs. For a single-org deployment this
+ * collapses to the one org's policy.
+ */
+export async function getStrictestPasswordPolicyForUser(
+  ctx: GenericQueryCtx<DataModel>,
+  organizationIds: readonly string[],
+): Promise<{ policy: PasswordPolicyConfig; effectiveAt: number | null }> {
+  if (organizationIds.length === 0) {
+    return { policy: DEFAULT_PASSWORD_POLICY, effectiveAt: null };
+  }
+  const rows = await Promise.all(
+    organizationIds.map((id) => getPasswordPolicyRow(ctx, id)),
+  );
+  const policy = mergeStrictestPasswordPolicy(rows.map((r) => r.policy));
+  const effectiveAts = rows
+    .map((r) => r.effectiveAt)
+    .filter((x): x is number => typeof x === 'number');
+  const effectiveAt =
+    effectiveAts.length === 0 ? null : Math.min(...effectiveAts);
+  return { policy, effectiveAt };
 }
 
 /**

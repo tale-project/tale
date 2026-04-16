@@ -7,10 +7,12 @@ import {
   featureFlagsConfigSchema,
   loginPolicyConfigSchema,
   modelAccessConfigSchema,
+  passwordPolicyConfigSchema,
   piiConfigSchema,
   retentionPolicyConfigSchema,
   uploadPolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
+import { isRecord } from '../../lib/utils/type-guards';
 import { mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
@@ -21,6 +23,35 @@ import { GOVERNANCE_POLICY_TYPES } from './schema';
 const policyTypeValidator = v.union(
   ...GOVERNANCE_POLICY_TYPES.map((t) => v.literal(t)),
 );
+
+// Decides whether to set/update `effectiveAt` on a policy row. Returns:
+// - a number to patch (rotation just activated — first enablement wins)
+// - `undefined` to leave the existing value untouched
+//
+// Rotation semantics: every time `rotationDays` transitions from 0 to a
+// positive value, stamp `effectiveAt = now` so affected users get a full
+// grace window. Unrelated edits (e.g. tweaking minLength while rotation
+// stays enabled) preserve the original timestamp so the grace window
+// doesn't reset.
+function readRotationDays(config: unknown): number {
+  if (!isRecord(config)) return 0;
+  const value = config.rotationDays;
+  return typeof value === 'number' ? value : 0;
+}
+
+function computeNextEffectiveAt(
+  policyType: string,
+  nextConfig: unknown,
+  prevConfig: unknown,
+): number | undefined {
+  if (policyType !== 'password_policy') return undefined;
+  const next = readRotationDays(nextConfig);
+  const prev = readRotationDays(prevConfig);
+  if (next > 0 && prev === 0) {
+    return Date.now();
+  }
+  return undefined;
+}
 
 export const upsertPolicy = mutation({
   args: {
@@ -121,6 +152,15 @@ export const upsertPolicy = mutation({
       }
     }
 
+    if (args.policyType === 'password_policy') {
+      const parsed = passwordPolicyConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid password policy configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
     const existing = await ctx.db
       .query('governancePolicies')
       .withIndex('by_org_policyType', (q) =>
@@ -130,6 +170,15 @@ export const upsertPolicy = mutation({
       )
       .first();
 
+    // For password_policy, track when rotation first became active so we
+    // can grant a grace window (credential expiry is computed off the
+    // later of account.passwordChangedAt and policy.effectiveAt).
+    const nextEffectiveAt = computeNextEffectiveAt(
+      args.policyType,
+      args.config,
+      existing?.config,
+    );
+
     let policyId;
 
     if (existing) {
@@ -137,6 +186,9 @@ export const upsertPolicy = mutation({
         config: args.config,
         updatedAt: Date.now(),
         updatedBy: String(authUser._id),
+        ...(nextEffectiveAt !== undefined
+          ? { effectiveAt: nextEffectiveAt }
+          : {}),
       });
       policyId = existing._id;
     } else {
@@ -147,6 +199,9 @@ export const upsertPolicy = mutation({
         config: args.config,
         updatedAt: Date.now(),
         updatedBy: String(authUser._id),
+        ...(nextEffectiveAt !== undefined
+          ? { effectiveAt: nextEffectiveAt }
+          : {}),
       });
     }
 

@@ -13,6 +13,7 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Text } from '@/app/components/ui/typography/text';
+import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -62,6 +63,8 @@ export function EditMemberDialog({
   const { t: tCommon } = useT('common');
   const { t: tAuth } = useT('auth');
 
+  const policy = usePasswordPolicy(member?.organizationId);
+
   const editMemberSchema = useMemo(
     () =>
       z.object({
@@ -71,15 +74,20 @@ export function EditMemberDialog({
         role: memberRoleSchema,
         email: z.string().email(tCommon('validation.email')),
         updatePassword: z.boolean().optional(),
-        password: createOptionalPasswordSchema({
-          minLength: tAuth('validation.passwordMinLength'),
-          lowercase: tAuth('validation.passwordLowercase'),
-          uppercase: tAuth('validation.passwordUppercase'),
-          number: tAuth('validation.passwordNumber'),
-          specialChar: tAuth('validation.passwordSpecial'),
-        }),
+        password: createOptionalPasswordSchema(
+          {
+            minLength: tAuth('validation.passwordMinLength', {
+              n: policy.minLength,
+            }),
+            lowercase: tAuth('validation.passwordLowercase'),
+            uppercase: tAuth('validation.passwordUppercase'),
+            number: tAuth('validation.passwordNumber'),
+            specialChar: tAuth('validation.passwordSpecial'),
+          },
+          policy,
+        ),
       }),
-    [t, tCommon, tAuth],
+    [t, tCommon, tAuth, policy],
   );
 
   const form = useForm<EditMemberFormData>({
@@ -145,7 +153,7 @@ export function EditMemberDialog({
   const { handleSubmit, register, reset, watch, formState } = form;
   const { isSubmitting, isDirty, isValid } = formState;
   const password = watch('password') ?? '';
-  const passwordValidationItems = usePasswordValidation(password);
+  const passwordValidationItems = usePasswordValidation(password, policy);
 
   const isEditingSelf = currentUserMemberId === member?._id;
 

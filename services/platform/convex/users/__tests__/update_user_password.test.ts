@@ -3,10 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockChangePassword = vi.fn();
 const mockSetPassword = vi.fn();
 const mockGetAuth = vi.fn();
+const mockGetAuthUser = vi.fn();
 
 vi.mock('../../auth', () => ({
   authComponent: {
     getAuth: (...args: unknown[]) => mockGetAuth(...args),
+    getAuthUser: (...args: unknown[]) => mockGetAuthUser(...args),
   },
   createAuth: 'createAuth',
 }));
@@ -15,6 +17,26 @@ const mockHasCredentialAccount = vi.fn();
 vi.mock('../../accounts/helpers', () => ({
   hasCredentialAccount: (...args: unknown[]) =>
     mockHasCredentialAccount(...args),
+}));
+
+const mockGetUserOrganizations = vi.fn();
+vi.mock('../../lib/rls/organization/get_user_organizations', () => ({
+  getUserOrganizations: (...args: unknown[]) =>
+    mockGetUserOrganizations(...args),
+}));
+
+const mockGetStrictestPasswordPolicyForUser = vi.fn();
+vi.mock('../../governance/helpers', () => ({
+  getStrictestPasswordPolicyForUser: (...args: unknown[]) =>
+    mockGetStrictestPasswordPolicyForUser(...args),
+}));
+
+vi.mock('../password_metadata', () => ({
+  recordPasswordChange: vi.fn(),
+}));
+
+vi.mock('../../audit_logs/helpers', () => ({
+  createAuditLog: vi.fn(),
 }));
 
 vi.mock('convex/values', () => {
@@ -35,7 +57,6 @@ vi.mock('convex/values', () => {
   };
 });
 
-const mockGetAuthUser = vi.fn();
 vi.mock('../../_generated/api', () => ({
   components: {
     betterAuth: {
@@ -78,7 +99,23 @@ describe('updateUserPassword', () => {
       },
       headers: MOCK_HEADERS,
     });
-    mockGetAuthUser.mockResolvedValue({ _id: 'user_1' });
+    mockGetAuthUser.mockResolvedValue({
+      _id: 'user_1',
+      email: 'user@example.com',
+      name: 'User',
+    });
+    mockGetUserOrganizations.mockResolvedValue([]);
+    mockGetStrictestPasswordPolicyForUser.mockResolvedValue({
+      policy: {
+        minLength: 8,
+        requireLower: true,
+        requireUpper: true,
+        requireDigit: true,
+        requireSpecial: true,
+        rotationDays: 0,
+      },
+      effectiveAt: null,
+    });
   });
 
   async function getHandler() {
@@ -92,7 +129,7 @@ describe('updateUserPassword', () => {
 
     await expect(
       handler(ctx as never, { newPassword: 'weak' }),
-    ).rejects.toThrow('Password must be at least 8 characters');
+    ).rejects.toThrow('Password does not meet policy');
   });
 
   it('calls changePassword with revokeOtherSessions for credential users', async () => {

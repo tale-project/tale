@@ -3,14 +3,24 @@
  *
  * Resets the owner's email and/or password. Called only via admin-authenticated
  * path (CLI → container script → internalMutation). No session auth check needed.
+ *
+ * This path intentionally validates the new password against the built-in
+ * DEFAULT_PASSWORD_POLICY (not an org-configurable policy). Reason: this
+ * is a recovery tool. If an admin locked themselves out by configuring an
+ * unreachably strict policy, honoring that policy here would make recovery
+ * impossible.
  */
 
 import { hashPassword } from 'better-auth/crypto';
 
-import { isPasswordValid } from '../../lib/shared/schemas/password';
+import {
+  isPasswordValid,
+  passwordPolicyViolations,
+} from '../../lib/shared/schemas/password';
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
+import { recordPasswordChange } from './password_metadata';
 
 export interface ResetOwnerArgs {
   newEmail?: string;
@@ -107,8 +117,9 @@ export async function resetOwner(
   // Update password if requested
   if (args.newPassword) {
     if (!isPasswordValid(args.newPassword)) {
+      const violations = passwordPolicyViolations(args.newPassword);
       throw new Error(
-        'Password must be at least 8 characters with lowercase, uppercase, number, and special character',
+        `Password does not meet recovery defaults (failed: ${violations.join(', ')})`,
       );
     }
 
@@ -159,6 +170,7 @@ export async function resetOwner(
         },
       });
     }
+    await recordPasswordChange(ctx, ownerUserId);
     updatedPassword = true;
   }
 

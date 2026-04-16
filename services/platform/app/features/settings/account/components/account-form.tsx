@@ -16,7 +16,9 @@ import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
+import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -182,6 +184,8 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
   const { t: tToast } = useT('toast');
   const { mutateAsync: updatePassword } = useUpdatePassword();
   const { toast } = useToast();
+  const organizationId = useOrganizationId();
+  const policy = usePasswordPolicy(organizationId);
 
   const changePasswordSchema = useMemo(
     () =>
@@ -190,13 +194,18 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
           currentPassword: z
             .string()
             .min(1, tAuth('changePassword.validation.currentRequired')),
-          newPassword: createPasswordSchema({
-            minLength: tAuth('validation.passwordMinLength'),
-            lowercase: tAuth('validation.passwordLowercase'),
-            uppercase: tAuth('validation.passwordUppercase'),
-            number: tAuth('validation.passwordNumber'),
-            specialChar: tAuth('validation.passwordSpecial'),
-          }),
+          newPassword: createPasswordSchema(
+            {
+              minLength: tAuth('validation.passwordMinLength', {
+                n: policy.minLength,
+              }),
+              lowercase: tAuth('validation.passwordLowercase'),
+              uppercase: tAuth('validation.passwordUppercase'),
+              number: tAuth('validation.passwordNumber'),
+              specialChar: tAuth('validation.passwordSpecial'),
+            },
+            policy,
+          ),
           confirmPassword: z
             .string()
             .min(1, tAuth('changePassword.validation.confirmRequired')),
@@ -205,7 +214,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
           message: tAuth('changePassword.validation.mismatch'),
           path: ['confirmPassword'],
         }),
-    [tAuth],
+    [tAuth, policy],
   );
 
   const {
@@ -225,7 +234,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
   });
 
   const newPassword = watch('newPassword');
-  const passwordValidationItems = usePasswordValidation(newPassword);
+  const passwordValidationItems = usePasswordValidation(newPassword, policy);
 
   const onSubmit = async (data: ChangePasswordFormData) => {
     try {
@@ -316,18 +325,25 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
   const { t: tToast } = useT('toast');
   const { mutateAsync: updatePassword } = useUpdatePassword();
   const { toast } = useToast();
+  const organizationId = useOrganizationId();
+  const policy = usePasswordPolicy(organizationId);
 
   const setPasswordSchema = useMemo(
     () =>
       z
         .object({
-          newPassword: createPasswordSchema({
-            minLength: tAuth('validation.passwordMinLength'),
-            lowercase: tAuth('validation.passwordLowercase'),
-            uppercase: tAuth('validation.passwordUppercase'),
-            number: tAuth('validation.passwordNumber'),
-            specialChar: tAuth('validation.passwordSpecial'),
-          }),
+          newPassword: createPasswordSchema(
+            {
+              minLength: tAuth('validation.passwordMinLength', {
+                n: policy.minLength,
+              }),
+              lowercase: tAuth('validation.passwordLowercase'),
+              uppercase: tAuth('validation.passwordUppercase'),
+              number: tAuth('validation.passwordNumber'),
+              specialChar: tAuth('validation.passwordSpecial'),
+            },
+            policy,
+          ),
           confirmPassword: z
             .string()
             .min(1, tAuth('changePassword.validation.confirmRequired')),
@@ -336,7 +352,7 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
           message: tAuth('changePassword.validation.mismatch'),
           path: ['confirmPassword'],
         }),
-    [tAuth],
+    [tAuth, policy],
   );
 
   const {
@@ -355,7 +371,7 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
   });
 
   const newPassword = watch('newPassword');
-  const passwordValidationItems = usePasswordValidation(newPassword);
+  const passwordValidationItems = usePasswordValidation(newPassword, policy);
 
   const onSubmit = async (data: SetPasswordFormData) => {
     try {
