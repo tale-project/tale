@@ -3,6 +3,7 @@ import { type ReactNode, useMemo } from 'react';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { BudgetEditor } from '@/app/features/settings/governance/components/budget-editor';
 import { FeatureFlagsEditor } from '@/app/features/settings/governance/components/feature-flags-editor';
@@ -187,7 +188,20 @@ function GovernanceSettingsPage() {
   };
 
   if (abilityLoading) {
-    return null;
+    return (
+      <div className="flex gap-6">
+        <div className="w-[16rem] shrink-0 space-y-2">
+          <Skeleton className="h-9 w-full rounded-md" />
+          <Skeleton className="h-9 w-full rounded-md" />
+          <Skeleton className="h-9 w-full rounded-md" />
+        </div>
+        <div className="flex-1 space-y-3">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-72" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      </div>
+    );
   }
 
   if (ability.cannot('read', 'orgSettings')) {

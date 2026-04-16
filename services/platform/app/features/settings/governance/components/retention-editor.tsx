@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack } from '@/app/components/ui/layout/layout';
@@ -106,7 +107,13 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
   );
 
   if (isLoading) {
-    return null;
+    return (
+      <div aria-busy="true" className="space-y-3 py-4">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-4 w-72" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
   }
 
   return (

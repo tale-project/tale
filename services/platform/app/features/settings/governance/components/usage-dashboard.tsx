@@ -28,6 +28,7 @@ interface UsageDashboardProps {
 
 type UsageEntry = {
   userId: string;
+  displayName: string;
   teamId?: string;
   inputTokens: number;
   outputTokens: number;
@@ -83,8 +84,8 @@ export function UsageDashboard({ organizationId }: UsageDashboardProps) {
         id: 'user',
         header: 'User',
         cell: ({ row }) => (
-          <Text as="span" variant="label" className="font-mono text-xs">
-            {row.original.userId}
+          <Text as="span" variant="label" className="text-sm">
+            {row.original.displayName}
           </Text>
         ),
         size: 220,
