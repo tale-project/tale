@@ -262,15 +262,18 @@ describe('getMyTeamsHandler', () => {
       })
       .mockResolvedValueOnce({
         page: [{ _id: 'team_2', name: 'Beta', organizationId: 'org_1' }],
-      });
+      })
+      // member count queries
+      .mockResolvedValueOnce({ page: [{ _id: 'tm_1' }, { _id: 'tm_3' }] })
+      .mockResolvedValueOnce({ page: [{ _id: 'tm_2' }] });
 
     const result = await getMyTeamsHandler(ctx as unknown as QueryCtx, {
       organizationId: 'org_1',
     });
 
     expect(result).toEqual([
-      { id: 'team_1', name: 'Alpha' },
-      { id: 'team_2', name: 'Beta' },
+      { id: 'team_1', name: 'Alpha', memberCount: 2, createdAt: null },
+      { id: 'team_2', name: 'Beta', memberCount: 1, createdAt: null },
     ]);
   });
 
@@ -293,15 +296,18 @@ describe('getMyTeamsHandler', () => {
       .mockRejectedValueOnce(new Error('DB connection lost'))
       .mockResolvedValueOnce({
         page: [{ _id: 'team_3', name: 'Gamma', organizationId: 'org_1' }],
-      });
+      })
+      // member count queries
+      .mockResolvedValueOnce({ page: [{ _id: 'tm_1' }] })
+      .mockResolvedValueOnce({ page: [{ _id: 'tm_4' }, { _id: 'tm_5' }] });
 
     const result = await getMyTeamsHandler(ctx as unknown as QueryCtx, {
       organizationId: 'org_1',
     });
 
     expect(result).toEqual([
-      { id: 'team_1', name: 'Alpha' },
-      { id: 'team_3', name: 'Gamma' },
+      { id: 'team_1', name: 'Alpha', memberCount: 1, createdAt: null },
+      { id: 'team_3', name: 'Gamma', memberCount: 2, createdAt: null },
     ]);
   });
 
@@ -566,20 +572,36 @@ describe('listOrgTeamsHandler', () => {
 
     ctx.runQuery.mockResolvedValueOnce({
       page: [
-        { _id: 'team_1', name: 'Alpha', organizationId: 'org_1' },
-        { _id: 'team_2', name: 'Beta', organizationId: 'org_1' },
+        {
+          _id: 'team_1',
+          name: 'Alpha',
+          organizationId: 'org_1',
+          createdAt: 1000,
+        },
+        {
+          _id: 'team_2',
+          name: 'Beta',
+          organizationId: 'org_1',
+          createdAt: 2000,
+        },
         { _id: 'team_3', name: 'Gamma', organizationId: 'org_1' },
       ],
     });
+
+    // member count queries
+    ctx.runQuery
+      .mockResolvedValueOnce({ page: [{ _id: 'tm_1' }, { _id: 'tm_2' }] })
+      .mockResolvedValueOnce({ page: [{ _id: 'tm_3' }] })
+      .mockResolvedValueOnce({ page: [] });
 
     const result = await listOrgTeamsHandler(ctx as unknown as QueryCtx, {
       organizationId: 'org_1',
     });
 
     expect(result).toEqual([
-      { id: 'team_1', name: 'Alpha' },
-      { id: 'team_2', name: 'Beta' },
-      { id: 'team_3', name: 'Gamma' },
+      { id: 'team_1', name: 'Alpha', memberCount: 2, createdAt: 1000 },
+      { id: 'team_2', name: 'Beta', memberCount: 1, createdAt: 2000 },
+      { id: 'team_3', name: 'Gamma', memberCount: 0, createdAt: null },
     ]);
   });
 
@@ -595,14 +617,28 @@ describe('listOrgTeamsHandler', () => {
     const ctx = createMockCtx();
 
     ctx.runQuery.mockResolvedValueOnce({
-      page: [{ _id: 'team_1', name: 'Alpha', organizationId: 'org_1' }],
+      page: [
+        {
+          _id: 'team_1',
+          name: 'Alpha',
+          organizationId: 'org_1',
+          createdAt: 5000,
+        },
+      ],
+    });
+
+    // member count query
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'tm_1' }, { _id: 'tm_2' }, { _id: 'tm_3' }],
     });
 
     const result = await listOrgTeamsHandler(ctx as unknown as QueryCtx, {
       organizationId: 'org_1',
     });
 
-    expect(result).toEqual([{ id: 'team_1', name: 'Alpha' }]);
+    expect(result).toEqual([
+      { id: 'team_1', name: 'Alpha', memberCount: 3, createdAt: 5000 },
+    ]);
   });
 
   it('falls back to getMyTeamsHandler for non-admin roles', async () => {
@@ -624,12 +660,18 @@ describe('listOrgTeamsHandler', () => {
     ctx.runQuery.mockResolvedValueOnce({
       page: [{ _id: 'team_1', name: 'Alpha', organizationId: 'org_1' }],
     });
+    // member count query
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'tm_1' }],
+    });
 
     const result = await listOrgTeamsHandler(ctx as unknown as QueryCtx, {
       organizationId: 'org_1',
     });
 
-    expect(result).toEqual([{ id: 'team_1', name: 'Alpha' }]);
+    expect(result).toEqual([
+      { id: 'team_1', name: 'Alpha', memberCount: 1, createdAt: null },
+    ]);
   });
 
   it('returns empty array when unauthorized', async () => {

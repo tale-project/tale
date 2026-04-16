@@ -4,10 +4,12 @@ import { Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { PageSection } from '@/app/components/ui/layout/page-section';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
 import type { Team } from '../hooks/queries';
+import { useTeamMembers } from '../hooks/queries';
 import { useTeamsTableConfig } from '../hooks/use-teams-table-config';
 import { TeamDetailDialog } from './team-detail-dialog';
 import { TeamsActionMenu } from './teams-action-menu';
@@ -15,6 +17,25 @@ import { TeamsActionMenu } from './teams-action-menu';
 interface TeamsTableProps {
   teams: Team[] | undefined;
   organizationId: string;
+}
+
+/**
+ * Eagerly subscribes to team members for all visible teams so the data
+ * is already cached when detail/edit/delete dialogs open.
+ */
+function TeamMembersPreloader({ teamIds }: { teamIds: string[] }) {
+  return (
+    <>
+      {teamIds.map((id) => (
+        <TeamMemberSubscription key={id} teamId={id} />
+      ))}
+    </>
+  );
+}
+
+function TeamMemberSubscription({ teamId }: { teamId: string }) {
+  useTeamMembers(teamId);
+  return null;
 }
 
 export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
@@ -37,16 +58,16 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
     entityLabel: tSettings('teams.entityLabel'),
   });
 
+  const teamIds = teams?.map((t) => t.id) ?? [];
+
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-foreground text-base font-semibold">
-          {tSettings('teams.title')}
-        </h2>
-        <p className="text-muted-foreground text-sm">
-          {tSettings('teams.sectionDescription')}
-        </p>
-      </div>
+    <PageSection
+      title={tSettings('teams.title')}
+      description={tSettings('teams.sectionDescription')}
+      gap={3}
+    >
+      {teamIds.length > 0 && <TeamMembersPreloader teamIds={teamIds} />}
+
       <DataTable
         columns={columns}
         stickyLayout={stickyLayout}
@@ -71,6 +92,6 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
           }}
         />
       )}
-    </div>
+    </PageSection>
   );
 }

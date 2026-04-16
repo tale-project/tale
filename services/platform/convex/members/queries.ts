@@ -341,23 +341,48 @@ export async function getMyTeamsHandler(
       }),
     );
 
-  const teams: Array<{ id: string; name: string }> = [];
+  const validTeams: BetterAuthTeam[] = [];
   for (const teamResult of teamResults) {
     if (teamResult && teamResult.page.length > 0) {
-      const team = teamResult.page[0];
-      teams.push({
-        id: team._id,
-        name: team.name,
-      });
+      validTeams.push(teamResult.page[0]);
     }
   }
 
-  return teams;
+  const memberCounts = await Promise.all(
+    validTeams.map(async (team) => {
+      try {
+        const membersResult: BetterAuthFindManyResult<BetterAuthTeamMember> =
+          await ctx.runQuery(components.betterAuth.adapter.findMany, {
+            model: 'teamMember',
+            paginationOpts: { cursor: null, numItems: 100 },
+            where: [{ field: 'teamId', operator: 'eq', value: team._id }],
+          });
+        return membersResult?.page.length ?? 0;
+      } catch (error) {
+        console.warn('[Members] Failed to count team members', team._id, error);
+        return 0;
+      }
+    }),
+  );
+
+  return validTeams.map((team, i) => ({
+    id: team._id,
+    name: team.name,
+    memberCount: memberCounts[i],
+    createdAt: team.createdAt ?? null,
+  }));
 }
 
 export const getMyTeams = query({
   args: { organizationId: v.string() },
-  returns: v.array(v.object({ id: v.string(), name: v.string() })),
+  returns: v.array(
+    v.object({
+      id: v.string(),
+      name: v.string(),
+      memberCount: v.number(),
+      createdAt: v.union(v.number(), v.null()),
+    }),
+  ),
   handler: getMyTeamsHandler,
 });
 
@@ -401,14 +426,40 @@ export async function listOrgTeamsHandler(
     return [];
   }
 
-  return teamsResult.page.map((team) => ({
+  const memberCounts = await Promise.all(
+    teamsResult.page.map(async (team) => {
+      try {
+        const membersResult: BetterAuthFindManyResult<BetterAuthTeamMember> =
+          await ctx.runQuery(components.betterAuth.adapter.findMany, {
+            model: 'teamMember',
+            paginationOpts: { cursor: null, numItems: 100 },
+            where: [{ field: 'teamId', operator: 'eq', value: team._id }],
+          });
+        return membersResult?.page.length ?? 0;
+      } catch (error) {
+        console.warn('[Members] Failed to count team members', team._id, error);
+        return 0;
+      }
+    }),
+  );
+
+  return teamsResult.page.map((team, i) => ({
     id: team._id,
     name: team.name,
+    memberCount: memberCounts[i],
+    createdAt: team.createdAt ?? null,
   }));
 }
 
 export const listOrgTeams = query({
   args: { organizationId: v.string() },
-  returns: v.array(v.object({ id: v.string(), name: v.string() })),
+  returns: v.array(
+    v.object({
+      id: v.string(),
+      name: v.string(),
+      memberCount: v.number(),
+      createdAt: v.union(v.number(), v.null()),
+    }),
+  ),
   handler: listOrgTeamsHandler,
 });

@@ -3,6 +3,7 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
+import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
@@ -32,6 +33,33 @@ export function useTeamsTableConfig(
           <Text as="span" variant="label">
             {row.original.name}
           </Text>
+        ),
+      },
+      {
+        accessorKey: 'memberCount',
+        header: tSettings('teams.columns.members'),
+        cell: ({ row }) => (
+          <Text as="span" variant="caption">
+            {tSettings('teams.memberCount', {
+              count: row.original.memberCount,
+            })}
+          </Text>
+        ),
+      },
+      {
+        accessorKey: 'createdAt',
+        header: () => (
+          <span className="block w-full text-right">
+            {tSettings('teams.columns.created')}
+          </span>
+        ),
+        size: 140,
+        cell: ({ row }) => (
+          <TableDateCell
+            date={row.original.createdAt}
+            preset="relative"
+            alignRight
+          />
         ),
       },
       {

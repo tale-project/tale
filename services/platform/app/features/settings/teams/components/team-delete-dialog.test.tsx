@@ -22,7 +22,8 @@ function makeTeam(overrides: Partial<Team> = {}): Team {
   return {
     id: 'team-1',
     name: 'Engineering',
-    createdAt: new Date(),
+    memberCount: 5,
+    createdAt: Date.now(),
     ...overrides,
   } as Team;
 }
