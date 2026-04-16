@@ -594,19 +594,29 @@ export const fetchProviderModels = action({
       );
     }
 
-    const data = (await response.json()) as {
-      data?: Array<{ id: string }>;
-      object?: string;
-    };
+    const json: unknown = await response.json();
+    const models =
+      json != null &&
+      typeof json === 'object' &&
+      'data' in json &&
+      Array.isArray(json.data)
+        ? (json.data as Array<unknown>)
+        : null;
 
-    if (!Array.isArray(data.data)) {
+    if (!models) {
       throw new Error(
         'Unexpected response format: expected { data: [...] } from /v1/models',
       );
     }
 
-    return data.data
-      .filter((m) => m.id && typeof m.id === 'string')
+    return models
+      .filter(
+        (m): m is { id: string } =>
+          m != null &&
+          typeof m === 'object' &&
+          'id' in m &&
+          typeof (m as Record<string, unknown>).id === 'string',
+      )
       .map((m) => ({ id: m.id }))
       .sort((a, b) => a.id.localeCompare(b.id));
   },

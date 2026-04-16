@@ -73,9 +73,7 @@ export function ProviderAddPanel({
 
   // Fetched model IDs from the provider endpoint
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
-  const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(
-    new Set(),
-  );
+  const [selectedModelIds, setSelectedModelIds] = useState(new Set<string>());
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
   const [modelSearch, setModelSearch] = useState('');
@@ -272,7 +270,7 @@ export function ProviderAddPanel({
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [dialogModel, setDialogModel] = useState<ModelEntry>(emptyModel());
+  const [dialogModel, setDialogModel] = useState(emptyModel());
   const [dialogErrors, setDialogErrors] = useState<
     Partial<Record<keyof ModelEntry, string>>
   >({});
