@@ -138,7 +138,7 @@ export interface RagContextOptions {
  *
  * @param userMessage - The user's message to search for relevant context
  * @param topK - Number of results to return (default: 5)
- * @param similarityThreshold - Minimum similarity score (default: 0.3)
+ * @param similarityThreshold - Minimum similarity score (default: 0.51)
  * @param signal - Optional AbortSignal for timeout control
  * @param recentMessages - Optional recent conversation messages for context expansion
  * @param options - Optional multi-tenant options (userId, datasets)

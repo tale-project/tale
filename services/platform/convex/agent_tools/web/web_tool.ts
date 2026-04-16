@@ -106,7 +106,8 @@ EXAMPLES:
           .filter(Boolean)
           .join(' | ');
 
-        const responseText = `${meta}\n\n${result.content}`;
+        const citationHeader = `[1] (Relevance: 100.0%) [Source: ${result.title ?? result.url}] [URL: ${result.url}]`;
+        const responseText = `${citationHeader}\n${meta}\n\n${result.content}`;
 
         const citations = [
           {
