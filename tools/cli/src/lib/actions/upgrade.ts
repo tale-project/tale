@@ -120,13 +120,17 @@ async function fetchLatestReadyRelease(
 
   // Collect versions that are newer than the best ready release but lack the binary
   for (const candidate of candidates) {
-    if (
-      compareVersions(candidate.version, best.version) > 0 &&
-      !candidate.assetNames.includes(asset)
-    ) {
+    if (compareVersions(candidate.version, best.version) > 0) {
       skipped.push(candidate.tag);
     }
   }
+
+  // Sort skipped tags by version descending so skipped[0] is the newest
+  skipped.sort((a, b) => {
+    const va = extractVersion(a) ?? '';
+    const vb = extractVersion(b) ?? '';
+    return compareVersions(vb, va);
+  });
 
   return { release: best, skipped };
 }
@@ -375,7 +379,7 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
     );
     logger.info(`Upgrading to:    ${release.version}`);
     logger.warn(
-      `Skipping ${skipped.join(', ')} — binary not yet uploaded. ` +
+      `Skipping ${skipped.map((t) => t.replace(/^v/, '')).join(', ')} — binary not yet uploaded. ` +
         `Re-run 'tale upgrade' later to pick up newer versions.`,
     );
   } else {
@@ -387,6 +391,11 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
 
   if (!needsBinaryUpgrade) {
     logger.success(`CLI is up to date (v${currentVersion})`);
+    if (skipped.length > 0) {
+      logger.info(
+        `Note: ${skipped[0].replace(/^v/, '')} is available but binary not yet uploaded — re-run 'tale upgrade' later.`,
+      );
+    }
     logger.blank();
 
     // Still sync project files even if binary is current
@@ -450,7 +459,7 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
   logger.success(`CLI upgraded to v${release.version}`);
   if (skipped.length > 0) {
     logger.info(
-      `Note: ${skipped[0]} binary may become available soon — re-run 'tale upgrade' later.`,
+      `Note: ${skipped[0].replace(/^v/, '')} binary may become available soon — re-run 'tale upgrade' later.`,
     );
   }
 
