@@ -28,6 +28,11 @@ interface ReleaseInfo {
   assetNames: string[];
 }
 
+interface ReadyReleaseResult {
+  release: ReleaseInfo;
+  skipped: string[];
+}
+
 function getAuthHeaders(): Record<string, string> {
   const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
   if (token) {
@@ -36,8 +41,23 @@ function getAuthHeaders(): Record<string, string> {
   return {};
 }
 
-async function fetchLatestRelease(): Promise<ReleaseInfo> {
-  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+function parseRelease(data: Record<string, unknown>): ReleaseInfo | null {
+  if (typeof data?.tag_name !== 'string' || !data.tag_name) return null;
+  const tag = data.tag_name;
+  const version = extractVersion(tag);
+  if (!version) return null;
+  const assetNames = Array.isArray(data.assets)
+    ? data.assets
+        .map((a) => (a as { name?: unknown }).name)
+        .filter((n): n is string => typeof n === 'string')
+    : [];
+  return { tag, version, assetNames };
+}
+
+async function fetchLatestReadyRelease(
+  asset: string,
+): Promise<ReadyReleaseResult> {
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=15`;
   const response = await fetch(url, {
     headers: {
       ...getAuthHeaders(),
@@ -63,34 +83,56 @@ async function fetchLatestRelease(): Promise<ReleaseInfo> {
     );
   }
 
-  const data = (await response.json()) as Record<string, unknown>;
-  if (typeof data?.tag_name !== 'string' || !data.tag_name) {
+  const entries = (await response.json()) as Record<string, unknown>[];
+  if (!Array.isArray(entries) || entries.length === 0) {
     throw new Error(
-      'Unexpected GitHub API response: missing or invalid tag_name.',
+      'No releases found. If this is a private repo, set GITHUB_TOKEN.',
     );
   }
-  const tag = data.tag_name;
-  const version = extractVersion(tag);
-  if (!version) {
-    throw new Error(
-      `Could not extract semver version from release tag "${tag}".`,
-    );
-  }
-  const assetNames = Array.isArray(data.assets)
-    ? data.assets
-        .map((a) => (a as { name?: unknown }).name)
-        .filter((n): n is string => typeof n === 'string')
-    : [];
-  return { tag, version, assetNames };
-}
 
-function assertAssetAvailable(release: ReleaseInfo, asset: string): void {
-  if (release.assetNames.includes(asset)) return;
-  throw new Error(
-    `Release ${release.tag} was just published but the ${asset} binary is not uploaded yet. ` +
-      `The CLI build typically completes within a few minutes — please retry. ` +
-      `(See https://github.com/${GITHUB_REPO}/releases/tag/${release.tag})`,
-  );
+  // Parse all non-draft, non-prerelease releases (cap at 10)
+  const candidates: ReleaseInfo[] = [];
+  for (const entry of entries) {
+    if (entry.draft || entry.prerelease) continue;
+    const release = parseRelease(entry);
+    if (release) candidates.push(release);
+    if (candidates.length >= 10) break;
+  }
+
+  // Find the highest-versioned release that has the required binary asset
+  let best: ReleaseInfo | null = null;
+  const skipped: string[] = [];
+
+  for (const candidate of candidates) {
+    if (candidate.assetNames.includes(asset)) {
+      if (!best || compareVersions(candidate.version, best.version) > 0) {
+        best = candidate;
+      }
+    }
+  }
+
+  if (!best) {
+    throw new Error(
+      `No recent release includes the ${asset} binary. ` +
+        `Check https://github.com/${GITHUB_REPO}/releases for details.`,
+    );
+  }
+
+  // Collect versions that are newer than the best ready release but lack the binary
+  for (const candidate of candidates) {
+    if (compareVersions(candidate.version, best.version) > 0) {
+      skipped.push(candidate.tag);
+    }
+  }
+
+  // Sort skipped tags by version descending so skipped[0] is the newest
+  skipped.sort((a, b) => {
+    const va = extractVersion(a) ?? '';
+    const vb = extractVersion(b) ?? '';
+    return compareVersions(vb, va);
+  });
+
+  return { release: best, skipped };
 }
 
 function getAssetName(): string {
@@ -314,10 +356,12 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
   logger.header(`${prefix}Upgrading Tale CLI`);
 
   // Phase 1: Version check
+  const asset = getAssetName();
   logger.step(`${prefix}Checking for updates...`);
   let release: ReleaseInfo;
+  let skipped: string[];
   try {
-    release = await fetchLatestRelease();
+    ({ release, skipped } = await fetchLatestReadyRelease(asset));
   } catch (err) {
     throw new Error(
       `Could not check for updates. ${err instanceof Error ? err.message : String(err)}`,
@@ -329,13 +373,29 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
   const comparison = compareVersions(release.version, currentVersion);
 
   logger.info(`Current version: ${currentVersion}`);
-  logger.info(`Latest version:  ${release.version}`);
+  if (skipped.length > 0) {
+    logger.info(
+      `Latest version:  ${skipped[0].replace(/^v/, '')} (binary not yet available)`,
+    );
+    logger.info(`Upgrading to:    ${release.version}`);
+    logger.warn(
+      `Skipping ${skipped.map((t) => t.replace(/^v/, '')).join(', ')} — binary not yet uploaded. ` +
+        `Re-run 'tale upgrade' later to pick up newer versions.`,
+    );
+  } else {
+    logger.info(`Latest version:  ${release.version}`);
+  }
 
   const isDevBuild = currentVersion.includes('dev');
   const needsBinaryUpgrade = isDevBuild || comparison > 0 || options.force;
 
   if (!needsBinaryUpgrade) {
     logger.success(`CLI is up to date (v${currentVersion})`);
+    if (skipped.length > 0) {
+      logger.info(
+        `Note: ${skipped[0].replace(/^v/, '')} is available but binary not yet uploaded — re-run 'tale upgrade' later.`,
+      );
+    }
     logger.blank();
 
     // Still sync project files even if binary is current
@@ -349,8 +409,6 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
   }
 
   if (options.dryRun) {
-    const asset = getAssetName();
-    assertAssetAvailable(release, asset);
     logger.info(`${prefix}Would download ${asset} from ${release.tag}`);
     logger.info(`${prefix}Would replace ${getInstallPath()}`);
     logger.blank();
@@ -367,8 +425,6 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
   }
 
   // Phase 2: Download & verify
-  const asset = getAssetName();
-  assertAssetAvailable(release, asset);
   const tmpPath = join(tmpdir(), `tale-upgrade-${Date.now()}`);
 
   logger.step(`Downloading ${asset} (${release.tag})...`);
@@ -401,6 +457,11 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
   }
 
   logger.success(`CLI upgraded to v${release.version}`);
+  if (skipped.length > 0) {
+    logger.info(
+      `Note: ${skipped[0].replace(/^v/, '')} binary may become available soon — re-run 'tale upgrade' later.`,
+    );
+  }
 
   // Phase 4: Sync project files using the NEW binary
   logger.blank();
