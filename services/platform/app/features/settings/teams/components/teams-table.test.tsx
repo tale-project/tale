@@ -10,6 +10,10 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
+vi.mock('../hooks/queries', () => ({
+  useTeamMembers: () => ({ data: [], isLoading: false }),
+}));
+
 vi.mock('../hooks/use-teams-table-config', () => ({
   useTeamsTableConfig: () => ({
     columns: [
@@ -32,7 +36,8 @@ function makeTeam(overrides: Partial<Team> = {}): Team {
   return {
     id: 'team-1',
     name: 'Engineering',
-    createdAt: new Date(),
+    memberCount: 5,
+    createdAt: Date.now(),
     ...overrides,
   } as Team;
 }
