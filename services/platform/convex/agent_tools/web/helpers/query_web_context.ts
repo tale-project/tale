@@ -16,7 +16,7 @@ import { getCrawlerServiceUrl } from './get_crawler_service_url';
 const debugLog = createDebugLog('DEBUG_WEB_CONTEXT', '[WebContext]');
 
 const DEFAULT_LIMIT = 10;
-const DEFAULT_SIMILARITY_THRESHOLD = 0.4;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.51;
 const WEB_CONTEXT_TIMEOUT_MS = 10_000;
 
 interface SearchResult {

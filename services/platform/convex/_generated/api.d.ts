@@ -98,6 +98,7 @@ import type * as agent_tools_types from "../agent_tools/types.js";
 import type * as agent_tools_web_helpers_browser_operate from "../agent_tools/web/helpers/browser_operate.js";
 import type * as agent_tools_web_helpers_fetch_and_extract from "../agent_tools/web/helpers/fetch_and_extract.js";
 import type * as agent_tools_web_helpers_format_web_results from "../agent_tools/web/helpers/format_web_results.js";
+import type * as agent_tools_web_helpers_format_website_summaries from "../agent_tools/web/helpers/format_website_summaries.js";
 import type * as agent_tools_web_helpers_get_crawler_service_url from "../agent_tools/web/helpers/get_crawler_service_url.js";
 import type * as agent_tools_web_helpers_get_operator_service_url from "../agent_tools/web/helpers/get_operator_service_url.js";
 import type * as agent_tools_web_helpers_query_web_context from "../agent_tools/web/helpers/query_web_context.js";
@@ -1044,6 +1045,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/web/helpers/browser_operate": typeof agent_tools_web_helpers_browser_operate;
   "agent_tools/web/helpers/fetch_and_extract": typeof agent_tools_web_helpers_fetch_and_extract;
   "agent_tools/web/helpers/format_web_results": typeof agent_tools_web_helpers_format_web_results;
+  "agent_tools/web/helpers/format_website_summaries": typeof agent_tools_web_helpers_format_website_summaries;
   "agent_tools/web/helpers/get_crawler_service_url": typeof agent_tools_web_helpers_get_crawler_service_url;
   "agent_tools/web/helpers/get_operator_service_url": typeof agent_tools_web_helpers_get_operator_service_url;
   "agent_tools/web/helpers/query_web_context": typeof agent_tools_web_helpers_query_web_context;

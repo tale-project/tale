@@ -21,7 +21,7 @@ import {
 
 const debugLog = createDebugLog('DEBUG_RAG_QUERY', '[RAGQuery]');
 const DEFAULT_TOP_K = 10;
-const DEFAULT_SIMILARITY_THRESHOLD = 0.4;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.51;
 const RAG_REQUEST_TIMEOUT_MS = 10000; // 10 seconds
 
 // Query expansion constants

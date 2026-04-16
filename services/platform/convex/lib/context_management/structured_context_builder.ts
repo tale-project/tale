@@ -109,6 +109,12 @@ export interface BuildStructuredContextParams {
   additionalContext?: Record<string, string>;
   /** Parent thread ID (for sub-agent mode, indicates this is a delegated task) */
   parentThreadId?: string;
+  /** ID of the message being sent as the `prompt` parameter to the LLM.
+   *  When set, only this message is excluded from history (to avoid duplication).
+   *  Without it the builder falls back to skipping the last user message, which
+   *  can drop context when the prompt is actually a system message (e.g. location
+   *  response). */
+  promptMessageId?: string;
 }
 
 /**
@@ -131,6 +137,7 @@ export async function buildStructuredContext(
     maxHistoryTokens = DEFAULT_MAX_HISTORY_TOKENS,
     additionalContext,
     parentThreadId,
+    promptMessageId,
   } = params;
 
   // 1. Load message history and approvals in parallel (independent queries)
@@ -169,6 +176,7 @@ export async function buildStructuredContext(
     messages,
     approvals ?? [],
     toolMessageAges,
+    promptMessageId,
   );
   if (historyMessages.length > 0) {
     contextParts.push(fmt.formatHistorySection(historyMessages.join('\n\n')));
@@ -343,6 +351,7 @@ function formatMessagesWithApprovals(
   messages: MessageDoc[],
   approvals: ApprovalItem[],
   toolMessageAges?: Map<string, ToolOutputAge>,
+  promptMessageId?: string,
 ): FormattedMessagesResult {
   const result: string[] = [];
 
@@ -365,12 +374,19 @@ function formatMessagesWithApprovals(
     return a.stepOrder - b.stepOrder;
   });
 
-  // Find the last user message (current request, not history)
+  // Determine which user message to skip (it's passed via `prompt` parameter,
+  // not in context). When `promptMessageId` is provided we skip only the exact
+  // message being used as the prompt — this avoids dropping the original user
+  // question when the prompt is actually a system message (e.g. location
+  // response). Without an explicit ID we fall back to the last user message.
+  const skipMessageId: string | undefined = promptMessageId;
   let lastUserMsgIndex = -1;
-  for (let i = sortedMessages.length - 1; i >= 0; i--) {
-    if (sortedMessages[i].message?.role === 'user') {
-      lastUserMsgIndex = i;
-      break;
+  if (!skipMessageId) {
+    for (let i = sortedMessages.length - 1; i >= 0; i--) {
+      if (sortedMessages[i].message?.role === 'user') {
+        lastUserMsgIndex = i;
+        break;
+      }
     }
   }
 
@@ -381,11 +397,17 @@ function formatMessagesWithApprovals(
 
     if (!message) continue;
 
+    // Skip the message being sent as `prompt` (any role) to avoid duplication
+    if (skipMessageId && msg._id === skipMessageId) continue;
+
     if (message.role === 'user') {
       const content = extractTextContent(message.content);
       if (content) {
-        // Skip the last user message - it's passed via `prompt` parameter, not in context
-        if (i !== lastUserMsgIndex) {
+        // Fallback: when no explicit promptMessageId, skip the last user message
+        // (assumed to be passed via `prompt` parameter)
+        if (!skipMessageId && i === lastUserMsgIndex) {
+          // skip — already sent as prompt
+        } else {
           result.push(fmt.formatUserMessage(content, timestamp));
         }
       }

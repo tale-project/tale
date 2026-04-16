@@ -10,12 +10,13 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import { formatWebResults } from './format_web_results';
+import { formatWebsiteSummaries } from './format_website_summaries';
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
 const DEFAULT_LIMIT = 10;
-const DEFAULT_SIMILARITY_THRESHOLD = 0.4;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.51;
 
 const DOMAIN_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*\.)*[a-zA-Z0-9-]+(:\d+)?$/;
 
@@ -128,8 +129,20 @@ export async function searchPages(
 
   if (!results || results.length === 0) {
     debugLog('web:search_pages no results', { query: args.query });
+
+    const summaryText = ctx.organizationId
+      ? await formatWebsiteSummaries(ctx, ctx.organizationId)
+      : undefined;
+
+    if (summaryText) {
+      return {
+        text: `No matching pages found for your query.\n\nThe search only covers websites added to your knowledge base. Currently indexed websites:\n${summaryText}\n\nYou can try rephrasing your query, specifying a domain filter, or use fetch mode with a specific URL to access any public webpage directly.`,
+        citations: [],
+      };
+    }
+
     return {
-      text: 'No matching website pages found for your query. Try rephrasing, or suggest the user add the relevant website to their knowledge base.',
+      text: 'No matching pages found. There are no websites currently in the knowledge base. To search website content, websites need to be added via the knowledge base settings first. Alternatively, use fetch mode with a specific URL to access any public webpage directly.',
       citations: [],
     };
   }
@@ -171,8 +184,14 @@ export async function searchPages(
   }));
 
   if (domainFallback) {
+    const summaryText = ctx.organizationId
+      ? await formatWebsiteSummaries(ctx, ctx.organizationId)
+      : undefined;
+    const availableNote = summaryText
+      ? `\n\nAvailable websites in the knowledge base:\n${summaryText}`
+      : '';
     return {
-      text: `No results found on ${validDomain}. Showing results from all indexed websites:\n\n${output}`,
+      text: `No results found on ${validDomain}.${availableNote}\n\nShowing results from all indexed websites:\n\n${output}`,
       citations,
     };
   }
