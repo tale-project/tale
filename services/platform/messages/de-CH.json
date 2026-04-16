@@ -107,9 +107,6 @@
     "uploadPolicy": {
       "description": "Konfiguriere erlaubte Dateitypen, maximale Dateigrösse und Volumenlimits.",
       "maxFileSize": "Maximale Dateigrösse"
-    },
-    "retentionPolicy": {
-      "batchSize": "Stapelgrösse pro Bereinigungslauf"
     }
   }
 }

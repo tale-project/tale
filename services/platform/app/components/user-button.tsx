@@ -222,7 +222,11 @@ export function UserButton({
         content: (
           <div className="bg-muted flex items-center justify-between gap-2 rounded-lg p-1">
             <Button
-              variant={!locale.startsWith('de') ? 'secondary' : 'ghost'}
+              variant={
+                locale === 'en' || locale.startsWith('en-')
+                  ? 'secondary'
+                  : 'ghost'
+              }
               size="sm"
               onClick={() => setLocale('en')}
               className="flex-1"
@@ -236,6 +240,14 @@ export function UserButton({
               className="flex-1"
             >
               DE
+            </Button>
+            <Button
+              variant={locale.startsWith('fr') ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setLocale('fr')}
+              className="flex-1"
+            >
+              FR
             </Button>
           </div>
         ),

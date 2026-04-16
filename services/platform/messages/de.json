@@ -170,7 +170,10 @@
       "valid": "gültig",
       "invalid": "ungültig",
       "validationRequirements": "Validierungsanforderungen",
-      "validationStatus": "{message}: {status}"
+      "validationStatus": "{message}: {status}",
+      "skipToContent": "Zum Hauptinhalt springen",
+      "mainNavigation": "Hauptnavigation",
+      "pageNavigation": "Seitennavigation"
     },
     "pagination": {
       "rowsPerPage": "Zeilen pro Seite",
@@ -690,7 +693,9 @@
       "teamNamePlaceholder": "Teamname eingeben...",
       "saveChanges": "Änderungen speichern",
       "loadingMembers": "Wird geladen...",
-      "unknownMember": "Unbekannt"
+      "unknownMember": "Unbekannt",
+      "memberChecklistHint": "Ein Mitglied kann mehreren Teams angehören. Wenn niemand ausgewählt wird, wirst du automatisch hinzugefügt.",
+      "teamDetails": "Teamdetails"
     },
     "agents": {
       "title": "Agents",
@@ -1129,7 +1134,7 @@
         "accessTokenRequired": "Zugriffstoken ist erforderlich",
         "domainPlaceholder": "meinshop.myshopify.com",
         "connectedToShopify": "Mit Shopify verbunden",
-        "domainHelp": "Die .myshopify.com-Adresse Ihres Shops (z. B. meinshop.myshopify.com).",
+        "domainHelp": "Die .myshopify.com-Adresse deines Shops (z. B. meinshop.myshopify.com).",
         "domainHelpNav": "Gehe zu Shopify → Einstellungen → Domains.",
         "accessTokenHelp": "Dein Shopify Admin-API-Zugriffstoken aus deiner benutzerdefinierten App.",
         "accessTokenHelpNav": "Gehe zu Shopify → Apps → Apps entwickeln → [deine App] → API-Zugangsdaten → Admin-API-Zugriffstoken (Anzeigen).",
@@ -1144,7 +1149,7 @@
       },
       "protel": {
         "title": "Protel PMS",
-        "description": "Verbinde sich mit Ihrem Protel-Hotelmanagementsystem für Reservierungen, Gäste und Zimmerdaten.",
+        "description": "Verbinde dich mit deinem Protel-Hotelmanagementsystem für Reservierungen, Gäste und Zimmerdaten.",
         "disconnectError": "Protel PMS konnte nicht getrennt werden",
         "disconnected": "Protel PMS getrennt",
         "disconnectedDescription": "Die Protel PMS-Integration wurde getrennt.",
@@ -1159,7 +1164,7 @@
         "updateSuccess": "Verbindung aktualisiert",
         "updateSuccessDescription": "Protel PMS-Verbindung wurde erfolgreich aktualisiert.",
         "connectionSuccess": "Mit Protel PMS verbunden",
-        "connectionSuccessDescription": "Erfolgreich mit Ihrem Protel-Hotelmanagementsystem verbunden.",
+        "connectionSuccessDescription": "Erfolgreich mit deinem Protel-Hotelmanagementsystem verbunden.",
         "updateFailed": "Aktualisierung fehlgeschlagen",
         "connectionFailed": "Verbindung fehlgeschlagen",
         "connectionFailedDescription": "Verbindung zu Protel PMS fehlgeschlagen. Bitte überprüfe deine Zugangsdaten und versuche es erneut.",
@@ -1390,7 +1395,7 @@
       "microsoftTenantIdPlaceholder": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
       "microsoftTenantIdDescription": "Nur für Single-Tenant-Apps erforderlich. Für Multi-Tenant-Apps leer lassen.",
       "microsoftOAuthCredentialsInfo": "Erstelle eine App-Registrierung im Azure-Portal (Microsoft Entra ID > App-Registrierungen).",
-      "microsoftRedirectUriInfo": "Füge die folgende Umleitungs-URI zu Ihrer App-Registrierung hinzu (Authentifizierung > Plattform hinzufügen > Web):",
+      "microsoftRedirectUriInfo": "Füge die folgende Umleitungs-URI zu deiner App-Registrierung hinzu (Authentifizierung > Plattform hinzufügen > Web):",
       "microsoftOAuth2Guide": "Microsoft OAuth2-Einrichtungsanleitung",
       "gmailAppPasswordInfo": "Verwende Gmail App-Passwörter für eine schnelle Einrichtung. Erfordert aktivierte 2FA in deinem Google-Konto.",
       "googleAppPasswordsGuide": "Google App-Passwörter-Anleitung",
@@ -1551,9 +1556,9 @@
       "tagsRequired": "Mindestens ein Tag ist erforderlich",
       "modelsRequired": "Mindestens ein Modell ist erforderlich",
       "fetchModels": "Modelle abrufen",
-      "searchModels": "Modelle suchen\u2026",
-      "fetchingModels": "Abrufen\u2026",
-      "fetchModelsError": "Modelle konnten nicht abgerufen werden. Sie können sie stattdessen manuell hinzufügen.",
+      "searchModels": "Modelle suchen…",
+      "fetchingModels": "Abrufen…",
+      "fetchModelsError": "Modelle konnten nicht abgerufen werden. Du kannst sie stattdessen manuell hinzufügen.",
       "selectModels": "Wähle die Modelle aus, die du hinzufügen möchtest:",
       "selectAll": "Alle auswählen",
       "deselectAll": "Alle abwählen",
@@ -1605,7 +1610,7 @@
       "noKeys": "Noch keine API-Schlüssel",
       "noKeysDescription": "Erstelle einen API-Schlüssel, um externe Integrationen über die REST-API zu ermöglichen.",
       "keyCreated": "API-Schlüssel erstellt",
-      "keyCreatedDescription": "Kopiere Ihren API-Schlüssel jetzt. Er wird nicht erneut angezeigt.",
+      "keyCreatedDescription": "Kopiere deinen API-Schlüssel jetzt. Er wird nicht erneut angezeigt.",
       "yourApiKey": "Dein API-Schlüssel",
       "keyRevoked": "API-Schlüssel widerrufen",
       "keyRevokeFailed": "API-Schlüssel konnte nicht widerrufen werden",
@@ -1642,7 +1647,7 @@
       "title": "API-Dokumentation",
       "description": "Interaktive API-Dokumentation für die Tale-Plattform. Teste Endpunkte direkt von dieser Seite.",
       "apiKeyLabel": "API-Schlüssel",
-      "apiKeyPlaceholder": "Gib Ihren API-Schlüssel ein, um Endpunkte zu testen",
+      "apiKeyPlaceholder": "Gib deinen API-Schlüssel ein, um Endpunkte zu testen",
       "noApiKeyWarning": "Gib oben einen API-Schlüssel ein, um Anfragen zu authentifizieren. Du kannst einen unter API-Schlüssel-Einstellungen erstellen.",
       "refresh": "Aktualisieren",
       "manageKeys": "Schlüssel verwalten",
@@ -1653,7 +1658,7 @@
       "auditLogs": "Audit-Protokolle",
       "activityLogs": "Aktivitätsprotokolle",
       "errorLogs": "Fehlerprotokolle",
-      "auditDescription": "Alle Aktionen in Ihrer Organisation nachverfolgen.",
+      "auditDescription": "Alle Aktionen in deiner Organisation nachverfolgen.",
       "activityDescription": "Systemaktivität und Audit-Protokolle anzeigen.",
       "activityComingSoon": "Aktivitätsprotokolle sind bald verfügbar.",
       "errorDescription": "Systemfehler und Warnungen anzeigen.",
@@ -1897,7 +1902,7 @@
             "monthly": "Monatlich"
           },
           "ai": {
-            "label": "Beschreibe Ihren Zeitplan",
+            "label": "Beschreibe deinen Zeitplan",
             "placeholder": "z. B. jeden Werktag um 9 Uhr, zweimal täglich um 8 und 18 Uhr",
             "generateButton": "Generieren",
             "generateError": "Cron-Ausdruck konnte nicht generiert werden. Bitte versuche es erneut oder gib ihn manuell ein."
@@ -2046,7 +2051,7 @@
       "noTemplates": "Keine Vorlagen für diese Integration verfügbar.",
       "newAutomation": "Neue Automatisierung",
       "createNewTemplate": "Neue Automatisierungsvorlage erstellen",
-      "fillDetails": "Gib die Details für Ihren neuen Workflow ein.",
+      "fillDetails": "Gib die Details für deinen neuen Workflow ein.",
       "automationTemplates": "Automatisierungsvorlagen",
       "manageExisting": "Bestehende Automatisierungsvorlagen verwalten",
       "loading": "Automatisierungen werden geladen...",
@@ -2460,7 +2465,7 @@
     "statusShared": "Geteilt",
     "statusDenied": "Verweigert",
     "sharedBy": "Geteilt von {name} am {date}",
-    "errorNotSupported": "Geolokalisierung wird von Ihrem Browser nicht unterstützt.",
+    "errorNotSupported": "Geolokalisierung wird von deinem Browser nicht unterstützt.",
     "errorAcquireFailed": "Standort konnte nicht ermittelt werden. Bitte versuche es erneut.",
     "defaultReason": "Der Assistent benötigt deinen Standort, um dir bei deiner Anfrage zu helfen."
   },
@@ -2548,12 +2553,12 @@
     "approveTooltipBatch": "Alle Dokumente genehmigen und speichern",
     "rejectTooltip": "Speicherung dieses Dokuments ablehnen",
     "rejectTooltipBatch": "Alle Dokumentspeicherungen ablehnen",
-    "savedSuccessfully": "In Ihren Dokumenten gespeichert",
+    "savedSuccessfully": "In deinen Dokumenten gespeichert",
     "savedPartially": "{success} von {total} Dateien erfolgreich gespeichert",
     "fileFailed": "Speichern fehlgeschlagen",
     "statusExecuting": "Dokumente werden gespeichert...",
     "statusCompletedFailed": "Dieses Dokument wurde genehmigt, konnte aber nicht gespeichert werden.",
-    "statusCompletedSuccess": "Dieses Dokument wurde in Ihren Dokumenten gespeichert.",
+    "statusCompletedSuccess": "Dieses Dokument wurde in deinen Dokumenten gespeichert.",
     "statusCompletedPartial": "Einige Dokumente konnten nicht gespeichert werden.",
     "statusRejected": "Diese Dokumentspeicherung wurde abgelehnt.",
     "allFilesFailed": "Alle {count} Dateien konnten nicht gespeichert werden",
@@ -2587,7 +2592,7 @@
     "moreActions": "Weitere Aktionen",
     "deleteChat": "Chat löschen",
     "deleteConfirmation": "Möchtest du {title} wirklich löschen?",
-    "deleteArchiveMessage": "Dieser Chat wird archiviert und erscheint nicht mehr in Ihrem Chatverlauf.",
+    "deleteArchiveMessage": "Dieser Chat wird archiviert und erscheint nicht mehr in deinem Chatverlauf.",
     "deletePermanentMessage": "Diese Aktion kann nicht rückgängig gemacht werden. Der Chat wird dauerhaft gelöscht.",
     "deleteFailed": "Chat konnte nicht gelöscht werden",
     "archive": "Archivieren",
@@ -2702,7 +2707,12 @@
       "searchPlaceholder": "Modelle suchen...",
       "noResults": "Keine Modelle gefunden",
       "auto": "Auto",
-      "autoDescription": "Wählt automatisch das beste verfügbare Modell mit Fallback"
+      "autoDescription": "Wählt automatisch das beste verfügbare Modell mit Fallback",
+      "tags": {
+        "chat": "Chat",
+        "vision": "Vision",
+        "embedding": "Embedding"
+      }
     },
     "searchChat": "Chat durchsuchen",
     "hideSearch": "Suche ausblenden",
@@ -2753,6 +2763,12 @@
     "uploadedSuccessfully": "{filename} erfolgreich hochgeladen",
     "uploadFailed": "Upload fehlgeschlagen",
     "failedToUpload": "{filename} konnte nicht hochgeladen werden",
+    "tooManyFiles": "Zu viele Dateien",
+    "tooManyFilesDescription": "Du kannst bis zu {max} Dateien pro Nachricht anhängen. {rejected} {rejected, plural, one {Datei wurde} other {Dateien wurden}} nicht hinzugefügt.",
+    "totalSizeExceeded": "Anhänge zu gross",
+    "totalSizeExceededDescription": "Die Gesamtgrösse der Anhänge darf {maxSize} MB nicht überschreiten. Entferne einige Dateien und versuche es erneut.",
+    "duplicateFile": "Doppelte Datei",
+    "duplicateFileDescription": "{filename} ist bereits angehängt.",
     "removeAttachment": "Anhang entfernen",
     "uploadingFile": "Datei wird hochgeladen",
     "indexing": "Indizierung...",
@@ -2835,6 +2851,22 @@
     "structured": {
       "nextSteps": "Vorgeschlagene Folgefragen"
     },
+    "dictation": {
+      "start": "Diktat starten",
+      "stop": "Diktat stoppen",
+      "notSupported": "Spracherkennung wird in diesem Browser nicht unterstützt",
+      "permissionDenied": "Mikrofonzugriff wurde verweigert. Bitte erlaube den Mikrofonzugriff in den Browsereinstellungen."
+    },
+    "citations": {
+      "source": "Quelle {number}",
+      "page": "Seite {page}",
+      "relevance": "Relevanz: {score}%",
+      "viewDocument": "Im Dokument anzeigen",
+      "visitPage": "Seite besuchen",
+      "showAllSources": "Alle {count} Quellen anzeigen",
+      "hideSources": "Quellen ausblenden",
+      "chunkCount": "{count, plural, one {# Abschnitt} other {# Abschnitte}}"
+    },
     "feedback": {
       "thumbsUp": "Hilfreich",
       "thumbsDown": "Nicht hilfreich",
@@ -2842,14 +2874,8 @@
       "submitComment": "Senden",
       "cancel": "Abbrechen"
     },
-    "dictation": {
-      "start": "Diktat starten",
-      "stop": "Diktat stoppen",
-      "notSupported": "Spracherkennung wird in diesem Browser nicht unterstützt",
-      "permissionDenied": "Mikrofonzugriff wurde verweigert. Bitte erlaube den Mikrofonzugriff in den Browsereinstellungen."
-    },
     "shareBoundary": "Nachrichten oben stammen aus einem geteilten Chat",
-    "forkBoundary": "Von Ihrem eigenen Chat geforkt",
+    "forkBoundary": "Von deinem eigenen Chat geforkt",
     "notFound": "Dieser Chat ist nicht verfügbar.",
     "forkChat": "Chat forken",
     "forkSuccess": "Chat erfolgreich geforkt",
@@ -2857,16 +2883,16 @@
     "share": {
       "title": "Chat teilen",
       "button": "Teilen",
-      "description": "Teilen Sie diesen Chat per Link mit anderen in Ihrer Organisation.",
+      "description": "Teile diesen Chat per Link mit anderen in deiner Organisation.",
       "enable": "Diesen Chat teilen",
       "enableSharing": "Teilen aktivieren",
-      "enableSharingDescription": "Jeder in Ihrer Organisation mit dem Link kann diesen Chat sehen.",
+      "enableSharingDescription": "Jeder in deiner Organisation mit dem Link kann diesen Chat sehen.",
       "disable": "Teilen beenden",
       "copyLink": "Link kopieren",
       "copied": "Link kopiert",
       "copyFailed": "Link konnte nicht kopiert werden",
       "linkLabel": "Freigabelink",
-      "linkHint": "Jeder in Ihrer Organisation mit diesem Link kann den Chat sehen.",
+      "linkHint": "Jeder in deiner Organisation mit diesem Link kann den Chat sehen.",
       "preview": "Vorschau",
       "shareFailed": "Chat konnte nicht geteilt werden",
       "unshareFailed": "Teilen konnte nicht beendet werden",
@@ -2884,7 +2910,7 @@
       "notFound": "Dieser geteilte Chat ist nicht mehr verfügbar.",
       "backToChat": "Zurück zum Chat",
       "inputPlaceholder": "Nachricht senden, um diese Unterhaltung fortzusetzen...",
-      "inputHint": "Das Senden einer Nachricht erstellt Ihre eigene Kopie dieses Chats"
+      "inputHint": "Das Senden einer Nachricht erstellt deine eigene Kopie dieses Chats"
     },
     "export": {
       "button": "Exportieren",
@@ -2896,7 +2922,7 @@
       "downloadPdf": "PDF herunterladen",
       "downloadMarkdown": "Markdown herunterladen",
       "noMessages": "Keine Nachrichten zum Exportieren",
-      "you": "Sie",
+      "you": "Du",
       "assistant": "Assistent"
     },
     "arena": {
@@ -2960,12 +2986,12 @@
       "willNotDelete": {
         "prefix": "Dies wird",
         "not": "nicht",
-        "suffix": "die Dateien aus Ihrem OneDrive löschen."
+        "suffix": "die Dateien aus deinem OneDrive löschen."
       },
       "deleteButton": "Synchronisierungsordner löschen"
     },
     "noItemsFound": "Keine Elemente gefunden",
-    "noItemsMatchingSearch": "Keine Elemente entsprechen Ihrer Suche.",
+    "noItemsMatchingSearch": "Keine Elemente entsprechen deiner Suche.",
     "noItemsAvailable": "Keine Elemente verfügbar",
     "noItemsSelected": "Keine Elemente ausgewählt",
     "searchFilesAndFolders": "Dateien und Ordner suchen",
@@ -2975,7 +3001,7 @@
     },
     "searchEmptyState": {
       "title": "Keine Elemente gefunden",
-      "description": "Keine Elemente entsprechen Ihrer Suche."
+      "description": "Keine Elemente entsprechen deiner Suche."
     },
     "actions": {
       "deleteDocument": "Dokument löschen",
@@ -3251,7 +3277,7 @@
     },
     "searchEmptyState": {
       "title": "Keine Produkte gefunden",
-      "description": "Keine Produkte entsprechen Ihren Suchkriterien"
+      "description": "Keine Produkte entsprechen deinen Suchkriterien"
     },
     "edit": {
       "title": "Produkt bearbeiten",
@@ -3606,7 +3632,7 @@
     "keywords": "souveräne KI, lokale KI, selbstgehostete KI-Plattform, KI-Agents, KI-Automatisierungen, On-Premise-KI, Datensouveränität, private Infrastruktur, KI-Skills, lokale Sprachmodelle, Unternehmens-KI, Datenschutz, agentische KI, Workflow-Automatisierung",
     "chat": {
       "title": "Chat",
-      "description": "Chatte mit der KI, um Hilfe bei Ihren Aufgaben zu erhalten."
+      "description": "Chatte mit der KI, um Hilfe bei deinen Aufgaben zu erhalten."
     },
     "conversations": {
       "title": "Konversationen",
@@ -3751,74 +3777,18 @@
     "governance": {
       "title": "Richtlinien",
       "description": "Organisationsweite Richtlinien und System-Prompts verwalten."
+    },
+    "shared-chat": {
+      "title": "Geteilter Chat",
+      "description": "Eine geteilte Chat-Konversation anzeigen."
     }
   },
   "governance": {
     "title": "Richtlinien",
     "description": "Konfigurieren Sie organisationsweite Richtlinien und Kontrollen.",
-    "tabs": {
-      "systemPrompt": "System-Prompt",
-      "budgets": "Budgets",
-      "featureControls": "Funktionskontrolle",
-      "usage": "Nutzung",
-      "pii": "PII-Schutz",
-      "modelAccess": "Modellzugriff",
-      "retention": "Aufbewahrung"
-    },
-    "groups": {
-      "contentAndModels": "Inhalte & Modelle",
-      "policiesAndLimits": "Richtlinien & Limits",
-      "securityAndMonitoring": "Sicherheit & Überwachung",
-      "subtabs": {
-        "login": "Anmeldung & Authentifizierung",
-        "password": "Passwort-Richtlinie",
-        "pii": "PII-Schutz",
-        "usage": "Nutzung",
-        "systemPrompt": "System-Prompt",
-        "defaultModels": "Standardmodelle",
-        "modelAccess": "Modellzugriff",
-        "budgets": "Budgets",
-        "uploadPolicy": "Upload-Richtlinie",
-        "retention": "Aufbewahrung",
-        "featureControls": "Funktionssteuerung"
-      }
-    },
-    "featureFlags": {
-      "title": "Funktionskontrolle",
-      "description": "Funktionen pro Benutzer, Team oder Rolle aktivieren oder deaktivieren.",
-      "enabled": "Aktiviert",
-      "webSearch": "Websuche",
-      "codeExecution": "Code-Ausf\u00fchrung",
-      "fileUpload": "Datei-Upload",
-      "maxContextTokens": "Max. Kontext-Token",
-      "maxContextTokensPlaceholder": "z.B. 32768",
-      "maxContextTokensHelp": "Maximale Token f\u00fcr das KI-Kontextfenster pro Anfrage. Niedrigere Werte senken die Kosten. Leer lassen f\u00fcr kein Limit. Minimum: 4096.",
-      "scope": "Bereich",
-      "target": "Ziel",
-      "actions": "Aktionen",
-      "role": "Rolle",
-      "user": "Benutzer",
-      "team": "Team",
-      "allUsers": "Alle Benutzer",
-      "searchUsers": "Benutzer suchen...",
-      "noUsersFound": "Keine Benutzer gefunden",
-      "selectUser": "Benutzer w\u00e4hlen...",
-      "searchTeams": "Teams suchen...",
-      "noTeamsFound": "Keine Teams gefunden",
-      "selectTeam": "Team w\u00e4hlen...",
-      "confirm": "Best\u00e4tigen",
-      "addRule": "Regel hinzuf\u00fcgen",
-      "addRuleTitle": "Funktionskontrollregel hinzuf\u00fcgen",
-      "editRuleTitle": "Funktionskontrollregel bearbeiten",
-      "editRule": "Regel {index} bearbeiten",
-      "removeRule": "Regel {index} entfernen",
-      "emptyState": "Keine Funktionskontrollregeln konfiguriert. F\u00fcge eine Regel hinzu, um Funktionen zu verwalten.",
-      "saved": "Funktionskontrolle gespeichert",
-      "saveFailed": "Funktionskontrolle konnte nicht gespeichert werden"
-    },
     "systemPrompt": {
       "title": "System-Prompt",
-      "description": "Legen Sie einen verbindlichen System-Prompt fest, der auf alle Agents angewendet wird und nicht von Benutzern \u00fcberschrieben werden kann.",
+      "description": "Legen Sie einen verbindlichen System-Prompt fest, der auf alle Agents angewendet wird und nicht von Benutzern überschrieben werden kann.",
       "prefix": "Präfix (wird vor Agent-Anweisungen eingefügt)",
       "prefixLabel": "Verbindliches Präfix",
       "prefixDescription": "Dieser Text wird vor die Anweisungen jedes Agents gestellt und kann nicht überschrieben werden.",
@@ -3928,8 +3898,11 @@
     "retentionPolicy": {
       "title": "Aufbewahrungsrichtlinie",
       "description": "Automatische Löschung hochgeladener Dateien nach einem bestimmten Zeitraum konfigurieren.",
+      "enabled": "Aufbewahrungsrichtlinie aktivieren",
       "retentionDays": "Aufbewahrungszeitraum (Tage)",
+      "retentionDaysHint": "Dokumente, die älter als dieser Zeitraum sind, werden unwiderruflich gelöscht. Dies kann nicht rückgängig gemacht werden.",
       "scope": "Anwenden auf",
+      "tempFileRetentionHours": "Aufbewahrung temporärer Dateien (Stunden)",
       "saved": "Aufbewahrungsrichtlinie gespeichert"
     },
     "passwordPolicy": {
@@ -3966,15 +3939,24 @@
       "saved": "Anmelderichtlinie gespeichert",
       "saveFailed": "Anmelderichtlinie konnte nicht gespeichert werden"
     },
+    "tabs": {
+      "systemPrompt": "System-Prompt",
+      "budgets": "Budgets",
+      "usage": "Nutzung",
+      "pii": "PII-Schutz",
+      "featureControls": "Feature-Steuerung",
+      "modelAccess": "Modellzugriff",
+      "retention": "Aufbewahrung"
+    },
     "featureFlags": {
       "title": "Feature-Steuerung",
       "description": "Funktionen pro Benutzer, Team oder Rolle aktivieren oder deaktivieren.",
+      "enabled": "Feature-Steuerung aktivieren",
       "webSearch": "Websuche",
       "codeExecution": "Code-Ausführung",
       "fileUpload": "Datei-Upload",
       "maxContextTokens": "Max. Kontext-Tokens",
       "maxContextTokensHint": "Maximale Kontext-Tokens für KI-Antworten. Leer lassen für unbegrenzt.",
-      "enabled": "Feature-Steuerung aktivieren",
       "scope": "Geltungsbereich",
       "target": "Ziel",
       "allUsers": "Alle Benutzer",
@@ -3983,7 +3965,27 @@
       "deleteRule": "Regel löschen",
       "noRules": "Keine Feature-Regeln konfiguriert. Füge eine Regel hinzu, um Funktionen pro Benutzer, Team oder Rolle zu steuern.",
       "saved": "Feature-Steuerung gespeichert",
-      "saveFailed": "Feature-Steuerung konnte nicht gespeichert werden"
+      "saveFailed": "Feature-Steuerung konnte nicht gespeichert werden",
+      "actions": "Aktionen",
+      "role": "Rolle",
+      "scopeLabels": {
+        "default": "Standard",
+        "user": "Benutzer",
+        "team": "Team",
+        "role": "Rolle"
+      },
+      "roleLabels": {
+        "admin": "Admin",
+        "developer": "Entwickler",
+        "editor": "Editor",
+        "member": "Mitglied"
+      },
+      "searchUsers": "Benutzer suchen...",
+      "noUsersFound": "Keine Benutzer gefunden",
+      "selectUser": "Benutzer auswählen...",
+      "searchTeams": "Teams suchen...",
+      "noTeamsFound": "Keine Teams gefunden",
+      "selectTeam": "Team auswählen..."
     },
     "pii": {
       "title": "PII-Schutz",
@@ -4027,13 +4029,23 @@
       "blocked": "Nachricht blockiert: personenbezogene Daten erkannt",
       "detectedTypes": "Erkannt: {types}"
     },
-    "tabs": {
-      "systemPrompt": "System-Prompt",
-      "budgets": "Budgets",
-      "usage": "Nutzung",
-      "pii": "PII-Schutz",
-      "featureControls": "Feature-Steuerung",
-      "modelAccess": "Modellzugriff"
+    "groups": {
+      "contentAndModels": "Inhalte & Modelle",
+      "policiesAndLimits": "Richtlinien & Limits",
+      "securityAndMonitoring": "Sicherheit & Überwachung",
+      "subtabs": {
+        "login": "Anmeldung & Authentifizierung",
+        "password": "Passwort-Richtlinie",
+        "pii": "PII-Schutz",
+        "usage": "Nutzung",
+        "systemPrompt": "System-Prompt",
+        "defaultModels": "Standardmodelle",
+        "modelAccess": "Modellzugriff",
+        "budgets": "Budgets",
+        "uploadPolicy": "Upload-Richtlinie",
+        "retention": "Aufbewahrung",
+        "featureControls": "Funktionssteuerung"
+      }
     },
     "modelAccess": {
       "title": "Modellzugriff",
@@ -4199,5 +4211,25 @@
     "loading": "Lädt…",
     "accountLocked": "Konto vorübergehend gesperrt: {email}",
     "lockoutDetails": "{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}."
+  },
+  "documentComparison": {
+    "title": "Dokumente vergleichen",
+    "description": "Lade zwei Dokumente hoch oder wähle sie aus, um ihre Inhalte zu vergleichen.",
+    "baseDocument": "Basisdokument",
+    "comparisonDocument": "Vergleichsdokument",
+    "compare": "Vergleichen",
+    "comparing": "Dokumente werden verglichen...",
+    "upload": "Hochladen",
+    "existing": "Vorhanden",
+    "selectDocument": "Dokument auswählen",
+    "results": {
+      "title": "Vergleichsergebnisse",
+      "added": "Hinzugefügt",
+      "deleted": "Gelöscht",
+      "modified": "Geändert",
+      "unchanged": "Unverändert",
+      "similarityScore": "Ähnlichkeit: {score}%"
+    },
+    "noResults": "Noch keine Vergleichsergebnisse."
   }
 }
