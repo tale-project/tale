@@ -116,7 +116,8 @@ function ForcedChangePasswordPage() {
         params: { id: organizationId },
         replace: true,
       });
-    } catch {
+    } catch (e) {
+      console.error(e);
       toast({
         title: tToast('error.passwordChangeFailed'),
         variant: 'destructive',

@@ -112,7 +112,7 @@ describe('updateUserPassword', () => {
         requireUpper: true,
         requireDigit: true,
         requireSpecial: true,
-        maxAgeDays: null,
+        rotationDays: 0,
       },
       effectiveAt: null,
     });

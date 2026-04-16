@@ -28,12 +28,11 @@ const policyTypeValidator = v.union(
 // - a number to patch (rotation just activated — first enablement wins)
 // - `undefined` to leave the existing value untouched
 //
-// Rotation semantics: the first time a password_policy row persists a
-// positive `rotationDays`, stamp `effectiveAt = now`. Unrelated edits
-// (e.g. tweaking minLength while rotation stays enabled) preserve the
-// original timestamp so the grace window doesn't reset. Disabling
-// rotation (back to 0) also preserves it, so a subsequent re-enable is
-// still a transition.
+// Rotation semantics: every time `rotationDays` transitions from 0 to a
+// positive value, stamp `effectiveAt = now` so affected users get a full
+// grace window. Unrelated edits (e.g. tweaking minLength while rotation
+// stays enabled) preserve the original timestamp so the grace window
+// doesn't reset.
 function readRotationDays(config: unknown): number {
   if (!isRecord(config)) return 0;
   const value = config.rotationDays;
@@ -44,12 +43,11 @@ function computeNextEffectiveAt(
   policyType: string,
   nextConfig: unknown,
   prevConfig: unknown,
-  prevEffectiveAt: number | undefined,
 ): number | undefined {
   if (policyType !== 'password_policy') return undefined;
   const next = readRotationDays(nextConfig);
   const prev = readRotationDays(prevConfig);
-  if (next > 0 && prev === 0 && prevEffectiveAt === undefined) {
+  if (next > 0 && prev === 0) {
     return Date.now();
   }
   return undefined;
@@ -179,7 +177,6 @@ export const upsertPolicy = mutation({
       args.policyType,
       args.config,
       existing?.config,
-      existing?.effectiveAt,
     );
 
     let policyId;

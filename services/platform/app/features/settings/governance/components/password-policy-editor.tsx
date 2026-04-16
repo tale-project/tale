@@ -133,7 +133,8 @@ export function PasswordPolicyEditor({
         } satisfies PasswordPolicyConfig,
       });
       toast({ title: t('passwordPolicy.saved'), variant: 'success' });
-    } catch {
+    } catch (e) {
+      console.error(e);
       toast({
         title: t('passwordPolicy.saveFailed'),
         variant: 'destructive',

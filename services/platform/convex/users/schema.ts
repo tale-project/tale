@@ -10,4 +10,5 @@ import { v } from 'convex/values';
 export const userPasswordMetadataTable = defineTable({
   userId: v.string(),
   passwordChangedAt: v.number(),
+  forceChangeOnNextLogin: v.optional(v.boolean()),
 }).index('by_userId', ['userId']);

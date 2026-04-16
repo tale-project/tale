@@ -10,6 +10,7 @@ import type { MutationCtx } from '../_generated/server';
 export async function recordPasswordChange(
   ctx: MutationCtx,
   userId: string,
+  opts?: { forceChangeOnNextLogin?: boolean },
 ): Promise<void> {
   const existing = await ctx.db
     .query('userPasswordMetadata')
@@ -17,12 +18,17 @@ export async function recordPasswordChange(
     .first();
 
   const now = Date.now();
+  const forceChangeOnNextLogin = opts?.forceChangeOnNextLogin ?? false;
   if (existing) {
-    await ctx.db.patch(existing._id, { passwordChangedAt: now });
+    await ctx.db.patch(existing._id, {
+      passwordChangedAt: now,
+      forceChangeOnNextLogin,
+    });
   } else {
     await ctx.db.insert('userPasswordMetadata', {
       userId,
       passwordChangedAt: now,
+      forceChangeOnNextLogin,
     });
   }
 }

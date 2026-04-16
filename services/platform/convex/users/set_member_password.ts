@@ -163,7 +163,9 @@ export async function setMemberPassword(
     hasMoreSessions = (remaining?.page?.length ?? 0) > 0;
   }
 
-  await recordPasswordChange(ctx, memberUserId);
+  await recordPasswordChange(ctx, memberUserId, {
+    forceChangeOnNextLogin: true,
+  });
 
   await createAuditLog(ctx, {
     organizationId: memberOrgId,

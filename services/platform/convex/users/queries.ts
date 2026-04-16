@@ -130,6 +130,16 @@ export const getPasswordExpiryStatus = query({
       .query('userPasswordMetadata')
       .withIndex('by_userId', (q) => q.eq('userId', authUser.userId))
       .first();
+
+    if (meta?.forceChangeOnNextLogin) {
+      return {
+        expired: true,
+        daysUntilExpiry: 0,
+        hasCredential: true,
+        rotationEnabled: true,
+      };
+    }
+
     const anchor = Math.max(meta?.passwordChangedAt ?? 0, effectiveAt ?? 0);
 
     // No anchor yet (policy never activated rotation and user never had

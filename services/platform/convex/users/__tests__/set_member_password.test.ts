@@ -89,7 +89,7 @@ describe('setMemberPassword', () => {
       requireUpper: true,
       requireDigit: true,
       requireSpecial: true,
-      maxAgeDays: null,
+      rotationDays: 0,
     });
   });
 
