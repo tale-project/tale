@@ -559,6 +559,70 @@ export const getAllProviderConfigs = action({
 });
 
 // ---------------------------------------------------------------------------
+// Model discovery
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch available models from an OpenAI-compatible /v1/models endpoint.
+ * Used by the "Add provider" panel to auto-populate models.
+ */
+export const fetchProviderModels = action({
+  args: { baseUrl: v.string(), apiKey: v.string() },
+  returns: v.array(v.object({ id: v.string() })),
+  handler: async (ctx, args): Promise<Array<{ id: string }>> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    // Normalize base URL: strip trailing slash, append /models if needed
+    let url = args.baseUrl.replace(/\/+$/, '');
+    if (!url.endsWith('/models')) {
+      url = url.endsWith('/v1') ? `${url}/models` : `${url}/v1/models`;
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${args.apiKey}`,
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(
+        `Failed to fetch models (${response.status}): ${errorText || response.statusText}`,
+      );
+    }
+
+    const json: unknown = await response.json();
+    const models =
+      json != null &&
+      typeof json === 'object' &&
+      'data' in json &&
+      Array.isArray(json.data)
+        ? (json.data as Array<unknown>)
+        : null;
+
+    if (!models) {
+      throw new Error(
+        'Unexpected response format: expected { data: [...] } from /v1/models',
+      );
+    }
+
+    return models
+      .filter(
+        (m): m is { id: string } =>
+          m != null &&
+          typeof m === 'object' &&
+          'id' in m &&
+          typeof (m as Record<string, unknown>).id === 'string',
+      )
+      .map((m) => ({ id: m.id }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+  },
+});
+
+// ---------------------------------------------------------------------------
 // Secret management actions
 // ---------------------------------------------------------------------------
 

@@ -31,3 +31,7 @@ export function useSaveProviderSecret() {
     onSuccess: (_data, variables) => invalidate(variables.orgSlug),
   });
 }
+
+export function useFetchProviderModels() {
+  return useConvexAction(api.providers.file_actions.fetchProviderModels);
+}
