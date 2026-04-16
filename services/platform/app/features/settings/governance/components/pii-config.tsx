@@ -1,10 +1,11 @@
 'use client';
 
 import { ShieldCheck } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { Alert } from '@/app/components/ui/feedback/alert';
 import { Badge } from '@/app/components/ui/feedback/badge';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
@@ -60,12 +61,12 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   > | null>(null);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
-  const initialized = useRef(false);
+  const initializedRef = useRef(false);
 
-  // Sync from server data once loaded
-  useEffect(() => {
-    if (policy && !initialized.current) {
-      initialized.current = true;
+  // Sync from server data once loaded (render-time to avoid flicker)
+  if (!isLoading && !initializedRef.current) {
+    initializedRef.current = true;
+    if (policy) {
       setEnabled(policy.enabled ?? false);
       setMode(policy.config?.mode ?? 'mask');
       setEnabledPatterns(
@@ -73,7 +74,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
       );
       setCustomPatterns(policy.config?.customPatterns ?? []);
     }
-  }, [policy]);
+  }
 
   const saveConfig = useCallback(
     async (overrides: {
@@ -204,8 +205,14 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
     setTestResults(detectPii(testText, allPatterns));
   }, [testText, enabledPatterns, customPatterns]);
 
-  if (isLoading) {
-    return null;
+  if (isLoading || !initializedRef.current) {
+    return (
+      <div aria-busy="true" className="space-y-3 py-4">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-4 w-72" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
   }
 
   const modeOptions = [

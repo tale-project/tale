@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack } from '@/app/components/ui/layout/layout';
@@ -82,23 +83,19 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
 
   const savedConfig = useMemo(() => parseConfig(policy?.config), [policy]);
 
-  const [enabled, setEnabled] = useState(true);
-  const [maxAttempts, setMaxAttempts] = useState(
-    String(DEFAULT_LOGIN_MAX_ATTEMPTS),
-  );
-  const [scheduleSeconds, setScheduleSeconds] = useState(
-    scheduleToString(DEFAULT_LOGIN_BACKOFF_MS),
-  );
-  const [trustedProxies, setTrustedProxies] = useState(
-    DEFAULT_TRUSTED_PROXIES.join(', '),
-  );
+  const initializedRef = useRef(false);
+  const [enabled, setEnabled] = useState(false);
+  const [maxAttempts, setMaxAttempts] = useState('');
+  const [scheduleSeconds, setScheduleSeconds] = useState('');
+  const [trustedProxies, setTrustedProxies] = useState('');
 
-  useEffect(() => {
+  if (!isLoading && !initializedRef.current) {
+    initializedRef.current = true;
     setEnabled(savedConfig.enabled);
     setMaxAttempts(String(savedConfig.maxAttemptsBeforeLockout));
     setScheduleSeconds(scheduleToString(savedConfig.backoffSchedule));
     setTrustedProxies(savedConfig.trustedProxies.join(', '));
-  }, [savedConfig]);
+  }
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
@@ -182,7 +179,15 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
     t,
   ]);
 
-  if (isLoading) return null;
+  if (isLoading || !initializedRef.current) {
+    return (
+      <div aria-busy="true" className="space-y-3 py-4">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-4 w-72" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
+  }
 
   return (
     <PageSection

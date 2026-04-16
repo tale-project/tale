@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
 import { authComponent } from '../auth';
+import { getUserNamesBatch } from '../documents/get_user_names_batch';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
@@ -108,7 +109,7 @@ export const getUsageSummary = query({
     const defaultPeriodKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
     const periodKey = args.periodKey ?? defaultPeriodKey;
 
-    const entries: Array<{
+    const rawEntries: Array<{
       userId: string;
       teamId?: string;
       inputTokens: number;
@@ -123,7 +124,7 @@ export const getUsageSummary = query({
       .withIndex('by_org_period', (q) =>
         q.eq('organizationId', args.organizationId).eq('periodKey', periodKey),
       )) {
-      entries.push({
+      rawEntries.push({
         userId: entry.userId,
         teamId: entry.teamId,
         inputTokens: entry.inputTokens,
@@ -133,6 +134,15 @@ export const getUsageSummary = query({
         requestCount: entry.requestCount,
       });
     }
+
+    const userIds = rawEntries.map((e) => e.userId);
+    const userNameMap = await getUserNamesBatch(ctx, userIds);
+
+    const entries = rawEntries.map((e) =>
+      Object.assign({}, e, {
+        displayName: userNameMap.get(e.userId) ?? e.userId,
+      }),
+    );
 
     return {
       periodKey,

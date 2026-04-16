@@ -1,9 +1,10 @@
 'use client';
 
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
@@ -308,6 +309,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     [policy],
   );
 
+  const initializedRef = useRef(false);
   const [enabled, setEnabled] = useState(false);
   const [mode, setMode] = useState<ModelAccessConfig['mode']>('blocklist');
   const [rules, setRules] = useState<ModelAccessRule[]>([]);
@@ -316,11 +318,12 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [dialogRule, setDialogRule] = useState(emptyRule());
 
-  useEffect(() => {
+  if (!isLoading && !initializedRef.current) {
+    initializedRef.current = true;
     setEnabled(savedConfig.enabled);
     setMode(savedConfig.mode);
     setRules(savedConfig.rules);
-  }, [savedConfig]);
+  }
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
@@ -438,8 +441,14 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     [allModelOptions],
   );
 
-  if (isLoading) {
-    return null;
+  if (isLoading || !initializedRef.current) {
+    return (
+      <div aria-busy="true" className="space-y-3 py-4">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-4 w-72" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
   }
 
   return (
