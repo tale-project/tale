@@ -153,7 +153,7 @@ function BlankTabContent({
           rows={3}
         />
       </Stack>
-      <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button
           type="button"
           variant="secondary"

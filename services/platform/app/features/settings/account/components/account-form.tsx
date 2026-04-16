@@ -115,7 +115,12 @@ function ProfileSection() {
   return (
     <>
       <Form onSubmit={handleSubmit(onSubmit)} className="space-y-0">
-        <HStack gap={3} align="end" justify="between">
+        <HStack
+          gap={3}
+          align="end"
+          justify="between"
+          className="sticky bottom-0 z-40"
+        >
           <Input
             id="display-name"
             label={tSettings('account.profile.name')}
@@ -125,11 +130,13 @@ function ProfileSection() {
             wrapperClassName="max-w-sm flex-1"
             {...register('name')}
           />
-          <Button type="submit" disabled={isSubmitting || !isDirty || !isValid}>
-            {isSubmitting
-              ? tCommon('actions.saving')
-              : tCommon('actions.saveChanges')}
-          </Button>
+          {isDirty && (
+            <Button type="submit" disabled={isSubmitting || !isValid}>
+              {isSubmitting
+                ? tCommon('actions.saving')
+                : tCommon('actions.saveChanges')}
+            </Button>
+          )}
         </HStack>
       </Form>
 

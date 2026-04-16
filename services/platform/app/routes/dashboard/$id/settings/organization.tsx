@@ -6,6 +6,7 @@ import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-ske
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
+import { Separator } from '@/app/components/ui/layout/separator';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { OrganizationSettings } from '@/app/features/settings/organization/components/organization-settings';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
@@ -33,24 +34,42 @@ function OrganizationSettingsSkeleton() {
 
   return (
     <Stack gap={6}>
-      <HStack gap={3} align="end" justify="between">
-        <Stack gap={1} className="max-w-sm flex-1">
-          <Skeleton className="h-4 w-32" />
+      <PageSection
+        title={<Skeleton className="h-5 w-40" />}
+        description={<Skeleton className="h-4 w-64" />}
+        gap={5}
+      >
+        <Separator />
+        <HStack gap={3} align="end" justify="between">
+          <Stack gap={1} className="max-w-sm flex-1">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-9 w-full" />
+          </Stack>
+          <Skeleton className="h-9 w-28 shrink-0" />
+        </HStack>
+
+        <Stack gap={1} className="max-w-sm">
+          <Skeleton className="h-4 w-48" />
           <Skeleton className="h-9 w-full" />
         </Stack>
-        <Skeleton className="h-9 w-28 shrink-0" />
-      </HStack>
 
-      <HStack gap={2} align="center">
-        <Skeleton className="h-4 w-24 shrink-0" />
-        <Skeleton className="h-4 w-48" />
-      </HStack>
+        <div className="max-w-sm space-y-2">
+          <div className="flex flex-col gap-0.5">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-3 w-36" />
+          </div>
+          <div className="bg-muted/50 flex items-center gap-2 rounded-lg border px-4 py-3">
+            <Skeleton className="h-4 flex-1" />
+            <Skeleton className="size-4 shrink-0" />
+          </div>
+        </div>
+      </PageSection>
 
       <PageSection
         title={<Skeleton className="h-5 w-24" />}
         description={<Skeleton className="h-4 w-52" />}
-        className="pt-4"
       >
+        <Separator />
         <HStack justify="between">
           <Skeleton className="h-8 max-w-sm flex-1" />
         </HStack>
