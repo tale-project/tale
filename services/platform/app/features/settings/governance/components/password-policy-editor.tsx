@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
@@ -49,26 +49,17 @@ export function PasswordPolicyEditor({
 
   const savedConfig = useMemo(() => parseConfig(policy?.config), [policy]);
 
-  const [hydrated, setHydrated] = useState(false);
-  const [minLength, setMinLength] = useState(
-    String(DEFAULT_PASSWORD_POLICY.minLength),
-  );
-  const [requireUpper, setRequireUpper] = useState(
-    DEFAULT_PASSWORD_POLICY.requireUpper,
-  );
-  const [requireLower, setRequireLower] = useState(
-    DEFAULT_PASSWORD_POLICY.requireLower,
-  );
-  const [requireDigit, setRequireDigit] = useState(
-    DEFAULT_PASSWORD_POLICY.requireDigit,
-  );
-  const [requireSpecial, setRequireSpecial] = useState(
-    DEFAULT_PASSWORD_POLICY.requireSpecial,
-  );
+  const initializedRef = useRef(false);
+  const [minLength, setMinLength] = useState('');
+  const [requireUpper, setRequireUpper] = useState(false);
+  const [requireLower, setRequireLower] = useState(false);
+  const [requireDigit, setRequireDigit] = useState(false);
+  const [requireSpecial, setRequireSpecial] = useState(false);
   const [rotationEnabled, setRotationEnabled] = useState(false);
   const [rotationDays, setRotationDays] = useState('90');
 
-  useEffect(() => {
+  if (!isLoading && !initializedRef.current) {
+    initializedRef.current = true;
     setMinLength(String(savedConfig.minLength));
     setRequireUpper(savedConfig.requireUpper);
     setRequireLower(savedConfig.requireLower);
@@ -78,8 +69,7 @@ export function PasswordPolicyEditor({
     setRotationDays(
       savedConfig.rotationDays > 0 ? String(savedConfig.rotationDays) : '90',
     );
-    setHydrated(true);
-  }, [savedConfig]);
+  }
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
@@ -157,7 +147,7 @@ export function PasswordPolicyEditor({
     t,
   ]);
 
-  if (isLoading || !hydrated) {
+  if (isLoading || !initializedRef.current) {
     return (
       <div aria-busy="true" className="space-y-3 py-4">
         <Skeleton className="h-6 w-48" />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Input } from '@/app/components/ui/forms/input';
@@ -50,23 +50,23 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
     [policy],
   );
 
-  const [hydrated, setHydrated] = useState(false);
+  const initializedRef = useRef(false);
   const [enabled, setEnabled] = useState(false);
-  const [retentionDays, setRetentionDays] = useState(90);
+  const [retentionDays, setRetentionDays] = useState(0);
   const [userTempEnabled, setUserTempEnabled] = useState(false);
-  const [userTempRetentionHours, setUserTempRetentionHours] = useState(24);
+  const [userTempRetentionHours, setUserTempRetentionHours] = useState(0);
   const [agentTempEnabled, setAgentTempEnabled] = useState(false);
-  const [agentTempRetentionHours, setAgentTempRetentionHours] = useState(24);
+  const [agentTempRetentionHours, setAgentTempRetentionHours] = useState(0);
 
-  useEffect(() => {
+  if (!isLoading && !initializedRef.current) {
+    initializedRef.current = true;
     setEnabled(savedConfig.enabled);
     setRetentionDays(savedConfig.retentionDays);
     setUserTempEnabled(savedConfig.userTempEnabled ?? false);
     setUserTempRetentionHours(savedConfig.userTempRetentionHours ?? 24);
     setAgentTempEnabled(savedConfig.agentTempEnabled ?? false);
     setAgentTempRetentionHours(savedConfig.agentTempRetentionHours ?? 24);
-    setHydrated(true);
-  }, [savedConfig]);
+  }
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
@@ -108,7 +108,7 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
     ],
   );
 
-  if (isLoading || !hydrated) {
+  if (isLoading || !initializedRef.current) {
     return (
       <div aria-busy="true" className="space-y-3 py-4">
         <Skeleton className="h-6 w-48" />

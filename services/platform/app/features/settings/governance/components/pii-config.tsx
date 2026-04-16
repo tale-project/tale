@@ -1,7 +1,7 @@
 'use client';
 
 import { ShieldCheck } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { Alert } from '@/app/components/ui/feedback/alert';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -61,20 +61,20 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   > | null>(null);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
-  const [hydrated, setHydrated] = useState(false);
+  const initializedRef = useRef(false);
 
-  // Sync from server data once loaded
-  useEffect(() => {
-    if (policy && !hydrated) {
+  // Sync from server data once loaded (render-time to avoid flicker)
+  if (!isLoading && !initializedRef.current) {
+    initializedRef.current = true;
+    if (policy) {
       setEnabled(policy.enabled ?? false);
       setMode(policy.config?.mode ?? 'mask');
       setEnabledPatterns(
         new Set<string>(policy.config?.enabledPatterns ?? PATTERN_NAMES),
       );
       setCustomPatterns(policy.config?.customPatterns ?? []);
-      setHydrated(true);
     }
-  }, [policy, hydrated]);
+  }
 
   const saveConfig = useCallback(
     async (overrides: {
@@ -205,7 +205,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
     setTestResults(detectPii(testText, allPatterns));
   }, [testText, enabledPatterns, customPatterns]);
 
-  if (isLoading || !hydrated) {
+  if (isLoading || !initializedRef.current) {
     return (
       <div aria-busy="true" className="space-y-3 py-4">
         <Skeleton className="h-6 w-48" />
