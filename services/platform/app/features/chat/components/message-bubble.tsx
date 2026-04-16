@@ -418,56 +418,103 @@ function MessageBubbleComponent({
             })}
           </div>
         )}
-        {!isUser && !isAssistantStreaming && !!displayContent && (
-          <div className="flex items-start gap-1 pt-2">
-            <Tooltip
-              content={isCopied ? t('actions.copied') : t('actions.copy')}
-              side="bottom"
-            >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="p-1"
-                onClick={handleCopy}
+        {!isUser &&
+          !isAssistantStreaming &&
+          !!displayContent &&
+          (!hideFeedback && organizationId && message.threadId ? (
+            <MessageFeedback
+              messageId={message.id}
+              threadId={message.threadId}
+              organizationId={organizationId}
+              before={
+                <>
+                  <Tooltip
+                    content={isCopied ? t('actions.copied') : t('actions.copy')}
+                    side="bottom"
+                  >
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="p-1"
+                      onClick={handleCopy}
+                    >
+                      {isCopied ? (
+                        <CheckIcon className="text-success size-4" />
+                      ) : (
+                        <CopyIcon className="size-4" />
+                      )}
+                    </Button>
+                  </Tooltip>
+                  <Tooltip content={t('actions.showInfo')} side="bottom">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="p-1"
+                      onClick={handleInfoClick}
+                    >
+                      <Info className="size-4" />
+                    </Button>
+                  </Tooltip>
+                </>
+              }
+              after={
+                onFork ? (
+                  <Tooltip content={tChat('forkChat')} side="bottom">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="p-1"
+                      onClick={handleForkClick}
+                    >
+                      <GitFork className="size-4" />
+                    </Button>
+                  </Tooltip>
+                ) : undefined
+              }
+            />
+          ) : (
+            <div className="flex items-start gap-1 pt-2">
+              <Tooltip
+                content={isCopied ? t('actions.copied') : t('actions.copy')}
+                side="bottom"
               >
-                {isCopied ? (
-                  <CheckIcon className="text-success size-4" />
-                ) : (
-                  <CopyIcon className="size-4" />
-                )}
-              </Button>
-            </Tooltip>
-            <Tooltip content={t('actions.showInfo')} side="bottom">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="p-1"
-                onClick={handleInfoClick}
-              >
-                <Info className="size-4" />
-              </Button>
-            </Tooltip>
-            {!hideFeedback && organizationId && message.threadId && (
-              <MessageFeedback
-                messageId={message.id}
-                threadId={message.threadId}
-                organizationId={organizationId}
-              />
-            )}
-            {onFork && (
-              <Tooltip content={tChat('forkChat')} side="bottom">
                 <Button
                   variant="ghost"
                   size="icon"
                   className="p-1"
-                  onClick={handleForkClick}
+                  onClick={handleCopy}
                 >
-                  <GitFork className="size-4" />
+                  {isCopied ? (
+                    <CheckIcon className="text-success size-4" />
+                  ) : (
+                    <CopyIcon className="size-4" />
+                  )}
                 </Button>
               </Tooltip>
-            )}
-          </div>
-        )}
+              <Tooltip content={t('actions.showInfo')} side="bottom">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="p-1"
+                  onClick={handleInfoClick}
+                >
+                  <Info className="size-4" />
+                </Button>
+              </Tooltip>
+              {onFork && (
+                <Tooltip content={tChat('forkChat')} side="bottom">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="p-1"
+                    onClick={handleForkClick}
+                  >
+                    <GitFork className="size-4" />
+                  </Button>
+                </Tooltip>
+              )}
+            </div>
+          ))}
 
         {galleryImages.length > 0 && (
           <ImagePreviewDialog

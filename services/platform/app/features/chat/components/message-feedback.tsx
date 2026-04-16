@@ -1,7 +1,7 @@
 'use client';
 
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { ReactNode, useState, useCallback } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -14,12 +14,16 @@ interface MessageFeedbackProps {
   messageId: string;
   threadId: string;
   organizationId: string;
+  before?: ReactNode;
+  after?: ReactNode;
 }
 
 export function MessageFeedback({
   messageId,
   threadId,
   organizationId,
+  before,
+  after,
 }: MessageFeedbackProps) {
   const { t } = useT('chat');
   const { feedback, submitFeedback, removeFeedback } = useMessageFeedback({
@@ -106,8 +110,9 @@ export function MessageFeedback({
   );
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col pt-2">
       <div className="flex items-center gap-1">
+        {before}
         <Tooltip content={t('feedback.thumbsUp')} side="bottom">
           <Button
             variant="ghost"
@@ -146,16 +151,17 @@ export function MessageFeedback({
             />
           </Button>
         </Tooltip>
+        {after}
       </div>
 
       {showCommentBox && currentRating === 'negative' && (
-        <div className="mt-2 flex flex-col gap-2">
+        <div className="mt-2 flex max-w-sm flex-col gap-2">
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             onKeyDown={handleCommentKeyDown}
             placeholder={t('feedback.commentPlaceholder')}
-            className="border-border bg-muted text-foreground placeholder:text-muted-foreground min-h-[60px] w-full max-w-sm resize-none rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:ring-offset-0 focus:outline-none"
+            className="border-border bg-muted text-foreground placeholder:text-muted-foreground min-h-[60px] w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:ring-offset-0 focus:outline-none"
             aria-label={t('feedback.commentPlaceholder')}
           />
           <div className="flex gap-2">
