@@ -50,6 +50,24 @@ The default chat agent can handle:
 | Document handling | Parse and analyze PDF, Word, PowerPoint, Excel, and text files |
 | Image analysis | Describe, analyze, or extract information from images |
 
+## Arena mode
+
+Arena Mode lets you compare two AI models on the same prompt. Click the **Swords** icon in the input toolbar, select two models, and send a message. Both models respond in parallel in a split view. Record a verdict to mark which response was better.
+
+See [Arena mode](/arena-mode) for full details.
+
+## Canvas
+
+When the AI generates a code block, HTML snippet, Mermaid diagram, or markdown, click **Open in Canvas** to view it in a dedicated side pane. Canvas provides syntax highlighting, live preview, editing, and export. You can edit content and apply changes back to the conversation.
+
+See [Canvas](/canvas) for full details.
+
+## Prompt library
+
+Save and reuse prompt templates across your organization. Open the Prompt Library from the chat input toolbar to browse, search, and insert saved prompts. You can also save any chat message as a prompt template directly from the conversation.
+
+See [Prompt library](/prompt-library) for full details.
+
 ## Keyboard shortcuts
 
 | Action | Windows / Linux | macOS |

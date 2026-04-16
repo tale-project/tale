@@ -31,6 +31,12 @@ Documents can be organized into folders. Use the breadcrumb navigation at the to
 
 If a Microsoft account integration is configured, a Sync from OneDrive option appears in the action menu. This imports documents directly from OneDrive without downloading them to your server first.
 
+### Document comparison
+
+You can compare two documents to see what changed between them. Upload a new version or select an existing document, and the platform generates a detailed diff showing additions, deletions, and modifications.
+
+See [Document comparison](/document-comparison) for full details.
+
 ## Websites
 
 Website tracking tells Tale's crawler to visit and index pages from a given domain on a schedule. Once indexed, the AI agent can answer questions about that site's content.

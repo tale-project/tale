@@ -2,7 +2,7 @@
 
 ## General
 
-- USE Bun workspaces for running scripts: `bun run --filter @tale/<workspace> <script>` (e.g., `bun run --filter @tale/platform lint`).
+- USE Bun workspaces for running scripts: `bun run --filter @tale/<workspace> <script>` (e.g., `bun run --filter @tale/platform lint`). Available workspaces: `@tale/platform`, `@tale/cli`, `@tale/crawler`, `@tale/rag`, `@tale/db`, `@tale/proxy`.
 - ALWAYS optimize your code for MAX performance.
 - ALWAYS ensure that you follow the existing design.
 - ALL pages should be optimized for accessibility (Level AA).
@@ -124,8 +124,8 @@ for await (const product of products) {
 
 ## Internationalization (i18n)
 
-- KEEP all translation files in sync — every key in `en.json` MUST exist in all locale files (`de.json`, etc.).
-- WHEN adding, changing, or removing a translation key, update ALL locale files in the same commit.
+- KEEP all translation files in sync — every key in `en.json` MUST exist in all base locale files (`de.json`). Locale variants (`de-AT.json`, `de-CH.json`) only override keys that differ.
+- WHEN adding, changing, or removing a translation key, update `en.json` and all base locale files (`de.json`) in the same commit. Update variants (`de-AT.json`, `de-CH.json`) only if they override the changed key.
 - WHEN removing code that references translation keys, also remove the unused keys from ALL locale files.
 - LOCALE VARIANTS (e.g. `de-CH`, `de-AT`) only contain keys whose values differ from the base locale (e.g. `de`). Variants fall back to its base automatically.
 - USE sentence case in all translations.
@@ -163,12 +163,12 @@ for await (const product of products) {
 ## Documentation
 
 - Documentation lives in `docs/` and uses Mintlify (`docs/docs.json` controls navigation).
+- TREAT documentation as part of the deliverable, not an afterthought. Any change that affects what users see, configure, or interact with MUST include a corresponding documentation update in the same PR. This includes new features, changed behavior, renamed settings, new environment variables, updated APIs, and removed functionality. Work without up-to-date docs is not complete.
+- WHEN adding a new doc page, also add it to the appropriate navigation group in `docs/docs.json`.
+- WHEN renaming or removing a doc page, update all references in `README.md` and `docs/docs.json`.
 - ALWAYS add Mintlify frontmatter (`title` and `description`) to every doc file.
 - USE dash-case for documentation filenames (e.g., `api-reference.md`).
 - KEEP each doc file focused on a single topic. Do not combine unrelated topics in one file.
-- WHEN adding a new doc page, also add it to the appropriate navigation group in `docs/docs.json`.
-- WHEN renaming or removing a doc page, update all references in `README.md` and `docs/docs.json`.
-- ALWAYS keep documentation up-to-date when making code changes that affect user-facing behavior, APIs, configuration, or setup steps.
 - PREFER cross-linking between doc pages over duplicating content.
 - USE code blocks with language identifiers for all command examples.
 - USE Mermaid diagrams for flow charts and architecture diagrams in documentation.

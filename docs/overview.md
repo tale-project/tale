@@ -52,8 +52,9 @@ graph TD
 
 ## Key capabilities
 
-- AI chat assistant with multi-turn conversations, file attachments, agent selection, and built-in tools
-- Semantic knowledge base for documents, websites, products, customers, and vendors
+- AI chat assistant with multi-turn conversations, file attachments, agent selection, [arena mode](/arena-mode) for model comparison, [canvas](/canvas) for content editing, and built-in tools
+- [Prompt library](/prompt-library) for saving and sharing reusable prompt templates
+- Semantic knowledge base for documents, websites, products, customers, and vendors with [document comparison](/document-comparison)
 - Customer conversations inbox with AI-assisted replies and bulk actions
 - Visual automation builder with LLM steps, conditionals, loops, and scheduling
 - Custom AI agents with tailored instructions, knowledge, and tools

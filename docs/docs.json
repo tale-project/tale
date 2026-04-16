@@ -82,7 +82,11 @@
         "group": "Features",
         "pages": [
           "ai-chat",
+          "arena-mode",
+          "canvas",
+          "prompt-library",
           "knowledge-base",
+          "document-comparison",
           "conversations",
           "approvals",
           "automations",
