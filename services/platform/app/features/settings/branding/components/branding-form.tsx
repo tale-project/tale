@@ -320,24 +320,35 @@ export function BrandingForm({
           />
         </FormSection>
 
-        <HStack justify="between" className="pt-6">
-          {hasAnyBranding && (
-            <Button type="button" variant="secondary" onClick={handleReset}>
-              {tCommon('actions.reset')}
-            </Button>
-          )}
-          <div className="ml-auto">
-            <Button
-              type="submit"
-              disabled={isSubmitting || !isDirty || !isValid}
-              className="bg-foreground text-background hover:bg-foreground/90"
-            >
-              {isSubmitting
-                ? tCommon('actions.saving')
-                : tCommon('actions.saveChanges')}
-            </Button>
-          </div>
-        </HStack>
+        {isDirty && (
+          <HStack
+            justify="between"
+            className="bg-background/80 sticky bottom-0 z-40 -mx-4 mt-4 px-4 py-3 backdrop-blur-md"
+          >
+            {hasAnyBranding && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleReset}
+              >
+                {tCommon('actions.reset')}
+              </Button>
+            )}
+            <div className="ml-auto">
+              <Button
+                type="submit"
+                size="sm"
+                isLoading={isSubmitting}
+                disabled={!isValid}
+              >
+                {isSubmitting
+                  ? tCommon('actions.saving')
+                  : tCommon('actions.saveChanges')}
+              </Button>
+            </div>
+          </HStack>
+        )}
       </div>
     </Form>
   );

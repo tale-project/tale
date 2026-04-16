@@ -603,12 +603,14 @@
     },
     "organization": {
       "title": "Organization (optional)",
+      "detailsTitle": "Organization details",
+      "detailsDescription": "Basic information about your organization.",
       "organizationId": "Organization ID",
+      "organizationIdHint": "Used for API integrations",
       "membersTitle": "Organization members",
       "membersEntityLabel": "members",
       "manageAccess": "Manage access to the organization",
-      "defaultLocale": "Default language",
-      "defaultLocaleDescription": "The base language for agent names, descriptions, and conversation starters.",
+      "defaultLocale": "What language should your agents use?",
       "searchMember": "Search member",
       "addMember": "Add member",
       "members": {
