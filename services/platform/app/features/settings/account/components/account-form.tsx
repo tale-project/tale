@@ -131,10 +131,7 @@ function ProfileSection() {
             {...register('name')}
           />
           {isDirty && (
-            <Button
-              type="submit"
-              disabled={isSubmitting || !isDirty || !isValid}
-            >
+            <Button type="submit" disabled={isSubmitting || !isValid}>
               {isSubmitting
                 ? tCommon('actions.saving')
                 : tCommon('actions.saveChanges')}

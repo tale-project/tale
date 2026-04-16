@@ -175,7 +175,7 @@ export function OrganizationSettings({
             wrapperClassName="max-w-sm flex-1"
           />
           {isDirty && (
-            <Button type="submit" disabled={isSubmitting || !isDirty}>
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting
                 ? tCommon('actions.saving')
                 : tCommon('actions.saveChanges')}
