@@ -10,6 +10,10 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
+vi.mock('../hooks/queries', () => ({
+  useTeamMembers: () => ({ data: [], isLoading: false }),
+}));
+
 vi.mock('../hooks/use-teams-table-config', () => ({
   useTeamsTableConfig: () => ({
     columns: [
