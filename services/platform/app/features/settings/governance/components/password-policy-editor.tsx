@@ -49,6 +49,7 @@ export function PasswordPolicyEditor({
 
   const savedConfig = useMemo(() => parseConfig(policy?.config), [policy]);
 
+  const [hydrated, setHydrated] = useState(false);
   const [minLength, setMinLength] = useState(
     String(DEFAULT_PASSWORD_POLICY.minLength),
   );
@@ -77,6 +78,7 @@ export function PasswordPolicyEditor({
     setRotationDays(
       savedConfig.rotationDays > 0 ? String(savedConfig.rotationDays) : '90',
     );
+    setHydrated(true);
   }, [savedConfig]);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
@@ -155,7 +157,7 @@ export function PasswordPolicyEditor({
     t,
   ]);
 
-  if (isLoading) {
+  if (isLoading || !hydrated) {
     return (
       <div aria-busy="true" className="space-y-3 py-4">
         <Skeleton className="h-6 w-48" />

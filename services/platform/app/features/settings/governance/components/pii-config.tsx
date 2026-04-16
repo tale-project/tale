@@ -1,7 +1,7 @@
 'use client';
 
 import { ShieldCheck } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { Alert } from '@/app/components/ui/feedback/alert';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -61,20 +61,20 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   > | null>(null);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
-  const initialized = useRef(false);
+  const [hydrated, setHydrated] = useState(false);
 
   // Sync from server data once loaded
   useEffect(() => {
-    if (policy && !initialized.current) {
-      initialized.current = true;
+    if (policy && !hydrated) {
       setEnabled(policy.enabled ?? false);
       setMode(policy.config?.mode ?? 'mask');
       setEnabledPatterns(
         new Set<string>(policy.config?.enabledPatterns ?? PATTERN_NAMES),
       );
       setCustomPatterns(policy.config?.customPatterns ?? []);
+      setHydrated(true);
     }
-  }, [policy]);
+  }, [policy, hydrated]);
 
   const saveConfig = useCallback(
     async (overrides: {
@@ -205,7 +205,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
     setTestResults(detectPii(testText, allPatterns));
   }, [testText, enabledPatterns, customPatterns]);
 
-  if (isLoading) {
+  if (isLoading || !hydrated) {
     return (
       <div aria-busy="true" className="space-y-3 py-4">
         <Skeleton className="h-6 w-48" />

@@ -83,6 +83,7 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
 
   const savedConfig = useMemo(() => parseConfig(policy?.config), [policy]);
 
+  const [hydrated, setHydrated] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const [maxAttempts, setMaxAttempts] = useState(
     String(DEFAULT_LOGIN_MAX_ATTEMPTS),
@@ -99,6 +100,7 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
     setMaxAttempts(String(savedConfig.maxAttemptsBeforeLockout));
     setScheduleSeconds(scheduleToString(savedConfig.backoffSchedule));
     setTrustedProxies(savedConfig.trustedProxies.join(', '));
+    setHydrated(true);
   }, [savedConfig]);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
@@ -183,7 +185,7 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
     t,
   ]);
 
-  if (isLoading) {
+  if (isLoading || !hydrated) {
     return (
       <div aria-busy="true" className="space-y-3 py-4">
         <Skeleton className="h-6 w-48" />

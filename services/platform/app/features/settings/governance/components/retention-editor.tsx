@@ -50,6 +50,7 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
     [policy],
   );
 
+  const [hydrated, setHydrated] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [retentionDays, setRetentionDays] = useState(90);
   const [userTempEnabled, setUserTempEnabled] = useState(false);
@@ -64,6 +65,7 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
     setUserTempRetentionHours(savedConfig.userTempRetentionHours ?? 24);
     setAgentTempEnabled(savedConfig.agentTempEnabled ?? false);
     setAgentTempRetentionHours(savedConfig.agentTempRetentionHours ?? 24);
+    setHydrated(true);
   }, [savedConfig]);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
@@ -106,7 +108,7 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
     ],
   );
 
-  if (isLoading) {
+  if (isLoading || !hydrated) {
     return (
       <div aria-busy="true" className="space-y-3 py-4">
         <Skeleton className="h-6 w-48" />

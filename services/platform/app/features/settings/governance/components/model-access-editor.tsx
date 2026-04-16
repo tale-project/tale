@@ -309,6 +309,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     [policy],
   );
 
+  const [hydrated, setHydrated] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [mode, setMode] = useState<ModelAccessConfig['mode']>('blocklist');
   const [rules, setRules] = useState<ModelAccessRule[]>([]);
@@ -321,6 +322,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     setEnabled(savedConfig.enabled);
     setMode(savedConfig.mode);
     setRules(savedConfig.rules);
+    setHydrated(true);
   }, [savedConfig]);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
@@ -439,7 +441,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     [allModelOptions],
   );
 
-  if (isLoading) {
+  if (isLoading || !hydrated) {
     return (
       <div aria-busy="true" className="space-y-3 py-4">
         <Skeleton className="h-6 w-48" />
