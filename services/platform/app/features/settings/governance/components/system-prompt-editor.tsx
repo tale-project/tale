@@ -106,11 +106,13 @@ export function SystemPromptEditor({
       title={t('systemPrompt.title')}
       description={t('systemPrompt.description')}
       action={
-        <Button onClick={handleSave} disabled={!canSave} size="sm">
-          {upsertMutation.isPending
-            ? t('systemPrompt.saving')
-            : t('systemPrompt.save')}
-        </Button>
+        hasChanges ? (
+          <Button onClick={handleSave} disabled={!canSave} size="sm">
+            {upsertMutation.isPending
+              ? t('systemPrompt.saving')
+              : t('systemPrompt.save')}
+          </Button>
+        ) : undefined
       }
     >
       <Stack gap={6} className="max-w-2xl">
