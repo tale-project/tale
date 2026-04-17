@@ -15,6 +15,7 @@ export const GOVERNANCE_POLICY_TYPES = [
   'audit_retention',
   'login_policy',
   'password_policy',
+  'two_factor_policy',
 ] as const;
 
 const policyTypeValidator = v.union(

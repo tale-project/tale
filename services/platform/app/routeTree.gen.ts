@@ -13,6 +13,7 @@ import { Route as DocsRouteImport } from './routes/docs'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConvexDashboardRouteImport } from './routes/convex-dashboard'
 import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as R2faEnrollRouteImport } from './routes/2fa-enroll'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as ForcedChangePasswordIdRouteImport } from './routes/forced-change-password.$id'
@@ -20,6 +21,7 @@ import { Route as DashboardCreateOrganizationRouteImport } from './routes/dashbo
 import { Route as DashboardIdRouteImport } from './routes/dashboard/$id'
 import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up'
 import { Route as AuthLogInRouteImport } from './routes/_auth/log-in'
+import { Route as Auth2faRouteImport } from './routes/_auth/2fa'
 import { Route as DashboardIdIndexRouteImport } from './routes/dashboard/$id/index'
 import { Route as DashboardIdSettingsRouteImport } from './routes/dashboard/$id/settings'
 import { Route as DashboardIdCustomAgentsRouteImport } from './routes/dashboard/$id/custom-agents'
@@ -85,6 +87,11 @@ const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const R2faEnrollRoute = R2faEnrollRouteImport.update({
+  id: '/2fa-enroll',
+  path: '/2fa-enroll',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -119,6 +126,11 @@ const AuthSignUpRoute = AuthSignUpRouteImport.update({
 const AuthLogInRoute = AuthLogInRouteImport.update({
   id: '/log-in',
   path: '/log-in',
+  getParentRoute: () => AuthRoute,
+} as any)
+const Auth2faRoute = Auth2faRouteImport.update({
+  id: '/2fa',
+  path: '/2fa',
   getParentRoute: () => AuthRoute,
 } as any)
 const DashboardIdIndexRoute = DashboardIdIndexRouteImport.update({
@@ -382,9 +394,11 @@ const DashboardIdAgentsAgentIdConversationStartersRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/2fa-enroll': typeof R2faEnrollRoute
   '/convex-dashboard': typeof ConvexDashboardRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/docs': typeof DocsRoute
+  '/2fa': typeof Auth2faRoute
   '/log-in': typeof AuthLogInRoute
   '/sign-up': typeof AuthSignUpRoute
   '/dashboard/$id': typeof DashboardIdKnowledgeRouteWithChildren
@@ -438,8 +452,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/2fa-enroll': typeof R2faEnrollRoute
   '/convex-dashboard': typeof ConvexDashboardRoute
   '/docs': typeof DocsRoute
+  '/2fa': typeof Auth2faRoute
   '/log-in': typeof AuthLogInRoute
   '/sign-up': typeof AuthSignUpRoute
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
@@ -487,10 +503,12 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/2fa-enroll': typeof R2faEnrollRoute
   '/_auth': typeof AuthRouteWithChildren
   '/convex-dashboard': typeof ConvexDashboardRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/docs': typeof DocsRoute
+  '/_auth/2fa': typeof Auth2faRoute
   '/_auth/log-in': typeof AuthLogInRoute
   '/_auth/sign-up': typeof AuthSignUpRoute
   '/dashboard/$id': typeof DashboardIdRouteWithChildren
@@ -547,9 +565,11 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/2fa-enroll'
     | '/convex-dashboard'
     | '/dashboard'
     | '/docs'
+    | '/2fa'
     | '/log-in'
     | '/sign-up'
     | '/dashboard/$id'
@@ -603,8 +623,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/2fa-enroll'
     | '/convex-dashboard'
     | '/docs'
+    | '/2fa'
     | '/log-in'
     | '/sign-up'
     | '/dashboard/create-organization'
@@ -651,10 +673,12 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/2fa-enroll'
     | '/_auth'
     | '/convex-dashboard'
     | '/dashboard'
     | '/docs'
+    | '/_auth/2fa'
     | '/_auth/log-in'
     | '/_auth/sign-up'
     | '/dashboard/$id'
@@ -710,6 +734,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  R2faEnrollRoute: typeof R2faEnrollRoute
   AuthRoute: typeof AuthRouteWithChildren
   ConvexDashboardRoute: typeof ConvexDashboardRoute
   DashboardRoute: typeof DashboardRouteWithChildren
@@ -745,6 +770,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/2fa-enroll': {
+      id: '/2fa-enroll'
+      path: '/2fa-enroll'
+      fullPath: '/2fa-enroll'
+      preLoaderRoute: typeof R2faEnrollRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -794,6 +826,13 @@ declare module '@tanstack/react-router' {
       path: '/log-in'
       fullPath: '/log-in'
       preLoaderRoute: typeof AuthLogInRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/2fa': {
+      id: '/_auth/2fa'
+      path: '/2fa'
+      fullPath: '/2fa'
+      preLoaderRoute: typeof Auth2faRouteImport
       parentRoute: typeof AuthRoute
     }
     '/dashboard/$id/': {
@@ -1115,11 +1154,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthRouteChildren {
+  Auth2faRoute: typeof Auth2faRoute
   AuthLogInRoute: typeof AuthLogInRoute
   AuthSignUpRoute: typeof AuthSignUpRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
+  Auth2faRoute: Auth2faRoute,
   AuthLogInRoute: AuthLogInRoute,
   AuthSignUpRoute: AuthSignUpRoute,
 }
@@ -1352,6 +1393,7 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  R2faEnrollRoute: R2faEnrollRoute,
   AuthRoute: AuthRouteWithChildren,
   ConvexDashboardRoute: ConvexDashboardRoute,
   DashboardRoute: DashboardRouteWithChildren,

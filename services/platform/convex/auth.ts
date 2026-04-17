@@ -1,9 +1,10 @@
+import { apiKey } from '@better-auth/api-key';
 import { createClient, type GenericCtx } from '@convex-dev/better-auth';
 import { convex } from '@convex-dev/better-auth/plugins';
 import { requireRunMutationCtx } from '@convex-dev/better-auth/utils';
 import { betterAuth } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
-import { apiKey, organization } from 'better-auth/plugins';
+import { organization, twoFactor } from 'better-auth/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
 import {
   defaultStatements,
@@ -20,6 +21,10 @@ import {
   RateLimitExceededError,
 } from './lib/rate_limiter/helpers';
 import { getClientIp, loadTrustedProxies } from './lib/utils/client_ip';
+import {
+  twoFactorAfterHook,
+  twoFactorBeforeHook,
+} from './two_factor/auth_hooks';
 
 const siteUrl = process.env.SITE_URL || 'http://127.0.0.1:3000';
 
@@ -310,6 +315,20 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
     rateLimit: {
       enabled: false,
     },
+    user: {
+      additionalFields: {
+        // Per-user idempotent grace-period anchor for the org `enforceTwoFactor`
+        // policy (issue #1507). Set ONCE on the first sign-in where enforcement
+        // applies to a credential user who isn't enrolled. Admin reset clears it
+        // so the user gets a fresh window. Never recomputed — immune to policy
+        // edits flipping unrelated fields.
+        twoFactorGraceUntil: {
+          type: 'number',
+          required: false,
+          input: false,
+        } as const,
+      },
+    },
     session: {
       additionalFields: {
         trustedRole: {
@@ -329,6 +348,12 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
       // (the IP window is short — 1 minute — and would otherwise hide a
       // longer account lockout).
       before: createAuthMiddleware(async (mw) => {
+        // 2FA verify endpoints need their own userId-keyed lockout. Without
+        // this, a caller with the password could brute-force the 6-digit
+        // TOTP space freely — the 2FA request body has no email, so the
+        // email-keyed gate below can't cover it.
+        await twoFactorBeforeHook(ctx, mw);
+
         if (mw.path !== SIGN_IN_EMAIL_PATH) return;
 
         const email = bodyEmail(mw.body);
@@ -385,12 +410,6 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
       // failure path (Better Auth catches the throw before invoking
       // after-hooks, see node_modules/better-auth/dist/api/to-auth-endpoints.mjs).
       after: createAuthMiddleware(async (mw) => {
-        if (mw.path !== SIGN_IN_EMAIL_PATH) return;
-
-        const email = bodyEmail(mw.body);
-        if (!email) return;
-
-        const returned = mw.context.returned;
         const runCtx = requireRunMutationCtx(ctx);
         const trusted = await loadTrustedProxies(runCtx);
         const ip = mw.request
@@ -398,22 +417,47 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
           : undefined;
         const userAgent = mw.request?.headers.get('user-agent') ?? undefined;
 
-        // Note: if the before-hook threw 429, Better Auth does NOT invoke
-        // runAfterHooks. `recordBlocked` is called from the before-hook
-        // directly. Anything that reaches here actually made it to the
-        // password-check stage.
+        // Route /two-factor/* and the /sign-in/email enforcement check
+        // through the 2FA hook module. Enforcement may return a replacement
+        // response (twoFactorRedirect + enrollRequired) — when it does, we
+        // cancel the default response after letting the existing
+        // loginAttempts success path record the successful password step.
+        const twoFactorReplacement = await twoFactorAfterHook(
+          ctx,
+          mw,
+          ip,
+          userAgent,
+        );
 
-        const failed = returned instanceof APIError || !mw.context.newSession;
-        if (failed) {
-          await runCtx.runMutation(
-            internal.login_attempts.internal_mutations.recordFailure,
-            { email, ip, userAgent },
-          );
-        } else {
-          await runCtx.runMutation(
-            internal.login_attempts.internal_mutations.clearOnSuccess,
-            { email, ip, userAgent },
-          );
+        if (mw.path === SIGN_IN_EMAIL_PATH) {
+          const email = bodyEmail(mw.body);
+          if (email) {
+            const returned = mw.context.returned;
+            // Note: if the before-hook threw 429, Better Auth does NOT
+            // invoke runAfterHooks. `recordBlocked` is called from the
+            // before-hook directly. Anything that reaches here actually
+            // made it to the password-check stage.
+            const failed =
+              returned instanceof APIError || !mw.context.newSession;
+            if (failed) {
+              await runCtx.runMutation(
+                internal.login_attempts.internal_mutations.recordFailure,
+                { email, ip, userAgent },
+              );
+            } else {
+              await runCtx.runMutation(
+                internal.login_attempts.internal_mutations.clearOnSuccess,
+                { email, ip, userAgent },
+              );
+            }
+          }
+
+          if (twoFactorReplacement !== undefined) {
+            // Replace the default session response with the enforcement
+            // redirect. The session itself has already been deleted and
+            // the Set-Cookie cleared inside `twoFactorAfterHook`.
+            mw.context.returned = twoFactorReplacement;
+          }
         }
       }),
     },
@@ -456,6 +500,15 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
           timeWindow: 60,
           maxRequests: 100,
         },
+      }),
+      // TOTP-based two-factor authentication (issue #1507).
+      // Lockout on /two-factor/verify-* paths is enforced via the before-hook
+      // above to prevent the 6-digit surface from bypassing password lockout.
+      twoFactor({
+        issuer: 'Tale',
+        totpOptions: { digits: 6, period: 30 },
+        backupCodeOptions: { amount: 10, length: 10 },
+        skipVerificationOnEnable: false,
       }),
     ],
   };

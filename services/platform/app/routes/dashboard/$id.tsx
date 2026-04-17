@@ -12,6 +12,7 @@ import {
   AbilityContext,
   AbilityLoadingContext,
 } from '@/app/context/ability-context';
+import { TwoFactorGraceBanner } from '@/app/features/auth/components/two-factor-grace-banner';
 import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-expiry-gate';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -82,6 +83,9 @@ function DashboardLayout() {
                 id="main-content"
                 className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l"
               >
+                {hasRole && (
+                  <TwoFactorGraceBanner organizationId={organizationId} />
+                )}
                 {hasRole || isLoading ? (
                   <Outlet />
                 ) : status === 'not_found' ? (

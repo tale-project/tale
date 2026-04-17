@@ -38,6 +38,7 @@ import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
 import { threadBranchesTable } from './threads/branch_schema';
 import { threadMetadataTable } from './threads/schema';
+import { twoFactorAttemptsTable } from './two_factor/schema';
 import { userPasswordMetadataTable } from './users/schema';
 import { vendorsTable } from './vendors/schema';
 import { websitesTable } from './websites/schema';
@@ -90,6 +91,7 @@ export default defineSchema({
   onedriveSyncConfigs: onedriveSyncConfigsTable,
   threadBranches: threadBranchesTable,
   threadMetadata: threadMetadataTable,
+  twoFactorAttempts: twoFactorAttemptsTable,
   userPasswordMetadata: userPasswordMetadataTable,
   products: productsTable,
   ssoProviders: ssoProvidersTable,

@@ -25,6 +25,7 @@ import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
 
 import { useUpdatePassword, useUpdateUserName } from '../hooks/mutations';
+import { TwoFactorSection } from './two-factor-section';
 
 interface ProfileFormData {
   name: string;
@@ -53,6 +54,7 @@ export function AccountForm() {
     <Stack>
       <ProfileSection />
       <PasswordSection hasCredential={hasCredential ?? false} />
+      <TwoFactorSection />
     </Stack>
   );
 }
