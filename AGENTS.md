@@ -133,10 +133,11 @@ for await (const product of products) {
 - DO NOT translate brand names (Tale, Gmail, Outlook, Shopify, etc.).
 - USE informal form (e.g. "du" not "Sie"). This applies to all languages (e.g., "tu" in French, not "vous").
 
-### Language-specific terminology
+### Terminology and style
 
-Terminology tables and style rules for each locale live in `.agents/`. Read these before adding or modifying translations:
+Cross-locale rules (length parity with English, tone, plurals, placeholders) live in a shared file. Per-language terminology tables and locale-specific quirks live alongside it. Read both the general file and the relevant language file before adding or modifying translations:
 
+- **General (all locales):** [`.agents/TERMINOLOGY.md`](.agents/TERMINOLOGY.md)
 - **English (en):** [`.agents/TERMINOLOGY_EN.md`](.agents/TERMINOLOGY_EN.md)
 - **German (de):** [`.agents/TERMINOLOGY_DE.md`](.agents/TERMINOLOGY_DE.md)
 - **French (fr):** [`.agents/TERMINOLOGY_FR.md`](.agents/TERMINOLOGY_FR.md)

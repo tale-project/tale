@@ -1,5 +1,7 @@
 # German (de) terminology
 
+See `TERMINOLOGY.md` for cross-locale rules.
+
 | English                        | German                           | Notes                  |
 | ------------------------------ | -------------------------------- | ---------------------- |
 | AI                             | KI                               | Künstliche Intelligenz |
@@ -15,8 +17,7 @@
 | Save / Delete / Edit           | Speichern / Löschen / Bearbeiten |                        |
 | Log in                         | Anmelden                         |                        |
 
-## Style rules
+## Style rules (German-specific)
 
-- KEEP translations roughly the same length as English — use shorter synonyms or abbreviations when German is notably longer.
 - USE standard German compounding for compound nouns (e.g., "API-Schlüssel", "E-Mail-Anbieter").
-- USE ICU `one`/`other` for German plurals (same structure as English).
+- USE the informal "du" form consistently — never "Sie" for addressing the user.

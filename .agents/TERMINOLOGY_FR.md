@@ -1,5 +1,7 @@
 # French (fr) terminology
 
+See `TERMINOLOGY.md` for cross-locale rules.
+
 | English                        | French                             | Notes                         |
 | ------------------------------ | ---------------------------------- | ----------------------------- |
 | AI                             | IA                                 | Intelligence artificielle     |
@@ -19,8 +21,7 @@
 | PII                            | DCP                                | Données à caractère personnel |
 | E-mail                         | E-mail                             | With hyphen (Académie fr.)    |
 
-## Style rules
+## Style rules (French-specific)
 
-- USE informal "tu" form consistently — never "vous" for addressing the user.
-- USE ICU `one`/`other` for French plurals (same structure as English).
+- USE the informal "tu" form consistently — never "vous" for addressing the user.
 - USE « guillemets » only in running prose. In UI labels and short strings, use standard quotes or none.

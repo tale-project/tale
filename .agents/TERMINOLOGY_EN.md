@@ -1,6 +1,6 @@
 # English (en) terminology
 
-English is the source locale. All other locale files derive from `en.json`.
+English is the source locale. All other locale files derive from `en.json`. See `TERMINOLOGY.md` for cross-locale rules.
 
 | Term                           | Preferred form                   | Notes                                  |
 | ------------------------------ | -------------------------------- | -------------------------------------- |
@@ -21,13 +21,6 @@ English is the source locale. All other locale files derive from `en.json`.
 | Upload / Download              | Upload / Download                |                                        |
 | PII                            | PII                              | Personally identifiable information    |
 
-## Style rules
+## Style rules (English-specific)
 
-- USE sentence case in all UI strings (e.g., "Save changes", not "Save Changes").
-- USE informal, direct tone — address the user as "you" (not "the user" or passive voice).
-- PREFER short, scannable labels for buttons and menu items (1-3 words).
 - USE the Oxford comma in lists.
-- USE "e.g." and "i.e." in tooltips/descriptions, not "for example" or "that is" (saves space).
-- WRITE error messages that tell the user what happened and what to do next.
-- AVOID jargon in user-facing strings — prefer plain language over technical terms where possible.
-- USE ICU `one`/`other` for plurals (e.g., `{count, plural, one {# item} other {# items}}`).
