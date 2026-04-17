@@ -33,7 +33,8 @@ export function useFileEvents() {
       let data: { type: string; orgSlug?: string };
       try {
         data = JSON.parse(e.data);
-      } catch {
+      } catch (err) {
+        console.warn('[useFileEvents] Failed to parse SSE message:', err);
         return;
       }
 
