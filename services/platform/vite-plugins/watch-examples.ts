@@ -27,7 +27,8 @@ export function watchExamples(): Plugin {
         for (const client of clients) {
           try {
             client.write(payload);
-          } catch {
+          } catch (err) {
+            console.warn('SSE write failed; dropping client', err);
             clients.delete(client);
           }
         }

@@ -100,6 +100,7 @@ export function generateDevCompose(
   // needs it locally for server.ts (chokidar root + branding image dir).
   platform.environment = {
     TALE_CONFIG_DIR: '/app/data',
+    TALE_FILE_EVENTS: 'true',
     CONVEX_URL: 'http://convex:3210',
   };
   platform.depends_on = {

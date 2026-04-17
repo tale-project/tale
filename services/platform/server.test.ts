@@ -7,6 +7,7 @@ const baseEnv = {
   BASE_PATH: '',
   MICROSOFT_AUTH_ENABLED: false,
   TRUSTED_HEADERS_ENABLED: false,
+  FILE_EVENTS_ENABLED: true,
   SENTRY_DSN: undefined,
   SENTRY_TRACES_SAMPLE_RATE: 1,
   TALE_VERSION: undefined,
@@ -92,5 +93,11 @@ describe('SSE /events/file', () => {
     expect(res.body).toBeInstanceOf(ReadableStream);
     // Cancel to drop the SSE client and avoid leaking the controller.
     await res.body?.cancel();
+  });
+
+  test('returns 404 when FILE_EVENTS_ENABLED is false', async () => {
+    const app = createApp({ ...baseEnv, FILE_EVENTS_ENABLED: false });
+    const res = await app.fetch(new Request('http://localhost/events/file'));
+    expect(res.status).toBe(404);
   });
 });

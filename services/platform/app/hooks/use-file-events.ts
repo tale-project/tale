@@ -1,26 +1,40 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
+import { getEnv } from '@/lib/env';
+
 import { configKeys } from './config-query-keys';
 
 /**
- * Connects to the /api/file-events SSE endpoint and invalidates TanStack
- * Query caches when config files change on disk (external edits, git pull,
- * other users, etc.).
+ * Connects to the /events/file SSE endpoint and invalidates TanStack Query
+ * caches when config files change on disk (external edits, git pull, other
+ * users, etc.).
+ *
+ * Requires `TALE_FILE_EVENTS=true` on the server. When the feature is
+ * disabled the hook is a no-op — no EventSource is created.
  *
  * Mount once near the app root.
  */
 export function useFileEvents() {
   const queryClient = useQueryClient();
 
+  const enabled = getEnv('FILE_EVENTS_ENABLED');
+
   useEffect(() => {
+    if (!enabled) return undefined;
+
     const es = new EventSource('/events/file');
+
+    es.addEventListener('error', () => {
+      es.close();
+    });
 
     es.addEventListener('message', (e) => {
       let data: { type: string; orgSlug?: string };
       try {
         data = JSON.parse(e.data);
-      } catch {
+      } catch (err) {
+        console.warn('[useFileEvents] Failed to parse SSE message:', err);
         return;
       }
 
@@ -36,5 +50,5 @@ export function useFileEvents() {
     });
 
     return () => es.close();
-  }, [queryClient]);
+  }, [queryClient, enabled]);
 }
