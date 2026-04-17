@@ -4,6 +4,7 @@ interface EnvConfig {
   SITE_URL: string;
   BASE_PATH: string;
   MICROSOFT_AUTH_ENABLED: boolean;
+  FILE_EVENTS_ENABLED: boolean;
   SENTRY_DSN?: string;
   SENTRY_TRACES_SAMPLE_RATE: number;
 }
@@ -16,6 +17,7 @@ function getEnvConfig(): EnvConfig {
     SITE_URL: process.env.SITE_URL,
     BASE_PATH: (process.env.BASE_PATH ?? '').replace(/\/$/, ''),
     MICROSOFT_AUTH_ENABLED: process.env.MICROSOFT_AUTH_ENABLED === 'true',
+    FILE_EVENTS_ENABLED: process.env.TALE_FILE_EVENTS === 'true',
     SENTRY_DSN: process.env.SENTRY_DSN,
     SENTRY_TRACES_SAMPLE_RATE: parseFloat(
       process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0',

@@ -24,11 +24,12 @@ const SHUTDOWN_MARKER = '/tmp/platform-shutting-down';
 
 const sseClients = new Set<ReadableStreamDefaultController>();
 
+const fileEventsEnabled = process.env.TALE_FILE_EVENTS === 'true';
 const configDir = process.env.TALE_CONFIG_DIR;
 // Post-split (Phase 2): TALE_CONFIG_DIR points at the convex-data volume
 // mounted read-only on the platform container (for config-file SSE + branding
 // image serving). Skip watcher setup gracefully if the directory is absent.
-if (configDir && existsSync(configDir)) {
+if (fileEventsEnabled && configDir && existsSync(configDir)) {
   const watcher = createConfigWatcher(configDir);
   watcher.onChange((event) => {
     const payload = `data: ${JSON.stringify(event)}\n\n`;
@@ -60,6 +61,7 @@ interface EnvConfig {
   BASE_PATH: string;
   MICROSOFT_AUTH_ENABLED: boolean;
   TRUSTED_HEADERS_ENABLED: boolean;
+  FILE_EVENTS_ENABLED: boolean;
   SENTRY_DSN: string | undefined;
   SENTRY_TRACES_SAMPLE_RATE: number;
   TALE_VERSION: string | undefined;
@@ -85,6 +87,7 @@ function getEnvConfig(): EnvConfig {
     BASE_PATH: getBasePath(),
     MICROSOFT_AUTH_ENABLED: !!process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
     TRUSTED_HEADERS_ENABLED: process.env.TRUSTED_HEADERS_ENABLED === 'true',
+    FILE_EVENTS_ENABLED: fileEventsEnabled,
     SENTRY_DSN: process.env.SENTRY_DSN,
     SENTRY_TRACES_SAMPLE_RATE: parseFloat(
       process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0',
@@ -220,14 +223,18 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     return c.json({ status: 'ok' });
   });
 
-  app.get('/events/file', () => {
+  app.get('/events/file', (c) => {
+    if (!env.FILE_EVENTS_ENABLED) return c.notFound();
+
+    let ctrl: ReadableStreamDefaultController;
     const stream = new ReadableStream({
       start(controller) {
-        sseClients.add(controller);
-        controller.enqueue('data: {"type":"connected"}\n\n');
+        ctrl = controller;
+        sseClients.add(ctrl);
+        ctrl.enqueue('data: {"type":"connected"}\n\n');
       },
-      cancel(controller) {
-        sseClients.delete(controller);
+      cancel() {
+        sseClients.delete(ctrl);
       },
     });
     return new Response(stream, {
