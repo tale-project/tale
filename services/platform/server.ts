@@ -191,7 +191,7 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
       referrerPolicy: 'strict-origin-when-cross-origin',
       permissionsPolicy: {
         camera: [],
-        microphone: [],
+        microphone: ['self'],
         // Active features: location-request approval card uses geolocation;
         // copy-to-clipboard hook is wired into many UI surfaces.
         geolocation: ['self'],
