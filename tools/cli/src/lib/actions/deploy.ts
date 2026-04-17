@@ -517,13 +517,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
         }
       }
 
-      // Determine the active platform container for project sync
-      const activeColor = inPlaceUpdate
-        ? currentColor
-        : isFirstDeploy
-          ? getNextColor(null)
-          : getNextColor(currentColor);
-
       if (dryRun) {
         logger.success(
           `${prefix}Dry-run complete! Would deploy version ${version}`,
