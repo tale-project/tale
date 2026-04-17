@@ -532,15 +532,13 @@ export async function deploy(options: DeployOptions): Promise<void> {
         logger.success(`Deployment complete! Version ${version} is now live`);
       }
 
-      // Sync project files to the active container
-      if (activeColor) {
-        await syncProjectFiles(
-          `${getProjectId()}-platform-${activeColor}`,
-          env.DEPLOY_DIR,
-          dryRun,
-          prefix,
-        );
-      }
+      // Sync project files to the convex container (owns convex-data volume rw)
+      await syncProjectFiles(
+        `${getProjectId()}-convex`,
+        env.DEPLOY_DIR,
+        dryRun,
+        prefix,
+      );
     });
   } finally {
     process.removeListener('SIGINT', onInterrupt);
@@ -570,6 +568,16 @@ async function syncProjectFiles(
     return;
   }
 
+  if (!dryRun) {
+    const running = await isContainerRunning(containerName);
+    if (!running) {
+      logger.warn(
+        `${prefix}Container ${containerName} is not running, skipping file sync`,
+      );
+      return;
+    }
+  }
+
   logger.blank();
   logger.step(`${prefix}Syncing project files to ${containerName}...`);
 
@@ -592,7 +600,7 @@ async function syncProjectFiles(
 
     if (result.success) {
       // docker cp copies files as root — fix ownership so the app user can write
-      await exec('docker', [
+      const chownResult = await exec('docker', [
         'exec',
         containerName,
         'chown',
@@ -600,6 +608,11 @@ async function syncProjectFiles(
         'app:app',
         `/app/data/${dir}/`,
       ]);
+      if (!chownResult.success) {
+        logger.warn(
+          `Failed to fix ownership for ${dir}/: ${chownResult.stderr}`,
+        );
+      }
       logger.info(`Synced ${dir}/`);
     } else {
       logger.warn(`Failed to sync ${dir}/: ${result.stderr}`);
