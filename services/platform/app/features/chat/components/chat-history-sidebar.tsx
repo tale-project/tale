@@ -296,7 +296,7 @@ export function ChatHistorySidebar({
                     {t('history.loading')}
                   </Text>
                 ) : chats.length === 0 ? (
-                  <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 pt-40  text-center">
+                  <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 pt-40 text-center">
                     <MessageSquareDashedIcon
                       className="text-muted-foreground/60 mb-1 size-8"
                       aria-hidden
@@ -446,7 +446,7 @@ export function ChatHistorySidebar({
                     {t('history.loading')}
                   </Text>
                 ) : archivedChats.length === 0 ? (
-                  <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 pt-40  text-center">
+                  <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 pt-40 text-center">
                     <MessageSquareDashedIcon
                       className="text-muted-foreground/60 mb-1 size-8"
                       aria-hidden
@@ -506,7 +506,7 @@ export function ChatHistorySidebar({
       />
 
       {/* Footer — pinned to bottom */}
-      <div className="border-border shrink-0 space-y-2 pt-2 mt-4">
+      <div className="border-border mt-4 shrink-0 space-y-2 pt-2">
         {onSelectPrompt && (
           <Tooltip content={t('promptLibrary')} side="right">
             <Button
