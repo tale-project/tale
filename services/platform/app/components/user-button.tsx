@@ -202,14 +202,17 @@ export function UserButton({
               {
                 value: 'system',
                 label: <Monitor className="size-4" />,
+                ariaLabel: t('userButton.themeSystem'),
               },
               {
                 value: 'light',
                 label: <Sun className="size-4" />,
+                ariaLabel: t('userButton.themeLight'),
               },
               {
                 value: 'dark',
                 label: <Moon className="size-4" />,
+                ariaLabel: t('userButton.themeDark'),
               },
             ]}
           />

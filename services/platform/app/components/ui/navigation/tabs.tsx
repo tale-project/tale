@@ -1,6 +1,7 @@
 'use client';
 
 import * as TabsPrimitive from '@radix-ui/react-tabs';
+import { cva } from 'class-variance-authority';
 import { type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils/cn';
@@ -10,6 +11,8 @@ export interface TabItem {
   label: ReactNode;
   content?: ReactNode;
   disabled?: boolean;
+  /** Accessible name for triggers with icon-only labels. */
+  ariaLabel?: string;
 }
 
 interface TabsProps {
@@ -26,17 +29,32 @@ interface TabsProps {
   actions?: ReactNode;
 }
 
-const listStyles = {
-  pill: 'scrollbar-hide inline-flex items-center overflow-x-auto bg-muted p-1 text-muted-foreground rounded-lg',
-  underline:
-    'scrollbar-hide inline-flex items-center gap-4 overflow-x-auto border-b border-border text-muted-foreground',
-} as const;
+const listVariants = cva(
+  'scrollbar-hide inline-flex items-center overflow-x-auto text-muted-foreground',
+  {
+    variants: {
+      variant: {
+        pill: 'bg-muted rounded-lg p-1',
+        underline: 'border-b border-border gap-4',
+      },
+    },
+    defaultVariants: { variant: 'pill' },
+  },
+);
 
-const triggerStyles = {
-  pill: 'ring-offset-background focus-visible:ring-ring data-[state=active]:bg-tab data-[state=active]:text-foreground inline-flex items-center justify-center rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm',
-  underline:
-    'ring-offset-background focus-visible:ring-ring relative inline-flex items-center justify-center border-b-2 border-transparent px-1 pb-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 data-[state=active]:border-primary data-[state=active]:text-foreground',
-} as const;
+const triggerVariants = cva(
+  'ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center text-sm font-medium whitespace-nowrap focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50',
+  {
+    variants: {
+      variant: {
+        pill: 'rounded-md px-3 py-1 transition-all data-[state=active]:bg-tab data-[state=active]:text-foreground data-[state=active]:shadow-sm',
+        underline:
+          'relative border-b-2 border-transparent px-1 pb-2 transition-colors data-[state=active]:border-primary data-[state=active]:text-foreground',
+      },
+    },
+    defaultVariants: { variant: 'pill' },
+  },
+);
 
 export function Tabs({
   items,
@@ -49,7 +67,7 @@ export function Tabs({
   variant = 'pill',
   actions,
 }: TabsProps) {
-  const hasContent = items.some((item) => item.content);
+  const hasContent = items.some((item) => item.content !== undefined);
 
   return (
     <TabsPrimitive.Root
@@ -59,13 +77,16 @@ export function Tabs({
       className={className}
     >
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <TabsPrimitive.List className={cn(listStyles[variant], listClassName)}>
+        <TabsPrimitive.List
+          className={cn(listVariants({ variant }), listClassName)}
+        >
           {items.map((item) => (
             <TabsPrimitive.Trigger
               key={item.value}
               value={item.value}
               disabled={item.disabled}
-              className={cn(triggerStyles[variant], triggerClassName)}
+              aria-label={item.ariaLabel}
+              className={cn(triggerVariants({ variant }), triggerClassName)}
             >
               {item.label}
             </TabsPrimitive.Trigger>
@@ -76,7 +97,7 @@ export function Tabs({
       {hasContent &&
         items.map(
           (item) =>
-            item.content && (
+            item.content !== undefined && (
               <TabsPrimitive.Content
                 key={item.value}
                 value={item.value}

@@ -512,6 +512,9 @@
       "manageAccount": "Gérer le compte",
       "settings": "Paramètres",
       "helpFeedback": "Aide et retours",
+      "themeSystem": "Thème système",
+      "themeLight": "Thème clair",
+      "themeDark": "Thème sombre",
       "logOut": "Se déconnecter",
       "logOutConfirm": {
         "title": "Se déconnecter",

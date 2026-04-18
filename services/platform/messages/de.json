@@ -512,6 +512,9 @@
       "manageAccount": "Konto verwalten",
       "settings": "Einstellungen",
       "helpFeedback": "Hilfe & Feedback",
+      "themeSystem": "Systemdesign",
+      "themeLight": "Helles Design",
+      "themeDark": "Dunkles Design",
       "logOut": "Abmelden",
       "logOutConfirm": {
         "title": "Abmelden",
