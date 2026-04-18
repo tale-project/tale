@@ -144,7 +144,7 @@ export function ChatHeader({
           organizationId={organizationId}
           onChatSelect={handleChatSelect}
           onSelectPrompt={onSelectPrompt}
-          className='h-full'
+          className="h-full"
         />
       </Sheet>
 
@@ -261,9 +261,7 @@ export function ChatHeader({
             variant="ghost"
             onClick={handleToggleHistory}
             aria-label={
-              isMobileHistoryOpen
-                ? tChat('closeSidebar')
-                : tChat('openSidebar')
+              isMobileHistoryOpen ? tChat('closeSidebar') : tChat('openSidebar')
             }
           >
             {isMobileHistoryOpen ? (

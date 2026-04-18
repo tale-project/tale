@@ -25,7 +25,18 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 
 vi.mock('../../hooks/mutations', () => ({
   useCreatePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useSavePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
+
+vi.mock('../../hooks/queries', async () => {
+  const actual = await vi.importActual<
+    typeof import('../../hooks/queries')
+  >('../../hooks/queries');
+  return {
+    ...actual,
+    usePrompts: () => ({ prompts: [], isLoading: false }),
+  };
+});
 
 import { SavePromptDialog } from '../save-prompt-dialog';
 

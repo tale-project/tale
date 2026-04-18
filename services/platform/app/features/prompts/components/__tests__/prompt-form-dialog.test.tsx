@@ -28,9 +28,9 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
 }));
 
 vi.mock('../../hooks/queries', async () => {
-  const actual = await vi.importActual<
-    typeof import('../../hooks/queries')
-  >('../../hooks/queries');
+  const actual = await vi.importActual<typeof import('../../hooks/queries')>(
+    '../../hooks/queries',
+  );
   return {
     ...actual,
     usePrompts: () => ({ prompts: [], isLoading: false }),
