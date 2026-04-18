@@ -512,6 +512,9 @@
       "manageAccount": "Manage account",
       "settings": "Settings",
       "helpFeedback": "Help & feedback",
+      "themeSystem": "System theme",
+      "themeLight": "Light theme",
+      "themeDark": "Dark theme",
       "logOut": "Log out",
       "logOutConfirm": {
         "title": "Log out",

@@ -277,3 +277,67 @@ export const ManyTabs: Story = {
     },
   },
 };
+
+export const Underline: Story = {
+  args: {
+    variant: 'underline',
+    defaultValue: 'overview',
+    className: 'w-[500px]',
+    items: [
+      {
+        value: 'overview',
+        label: 'Overview',
+        content: (
+          <div className="p-4">
+            <p className="text-muted-foreground text-sm">Overview content.</p>
+          </div>
+        ),
+      },
+      {
+        value: 'analytics',
+        label: 'Analytics',
+        content: (
+          <div className="p-4">
+            <p className="text-muted-foreground text-sm">Analytics content.</p>
+          </div>
+        ),
+      },
+      {
+        value: 'reports',
+        label: 'Reports',
+        content: (
+          <div className="p-4">
+            <p className="text-muted-foreground text-sm">Reports content.</p>
+          </div>
+        ),
+      },
+    ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Underline variant uses a bottom border to indicate the active tab.',
+      },
+    },
+  },
+};
+
+export const HeadlessNoContent: Story = {
+  args: {
+    defaultValue: 'en',
+    items: [
+      { value: 'en', label: 'EN' },
+      { value: 'de', label: 'DE' },
+      { value: 'fr', label: 'FR' },
+    ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Tabs without content panels act as a segmented control. Useful for theme or locale selectors.',
+      },
+    },
+  },
+};
