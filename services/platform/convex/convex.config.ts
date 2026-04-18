@@ -1,5 +1,6 @@
 import actionCache from '@convex-dev/action-cache/convex.config';
 import agent from '@convex-dev/agent/convex.config';
+import migrations from '@convex-dev/migrations/convex.config';
 import persistentTextStreaming from '@convex-dev/persistent-text-streaming/convex.config';
 import rateLimiter from '@convex-dev/rate-limiter/convex.config';
 import workflow from '@convex-dev/workflow/convex.config';
@@ -17,5 +18,6 @@ app.use(agent);
 app.use(rateLimiter);
 app.use(actionCache);
 app.use(persistentTextStreaming);
+app.use(migrations);
 
 export default app;

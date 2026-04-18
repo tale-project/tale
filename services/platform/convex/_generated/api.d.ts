@@ -483,6 +483,8 @@ import type * as members_types from "../members/types.js";
 import type * as members_validators from "../members/validators.js";
 import type * as message_metadata_internal_mutations from "../message_metadata/internal_mutations.js";
 import type * as message_metadata_queries from "../message_metadata/queries.js";
+import type * as migrations from "../migrations.js";
+import type * as migrations_backfill_apikey_reference_id from "../migrations/backfill_apikey_reference_id.js";
 import type * as migrations_backfill_file_metadata_document_id from "../migrations/backfill_file_metadata_document_id.js";
 import type * as migrations_backfill_folder_path from "../migrations/backfill_folder_path.js";
 import type * as migrations_backfill_folders from "../migrations/backfill_folders.js";
@@ -1436,6 +1438,8 @@ declare const fullApi: ApiFromModules<{
   "members/validators": typeof members_validators;
   "message_metadata/internal_mutations": typeof message_metadata_internal_mutations;
   "message_metadata/queries": typeof message_metadata_queries;
+  migrations: typeof migrations;
+  "migrations/backfill_apikey_reference_id": typeof migrations_backfill_apikey_reference_id;
   "migrations/backfill_file_metadata_document_id": typeof migrations_backfill_file_metadata_document_id;
   "migrations/backfill_folder_path": typeof migrations_backfill_folder_path;
   "migrations/backfill_folders": typeof migrations_backfill_folders;
@@ -1944,4 +1948,5 @@ export declare const components: {
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
   actionCache: import("@convex-dev/action-cache/_generated/component.js").ComponentApi<"actionCache">;
   persistentTextStreaming: import("@convex-dev/persistent-text-streaming/_generated/component.js").ComponentApi<"persistentTextStreaming">;
+  migrations: import("@convex-dev/migrations/_generated/component.js").ComponentApi<"migrations">;
 };

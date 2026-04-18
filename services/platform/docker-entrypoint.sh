@@ -344,6 +344,21 @@ deploy_convex_functions() {
   if [ $deploy_exit -eq 0 ]; then
     log_ok "Convex functions deployed successfully"
     rm -f "$deploy_log"
+
+    # Run Convex data migrations. Non-fatal: each migration is idempotent,
+    # so a transient failure here is retried on the next platform boot and
+    # must not prevent the platform from serving.
+    log_info "Running Convex data migrations..."
+    local migrations_exit=0
+    timeout 600 bunx convex run migrations:runAll \
+      --url "$CONVEX_URL" \
+      --admin-key "$ADMIN_KEY" 2>&1 || migrations_exit=$?
+    if [ $migrations_exit -eq 0 ]; then
+      log_ok "Convex data migrations complete"
+    else
+      log_error "Convex data migrations failed (exit code: $migrations_exit) — platform will continue; legacy data may need manual backfill."
+    fi
+
     return 0
   fi
 
