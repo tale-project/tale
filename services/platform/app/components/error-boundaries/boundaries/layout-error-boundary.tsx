@@ -19,6 +19,12 @@ export function isConvexTransientError(error: Error): boolean {
     msg.includes('timed out') ||
     msg.includes('Function execution') ||
     msg.includes('overloaded') ||
+    // Session rotation (e.g. TOTP verify on enrollment creates a new
+    // session + deletes the old one) briefly invalidates the cached
+    // Convex access token. Live queries sent in that window reach the
+    // server with a token whose session is gone and throw. The retry
+    // backoff gives the client time to refresh its token.
+    msg.includes('Unauthenticated') ||
     // Convex agent SDK reactive hooks can briefly see undefined properties
     // during WebSocket reconnection (e.g., useDeltaStreams accessing
     // streams.messages before query results settle)

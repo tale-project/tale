@@ -3,6 +3,8 @@
 import { Link, useLocation } from '@tanstack/react-router';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
+import { isConvexTransientError } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
+import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { UserButton } from '@/app/components/user-button';
@@ -149,7 +151,13 @@ export function Navigation({ organizationId }: NavigationProps) {
         </NavigationMenuList>
       </div>
       <div className="flex flex-shrink-0 flex-col items-center gap-2 py-3">
-        <NotificationBell organizationId={organizationId} />
+        <ErrorBoundaryBase
+          maxRetries={3}
+          isRetryableError={isConvexTransientError}
+          fallback={() => null}
+        >
+          <NotificationBell organizationId={organizationId} />
+        </ErrorBoundaryBase>
         <UserButton tooltipText={t('settingsAndMore')} />
       </div>
     </NavigationMenu>

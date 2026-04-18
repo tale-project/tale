@@ -10,6 +10,7 @@ import {
   passwordPolicyConfigSchema,
   piiConfigSchema,
   retentionPolicyConfigSchema,
+  twoFactorPolicyConfigSchema,
   uploadPolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-guards';
@@ -157,6 +158,15 @@ export const upsertPolicy = mutation({
       if (!parsed.success) {
         throw new Error(
           `Invalid password policy configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'two_factor_policy') {
+      const parsed = twoFactorPolicyConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid two-factor policy configuration: ${parsed.error.message}`,
         );
       }
     }

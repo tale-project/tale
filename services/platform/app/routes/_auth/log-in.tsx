@@ -168,6 +168,26 @@ export function LogInPage() {
         },
       );
 
+      // 2FA handling (issue #1507). Better-auth returns
+      // `{ twoFactorRedirect: true }` when the account has 2FA enabled
+      // and the password step succeeded. We add our own
+      // `enrollRequired: true` alongside it when the org policy is
+      // enforced and the user is past the grace window — in that case
+      // the user must enrol before continuing. Better-auth's types
+      // don't model these fields, so we read them via a Record view.
+      const rawData: Record<string, unknown> = response.data ?? {};
+      if (rawData.twoFactorRedirect === true) {
+        const target = rawData.enrollRequired === true ? '/2fa-enroll' : '/2fa';
+        await queryClient
+          .invalidateQueries({ queryKey: ['auth', 'session'] })
+          .catch(() => undefined);
+        void navigate({
+          to: target,
+          search: redirectTo ? { redirectTo } : undefined,
+        });
+        return;
+      }
+
       if (!response.data?.user) {
         // Fallback: signIn returned without a user but onError wasn't triggered.
         if (!loginError) setLoginError(t('login.wrongCredentials'));

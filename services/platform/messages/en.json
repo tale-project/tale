@@ -635,6 +635,8 @@
       "memberUpdateFailed": "Failed to update member",
       "memberRemoved": "Member removed successfully",
       "memberRemoveFailed": "Failed to remove member",
+      "twoFactorResetSuccess": "Two-factor reset \u2014 the member must enrol again on next sign-in",
+      "twoFactorResetFailed": "Failed to reset two-factor authentication",
       "emailCannotChange": "Email cannot be changed",
       "cannotChangeOwnRole": "You cannot change your own role",
       "updatePassword": "Update password",
@@ -3616,6 +3618,84 @@
       }
     }
   },
+  "twoFactor": {
+    "enrollment": {
+      "title": "Two-factor authentication",
+      "description": "Protect your account with a time-based code from an authenticator app.",
+      "notEnabledHint": "Two-factor authentication is not yet enabled on your account.",
+      "enabledHint": "Two-factor authentication is active on your account.",
+      "requiredByOrg": "Your organization requires two-factor authentication. Enrol now to continue.",
+      "enableButton": "Enable two-factor",
+      "disableButton": "Disable",
+      "regenerateButton": "Regenerate backup codes",
+      "enabled": "Two-factor authentication enabled",
+      "disabled": "Two-factor authentication disabled",
+      "passwordPromptDescription": "Confirm your password to start setting up two-factor authentication.",
+      "disablePromptDescription": "Confirm your password to turn off two-factor authentication.",
+      "regeneratePromptDescription": "Confirm your password. Generating new codes invalidates all previous backup codes."
+    },
+    "setup": {
+      "title": "Set up two-factor authentication",
+      "qrInstructions": "Scan the QR code with an authenticator app (Google Authenticator, 1Password, Authy), then enter the 6-digit code below.",
+      "manualEntry": "Can't scan? Enter this secret manually:",
+      "verifyCodeLabel": "Verification code",
+      "verifyButton": "Verify and enable"
+    },
+    "backupCodes": {
+      "title": "Save your backup codes",
+      "description": "Each code can be used once if you lose access to your authenticator app.",
+      "warningOnce": "We will not show these codes again. Download or copy them now.",
+      "downloadButton": "Download",
+      "doneButton": "Done",
+      "regenerated": "New backup codes generated"
+    },
+    "confirmPassword": {
+      "label": "Password",
+      "submit": "Confirm"
+    },
+    "verify": {
+      "title": "Verify your identity",
+      "description": "Enter the 6-digit code from your authenticator app.",
+      "codeLabel": "Authentication code",
+      "useBackupCodeToggle": "Use a backup code instead",
+      "useAuthenticatorToggle": "Use the authenticator app instead",
+      "backupCodeLabel": "Backup code",
+      "submitButton": "Verify",
+      "invalid": "Invalid or expired code. Please try again.",
+      "tooManyAttempts": "Too many failed attempts. Try again later.",
+      "backupCodeSuccess": "Backup code used. Consider regenerating your backup codes in Settings."
+    },
+    "lowBackupCodes": {
+      "titleOne": "Only 1 backup code remaining",
+      "titleOther": "Only {count} backup codes remaining",
+      "body": "Generate a new batch so you can still recover your account if you lose your authenticator.",
+      "regenerateLink": "Regenerate now"
+    },
+    "enroll": {
+      "title": "Two-factor required",
+      "description": "Your organization requires two-factor authentication to continue."
+    },
+    "grace": {
+      "titleOne": "Two-factor authentication required in {days} day",
+      "titleOther": "Two-factor authentication required in {days} days",
+      "body": "Your organization will require all members to use a second factor. Enrol now to avoid interruption.",
+      "setupLink": "Set up now"
+    },
+    "admin": {
+      "resetButton": "Reset two-factor",
+      "confirmTitle": "Reset two-factor authentication?",
+      "confirmDescription": "This disables two-factor for {name} and ends all their active sessions. They will have to enrol again on their next sign-in.",
+      "resetSuccess": "Two-factor authentication reset",
+      "resetFailed": "Failed to reset two-factor authentication"
+    },
+    "errors": {
+      "enableFailed": "Failed to start two-factor setup. Please try again.",
+      "disableFailed": "Failed to disable two-factor authentication.",
+      "regenerateFailed": "Failed to generate new backup codes.",
+      "invalidCode": "Invalid or expired code. Please try again.",
+      "sessionExpired": "Your session expired. Please sign in again."
+    }
+  },
   "accessDenied": {
     "title": "Access denied",
     "automations": "You need Admin or Developer permissions to access automations.",
@@ -3931,6 +4011,19 @@
       "saved": "Password policy saved",
       "saveFailed": "Failed to save password policy"
     },
+    "twoFactorPolicy": {
+      "title": "Two-factor authentication",
+      "description": "Require all password-authenticated users to enrol a second factor (TOTP) after a grace window.",
+      "enforced": "Require two-factor authentication",
+      "policyDisabledHint": "Two-factor authentication is optional for all users while this policy is disabled.",
+      "gracePeriodDays": "Grace period (days)",
+      "gracePeriodDaysHint": "Days each user has from the first sign-in where enforcement applies to them before enrolment is required. Set to 0 for immediate enforcement.",
+      "exemptSsoUsers": "Exempt SSO-only users",
+      "exemptSsoUsersHint": "Users whose only account is a federated identity (e.g. Microsoft Entra ID) rely on the upstream IdP for MFA.",
+      "invalidGrace": "Grace period must be an integer between 0 and 30.",
+      "saved": "Two-factor policy saved",
+      "saveFailed": "Failed to save two-factor policy"
+    },
     "loginPolicy": {
       "title": "Login attempt limits",
       "description": "Lock accounts after repeated sign-in failures and grow the wait between attempts.",
@@ -4052,6 +4145,7 @@
       "subtabs": {
         "login": "Login & authentication",
         "password": "Password policy",
+        "twoFactor": "Two-factor authentication",
         "pii": "PII protection",
         "usage": "Usage",
         "systemPrompt": "System prompt",

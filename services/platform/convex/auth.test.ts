@@ -12,8 +12,17 @@ vi.mock('better-auth', () => ({
 }));
 
 vi.mock('better-auth/plugins', () => ({
-  apiKey: vi.fn(() => ({})),
   organization: vi.fn(() => ({})),
+  twoFactor: vi.fn(() => ({})),
+}));
+
+vi.mock('@better-auth/api-key', () => ({
+  apiKey: vi.fn(() => ({})),
+}));
+
+vi.mock('better-auth/api', () => ({
+  APIError: class APIError extends Error {},
+  createAuthMiddleware: (fn: unknown) => fn,
 }));
 
 vi.mock('better-auth/plugins/access', () => ({
