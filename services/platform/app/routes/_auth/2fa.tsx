@@ -43,8 +43,19 @@ function TwoFactorVerifyPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const isTotpValid = /^\d{6}$/.test(code);
-  const isBackupValid = code.replace(/[-\s]/g, '').length >= 8;
+  const isBackupValid = code.replace(/[-\s]/g, '').length === 10;
   const canSubmit = useBackup ? isBackupValid : isTotpValid;
+
+  // better-auth stores backup codes in the generated `xxxxx-xxxxx` form
+  // and verifies with a strict `codes.includes(submitted)` match, so we
+  // must send the canonical format. Tolerate users typing the dash or
+  // not, and any surrounding whitespace.
+  function canonicalBackupCode(input: string): string {
+    const stripped = input.replace(/[-\s]/g, '');
+    return stripped.length === 10
+      ? `${stripped.slice(0, 5)}-${stripped.slice(5)}`
+      : stripped;
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,7 +67,7 @@ function TwoFactorVerifyPage() {
     try {
       const result = useBackup
         ? await authClient.twoFactor.verifyBackupCode({
-            code: code.replace(/[-\s]/g, ''),
+            code: canonicalBackupCode(code),
           })
         : await authClient.twoFactor.verifyTotp({ code });
 
@@ -68,7 +79,16 @@ function TwoFactorVerifyPage() {
         return;
       }
 
-      toast({ title: t('enrollment.enabled'), variant: 'success' });
+      if (useBackup) {
+        // Distinct toast for the backup-code path: the user just burned a
+        // one-time code, so the copy nudges toward regenerating. Uses the
+        // default (info) variant rather than `success` — the dashboard
+        // banner will pick up the persistent low-count warning if the
+        // pool is running low.
+        toast({ title: t('verify.backupCodeSuccess') });
+      } else {
+        toast({ title: t('enrollment.enabled'), variant: 'success' });
+      }
       await queryClient
         .invalidateQueries({ queryKey: ['auth', 'session'] })
         .catch(() => undefined);

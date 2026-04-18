@@ -3,7 +3,6 @@
 import { QRCodeSVG } from 'qrcode.react';
 import { useState } from 'react';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { HStack, Stack, VStack } from '@/app/components/ui/layout/layout';
@@ -15,6 +14,9 @@ import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+import { extractSecret, normalizeOtpauthURI } from '@/lib/utils/totp';
+
+import { useShowBackupCodes } from './backup-codes-dialog-provider';
 
 type EnrollState =
   | { step: 'idle' }
@@ -25,44 +27,17 @@ type EnrollState =
       backupCodes: string[];
       password: string;
       code: string;
-    }
-  | { step: 'saved'; backupCodes: string[] };
-
-function downloadBackupCodes(codes: string[]) {
-  const content = codes.join('\n');
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'tale-backup-codes.txt';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-function extractSecret(uri: string): string | null {
-  try {
-    const parsed = new URL(uri);
-    return parsed.searchParams.get('secret');
-  } catch {
-    return null;
-  }
-}
+    };
 
 export function TwoFactorSection() {
   const { t } = useT('twoFactor');
-  const { data: status, isLoading } = useConvexQuery(
-    api.two_factor.queries.getStatus,
-    {},
-  );
-
-  if (isLoading || !status) return null;
-  if (!status.authenticated) return null;
+  const { data: status } = useConvexQuery(api.two_factor.queries.getStatus, {});
 
   // SSO-only users: hide the section. The backend also rejects enable
-  // calls for SSO-only users — UI gate is UX only.
-  if (!status.hasCredential) return null;
+  // calls for SSO-only users — UI gate is UX only. When status isn't
+  // loaded yet we render nothing; the backup-codes dialog lives in
+  // BackupCodesDialogProvider at the root so it's unaffected.
+  if (!status || !status.authenticated || !status.hasCredential) return null;
 
   return (
     <PageSection
@@ -82,6 +57,7 @@ export function TwoFactorSection() {
 
 function NotEnrolledState({ enforced }: { enforced: boolean }) {
   const { t } = useT('twoFactor');
+  const showBackupCodes = useShowBackupCodes();
   const [state, setState] = useState<EnrollState>({ step: 'idle' });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -121,7 +97,9 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
         return;
       }
       toast({ title: t('enrollment.enabled'), variant: 'success' });
-      setState({ step: 'saved', backupCodes: state.backupCodes });
+      const codes = state.backupCodes;
+      setState({ step: 'idle' });
+      showBackupCodes(codes);
     } catch {
       setError(t('errors.invalidCode'));
     } finally {
@@ -167,13 +145,6 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
           onSubmit={confirmCode}
         />
       )}
-
-      {state.step === 'saved' && (
-        <SavedBackupCodesDialog
-          backupCodes={state.backupCodes}
-          onClose={reset}
-        />
-      )}
     </Stack>
   );
 }
@@ -181,11 +152,11 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
 function EnrolledState() {
   const { t } = useT('twoFactor');
   const { toast } = useToast();
+  const showBackupCodes = useShowBackupCodes();
   const [disableOpen, setDisableOpen] = useState(false);
   const [regenOpen, setRegenOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [newCodes, setNewCodes] = useState<string[] | null>(null);
 
   async function disable(password: string) {
     setSubmitting(true);
@@ -216,9 +187,9 @@ function EnrolledState() {
         setError(result.error?.message ?? t('errors.regenerateFailed'));
         return;
       }
-      setNewCodes(result.data.backupCodes);
       setRegenOpen(false);
       toast({ title: t('backupCodes.regenerated'), variant: 'success' });
+      showBackupCodes(result.data.backupCodes);
     } catch {
       setError(t('errors.regenerateFailed'));
     } finally {
@@ -265,13 +236,6 @@ function EnrolledState() {
         onSubmit={regenerate}
         error={error}
       />
-
-      {newCodes !== null && (
-        <SavedBackupCodesDialog
-          backupCodes={newCodes}
-          onClose={() => setNewCodes(null)}
-        />
-      )}
     </Stack>
   );
 }
@@ -351,6 +315,7 @@ function VerifyTotpDialog({
   const { t } = useT('twoFactor');
   const [code, setCode] = useState('');
   const secret = extractSecret(totpURI);
+  const qrURI = normalizeOtpauthURI(totpURI);
 
   return (
     <FormDialog
@@ -369,16 +334,16 @@ function VerifyTotpDialog({
         if (!submitting) onSubmit(code);
       }}
     >
-      <VStack gap={4} align="center">
+      <VStack gap={4} align="center" className="w-full min-w-0">
         <div className="rounded-md border bg-white p-3">
-          <QRCodeSVG value={totpURI} size={180} level="M" />
+          <QRCodeSVG value={qrURI} size={180} level="M" />
         </div>
         {secret && (
-          <VStack gap={1} align="center">
+          <VStack gap={1} align="center" className="w-full min-w-0">
             <Text variant="muted" className="text-xs">
               {t('setup.manualEntry')}
             </Text>
-            <code className="bg-muted rounded border px-2 py-1 text-xs select-all">
+            <code className="bg-muted block w-full rounded border px-2 py-1 text-center text-xs break-all select-all">
               {secret}
             </code>
           </VStack>
@@ -397,41 +362,5 @@ function VerifyTotpDialog({
         errorMessage={error ?? undefined}
       />
     </FormDialog>
-  );
-}
-
-interface SavedBackupCodesProps {
-  backupCodes: string[];
-  onClose: () => void;
-}
-
-function SavedBackupCodesDialog({
-  backupCodes,
-  onClose,
-}: SavedBackupCodesProps) {
-  const { t } = useT('twoFactor');
-  return (
-    <ConfirmDialog
-      open
-      onOpenChange={(o) => {
-        if (!o) onClose();
-      }}
-      title={t('backupCodes.title')}
-      description={t('backupCodes.warningOnce')}
-      confirmText={t('backupCodes.downloadButton')}
-      cancelText={t('backupCodes.doneButton')}
-      onConfirm={() => downloadBackupCodes(backupCodes)}
-    >
-      <Stack gap={2} className="pt-2">
-        <Text variant="muted" className="text-sm">
-          {t('backupCodes.description')}
-        </Text>
-        <ul className="bg-muted grid grid-cols-2 gap-2 rounded-md border p-3 font-mono text-sm">
-          {backupCodes.map((code) => (
-            <li key={code}>{code}</li>
-          ))}
-        </ul>
-      </Stack>
-    </ConfirmDialog>
   );
 }

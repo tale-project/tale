@@ -23,6 +23,7 @@ import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+import { extractSecret, normalizeOtpauthURI } from '@/lib/utils/totp';
 
 export const Route = createFileRoute('/2fa-enroll')({
   beforeLoad: async () => {
@@ -42,14 +43,6 @@ type Step =
       backupCodes: string[];
     }
   | { kind: 'done'; backupCodes: string[] };
-
-function extractSecret(uri: string): string | null {
-  try {
-    return new URL(uri).searchParams.get('secret');
-  } catch {
-    return null;
-  }
-}
 
 function downloadBackupCodes(codes: string[]) {
   const blob = new Blob([codes.join('\n')], {
@@ -177,7 +170,11 @@ function TwoFactorEnrollPage() {
                 </Text>
                 <VStack gap={4} align="center">
                   <div className="rounded-md border bg-white p-3">
-                    <QRCodeSVG value={step.totpURI} size={200} level="M" />
+                    <QRCodeSVG
+                      value={normalizeOtpauthURI(step.totpURI)}
+                      size={200}
+                      level="M"
+                    />
                   </div>
                   {extractSecret(step.totpURI) && (
                     <VStack gap={1} align="center">

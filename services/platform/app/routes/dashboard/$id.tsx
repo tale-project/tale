@@ -13,6 +13,7 @@ import {
   AbilityLoadingContext,
 } from '@/app/context/ability-context';
 import { TwoFactorGraceBanner } from '@/app/features/auth/components/two-factor-grace-banner';
+import { TwoFactorLowBackupCodesBanner } from '@/app/features/auth/components/two-factor-low-backup-codes-banner';
 import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-expiry-gate';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -85,6 +86,11 @@ function DashboardLayout() {
               >
                 {hasRole && (
                   <TwoFactorGraceBanner organizationId={organizationId} />
+                )}
+                {hasRole && (
+                  <TwoFactorLowBackupCodesBanner
+                    organizationId={organizationId}
+                  />
                 )}
                 {hasRole || isLoading ? (
                   <Outlet />

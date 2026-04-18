@@ -52,6 +52,22 @@ async function resolveUserIdFromTwoFactorCookie(
     const existingSession = mw.context.session;
     if (existingSession?.user?.id) return existingSession.user.id;
 
+    // Login-time verify-totp / verify-backup-code (user not yet
+    // authenticated) has better-auth's `verifyTwoFactor` helper:
+    //   1. create a new session
+    //   2. delete the verification row
+    //   3. expire the 2FA cookie
+    // … all BEFORE our after-hook runs. So the cookie fallback below
+    // would fail `findVerificationValue` even on success, and
+    // `clearOnSuccess` would never fire — stale failure counters would
+    // accumulate forever. The newly-created session is exposed here as
+    // `mw.context.newSession` — prefer it before the cookie fallback.
+    const newSession = mw.context.newSession;
+    if (isRecord(newSession)) {
+      const user = isRecord(newSession.user) ? newSession.user : null;
+      if (user && typeof user.id === 'string') return user.id;
+    }
+
     const cookieCfg = mw.context.createAuthCookie(TWO_FACTOR_COOKIE_NAME);
     const signed = await mw.getSignedCookie(cookieCfg.name, mw.context.secret);
     if (!signed) return null;

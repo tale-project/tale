@@ -3653,7 +3653,14 @@
       "backupCodeLabel": "Backup code",
       "submitButton": "Verify",
       "invalid": "Invalid or expired code. Please try again.",
-      "tooManyAttempts": "Too many failed attempts. Try again later."
+      "tooManyAttempts": "Too many failed attempts. Try again later.",
+      "backupCodeSuccess": "Backup code used. Consider regenerating your backup codes in Settings."
+    },
+    "lowBackupCodes": {
+      "titleOne": "Only 1 backup code remaining",
+      "titleOther": "Only {count} backup codes remaining",
+      "body": "Generate a new batch so you can still recover your account if you lose your authenticator.",
+      "regenerateLink": "Regenerate now"
     },
     "enroll": {
       "title": "Two-factor required",

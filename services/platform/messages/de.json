@@ -3653,7 +3653,14 @@
       "backupCodeLabel": "Backup-Code",
       "submitButton": "Prüfen",
       "invalid": "Ungültiger oder abgelaufener Code. Bitte erneut versuchen.",
-      "tooManyAttempts": "Zu viele Fehlversuche. Bitte später erneut versuchen."
+      "tooManyAttempts": "Zu viele Fehlversuche. Bitte später erneut versuchen.",
+      "backupCodeSuccess": "Backup-Code verwendet. Erwäge, die Backup-Codes in den Einstellungen neu zu erzeugen."
+    },
+    "lowBackupCodes": {
+      "titleOne": "Nur noch 1 Backup-Code übrig",
+      "titleOther": "Nur noch {count} Backup-Codes übrig",
+      "body": "Erzeuge einen neuen Satz, damit du dein Konto wiederherstellen kannst, falls du deine Authenticator-App verlierst.",
+      "regenerateLink": "Jetzt neu erzeugen"
     },
     "enroll": {
       "title": "Zwei-Faktor erforderlich",
