@@ -1,10 +1,11 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import * as z from 'zod';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Banner } from '@/app/components/ui/feedback/banner';
 import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
@@ -12,6 +13,7 @@ import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
+import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
@@ -24,6 +26,7 @@ import {
 import { createOptionalPasswordSchema } from '@/lib/shared/schemas/password';
 
 import {
+  useResetMemberTwoFactor,
   useSetMemberPassword,
   useUpdateMemberDisplayName,
   useUpdateMemberRole,
@@ -105,6 +108,9 @@ export function EditMemberDialog({
   const { mutateAsync: updateMemberRole } = useUpdateMemberRole();
   const { mutateAsync: updateMemberDisplayName } = useUpdateMemberDisplayName();
   const { mutateAsync: setMemberPassword } = useSetMemberPassword();
+  const { mutateAsync: resetMemberTwoFactor } = useResetMemberTwoFactor();
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const handleUpdateMember = async (
     memberId: string,
@@ -288,6 +294,78 @@ export function EditMemberDialog({
           </FormSection>
         )}
       </FormSection>
+
+      {!isEditingSelf && member && (
+        <TwoFactorResetControl
+          memberId={member._id}
+          memberName={member.displayName ?? member.email ?? ''}
+          open={resetOpen}
+          onOpenChange={setResetOpen}
+          resetting={resetting}
+          onReset={async () => {
+            if (!member) return;
+            setResetting(true);
+            try {
+              await resetMemberTwoFactor({ memberId: member._id });
+              toast({
+                title: t('organization.twoFactorResetSuccess'),
+                variant: 'success',
+              });
+              setResetOpen(false);
+            } catch {
+              toast({
+                title: t('organization.twoFactorResetFailed'),
+                variant: 'destructive',
+              });
+            } finally {
+              setResetting(false);
+            }
+          }}
+        />
+      )}
     </FormDialog>
+  );
+}
+
+interface TwoFactorResetControlProps {
+  memberId: string;
+  memberName: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  resetting: boolean;
+  onReset: () => void;
+}
+
+function TwoFactorResetControl({
+  memberName,
+  open,
+  onOpenChange,
+  resetting,
+  onReset,
+}: TwoFactorResetControlProps) {
+  const { t } = useT('twoFactor');
+  return (
+    <FormSection className="border-t pt-4">
+      <Text variant="caption" className="mb-2">
+        {t('enrollment.title')}
+      </Text>
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => onOpenChange(true)}
+      >
+        {t('admin.resetButton')}
+      </Button>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title={t('admin.confirmTitle')}
+        description={t('admin.confirmDescription', { name: memberName })}
+        confirmText={t('admin.resetButton')}
+        variant="destructive"
+        isLoading={resetting}
+        onConfirm={onReset}
+      />
+    </FormSection>
   );
 }

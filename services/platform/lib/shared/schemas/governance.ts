@@ -12,6 +12,7 @@ export const POLICY_TYPES = [
   'audit_retention',
   'login_policy',
   'password_policy',
+  'two_factor_policy',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -174,6 +175,23 @@ export const passwordPolicyConfigSchema = z.object({
 export type PasswordPolicyConfig = z.infer<typeof passwordPolicyConfigSchema>;
 export const DEFAULT_PASSWORD_POLICY: PasswordPolicyConfig =
   passwordPolicyConfigSchema.parse({});
+
+// Two-factor authentication policy (issue #1507).
+// - enforced: when true, credential-authenticated users without 2FA are
+//   redirected to enrollment (or blocked after grace).
+// - gracePeriodDays: days from when enforcement first applies to a given
+//   user (persisted per-user as `user.twoFactorGraceUntil`) during which
+//   the user may continue to sign in while enrolment is pending.
+// - exemptSsoUsers: exclude users who authenticate only via SSO (their
+//   IdP handles MFA).
+export const twoFactorPolicyConfigSchema = z.object({
+  enforced: z.boolean().default(false),
+  gracePeriodDays: z.number().int().min(0).max(30).default(7),
+  exemptSsoUsers: z.boolean().default(true),
+});
+export type TwoFactorPolicyConfig = z.infer<typeof twoFactorPolicyConfigSchema>;
+export const DEFAULT_TWO_FACTOR_POLICY: TwoFactorPolicyConfig =
+  twoFactorPolicyConfigSchema.parse({});
 
 // Merges multiple policies into the strictest ("strongest") one — longest
 // minLength, OR of each require flag, shortest positive rotationDays.

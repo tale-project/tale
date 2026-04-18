@@ -2,10 +2,13 @@ import type { GenericQueryCtx } from 'convex/server';
 
 import {
   DEFAULT_PASSWORD_POLICY,
+  DEFAULT_TWO_FACTOR_POLICY,
   mergeStrictestPasswordPolicy,
   type PasswordPolicyConfig,
   passwordPolicyConfigSchema,
   type PolicyType,
+  type TwoFactorPolicyConfig,
+  twoFactorPolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-guards';
 import type { DataModel } from '../_generated/dataModel';
@@ -82,6 +85,55 @@ export async function getPasswordPolicy(
   organizationId: string,
 ): Promise<PasswordPolicyConfig> {
   return (await getPasswordPolicyRow(ctx, organizationId)).policy;
+}
+
+/**
+ * Load the `two_factor_policy` row for an org. Falls back to the default
+ * (disabled) policy when the row is absent or malformed.
+ */
+export async function getTwoFactorPolicy(
+  ctx: GenericQueryCtx<DataModel>,
+  organizationId: string,
+): Promise<TwoFactorPolicyConfig> {
+  const row = await ctx.db
+    .query('governancePolicies')
+    .withIndex('by_org_policyType', (q) =>
+      q
+        .eq('organizationId', organizationId)
+        .eq('policyType', 'two_factor_policy'),
+    )
+    .first();
+
+  if (!row) return { ...DEFAULT_TWO_FACTOR_POLICY };
+
+  const parsed = twoFactorPolicyConfigSchema.safeParse(row.config);
+  if (!parsed.success) {
+    console.warn(
+      `Invalid two_factor_policy config for org ${organizationId}; using defaults`,
+      parsed.error,
+    );
+    return { ...DEFAULT_TWO_FACTOR_POLICY };
+  }
+  return parsed.data;
+}
+
+/**
+ * Resolve the strictest two-factor policy across all of a user's orgs.
+ * Merge rule: enforcement wins (OR across orgs), shortest positive grace
+ * wins, exemption requires unanimous agreement.
+ */
+export function mergeStrictestTwoFactorPolicy(
+  policies: readonly TwoFactorPolicyConfig[],
+): TwoFactorPolicyConfig {
+  if (policies.length === 0) return { ...DEFAULT_TWO_FACTOR_POLICY };
+  return policies.reduce(
+    (acc, p) => ({
+      enforced: acc.enforced || p.enforced,
+      gracePeriodDays: Math.min(acc.gracePeriodDays, p.gracePeriodDays),
+      exemptSsoUsers: acc.exemptSsoUsers && p.exemptSsoUsers,
+    }),
+    policies[0],
+  );
 }
 
 /**

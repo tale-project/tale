@@ -42,6 +42,12 @@ const PasswordPolicyEditor = lazyComponent(() =>
   ),
 );
 
+const TwoFactorPolicyEditor = lazyComponent(() =>
+  import('@/app/features/settings/governance/components/two-factor-policy-editor').then(
+    (m) => ({ default: m.TwoFactorPolicyEditor }),
+  ),
+);
+
 const GROUPS = [
   'content-models',
   'policies-limits',
@@ -156,6 +162,13 @@ function GovernanceSettingsPage() {
                 label: t('groups.subtabs.password'),
                 content: (
                   <PasswordPolicyEditor organizationId={organizationId} />
+                ),
+              },
+              {
+                value: 'two-factor',
+                label: t('groups.subtabs.twoFactor'),
+                content: (
+                  <TwoFactorPolicyEditor organizationId={organizationId} />
                 ),
               },
               {

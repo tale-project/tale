@@ -12,6 +12,7 @@ import { SkipLink } from '@/app/components/layout/skip-link';
 import { ThemeColorMeta } from '@/app/components/theme/theme-color-meta';
 import { ThemeProvider } from '@/app/components/theme/theme-provider';
 import { Toaster } from '@/app/components/ui/feedback/toaster';
+import { BackupCodesDialogProvider } from '@/app/features/settings/account/components/backup-codes-dialog-provider';
 import { useFileEvents } from '@/app/hooks/use-file-events';
 import type { RouterContext } from '@/app/router';
 import { authClient } from '@/lib/auth-client';
@@ -49,7 +50,9 @@ function RootComponent() {
               <FileEventsListener />
               <LazyMotion features={domAnimation} strict>
                 <BrandingProvider>
-                  <Outlet />
+                  <BackupCodesDialogProvider>
+                    <Outlet />
+                  </BackupCodesDialogProvider>
                 </BrandingProvider>
               </LazyMotion>
             </QueryClientProvider>

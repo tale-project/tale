@@ -25,6 +25,7 @@ import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
 
 import { useUpdatePassword, useUpdateUserName } from '../hooks/mutations';
+import { TwoFactorSection } from './two-factor-section';
 
 interface ProfileFormData {
   name: string;
@@ -42,17 +43,19 @@ interface SetPasswordFormData {
 }
 
 export function AccountForm() {
-  const { data: hasCredential, isLoading: isCredentialLoading } =
-    useHasCredentialAccount();
-
-  if (isCredentialLoading) {
-    return null;
-  }
+  // Intentionally don't gate on `isLoading` — a session rotation (e.g.
+  // TOTP enrolment's verify step rotates the session and briefly puts
+  // auth-dependent queries back into loading) would unmount the whole
+  // form and wipe any in-progress state in its children (like the
+  // backup-codes dialog in TwoFactorSection). `PasswordSection` already
+  // tolerates `hasCredential=false` during the first load.
+  const { data: hasCredential } = useHasCredentialAccount();
 
   return (
     <Stack>
       <ProfileSection />
       <PasswordSection hasCredential={hasCredential ?? false} />
+      <TwoFactorSection />
     </Stack>
   );
 }
