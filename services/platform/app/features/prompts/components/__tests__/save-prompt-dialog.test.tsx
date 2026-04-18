@@ -23,6 +23,14 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useTeams: () => ({ teams: [], isLoading: false }),
+}));
+
+vi.mock('@/app/hooks/use-toast', () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
+
 vi.mock('../../hooks/mutations', () => ({
   useCreatePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSavePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
