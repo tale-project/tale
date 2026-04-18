@@ -279,7 +279,9 @@ export function ChatHistorySidebar({
     >
       <Tabs
         value={activeTab}
-        onValueChange={(v) => setActiveTab(v as 'history' | 'archived')}
+        onValueChange={(v) => {
+          if (v === 'history' || v === 'archived') setActiveTab(v);
+        }}
         triggerClassName="flex-1"
         className="flex min-h-0 flex-1 flex-col"
         listClassName="w-full"

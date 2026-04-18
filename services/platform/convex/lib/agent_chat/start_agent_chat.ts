@@ -211,16 +211,6 @@ export async function startAgentChat(
     promptMessageId = lastUserMessage._id;
   }
 
-  // Fire-and-forget AI-generated title for the thread's first message.
-  // If this fails or times out, the thread keeps its default "New Chat" title.
-  if (isFirstMessage) {
-    await ctx.scheduler.runAfter(
-      0,
-      internal.threads.generate_thread_title.generateThreadTitle,
-      { threadId, firstMessage: messageContent },
-    );
-  }
-
   // Prepare attachments for action (only if new message)
   const actionAttachments =
     !messageAlreadyExists && hasAttachments
@@ -337,6 +327,16 @@ export async function startAgentChat(
     if (featureFlags.maxContextTokens != null) {
       governanceMaxContextTokens = featureFlags.maxContextTokens;
     }
+  }
+
+  // Fire-and-forget AI-generated title for the thread's first message.
+  // If this fails or times out, the thread keeps its default "New Chat" title.
+  if (isFirstMessage) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.threads.generate_thread_title.generateThreadTitle,
+      { threadId, firstMessage: messageContent },
+    );
   }
 
   // Schedule the generic agent action with full configuration

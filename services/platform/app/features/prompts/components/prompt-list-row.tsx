@@ -77,28 +77,23 @@ export function PromptListRow({
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={handleUse}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleUse();
-        }
-      }}
       className={cn(
-        'group flex w-full cursor-pointer items-center gap-3 p-3 text-left transition-colors hover:bg-accent/50',
+        'group flex w-full items-center gap-3 p-3 transition-colors hover:bg-accent/50',
         !isLast && 'border-border border-b',
       )}
     >
-      <div className="min-w-0 flex-1">
+      <button
+        type="button"
+        onClick={handleUse}
+        className="min-w-0 flex-1 cursor-pointer text-left"
+      >
         <Text as="div" variant="label" className="truncate text-sm font-medium">
           {prompt.title}
         </Text>
         <Text as="div" variant="muted" className="mt-0.5 line-clamp-1 text-xs">
           {prompt.content}
         </Text>
-      </div>
+      </button>
 
       <HStack
         gap={1}
@@ -123,15 +118,7 @@ export function PromptListRow({
             items={menuItems}
             align="end"
             open={menuOpen}
-            onOpenChange={(next) => {
-              console.log(
-                '[DEBUG] DropdownMenu onOpenChange:',
-                next,
-                'current:',
-                menuOpen,
-              );
-              setMenuOpen(next);
-            }}
+            onOpenChange={setMenuOpen}
           />
         )}
       </HStack>

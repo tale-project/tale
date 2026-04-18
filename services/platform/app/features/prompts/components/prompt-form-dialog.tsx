@@ -185,7 +185,9 @@ function PromptFormDialogContent({
         <Tabs
           items={scopeTabItems}
           value={scope}
-          onValueChange={(v) => setScope(v as PromptScope)}
+          onValueChange={(v) => {
+            if (v === 'global' || v === 'team' || v === 'personal') setScope(v);
+          }}
         />
       </div>
       {scope === 'team' && teamOptions.length > 0 && (
