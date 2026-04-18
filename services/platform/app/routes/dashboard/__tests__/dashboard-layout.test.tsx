@@ -64,6 +64,13 @@ vi.mock('@/app/features/auth/components/two-factor-grace-banner', () => ({
   TwoFactorGraceBanner: () => null,
 }));
 
+vi.mock(
+  '@/app/features/auth/components/two-factor-low-backup-codes-banner',
+  () => ({
+    TwoFactorLowBackupCodesBanner: () => null,
+  }),
+);
+
 vi.mock('@convex-dev/react-query', () => ({
   convexQuery: vi.fn(),
 }));
