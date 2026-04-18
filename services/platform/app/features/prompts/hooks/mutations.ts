@@ -1,8 +1,17 @@
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
 export function useCreatePrompt() {
   return useConvexMutation(api.prompts.mutations.createPrompt);
+}
+
+/**
+ * Save a prompt with an AI-generated title (10s timeout, PROMPT-XXXXX fallback).
+ * Prefer this over useCreatePrompt when the user is saving without entering a title.
+ */
+export function useSavePrompt() {
+  return useConvexAction(api.prompts.actions.savePrompt);
 }
 
 export function useUpdatePrompt() {

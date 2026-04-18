@@ -3,7 +3,14 @@
 import { useNavigate } from '@tanstack/react-router';
 import { m, AnimatePresence } from 'framer-motion';
 import { Archive, ArrowDown, Share } from 'lucide-react';
-import { useRef, useEffect, useId, useState, useCallback } from 'react';
+import {
+  useRef,
+  useEffect,
+  useId,
+  useState,
+  useCallback,
+  useMemo,
+} from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -17,7 +24,10 @@ import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { lazyComponent } from '@/lib/utils/lazy-component';
 
+import { useDeletePrompt } from '../../prompts/hooks/mutations';
+import { usePrompts } from '../../prompts/hooks/queries';
 import { useMyFeatureFlags } from '../../settings/governance/hooks/queries';
 import { useBranchContext } from '../context/branch-context';
 import { useChatLayout } from '../context/chat-layout-context';
@@ -57,6 +67,14 @@ import { ChatMessages } from './chat-messages';
 import { MessagesSkeleton } from './messages-skeleton';
 import { WelcomeView } from './welcome-view';
 
+const SavePromptDialog = lazyComponent<
+  import('@/app/features/prompts/components/save-prompt-dialog').SavePromptDialogProps
+>(() =>
+  import('@/app/features/prompts/components/save-prompt-dialog').then(
+    (mod) => ({ default: mod.SavePromptDialog }),
+  ),
+);
+
 function chatDraftKey(
   userId: string | undefined,
   organizationId: string,
@@ -91,6 +109,8 @@ export function ChatInterface({
     setPendingMessage,
     selectedModelOverrides,
     setSelectedModelOverride,
+    insertedPrompt,
+    setInsertedPrompt,
   } = useChatLayout();
 
   const arenaContext = useArenaModeOptional();
@@ -177,6 +197,41 @@ export function ChatInterface({
     '',
   );
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [savePromptData, setSavePromptData] = useState<{
+    messageId: string;
+    content: string;
+  } | null>(null);
+
+  // Build a lookup of messageId → promptId for saved prompts
+  const { prompts } = usePrompts(organizationId);
+  const deletePrompt = useDeletePrompt();
+
+  const savedMessageMap = useMemo(() => {
+    const map = new Map<string, (typeof prompts)[number]['_id']>();
+    for (const prompt of prompts) {
+      if (prompt.sourceMessageId) {
+        map.set(prompt.sourceMessageId, prompt._id);
+      }
+    }
+    return map;
+  }, [prompts]);
+
+  const handleUnsavePrompt = useCallback(
+    async (messageId: string) => {
+      const promptId = savedMessageMap.get(messageId);
+      if (!promptId) return;
+      await deletePrompt.mutateAsync({ promptId });
+    },
+    [savedMessageMap, deletePrompt],
+  );
+
+  // Consume prompt content inserted from sidebar
+  useEffect(() => {
+    if (insertedPrompt) {
+      setInputValue(insertedPrompt);
+      setInsertedPrompt(null);
+    }
+  }, [insertedPrompt, setInsertedPrompt, setInputValue]);
 
   const {
     attachments,
@@ -784,6 +839,11 @@ export function ChatInterface({
               onForkAtMessage={
                 isArchived || readOnly ? undefined : handleForkAtMessage
               }
+              onSavePrompt={(messageId, content) =>
+                setSavePromptData({ messageId, content })
+              }
+              onUnsavePrompt={handleUnsavePrompt}
+              savedMessageMap={savedMessageMap}
               onRetry={isArchived || readOnly ? undefined : handleRetry}
               editingMessageId={
                 isArchived || readOnly ? undefined : editingMessage?.id
@@ -882,10 +942,22 @@ export function ChatInterface({
               fileUploadDisabled={fileUploadDisabled}
               isIndexing={isIndexing}
               indexingStatuses={indexingStatuses}
+              onSavePrompt={(content) =>
+                setSavePromptData({ messageId: '', content })
+              }
             />
           </FileUpload.Root>
         )}
       </PanelFooter>
+
+      <SavePromptDialog
+        open={savePromptData !== null}
+        onOpenChange={(open) => {
+          if (!open) setSavePromptData(null);
+        }}
+        initialContent={savePromptData?.content ?? ''}
+        sourceMessageId={savePromptData?.messageId}
+      />
     </div>
   );
 }

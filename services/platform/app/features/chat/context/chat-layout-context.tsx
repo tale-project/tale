@@ -63,6 +63,9 @@ interface ChatLayoutContextType {
   setSelectedAgent: (agent: SelectedAgent | null) => void;
   selectedModelOverrides: Record<string, string>;
   setSelectedModelOverride: (agentName: string, modelId: string | null) => void;
+  /** Content inserted from the sidebar prompt section — consumed by ChatInterface */
+  insertedPrompt: string | null;
+  setInsertedPrompt: (content: string | null) => void;
 }
 
 const ChatLayoutContext = createContext<ChatLayoutContextType | null>(null);
@@ -90,6 +93,7 @@ export function ChatLayoutProvider({
     null,
   );
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [insertedPrompt, setInsertedPrompt] = useState<string | null>(null);
   const agentKey = user?.userId
     ? `selected-agent-${user.userId}-${organizationId}`
     : `selected-agent-${organizationId}`;
@@ -156,6 +160,8 @@ export function ChatLayoutProvider({
       setSelectedAgent,
       selectedModelOverrides,
       setSelectedModelOverride,
+      insertedPrompt,
+      setInsertedPrompt,
     }),
     [
       pendingThreadId,
@@ -166,6 +172,7 @@ export function ChatLayoutProvider({
       setSelectedAgent,
       selectedModelOverrides,
       setSelectedModelOverride,
+      insertedPrompt,
     ],
   );
 

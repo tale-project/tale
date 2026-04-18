@@ -27,13 +27,13 @@ vi.mock('../../hooks/mutations', () => ({
   useCreatePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-import { SaveAsPromptDialog } from '../save-as-prompt-dialog';
+import { SavePromptDialog } from '../save-prompt-dialog';
 
-describe('SaveAsPromptDialog', () => {
+describe('SavePromptDialog', () => {
   describe('accessibility', () => {
     it('passes axe audit when open', async () => {
       const { container } = render(
-        <SaveAsPromptDialog
+        <SavePromptDialog
           open={true}
           onOpenChange={vi.fn()}
           initialContent="Hello, this is a test prompt."
@@ -45,7 +45,7 @@ describe('SaveAsPromptDialog', () => {
 
   it('renders with initial content when open', () => {
     render(
-      <SaveAsPromptDialog
+      <SavePromptDialog
         open={true}
         onOpenChange={vi.fn()}
         initialContent="Hello, this is a test prompt."
@@ -56,7 +56,7 @@ describe('SaveAsPromptDialog', () => {
 
   it('does not render when closed', () => {
     const { container } = render(
-      <SaveAsPromptDialog
+      <SavePromptDialog
         open={false}
         onOpenChange={vi.fn()}
         initialContent="Some content"

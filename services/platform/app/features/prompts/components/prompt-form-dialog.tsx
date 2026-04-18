@@ -6,10 +6,15 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { HStack } from '@/app/components/ui/layout/layout';
+import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
 
 import type { PromptTemplate } from '../hooks/queries';
+import { usePrompts } from '../hooks/queries';
+import { AddCategoryPopover } from './add-category-popover';
 
 type PromptScope = 'global' | 'team' | 'personal';
 
@@ -40,6 +45,8 @@ function PromptFormDialogContent({
 }: PromptFormDialogProps) {
   const { t } = useT('prompts');
   const { teams } = useTeams();
+  const organizationId = useOrganizationId();
+  const { prompts } = usePrompts(organizationId ?? '');
 
   const [title, setTitle] = useState(initialData?.title ?? '');
   const [content, setContent] = useState(initialData?.content ?? '');
@@ -54,6 +61,20 @@ function PromptFormDialogContent({
   const [tagsInput, setTagsInput] = useState(
     initialData?.tags?.join(', ') ?? '',
   );
+  const [localCategories, setLocalCategories] = useState<string[]>([]);
+
+  const existingCategories = useMemo(() => {
+    const fromPrompts = prompts
+      .map((p) => p.category)
+      .filter((c): c is string => !!c);
+    const merged = [...new Set([...fromPrompts, ...localCategories])];
+    return merged.sort((a, b) => a.localeCompare(b));
+  }, [prompts, localCategories]);
+
+  const categoryOptions = useMemo(
+    () => existingCategories.map((c) => ({ value: c, label: c })),
+    [existingCategories],
+  );
 
   const teamOptions = useMemo(
     () =>
@@ -63,6 +84,12 @@ function PromptFormDialogContent({
       })),
     [teams],
   );
+
+  const scopeTabItems = [
+    { value: 'personal', label: t('scope.personal') },
+    { value: 'team', label: t('scope.team') },
+    { value: 'global', label: t('scope.global') },
+  ];
 
   const isDirty =
     title !== (initialData?.title ?? '') ||
@@ -111,6 +138,11 @@ function PromptFormDialogContent({
     ],
   );
 
+  const handleAddCategory = useCallback((newCategory: string) => {
+    setLocalCategories((prev) => [...new Set([...prev, newCategory])]);
+    setCategory(newCategory);
+  }, []);
+
   return (
     <FormDialog
       open={open}
@@ -148,29 +180,14 @@ function PromptFormDialogContent({
         onChange={(e) => setDescription(e.target.value)}
         placeholder={t('form.descriptionPlaceholder')}
       />
-      <fieldset>
-        <legend className="mb-2 text-sm font-medium">
-          {t('form.scopeLabel')}
-        </legend>
-        <div className="flex gap-3" role="radiogroup">
-          {(['personal', 'team', 'global'] as const).map((s) => (
-            <label
-              key={s}
-              className="flex cursor-pointer items-center gap-2 text-sm"
-            >
-              <input
-                type="radio"
-                name="scope"
-                value={s}
-                checked={scope === s}
-                onChange={() => setScope(s)}
-                className="accent-primary"
-              />
-              {t(`scope.${s}`)}
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-medium">{t('form.scopeLabel')}</label>
+        <Tabs
+          items={scopeTabItems}
+          value={scope}
+          onValueChange={(v) => setScope(v as PromptScope)}
+        />
+      </div>
       {scope === 'team' && teamOptions.length > 0 && (
         <Select
           label={t('form.teamLabel')}
@@ -181,12 +198,31 @@ function PromptFormDialogContent({
           required
         />
       )}
-      <Input
-        label={t('form.categoryLabel')}
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
-        placeholder={t('form.categoryPlaceholder')}
-      />
+      <div className="flex flex-col gap-2">
+        <HStack justify="between" align="center">
+          <label className="text-sm font-medium">
+            {t('form.categoryLabel')}
+          </label>
+          <AddCategoryPopover
+            existingCategories={existingCategories}
+            onAddCategory={handleAddCategory}
+          />
+        </HStack>
+        {categoryOptions.length > 0 ? (
+          <Select
+            options={categoryOptions}
+            value={category}
+            onValueChange={setCategory}
+            placeholder={t('form.categoryPlaceholder')}
+          />
+        ) : (
+          <Input
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            placeholder={t('form.categoryPlaceholder')}
+          />
+        )}
+      </div>
       <Input
         label={t('form.tagsLabel')}
         value={tagsInput}

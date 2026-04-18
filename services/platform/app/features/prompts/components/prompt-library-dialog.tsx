@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, Search } from 'lucide-react';
+import { BookOpen, Plus, Search } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -16,15 +16,16 @@ import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
 
 import {
-  useCreatePrompt,
   useUpdatePrompt,
   useDeletePrompt,
   useIncrementPromptUsage,
 } from '../hooks/mutations';
 import type { PromptTemplate } from '../hooks/queries';
 import { usePrompts } from '../hooks/queries';
-import { PromptCard } from './prompt-card';
+import { CategoryFilterPopover } from './category-filter-popover';
 import { PromptFormDialog, type PromptFormData } from './prompt-form-dialog';
+import { PromptListRow } from './prompt-list-row';
+import { SavePromptDialog } from './save-prompt-dialog';
 
 export interface PromptLibraryDialogProps {
   open: boolean;
@@ -44,13 +45,13 @@ function PromptLibraryDialogContent({
 
   const { prompts, isLoading } = usePrompts(organizationId ?? '');
 
-  const createPrompt = useCreatePrompt();
   const updatePrompt = useUpdatePrompt();
   const deletePrompt = useDeletePrompt();
   const incrementUsage = useIncrementPromptUsage();
 
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<PromptTemplate | null>(
     null,
@@ -62,6 +63,11 @@ function PromptLibraryDialogContent({
   const isAdmin =
     memberContext?.role === 'admin' || memberContext?.role === 'owner';
 
+  const availableCategories = useMemo(() => {
+    const cats = prompts.map((p) => p.category).filter((c): c is string => !!c);
+    return [...new Set(cats)].sort((a, b) => a.localeCompare(b));
+  }, [prompts]);
+
   const filteredPrompts = useMemo(() => {
     let filtered = prompts;
 
@@ -69,6 +75,12 @@ function PromptLibraryDialogContent({
       filtered = filtered.filter((p) => p.scope === 'team');
     } else if (activeTab === 'personal') {
       filtered = filtered.filter((p) => p.scope === 'personal');
+    }
+
+    if (selectedCategories.length > 0) {
+      filtered = filtered.filter(
+        (p) => p.category && selectedCategories.includes(p.category),
+      );
     }
 
     if (searchQuery.trim()) {
@@ -84,7 +96,7 @@ function PromptLibraryDialogContent({
     }
 
     return filtered;
-  }, [prompts, activeTab, searchQuery]);
+  }, [prompts, activeTab, searchQuery, selectedCategories]);
 
   const handleUsePrompt = useCallback(
     (prompt: PromptTemplate) => {
@@ -104,25 +116,6 @@ function PromptLibraryDialogContent({
       return prompt.createdBy === currentUser.userId;
     },
     [currentUser, isAdmin],
-  );
-
-  const handleCreateSubmit = useCallback(
-    async (data: PromptFormData) => {
-      if (!organizationId) return;
-      await createPrompt.mutateAsync({
-        organizationId,
-        title: data.title,
-        content: data.content,
-        description: data.description || undefined,
-        scope: data.scope,
-        teamId: data.teamId,
-        category: data.category || undefined,
-        tags: data.tags.length > 0 ? data.tags : undefined,
-        isPublished: true,
-      });
-      setFormOpen(false);
-    },
-    [organizationId, createPrompt],
   );
 
   const handleEditSubmit = useCallback(
@@ -164,62 +157,70 @@ function PromptLibraryDialogContent({
         onOpenChange={onOpenChange}
         title={t('library.title')}
         description={t('library.description')}
-        size="wide"
+        className="w-[95vw] max-w-[680px]"
       >
         <div className="flex flex-col gap-4">
-          <HStack justify="between" align="center">
-            <Tabs
-              items={tabItems}
-              value={activeTab}
-              onValueChange={setActiveTab}
+          <Tabs
+            items={tabItems}
+            value={activeTab}
+            onValueChange={setActiveTab}
+            actions={
+              <Button
+                onClick={() => setFormOpen(true)}
+                className="h-9 shrink-0"
+              >
+                <Plus className="mr-1 size-4" />
+                {t('actions.create')}
+              </Button>
+            }
+          />
+
+          <HStack gap={2} align="center">
+            <div className="relative flex-1">
+              <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('library.searchPlaceholder')}
+                className="pl-9"
+                aria-label={t('library.searchPlaceholder')}
+              />
+            </div>
+            <CategoryFilterPopover
+              categories={availableCategories}
+              selectedCategories={selectedCategories}
+              onSelectedCategoriesChange={setSelectedCategories}
             />
-            <Button
-              size="sm"
-              onClick={() => setFormOpen(true)}
-              className="shrink-0"
-            >
-              <Plus className="mr-1 size-4" />
-              {t('actions.create')}
-            </Button>
           </HStack>
 
-          <div className="relative">
-            <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('library.searchPlaceholder')}
-              className="pl-9"
-              aria-label={t('library.searchPlaceholder')}
-            />
-          </div>
-
-          <div className="max-h-[60vh] overflow-y-auto">
+          <div className="max-h-[340px] min-h-[300px] overflow-y-auto">
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Text variant="muted">{t('library.loading')}</Text>
               </div>
             ) : filteredPrompts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-12">
-                <Text variant="muted">{t('library.empty')}</Text>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setFormOpen(true)}
-                >
-                  <Plus className="mr-1 size-4" />
-                  {t('actions.createFirst')}
-                </Button>
+              <div className="flex h-[300px] flex-col items-center justify-center gap-4">
+                <div className="bg-muted flex size-12 items-center justify-center rounded-full">
+                  <BookOpen className="text-muted-foreground size-6" />
+                </div>
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <Text as="h3" variant="label" className="font-medium">
+                    {t('emptyState.title')}
+                  </Text>
+                  <Text variant="muted" className="max-w-[280px] text-sm">
+                    {t('emptyState.description')}
+                  </Text>
+                </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredPrompts.map((prompt) => (
-                  <PromptCard
+              <div className="flex flex-col">
+                {filteredPrompts.map((prompt, index) => (
+                  <PromptListRow
                     key={prompt._id}
                     prompt={prompt}
                     onUse={handleUsePrompt}
                     onEdit={
-                      canModifyPrompt(prompt)
+                      canModifyPrompt(prompt) && !prompt.sourceMessageId
                         ? (p) => setEditingPrompt(p)
                         : undefined
                     }
@@ -229,6 +230,7 @@ function PromptLibraryDialogContent({
                         : undefined
                     }
                     canModify={canModifyPrompt(prompt)}
+                    isLast={index === filteredPrompts.length - 1}
                   />
                 ))}
               </div>
@@ -237,11 +239,10 @@ function PromptLibraryDialogContent({
         </div>
       </Dialog>
 
-      <PromptFormDialog
+      <SavePromptDialog
         open={formOpen}
         onOpenChange={setFormOpen}
-        onSubmit={handleCreateSubmit}
-        isSubmitting={createPrompt.isPending}
+        initialContent=""
       />
 
       <PromptFormDialog

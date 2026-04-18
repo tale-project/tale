@@ -1,7 +1,6 @@
 import { createFileRoute, useMatch, useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { m, AnimatePresence } from 'framer-motion';
-import { PanelLeftClose } from 'lucide-react';
 import { Suspense, useState, useEffect, useRef } from 'react';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
@@ -169,8 +168,7 @@ function ThreadGate({
 }
 
 function ChatLayoutContent({ organizationId }: { organizationId: string }) {
-  const { isHistoryOpen, setIsHistoryOpen, clearChatState } = useChatLayout();
-  const { t: tChat } = useT('chat');
+  const { isHistoryOpen, clearChatState, setInsertedPrompt } = useChatLayout();
 
   // Read threadId from URL — ChatInterface stays mounted across route changes.
   const threadMatch = useMatch({
@@ -230,7 +228,11 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
   return (
     <PageLayout className="bg-background h-full overflow-hidden">
       <LayoutErrorBoundary organizationId={organizationId}>
-        <ChatHeader organizationId={organizationId} threadId={threadId} />
+        <ChatHeader
+          organizationId={organizationId}
+          threadId={threadId}
+          onSelectPrompt={setInsertedPrompt}
+        />
       </LayoutErrorBoundary>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -245,17 +247,12 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
             >
               <div className="border-border bg-background flex h-full flex-col overflow-hidden border-r">
                 <LayoutErrorBoundary organizationId={organizationId}>
-                  <ChatHistorySidebar organizationId={organizationId} />
+                  <ChatHistorySidebar
+                    organizationId={organizationId}
+                    onSelectPrompt={setInsertedPrompt}
+                  />
                 </LayoutErrorBoundary>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsHistoryOpen(false)}
-                aria-label={tChat('hideHistory')}
-                className="border-border bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring absolute top-3 -right-3 z-10 flex size-6 items-center justify-center rounded-full border shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
-              >
-                <PanelLeftClose className="size-3" />
-              </button>
             </m.div>
           )}
         </AnimatePresence>

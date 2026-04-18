@@ -8,7 +8,7 @@ import { promptScopeValidator, promptTemplateValidator } from './validators';
 export const createPrompt = mutationWithRLS({
   args: {
     organizationId: v.string(),
-    title: v.string(),
+    title: v.optional(v.string()),
     content: v.string(),
     description: v.optional(v.string()),
     scope: promptScopeValidator,
@@ -16,16 +16,25 @@ export const createPrompt = mutationWithRLS({
     category: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     isPublished: v.optional(v.boolean()),
+    sourceMessageId: v.optional(v.string()),
   },
   returns: promptTemplateValidator,
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
     await validateOrganizationAccess(ctx, args.organizationId, undefined, user);
 
+    // Auto-generate title if not provided: PROMPT-XXXXX (alphanumeric)
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const randomId = Array.from(
+      { length: 5 },
+      () => chars[Math.floor(Math.random() * chars.length)],
+    ).join('');
+    const title = args.title?.trim() || `PROMPT-${randomId}`;
+
     const id = await ctx.db.insert('promptTemplates', {
       organizationId: args.organizationId,
       createdBy: user.userId,
-      title: args.title,
+      title,
       content: args.content,
       description: args.description,
       scope: args.scope,
@@ -34,6 +43,7 @@ export const createPrompt = mutationWithRLS({
       tags: args.tags,
       usageCount: 0,
       isPublished: args.isPublished ?? true,
+      sourceMessageId: args.sourceMessageId,
     });
 
     const prompt = await ctx.db.get(id);

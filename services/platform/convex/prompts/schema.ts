@@ -13,9 +13,12 @@ export const promptTemplatesTable = defineTable({
   tags: v.optional(v.array(v.string())),
   usageCount: v.number(),
   isPublished: v.boolean(),
+  /** The message ID this prompt was saved from, if any. */
+  sourceMessageId: v.optional(v.string()),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_scope', ['organizationId', 'scope'])
   .index('by_org_createdBy', ['organizationId', 'createdBy'])
   .index('by_org_teamId', ['organizationId', 'teamId'])
-  .index('by_org_category', ['organizationId', 'category']);
+  .index('by_org_category', ['organizationId', 'category'])
+  .index('by_org_sourceMessageId', ['organizationId', 'sourceMessageId']);
