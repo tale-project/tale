@@ -2723,6 +2723,8 @@
     "hideSearch": "Hide search",
     "showHistory": "Show history",
     "hideHistory": "Hide history",
+    "openSidebar": "Open sidebar",
+    "closeSidebar": "Close sidebar",
     "chatHistory": "History",
     "searchPlaceholder": "Search chats",
     "messagePlaceholder": "Type a message...",
@@ -2836,7 +2838,8 @@
     "loadOlderMessages": "Load older messages",
     "history": {
       "loading": "Loading chats...",
-      "empty": "No chats yet",
+      "empty": "No conversations yet",
+      "emptySubtitle": "Start a new chat to begin",
       "untitled": "Untitled chat",
       "renameChat": "Rename chat",
       "loadMore": "Load more",
@@ -2966,7 +2969,10 @@
       "applyFailed": "Failed to apply changes"
     },
     "promptLibrary": "Prompt library",
-    "saveAsPrompt": "Save as prompt"
+    "savePrompt": "Save prompt",
+    "unsavePrompt": "Unsave prompt",
+    "unsavePromptConfirm": "This will remove the saved prompt. You can always save it again later.",
+    "unsavePromptAction": "Unsave"
   },
   "documents": {
     "title": "Documents",
@@ -4200,6 +4206,10 @@
       "loading": "Loading prompts...",
       "empty": "No prompts yet. Create your first prompt template."
     },
+    "emptyState": {
+      "title": "No prompts yet",
+      "description": "Create your first prompt to save and reuse it across conversations"
+    },
     "actions": {
       "create": "Create prompt",
       "createFirst": "Create first prompt",
@@ -4207,7 +4217,9 @@
       "delete": "Delete",
       "use": "Use",
       "usePrompt": "Use this prompt",
-      "more": "More actions"
+      "more": "More actions",
+      "copy": "Copy",
+      "copied": "Copied!"
     },
     "deleteConfirm": {
       "title": "Delete prompt",
@@ -4240,8 +4252,25 @@
       "create": "Create"
     },
     "saveAs": {
-      "title": "Save as prompt",
-      "description": "Save the current text as a reusable prompt template."
+      "title": "Save prompt",
+      "description": "Give your prompt a name and edit the content before saving.",
+      "namePlaceholder": "e.g. API rate limiting best practices",
+      "saveTo": "Save to",
+      "cancel": "Cancel"
+    },
+    "toast": {
+      "savedTo": "Saved to {scope}"
+    },
+    "categoryFilter": {
+      "title": "By category"
+    },
+    "addCategory": {
+      "inputPlaceholder": "Category name",
+      "cancel": "Cancel",
+      "add": "Add"
+    },
+    "sidebar": {
+      "sectionTitle": "Prompt Library"
     },
     "usageCount": "{count, plural, one {# use} other {# uses}}"
   },

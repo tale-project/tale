@@ -2723,6 +2723,8 @@
     "hideSearch": "Suche ausblenden",
     "showHistory": "Verlauf anzeigen",
     "hideHistory": "Verlauf ausblenden",
+    "openSidebar": "Seitenleiste öffnen",
+    "closeSidebar": "Seitenleiste schließen",
     "chatHistory": "Chatverlauf",
     "searchPlaceholder": "Chats suchen",
     "messagePlaceholder": "Nachricht eingeben...",
@@ -2836,7 +2838,8 @@
     "loadOlderMessages": "Ältere Nachrichten laden",
     "history": {
       "loading": "Chats werden geladen...",
-      "empty": "Noch keine Chats",
+      "empty": "Noch keine Gespräche",
+      "emptySubtitle": "Starte einen neuen Chat, um zu beginnen",
       "untitled": "Unbenannter Chat",
       "renameChat": "Chat umbenennen",
       "loadMore": "Mehr laden",
@@ -2966,7 +2969,10 @@
       "applyFailed": "Änderungen konnten nicht übernommen werden"
     },
     "promptLibrary": "Prompt-Bibliothek",
-    "saveAsPrompt": "Als Prompt speichern"
+    "savePrompt": "Prompt speichern",
+    "unsavePrompt": "Prompt entfernen",
+    "unsavePromptConfirm": "Der gespeicherte Prompt wird entfernt. Du kannst ihn jederzeit erneut speichern.",
+    "unsavePromptAction": "Entfernen"
   },
   "documents": {
     "title": "Dokumente",
@@ -4193,6 +4199,10 @@
       "loading": "Prompts werden geladen...",
       "empty": "Noch keine Prompts. Erstelle deine erste Prompt-Vorlage."
     },
+    "emptyState": {
+      "title": "Noch keine Prompts",
+      "description": "Erstelle deinen ersten Prompt, um ihn in Unterhaltungen wiederzuverwenden"
+    },
     "actions": {
       "create": "Prompt erstellen",
       "createFirst": "Ersten Prompt erstellen",
@@ -4200,7 +4210,9 @@
       "delete": "Löschen",
       "use": "Verwenden",
       "usePrompt": "Diesen Prompt verwenden",
-      "more": "Weitere Aktionen"
+      "more": "Weitere Aktionen",
+      "copy": "Kopieren",
+      "copied": "Kopiert!"
     },
     "deleteConfirm": {
       "title": "Prompt löschen",
@@ -4233,8 +4245,25 @@
       "create": "Erstellen"
     },
     "saveAs": {
-      "title": "Als Prompt speichern",
-      "description": "Den aktuellen Text als wiederverwendbare Prompt-Vorlage speichern."
+      "title": "Prompt speichern",
+      "description": "Benenne deinen Prompt und bearbeite den Inhalt vor dem Speichern.",
+      "namePlaceholder": "z.B. Best Practices für API-Ratenlimitierung",
+      "saveTo": "Speichern unter",
+      "cancel": "Abbrechen"
+    },
+    "toast": {
+      "savedTo": "Gespeichert unter {scope}"
+    },
+    "categoryFilter": {
+      "title": "Nach Kategorie"
+    },
+    "addCategory": {
+      "inputPlaceholder": "Kategoriename",
+      "cancel": "Abbrechen",
+      "add": "Hinzufügen"
+    },
+    "sidebar": {
+      "sectionTitle": "Prompt-Bibliothek"
     },
     "usageCount": "{count, plural, one {# Verwendung} other {# Verwendungen}}"
   },

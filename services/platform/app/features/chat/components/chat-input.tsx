@@ -6,8 +6,7 @@ import {
   ArrowUp,
   CircleStop,
   Loader,
-  BookOpen,
-  Save,
+  Bookmark,
 } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
@@ -33,7 +32,6 @@ import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
 import { AgentSelector } from './agent-selector';
@@ -50,22 +48,6 @@ const LOCALE_TO_BCP47: Record<string, string> = {
   'de-AT': 'de-AT',
   'de-CH': 'de-CH',
 };
-
-const PromptLibraryDialog = lazyComponent<
-  import('@/app/features/prompts/components/prompt-library-dialog').PromptLibraryDialogProps
->(() =>
-  import('@/app/features/prompts/components/prompt-library-dialog').then(
-    (m) => ({ default: m.PromptLibraryDialog }),
-  ),
-);
-
-const SaveAsPromptDialog = lazyComponent<
-  import('@/app/features/prompts/components/save-as-prompt-dialog').SaveAsPromptDialogProps
->(() =>
-  import('@/app/features/prompts/components/save-as-prompt-dialog').then(
-    (m) => ({ default: m.SaveAsPromptDialog }),
-  ),
-);
 
 interface ChatInputProps extends Omit<
   ComponentPropsWithoutRef<'div'>,
@@ -91,6 +73,7 @@ interface ChatInputProps extends Omit<
     Id<'_storage'>,
     { status?: string; error?: string; progress?: string }
   >;
+  onSavePrompt?: (content: string) => void;
 }
 
 export function ChatInput({
@@ -111,6 +94,7 @@ export function ChatInput({
   fileUploadDisabled = false,
   isIndexing = false,
   indexingStatuses,
+  onSavePrompt,
   ...restProps
 }: ChatInputProps) {
   const { t: tChat } = useT('chat');
@@ -139,9 +123,6 @@ export function ChatInput({
     src: string;
     alt: string;
   } | null>(null);
-  const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
-  const [saveAsPromptOpen, setSaveAsPromptOpen] = useState(false);
-
   const defaultPlaceholder = placeholder || tChat('typeMessageHere');
 
   const isUploading = uploadingFiles.length > 0;
@@ -426,8 +407,8 @@ export function ChatInput({
             )}
           </div>
 
-          <HStack justify="between" align="center" className="pb-3">
-            <HStack gap={3} align="center">
+          <HStack justify="between" align="center" className="flex-1 pb-3">
+            <HStack gap={1} align="center">
               {!fileUploadDisabled && (
                 <Tooltip content={tDialogs('attach')} side="top">
                   <Button
@@ -441,67 +422,57 @@ export function ChatInput({
                   </Button>
                 </Tooltip>
               )}
-              <Tooltip content={tChat('promptLibrary')} side="top">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setPromptLibraryOpen(true)}
-                  disabled={inputDisabled}
-                  aria-label={tChat('promptLibrary')}
-                >
-                  <BookOpen className="size-4" />
-                </Button>
-              </Tooltip>
-              {value.trim().length > 0 && (
-                <Tooltip content={tChat('saveAsPrompt')} side="top">
+              {onSavePrompt && (
+                <Tooltip content={tChat('savePrompt')} side="top">
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setSaveAsPromptOpen(true)}
-                    disabled={inputDisabled}
-                    aria-label={tChat('saveAsPrompt')}
+                    onClick={() => onSavePrompt(value)}
+                    disabled={inputDisabled || !value.trim()}
+                    aria-label={tChat('savePrompt')}
                   >
-                    <Save className="size-4" />
+                    <Bookmark className="size-4" />
                   </Button>
                 </Tooltip>
               )}
+              <ArenaModeToggle disabled={isLoading} />
+              {isArenaMode ? (
+                <ArenaModelSelector organizationId={organizationId} />
+              ) : (
+                <HStack className="px-2" gap={3} align="center">
+                  <AgentSelector organizationId={organizationId} />
+                  <ModelSelector organizationId={organizationId} />
+                </HStack>
+              )}
+            </HStack>
+            <HStack gap={1} align="center">
               <DictationButton
                 disabled={inputDisabled}
                 lang={speechLang}
                 onTranscript={handleTranscript}
               />
-              <ArenaModeToggle disabled={isLoading} />
-              {isArenaMode ? (
-                <ArenaModelSelector organizationId={organizationId} />
-              ) : (
-                <>
-                  <AgentSelector organizationId={organizationId} />
-                  <ModelSelector organizationId={organizationId} />
-                </>
-              )}
+              <Button
+                type="button"
+                onClick={isLoading ? onStopGenerating : handleSendMessage}
+                disabled={
+                  isLoading
+                    ? !onStopGenerating
+                    : (!value.trim() && attachments.length === 0) ||
+                      inputDisabled ||
+                      isUploading ||
+                      isIndexing
+                }
+                size="icon"
+                className="rounded-full"
+                aria-label={isLoading ? tChat('stopGenerating') : tChat('send')}
+              >
+                {isLoading ? (
+                  <CircleStop className="size-4" />
+                ) : (
+                  <ArrowUp className="size-4" />
+                )}
+              </Button>
             </HStack>
-
-            <Button
-              type="button"
-              onClick={isLoading ? onStopGenerating : handleSendMessage}
-              disabled={
-                isLoading
-                  ? !onStopGenerating
-                  : (!value.trim() && attachments.length === 0) ||
-                    inputDisabled ||
-                    isUploading ||
-                    isIndexing
-              }
-              size="icon"
-              className="rounded-full"
-              aria-label={isLoading ? tChat('stopGenerating') : tChat('send')}
-            >
-              {isLoading ? (
-                <CircleStop className="size-4" />
-              ) : (
-                <ArrowUp className="size-4" />
-              )}
-            </Button>
           </HStack>
         </div>
       </FileUpload.DropZone>
@@ -514,18 +485,6 @@ export function ChatInput({
           alt={previewImage.alt}
         />
       )}
-
-      <PromptLibraryDialog
-        open={promptLibraryOpen}
-        onOpenChange={setPromptLibraryOpen}
-        onSelectPrompt={(content) => onChange?.(content)}
-      />
-
-      <SaveAsPromptDialog
-        open={saveAsPromptOpen}
-        onOpenChange={setSaveAsPromptOpen}
-        initialContent={value}
-      />
     </div>
   );
 }

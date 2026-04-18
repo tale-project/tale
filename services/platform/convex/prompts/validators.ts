@@ -20,4 +20,5 @@ export const promptTemplateValidator = v.object({
   tags: v.optional(v.array(v.string())),
   usageCount: v.number(),
   isPublished: v.boolean(),
+  sourceMessageId: v.optional(v.string()),
 });

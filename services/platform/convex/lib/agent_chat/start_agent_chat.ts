@@ -194,6 +194,8 @@ export async function startAgentChat(
 
   // Save user message if not a duplicate
   let promptMessageId: string;
+  const isFirstMessage =
+    !messageAlreadyExists && existingMessages.page.length === 0;
   if (!messageAlreadyExists) {
     const { messageId } = await saveMessage(ctx, components.agent, {
       threadId,
@@ -325,6 +327,16 @@ export async function startAgentChat(
     if (featureFlags.maxContextTokens != null) {
       governanceMaxContextTokens = featureFlags.maxContextTokens;
     }
+  }
+
+  // Fire-and-forget AI-generated title for the thread's first message.
+  // If this fails or times out, the thread keeps its default "New Chat" title.
+  if (isFirstMessage) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.threads.generate_thread_title.generateThreadTitle,
+      { threadId, firstMessage: messageContent },
+    );
   }
 
   // Schedule the generic agent action with full configuration

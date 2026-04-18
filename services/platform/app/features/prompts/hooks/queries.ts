@@ -16,6 +16,7 @@ export interface PromptTemplate {
   tags?: string[];
   usageCount: number;
   isPublished: boolean;
+  sourceMessageId?: string;
 }
 
 export function usePrompts(organizationId: string) {

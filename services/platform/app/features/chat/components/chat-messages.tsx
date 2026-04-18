@@ -101,6 +101,10 @@ interface ChatMessagesProps {
   onSendMessage?: (message: string) => void;
   onEditMessage?: (messageId: string, content: string) => void;
   onForkAtMessage?: (messageId: string) => void;
+  onSavePrompt?: (messageId: string, content: string) => void;
+  onUnsavePrompt?: (messageId: string) => void;
+  /** Map of messageId → promptId for messages that have been saved as prompts. */
+  savedMessageMap?: Map<string, string>;
   onRetry?: () => void;
   editingMessageId?: string;
   editingMessageContent?: string;
@@ -145,6 +149,9 @@ export function ChatMessages({
   onSendMessage,
   onEditMessage,
   onForkAtMessage,
+  onSavePrompt,
+  onUnsavePrompt,
+  savedMessageMap,
   onRetry,
   editingMessageId,
   editingMessageContent,
@@ -399,6 +406,13 @@ export function ChatMessages({
             }
             onEdit={isUserMessage ? onEditMessage : undefined}
             onFork={onForkAtMessage}
+            onSavePrompt={isUserMessage ? onSavePrompt : undefined}
+            onUnsavePrompt={isUserMessage ? onUnsavePrompt : undefined}
+            isSavedPrompt={
+              isUserMessage && savedMessageMap
+                ? savedMessageMap.has(message.id)
+                : false
+            }
             toolbarExtra={
               !hideBranchNavigator &&
               hasBranches &&

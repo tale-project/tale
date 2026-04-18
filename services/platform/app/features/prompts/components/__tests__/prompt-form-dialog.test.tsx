@@ -27,6 +27,10 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: [], isLoading: false }),
 }));
 
+vi.mock('../../hooks/queries', () => ({
+  usePrompts: () => ({ prompts: [], isLoading: false }),
+}));
+
 import { PromptFormDialog } from '../prompt-form-dialog';
 
 describe('PromptFormDialog', () => {

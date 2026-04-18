@@ -2721,6 +2721,8 @@
     "hideSearch": "Masquer la recherche",
     "showHistory": "Afficher l'historique",
     "hideHistory": "Masquer l'historique",
+    "openSidebar": "Ouvrir la barre latérale",
+    "closeSidebar": "Fermer la barre latérale",
     "chatHistory": "Historique",
     "searchPlaceholder": "Rechercher dans les chats",
     "messagePlaceholder": "Saisis un message...",
@@ -2834,7 +2836,8 @@
     "loadOlderMessages": "Charger les messages plus anciens",
     "history": {
       "loading": "Chargement des chats...",
-      "empty": "Aucun chat pour l'instant",
+      "empty": "Aucune conversation pour l'instant",
+      "emptySubtitle": "Démarre un nouveau chat pour commencer",
       "untitled": "Chat sans titre",
       "renameChat": "Renommer le chat",
       "loadMore": "Charger plus",
@@ -2964,7 +2967,10 @@
       "applyFailed": "Échec de l'application des modifications"
     },
     "promptLibrary": "Bibliothèque de prompts",
-    "saveAsPrompt": "Enregistrer comme prompt"
+    "savePrompt": "Enregistrer le prompt",
+    "unsavePrompt": "Retirer le prompt",
+    "unsavePromptConfirm": "Le prompt enregistré sera supprimé. Tu pourras toujours le sauvegarder à nouveau plus tard.",
+    "unsavePromptAction": "Retirer"
   },
   "documents": {
     "title": "Documents",
@@ -4099,6 +4105,10 @@
       "loading": "Chargement des prompts...",
       "empty": "Aucun prompt pour le moment. Crée ton premier modèle de prompt."
     },
+    "emptyState": {
+      "title": "Aucun prompt pour le moment",
+      "description": "Crée ton premier prompt pour le sauvegarder et le réutiliser dans tes conversations"
+    },
     "actions": {
       "create": "Créer un prompt",
       "createFirst": "Créer le premier prompt",
@@ -4106,7 +4116,9 @@
       "delete": "Supprimer",
       "use": "Utiliser",
       "usePrompt": "Utiliser ce prompt",
-      "more": "Plus d'actions"
+      "more": "Plus d'actions",
+      "copy": "Copier",
+      "copied": "Copié !"
     },
     "deleteConfirm": {
       "title": "Supprimer le prompt",
@@ -4139,8 +4151,25 @@
       "create": "Créer"
     },
     "saveAs": {
-      "title": "Enregistrer comme prompt",
-      "description": "Enregistre le texte actuel comme modèle de prompt réutilisable."
+      "title": "Enregistrer le prompt",
+      "description": "Nomme ton prompt et modifie le contenu avant de l'enregistrer.",
+      "namePlaceholder": "ex. Bonnes pratiques de limitation de débit API",
+      "saveTo": "Enregistrer sous",
+      "cancel": "Annuler"
+    },
+    "toast": {
+      "savedTo": "Enregistré sous {scope}"
+    },
+    "categoryFilter": {
+      "title": "Par catégorie"
+    },
+    "addCategory": {
+      "inputPlaceholder": "Nom de la catégorie",
+      "cancel": "Annuler",
+      "add": "Ajouter"
+    },
+    "sidebar": {
+      "sectionTitle": "Bibliothèque de prompts"
     },
     "usageCount": "{count, plural, one {# utilisation} other {# utilisations}}"
   },

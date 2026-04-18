@@ -6,6 +6,8 @@ import {
   GitFork,
   Info,
   Pencil,
+  Bookmark,
+  BookmarkCheck,
   TriangleAlert,
   RotateCcw,
   Square,
@@ -21,6 +23,7 @@ import {
   memo,
 } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
@@ -56,6 +59,9 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   onRetry?: () => void;
   onEdit?: (messageId: string, content: string) => void;
   onFork?: (messageId: string) => void;
+  onSavePrompt?: (messageId: string, content: string) => void;
+  onUnsavePrompt?: (messageId: string) => void;
+  isSavedPrompt?: boolean;
   /** Extra content rendered in the user message toolbar (e.g. BranchNavigator). */
   toolbarExtra?: React.ReactNode;
 }
@@ -117,6 +123,9 @@ function MessageBubbleComponent({
   onRetry,
   onEdit,
   onFork,
+  onSavePrompt,
+  onUnsavePrompt,
+  isSavedPrompt,
   toolbarExtra,
   ...restProps
 }: MessageBubbleProps) {
@@ -133,6 +142,21 @@ function MessageBubbleComponent({
   const handleForkClick = useCallback(() => {
     if (onFork) onFork(message.id);
   }, [onFork, message.id]);
+
+  const [unsaveConfirmOpen, setUnsaveConfirmOpen] = useState(false);
+
+  const handleBookmarkClick = useCallback(() => {
+    if (isSavedPrompt) {
+      setUnsaveConfirmOpen(true);
+    } else if (onSavePrompt) {
+      onSavePrompt(message.id, message.content);
+    }
+  }, [isSavedPrompt, onSavePrompt, message.id, message.content]);
+
+  const handleConfirmUnsave = useCallback(() => {
+    if (onUnsavePrompt) onUnsavePrompt(message.id);
+    setUnsaveConfirmOpen(false);
+  }, [onUnsavePrompt, message.id]);
 
   const [isCopied, setIsCopied] = useState(false);
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
@@ -540,8 +564,29 @@ function MessageBubbleComponent({
           metadata={metadata}
         />
       </div>
-      {isUser && (onEdit || toolbarExtra) && (
+      {isUser && (onEdit || onSavePrompt || toolbarExtra) && (
         <div className="flex items-center justify-end gap-0.5 pt-0.5">
+          {(onSavePrompt || isSavedPrompt) && !!displayContent && (
+            <Tooltip
+              content={
+                isSavedPrompt ? tChat('unsavePrompt') : tChat('savePrompt')
+              }
+              side="bottom"
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-6 p-1"
+                onClick={handleBookmarkClick}
+              >
+                {isSavedPrompt ? (
+                  <BookmarkCheck className="text-primary size-3.5" />
+                ) : (
+                  <Bookmark className="size-3.5" />
+                )}
+              </Button>
+            </Tooltip>
+          )}
           {onEdit && !!displayContent && (
             <Tooltip content={tChat('editMessage')} side="bottom">
               <Button
@@ -557,6 +602,16 @@ function MessageBubbleComponent({
           {toolbarExtra}
         </div>
       )}
+
+      <ConfirmDialog
+        open={unsaveConfirmOpen}
+        onOpenChange={setUnsaveConfirmOpen}
+        title={tChat('unsavePrompt')}
+        description={tChat('unsavePromptConfirm')}
+        confirmText={tChat('unsavePromptAction')}
+        onConfirm={handleConfirmUnsave}
+        variant="destructive"
+      />
     </div>
   );
 }
@@ -580,6 +635,7 @@ export const MessageBubble = memo(
       prevProps.onRetry === nextProps.onRetry &&
       prevProps.onEdit === nextProps.onEdit &&
       prevProps.onFork === nextProps.onFork &&
+      prevProps.isSavedPrompt === nextProps.isSavedPrompt &&
       prevProps.toolbarExtra === nextProps.toolbarExtra
     );
   },

@@ -23,6 +23,11 @@ vi.mock('../../../_generated/api', () => ({
         internal_actions: { runAgentGeneration: 'mock-runAgentGeneration' },
       },
     },
+    threads: {
+      generate_thread_title: {
+        generateThreadTitle: 'mock-generateThreadTitle',
+      },
+    },
   },
 }));
 

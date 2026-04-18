@@ -23,17 +23,30 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
-vi.mock('../../hooks/mutations', () => ({
-  useCreatePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useTeams: () => ({ teams: [], isLoading: false }),
 }));
 
-import { SaveAsPromptDialog } from '../save-as-prompt-dialog';
+vi.mock('@/app/hooks/use-toast', () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
 
-describe('SaveAsPromptDialog', () => {
+vi.mock('../../hooks/mutations', () => ({
+  useCreatePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useSavePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
+vi.mock('../../hooks/queries', () => ({
+  usePrompts: () => ({ prompts: [], isLoading: false }),
+}));
+
+import { SavePromptDialog } from '../save-prompt-dialog';
+
+describe('SavePromptDialog', () => {
   describe('accessibility', () => {
     it('passes axe audit when open', async () => {
       const { container } = render(
-        <SaveAsPromptDialog
+        <SavePromptDialog
           open={true}
           onOpenChange={vi.fn()}
           initialContent="Hello, this is a test prompt."
@@ -45,7 +58,7 @@ describe('SaveAsPromptDialog', () => {
 
   it('renders with initial content when open', () => {
     render(
-      <SaveAsPromptDialog
+      <SavePromptDialog
         open={true}
         onOpenChange={vi.fn()}
         initialContent="Hello, this is a test prompt."
@@ -56,7 +69,7 @@ describe('SaveAsPromptDialog', () => {
 
   it('does not render when closed', () => {
     const { container } = render(
-      <SaveAsPromptDialog
+      <SavePromptDialog
         open={false}
         onOpenChange={vi.fn()}
         initialContent="Some content"
