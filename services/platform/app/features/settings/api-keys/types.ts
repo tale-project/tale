@@ -13,7 +13,7 @@ export interface ApiKey {
    * Used as fallback when `start` is not available.
    */
   prefix: string | null;
-  userId: string;
+  userId?: string;
   enabled: boolean | null;
   expiresAt: Date | null;
   createdAt: Date;

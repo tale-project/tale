@@ -56,8 +56,20 @@ vi.mock('@/lib/permissions/ability', () => ({
 vi.mock('@/convex/_generated/api', () => ({
   api: {
     members: { queries: { getCurrentMemberContext: 'mock-query-ref' } },
+    two_factor: { queries: { getStatus: 'mock-status-ref' } },
   },
 }));
+
+vi.mock('@/app/features/auth/components/two-factor-grace-banner', () => ({
+  TwoFactorGraceBanner: () => null,
+}));
+
+vi.mock(
+  '@/app/features/auth/components/two-factor-low-backup-codes-banner',
+  () => ({
+    TwoFactorLowBackupCodesBanner: () => null,
+  }),
+);
 
 vi.mock('@convex-dev/react-query', () => ({
   convexQuery: vi.fn(),

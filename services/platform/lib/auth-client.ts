@@ -1,5 +1,9 @@
+import { apiKeyClient } from '@better-auth/api-key/client';
 import { convexClient } from '@convex-dev/better-auth/client/plugins';
-import { apiKeyClient, organizationClient } from 'better-auth/client/plugins';
+import {
+  organizationClient,
+  twoFactorClient,
+} from 'better-auth/client/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
 import { createAuthClient } from 'better-auth/react';
 
@@ -41,6 +45,16 @@ export const authClient = createAuthClient({
   plugins: [
     convexClient(),
     apiKeyClient(),
+    twoFactorClient({
+      // Hook runs before the caller's .then() resolves, but the caller also
+      // still receives `{ twoFactorRedirect: true }` in the response data —
+      // log-in.tsx branches on that explicitly to avoid double-navigation and
+      // to preserve the current `redirectTo` query param.
+      onTwoFactorRedirect() {
+        const base = window.__ENV__?.BASE_PATH ?? '';
+        window.location.href = `${base}/2fa`;
+      },
+    }),
     organizationClient({
       ac,
       roles: {

@@ -41,6 +41,12 @@ const SENSITIVE_FIELDS = new Set([
   'nonce',
   'hmac',
   'signature',
+  // Two-factor authentication (issue #1507) — TOTP codes and backup
+  // codes are credential-equivalent; must never appear in audit state.
+  'totpcode',
+  'totpsecret',
+  'backupcode',
+  'backupcodes',
 ]);
 
 const REDACTED_VALUE = '[REDACTED]';
@@ -54,7 +60,9 @@ function isSensitiveKey(key: string): boolean {
     lowerKey.includes('token') ||
     lowerKey.includes('apikey') ||
     lowerKey.includes('api_key') ||
-    lowerKey.includes('credential')
+    lowerKey.includes('credential') ||
+    lowerKey.includes('totp') ||
+    lowerKey.includes('backupcode')
   );
 }
 

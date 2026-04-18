@@ -24,3 +24,7 @@ export function useUpdateMemberDisplayName() {
 export function useTransferOwnership() {
   return useConvexMutation(api.members.mutations.transferOwnership);
 }
+
+export function useResetMemberTwoFactor() {
+  return useConvexMutation(api.two_factor.mutations.resetForUser);
+}

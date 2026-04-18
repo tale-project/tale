@@ -635,6 +635,8 @@
       "memberUpdateFailed": "Mitglied konnte nicht aktualisiert werden",
       "memberRemoved": "Mitglied erfolgreich entfernt",
       "memberRemoveFailed": "Mitglied konnte nicht entfernt werden",
+      "twoFactorResetSuccess": "Zwei-Faktor zurückgesetzt \u2014 das Mitglied muss sich bei der nächsten Anmeldung neu einrichten",
+      "twoFactorResetFailed": "Zwei-Faktor-Authentifizierung konnte nicht zurückgesetzt werden",
       "emailCannotChange": "E-Mail kann nicht geändert werden",
       "cannotChangeOwnRole": "Du kannst deine eigene Rolle nicht ändern",
       "updatePassword": "Passwort aktualisieren",
@@ -3610,6 +3612,84 @@
       }
     }
   },
+  "twoFactor": {
+    "enrollment": {
+      "title": "Zwei-Faktor-Authentifizierung",
+      "description": "Sichere dein Konto mit einem zeitbasierten Code aus einer Authenticator-App.",
+      "notEnabledHint": "Zwei-Faktor-Authentifizierung ist für dein Konto noch nicht aktiviert.",
+      "enabledHint": "Zwei-Faktor-Authentifizierung ist für dein Konto aktiv.",
+      "requiredByOrg": "Deine Organisation verlangt Zwei-Faktor-Authentifizierung. Richte sie jetzt ein, um fortzufahren.",
+      "enableButton": "Zwei-Faktor aktivieren",
+      "disableButton": "Deaktivieren",
+      "regenerateButton": "Backup-Codes neu erzeugen",
+      "enabled": "Zwei-Faktor-Authentifizierung aktiviert",
+      "disabled": "Zwei-Faktor-Authentifizierung deaktiviert",
+      "passwordPromptDescription": "Bestätige dein Passwort, um die Einrichtung der Zwei-Faktor-Authentifizierung zu starten.",
+      "disablePromptDescription": "Bestätige dein Passwort, um die Zwei-Faktor-Authentifizierung auszuschalten.",
+      "regeneratePromptDescription": "Bestätige dein Passwort. Beim Neuerzeugen werden alle bisherigen Backup-Codes ungültig."
+    },
+    "setup": {
+      "title": "Zwei-Faktor-Authentifizierung einrichten",
+      "qrInstructions": "Scanne den QR-Code mit einer Authenticator-App (Google Authenticator, 1Password, Authy) und gib anschließend den 6-stelligen Code unten ein.",
+      "manualEntry": "Kein Scan möglich? Gib dieses Geheimnis manuell ein:",
+      "verifyCodeLabel": "Bestätigungscode",
+      "verifyButton": "Prüfen und aktivieren"
+    },
+    "backupCodes": {
+      "title": "Backup-Codes speichern",
+      "description": "Jeder Code kann einmal verwendet werden, falls du keinen Zugriff mehr auf deine Authenticator-App hast.",
+      "warningOnce": "Wir zeigen diese Codes nicht erneut an. Lade sie jetzt herunter oder kopiere sie.",
+      "downloadButton": "Herunterladen",
+      "doneButton": "Fertig",
+      "regenerated": "Neue Backup-Codes erzeugt"
+    },
+    "confirmPassword": {
+      "label": "Passwort",
+      "submit": "Bestätigen"
+    },
+    "verify": {
+      "title": "Identität bestätigen",
+      "description": "Gib den 6-stelligen Code aus deiner Authenticator-App ein.",
+      "codeLabel": "Authentifizierungscode",
+      "useBackupCodeToggle": "Stattdessen einen Backup-Code verwenden",
+      "useAuthenticatorToggle": "Stattdessen die Authenticator-App verwenden",
+      "backupCodeLabel": "Backup-Code",
+      "submitButton": "Prüfen",
+      "invalid": "Ungültiger oder abgelaufener Code. Bitte erneut versuchen.",
+      "tooManyAttempts": "Zu viele Fehlversuche. Bitte später erneut versuchen.",
+      "backupCodeSuccess": "Backup-Code verwendet. Erwäge, die Backup-Codes in den Einstellungen neu zu erzeugen."
+    },
+    "lowBackupCodes": {
+      "titleOne": "Nur noch 1 Backup-Code übrig",
+      "titleOther": "Nur noch {count} Backup-Codes übrig",
+      "body": "Erzeuge einen neuen Satz, damit du dein Konto wiederherstellen kannst, falls du deine Authenticator-App verlierst.",
+      "regenerateLink": "Jetzt neu erzeugen"
+    },
+    "enroll": {
+      "title": "Zwei-Faktor erforderlich",
+      "description": "Deine Organisation verlangt Zwei-Faktor-Authentifizierung, um fortzufahren."
+    },
+    "grace": {
+      "titleOne": "Zwei-Faktor-Authentifizierung in {days} Tag erforderlich",
+      "titleOther": "Zwei-Faktor-Authentifizierung in {days} Tagen erforderlich",
+      "body": "Deine Organisation wird von allen Mitgliedern einen zweiten Faktor verlangen. Richte ihn jetzt ein, um Unterbrechungen zu vermeiden.",
+      "setupLink": "Jetzt einrichten"
+    },
+    "admin": {
+      "resetButton": "Zwei-Faktor zurücksetzen",
+      "confirmTitle": "Zwei-Faktor-Authentifizierung zurücksetzen?",
+      "confirmDescription": "Dies deaktiviert Zwei-Faktor für {name} und beendet alle aktiven Sitzungen. Beim nächsten Anmelden ist eine neue Einrichtung erforderlich.",
+      "resetSuccess": "Zwei-Faktor-Authentifizierung zurückgesetzt",
+      "resetFailed": "Zwei-Faktor-Authentifizierung konnte nicht zurückgesetzt werden"
+    },
+    "errors": {
+      "enableFailed": "Einrichtung der Zwei-Faktor-Authentifizierung fehlgeschlagen. Bitte erneut versuchen.",
+      "disableFailed": "Zwei-Faktor-Authentifizierung konnte nicht deaktiviert werden.",
+      "regenerateFailed": "Neue Backup-Codes konnten nicht erzeugt werden.",
+      "invalidCode": "Ungültiger oder abgelaufener Code. Bitte erneut versuchen.",
+      "sessionExpired": "Deine Sitzung ist abgelaufen. Bitte erneut anmelden."
+    }
+  },
   "accessDenied": {
     "title": "Zugriff verweigert",
     "automations": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf Automatisierungen zuzugreifen.",
@@ -3925,6 +4005,19 @@
       "saved": "Passwort-Richtlinie gespeichert",
       "saveFailed": "Speichern der Passwort-Richtlinie fehlgeschlagen"
     },
+    "twoFactorPolicy": {
+      "title": "Zwei-Faktor-Authentifizierung",
+      "description": "Alle passwort-authentifizierten Benutzer müssen nach einer Übergangsfrist einen zweiten Faktor (TOTP) einrichten.",
+      "enforced": "Zwei-Faktor-Authentifizierung verlangen",
+      "policyDisabledHint": "Zwei-Faktor-Authentifizierung ist optional, solange diese Richtlinie deaktiviert ist.",
+      "gracePeriodDays": "Übergangsfrist (Tage)",
+      "gracePeriodDaysHint": "Tage, die jedem Benutzer ab der ersten Anmeldung bleiben, in der die Richtlinie auf ihn zutrifft, bevor die Einrichtung erzwungen wird. 0 = sofortige Durchsetzung.",
+      "exemptSsoUsers": "Nur-SSO-Benutzer ausnehmen",
+      "exemptSsoUsersHint": "Benutzer, deren einziges Konto eine föderierte Identität ist (z. B. Microsoft Entra ID), verlassen sich auf MFA im vorgelagerten IdP.",
+      "invalidGrace": "Die Übergangsfrist muss eine ganze Zahl zwischen 0 und 30 sein.",
+      "saved": "Zwei-Faktor-Richtlinie gespeichert",
+      "saveFailed": "Speichern der Zwei-Faktor-Richtlinie fehlgeschlagen"
+    },
     "loginPolicy": {
       "title": "Anmeldeversuch-Limits",
       "description": "Konten nach wiederholten fehlgeschlagenen Anmeldungen sperren und die Wartezeit zwischen Versuchen verlängern.",
@@ -4039,6 +4132,7 @@
       "subtabs": {
         "login": "Anmeldung & Authentifizierung",
         "password": "Passwort-Richtlinie",
+        "twoFactor": "Zwei-Faktor-Authentifizierung",
         "pii": "PII-Schutz",
         "usage": "Nutzung",
         "systemPrompt": "System-Prompt",

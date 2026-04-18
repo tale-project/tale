@@ -36,6 +36,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   emailVerified: boolean;
                   image?: null | string;
                   name: string;
+                  twoFactorEnabled?: null | boolean;
+                  twoFactorGraceUntil?: null | number;
                   updatedAt: number;
                   userId?: null | string;
                 };
@@ -144,6 +146,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               }
             | {
                 data: {
+                  configId?: string;
                   createdAt: number;
                   enabled?: null | boolean;
                   expiresAt?: null | number;
@@ -157,15 +160,20 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   rateLimitEnabled?: null | boolean;
                   rateLimitMax?: null | number;
                   rateLimitTimeWindow?: null | number;
+                  referenceId?: string;
                   refillAmount?: null | number;
                   refillInterval?: null | number;
                   remaining?: null | number;
                   requestCount?: null | number;
                   start?: null | string;
                   updatedAt: number;
-                  userId: string;
+                  userId?: string;
                 };
                 model: "apikey";
+              }
+            | {
+                data: { backupCodes: string; secret: string; userId: string };
+                model: "twoFactor";
               };
           onCreateHandle?: string;
           select?: Array<string>;
@@ -190,6 +198,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "createdAt"
                     | "updatedAt"
                     | "userId"
+                    | "twoFactorEnabled"
+                    | "twoFactorGraceUntil"
                     | "_id";
                   operator?:
                     | "lt"
@@ -512,11 +522,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 where?: Array<{
                   connector?: "AND" | "OR";
                   field:
+                    | "configId"
                     | "name"
                     | "start"
+                    | "referenceId"
                     | "prefix"
                     | "key"
-                    | "userId"
                     | "refillInterval"
                     | "refillAmount"
                     | "lastRefillAt"
@@ -532,7 +543,34 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "updatedAt"
                     | "permissions"
                     | "metadata"
+                    | "userId"
                     | "_id";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
+                model: "twoFactor";
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field: "secret" | "backupCodes" | "userId" | "_id";
                   operator?:
                     | "lt"
                     | "lte"
@@ -584,6 +622,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "createdAt"
                     | "updatedAt"
                     | "userId"
+                    | "twoFactorEnabled"
+                    | "twoFactorGraceUntil"
                     | "_id";
                   operator?:
                     | "lt"
@@ -906,11 +946,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 where?: Array<{
                   connector?: "AND" | "OR";
                   field:
+                    | "configId"
                     | "name"
                     | "start"
+                    | "referenceId"
                     | "prefix"
                     | "key"
-                    | "userId"
                     | "refillInterval"
                     | "refillAmount"
                     | "lastRefillAt"
@@ -926,7 +967,34 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "updatedAt"
                     | "permissions"
                     | "metadata"
+                    | "userId"
                     | "_id";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
+                model: "twoFactor";
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field: "secret" | "backupCodes" | "userId" | "_id";
                   operator?:
                     | "lt"
                     | "lte"
@@ -970,7 +1038,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             | "teamMember"
             | "member"
             | "invitation"
-            | "apikey";
+            | "apikey"
+            | "twoFactor";
           offset?: number;
           paginationOpts: {
             cursor: string | null;
@@ -1025,7 +1094,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             | "teamMember"
             | "member"
             | "invitation"
-            | "apikey";
+            | "apikey"
+            | "twoFactor";
           select?: Array<string>;
           where?: Array<{
             connector?: "AND" | "OR";
@@ -1067,6 +1137,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   emailVerified?: boolean;
                   image?: null | string;
                   name?: string;
+                  twoFactorEnabled?: null | boolean;
+                  twoFactorGraceUntil?: null | number;
                   updatedAt?: number;
                   userId?: null | string;
                 };
@@ -1080,6 +1152,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "createdAt"
                     | "updatedAt"
                     | "userId"
+                    | "twoFactorEnabled"
+                    | "twoFactorGraceUntil"
                     | "_id";
                   operator?:
                     | "lt"
@@ -1474,6 +1548,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             | {
                 model: "apikey";
                 update: {
+                  configId?: string;
                   createdAt?: number;
                   enabled?: null | boolean;
                   expiresAt?: null | number;
@@ -1487,6 +1562,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   rateLimitEnabled?: null | boolean;
                   rateLimitMax?: null | number;
                   rateLimitTimeWindow?: null | number;
+                  referenceId?: string;
                   refillAmount?: null | number;
                   refillInterval?: null | number;
                   remaining?: null | number;
@@ -1498,11 +1574,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 where?: Array<{
                   connector?: "AND" | "OR";
                   field:
+                    | "configId"
                     | "name"
                     | "start"
+                    | "referenceId"
                     | "prefix"
                     | "key"
-                    | "userId"
                     | "refillInterval"
                     | "refillAmount"
                     | "lastRefillAt"
@@ -1518,7 +1595,39 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "updatedAt"
                     | "permissions"
                     | "metadata"
+                    | "userId"
                     | "_id";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
+                model: "twoFactor";
+                update: {
+                  backupCodes?: string;
+                  secret?: string;
+                  userId?: string;
+                };
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field: "secret" | "backupCodes" | "userId" | "_id";
                   operator?:
                     | "lt"
                     | "lte"
@@ -1566,6 +1675,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   emailVerified?: boolean;
                   image?: null | string;
                   name?: string;
+                  twoFactorEnabled?: null | boolean;
+                  twoFactorGraceUntil?: null | number;
                   updatedAt?: number;
                   userId?: null | string;
                 };
@@ -1579,6 +1690,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "createdAt"
                     | "updatedAt"
                     | "userId"
+                    | "twoFactorEnabled"
+                    | "twoFactorGraceUntil"
                     | "_id";
                   operator?:
                     | "lt"
@@ -1973,6 +2086,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             | {
                 model: "apikey";
                 update: {
+                  configId?: string;
                   createdAt?: number;
                   enabled?: null | boolean;
                   expiresAt?: null | number;
@@ -1986,6 +2100,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   rateLimitEnabled?: null | boolean;
                   rateLimitMax?: null | number;
                   rateLimitTimeWindow?: null | number;
+                  referenceId?: string;
                   refillAmount?: null | number;
                   refillInterval?: null | number;
                   remaining?: null | number;
@@ -1997,11 +2112,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 where?: Array<{
                   connector?: "AND" | "OR";
                   field:
+                    | "configId"
                     | "name"
                     | "start"
+                    | "referenceId"
                     | "prefix"
                     | "key"
-                    | "userId"
                     | "refillInterval"
                     | "refillAmount"
                     | "lastRefillAt"
@@ -2017,7 +2133,39 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "updatedAt"
                     | "permissions"
                     | "metadata"
+                    | "userId"
                     | "_id";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
+                model: "twoFactor";
+                update: {
+                  backupCodes?: string;
+                  secret?: string;
+                  userId?: string;
+                };
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field: "secret" | "backupCodes" | "userId" | "_id";
                   operator?:
                     | "lt"
                     | "lte"
