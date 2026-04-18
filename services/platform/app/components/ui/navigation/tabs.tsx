@@ -58,7 +58,7 @@ export function Tabs({
       onValueChange={onValueChange}
       className={className}
     >
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <TabsPrimitive.List className={cn(listStyles[variant], listClassName)}>
           {items.map((item) => (
             <TabsPrimitive.Trigger

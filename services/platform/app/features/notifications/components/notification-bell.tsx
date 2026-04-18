@@ -168,7 +168,9 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
           </div>
           <Tabs
             value={filter}
-            onValueChange={(v) => handleFilterChange(v as NotificationsFilter)}
+            onValueChange={(v) => {
+              if (v === 'unread' || v === 'all') handleFilterChange(v);
+            }}
             items={[
               {
                 value: 'unread',

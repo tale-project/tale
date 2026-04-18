@@ -109,7 +109,9 @@ export function OneDrivePickerStage({
           <Tabs
             variant="underline"
             value={sourceTab}
-            onValueChange={(v) => onTabChange(v as SourceTab)}
+            onValueChange={(v) => {
+              if (v === 'onedrive' || v === 'sharepoint') onTabChange(v);
+            }}
             items={[
               {
                 value: 'onedrive',

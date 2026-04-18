@@ -180,8 +180,8 @@ function ConversationStartersTab() {
   }
 
   const localeTabItems: TabItem[] = useMemo(() => {
-    const items: TabItem[] = [];
-    items.push({
+    const tabs: TabItem[] = [];
+    tabs.push({
       value: defaultLocale,
       label: (
         <span className="flex items-center gap-1.5">
@@ -194,7 +194,7 @@ function ConversationStartersTab() {
     });
     for (const locale of SUPPORTED_AGENT_LOCALES) {
       if (locale !== defaultLocale) {
-        items.push({
+        tabs.push({
           value: locale,
           label: (
             <span className="flex items-center gap-1.5">
@@ -209,7 +209,7 @@ function ConversationStartersTab() {
         });
       }
     }
-    return items;
+    return tabs;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultLocale, config.i18n, t, tGlobal]);
 

@@ -191,7 +191,11 @@ export function UserButton({
         content: (
           <Tabs
             value={theme}
-            onValueChange={(v) => setTheme(v as 'system' | 'light' | 'dark')}
+            onValueChange={(v) => {
+              if (v === 'system' || v === 'light' || v === 'dark') {
+                setTheme(v);
+              }
+            }}
             listClassName="w-full"
             triggerClassName="flex-1"
             items={[
