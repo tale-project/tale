@@ -272,7 +272,7 @@ export function ChatHistorySidebar({
   return (
     <div
       className={cn(
-        'flex flex-[1_1_0] flex-col px-2.5 py-3.5 overflow-hidden',
+        'flex flex-[1_1_0] flex-col overflow-hidden px-2.5 py-3.5',
         className,
       )}
       {...restProps}
