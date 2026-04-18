@@ -17,13 +17,13 @@ import { useCallback, useMemo, useState } from 'react';
 import { useTheme } from '@/app/components/theme/theme-provider';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { Tabs } from '@/app/components/ui/navigation/tabs';
 import {
   DropdownMenu,
   type DropdownMenuItem,
   type DropdownMenuGroup,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -189,67 +189,51 @@ export function UserButton({
       {
         type: 'custom',
         content: (
-          <div className="bg-muted flex items-center justify-between gap-2 rounded-lg p-1">
-            <Button
-              variant={theme === 'system' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setTheme('system')}
-              className="flex-1"
-            >
-              <Monitor className="size-4" />
-            </Button>
-            <Button
-              variant={theme === 'light' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setTheme('light')}
-              className="flex-1"
-            >
-              <Sun className="size-4" />
-            </Button>
-            <Button
-              variant={theme === 'dark' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setTheme('dark')}
-              className="flex-1"
-            >
-              <Moon className="size-4" />
-            </Button>
-          </div>
+          <Tabs
+            value={theme}
+            onValueChange={(v) => setTheme(v as 'system' | 'light' | 'dark')}
+            listClassName="w-full"
+            triggerClassName="flex-1"
+            items={[
+              {
+                value: 'system',
+                label: <Monitor className="size-4" />,
+              },
+              {
+                value: 'light',
+                label: <Sun className="size-4" />,
+              },
+              {
+                value: 'dark',
+                label: <Moon className="size-4" />,
+              },
+            ]}
+          />
         ),
       },
+    ]);
+
+    groups.push([
       {
         type: 'custom',
         content: (
-          <div className="bg-muted flex items-center justify-between gap-2 rounded-lg p-1">
-            <Button
-              variant={
-                locale === 'en' || locale.startsWith('en-')
-                  ? 'secondary'
-                  : 'ghost'
-              }
-              size="sm"
-              onClick={() => setLocale('en')}
-              className="flex-1"
-            >
-              EN
-            </Button>
-            <Button
-              variant={locale.startsWith('de') ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setLocale('de')}
-              className="flex-1"
-            >
-              DE
-            </Button>
-            <Button
-              variant={locale.startsWith('fr') ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setLocale('fr')}
-              className="flex-1"
-            >
-              FR
-            </Button>
-          </div>
+          <Tabs
+            value={
+              locale === 'en' || locale.startsWith('en-')
+                ? 'en'
+                : locale.startsWith('de')
+                  ? 'de'
+                  : 'fr'
+            }
+            onValueChange={(v) => setLocale(v)}
+            listClassName="w-full"
+            triggerClassName="flex-1"
+            items={[
+              { value: 'en', label: 'EN' },
+              { value: 'de', label: 'DE' },
+              { value: 'fr', label: 'FR' },
+            ]}
+          />
         ),
       },
     ]);

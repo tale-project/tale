@@ -255,7 +255,7 @@ export function DocumentUploadDialog({
             disabled={isUploading || allCompleted}
             inputId="document-file-upload"
             className={cn(
-              'relative flex flex-col items-center justify-center gap-2 rounded-lg border bg-muted/30 py-8 px-4 text-center cursor-pointer transition-colors',
+              'relative flex flex-col items-center justify-center gap-2 rounded-lg border bg-card/30 py-8 px-4 text-center cursor-pointer transition-colors',
               'hover:border-primary/40 hover:bg-muted/50',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               (isUploading || allCompleted) && 'opacity-50 cursor-not-allowed',

@@ -3,6 +3,7 @@
 import { Bell, ChevronDown, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Popover } from '@/app/components/ui/overlays/popover';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -165,26 +166,20 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
               </Button>
             )}
           </div>
-          <div
-            role="tablist"
-            aria-label={t('title')}
-            className="bg-muted flex w-fit rounded-md p-0.5"
-          >
-            <FilterPill
-              active={filter === 'unread'}
-              onClick={() => handleFilterChange('unread')}
-              label={
-                unreadCount > 0
-                  ? `${t('filterUnread')} (${unreadCount > 99 ? '99+' : unreadCount})`
-                  : t('filterUnread')
-              }
-            />
-            <FilterPill
-              active={filter === 'all'}
-              onClick={() => handleFilterChange('all')}
-              label={t('filterAll')}
-            />
-          </div>
+          <Tabs
+            value={filter}
+            onValueChange={(v) => handleFilterChange(v as NotificationsFilter)}
+            items={[
+              {
+                value: 'unread',
+                label:
+                  unreadCount > 0
+                    ? `${t('filterUnread')} (${unreadCount > 99 ? '99+' : unreadCount})`
+                    : t('filterUnread'),
+              },
+              { value: 'all', label: t('filterAll') },
+            ]}
+          />
         </div>
         <div className="flex-1 overflow-y-auto">
           {items.length === 0 ? (
@@ -295,30 +290,5 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
         </div>
       </div>
     </Popover>
-  );
-}
-
-interface FilterPillProps {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-}
-
-function FilterPill({ active, onClick, label }: FilterPillProps) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={cn(
-        'rounded px-2.5 py-1 text-xs font-medium transition-colors',
-        active
-          ? 'bg-background text-foreground shadow-sm'
-          : 'text-muted-foreground hover:text-foreground',
-      )}
-    >
-      {label}
-    </button>
   );
 }

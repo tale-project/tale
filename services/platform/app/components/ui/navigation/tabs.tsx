@@ -19,9 +19,24 @@ interface TabsProps {
   onValueChange?: (value: string) => void;
   className?: string;
   listClassName?: string;
+  triggerClassName?: string;
+  /** Visual style variant */
+  variant?: 'pill' | 'underline';
   /** Optional actions rendered to the right of the tab list */
   actions?: ReactNode;
 }
+
+const listStyles = {
+  pill: 'scrollbar-hide inline-flex items-center overflow-x-auto bg-muted p-1 text-muted-foreground rounded-lg',
+  underline:
+    'scrollbar-hide inline-flex items-center gap-4 overflow-x-auto border-b border-border text-muted-foreground',
+} as const;
+
+const triggerStyles = {
+  pill: 'ring-offset-background focus-visible:ring-ring data-[state=active]:bg-tab data-[state=active]:text-foreground inline-flex items-center justify-center rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm',
+  underline:
+    'ring-offset-background focus-visible:ring-ring relative inline-flex items-center justify-center border-b-2 border-transparent px-1 pb-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 data-[state=active]:border-primary data-[state=active]:text-foreground',
+} as const;
 
 export function Tabs({
   items,
@@ -30,8 +45,12 @@ export function Tabs({
   onValueChange,
   className,
   listClassName,
+  triggerClassName,
+  variant = 'pill',
   actions,
 }: TabsProps) {
+  const hasContent = items.some((item) => item.content);
+
   return (
     <TabsPrimitive.Root
       value={value}
@@ -39,19 +58,14 @@ export function Tabs({
       onValueChange={onValueChange}
       className={className}
     >
-      <div className="flex items-center justify-between gap-4">
-        <TabsPrimitive.List
-          className={cn(
-            'scrollbar-hide inline-flex items-center overflow-x-auto bg-muted p-1 text-muted-foreground rounded-lg',
-            listClassName,
-          )}
-        >
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <TabsPrimitive.List className={cn(listStyles[variant], listClassName)}>
           {items.map((item) => (
             <TabsPrimitive.Trigger
               key={item.value}
               value={item.value}
               disabled={item.disabled}
-              className="ring-offset-background focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm"
+              className={cn(triggerStyles[variant], triggerClassName)}
             >
               {item.label}
             </TabsPrimitive.Trigger>
@@ -59,18 +73,19 @@ export function Tabs({
         </TabsPrimitive.List>
         {actions && <div className="shrink-0">{actions}</div>}
       </div>
-      {items.map(
-        (item) =>
-          item.content && (
-            <TabsPrimitive.Content
-              key={item.value}
-              value={item.value}
-              className="ring-offset-background focus-visible:ring-ring mt-2 flex min-h-0 flex-1 flex-col focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-            >
-              {item.content}
-            </TabsPrimitive.Content>
-          ),
-      )}
+      {hasContent &&
+        items.map(
+          (item) =>
+            item.content && (
+              <TabsPrimitive.Content
+                key={item.value}
+                value={item.value}
+                className="ring-offset-background focus-visible:ring-ring mt-2 flex min-h-0 flex-1 flex-col focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+              >
+                {item.content}
+              </TabsPrimitive.Content>
+            ),
+        )}
     </TabsPrimitive.Root>
   );
 }

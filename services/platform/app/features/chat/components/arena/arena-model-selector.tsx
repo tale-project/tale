@@ -124,7 +124,7 @@ export function ArenaModelSelector({
   if (filteredModels.length < 2) return null;
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 px-2">
       <div className="flex items-center gap-1.5">
         <span className="text-muted-foreground text-xs font-medium">A</span>
         <SearchableSelect

@@ -273,7 +273,8 @@ function CreateAutomationDialogContent({
         items={tabItems}
         value={activeTab}
         onValueChange={handleTabChange}
-        listClassName="w-full [&>button]:flex-1"
+        listClassName="w-full"
+        triggerClassName="flex-1"
       />
     </Dialog>
   );

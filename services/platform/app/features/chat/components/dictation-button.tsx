@@ -72,7 +72,7 @@ function DictationButtonComponent({
         disabled={disabled}
         aria-label={isListening ? t('dictation.stop') : t('dictation.start')}
         aria-pressed={isListening}
-        className="relative"
+        className="relative rounded-full"
       >
         <Mic className={cn('size-4', isListening && 'text-destructive')} />
         {isListening && (

@@ -1,17 +1,16 @@
 'use client';
 
 import { Home } from 'lucide-react';
-import { type ReactNode } from 'react';
 
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
+import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { OneDriveFileTable } from './onedrive-file-table';
 import { SharePointDrivesTable } from './sharepoint-drives-table';
@@ -23,37 +22,6 @@ import type {
   SharePointDrive,
   SourceTab,
 } from './types';
-
-function SourceTabButton({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: ReactNode;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      tabIndex={active ? 0 : -1}
-      onClick={onClick}
-      className={cn(
-        'flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-        active
-          ? 'border-primary text-primary'
-          : 'text-muted-foreground hover:text-foreground border-transparent',
-      )}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
 
 interface OneDrivePickerStageProps {
   sourceTab: SourceTab;
@@ -137,20 +105,33 @@ export function OneDrivePickerStage({
             description={t('microsoft365.selectDescription')}
           />
         </div>
-        <HStack gap={0} className="px-6" role="tablist">
-          <SourceTabButton
-            active={sourceTab === 'onedrive'}
-            onClick={() => onTabChange('onedrive')}
-            icon={<OneDriveIcon className="size-4" />}
-            label={t('microsoft365.myOneDrive')}
+        <div className="px-6">
+          <Tabs
+            variant="underline"
+            value={sourceTab}
+            onValueChange={(v) => onTabChange(v as SourceTab)}
+            items={[
+              {
+                value: 'onedrive',
+                label: (
+                  <span className="flex items-center gap-2">
+                    <OneDriveIcon className="size-4" />
+                    {t('microsoft365.myOneDrive')}
+                  </span>
+                ),
+              },
+              {
+                value: 'sharepoint',
+                label: (
+                  <span className="flex items-center gap-2">
+                    <SharePointIcon className="size-4" />
+                    {t('microsoft365.sharePointSites')}
+                  </span>
+                ),
+              },
+            ]}
           />
-          <SourceTabButton
-            active={sourceTab === 'sharepoint'}
-            onClick={() => onTabChange('sharepoint')}
-            icon={<SharePointIcon className="size-4" />}
-            label={t('microsoft365.sharePointSites')}
-          />
-        </HStack>
+        </div>
       </div>
     ),
     content: (
