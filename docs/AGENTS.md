@@ -1,6 +1,6 @@
 # Documentation guidelines
 
-Rules for writing and maintaining the Mintlify documentation under `docs/`. These supersede the shorter note in the repository-root [`AGENTS.md`](../AGENTS.md) and are loaded automatically by agents working inside `docs/`.
+Rules for writing and maintaining the Mintlify documentation under `docs/`. These supersede the shorter note in the repository-root `AGENTS.md` and are loaded automatically by agents working inside `docs/`.
 
 ## The non-negotiable rule
 
@@ -82,8 +82,8 @@ Three locales, each with full coverage: `en`, `de`, `fr`. English files live at 
 
 ### Translation style
 
-- Read [`.agents/TERMINOLOGY.md`](../.agents/TERMINOLOGY.md) for rules that apply to every locale (length parity, tone, plural rules, placeholder handling).
-- Read the locale file before translating or reviewing a page: [`.agents/TERMINOLOGY_DE.md`](../.agents/TERMINOLOGY_DE.md) for German, [`.agents/TERMINOLOGY_FR.md`](../.agents/TERMINOLOGY_FR.md) for French, [`.agents/TERMINOLOGY_EN.md`](../.agents/TERMINOLOGY_EN.md) when authoring English.
+- Read `.agents/TERMINOLOGY.md` (at the repository root) for rules that apply to every locale (length parity, tone, plural rules, placeholder handling).
+- Read the locale file before translating or reviewing a page: `.agents/TERMINOLOGY_DE.md` for German, `.agents/TERMINOLOGY_FR.md` for French, `.agents/TERMINOLOGY_EN.md` when authoring English.
 - The `.agents/TERMINOLOGY_DE_AT.md`, `TERMINOLOGY_DE_CH.md`, and `TERMINOLOGY_FR_CH.md` files are for the platform UI only — docs do not have those locale variants.
 - **Informal form** throughout: "du" in German, "tu" in French. Never "Sie" or "vous".
 - **Sentence case** for headings in every locale.

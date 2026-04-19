@@ -29,7 +29,7 @@ On dépose un GitHub Security Advisory quand l'un des points suivants s'applique
 | Critical (9.0+)  | Requise     | Requise, résumé en avant | Oui — avant divulgation publique si coordonnée, sinon à la publication |
 | High (7.0–8.9)   | Requise     | Requise                  | Seulement si l'exploitation ne demande aucune action utilisateur       |
 | Medium (4.0–6.9) | Requise     | Requise                  | Non                                                                    |
-| Low (<4.0)       | Optionnelle | Requise                  | Non                                                                    |
+| Low (&lt;4.0)    | Optionnelle | Requise                  | Non                                                                    |
 
 ## Calendrier
 
