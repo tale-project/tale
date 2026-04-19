@@ -87,10 +87,38 @@ export async function executeHttpRequest(
     fetchOptions = { ...effectiveReq.options, body };
   }
 
-  const response = await globalThis.fetch(effectiveReq.url, {
-    ...fetchOptions,
-    redirect: 'manual',
-  });
+  let response: Response;
+  try {
+    response = await globalThis.fetch(effectiveReq.url, {
+      ...fetchOptions,
+      redirect: 'manual',
+    });
+  } catch (e) {
+    // Node undici throws `TypeError: fetch failed` with the real reason
+    // attached on `.cause` (ENOTFOUND, ECONNREFUSED, UND_ERR_CONNECT_TIMEOUT,
+    // CERT_HAS_EXPIRED, socket hang up, etc). Surface that chain so callers
+    // can diagnose network-layer failures instead of seeing a bare
+    // "fetch failed".
+    const msg = e instanceof Error ? e.message : String(e);
+    const cause: unknown =
+      e && typeof e === 'object' && 'cause' in e ? e.cause : undefined;
+    let causeMsg = '';
+    if (cause instanceof Error) {
+      const rawCode = 'code' in cause ? cause.code : undefined;
+      const code = typeof rawCode === 'string' ? rawCode : undefined;
+      causeMsg = `${cause.name}: ${cause.message}${code ? ` [${code}]` : ''}`;
+    } else if (typeof cause === 'string' && cause.length > 0) {
+      causeMsg = cause;
+    } else if (typeof cause === 'number' || typeof cause === 'boolean') {
+      causeMsg = String(cause);
+    }
+    throw new Error(
+      causeMsg
+        ? `${msg} — ${causeMsg} (url=${effectiveReq.url})`
+        : `${msg} (url=${effectiveReq.url})`,
+      { cause: e },
+    );
+  }
   if (response.status >= 300 && response.status < 400) {
     const location = response.headers.get('location') ?? 'unknown';
     throw new Error(

@@ -9,6 +9,14 @@ export const todoStatusValidator = v.union(
   v.literal('cancelled'),
 );
 
+export const todoSourceValidator = v.object({
+  url: v.string(),
+  title: v.optional(v.string()),
+  score: v.optional(v.number()),
+  publishedDate: v.optional(v.string()),
+  capturedAt: v.number(),
+});
+
 export const todoItemValidator = v.object({
   id: v.string(),
   content: v.string(),
@@ -17,6 +25,7 @@ export const todoItemValidator = v.object({
   extractCount: v.number(),
   findingsSummary: v.optional(v.string()),
   failureReason: v.optional(v.string()),
+  sources: v.optional(v.array(todoSourceValidator)),
   createdAt: v.number(),
   updatedAt: v.number(),
 });

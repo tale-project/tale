@@ -14,6 +14,7 @@ import { internal } from '../../_generated/api';
 import { wrapUntrusted } from '../../lib/untrusted_content';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
+import { recordIntegrationCall } from './capture_sources';
 import type { IntegrationExecutionResult } from './types';
 
 const DEFAULT_MAX_INTEGRATION_CALLS_PER_RUN = 60;
@@ -161,18 +162,17 @@ Write operations create approval cards. Use integration_batch for multiple paral
 
         const costCents = extractCostCentsFromResult(result);
 
+        let citations;
         if (threadId) {
-          await ctx.runMutation(
-            internal.thread_todos.internal_mutations
-              .incrementIntegrationCallCount,
-            {
-              organizationId,
-              threadId,
-              delta: 1,
-              todoId: todosState?.activeTodoId,
-              counterKind: inferCounterKind(args.operation),
-            },
-          );
+          citations = await recordIntegrationCall({
+            ctx,
+            organizationId,
+            threadId,
+            integrationName: args.integrationName,
+            operation: args.operation,
+            result,
+            activeTodoId: todosState?.activeTodoId,
+          });
         }
 
         const userId = readStringContextField(ctx, 'userId');
@@ -210,6 +210,7 @@ Write operations create approval cards. Use integration_batch for multiple paral
             costCents,
           },
           ...(fileReferences ? { fileReferences } : {}),
+          ...(citations ? { citations } : {}),
         };
       } catch (error) {
         // Provide a helpful error message to the agent
@@ -242,14 +243,6 @@ function resolveIntegrationCallCap(ctx: ToolCtx): number {
 function readCtxField(ctx: ToolCtx, key: string): unknown {
   if (!isRecord(ctx)) return undefined;
   return ctx[key];
-}
-
-function inferCounterKind(operation: string): 'search' | 'extract' | undefined {
-  const lowered = operation.toLowerCase();
-  if (lowered.includes('extract') || lowered.includes('fetch'))
-    return 'extract';
-  if (lowered.includes('search') || lowered.includes('query')) return 'search';
-  return undefined;
 }
 
 function extractCostCentsFromResult(result: unknown): number {

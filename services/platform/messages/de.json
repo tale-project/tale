@@ -2523,8 +2523,11 @@
     "statusFailed": "Fehlgeschlagen",
     "statusCancelled": "Abgebrochen",
     "paneClose": "Plan schließen",
+    "paneMinimize": "Plan minimieren",
     "paneResizeHandle": "Planbereich vergrößern",
-    "stripOpen": "Recherche-Plan öffnen"
+    "stripOpen": "Recherche-Plan öffnen",
+    "showMoreSources": "{count} weitere Quellen anzeigen",
+    "hideSources": "Zusätzliche Quellen ausblenden"
   },
   "humanInputRequest": {
     "questionTitle": "Frage",

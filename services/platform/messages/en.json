@@ -2523,8 +2523,11 @@
     "statusFailed": "Failed",
     "statusCancelled": "Cancelled",
     "paneClose": "Close plan",
+    "paneMinimize": "Minimize plan",
     "paneResizeHandle": "Resize plan panel",
-    "stripOpen": "Open research plan"
+    "stripOpen": "Open research plan",
+    "showMoreSources": "Show {count} more sources",
+    "hideSources": "Hide additional sources"
   },
   "humanInputRequest": {
     "questionTitle": "Question",

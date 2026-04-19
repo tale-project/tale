@@ -1972,6 +1972,24 @@ function safeStringify(value: unknown, maxLen = 10240): string {
   }
 }
 
+const DUPLICATE_TOOL_RESULT_FIELDS = new Set([
+  'output',
+  'usage',
+  'model',
+  'provider',
+  'citations',
+]);
+
+function stripDuplicateToolResultFields(
+  obj: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (!DUPLICATE_TOOL_RESULT_FIELDS.has(key)) result[key] = val;
+  }
+  return result;
+}
+
 /**
  * Extract tool calls and tool usage from AI SDK steps.
  * Tracks ALL tool calls (not just delegation tools).
@@ -2125,8 +2143,11 @@ function extractToolCallsFromSteps(steps: unknown[]): {
       }
 
       const inputStr = safeStringify(toolCall.input ?? toolCall.args);
-      // Serialize only fields needed by downstream consumers (citation content parsing, debug display).
-      // Strips duplicate `output`, `usage`, `model`, `citations` to reduce truncation.
+      // Keep the full tool output so the message-info dialog can show what a
+      // tool actually returned. Strip only fields that duplicate info captured
+      // elsewhere in the metadata (tokens/model/provider live on `usageEntry`,
+      // citations on `allCitations`) and `output` which is a self-reference.
+      // safeStringify truncates at 10KB so oversize payloads are capped.
       const rawForOutput = matchingResult?.output ?? matchingResult?.result;
       // Unwrap {value: {...}} wrapper if present (from @convex-dev/agent)
       const unwrapped =
@@ -2136,13 +2157,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
             ? rawForOutput
             : undefined;
       const outputStr = safeStringify(
-        unwrapped
-          ? {
-              response: unwrapped.response,
-              fileId: unwrapped.fileId,
-              filename: unwrapped.filename ?? unwrapped.title,
-            }
-          : rawForOutput,
+        unwrapped ? stripDuplicateToolResultFields(unwrapped) : rawForOutput,
       );
 
       const usageEntry: (typeof toolsUsage)[number] = {

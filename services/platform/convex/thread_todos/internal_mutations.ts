@@ -6,7 +6,7 @@ import {
   OP_ID_RING_BUFFER_SIZE,
   type TodoItem,
 } from './helpers';
-import { todoStatusValidator } from './schema';
+import { todoItemValidator, todoStatusValidator } from './schema';
 
 const addOperationValidator = v.object({
   type: v.literal('add'),
@@ -61,19 +61,7 @@ export const applyTodoOperations = internalMutation({
   returns: v.union(
     v.object({
       success: v.literal(true),
-      todos: v.array(
-        v.object({
-          id: v.string(),
-          content: v.string(),
-          status: todoStatusValidator,
-          searchCount: v.number(),
-          extractCount: v.number(),
-          findingsSummary: v.optional(v.string()),
-          failureReason: v.optional(v.string()),
-          createdAt: v.number(),
-          updatedAt: v.number(),
-        }),
-      ),
+      todos: v.array(todoItemValidator),
       activeTodoId: v.optional(v.string()),
       deduplicated: v.optional(v.boolean()),
     }),
@@ -272,6 +260,84 @@ export const incrementIntegrationCallCount = internalMutation({
       updatedAt: now,
     });
     return { integrationCallCount: nextCount };
+  },
+});
+
+const sourceInputValidator = v.object({
+  url: v.string(),
+  title: v.optional(v.string()),
+  score: v.optional(v.number()),
+  publishedDate: v.optional(v.string()),
+});
+
+export const appendTodoSources = internalMutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    todoId: v.string(),
+    sources: v.array(sourceInputValidator),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (args.sources.length === 0) return null;
+    const record = await ctx.db
+      .query('threadTodos')
+      .withIndex('by_org_thread', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('threadId', args.threadId),
+      )
+      .first();
+    if (!record) {
+      console.warn('[appendTodoSources] no threadTodos record found', {
+        organizationId: args.organizationId,
+        threadId: args.threadId,
+      });
+      return null;
+    }
+    const targetTodo = record.todos.find((t) => t.id === args.todoId);
+    if (!targetTodo) {
+      console.warn(
+        '[appendTodoSources] target todoId not found in thread record',
+        {
+          threadId: args.threadId,
+          todoId: args.todoId,
+          availableTodoIds: record.todos.map((t) => t.id),
+        },
+      );
+      return null;
+    }
+    const now = Date.now();
+    let touched = false;
+    let addedCount = 0;
+    const nextTodos = record.todos.map((todo) => {
+      if (todo.id !== args.todoId) return todo;
+      const existing = todo.sources ?? [];
+      const seen = new Set(existing.map((s) => s.url));
+      const merged = [...existing];
+      for (const s of args.sources) {
+        if (!s.url || seen.has(s.url)) continue;
+        seen.add(s.url);
+        merged.push({ ...s, capturedAt: now });
+        addedCount += 1;
+      }
+      if (merged.length === existing.length) return todo;
+      touched = true;
+      return { ...todo, sources: merged, updatedAt: now };
+    });
+    console.log('[appendTodoSources] result', {
+      threadId: args.threadId,
+      todoId: args.todoId,
+      incoming: args.sources.length,
+      added: addedCount,
+      totalAfter: touched
+        ? (nextTodos.find((t) => t.id === args.todoId)?.sources?.length ?? 0)
+        : (targetTodo.sources?.length ?? 0),
+      touched,
+    });
+    if (!touched) return null;
+    await ctx.db.patch(record._id, { todos: nextTodos, updatedAt: now });
+    return null;
   },
 });
 

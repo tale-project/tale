@@ -204,9 +204,19 @@ export async function executeIntegrationImpl(
       duration: Date.now() - startTime,
     };
   } catch (e) {
+    let errorMsg: string;
+    if (e instanceof Error) {
+      errorMsg = e.message;
+      const cause: unknown = 'cause' in e ? e.cause : undefined;
+      if (cause instanceof Error && !errorMsg.includes(cause.message)) {
+        errorMsg += ` (cause: ${cause.name}: ${cause.message})`;
+      }
+    } else {
+      errorMsg = String(e);
+    }
     return {
       success: false,
-      error: e instanceof Error ? e.message : String(e),
+      error: errorMsg,
       logs,
       duration: Date.now() - startTime,
     };

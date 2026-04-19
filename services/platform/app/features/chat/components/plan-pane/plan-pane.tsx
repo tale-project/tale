@@ -1,7 +1,7 @@
 'use client';
 
 import { useMatch } from '@tanstack/react-router';
-import { Telescope, X } from 'lucide-react';
+import { PanelRightClose, Telescope, X } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -40,6 +40,7 @@ function PlanPaneComponent() {
 
   const [userDismissed, setUserDismissed] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const resizeRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
@@ -47,6 +48,7 @@ function PlanPaneComponent() {
   useEffect(() => {
     setUserDismissed(false);
     setIsOpen(false);
+    setIsMinimized(false);
   }, [threadId]);
 
   useEffect(() => {
@@ -60,8 +62,13 @@ function PlanPaneComponent() {
     setUserDismissed(true);
   }, []);
 
+  const handleMinimize = useCallback(() => {
+    setIsMinimized(true);
+  }, []);
+
   const handleStripOpen = useCallback(() => {
     canvas?.closeCanvas();
+    setIsMinimized(false);
     setUserDismissed(false);
     setIsOpen(true);
   }, [canvas]);
@@ -95,7 +102,7 @@ function PlanPaneComponent() {
 
   if (!threadId || !hasTodos || !isOpen) return null;
 
-  if (isCanvasOpen) {
+  if (isCanvasOpen || isMinimized) {
     return (
       <button
         type="button"
@@ -155,17 +162,30 @@ function PlanPaneComponent() {
             </Badge>
           )}
         </div>
-        <Tooltip content={t('paneClose')} side="bottom">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            onClick={handleClose}
-            aria-label={t('paneClose')}
-          >
-            <X className="size-3.5" />
-          </Button>
-        </Tooltip>
+        <div className="flex shrink-0 items-center gap-1">
+          <Tooltip content={t('paneMinimize')} side="bottom">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={handleMinimize}
+              aria-label={t('paneMinimize')}
+            >
+              <PanelRightClose className="size-3.5" />
+            </Button>
+          </Tooltip>
+          <Tooltip content={t('paneClose')} side="bottom">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={handleClose}
+              aria-label={t('paneClose')}
+            >
+              <X className="size-3.5" />
+            </Button>
+          </Tooltip>
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">

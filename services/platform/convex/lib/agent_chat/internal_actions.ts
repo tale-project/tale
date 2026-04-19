@@ -1088,6 +1088,42 @@ function formatTodosReminderMarker(
   }
 }
 
+interface TodoSourceLike {
+  url: string;
+  title?: string;
+  score?: number;
+  publishedDate?: string;
+  capturedAt: number;
+}
+
+function collectUniqueSources(
+  todos: Array<{ sources?: TodoSourceLike[] }>,
+): Array<{ url: string; title?: string }> {
+  const seen = new Set<string>();
+  const out: Array<{ url: string; title?: string }> = [];
+  for (const todo of todos) {
+    for (const src of todo.sources ?? []) {
+      if (!src.url || seen.has(src.url)) continue;
+      seen.add(src.url);
+      out.push({ url: src.url, title: src.title });
+    }
+  }
+  return out;
+}
+
+/**
+ * Percent-decode URL for display. Many sources are Baidu/CJK URLs with heavy
+ * hex-encoded paths — raw they read as noise, decoded they render natural
+ * Chinese text. The href stays the original encoded URL so the link resolves.
+ */
+function prettifyUrl(url: string): string {
+  try {
+    return decodeURI(url);
+  } catch {
+    return url;
+  }
+}
+
 function formatTodosForReminder(
   todos: Array<{
     id: string;
@@ -1204,6 +1240,17 @@ export const afterGenerateHook = internalAction({
         }
       }
     }
+
+    const aggregatedSources = collectUniqueSources(todosRecord.todos);
+    if (aggregatedSources.length > 0) {
+      lines.push('', 'Sources:');
+      for (const src of aggregatedSources) {
+        const label =
+          src.title && src.title.length > 0 ? src.title : prettifyUrl(src.url);
+        lines.push(`- [${label}](${src.url})`);
+      }
+    }
+
     lines.push(
       '',
       '_This summary was auto-generated from the research plan state. Ask a follow-up to investigate further._',

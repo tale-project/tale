@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Circle,
   CircleDot,
   Loader2,
@@ -126,6 +127,14 @@ function TodoListCardComponent({
   );
 }
 
+interface TodoSource {
+  url: string;
+  title?: string;
+  score?: number;
+  publishedDate?: string;
+  capturedAt: number;
+}
+
 interface TodoRowProps {
   todo: {
     id: string;
@@ -133,6 +142,7 @@ interface TodoRowProps {
     status: TodoStatus;
     findingsSummary?: string;
     failureReason?: string;
+    sources?: TodoSource[];
   };
 }
 
@@ -174,6 +184,9 @@ function TodoRow({ todo }: TodoRowProps) {
               {todo.failureReason}
             </Text>
           </HStack>
+        )}
+        {todo.sources && todo.sources.length > 0 && (
+          <TodoSourceChips sources={todo.sources} />
         )}
       </Stack>
     </li>
@@ -261,6 +274,85 @@ function statusLabelKey(status: TodoStatus): string {
     default:
       return 'statusPending';
   }
+}
+
+const SOURCE_COLLAPSED_LIMIT = 6;
+
+function TodoSourceChips({ sources }: { sources: TodoSource[] }) {
+  const { t } = useT('todoList');
+  const [expanded, setExpanded] = useState(false);
+  const overflow = sources.length - SOURCE_COLLAPSED_LIMIT;
+  const visible = expanded ? sources : sources.slice(0, SOURCE_COLLAPSED_LIMIT);
+
+  return (
+    <div className="mt-1 flex flex-col gap-1">
+      <div className="flex flex-wrap gap-1.5">
+        {visible.map((src, idx) => (
+          <TodoSourceChip key={`${src.url}-${idx}`} source={src} />
+        ))}
+      </div>
+      {overflow > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 self-start text-xs transition-colors"
+          aria-expanded={expanded}
+        >
+          {expanded ? (
+            <>
+              <ChevronUp className="size-3" />
+              {t('hideSources')}
+            </>
+          ) : (
+            <>
+              <ChevronDown className="size-3" />
+              {t('showMoreSources', { count: overflow })}
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function TodoSourceChip({ source }: { source: TodoSource }) {
+  const domain = useMemo(() => {
+    try {
+      return new URL(source.url).hostname.replace(/^www\./, '');
+    } catch {
+      return source.url;
+    }
+  }, [source.url]);
+  const displayUrl = useMemo(() => {
+    try {
+      return decodeURI(source.url);
+    } catch {
+      return source.url;
+    }
+  }, [source.url]);
+  const tooltipContent = source.title
+    ? `${source.title}\n${displayUrl}`
+    : displayUrl;
+
+  return (
+    <Tooltip content={tooltipContent} side="top">
+      <a
+        href={source.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="border-border bg-muted/40 hover:bg-muted hover:border-border/80 text-foreground inline-flex max-w-[14rem] items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs transition-colors"
+      >
+        <span className="text-muted-foreground truncate font-mono">
+          {domain}
+        </span>
+        {source.title && (
+          <span className="text-muted-foreground/80 truncate">
+            · {source.title}
+          </span>
+        )}
+      </a>
+    </Tooltip>
+  );
 }
 
 export const TodoListCard = memo(TodoListCardComponent);
