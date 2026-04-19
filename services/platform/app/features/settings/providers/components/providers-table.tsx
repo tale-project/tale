@@ -14,6 +14,7 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
+import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -42,7 +43,9 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { providers: rawProviders, isLoading } = useListProviders('default');
+  const { data: organization } = useOrganization(organizationId);
+  const orgSlug = organization?.slug ?? '';
+  const { providers: rawProviders, isLoading } = useListProviders(orgSlug);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editProvider, setEditProvider] = useState<ProviderRow | null>(null);
   const [deleteProvider, setDeleteProvider] = useState<ProviderRow | null>(
@@ -84,10 +87,10 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
   );
 
   const handleDelete = useCallback(async () => {
-    if (!deleteProvider) return;
+    if (!deleteProvider || !orgSlug) return;
     try {
       await deleteProviderMutation.mutateAsync({
-        orgSlug: 'default',
+        orgSlug,
         providerName: deleteProvider.name,
       });
       toast({ title: t('providers.deleted') });
@@ -96,7 +99,7 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
     } catch {
       toast({ title: t('providers.deleteFailed'), variant: 'destructive' });
     }
-  }, [deleteProvider, deleteProviderMutation, t, invalidateProviders]);
+  }, [deleteProvider, deleteProviderMutation, t, invalidateProviders, orgSlug]);
 
   const columnsWithActions = useMemo(
     () => [

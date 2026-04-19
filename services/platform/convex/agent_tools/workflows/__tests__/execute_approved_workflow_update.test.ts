@@ -31,6 +31,10 @@ vi.mock('../../../_generated/server', () => ({
   internalAction: vi.fn((def) => ({ _handler: def.handler })),
 }));
 
+vi.mock('../../../organizations/resolve_org_slug', () => ({
+  resolveOrgSlug: vi.fn().mockResolvedValue('default'),
+}));
+
 const MOCK_WORKFLOW_CONFIG = {
   name: 'Test Workflow',
   description: 'test',

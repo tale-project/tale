@@ -192,15 +192,21 @@ function createLanguageModel(modelData: ResolvedModelData): LanguageModelV3 {
 /**
  * Resolve a language model by tag (e.g., 'chat', 'vision').
  * Searches all providers (or a specific one if providerName is given).
+ * Pass `orgSlug` to resolve from the caller org's provider files; omit to
+ * fall back to the global "default" org (for system-level calls).
  */
 export async function resolveLanguageModel(
   ctx: ActionCtx,
-  opts: { tag: string; providerName?: string },
+  opts: { tag: string; providerName?: string; orgSlug?: string },
 ): Promise<ResolvedLanguageModel> {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by file_actions contract
   const modelData = (await ctx.runAction(
     internal.providers.file_actions.resolveModelByTag,
-    { tag: opts.tag, providerName: opts.providerName },
+    {
+      tag: opts.tag,
+      providerName: opts.providerName,
+      orgSlug: opts.orgSlug,
+    },
   )) as ResolvedModelData;
   return { languageModel: createLanguageModel(modelData), modelData };
 }
@@ -208,15 +214,21 @@ export async function resolveLanguageModel(
 /**
  * Resolve a language model by explicit model ID.
  * Searches all providers (or a specific one if providerName is given).
+ * Pass `orgSlug` to resolve from the caller org's provider files; omit to
+ * fall back to the global "default" org (for system-level calls).
  */
 export async function resolveLanguageModelById(
   ctx: ActionCtx,
-  opts: { modelId: string; providerName?: string },
+  opts: { modelId: string; providerName?: string; orgSlug?: string },
 ): Promise<ResolvedLanguageModel> {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelData returns v.any() but shape is guaranteed by file_actions contract
   const modelData = (await ctx.runAction(
     internal.providers.file_actions.resolveModelData,
-    { modelId: opts.modelId, providerName: opts.providerName },
+    {
+      modelId: opts.modelId,
+      providerName: opts.providerName,
+      orgSlug: opts.orgSlug,
+    },
   )) as ResolvedModelData;
   return { languageModel: createLanguageModel(modelData), modelData };
 }

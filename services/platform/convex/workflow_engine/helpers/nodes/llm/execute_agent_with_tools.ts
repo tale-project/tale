@@ -14,9 +14,10 @@ import { Agent } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { isRecord } from '../../../../../lib/utils/type-guards';
-import { components } from '../../../../_generated/api';
+import { components, internal } from '../../../../_generated/api';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { ToolName } from '../../../../agent_tools/tool_names';
+import { estimateCostCents } from '../../../../governance/cost_estimation';
 import {
   estimateTokens,
   AGENT_CONTEXT_CONFIGS,
@@ -74,6 +75,53 @@ function checkPromptBudget(systemPrompt: string, userPrompt: string): void {
 }
 
 // =============================================================================
+// USAGE LEDGER
+// =============================================================================
+
+/**
+ * Record the workflow LLM call against the owning org's usage ledger.
+ * Mirrors the chat path's onAgentComplete behavior so workflow-triggered
+ * LLM calls count against the same per-org budget.
+ */
+async function recordWorkflowLlmUsage(
+  ctx: ActionCtx,
+  organizationId: string | undefined,
+  userId: string | undefined,
+  model: string | undefined,
+  result: unknown,
+): Promise<void> {
+  if (!organizationId || !userId) return;
+  if (!isRecord(result)) return;
+  const usageField = result.usage;
+  if (!isRecord(usageField)) return;
+  const inputTokens =
+    typeof usageField.inputTokens === 'number' ? usageField.inputTokens : 0;
+  const outputTokens =
+    typeof usageField.outputTokens === 'number' ? usageField.outputTokens : 0;
+  if (inputTokens === 0 && outputTokens === 0) return;
+
+  const costCents = estimateCostCents(model, inputTokens, outputTokens);
+  try {
+    await ctx.runMutation(
+      internal.governance.internal_mutations.incrementUsageLedger,
+      {
+        organizationId,
+        userId,
+        inputTokens,
+        outputTokens,
+        costEstimateCents: costCents,
+        timestamp: Date.now(),
+      },
+    );
+  } catch (err) {
+    console.warn(
+      '[workflow LLM] failed to record usage ledger entry:',
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
+// =============================================================================
 // AGENT EXECUTION
 // =============================================================================
 
@@ -103,6 +151,24 @@ export async function executeAgentWithTools(
       'outputSchema is required when outputFormat is "json". ' +
         'Provide a JSON schema to use structured output.',
     );
+  }
+
+  // Pre-call budget enforcement. Workflows inherit the owning org's budget
+  // configured via governance policies, matching the chat path behavior.
+  if (_args.organizationId && _args.userId) {
+    const budgetResult = await ctx.runQuery(
+      internal.governance.internal_queries.checkBudgetForRequest,
+      {
+        organizationId: _args.organizationId,
+        userId: _args.userId,
+      },
+    );
+    if (!budgetResult.allowed) {
+      throw new Error(
+        budgetResult.reason ??
+          'Workflow LLM step blocked: usage limit reached for this period.',
+      );
+    }
   }
 
   checkPromptBudget(prompts.systemPrompt, prompts.userPrompt);
@@ -150,6 +216,7 @@ export async function executeAgentWithTools(
       threadId,
       _args.userId,
       _args.languageModel,
+      _args.organizationId,
     );
   }
 
@@ -169,6 +236,7 @@ export async function executeAgentWithTools(
     threadId,
     _args.userId,
     _args.languageModel,
+    _args.organizationId,
   );
 }
 
@@ -204,6 +272,7 @@ async function executeJsonOutputWithoutTools(
   threadId: string,
   userId: string | undefined,
   languageModel: LanguageModelV3,
+  organizationId: string | undefined,
 ): Promise<LLMExecutionResult> {
   debugLog('executeJsonOutputWithoutTools START', {
     configName: config.name,
@@ -234,6 +303,14 @@ async function executeJsonOutputWithoutTools(
     { contextOptions: { excludeToolMessages: false } },
   );
 
+  await recordWorkflowLlmUsage(
+    ctx,
+    organizationId,
+    userId,
+    config.model,
+    result,
+  );
+
   const finalOutput = result.object;
   debugLog('executeJsonOutputWithoutTools COMPLETE', {
     outputKeys: isRecord(finalOutput) ? Object.keys(finalOutput) : [],
@@ -256,6 +333,7 @@ async function executeTextOutput(
   threadId: string,
   userId: string | undefined,
   languageModel: LanguageModelV3,
+  organizationId: string | undefined,
 ): Promise<LLMExecutionResult> {
   debugLog('executeTextOutput START', {
     configName: config.name,
@@ -286,6 +364,14 @@ async function executeTextOutput(
     { threadId, userId },
     { prompt: prompts.userPrompt },
     { contextOptions: { excludeToolMessages: false } },
+  );
+
+  await recordWorkflowLlmUsage(
+    ctx,
+    organizationId,
+    userId,
+    config.model,
+    result,
   );
 
   const { agentSteps, toolDiagnostics } = processAgentResult(result);

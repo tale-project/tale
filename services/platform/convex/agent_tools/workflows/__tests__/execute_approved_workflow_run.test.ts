@@ -34,6 +34,10 @@ vi.mock('../../../_generated/server', () => ({
   internalAction: vi.fn((def) => ({ _handler: def.handler })),
 }));
 
+vi.mock('../../../organizations/resolve_org_slug', () => ({
+  resolveOrgSlug: vi.fn().mockResolvedValue('default'),
+}));
+
 function createMockApproval(overrides?: Record<string, unknown>) {
   return {
     _id: 'approval-1',

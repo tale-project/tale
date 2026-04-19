@@ -327,6 +327,14 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
           required: false,
           input: false,
         } as const,
+        // Last organization the user entered — persists across logout/login,
+        // unlike session.activeOrganizationId which dies with the session.
+        // Written by recordOrgSwitch whenever the user enters an org.
+        lastActiveOrganizationId: {
+          type: 'string',
+          required: false,
+          input: false,
+        } as const,
       },
     },
     session: {
@@ -488,6 +496,46 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
           allowRemovingAllTeams: true,
           defaultTeam: {
             enabled: false,
+          },
+        },
+        organizationHooks: {
+          beforeCreateOrganization: async (data) => {
+            const slug = data.organization.slug;
+            if (!slug) return;
+            // Convex has no unique-index primitive, so enforce slug uniqueness
+            // at application level before Better Auth's adapter writes the row.
+            const existing = await ctx.runQuery(
+              components.betterAuth.adapter.findOne,
+              {
+                model: 'organization',
+                where: [{ field: 'slug', value: slug, operator: 'eq' }],
+              },
+            );
+            if (existing) {
+              throw new APIError('BAD_REQUEST', {
+                message: `Organization slug "${slug}" is already taken.`,
+              });
+            }
+          },
+          afterCreateOrganization: async (data) => {
+            const slug = data.organization.slug;
+            if (!slug) return;
+            // Scaffolding is filesystem work, so defer to an action via
+            // the scheduler. Failures here should NOT block org creation —
+            // the scaffolder logs and continues per-domain.
+            try {
+              const runCtx = requireRunMutationCtx(ctx);
+              await runCtx.scheduler.runAfter(
+                0,
+                internal.organizations.scaffold.scaffoldNewOrganization,
+                { orgSlug: slug },
+              );
+            } catch (err) {
+              console.error(
+                '[afterCreateOrganization] failed to schedule scaffold',
+                err instanceof Error ? err.message : err,
+              );
+            }
           },
         },
       }),

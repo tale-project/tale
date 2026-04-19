@@ -14,6 +14,7 @@ import { z } from 'zod/v4';
 import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { isSqlIntegration } from '../../integrations/helpers';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { getIntrospectionOperations } from '../../workflow_engine/action_defs/integration/helpers/get_introspection_operations';
 import type { ToolDefinition } from '../types';
 import type {
@@ -51,9 +52,10 @@ Returns operation names and types. Use 'operation' param to get parameter detail
         );
       }
 
+      const orgSlug = await resolveOrgSlug(ctx, organizationId);
       const integration = await ctx.runAction(
         internal.integrations.load_integration.loadIntegration,
-        { orgSlug: 'default', organizationId, slug: args.integrationName },
+        { orgSlug, organizationId, slug: args.integrationName },
       );
 
       if (!integration) {

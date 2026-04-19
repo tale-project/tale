@@ -13,6 +13,7 @@ import type { WorkflowJsonConfig } from '../../../lib/shared/schemas/workflows';
 import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import {
   validateStepConfig,
@@ -21,8 +22,6 @@ import {
 import type { ToolDefinition } from '../types';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
-
-const DEFAULT_ORG_SLUG = 'default';
 
 const stepUpdatesSchema = z.object({
   name: z.string().optional().describe('New step name'),
@@ -348,11 +347,12 @@ Inform the user the update is ready for review in the chat UI.`,
       }
 
       // Read workflow file to verify steps exist
+      const orgSlug = await resolveOrgSlug(ctx, organizationId);
       const readResult: { ok: boolean; config?: WorkflowJsonConfig } =
         await ctx.runAction(
           internal.workflows.file_actions.readWorkflowForExecution,
           {
-            orgSlug: DEFAULT_ORG_SLUG,
+            orgSlug,
             workflowSlug: args.workflowSlug,
           },
         );

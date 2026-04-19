@@ -13,6 +13,7 @@ import {
   toConvexJsonRecord,
   toConvexJsonValue,
 } from '../../lib/type_cast_helpers';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { decryptSqlCredentials } from '../../workflow_engine/action_defs/integration/helpers/decrypt_sql_credentials';
 import {
   requiresApproval,
@@ -331,9 +332,10 @@ export const executeBatchIntegration = internalAction({
     });
 
     // 1. Load integration config ONCE
+    const orgSlug = await resolveOrgSlug(ctx, organizationId);
     const integration = await ctx.runAction(
       internal.integrations.load_integration.loadIntegration,
-      { orgSlug: 'default', organizationId, slug: integrationName },
+      { orgSlug, organizationId, slug: integrationName },
     );
 
     if (!integration) {

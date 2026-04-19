@@ -7,8 +7,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
-
-const DEFAULT_ORG_SLUG = 'default';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 
 export const startWorkflowFromFile = action({
   args: {
@@ -35,12 +34,14 @@ export const startWorkflowFromFile = action({
       },
     );
 
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+
     return await ctx.runAction(
       internal.workflow_engine.helpers.engine.start_workflow_from_file
         .startWorkflowFromFile,
       {
         organizationId: args.organizationId,
-        orgSlug: DEFAULT_ORG_SLUG,
+        orgSlug,
         workflowSlug: args.workflowSlug,
         input: args.input,
         triggeredBy: args.triggeredBy,

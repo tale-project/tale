@@ -186,6 +186,10 @@ vi.mock('@convex-dev/agent', () => ({
   saveMessage: vi.fn().mockResolvedValue({ messageId: 'msg_1' }),
 }));
 
+vi.mock('../../../organizations/resolve_org_slug', () => ({
+  resolveOrgSlug: vi.fn().mockResolvedValue('default'),
+}));
+
 const { runAgentGeneration } = await import('../internal_actions');
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- vi.mock replaces internalAction() with identity fn, so the raw config object is returned
 const generationHandler = (

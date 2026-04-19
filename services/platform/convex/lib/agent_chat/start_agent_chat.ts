@@ -335,7 +335,7 @@ export async function startAgentChat(
     await ctx.scheduler.runAfter(
       0,
       internal.threads.generate_thread_title.generateThreadTitle,
-      { threadId, firstMessage: messageContent },
+      { threadId, firstMessage: messageContent, organizationId },
     );
   }
 

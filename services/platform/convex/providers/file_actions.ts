@@ -65,6 +65,30 @@ interface ProviderWithSecrets {
   secrets: ProviderSecrets;
 }
 
+/**
+ * User-facing error thrown when no usable AI provider can be loaded.
+ * Carries a friendly message plus structured context so the chat UI can
+ * surface actionable guidance (e.g. a link to Settings → Providers) and
+ * operators can still find filesystem details in logs.
+ */
+export class NoProviderAvailableError extends Error {
+  readonly reason: 'missing_api_key' | 'no_providers' | 'load_failed';
+  readonly details: string[];
+  constructor(
+    message: string,
+    reason: 'missing_api_key' | 'no_providers' | 'load_failed',
+    details: string[] = [],
+  ) {
+    super(message);
+    this.name = 'NoProviderAvailableError';
+    this.reason = reason;
+    this.details = details;
+  }
+}
+
+const FRIENDLY_NO_PROVIDER =
+  'No API key is configured for this organization yet. Open Settings → AI providers and add one to start chatting.';
+
 async function loadAllProviders(
   orgSlug: string,
 ): Promise<ProviderWithSecrets[]> {
@@ -73,10 +97,9 @@ async function loadAllProviders(
   try {
     entries = await readdir(dir);
   } catch {
-    throw new Error(
-      `Provider directory not found: ${dir}. ` +
-        'Create at least one provider JSON file in TALE_CONFIG_DIR/providers/.',
-    );
+    throw new NoProviderAvailableError(FRIENDLY_NO_PROVIDER, 'no_providers', [
+      `Provider directory missing: ${dir}`,
+    ]);
   }
 
   const jsonFiles = entries.filter(
@@ -85,14 +108,14 @@ async function loadAllProviders(
   );
 
   if (jsonFiles.length === 0) {
-    throw new Error(
-      `No provider JSON files found in ${dir}. ` +
-        'Create at least one provider configuration file.',
-    );
+    throw new NoProviderAvailableError(FRIENDLY_NO_PROVIDER, 'no_providers', [
+      `No provider JSON files in ${dir}`,
+    ]);
   }
 
   const providers: ProviderWithSecrets[] = [];
   const skippedReasons: string[] = [];
+  let anyMissingSecret = false;
 
   for (const fileName of jsonFiles) {
     const providerName = path.basename(fileName, '.json');
@@ -121,6 +144,12 @@ async function loadAllProviders(
       secrets = parseProviderSecrets(raw);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
+      // ENOENT on the secrets file means the operator has a provider
+      // config but no API key yet — the common "I just created an org"
+      // case. Classify so the UI can point at Settings → Providers.
+      if (/ENOENT/i.test(reason)) {
+        anyMissingSecret = true;
+      }
       console.warn(
         `Provider "${providerName}": secrets not available, skipping.`,
         reason,
@@ -133,10 +162,10 @@ async function loadAllProviders(
   }
 
   if (providers.length === 0 && skippedReasons.length > 0) {
-    throw new Error(
-      `All ${skippedReasons.length} provider(s) failed to load:\n` +
-        skippedReasons.join('\n') +
-        '\nEnsure API keys are configured and SOPS_AGE_KEY is set.',
+    throw new NoProviderAvailableError(
+      FRIENDLY_NO_PROVIDER,
+      anyMissingSecret ? 'missing_api_key' : 'load_failed',
+      skippedReasons,
     );
   }
 

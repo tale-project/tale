@@ -9,6 +9,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { createDebugLog } from '../lib/debug_log';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { buildIntegrationSecrets } from './build_test_secrets';
 import { isSqlIntegration } from './guards/is_sql_integration';
 import type { LoadedIntegration } from './load_integration';
@@ -240,10 +241,11 @@ export async function testConnection(
     return { success: false, message: 'Integration credentials not found' };
   }
 
+  const orgSlug = await resolveOrgSlug(ctx, credential.organizationId);
   const integration = await ctx.runAction(
     internal.integrations.load_integration.loadIntegration,
     {
-      orgSlug: 'default',
+      orgSlug,
       organizationId: credential.organizationId,
       slug: credential.slug,
     },

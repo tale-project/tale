@@ -28,6 +28,19 @@ const mockUseConvexAuth = vi.fn(() => ({
 }));
 vi.mock('convex/react', () => ({
   useConvexAuth: () => mockUseConvexAuth(),
+  useMutation: () => vi.fn(),
+}));
+
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({ data: undefined }),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
+
+vi.mock('@/lib/auth-client', () => ({
+  authClient: {
+    getSession: vi.fn().mockResolvedValue({ data: null }),
+    organization: { setActive: vi.fn() },
+  },
 }));
 
 const mockUseCurrentMemberContext = vi.fn(
@@ -57,6 +70,9 @@ vi.mock('@/convex/_generated/api', () => ({
   api: {
     members: { queries: { getCurrentMemberContext: 'mock-query-ref' } },
     two_factor: { queries: { getStatus: 'mock-status-ref' } },
+    organizations: {
+      record_org_switch: { recordOrgSwitch: 'mock-record-org-switch' },
+    },
   },
 }));
 

@@ -9,6 +9,7 @@ import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { createDebugLog } from '../lib/debug_log';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations OAuth2]');
 
@@ -54,9 +55,10 @@ export async function generateOAuth2AuthUrl(
     throw new Error('Integration credential not found');
   }
 
+  const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
   const fileResult = await ctx.runAction(
     internal.integrations.file_actions.readIntegrationForExecution,
-    { orgSlug: 'default', slug: credential.slug },
+    { orgSlug, slug: credential.slug },
   );
 
   if (!fileResult?.ok) {

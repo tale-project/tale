@@ -44,6 +44,7 @@ export function ChatSearchDialog({
   const { threads: allThreads } = useThreads({
     skip: !isOpen,
     teamId: selectedTeamId,
+    organizationId,
   });
 
   const threadsData = useMemo(() => {

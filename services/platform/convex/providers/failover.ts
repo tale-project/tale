@@ -25,6 +25,12 @@ interface FailoverParams {
   tag?: string;
   fallbackModelId?: string;
   fallbackProviderName?: string;
+  /**
+   * Resolves providers from `/examples/{orgSlug}/providers/` so each org
+   * uses its own API keys / models. Omit for system-level callers with no
+   * org context — they fall back to the global default org.
+   */
+  orgSlug?: string;
 }
 
 interface ResolvedLanguageModel {
@@ -107,12 +113,14 @@ export async function resolveLanguageModelWithFallback(
         return await resolveLanguageModelById(ctx, {
           modelId: attempt.modelId,
           providerName: attempt.providerName,
+          orgSlug: params.orgSlug,
         });
       }
       if (attempt.tag) {
         return await resolveLanguageModel(ctx, {
           tag: attempt.tag,
           providerName: attempt.providerName,
+          orgSlug: params.orgSlug,
         });
       }
     } catch (err) {

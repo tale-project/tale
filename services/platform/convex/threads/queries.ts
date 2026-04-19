@@ -15,6 +15,7 @@ export const listThreads = query({
   args: {
     paginationOpts: v.optional(paginationOptsValidator),
     teamId: v.optional(v.string()),
+    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
@@ -30,6 +31,7 @@ export const listThreads = query({
       userId: authUser.userId,
       paginationOpts: args.paginationOpts ?? { cursor: null, numItems: 20 },
       teamId: args.teamId,
+      organizationId: args.organizationId,
     });
   },
 });
@@ -38,6 +40,7 @@ export const listArchivedThreads = query({
   args: {
     paginationOpts: v.optional(paginationOptsValidator),
     teamId: v.optional(v.string()),
+    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
@@ -53,6 +56,7 @@ export const listArchivedThreads = query({
       userId: authUser.userId,
       paginationOpts: args.paginationOpts ?? { cursor: null, numItems: 20 },
       teamId: args.teamId,
+      organizationId: args.organizationId,
     });
   },
 });

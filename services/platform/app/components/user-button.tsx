@@ -1,7 +1,12 @@
 'use client';
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
-import { useNavigate, useParams, useRouter } from '@tanstack/react-router';
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useRouter,
+} from '@tanstack/react-router';
 import {
   LogOut,
   Settings,
@@ -11,6 +16,7 @@ import {
   Moon,
   UserCircle,
   Building2,
+  Briefcase,
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -25,6 +31,7 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Text } from '@/app/components/ui/typography/text';
+import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useLocale } from '@/app/hooks/use-locale';
@@ -63,6 +70,34 @@ export function UserButton({
   const teams = teamFilter?.teams;
   const selectedTeamId = teamFilter?.selectedTeamId ?? null;
   const setSelectedTeamId = teamFilter?.setSelectedTeamId;
+
+  const { organizations: userOrgs } = useUserOrganizationsWithDetails();
+  const availableOrgs = useMemo(() => userOrgs ?? [], [userOrgs]);
+
+  const location = useLocation();
+  const switchOrganization = useCallback(
+    (nextOrgId: string) => {
+      if (nextOrgId === organizationId) return;
+      // Clear team filter — the previous team belongs to the old org and
+      // should not carry over.
+      setSelectedTeamId?.(null);
+      // Preserve everything after /dashboard/{orgId}/ — pathname + search +
+      // hash — so the user lands on the same page with the same query
+      // params in the new org (e.g. /settings/governance?group=security
+      // stays intact, not just /settings/governance).
+      const subpath =
+        location.href.match(/^\/dashboard\/[^/]+\/(.*)$/)?.[1] ?? '';
+      // Navigate to the dedicated switching route which owns setActive +
+      // session invalidation + audit logging. Keeping the work there avoids
+      // races between the old route's unmount and the new route's guard.
+      void navigate({
+        to: '/dashboard/switching',
+        search: { to: nextOrgId, subpath: subpath || undefined },
+        replace: true,
+      });
+    },
+    [organizationId, navigate, setSelectedTeamId, location.href],
+  );
 
   const { data: memberContext } = useCurrentMemberContext(
     organizationId,
@@ -148,6 +183,30 @@ export function UserButton({
           className: 'py-2.5',
         },
       ];
+
+      if (availableOrgs.length > 1) {
+        settingsGroup.push({
+          type: 'sub',
+          label: tNav('orgSwitcher.label'),
+          icon: Briefcase,
+          items: [
+            [
+              {
+                type: 'radio-group',
+                value: organizationId ?? '',
+                onValueChange: (val) => {
+                  if (val) switchOrganization(val);
+                },
+                options: availableOrgs.map((org) => ({
+                  value: org.organizationId,
+                  label: org.name,
+                })),
+              },
+            ],
+          ],
+          className: 'py-2.5',
+        });
+      }
 
       if (teams && teams.length > 0) {
         settingsGroup.push({
@@ -283,6 +342,8 @@ export function UserButton({
     setLocale,
     setSelectedTeamId,
     handleSignOutClick,
+    availableOrgs,
+    switchOrganization,
   ]);
 
   const triggerContent = (

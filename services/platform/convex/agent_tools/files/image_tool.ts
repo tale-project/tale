@@ -10,6 +10,7 @@ import { z } from 'zod/v4';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { toId } from '../../lib/type_cast_helpers';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import type { ToolDefinition } from '../types';
 import { analyzeImage } from './helpers/analyze_image';
 import { appendFilePart } from './helpers/append_file_part';
@@ -165,9 +166,13 @@ To also save the file to a folder in the documents hub, call document_write with
         debugLog('tool:image analyze start', { fileId, question });
 
         try {
+          const orgSlug = ctx.organizationId
+            ? await resolveOrgSlug(ctx, ctx.organizationId)
+            : undefined;
           const result = await analyzeImage(ctx, {
             fileId: toId<'_storage'>(fileId),
             question,
+            orgSlug,
           });
 
           return {

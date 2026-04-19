@@ -23,6 +23,10 @@ vi.mock('../../../threads/get_parent_thread_id', () => ({
   getApprovalThreadId: vi.fn().mockResolvedValue('thread-123'),
 }));
 
+vi.mock('../../../organizations/resolve_org_slug', () => ({
+  resolveOrgSlug: vi.fn().mockResolvedValue('default'),
+}));
+
 // Mock createTool to expose the raw handler for testing
 vi.mock('@convex-dev/agent', () => ({
   createTool: vi.fn((def) => ({ _handler: def.execute })),

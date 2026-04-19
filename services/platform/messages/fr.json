@@ -254,6 +254,9 @@
     "teamFilter": {
       "allTeams": "Toutes",
       "label": "Équipe"
+    },
+    "orgSwitcher": {
+      "label": "Organisation"
     }
   },
   "knowledge": {
@@ -624,6 +627,21 @@
         }
       },
       "createOrganization": "Créer une organisation",
+      "switching": "Changement en cours\u2026",
+      "switchingTo": "Passage à {name}\u2026",
+      "switchingLabel": "Changement d'organisation",
+      "yourOrganizationsTitle": "Vos organisations",
+      "yourOrganizationsDescription": "Toutes les organisations auxquelles vous appartenez. Changez d'organisation ou créez-en une nouvelle.",
+      "switchAction": "Changer",
+      "currentBadge": "Actuelle",
+      "roleLabel": "rôle",
+      "deleteAriaLabel": "Supprimer {name}",
+      "deleteDialogTitle": "Supprimer l'organisation",
+      "deleteDialogDescription": "Supprimer « {name} » ? Cela supprime ses agents, workflows, fournisseurs et intégrations. Les membres perdront l'accès. Cette action est irréversible.",
+      "deleteConfirmAction": "Supprimer l'organisation",
+      "deleteLoading": "Suppression\u2026",
+      "deleteSuccess": "Organisation supprimée",
+      "deleteFailed": "Échec de la suppression de l'organisation",
       "organizationName": "Nom de l'organisation",
       "companyNameRequired": "Le nom de l'entreprise est requis",
       "enterCompanyName": "Entre le nom de ton entreprise",
@@ -2734,6 +2752,7 @@
     "errorGenerating": "Une erreur s'est produite",
     "errorGeneratingDescription": "Une erreur est survenue lors de la génération de la réponse. Merci de réessayer.",
     "retryGeneration": "Réessayer",
+    "errorHintMissingApiKey": "Aucune clé API n'est encore configurée pour cette organisation. Ouvre Paramètres → Fournisseurs d'IA et ajoute-en une pour commencer à discuter.",
     "errorHintCreditExhausted": "Le plafond de crédits du fournisseur d'IA a été dépassé. Contacte ton administrateur pour ajouter des crédits.",
     "errorHintTokenLimit": "La limite de tokens en sortie du modèle a été dépassée. Essaie une requête plus courte ou demande à ton administrateur d'ajuster les paramètres du modèle.",
     "errorHintContextLength": "La conversation est trop longue pour la fenêtre de contexte du modèle. Essaie de démarrer un nouveau chat.",

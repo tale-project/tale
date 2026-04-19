@@ -22,6 +22,7 @@ export const tables = {
     userId: v.optional(v.union(v.null(), v.string())),
     twoFactorEnabled: v.optional(v.union(v.null(), v.boolean())),
     twoFactorGraceUntil: v.optional(v.union(v.null(), v.number())),
+    lastActiveOrganizationId: v.optional(v.union(v.null(), v.string())),
   })
     .index('email_name', ['email', 'name'])
     .index('name', ['name'])

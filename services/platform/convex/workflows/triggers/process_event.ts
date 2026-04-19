@@ -1,5 +1,6 @@
 import { internal } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 
 function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   let current: unknown = obj;
@@ -70,6 +71,8 @@ export async function processEventHandler(
 
   const eventData = args.eventData;
 
+  let cachedOrgSlug: string | null = null;
+
   for await (const sub of subscriptions) {
     if (!sub.isActive) continue;
     if (!sub.workflowSlug) continue;
@@ -78,13 +81,17 @@ export async function processEventHandler(
 
     if (!matchesFilter(eventData, sub.eventFilter)) continue;
 
+    if (cachedOrgSlug === null) {
+      cachedOrgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    }
+
     await ctx.scheduler.runAfter(
       0,
       internal.workflow_engine.helpers.engine.start_workflow_from_file
         .startWorkflowFromFile,
       {
         organizationId: args.organizationId,
-        orgSlug: 'default',
+        orgSlug: cachedOrgSlug,
         workflowSlug: sub.workflowSlug,
         input: args.eventData ?? {},
         triggeredBy: 'event',

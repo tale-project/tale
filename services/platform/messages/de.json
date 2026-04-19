@@ -254,6 +254,9 @@
     "teamFilter": {
       "allTeams": "Alle",
       "label": "Team"
+    },
+    "orgSwitcher": {
+      "label": "Organisation"
     }
   },
   "knowledge": {
@@ -624,6 +627,21 @@
         }
       },
       "createOrganization": "Organisation erstellen",
+      "switching": "Wird gewechselt\u2026",
+      "switchingTo": "Wechsle zu {name}\u2026",
+      "switchingLabel": "Organisation wird gewechselt",
+      "yourOrganizationsTitle": "Deine Organisationen",
+      "yourOrganizationsDescription": "Alle Organisationen, zu denen du gehörst. Wechsle zwischen ihnen oder erstelle eine neue.",
+      "switchAction": "Wechseln",
+      "currentBadge": "Aktuell",
+      "roleLabel": "Rolle",
+      "deleteAriaLabel": "{name} löschen",
+      "deleteDialogTitle": "Organisation löschen",
+      "deleteDialogDescription": "„{name}\" löschen? Damit werden Agents, Workflows, Anbieter und Integrationen entfernt. Mitglieder verlieren den Zugriff. Dies kann nicht rückgängig gemacht werden.",
+      "deleteConfirmAction": "Organisation löschen",
+      "deleteLoading": "Wird gelöscht\u2026",
+      "deleteSuccess": "Organisation gelöscht",
+      "deleteFailed": "Organisation konnte nicht gelöscht werden",
       "organizationName": "Organisationsname",
       "companyNameRequired": "Firmenname ist erforderlich",
       "enterCompanyName": "Gib deinen Firmennamen ein",
@@ -2736,6 +2754,7 @@
     "errorGenerating": "Etwas ist schiefgelaufen",
     "errorGeneratingDescription": "Beim Generieren einer Antwort ist ein Fehler aufgetreten. Bitte versuche es erneut.",
     "retryGeneration": "Erneut versuchen",
+    "errorHintMissingApiKey": "Für diese Organisation ist noch kein API-Schlüssel konfiguriert. Öffne Einstellungen → KI-Anbieter und füge einen hinzu, um den Chat zu starten.",
     "errorHintCreditExhausted": "Das Guthaben des KI-Anbieters wurde überschritten. Kontaktiere deinen Administrator, um Guthaben aufzuladen.",
     "errorHintTokenLimit": "Das Token-Limit des Modells wurde überschritten. Versuche eine kürzere Anfrage oder bitte deinen Administrator, die Modelleinstellungen anzupassen.",
     "errorHintContextLength": "Die Konversation ist zu lang für das Kontextfenster des Modells. Versuche, einen neuen Chat zu starten.",

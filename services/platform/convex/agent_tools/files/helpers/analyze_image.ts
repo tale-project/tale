@@ -30,6 +30,8 @@ export interface AnalyzeImageParams {
   question?: string;
   /** Original file name (for display purposes) */
   fileName?: string;
+  /** Org slug for provider resolution (multi-tenant); defaults to 'default'. */
+  orgSlug?: string;
 }
 
 export interface AnalyzeImageResult {
@@ -48,15 +50,16 @@ export async function analyzeImage(
   ctx: ActionCtx,
   params: AnalyzeImageParams,
 ): Promise<AnalyzeImageResult> {
-  const { fileId, question, fileName } = params;
+  const { fileId, question, fileName, orgSlug } = params;
 
   debugLog('analyzeImage starting', { fileId, question, fileName });
 
-  // Resolve vision model from provider files
+  // Resolve vision model from provider files — use org's providers when given.
   const { languageModel, modelData } = await resolveLanguageModelWithFallback(
     ctx,
     {
       tag: 'vision',
+      orgSlug,
     },
   );
   const visionModelId = modelData.modelId;

@@ -31,6 +31,7 @@ import {
   sanitizeWorkflowName,
 } from '../../agent_tools/workflows/create_bound_workflow_tool';
 import { extractInputSchema } from '../../agent_tools/workflows/helpers/extract_input_schema';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { recordFailure } from '../../providers/circuit_breaker';
 import {
   isTransientProviderError,
@@ -208,7 +209,7 @@ export const runAgentGeneration = internalAction({
       ] = await Promise.all([
         buildIntegrationTools(ctx, agentConfig, organizationId),
         buildDelegationTools(ctx, agentConfig, organizationId),
-        buildWorkflowTools(ctx, agentConfig),
+        buildWorkflowTools(ctx, agentConfig, organizationId),
         fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
         buildMcpTools(ctx, organizationId),
       ]);
@@ -296,15 +297,20 @@ export const runAgentGeneration = internalAction({
         const currentModelId = modelsToTry[attempt];
 
         try {
-          // Resolve model from provider files with automatic failover
+          // Resolve model from provider files with automatic failover.
+          // Pass orgSlug so multi-org deployments read each org's own
+          // provider/API-key files, not the global default.
+          const orgSlug = await resolveOrgSlug(ctx, organizationId);
           const { languageModel, modelData } = currentModelId
             ? await resolveLanguageModelById(ctx, {
                 modelId: currentModelId,
                 providerName: agentConfig.provider,
+                orgSlug,
               })
             : await resolveLanguageModelWithFallback(ctx, {
                 providerName: agentConfig.provider,
                 tag: 'chat',
+                orgSlug,
               });
           const resolvedProvider = modelData.providerName;
           const resolvedModelId = modelData.modelId;
@@ -719,14 +725,17 @@ async function buildDelegationTools(
 async function buildWorkflowTools(
   ctx: ActionCtx,
   agentConfig: AgentConfigForTools,
+  organizationId: string,
 ): Promise<Record<string, unknown> | undefined> {
   if (!agentConfig.workflowBindings?.length) return undefined;
+
+  const orgSlug = await resolveOrgSlug(ctx, organizationId);
 
   const results = await Promise.all(
     agentConfig.workflowBindings.map(async (slug) => {
       const result: unknown = await ctx.runAction(
         internal.workflows.file_actions.readWorkflowForExecution,
-        { orgSlug: 'default', workflowSlug: slug },
+        { orgSlug, workflowSlug: slug },
       );
 
       if (!isRecord(result) || result.ok !== true) {

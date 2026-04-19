@@ -7,11 +7,10 @@ import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
+import { resolveOrgSlug } from '../../../organizations/resolve_org_slug';
 import { shouldTriggerWorkflow } from './should_trigger_workflow';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
-
-const DEFAULT_ORG_SLUG = 'default';
 
 interface ScheduledWorkflow {
   workflowSlug: string;
@@ -77,12 +76,14 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
         if (shouldTrigger) {
           debugLog(`Triggering scheduled workflow: ${name} (${workflowSlug})`);
 
+          const orgSlug = await resolveOrgSlug(ctx, organizationId);
+
           await ctx.runAction(
             internal.workflow_engine.helpers.engine.start_workflow_from_file
               .startWorkflowFromFile,
             {
               organizationId,
-              orgSlug: DEFAULT_ORG_SLUG,
+              orgSlug,
               workflowSlug,
               input: {},
               triggeredBy: 'schedule',

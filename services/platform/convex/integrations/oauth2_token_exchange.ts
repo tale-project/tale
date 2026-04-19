@@ -14,6 +14,7 @@ import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { encryptString } from '../lib/crypto/encrypt_string';
 import { createDebugLog } from '../lib/debug_log';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations OAuth2]');
 
@@ -41,9 +42,10 @@ export const handleOAuth2Callback = internalAction({
       throw new Error('Integration credential not found');
     }
 
+    const orgSlug = await resolveOrgSlug(ctx, credential.organizationId);
     const fileResult = await ctx.runAction(
       internal.integrations.file_actions.readIntegrationForExecution,
-      { orgSlug: 'default', slug: credential.slug },
+      { orgSlug, slug: credential.slug },
     );
 
     const fileOAuth2Config = fileResult?.ok

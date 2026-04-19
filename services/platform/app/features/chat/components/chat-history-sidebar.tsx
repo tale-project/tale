@@ -93,14 +93,14 @@ export function ChatHistorySidebar({
     canLoadMore,
     isLoadingMore,
     loadMore,
-  } = useThreads({ teamId: selectedTeamId });
+  } = useThreads({ teamId: selectedTeamId, organizationId });
 
   const {
     threads: archivedThreadsData,
     canLoadMore: canLoadMoreArchived,
     isLoadingMore: isLoadingMoreArchived,
     loadMore: loadMoreArchived,
-  } = useArchivedThreads({ teamId: selectedTeamId });
+  } = useArchivedThreads({ teamId: selectedTeamId, organizationId });
 
   const { approvals } = useActiveApprovals(organizationId);
 

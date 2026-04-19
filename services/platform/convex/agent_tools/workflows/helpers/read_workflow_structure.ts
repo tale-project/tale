@@ -3,18 +3,18 @@ import type { ToolCtx } from '@convex-dev/agent';
 import type { WorkflowJsonConfig } from '../../../../lib/shared/schemas/workflows';
 import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
+import { resolveOrgSlug } from '../../../organizations/resolve_org_slug';
 import type { WorkflowReadGetStructureResult } from './types';
-
-const DEFAULT_ORG_SLUG = 'default';
 
 export async function readWorkflowStructure(
   ctx: ToolCtx,
-  args: { workflowSlug: string },
+  args: { workflowSlug: string; organizationId: string },
 ): Promise<WorkflowReadGetStructureResult> {
   try {
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const result: unknown = await ctx.runAction(
       internal.workflows.file_actions.readWorkflowForExecution,
-      { orgSlug: DEFAULT_ORG_SLUG, workflowSlug: args.workflowSlug },
+      { orgSlug, workflowSlug: args.workflowSlug },
     );
 
     if (!isRecord(result)) {

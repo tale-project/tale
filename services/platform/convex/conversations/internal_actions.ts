@@ -6,6 +6,7 @@ import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { buildIntegrationSecrets } from '../integrations/build_test_secrets';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 const DELIVERY_CHECK_DELAY_MS = 60_000;
 const MAX_DELIVERY_CHECK_RETRIES = 5;
 
@@ -35,10 +36,11 @@ export const sendMessageViaIntegrationAction = internalAction({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     try {
+      const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
       const integration = await ctx.runAction(
         internal.integrations.load_integration.loadIntegration,
         {
-          orgSlug: 'default',
+          orgSlug,
           organizationId: args.organizationId,
           slug: args.integrationName,
         },
@@ -210,10 +212,11 @@ export const checkMessageDeliveryAction = internalAction({
     const retryCount = args.retryCount ?? 0;
 
     try {
+      const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
       const integration = await ctx.runAction(
         internal.integrations.load_integration.loadIntegration,
         {
-          orgSlug: 'default',
+          orgSlug,
           organizationId: args.organizationId,
           slug: args.integrationName,
         },
@@ -340,10 +343,11 @@ export const downloadAttachmentsAction = internalAction({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     try {
+      const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
       const integration = await ctx.runAction(
         internal.integrations.load_integration.loadIntegration,
         {
-          orgSlug: 'default',
+          orgSlug,
           organizationId: args.organizationId,
           slug: args.integrationName,
         },
