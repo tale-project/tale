@@ -110,6 +110,7 @@ export const listAgents = action({
             toolNames: result.config.toolNames,
             roleRestriction: result.config.roleRestriction,
             conversationStarters: result.config.conversationStarters,
+            composerMode: result.config.composerMode,
             i18n: result.config.i18n,
           };
         }

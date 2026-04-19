@@ -2499,6 +2499,34 @@
       "unread": "Non lus"
     }
   },
+  "composer": {
+    "openMenu": "Ouvrir le menu du composeur",
+    "addFiles": "Ajouter photos et fichiers",
+    "modeHeader": "Modes",
+    "standardMode": "Standard",
+    "capabilityHeader": "Capacités",
+    "capabilityUninstalled": "Non installé",
+    "connectInSettings": "Connecte dans Paramètres → Intégrations"
+  },
+  "todoList": {
+    "title": "Plan de recherche",
+    "ariaLabel": "Plan de recherche",
+    "progress": "{done}/{total} terminés",
+    "failedCount": "{count} échoués",
+    "collapse": "Réduire",
+    "expand": "Développer",
+    "statusPending": "En attente",
+    "statusInProgress": "En cours",
+    "statusDone": "Terminé",
+    "statusFailed": "Échoué",
+    "statusCancelled": "Annulé",
+    "paneClose": "Fermer le plan",
+    "paneMinimize": "Réduire le plan",
+    "paneResizeHandle": "Redimensionner le panneau de plan",
+    "stripOpen": "Ouvrir le plan de recherche",
+    "showMoreSources": "Afficher {count} sources de plus",
+    "hideSources": "Masquer les sources supplémentaires"
+  },
   "humanInputRequest": {
     "questionTitle": "Question",
     "submit": "Soumettre la réponse",

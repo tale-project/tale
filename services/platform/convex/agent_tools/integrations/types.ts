@@ -36,6 +36,19 @@ export interface IntegrationOperationMetadataLocal {
 // =============================================================================
 
 /**
+ * Structured citation emitted to the top level of a tool result so that
+ * `generate_response.ts` can harvest it into message metadata (same pipeline
+ * used by web/RAG tools). Matches the `StructuredCitation` shape in the client.
+ */
+export interface IntegrationToolCitation {
+  index: number;
+  type: 'web';
+  source: string;
+  url: string;
+  relevance?: number;
+}
+
+/**
  * Result from executing an integration operation
  */
 export interface IntegrationExecutionResult {
@@ -61,6 +74,8 @@ export interface IntegrationExecutionResult {
     contentType: string;
     size: number;
   }>;
+  /** Structured citations derived from URL-bearing results (e.g. web search) */
+  citations?: IntegrationToolCitation[];
 }
 
 /**

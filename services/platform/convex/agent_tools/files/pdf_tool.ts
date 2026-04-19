@@ -49,6 +49,11 @@ OPERATIONS:
    - wrapInTemplate: Whether to wrap in HTML template
    Returns: { success, fileStorageId, downloadUrl, fileName, contentType, size }
 
+   LANGUAGE SUPPORT (applies to sourceType "markdown" and "html" only):
+   • Renders correctly: Latin (English, French, German, Spanish, Portuguese, Italian, Nordic), Cyrillic (Russian, Ukrainian, Serbian), Arabic, Hebrew, Greek, Devanagari (Hindi), Bengali, Tamil, Thai, Lao, Khmer, Armenian, Georgian, Ethiopic, emoji.
+   • NOT supported: Chinese (Simplified & Traditional), Japanese, Korean. These scripts render as empty-box glyphs because the PDF renderer has no CJK fonts installed.
+   • If the content you would send is primarily in Chinese/Japanese/Korean, do NOT call "generate" with sourceType "markdown" or "html" — the resulting PDF will be unreadable. Deliver the content in chat instead (no PDF). The "url" sourceType is exempt from this limit — remote pages supply their own fonts.
+
    URL MODE (sourceType: "url"):
    • For web pages: renders the page as a PDF
    • For direct PDF links (e.g. https://example.com/report.pdf): downloads the original PDF file as-is

@@ -67,8 +67,14 @@ function buildInlineSecrets(
     secrets['domain'] = domain;
   }
 
+  const declaredBindings = integration.connector?.secretBindings ?? [];
+  const apiKeyBinding = declaredBindings[0] ?? 'accessToken';
+  const oauth2Binding = declaredBindings.includes('accessToken')
+    ? 'accessToken'
+    : (declaredBindings[0] ?? 'accessToken');
+
   if (overrides.apiKeyAuth?.key) {
-    secrets['accessToken'] = overrides.apiKeyAuth.key;
+    secrets[apiKeyBinding] = overrides.apiKeyAuth.key;
   }
   if (overrides.basicAuth) {
     if (overrides.basicAuth.username)
@@ -77,7 +83,7 @@ function buildInlineSecrets(
       secrets['password'] = overrides.basicAuth.password;
   }
   if (overrides.oauth2Auth?.accessToken) {
-    secrets['accessToken'] = overrides.oauth2Auth.accessToken;
+    secrets[oauth2Binding] = overrides.oauth2Auth.accessToken;
   }
 
   // Carry over non-auth connection config values (e.g. apiEndpoint)
@@ -127,15 +133,22 @@ async function testRestConnection(
     hasInlineAuthOverrides || !!overrides?.connectionConfig;
 
   let secrets: Record<string, string>;
+  const integrationForSecrets = {
+    ...integration,
+    secretBindings: integration.connector?.secretBindings,
+  };
 
   if (hasInlineAuthOverrides) {
     secrets = buildInlineSecrets(integration, overrides);
   } else if (hasInlineOverrides) {
-    const storedSecrets = await buildIntegrationSecrets(ctx, integration);
+    const storedSecrets = await buildIntegrationSecrets(
+      ctx,
+      integrationForSecrets,
+    );
     const configSecrets = buildInlineSecrets(integration, overrides);
     secrets = { ...storedSecrets, ...configSecrets };
   } else {
-    secrets = await buildIntegrationSecrets(ctx, integration);
+    secrets = await buildIntegrationSecrets(ctx, integrationForSecrets);
   }
 
   const result = await ctx.runAction(

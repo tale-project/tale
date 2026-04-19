@@ -32,6 +32,12 @@ const CanvasPane = lazyComponent(() =>
   })),
 );
 
+const PlanPane = lazyComponent(() =>
+  import('@/app/features/chat/components/plan-pane/plan-pane').then((mod) => ({
+    default: mod.PlanPane,
+  })),
+);
+
 export const Route = createFileRoute('/dashboard/$id/chat')({
   head: () => ({
     meta: seo('chat'),
@@ -268,6 +274,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
           </LayoutErrorBoundary>
         </div>
 
+        <PlanPane />
         <CanvasPane />
       </div>
     </PageLayout>

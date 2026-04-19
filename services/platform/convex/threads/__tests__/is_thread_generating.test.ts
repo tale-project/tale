@@ -98,26 +98,26 @@ describe('isThreadGenerating', () => {
     expect(result).toBe(true);
   });
 
-  it('returns false when generationStatus is generating but stale (>10 minutes)', async () => {
+  it('returns false when generationStatus is generating but stale (>35 minutes)', async () => {
     const now = Date.now();
-    const elevenMinutesAgo = now - 11 * 60 * 1000;
+    const thirtySixMinutesAgo = now - 36 * 60 * 1000;
     const result = await isThreadGenerating(
       createMockCtx({
         generationStatus: 'generating',
-        generationStartTime: elevenMinutesAgo,
+        generationStartTime: thirtySixMinutesAgo,
       }),
       { threadId: 'thread_1' },
     );
     expect(result).toBe(false);
   });
 
-  it('returns true when generationStatus is generating at exactly 10 minutes', async () => {
+  it('returns true when generationStatus is generating at exactly 35 minutes', async () => {
     const now = Date.now();
-    const tenMinutesAgo = now - 10 * 60 * 1000;
+    const thirtyFiveMinutesAgo = now - 35 * 60 * 1000;
     const result = await isThreadGenerating(
       createMockCtx({
         generationStatus: 'generating',
-        generationStartTime: tenMinutesAgo,
+        generationStartTime: thirtyFiveMinutesAgo,
       }),
       { threadId: 'thread_1' },
     );

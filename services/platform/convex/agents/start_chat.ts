@@ -6,12 +6,20 @@
  * and scheduling the agent generation action.
  */
 
+import { createFunctionHandle, makeFunctionReference } from 'convex/server';
 import { v } from 'convex/values';
 
 import { components } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
 import { startAgentChat } from '../lib/agent_chat';
 import { getOrganizationMember } from '../lib/rls';
+
+const beforeGenerateHookRef = makeFunctionReference<'action'>(
+  'lib/agent_chat/internal_actions:beforeGenerateHook',
+);
+const afterGenerateHookRef = makeFunctionReference<'action'>(
+  'lib/agent_chat/internal_actions:afterGenerateHook',
+);
 
 export const startChat = internalMutation({
   args: {
@@ -42,6 +50,7 @@ export const startChat = internalMutation({
     agentConfig: v.any(),
     agentSlug: v.string(),
     preAllocatedStreamId: v.optional(v.string()),
+    capabilityBindings: v.optional(v.array(v.string())),
   },
   returns: v.object({
     messageAlreadyExists: v.boolean(),
@@ -61,6 +70,23 @@ export const startChat = internalMutation({
       throw new Error('Thread not found');
     }
 
+    const toolNames: unknown = args.agentConfig?.convexToolNames;
+    const usesTodos =
+      Array.isArray(toolNames) &&
+      toolNames.some((name) => name === 'update_todos');
+
+    const hooks = usesTodos
+      ? {
+          beforeGenerate: await createFunctionHandle(beforeGenerateHookRef),
+          afterGenerate: await createFunctionHandle(afterGenerateHookRef),
+        }
+      : undefined;
+
+    const mergedConfig = mergeCapabilityBindings(
+      args.agentConfig,
+      args.capabilityBindings,
+    );
+
     return startAgentChat({
       ctx,
       agentType: 'custom',
@@ -71,13 +97,45 @@ export const startChat = internalMutation({
       attachments: args.attachments,
       additionalContext: args.additionalContext,
       userContext: args.userContext,
-      agentConfig: args.agentConfig,
-      model: args.agentConfig.model ?? 'default',
-      provider: args.agentConfig.provider,
+      agentConfig: mergedConfig,
+      model: mergedConfig.model ?? 'default',
+      provider: mergedConfig.provider,
       agentSlug: args.agentSlug,
       debugTag: `[${args.agentSlug}]`,
       enableStreaming: true,
       preAllocatedStreamId: args.preAllocatedStreamId,
+      hooks,
     });
   },
 });
+
+function mergeCapabilityBindings<
+  T extends {
+    integrationBindings?: string[];
+    convexToolNames?: string[];
+  },
+>(agentConfig: T, capabilityBindings: string[] | undefined): T {
+  if (!capabilityBindings || capabilityBindings.length === 0) {
+    return agentConfig;
+  }
+  const existingBindings = Array.isArray(agentConfig.integrationBindings)
+    ? agentConfig.integrationBindings
+    : [];
+  const bindingSet = new Set<string>([
+    ...existingBindings,
+    ...capabilityBindings,
+  ]);
+  const existingTools = Array.isArray(agentConfig.convexToolNames)
+    ? agentConfig.convexToolNames
+    : [];
+  const needsIntegrationTool =
+    bindingSet.size > 0 && !existingTools.includes('integration');
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- preserving generic config shape while adding bindings
+  return {
+    ...agentConfig,
+    integrationBindings: Array.from(bindingSet),
+    convexToolNames: needsIntegrationTool
+      ? [...existingTools, 'integration']
+      : existingTools,
+  } as T;
+}

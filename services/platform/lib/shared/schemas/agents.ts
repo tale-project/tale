@@ -9,6 +9,13 @@ export function isRetrievalMode(value: string): value is RetrievalMode {
 
 const retrievalModeSchema = z.enum(retrievalModeLiterals);
 
+const composerModeSchema = z.object({
+  label: z.string().min(1).max(80),
+  icon: z.string().max(80).optional(),
+  tooltip: z.string().max(300).optional(),
+  order: z.number().int().optional(),
+});
+
 /**
  * Fields that can be overridden per locale via the i18n key.
  */
@@ -47,6 +54,13 @@ export const agentJsonSchema = z.object({
   maxSteps: z.number().int().min(1).max(100).optional(),
   timeoutMs: z.number().int().min(1000).optional(),
   outputReserve: z.number().int().optional(),
+  /**
+   * Max number of integration tool calls allowed for a single agent run.
+   * Enforced at the integration-tool wrapper. Agents that cannot call
+   * integrations should leave this unset.
+   */
+  maxIntegrationCallsPerRun: z.number().int().min(1).max(500).optional(),
+  composerMode: composerModeSchema.optional(),
   roleRestriction: z.literal('admin_developer').optional(),
   conversationStarters: z.array(z.string().max(200)).max(4).optional(),
   visibleInChat: z.boolean().optional(),

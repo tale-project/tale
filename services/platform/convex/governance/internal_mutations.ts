@@ -136,3 +136,77 @@ export const incrementUsageLedger = internalMutation({
     return null;
   },
 });
+
+/**
+ * Record a single external integration call (e.g. Tavily search) in the
+ * usageLedger for per-org/per-user accounting. Unlike LLM rows, integration
+ * rows use `integrationName` + `integrationOperation` as the dedup key
+ * (model is unset) and accumulate `integrationCallCount` + `costEstimate`.
+ */
+export const recordIntegrationUsage = internalMutation({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    teamId: v.optional(v.string()),
+    agentSlug: v.optional(v.string()),
+    integrationName: v.string(),
+    integrationOperation: v.string(),
+    costEstimateCents: v.number(),
+    timestamp: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const ALL_PERIODS = ['daily', 'weekly', 'monthly'] as const;
+    for (const period of ALL_PERIODS) {
+      const periodKey = buildPeriodKeyFromTimestamp(period, args.timestamp);
+      const existingQuery = ctx.db
+        .query('usageLedger')
+        .withIndex('by_org_user_period_team', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('userId', args.userId)
+            .eq('periodKey', periodKey)
+            .eq('teamId', args.teamId),
+        );
+      let match: Awaited<ReturnType<typeof existingQuery.first>> | null = null;
+      for await (const entry of existingQuery) {
+        if (
+          entry.agentSlug === args.agentSlug &&
+          entry.integrationName === args.integrationName &&
+          entry.integrationOperation === args.integrationOperation
+        ) {
+          match = entry;
+          break;
+        }
+      }
+
+      if (match) {
+        await ctx.db.patch(match._id, {
+          integrationCallCount: (match.integrationCallCount ?? 0) + 1,
+          costEstimate: match.costEstimate + args.costEstimateCents,
+          requestCount: match.requestCount + 1,
+        });
+      } else {
+        await ctx.db.insert('usageLedger', {
+          organizationId: args.organizationId,
+          userId: args.userId,
+          teamId: args.teamId,
+          periodKey,
+          granularity: period,
+          agentSlug: args.agentSlug,
+          model: undefined,
+          provider: undefined,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          costEstimate: args.costEstimateCents,
+          requestCount: 1,
+          integrationName: args.integrationName,
+          integrationOperation: args.integrationOperation,
+          integrationCallCount: 1,
+        });
+      }
+    }
+    return null;
+  },
+});

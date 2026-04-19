@@ -32,4 +32,11 @@ export interface IntegrationWithCredentials {
     clientId?: string;
     clientSecretEncrypted?: string;
   };
+  /**
+   * Secret binding names declared in the integration's config.json. The first
+   * entry determines the key used for api_key / bearer_token / oauth2 secrets
+   * (defaults to 'accessToken' when unset, for legacy DB rows that never
+   * recorded the bindings).
+   */
+  secretBindings?: string[];
 }

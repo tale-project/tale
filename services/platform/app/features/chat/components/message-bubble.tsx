@@ -417,6 +417,7 @@ function MessageBubbleComponent({
                 <FilePartDisplay
                   key={part.url}
                   filePart={part}
+                  organizationId={organizationId}
                   onImageClick={
                     galleryIdx >= 0 ? () => openGallery(galleryIdx) : undefined
                   }

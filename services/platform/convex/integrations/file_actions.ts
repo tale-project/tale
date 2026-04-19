@@ -156,6 +156,7 @@ export const listIntegrations = action({
             operations: result.config.operations,
             connectionConfig: result.config.connectionConfig,
             capabilities: result.config.capabilities,
+            exposeAsCapability: result.config.exposeAsCapability,
             oauth2Config: result.config.oauth2Config,
             sqlConnectionConfig: result.config.sqlConnectionConfig,
             sqlOperations: result.config.sqlOperations,

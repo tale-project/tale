@@ -109,6 +109,7 @@ export function ChatInterface({
     setPendingMessage,
     selectedModelOverrides,
     setSelectedModelOverride,
+    enabledCapabilities,
     insertedPrompt,
     setInsertedPrompt,
   } = useChatLayout();
@@ -602,6 +603,7 @@ export function ChatInterface({
       ? (selectedModelOverrides[effectiveAgent.name] ??
         governanceDefault?.modelId)
       : undefined,
+    enabledCapabilities,
     userContext,
     arena: arenaContext ?? undefined,
     teamId: teamFilter?.selectedTeamId ?? undefined,

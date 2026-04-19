@@ -1007,10 +1007,9 @@ export const beforeGenerateHook = internalAction({
     promptContent: v.optional(v.any()),
     contextExceedsBudget: v.boolean(),
   }),
-  handler: async (_ctx, args) => {
+  handler: async (ctx, args) => {
     const { threadId, promptMessage, contextMessagesTokens } = args;
 
-    // Token budget check for logging
     const currentPromptTokens = estimateTokens(promptMessage || '');
     const contextBudget =
       DEFAULT_MODEL_CONTEXT_LIMIT * CONTEXT_SAFETY_MARGIN -
@@ -1027,6 +1026,243 @@ export const beforeGenerateHook = internalAction({
       });
     }
 
-    return { promptContent: undefined, contextExceedsBudget };
+    const promptContent = await buildTodosPromptAugmentation(
+      ctx,
+      threadId,
+      promptMessage,
+    );
+
+    return { promptContent, contextExceedsBudget };
+  },
+});
+
+async function buildTodosPromptAugmentation(
+  ctx: ActionCtx,
+  threadId: string,
+  promptMessage: string,
+): Promise<string | undefined> {
+  const threadMetadata = await ctx.runQuery(
+    internal.threads.internal_queries.getThreadMetadata,
+    { threadId },
+  );
+  const organizationId = threadMetadata?.organizationId;
+  if (!organizationId) return undefined;
+
+  const todosRecord = await ctx.runQuery(
+    internal.thread_todos.internal_queries.getByThread,
+    { organizationId, threadId },
+  );
+  if (!todosRecord || todosRecord.todos.length === 0) return undefined;
+
+  const formatted = formatTodosForReminder(todosRecord.todos);
+  const activeLine = todosRecord.activeTodoId
+    ? `Active todo: ${todosRecord.activeTodoId}.`
+    : 'No todo is currently in_progress. Pick one or create new todos before acting.';
+  const reminder =
+    `<system-reminder>\n` +
+    `Research plan state (persisted, user-visible):\n` +
+    `${formatted}\n` +
+    `${activeLine}\n` +
+    `Integration calls so far: ${todosRecord.integrationCallCount}.\n` +
+    `Continue from the in_progress todo before starting new work. If none is active, mark the next pending one in_progress before searching.\n` +
+    `</system-reminder>`;
+
+  return promptMessage ? `${promptMessage}\n\n${reminder}` : reminder;
+}
+
+function formatTodosReminderMarker(
+  status: 'pending' | 'in_progress' | 'done' | 'failed' | 'cancelled',
+): string {
+  switch (status) {
+    case 'done':
+      return '[x]';
+    case 'in_progress':
+      return '[~]';
+    case 'failed':
+      return '[!]';
+    case 'cancelled':
+      return '[-]';
+    case 'pending':
+    default:
+      return '[ ]';
+  }
+}
+
+interface TodoSourceLike {
+  url: string;
+  title?: string;
+  score?: number;
+  publishedDate?: string;
+  capturedAt: number;
+}
+
+function collectUniqueSources(
+  todos: Array<{ sources?: TodoSourceLike[] }>,
+): Array<{ url: string; title?: string }> {
+  const seen = new Set<string>();
+  const out: Array<{ url: string; title?: string }> = [];
+  for (const todo of todos) {
+    for (const src of todo.sources ?? []) {
+      if (!src.url || seen.has(src.url)) continue;
+      seen.add(src.url);
+      out.push({ url: src.url, title: src.title });
+    }
+  }
+  return out;
+}
+
+/**
+ * Percent-decode URL for display. Many sources are Baidu/CJK URLs with heavy
+ * hex-encoded paths — raw they read as noise, decoded they render natural
+ * Chinese text. The href stays the original encoded URL so the link resolves.
+ */
+function prettifyUrl(url: string): string {
+  try {
+    return decodeURI(url);
+  } catch {
+    return url;
+  }
+}
+
+function formatTodosForReminder(
+  todos: Array<{
+    id: string;
+    content: string;
+    status: 'pending' | 'in_progress' | 'done' | 'failed' | 'cancelled';
+    findingsSummary?: string;
+    failureReason?: string;
+  }>,
+): string {
+  return todos
+    .map((todo) => {
+      const marker = formatTodosReminderMarker(todo.status);
+      const findings = todo.findingsSummary ? ` — ${todo.findingsSummary}` : '';
+      const failure =
+        todo.status === 'failed' && todo.failureReason
+          ? ` (failed: ${todo.failureReason})`
+          : '';
+      return `${marker} [${todo.id}] ${todo.content}${findings}${failure}`;
+    })
+    .join('\n');
+}
+
+/**
+ * Guaranteed-synthesis fallback. Runs after the agent finishes generation.
+ * If the agent maintained todos but the final message is missing a
+ * [[CONCLUSION]] marker, append a deterministic summary so the user always
+ * gets a cited report from completed todos — never silence.
+ */
+export const afterGenerateHook = internalAction({
+  args: {
+    threadId: v.string(),
+    result: v.object({
+      text: v.optional(v.string()),
+      usage: v.optional(v.any()),
+      durationMs: v.optional(v.number()),
+    }),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { threadId, result } = args;
+    const finalText = typeof result.text === 'string' ? result.text : '';
+    if (finalText.includes('[[CONCLUSION]]')) {
+      return null;
+    }
+
+    const waitingForHuman = await ctx.runQuery(
+      internal.approvals.internal_queries.hasPendingHumanInputForThread,
+      { threadId },
+    );
+    if (waitingForHuman) {
+      return null;
+    }
+
+    const threadMetadata = await ctx.runQuery(
+      internal.threads.internal_queries.getThreadMetadata,
+      { threadId },
+    );
+    const organizationId = threadMetadata?.organizationId;
+    if (!organizationId) return null;
+
+    const todosRecord = await ctx.runQuery(
+      internal.thread_todos.internal_queries.getByThread,
+      { organizationId, threadId },
+    );
+    if (!todosRecord || todosRecord.todos.length === 0) return null;
+
+    const done = todosRecord.todos.filter((t) => t.status === 'done');
+    const failed = todosRecord.todos.filter((t) => t.status === 'failed');
+    const inProgress = todosRecord.todos.filter(
+      (t) => t.status === 'in_progress',
+    );
+    const pending = todosRecord.todos.filter((t) => t.status === 'pending');
+
+    const lines: string[] = [];
+    lines.push('[[CONCLUSION]]');
+    if (done.length === 0) {
+      lines.push(
+        'The research run ended before I could reach a conclusion. The plan below shows where things stood — send a follow-up to continue or narrow the scope.',
+      );
+    } else {
+      lines.push(
+        `Summary of findings from ${done.length}/${todosRecord.todos.length} completed todos. The research run ended before a full synthesis could be written — see the key points and details below for what was gathered.`,
+      );
+    }
+    if (done.length > 0) {
+      lines.push('', '[[KEY_POINTS]]');
+      for (const todo of done) {
+        const findings =
+          todo.findingsSummary && todo.findingsSummary.trim().length > 0
+            ? todo.findingsSummary.trim()
+            : todo.content;
+        lines.push(`- ${findings}`);
+      }
+    }
+    if (failed.length > 0 || inProgress.length > 0 || pending.length > 0) {
+      lines.push('', '[[DETAILS]]');
+      if (failed.length > 0) {
+        lines.push('Failed todos:');
+        for (const todo of failed) {
+          const reason = todo.failureReason ?? 'unknown reason';
+          lines.push(`- ${todo.content} (${reason})`);
+        }
+      }
+      if (inProgress.length > 0) {
+        lines.push('In progress when the run ended:');
+        for (const todo of inProgress) {
+          lines.push(`- ${todo.content}`);
+        }
+      }
+      if (pending.length > 0) {
+        lines.push('Not yet started:');
+        for (const todo of pending) {
+          lines.push(`- ${todo.content}`);
+        }
+      }
+    }
+
+    const aggregatedSources = collectUniqueSources(todosRecord.todos);
+    if (aggregatedSources.length > 0) {
+      lines.push('', 'Sources:');
+      for (const src of aggregatedSources) {
+        const label =
+          src.title && src.title.length > 0 ? src.title : prettifyUrl(src.url);
+        lines.push(`- [${label}](${src.url})`);
+      }
+    }
+
+    lines.push(
+      '',
+      '_This summary was auto-generated from the research plan state. Ask a follow-up to investigate further._',
+    );
+
+    await saveMessage(ctx, components.agent, {
+      threadId,
+      message: {
+        role: 'assistant',
+        content: lines.join('\n'),
+      },
+    });
+    return null;
   },
 });

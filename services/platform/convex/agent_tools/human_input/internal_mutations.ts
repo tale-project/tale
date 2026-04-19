@@ -18,6 +18,7 @@ const fieldTypeValidator = v.union(
   v.literal('single_select'),
   v.literal('multi_select'),
   v.literal('yes_no'),
+  v.literal('todo_list'),
 );
 
 const optionValidator = v.object({
@@ -26,12 +27,20 @@ const optionValidator = v.object({
   value: v.optional(v.string()),
 });
 
+const todoItemValidator = v.object({
+  id: v.string(),
+  content: v.string(),
+});
+
 const fieldValidator = v.object({
   label: v.string(),
   description: v.optional(v.string()),
   required: v.optional(v.boolean()),
   type: fieldTypeValidator,
   options: v.optional(v.array(optionValidator)),
+  initialTodos: v.optional(v.array(todoItemValidator)),
+  minItems: v.optional(v.number()),
+  maxItems: v.optional(v.number()),
 });
 
 export const createHumanInputRequest = internalMutation({
@@ -102,6 +111,14 @@ export const createHumanInputRequest = internalMutation({
             return { ...base, type: field.type, options: field.options ?? [] };
           case 'yes_no':
             return { ...base, type: field.type, options: field.options };
+          case 'todo_list':
+            return {
+              ...base,
+              type: field.type,
+              initialTodos: field.initialTodos,
+              minItems: field.minItems,
+              maxItems: field.maxItems,
+            };
           default:
             return { ...base, type: field.type };
         }

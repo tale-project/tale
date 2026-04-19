@@ -2501,6 +2501,34 @@
       "unread": "Ungelesen"
     }
   },
+  "composer": {
+    "openMenu": "Composer-Menü öffnen",
+    "addFiles": "Fotos & Dateien hinzufügen",
+    "modeHeader": "Modi",
+    "standardMode": "Standard",
+    "capabilityHeader": "Fähigkeiten",
+    "capabilityUninstalled": "Nicht installiert",
+    "connectInSettings": "In Einstellungen → Integrationen verbinden"
+  },
+  "todoList": {
+    "title": "Recherche-Plan",
+    "ariaLabel": "Recherche-Plan",
+    "progress": "{done}/{total} erledigt",
+    "failedCount": "{count} fehlgeschlagen",
+    "collapse": "Einklappen",
+    "expand": "Ausklappen",
+    "statusPending": "Offen",
+    "statusInProgress": "In Bearbeitung",
+    "statusDone": "Erledigt",
+    "statusFailed": "Fehlgeschlagen",
+    "statusCancelled": "Abgebrochen",
+    "paneClose": "Plan schließen",
+    "paneMinimize": "Plan minimieren",
+    "paneResizeHandle": "Planbereich vergrößern",
+    "stripOpen": "Recherche-Plan öffnen",
+    "showMoreSources": "{count} weitere Quellen anzeigen",
+    "hideSources": "Zusätzliche Quellen ausblenden"
+  },
   "humanInputRequest": {
     "questionTitle": "Frage",
     "submit": "Antwort absenden",

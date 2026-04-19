@@ -13,6 +13,7 @@ import { z } from 'zod/v4';
 import { getBoolean, isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
+import { recordIntegrationCall } from './capture_sources';
 import type { OperationInfo } from './fetch_operations_summary';
 import type { IntegrationExecutionResult } from './types';
 
@@ -171,6 +172,19 @@ export function createBoundIntegrationTool(
 
       const threadId = await getApprovalThreadId(ctx, currentThreadId);
 
+      // Pre-fetch activeTodoId so we can attribute captured sources to the
+      // currently-in-progress todo when the call completes. Keep the bound
+      // tool lightweight: no budget enforcement here — that lives on the
+      // generic `integration` tool path.
+      let activeTodoId: string | undefined;
+      if (threadId) {
+        const todosState = await ctx.runQuery(
+          internal.thread_todos.internal_queries.getByThread,
+          { organizationId, threadId },
+        );
+        activeTodoId = todosState?.activeTodoId;
+      }
+
       try {
         const result = await ctx.runAction(
           internal.agent_tools.integrations.internal_actions.executeIntegration,
@@ -207,11 +221,25 @@ export function createBoundIntegrationTool(
           };
         }
 
+        let citations;
+        if (threadId) {
+          citations = await recordIntegrationCall({
+            ctx,
+            organizationId,
+            threadId,
+            integrationName,
+            operation: args.operation,
+            result,
+            activeTodoId,
+          });
+        }
+
         return {
           success: true,
           integration: integrationName,
           operation: args.operation,
           data: result,
+          ...(citations ? { citations } : {}),
         };
       } catch (error) {
         const errorMessage =

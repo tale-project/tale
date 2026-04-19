@@ -62,6 +62,12 @@ export const usageLedgerTable = defineTable({
   totalTokens: v.number(),
   costEstimate: v.number(),
   requestCount: v.number(),
+  // Integration accounting — populated for rows that represent external-service
+  // calls (e.g. Tavily search). integrationName is unique per provider so it
+  // pairs with agentSlug for attribution. `model` is unset for integration rows.
+  integrationName: v.optional(v.string()),
+  integrationOperation: v.optional(v.string()),
+  integrationCallCount: v.optional(v.number()),
 })
   .index('by_org_user_period', ['organizationId', 'userId', 'periodKey'])
   .index('by_org_user_period_team', [

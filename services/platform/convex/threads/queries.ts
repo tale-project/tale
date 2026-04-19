@@ -65,8 +65,12 @@ export const listArchivedThreads = query({
  * Maximum time (ms) a generation is considered active before it's treated as
  * stale. If the server-side action crashed without resetting generationStatus,
  * this prevents the client from being permanently blocked.
+ *
+ * Sized to cover the longest legitimate run: self-hosted Convex actions have a
+ * 30-minute Docker ceiling, and the researcher agent runs up to ~25 min. A
+ * 5-minute buffer above the hard ceiling avoids killing the UI on slow tails.
  */
-const GENERATION_STALE_THRESHOLD_MS = 10 * 60 * 1000;
+const GENERATION_STALE_THRESHOLD_MS = 30 * 60 * 1000 + 5 * 60 * 1000;
 
 export const isThreadGenerating = query({
   args: { threadId: v.string() },
