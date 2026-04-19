@@ -29,6 +29,17 @@ vi.mock('@/app/hooks/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
 
+vi.mock('@/app/hooks/use-changelog-notification', () => ({
+  useChangelogNotification: () => ({
+    currentVersion: undefined,
+    hasUnseenVersion: false,
+    shouldShowToast: false,
+    releaseUrl: null,
+    markSeen: vi.fn(),
+    markToasted: vi.fn(),
+  }),
+}));
+
 // Mock theme
 const mockSetTheme = vi.fn();
 vi.mock('@/app/components/theme/theme-provider', () => ({
