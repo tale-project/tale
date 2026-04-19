@@ -22,6 +22,10 @@ vi.mock('../../../_generated/server', () => ({
   internalAction: vi.fn((def) => ({ _handler: def.handler })),
 }));
 
+vi.mock('../../../organizations/resolve_org_slug', () => ({
+  resolveOrgSlug: vi.fn().mockResolvedValue('default'),
+}));
+
 const { triggerCompletionWithAgent } =
   await import('../trigger_completion_action');
 

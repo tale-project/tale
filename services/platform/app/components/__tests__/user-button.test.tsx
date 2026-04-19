@@ -53,6 +53,19 @@ let mockAuthState = {
 };
 vi.mock('@/app/hooks/use-convex-auth', () => ({
   useAuth: () => mockAuthState,
+  useConvexAuth: () => ({
+    isLoading: mockAuthState.isLoading,
+    isAuthenticated: mockAuthState.isAuthenticated,
+  }),
+}));
+
+vi.mock('@/app/features/organization/hooks/queries', () => ({
+  useUserOrganizationsWithDetails: () => ({
+    organizations: [],
+    isLoading: false,
+    isAuthenticated: true,
+    isAuthLoading: false,
+  }),
 }));
 
 // Mock current member context
@@ -87,6 +100,7 @@ vi.mock('@tanstack/react-router', () => ({
   useRouter: () => ({ preloadRoute: vi.fn() }),
   useNavigate: () => vi.fn(),
   useParams: () => ({ id: 'org-123' }),
+  useLocation: () => ({ href: '/dashboard/org-123' }),
 }));
 
 // Mock Radix tooltip

@@ -22,6 +22,10 @@ vi.mock('../../../threads/get_parent_thread_id', () => ({
   getApprovalThreadId: vi.fn().mockResolvedValue('thread-123'),
 }));
 
+vi.mock('../../../organizations/resolve_org_slug', () => ({
+  resolveOrgSlug: vi.fn().mockResolvedValue('default'),
+}));
+
 vi.mock(
   '../../../workflow_engine/helpers/validation/validate_step_config',
   () => ({
