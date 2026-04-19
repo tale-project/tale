@@ -34,9 +34,10 @@ import { useT } from '@/lib/i18n/client';
 
 const searchSchema = z.object({
   to: z.string().min(1),
-  // Subpath after /dashboard/{id}/ — e.g. "settings/organization", "chat".
-  // Preserves the page the user was on so an org switch doesn't reset them
-  // to the default landing route.
+  // Everything after /dashboard/{id}/ — pathname + search + hash. E.g.
+  // "settings/governance?group=security-monitoring" or "chat/abc#mid".
+  // Preserves the page AND its query params so an org switch doesn't
+  // lose tab selection / filters / hash anchors.
   subpath: z.string().optional(),
 });
 

@@ -81,11 +81,12 @@ export function UserButton({
       // Clear team filter — the previous team belongs to the old org and
       // should not carry over.
       setSelectedTeamId?.(null);
-      // Preserve the subpath after /dashboard/{orgId}/... so the user lands
-      // on the same page in the new org (e.g. Settings → Organization stays
-      // Settings → Organization, not a reset to chat).
+      // Preserve everything after /dashboard/{orgId}/ — pathname + search +
+      // hash — so the user lands on the same page with the same query
+      // params in the new org (e.g. /settings/governance?group=security
+      // stays intact, not just /settings/governance).
       const subpath =
-        location.pathname.match(/^\/dashboard\/[^/]+\/(.*)$/)?.[1] ?? '';
+        location.href.match(/^\/dashboard\/[^/]+\/(.*)$/)?.[1] ?? '';
       // Navigate to the dedicated switching route which owns setActive +
       // session invalidation + audit logging. Keeping the work there avoids
       // races between the old route's unmount and the new route's guard.
@@ -95,7 +96,7 @@ export function UserButton({
         replace: true,
       });
     },
-    [organizationId, navigate, setSelectedTeamId, location.pathname],
+    [organizationId, navigate, setSelectedTeamId, location.href],
   );
 
   const { data: memberContext } = useCurrentMemberContext(

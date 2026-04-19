@@ -171,11 +171,11 @@ export function OrganizationSettings({
     (nextOrgId: string) => {
       if (nextOrgId === organization?._id) return;
       setSwitchingOrgId(nextOrgId);
-      // Preserve the subpath so the user lands on the same settings page
-      // in the new org (e.g. Settings → Organization stays Settings →
-      // Organization, not a reset to chat).
+      // Preserve pathname + search + hash so the user lands on the same
+      // page with the same query params in the new org (e.g. Governance →
+      // Security & Monitoring tab stays selected).
       const subpath =
-        location.pathname.match(/^\/dashboard\/[^/]+\/(.*)$/)?.[1] ?? '';
+        location.href.match(/^\/dashboard\/[^/]+\/(.*)$/)?.[1] ?? '';
       // Delegate to the dedicated switching route so setActive + session
       // invalidation + audit happen in one place without racing the current
       // route's unmount.
@@ -185,7 +185,7 @@ export function OrganizationSettings({
         replace: true,
       });
     },
-    [organization?._id, navigate, location.pathname],
+    [organization?._id, navigate, location.href],
   );
 
   const debouncedSearch = useDebounce(searchQuery, 300);
