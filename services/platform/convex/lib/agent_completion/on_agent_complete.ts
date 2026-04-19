@@ -194,6 +194,9 @@ export async function onAgentComplete(
             outputTokens: msgOutputTokens,
             costEstimateCents: costCents,
             timestamp,
+            agentSlug: args.agentSlug,
+            model: result.model,
+            provider: result.provider,
           },
         )
         .catch((error) => {

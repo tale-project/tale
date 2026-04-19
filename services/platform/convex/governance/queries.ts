@@ -8,6 +8,7 @@ import { getOrganizationMember } from '../lib/rls';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { checkBudget } from './budget_enforcement';
 import { resolveFeatureFlags } from './feature_enforcement';
+import { getOrgUsageMetrics as getOrgUsageMetricsHandler } from './get_org_usage_metrics';
 import { getAccessibleModels } from './model_access_enforcement';
 import { GOVERNANCE_POLICY_TYPES } from './schema';
 
@@ -164,6 +165,38 @@ export const getUsageSummary = query({
         },
       ),
     };
+  },
+});
+
+export const getOrgUsageMetrics = query({
+  args: {
+    organizationId: v.string(),
+    periodDays: v.union(v.literal(7), v.literal(30), v.literal(90)),
+    granularity: v.union(
+      v.literal('daily'),
+      v.literal('weekly'),
+      v.literal('monthly'),
+    ),
+    agentSlug: v.optional(v.string()),
+    model: v.optional(v.string()),
+    provider: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+    if (!isAdmin(member.role)) {
+      throw new Error('Only admins can view usage metrics');
+    }
+
+    return getOrgUsageMetricsHandler(ctx, args);
   },
 });
 

@@ -88,6 +88,7 @@ async function recordWorkflowLlmUsage(
   organizationId: string | undefined,
   userId: string | undefined,
   model: string | undefined,
+  stepSlug: string | undefined,
   result: unknown,
 ): Promise<void> {
   if (!organizationId || !userId) return;
@@ -111,6 +112,8 @@ async function recordWorkflowLlmUsage(
         outputTokens,
         costEstimateCents: costCents,
         timestamp: Date.now(),
+        agentSlug: stepSlug,
+        model,
       },
     );
   } catch (err) {
@@ -217,6 +220,7 @@ export async function executeAgentWithTools(
       _args.userId,
       _args.languageModel,
       _args.organizationId,
+      _args.stepSlug,
     );
   }
 
@@ -237,6 +241,7 @@ export async function executeAgentWithTools(
     _args.userId,
     _args.languageModel,
     _args.organizationId,
+    _args.stepSlug,
   );
 }
 
@@ -273,6 +278,7 @@ async function executeJsonOutputWithoutTools(
   userId: string | undefined,
   languageModel: LanguageModelV3,
   organizationId: string | undefined,
+  stepSlug: string | undefined,
 ): Promise<LLMExecutionResult> {
   debugLog('executeJsonOutputWithoutTools START', {
     configName: config.name,
@@ -308,6 +314,7 @@ async function executeJsonOutputWithoutTools(
     organizationId,
     userId,
     config.model,
+    stepSlug,
     result,
   );
 
@@ -334,6 +341,7 @@ async function executeTextOutput(
   userId: string | undefined,
   languageModel: LanguageModelV3,
   organizationId: string | undefined,
+  stepSlug: string | undefined,
 ): Promise<LLMExecutionResult> {
   debugLog('executeTextOutput START', {
     configName: config.name,
@@ -371,6 +379,7 @@ async function executeTextOutput(
     organizationId,
     userId,
     config.model,
+    stepSlug,
     result,
   );
 

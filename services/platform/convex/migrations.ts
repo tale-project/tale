@@ -12,5 +12,8 @@ export const runAll = internalAction({
     await ctx.runMutation(
       internal.migrations.backfill_apikey_reference_id.apply,
     );
+    await ctx.runMutation(
+      internal.migrations.backfill_ledger_granularity.apply,
+    );
   },
 });

@@ -29,26 +29,41 @@ describe('buildPeriodKeyFromTimestamp', () => {
     });
   });
 
-  describe('weekly', () => {
-    it('returns YYYY-Www format', () => {
-      // 2024-06-15 is a Saturday in ISO week 24
+  describe('weekly (ISO 8601)', () => {
+    it('returns YYYY-Www format for a mid-year Saturday', () => {
+      // 2024-06-15 Saturday — ISO week 24
       const ts = Date.UTC(2024, 5, 15, 12, 0, 0);
-      const result = buildPeriodKeyFromTimestamp('weekly', ts);
-      expect(result).toMatch(/^\d{4}-W\d{2}$/);
+      expect(buildPeriodKeyFromTimestamp('weekly', ts)).toBe('2024-W24');
     });
 
-    it('returns week 01 for start of year', () => {
-      // 2024-01-01 is a Monday
+    it('returns W01 when Jan 1 is a Monday', () => {
+      // 2024-01-01 Monday — ISO says 2024-W01
       const ts = Date.UTC(2024, 0, 1, 0, 0, 0);
-      const result = buildPeriodKeyFromTimestamp('weekly', ts);
-      expect(result).toBe('2024-W01');
+      expect(buildPeriodKeyFromTimestamp('weekly', ts)).toBe('2024-W01');
     });
 
-    it('returns correct week for end of year', () => {
-      // 2024-12-31 — day 366 of a leap year
+    it('rolls Jan 1 Sunday back into previous year (2023-01-01 → 2022-W52)', () => {
+      // 2023-01-01 Sunday — ISO 8601: belongs to week 52 of 2022
+      const ts = Date.UTC(2023, 0, 1, 0, 0, 0);
+      expect(buildPeriodKeyFromTimestamp('weekly', ts)).toBe('2022-W52');
+    });
+
+    it('rolls late-December dates into next year (2024-12-31 Tuesday → 2025-W01)', () => {
+      // 2024-12-31 Tuesday — ISO says 2025-W01 (Thursday of that week is 2025-01-02)
       const ts = Date.UTC(2024, 11, 31, 0, 0, 0);
-      const result = buildPeriodKeyFromTimestamp('weekly', ts);
-      expect(result).toMatch(/^\d{4}-W\d{2}$/);
+      expect(buildPeriodKeyFromTimestamp('weekly', ts)).toBe('2025-W01');
+    });
+
+    it('rolls late-December dates into next year (2025-12-29 Monday → 2026-W01)', () => {
+      // 2025-12-29 Monday — ISO says 2026-W01
+      const ts = Date.UTC(2025, 11, 29, 0, 0, 0);
+      expect(buildPeriodKeyFromTimestamp('weekly', ts)).toBe('2026-W01');
+    });
+
+    it('produces zero-padded week numbers for sortable keys', () => {
+      // 2024-01-08 Monday — ISO week 2
+      const ts = Date.UTC(2024, 0, 8, 0, 0, 0);
+      expect(buildPeriodKeyFromTimestamp('weekly', ts)).toBe('2024-W02');
     });
   });
 

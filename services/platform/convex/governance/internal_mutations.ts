@@ -12,6 +12,12 @@ export const incrementUsageLedger = internalMutation({
     outputTokens: v.number(),
     costEstimateCents: v.number(),
     timestamp: v.number(),
+    // Assistant / workflow step slug. Undefined for direct model-API calls.
+    agentSlug: v.optional(v.string()),
+    // LLM model identifier (e.g. "gpt-4o-mini"). Part of the upsert key.
+    model: v.optional(v.string()),
+    // LLM provider (e.g. "openai"). Stored only; functionally determined by model.
+    provider: v.optional(v.string()),
     period: v.optional(
       v.union(v.literal('daily'), v.literal('weekly'), v.literal('monthly')),
     ),
@@ -26,12 +32,14 @@ export const incrementUsageLedger = internalMutation({
 
       const existing = await ctx.db
         .query('usageLedger')
-        .withIndex('by_org_user_period_team', (q) =>
+        .withIndex('by_org_user_period_team_agent_model', (q) =>
           q
             .eq('organizationId', args.organizationId)
             .eq('userId', args.userId)
             .eq('periodKey', periodKey)
-            .eq('teamId', args.teamId),
+            .eq('teamId', args.teamId)
+            .eq('agentSlug', args.agentSlug)
+            .eq('model', args.model),
         )
         .first();
 
@@ -42,6 +50,11 @@ export const incrementUsageLedger = internalMutation({
           totalTokens: existing.totalTokens + totalTokens,
           costEstimate: existing.costEstimate + args.costEstimateCents,
           requestCount: existing.requestCount + 1,
+          // Provider is functionally determined by model, but patch it in case
+          // the existing row was written before provider was tracked.
+          ...(args.provider !== undefined && existing.provider === undefined
+            ? { provider: args.provider }
+            : {}),
         });
       } else {
         await ctx.db.insert('usageLedger', {
@@ -49,6 +62,10 @@ export const incrementUsageLedger = internalMutation({
           userId: args.userId,
           teamId: args.teamId,
           periodKey,
+          granularity: period,
+          agentSlug: args.agentSlug,
+          model: args.model,
+          provider: args.provider,
           inputTokens: args.inputTokens,
           outputTokens: args.outputTokens,
           totalTokens,
@@ -58,14 +75,18 @@ export const incrementUsageLedger = internalMutation({
 
         // Guard against duplicate-insert race: if two concurrent mutations
         // both saw existing===null and inserted, merge into the older row.
+        // Filters must match the upsert key exactly (agentSlug + model) so
+        // rows from different agents/models are not incorrectly coalesced.
         const dupQuery = ctx.db
           .query('usageLedger')
-          .withIndex('by_org_user_period_team', (q) =>
+          .withIndex('by_org_user_period_team_agent_model', (q) =>
             q
               .eq('organizationId', args.organizationId)
               .eq('userId', args.userId)
               .eq('periodKey', periodKey)
-              .eq('teamId', args.teamId),
+              .eq('teamId', args.teamId)
+              .eq('agentSlug', args.agentSlug)
+              .eq('model', args.model),
           );
         const allEntries = [];
         for await (const entry of dupQuery) {

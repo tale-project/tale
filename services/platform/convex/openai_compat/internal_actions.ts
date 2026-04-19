@@ -308,6 +308,9 @@ export const chatDirectModel = internalAction({
             outputTokens,
             costEstimateCents: costCents,
             timestamp: Date.now(),
+            // No agentSlug — direct model API is not agent-bound.
+            model: resolved.modelData.modelId,
+            provider: resolved.modelData.providerName,
           },
         )
         .catch((error) => {

@@ -296,6 +296,7 @@ import type * as governance_cost_estimation from "../governance/cost_estimation.
 import type * as governance_default_model_query from "../governance/default_model_query.js";
 import type * as governance_entra_attribute_matcher from "../governance/entra_attribute_matcher.js";
 import type * as governance_feature_enforcement from "../governance/feature_enforcement.js";
+import type * as governance_get_org_usage_metrics from "../governance/get_org_usage_metrics.js";
 import type * as governance_helpers from "../governance/helpers.js";
 import type * as governance_internal_mutations from "../governance/internal_mutations.js";
 import type * as governance_internal_mutations_retention from "../governance/internal_mutations_retention.js";
@@ -488,6 +489,7 @@ import type * as migrations_backfill_apikey_reference_id from "../migrations/bac
 import type * as migrations_backfill_file_metadata_document_id from "../migrations/backfill_file_metadata_document_id.js";
 import type * as migrations_backfill_folder_path from "../migrations/backfill_folder_path.js";
 import type * as migrations_backfill_folders from "../migrations/backfill_folders.js";
+import type * as migrations_backfill_ledger_granularity from "../migrations/backfill_ledger_granularity.js";
 import type * as migrations_backfill_thread_metadata from "../migrations/backfill_thread_metadata.js";
 import type * as migrations_backfill_workflow_schedules from "../migrations/backfill_workflow_schedules.js";
 import type * as migrations_migrate_org_creators from "../migrations/migrate_org_creators.js";
@@ -1260,6 +1262,7 @@ declare const fullApi: ApiFromModules<{
   "governance/default_model_query": typeof governance_default_model_query;
   "governance/entra_attribute_matcher": typeof governance_entra_attribute_matcher;
   "governance/feature_enforcement": typeof governance_feature_enforcement;
+  "governance/get_org_usage_metrics": typeof governance_get_org_usage_metrics;
   "governance/helpers": typeof governance_helpers;
   "governance/internal_mutations": typeof governance_internal_mutations;
   "governance/internal_mutations_retention": typeof governance_internal_mutations_retention;
@@ -1452,6 +1455,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/backfill_file_metadata_document_id": typeof migrations_backfill_file_metadata_document_id;
   "migrations/backfill_folder_path": typeof migrations_backfill_folder_path;
   "migrations/backfill_folders": typeof migrations_backfill_folders;
+  "migrations/backfill_ledger_granularity": typeof migrations_backfill_ledger_granularity;
   "migrations/backfill_thread_metadata": typeof migrations_backfill_thread_metadata;
   "migrations/backfill_workflow_schedules": typeof migrations_backfill_workflow_schedules;
   "migrations/migrate_org_creators": typeof migrations_migrate_org_creators;
