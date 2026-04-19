@@ -15,7 +15,7 @@ Wenn du `tale init` ausführst, erzeugt die CLI Konfigurationsdateien, mit denen
 | `.windsurfrules`                   | Projekt-Regeln                                | Windsurf        |
 | `.tale/reference/`                 | vollständiger Plattform-Quellcode (read-only) | alle oben       |
 
-Die Regel-Dateien enthalten denselben Kerninhalt: Projektstruktur, Konfigurations-Konventionen und Anweisungen, vor Änderungen `.tale/reference/` zu konsultieren. Das Reference-Verzeichnis enthält den kompletten Backend-Quellcode — Datenbankschemas, Validatoren, Agent-Tools, Workflow-Schritttypen und Integrations-Connectors. Damit hat die KI alles, was sie braucht, um korrekte Konfigurationen zu erzeugen.
+Die Regel-Dateien enthalten denselben Kerninhalt: Projektstruktur, Konfigurations-Konventionen und Anweisungen, vor Änderungen `.tale/reference/` zu konsultieren. Das Reference-Verzeichnis enthält den kompletten Backend-Quellcode — Datenbankschemas, Validatoren, Agent-Tools, Workflow-Schritttypen und Integrationen-Connectors. Damit hat die KI alles, was sie braucht, um korrekte Konfigurationen zu erzeugen.
 
 ## Benutzung
 

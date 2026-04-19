@@ -1,50 +1,36 @@
 ---
 title: Welcome to Tale
-description: Sovereign AI platform — local models, agents, and automations on your own infrastructure.
+description: Sovereign AI platform — chat, knowledge, agents, and automations, available as a managed cloud service or fully self-hosted.
 ---
 
-Tale is an open-source, self-hosted AI platform for teams who want a complete AI application they can own, control, and extend. Chat with AI over your own documents, build custom agents, run automated workflows, and manage customer conversations — all on your own servers, with your choice of AI models.
+Tale is a sovereign AI platform: chat with models over your own documents, build custom agents, run multi-step automations, and manage customer conversations — with your choice of AI providers and your data pinned to a region you control. The same platform ships in two editions — **[Cloud](/cloud)**, managed by us in Switzerland and the EU, and **[Self-hosted](/self-hosted)**, which you run on your own infrastructure. Every feature, every API, every role is identical between the two; only the operational surface differs.
 
-## Choose your path
+## Choose your edition
 
-How you use Tale depends on your role. Each section below is written for a specific audience.
+Start here if you are deciding how Tale is hosted:
 
-### For everyday users
+- **[Cloud](/cloud)** — we run the stack, keep it patched, and host your data in Switzerland or the EU. Best when you want Tale's capabilities without operating the infrastructure.
+- **[Self-hosted](/self-hosted)** — you run the Docker Compose bundle on your own VPC, hardware, or air-gapped environment. Best when data sovereignty, custom networking, or a custom build is a requirement.
 
-**[Use Tale](/use/getting-started)** — chat with the AI, browse your knowledge base, collaborate in canvas, and handle approvals.
+If you already know the edition and want the feature reference, go directly to **[Platform](/platform)** — the canonical documentation for every user-visible feature, applicable to both editions.
 
-_If you use Tale day-to-day to get work done, start here._
+## Choose your role
 
-### For builders
+Tale has six roles — Owner, Admin, Developer, Editor, Member, Disabled — each with a distinct permission set. Role-indexed documentation lives under [Platform](/platform) and applies to both editions:
 
-**[Build with Tale](/build/overview)** — create custom agents, design multi-step automations, manage integrations, and curate structured knowledge.
+- **[Member](/platform/member/overview)** — read-only end user.
+- **[Editor](/platform/editor/overview)** — content management and approvals.
+- **[Developer](/platform/developer/overview)** — agents, automations, integrations.
+- **[Admin](/platform/admin/overview)** — organisation settings.
 
-_If you configure the platform for your team — crafting agents, writing workflows, wiring up integrations — this is your home._
-
-### For admins
-
-**[Administer Tale](/admin/members-and-roles)** — manage members and roles, configure AI providers and SSO, apply governance policies, and review audit logs.
-
-_If you own the org-level settings and policies, go here._
-
-### For operators
-
-**[Operate Tale](/operate/overview)** — deploy, monitor, scale, and troubleshoot a self-hosted Tale instance.
-
-_If you run Tale on infrastructure you own, this section covers deployment, observability, and upgrades._
-
-### For developers
-
-**[Develop with Tale](/develop/api-reference)** — call the REST API, handle webhooks, and contribute to the platform.
-
-_If you integrate Tale with other systems or extend its source code, start here._
+If you are integrating Tale with other systems or contributing to the source, see **[Develop](/develop/api-reference)** — REST API, webhooks, SDK patterns, and contributor workflows live there.
 
 ## What makes Tale different
 
-- **Your infrastructure, your data** — Tale runs entirely on your servers. No per-seat fees, no vendor lock-in, no prompts or documents leaving your network.
-- **Any model** — use OpenAI, Anthropic, Google, Mistral, Meta, or self-hosted models via Ollama, vLLM, or LocalAI.
-- **Built for teams** — six roles from read-only Member to full Owner, organised into teams with scoped knowledge and access.
-- **Certified** — ISO 27001 and SOC 2 Type II, Swiss-based, GDPR-compliant by default.
+- **Your data, your region.** Cloud pins every tenant to Switzerland or the EU, with explicit subprocessor disclosure. Self-hosted leaves the network entirely, including prompts and document content.
+- **Any model.** OpenAI, Anthropic, Google, Mistral, Meta, or self-hosted models via Ollama, vLLM, or LocalAI — switchable per-agent without migration.
+- **Built for teams.** Six roles from read-only Member up to full Owner, organised into teams with scoped knowledge and access.
+- **Certified.** ISO 27001 and SOC 2 Type II, Swiss-based, GDPR-compliant by default.
 
 ## Support and community
 

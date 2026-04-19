@@ -1,71 +1,91 @@
-# Tale Coding Standards
+# Tale — coding standards
 
-## General
+The contract for writing code in this repository. Read this file in full before your first change. Deeper rules for specific surfaces live in dedicated files and are linked from the relevant section.
 
-- USE Bun workspaces for running scripts: `bun run --filter @tale/<workspace> <script>` (e.g., `bun run --filter @tale/platform lint`). Available workspaces: `@tale/platform`, `@tale/cli`, `@tale/crawler`, `@tale/rag`, `@tale/db`, `@tale/proxy`.
-- ALWAYS optimize your code for MAX performance.
-- ALWAYS ensure that you follow the existing design.
-- ALL pages should be optimized for accessibility (Level AA).
-- ALWAYS write filenames in dash-case (generally) and snake_case (for Convex and Python).
-- ALWAYS use sentence case in translations.
-- NEVER delete, remove, or clear databases, caches, state files, or any persistent data without EXPLICIT user permission. This includes local development databases (e.g., SQLite files, Convex local backend state), cache directories, and configuration state. Always ask first before any destructive action.
-- DO NOT write status comments like "REFACTORED:", "UPDATED:", "CHANGED:", "✅ REMOVED:", etc. Write clean, self-documenting code with clear function/variable names instead.
-- DO NOT write inline comments explaining what was removed or changed.
-- DO NOT use `toLocaleDateString()`, `toLocaleTimeString()`, or `toLocaleString()`. Use `useFormatDate()` hook (React) or `formatDate()` from `lib/utils/date/format` instead.
+## Orientation
+
+Tale is a monorepo managed with Bun workspaces. Every script runs through the workspace filter:
+
+```bash
+bun run --filter @tale/<workspace> <script>
+```
+
+Workspaces: `@tale/platform`, `@tale/cli`, `@tale/crawler`, `@tale/rag`, `@tale/db`, `@tale/proxy`, `@tale/docs`.
+
+Sibling guides you may need during a change:
+
+- [`docs/AGENTS.md`](docs/AGENTS.md) — Mintlify documentation rules. Loaded automatically when editing `docs/`.
+- [`.agents/TERMINOLOGY.md`](.agents/TERMINOLOGY.md) — cross-locale translation rules. Per-locale terms live in `TERMINOLOGY_<LOCALE>.md`.
+
+## Non-negotiable rules
+
+These hold across every workspace and language. They are not style preferences.
+
+- **Never destroy state without explicit permission.** Local databases, Convex state, caches, config files, branded seed data — ask before wiping. Assume every file on disk may be the user's in-progress work.
+- **Never hardcode secrets or credentials.** Environment variables only. Scrub logs before committing.
+- **Validate at every system boundary.** User input, external APIs, webhook payloads. Parameterized queries only; never string-concatenate SQL or shell.
+- **Docs ship with the code.** If a change alters what a user sees, configures, or calls, the same PR updates `docs/` in all three locales (`en`, `de`, `fr`). No exceptions. See [`docs/AGENTS.md`](docs/AGENTS.md).
+- **Translations stay in sync.** Every key in `en.json` exists in `de.json` and `fr.json` on the same commit. Variant files (`de-AT`, `de-CH`, `fr-CH`) only hold overrides.
+- **Accessibility is Level AA, not a nice-to-have.** See [Accessibility](#accessibility) below.
+
+## Code style
+
+- **Filenames:** dash-case everywhere except Convex and Python, which use snake_case.
+- **No status comments.** `// REFACTORED`, `// ✅ removed`, `// TODO: see #123` are noise. Write self-documenting code; put context in the commit message or PR.
+- **No comments explaining what was removed.** Removed code is gone; git log is the record.
+- **Comments explain *why*, rarely *what*.** If a well-named identifier already tells the reader what, you are writing redundant prose.
+- **No empty catch blocks.** Log with `console.warn` / `console.error` or re-throw. Silent catches hide real bugs and have before.
+- **No locale-aware date methods.** `toLocaleDateString`, `toLocaleTimeString`, `toLocaleString` are banned. Use `useFormatDate()` in React or `formatDate()` from `lib/utils/date/format`.
+- **Imperative mood in commits.** `add X`, not `added X` or `adds X`.
 
 ## Security
 
-- ALWAYS keep security in mind when writing code.
-- Be careful not to introduce vulnerabilities such as command injection, XSS, SQL injection, and other OWASP top 10 vulnerabilities.
-- DO NOT hardcode secrets, API keys, or credentials. Use environment variables instead.
-- Validate and sanitize all user input at system boundaries.
-- Use parameterized queries for database operations.
+Security is a first pass, not a clean-up step. During every change, check the OWASP top 10 apply: command injection, XSS, SQL injection, SSRF, auth bypass, IDOR, deserialization. If you introduce code that touches a boundary (request handler, file system, shell), assume adversarial input and prove it is safe.
 
-## Git
+## Git and commits
 
-- Refer to `commitlint.config.mjs` for allowed types and scopes.
-- KEEP the first line (header) under 72 characters so it fits as a PR title without truncation.
-- USE lowercase for the description after the colon. Do not end with a period.
-- USE imperative mood in the description (e.g., "add feature" not "added feature").
-- Keep commits focused and atomic.
-- Use the body for additional context when needed (separate from header with a blank line).
+- **Scope and type:** see [`commitlint.config.mjs`](commitlint.config.mjs) for the allowed set.
+- **Header ≤72 characters.** The header becomes the PR title; longer truncates on GitHub.
+- **Lowercase description, no trailing period.** `feat(platform): add arena mode` — not `feat(Platform): Add Arena Mode.`.
+- **Atomic commits.** One logical change per commit. If the message needs "and", it should probably be two commits.
+- **Body for context, header for what.** Separate with a blank line. Use the body to explain *why* a change was made and any non-obvious trade-offs.
 
 ## Testing
 
-- BEFORE modifying existing code, ensure that adequate tests exist. If tests are missing, write them first to lock in current behavior, then make the change.
-- ALWAYS write tests for new features and bug fixes.
-- Tests should cover happy paths, edge cases, and error conditions.
-- Run tests after changes to confirm nothing is broken.
+- **Lock in behaviour before you change it.** If a change touches untested code, write the test first to capture current behaviour, then make the change. The test protects against accidental regressions.
+- **Every new feature and bug fix carries its test.** Happy path, one edge case, one error condition at minimum.
+- **Run the suite after every non-trivial change.** A green suite is the only merge signal.
 
 ## TypeScript
 
-- USE implicit typing whenever possible.
-- DO NOT use type casting (`as`). Use type guards, generics, or proper type narrowing instead. The only exception is framework-generated code or unavoidable third-party library limitations (document with a comment explaining why).
-- DO NOT use `any` or `unknown` unless absolutely unavoidable. Prefer proper types, generics, or `never`.
-- ALWAYS put imports at the top and exports at the bottom. Keep them sorted correctly.
-- PREFER named exports. AVOID default exports (only if needed).
-- AVOID index barrel files as much as possible.
-- PREFER `export const/let`, `export function`, `export class` etc. instead of `export { ... }`.
-- PREFER `export * from` instead of `export { ... } from`.
-- DO NOT export if not needed outside the module.
+- **Implicit typing wins** where the inference is obvious. Annotate public APIs, exported functions, and anywhere the inferred type would be confusing.
+- **Never `as`, never `any`, never `unknown`.** Use type guards, generics, discriminated unions, or `never`. Framework-generated code and a few third-party gaps are the only exceptions — document them with one-line comments.
+- **Imports at the top, exports at the bottom, both sorted.** Prefer `export const`, `export function`, `export class` over `export { ... }`. Prefer `export * from` over re-listing.
+- **Named exports only.** Default exports resist renaming and break grep. Reserve them for framework-required defaults.
+- **Avoid barrel files.** Direct imports keep the dependency graph legible and tree-shaking honest.
+- **Export only what other modules use.** Private helpers stay private.
 
-## React / TanStack Start
+## React and TanStack Start
 
-- ALWAYS add Storybook stories for new UI components in `components/ui/`. Stories should demonstrate all variants, sizes, and key states.
-- Do NOT hardcode text, use the translation hooks/functions instead for user-facing UI.
-- CONSIDER ALWAYS TO use reusable components and standardized styles.
-- USE `useMemo`, `useCallback` and `memo` the right moment.
-- DO NOT overuse `useEffect`.
-- ALWAYS USE `cva` for named variants (e.g., `size: 'sm' | 'md' | 'lg'`, `variant: 'primary' | 'secondary'`). But DO NOT use `cva` for boolean states (e.g., `isActive`, `error`, `muted`). For boolean conditions, use conditional `cn()` patterns instead (e.g., `cn('base-classes', isActive && 'active-classes')`).
-- **`/app`**: Route-specific code (pages, layouts, and subfolders like `components/`, `hooks/`, `actions/`, `utils/` scoped to that route).
-- **`/components`, `/hooks`, `/actions`, `/utils`** (root): Shared/reusable code across multiple routes.
-- USE TanStack Router for navigation with `useNavigate()` and `Link` components.
-- USE the custom `Image` component from `@/components/ui/image` for all images.
+### Layout
 
-### CVA usage
+- **`app/`** holds route-scoped code — pages, layouts, and any local `components/`, `hooks/`, `actions/`, `utils/` used only by that route.
+- **Top-level `components/`, `hooks/`, `actions/`, `utils/`** hold code shared across routes.
+- **Navigation** uses TanStack Router — `useNavigate()` and `<Link>`. No `window.location`.
+- **Images** go through the custom `Image` component from `@/components/ui/image`. Never bare `<img>`.
+
+### Components and state
+
+- **Storybook is part of the component.** New UI primitives in `components/ui/` ship with a story covering every variant, size, and key state.
+- **No hardcoded user-facing strings.** Always the translation hook. A stray English literal in JSX is a bug.
+- **Reach for `useMemo`, `useCallback`, `memo` only when the profile justifies it.** Premature memoization adds indirection and bugs of its own.
+- **Don't reach for `useEffect`.** Most needs are better served by derived state, event handlers, or the router.
+
+### CVA
+
+Use `cva` for named variants (`variant`, `size`, `tone`). Use a conditional `cn()` for boolean states (`isActive`, `hasError`).
 
 ```tsx
-// Good: cva for named variants, cn() for booleans
 const buttonVariants = cva('base-button', {
   variants: {
     variant: {
@@ -84,160 +104,100 @@ const buttonVariants = cva('base-button', {
   className={cn(
     buttonVariants({ variant, size }),
     isActive && 'ring-2 ring-blue-500',
-    error && 'border-red-500',
+    hasError && 'border-red-500',
   )}
 />;
 ```
 
 ## Convex
 
-- CONSIDER TO preload queries with `preloadQuery` and `usePreloadedQuery` in React.
-- CONSIDER TO use rate limiting and action caching.
-- DO NOT use `.collect()`, use `const query = ...; for await (const ... of query)` instead.
-- ALWAYS share validation schemas between client and server using Zod. Validators are organized per domain in `lib/shared/validators/` (e.g., `members.ts`, `products.ts`). Import from `lib/shared/validators` on both client and server. DO NOT duplicate validation logic.
-- Backend functions should return raw data only. All filtering, sorting, pagination happens on the client.
-- DO NOT keep deprecated functions. Remove them entirely instead of marking with `@deprecated`.
-- AVOID conditional endpoint determination. Use separate hardcoded fetch calls instead of if/else to determine endpoints dynamically.
+### Conventions
 
-### Split architecture (Phase 2+)
+- **No `.collect()`.** Iterate with `for await`. `collect` pulls the whole result set into memory and scales badly.
+- **Backend returns raw data.** Filtering, sorting, and pagination happen on the client. Listing queries should not accept `limit`/`cursor` unless a page has unbounded rows.
+- **Shared validation via Zod.** Schemas live in [`lib/shared/validators/`](services/platform/lib/shared/validators/). Import on both client and server. Do not re-declare validation on one side.
+- **Preload where you can.** `preloadQuery` + `usePreloadedQuery` skip client-side loading flashes on route entry.
+- **Delete deprecated functions.** No `@deprecated` tombstones — remove the function, update the callers.
+- **Fetch URLs are hardcoded.** Don't decide endpoints with `if/else`. Two hardcoded calls are cheaper than one conditional call.
 
-- Convex runs as its own Docker service (`services/convex/`). Function source still lives at `services/platform/convex/`; the convex image COPY-es it in at build time.
-- Platform pushes schema + env vars at its startup: `bunx convex env set` then `bunx convex deploy --url http://convex:3210`. This happens in `services/platform/docker-entrypoint.sh`.
-- Convex env vars are PERSISTENT (stored in Convex's own DB), so pushes only need to happen on code/env changes, not on every convex restart.
-- Code updates rebuild the platform image ONLY. The convex container does not restart for function changes — WebSocket clients stay connected.
-- `api.d.ts` is committed to git. Regenerate locally with `bunx convex codegen` against a running backend; commit the result.
-- Local development: `docker compose up convex` then `CONVEX_EXTERNAL=true bun run dev` (Vite proxies to the containerised convex), OR run everything inside the local `bunx convex dev` spawn (default `bun run dev` behaviour — still works).
-- Schema changes: additive (new optional fields, new tables) are safe for rollback. Breaking changes (new required fields, renames, type changes) are effectively forward-only — document a two-release expand-contract migration for them.
-
-### Query iteration
-
-```typescript
-// Good: async iteration
+```ts
+// Good
 const products = ctx.db.query('products');
 for await (const product of products) {
   // process product
 }
 
-// Bad: don't use .collect()
-// const products = await ctx.db.query("products").collect();
+// Bad — loads everything into memory
+const products = await ctx.db.query('products').collect();
 ```
 
-## Internationalization (i18n)
+### Deployment (split architecture)
 
-- KEEP all translation files in sync — every key in `en.json` MUST exist in all base locale files (e.g. `de.json`, `fr.json`). Locale variants (e.g. `de-AT.json`, `de-CH.json`, `fr-CH.json`) only override keys that differ.
-- WHEN adding, changing, or removing a translation key, update `en.json` and all base locale files (e.g. `de.json`, `fr.json`) in the same commit. Update variants (e.g. `de-AT.json`, `de-CH.json`, `fr-CH.json`) only if they override the changed key.
-- WHEN removing code that references translation keys, also remove the unused keys from ALL locale files.
-- LOCALE VARIANTS (e.g. `de-CH`, `de-AT`) only contain keys whose values differ from the base locale (e.g. `de`). Variants fall back to its base automatically.
-- USE sentence case in all translations.
-- PRESERVE ICU placeholders exactly (`{count, plural, ...}`, `{field}`, `{error, select, ...}`).
-- DO NOT translate brand names (Tale, Gmail, Outlook, Shopify, etc.).
-- USE informal form (e.g. "du" not "Sie"). This applies to all languages (e.g., "tu" in French, not "vous").
+The Convex backend is a standalone Docker service; function source lives at [`services/platform/convex/`](services/platform/convex/) and is copied into the Convex image at build time.
 
-### Terminology and style
-
-Cross-locale rules (length parity with English, tone, plurals, placeholders) live in a shared file. Per-language terminology tables and locale-specific quirks live alongside it. Read both the general file and the relevant language file before adding or modifying translations:
-
-- **General (all locales):** [`.agents/TERMINOLOGY.md`](.agents/TERMINOLOGY.md)
-- **English (en):** [`.agents/TERMINOLOGY_EN.md`](.agents/TERMINOLOGY_EN.md)
-- **German (de):** [`.agents/TERMINOLOGY_DE.md`](.agents/TERMINOLOGY_DE.md)
-  - **Austrian German (de-AT):** [`.agents/TERMINOLOGY_DE_AT.md`](.agents/TERMINOLOGY_DE_AT.md) — delta from `de`
-  - **Swiss German (de-CH):** [`.agents/TERMINOLOGY_DE_CH.md`](.agents/TERMINOLOGY_DE_CH.md) — delta from `de`
-- **French (fr):** [`.agents/TERMINOLOGY_FR.md`](.agents/TERMINOLOGY_FR.md)
-  - **Swiss French (fr-CH):** [`.agents/TERMINOLOGY_FR_CH.md`](.agents/TERMINOLOGY_FR_CH.md) — delta from `fr`
-
-The same terminology rules apply to the Mintlify docs under `docs/`. See the "Documentation i18n" subsection below for how those rules map to doc pages.
+- **Platform pushes schema and env vars on startup.** `bunx convex env set` then `bunx convex deploy --url http://convex:3210`, both driven by [`services/platform/docker-entrypoint.sh`](services/platform/docker-entrypoint.sh).
+- **Env vars persist in Convex's own DB.** Only pushed when code or env changes — Convex restarts do not reset them.
+- **Code updates rebuild the platform image only.** Convex keeps serving WebSocket clients without a restart. That is by design.
+- **`api.d.ts` is committed.** Regenerate locally with `bunx convex codegen` against a running backend and commit the result.
+- **Local dev, two modes.** Either `docker compose up convex` + `CONVEX_EXTERNAL=true bun run dev` (Vite proxies to the containerised backend), or plain `bun run dev` (spawns `bunx convex dev`).
+- **Schema changes are effectively forward-only.** Additive changes (new optional fields, new tables) are safe to roll back; required fields, renames, and type changes need a two-release expand-contract migration.
 
 ## Python
 
-- USE snake_case for files, functions, and variables.
-- ORGANIZE code into modules: `routes/`, `services/`, `models/`, `utils/` as needed.
-- PREFER type hints for function signatures.
+- **snake_case** for files, functions, and variables.
+- **Module layout:** `routes/`, `services/`, `models/`, `utils/` under each service. Flat packages beat deep hierarchies.
+- **Type hints on every signature.** Use `from __future__ import annotations` and prefer PEP 604 unions (`str | None`).
+
+## Internationalization
+
+Every user-facing string goes through the translation layer. Never compare against an English literal in code, tests, stories, or comments — the UI can (and does) ship localized labels, and literal comparisons drift silently.
+
+### Keys and files
+
+- **`en.json` is the schema.** Every base locale (`de.json`, `fr.json`) carries the same key set. Variants (`de-AT.json`, `de-CH.json`, `fr-CH.json`) carry only the keys whose values differ — missing keys fall back to the base.
+- **Add, change, and remove keys in every base locale on the same commit.** Variants only move when they override the changed key.
+- **When code that referenced a key disappears, remove the key from every locale.** Dead keys rot in place.
+- **UI wins over terminology.** If `TERMINOLOGY_<LOCALE>.md` disagrees with the shipped label, update the terminology file to match the UI, then propagate the new form into any doc page that quotes it.
+
+### Tone and formatting
+
+- **Sentence case in every translation.**
+- **Informal form across all languages** — `du` in German, `tu` in French. Never `Sie` or `vous`.
+- **ICU placeholders are sacred.** `{count, plural, ...}`, `{field}`, `{error, select, ...}` copy exactly, including argument order.
+- **Brand names don't translate.** Tale, Convex, Gmail, Shopify, OpenRouter, Claude, etc.
+
+### Terminology references
+
+Read both files before editing translations:
+
+- [`.agents/TERMINOLOGY.md`](.agents/TERMINOLOGY.md) — cross-locale rules (length parity, tone, plurals, placeholders).
+- [`.agents/TERMINOLOGY_EN.md`](.agents/TERMINOLOGY_EN.md) — English source terms.
+- [`.agents/TERMINOLOGY_DE.md`](.agents/TERMINOLOGY_DE.md) — German base. Variants: [`DE_AT`](.agents/TERMINOLOGY_DE_AT.md), [`DE_CH`](.agents/TERMINOLOGY_DE_CH.md).
+- [`.agents/TERMINOLOGY_FR.md`](.agents/TERMINOLOGY_FR.md) — French base. Variant: [`FR_CH`](.agents/TERMINOLOGY_FR_CH.md).
+
+The same rules govern docs prose — see [`docs/AGENTS.md`](docs/AGENTS.md) for how they map onto the Mintlify site.
 
 ## Documentation
 
-Docs are part of every change, not a follow-up. The detailed rules live with the docs themselves — read them before editing anything under `docs/`.
+Docs are not a follow-up task. Every change that a user would notice updates the docs in every locale in the same PR. The full rules (taxonomy, writing depth, locale workflow, verification) live in [`docs/AGENTS.md`](docs/AGENTS.md) and are loaded automatically for agents working under `docs/`.
 
-- **Source of truth:** [`docs/AGENTS.md`](docs/AGENTS.md) — taxonomy, writing style, i18n, verification commands. That file is loaded automatically by agents working inside `docs/`; read it in full before your first doc edit.
-- **Non-negotiable rule:** every PR that changes what users see, configure, or interact with — a feature, a setting, an environment variable, an API, a CLI flag, a removal — updates the docs in **every locale** (`en`, `de`, `fr`) in the same commit. Work without up-to-date docs is incomplete and does not merge.
-- **Translation style** follows the same rules as the platform UI (see "Internationalization (i18n)" above): sentence case, informal "du"/"tu", no translated brand names, ICU placeholders preserved. Read [`.agents/TERMINOLOGY.md`](.agents/TERMINOLOGY.md) plus the relevant locale file ([`.agents/TERMINOLOGY_DE.md`](.agents/TERMINOLOGY_DE.md), [`.agents/TERMINOLOGY_FR.md`](.agents/TERMINOLOGY_FR.md)) before translating a doc page. (Platform UI supports two more regional variants — `de-AT`, `de-CH`, `fr-CH` — with their own terminology files in `.agents/`; those do not apply to the docs site because Mintlify does not support those locale codes.)
-- **Before opening a PR that touches `docs/`:** run `bun run --filter @tale/docs format:tables` (normalizes Markdown tables), `bun run --filter @tale/docs lint` (frontmatter across all locales), and `cd docs && bun run broken-links` (Mintlify's link checker). All three must pass.
+Before opening a PR that touches `docs/`, all three of these must pass:
 
-## Accessibility (WCAG 2.1 Level AA)
+```bash
+bun run --filter @tale/docs format:tables  # normalize Markdown tables
+bun run --filter @tale/docs lint           # frontmatter across all locales
+cd docs && bun run broken-links            # Mintlify link checker
+```
 
-All UI must conform to [WCAG 2.1 Level AA](https://www.w3.org/TR/WCAG21/). The rules below apply to every component, page, and feature.
+## Accessibility
 
-### Semantic HTML and landmarks
+Everything Tale ships meets [WCAG 2.1 Level AA](https://www.w3.org/TR/WCAG21/). The rules below are mandatory; they are not aspirational.
 
-- USE semantic HTML elements (`<button>`, `<nav>`, `<main>`, `<header>`, `<footer>`, `<article>`, `<section>`).
-- ENSURE every page has exactly one `<main>` element. Use `<header>`, `<nav aria-label="...">`, `<aside>`, `<footer>` as appropriate.
-- INCLUDE a skip-to-main-content link as the first focusable element in the root layout. Use the `sr-only focus:not-sr-only` pattern.
+### Semantics and landmarks
 
-### Text alternatives and ARIA
-
-- ALWAYS provide text alternatives for non-text content (`alt` for images, `aria-label` for icon buttons).
-- ENSURE decorative images use `alt=""`. Complex images use `aria-describedby` pointing to a longer description.
-- ALWAYS use translation keys for `aria-label` values. Never hardcode English in ARIA attributes.
-
-### Keyboard and focus
-
-- ENSURE all interactive elements are keyboard accessible and have visible focus states.
-- ENSURE focus rings have at least 3:1 contrast against adjacent colors.
-- NEVER trap focus except in modal dialogs. Focus MUST return to the trigger element when a dialog closes.
-- ENSURE interactive elements have a minimum 24×24 CSS pixel touch target (WCAG 2.5.8). Prefer 44×44 for mobile.
-
-### Headings and structure
-
-- USE proper heading hierarchy (`h1` → `h2` → `h3`), never skip heading levels.
-- ENSURE each page has exactly one `h1`.
-
-### Forms
-
-- ALWAYS associate form labels with inputs using `htmlFor` or wrapping.
-- PROVIDE clear error messages that identify the field and describe how to fix the issue.
-- USE `aria-describedby` to link inputs to their descriptions and error messages.
-- USE `aria-invalid` on inputs with validation errors and `role="alert"` on error messages.
-
-### Color and contrast
-
-- ENSURE all text meets 4.5:1 contrast ratio against its background. Large text (18pt+ or 14pt bold) must meet 3:1.
-- ENSURE non-text UI components and graphical objects meet 3:1 contrast.
-- AVOID using color alone to convey information.
-
-### Motion and animation
-
-- ENSURE all animations and transitions respect `prefers-reduced-motion: reduce`.
-- USE the `motion-reduce:` Tailwind prefix for CSS-driven animation overrides.
-
-### Tables
-
-- ENSURE data tables have a `<caption>` (can be visually hidden with `sr-only`).
-- USE `scope="col"` on `<th>` elements.
-- ENSURE selected rows have `aria-selected="true"`.
-
-### Live regions and dynamic content
-
-- USE `aria-live="polite"` for non-urgent updates (toast notifications, status changes).
-- USE `aria-live="assertive"` only for critical alerts.
-- USE `aria-atomic="true"` when the entire region should be re-read.
-
-### Dialogs and overlays
-
-- ENSURE all dialogs have a title (visible or wrapped in `VisuallyHidden`).
-- ENSURE focus is trapped inside open dialogs and returns to the trigger on close.
-
-### Loading states
-
-- USE `aria-busy="true"` on containers whose content is loading.
-- USE `role="status"` with `aria-label` for spinners.
-
-### Testing
-
-- EVERY UI component MUST have an `accessibility` describe block in its test file using `checkAccessibility()` from `@/test/utils/a11y`.
-- EVERY Storybook story is automatically audited via the `addon-a11y` plugin (WCAG 2.1 AA ruleset).
-
-### Examples
-
-#### Skip link
+- **Real HTML elements.** `<button>`, `<nav>`, `<main>`, `<header>`, `<footer>`, `<article>`, `<section>`. `<div onClick>` is not a button.
+- **One `<main>` per page.** Use `<header>`, `<nav aria-label="...">`, `<aside>`, `<footer>` to structure the rest.
+- **Skip link as the first focusable element** in the root layout, using `sr-only focus:not-sr-only`:
 
 ```tsx
 <a
@@ -248,11 +208,31 @@ All UI must conform to [WCAG 2.1 Level AA](https://www.w3.org/TR/WCAG21/). The r
 </a>
 ```
 
-#### Accessible form
+### Text alternatives
+
+- **Every image has an `alt`.** Decorative images use `alt=""`. Complex images reference a longer description via `aria-describedby`.
+- **Every icon-only button has an `aria-label`.** The label goes through the translation layer — never hardcode English in ARIA.
+
+### Keyboard and focus
+
+- **Everything interactive is keyboard-reachable.** Test with `Tab` and `Shift+Tab` before merging.
+- **Focus rings stay visible and meet 3:1 contrast.**
+- **Focus traps only inside modal dialogs.** Focus returns to the trigger on close.
+- **Minimum 24×24 CSS pixel touch target** (WCAG 2.5.8). Prefer 44×44 on mobile.
+
+### Structure
+
+- **One `<h1>` per page.** Never skip heading levels.
+
+### Forms
+
+- **Labels pair with inputs** via `htmlFor` or wrapping.
+- **Errors tell the user what and how.** `"Please enter a valid email address"`, not `"Invalid input"`.
+- **Wire errors to inputs** via `aria-describedby`, `aria-invalid`, and `role="alert"` on the message.
 
 ```tsx
 <div>
-  <label htmlFor="email">Email Address</label>
+  <label htmlFor="email">{t('signup.email.label')}</label>
   <input
     id="email"
     type="email"
@@ -261,24 +241,51 @@ All UI must conform to [WCAG 2.1 Level AA](https://www.w3.org/TR/WCAG21/). The r
   />
   {hasError && (
     <span id="email-error" role="alert">
-      Please enter a valid email address
+      {t('signup.email.error')}
     </span>
   )}
 </div>
 ```
 
-#### Table row selection
+### Colour and contrast
+
+- **Text ≥4.5:1** against its background. Large text (18pt+, or 14pt bold) ≥3:1.
+- **Non-text UI and graphics ≥3:1** against adjacent colours.
+- **Colour never stands alone.** Pair with shape, text, or position.
+
+### Motion
+
+- **Respect `prefers-reduced-motion: reduce`** on every animation and transition. Use the `motion-reduce:` Tailwind prefix for CSS-driven overrides.
+
+### Tables
+
+- **Data tables carry a `<caption>`** (visually hidden with `sr-only` is fine).
+- **`scope="col"` on every `<th>`.**
+- **Selected rows get `aria-selected`:**
 
 ```tsx
-<TableRow aria-selected={row.getIsSelected() || undefined}>
-  {/* row cells */}
-</TableRow>
+<TableRow aria-selected={row.getIsSelected() || undefined}>{/* … */}</TableRow>
 ```
 
-#### Loading state
+### Dynamic content
+
+- **`aria-live="polite"`** for non-urgent updates (toasts, status).
+- **`aria-live="assertive"`** only for truly critical alerts.
+- **`aria-atomic="true"`** when the whole region should be re-read.
+- **Loading containers** use `aria-busy`; spinners are `role="status"` with an `aria-label`:
 
 ```tsx
 <div aria-busy={isLoading}>
   {isLoading ? <Spinner label={t('common.loading')} /> : <Content />}
 </div>
 ```
+
+### Dialogs
+
+- **Every dialog has a title** (visible or wrapped in `VisuallyHidden`).
+- **Focus is trapped while open** and returns to the trigger on close.
+
+### Verification
+
+- **Every UI component has an `accessibility` describe block** in its test file, invoking `checkAccessibility()` from `@/test/utils/a11y`.
+- **Every Storybook story** is audited automatically via the `addon-a11y` plugin against the WCAG 2.1 AA ruleset. A red bar in Storybook is a blocker.

@@ -1,52 +1,38 @@
 ---
 title: Willkommen bei Tale
-description: Souveräne KI-Plattform — lokale Modelle, Agents und Automatisierungen auf deiner eigenen Infrastruktur.
+description: Souveräne KI-Plattform — Chat, Wissen, Agents und Automatisierungen. Als Managed Cloud oder vollständig selbst gehostet verfügbar.
 ---
 
-Tale ist eine Open-Source-Plattform für selbst gehostete KI, die Teams eine vollständige KI-Anwendung gibt, die sie besitzen, steuern und erweitern können. Chatte mit KI über deine eigenen Dokumente, baue eigene Agents, lasse automatisierte Workflows laufen und verwalte Kundenkonversationen — alles auf deinen eigenen Servern, mit den KI-Modellen deiner Wahl.
+Tale ist eine souveräne KI-Plattform: Du führst Chats mit Sprachmodellen über eigenen Dokumenten, baust eigene Agents, erstellst mehrstufige Automatisierungen und verwaltest Kundenkonversationen — alles mit den KI-Anbietern deiner Wahl und mit Daten, die in einer von dir bestimmten Region bleiben. Dieselbe Plattform gibt es in zwei Ausprägungen: als **[Cloud](/de/cloud)**, von uns in der Schweiz und in der EU betrieben, und als **[Self-hosted](/de/self-hosted)** auf deiner eigenen Infrastruktur. Funktional sind beide identisch — nur der Betrieb unterscheidet sich.
 
-## Wähle deinen Einstieg
+## Wähle deine Edition
 
-Wie du Tale nutzt, hängt von deiner Rolle ab. Jeder Abschnitt unten ist für ein bestimmtes Publikum geschrieben.
+Wenn du noch entscheidest, wie Tale bei dir laufen soll, beginne hier:
 
-### Für alltägliche Nutzer
+- **[Cloud](/de/cloud)** — wir betreiben den kompletten Stack, spielen Updates ein und halten deine Daten in der Schweiz oder in der EU. Passend, wenn du Tale nutzen willst, ohne dich um die Infrastruktur zu kümmern.
+- **[Self-hosted](/de/self-hosted)** — du betreibst das Docker-Compose-Bundle in deinem VPC, auf eigener Hardware oder in einer Air-Gap-Umgebung. Passend, wenn Datensouveränität, eigene Netzwerkkonzepte oder ein eigener Build gefordert sind.
 
-**[Tale benutzen](/de/use/getting-started)** — chatte mit der KI, durchsuche deine Wissensdatenbank, arbeite im Canvas zusammen und erledige Freigaben.
+Kennst du die Edition schon und suchst nur die Funktionsreferenz? Gehe direkt in die **[Plattform-Dokumentation](/de/platform)** — sie beschreibt alle Produktfunktionen und gilt für beide Editionen.
 
-_Wenn du Tale täglich benutzt, um deine Arbeit zu erledigen, fange hier an._
+## Wähle deine Rolle
 
-### Für Einrichter
+Tale kennt sechs Rollen — Owner, Admin, Developer, Editor, Member und Disabled — jede mit eigenem Berechtigungsumfang. Die rollenspezifische Dokumentation liegt unter [Platform](/de/platform) und gilt editionsübergreifend:
 
-**[Mit Tale einrichten](/de/build/overview)** — erstelle eigene Agents, gestalte mehrstufige Automatisierungen, verwalte Integrationen und pflege strukturiertes Wissen.
+- **[Member](/de/platform/member/overview)** — Lesezugriff für Endnutzer:innen.
+- **[Editor](/de/platform/editor/overview)** — Inhalte pflegen und Genehmigungen entscheiden.
+- **[Developer](/de/platform/developer/overview)** — Agents, Automatisierungen und Integrationen.
+- **[Admin](/de/platform/admin/overview)** — Organisationseinstellungen.
 
-_Wenn du die Plattform für dein Team konfigurierst — Agents baust, Workflows schreibst, Integrationen anbindest — ist das dein Zuhause._
-
-### Für Admins
-
-**[Tale administrieren](/de/admin/members-and-roles)** — verwalte Mitglieder und Rollen, konfiguriere KI-Anbieter und SSO, setze Governance-Richtlinien um und prüfe Audit-Logs.
-
-_Wenn du die Einstellungen und Richtlinien auf Organisationsebene besitzt, gehe hierhin._
-
-### Für Operatoren
-
-**[Tale betreiben](/de/operate/overview)** — deploye, überwache, skaliere und behebe Fehler auf einer selbst gehosteten Tale-Instanz.
-
-_Wenn du Tale auf eigener Infrastruktur betreibst, behandelt dieser Abschnitt Deployment, Observability und Upgrades._
-
-### Für Entwickler
-
-**[Mit Tale entwickeln](/de/develop/api-reference)** — rufe die REST-API auf, verarbeite Webhooks und trage zur Plattform bei.
-
-_Wenn du Tale mit anderen Systemen integrierst oder den Quellcode erweiterst, fange hier an._
+Wer Tale mit anderen Systemen verbindet oder zum Quellcode beiträgt, findet unter **[Entwickeln](/de/develop/api-reference)** die REST-API, Webhooks, SDK-Muster und Contributor-Workflows.
 
 ## Was Tale auszeichnet
 
-- **Deine Infrastruktur, deine Daten** — Tale läuft vollständig auf deinen Servern. Keine Per-Seat-Gebühren, kein Vendor-Lock-in, keine Prompts oder Dokumente, die dein Netzwerk verlassen.
-- **Jedes Modell** — nutze OpenAI, Anthropic, Google, Mistral, Meta oder selbst gehostete Modelle über Ollama, vLLM oder LocalAI.
-- **Für Teams gebaut** — sechs Rollen vom Nur-Lese-Member bis zum Owner mit voller Kontrolle, organisiert in Teams mit abgegrenztem Wissen und Zugriff.
-- **Zertifiziert** — ISO 27001 und SOC 2 Type II, in der Schweiz ansässig, DSGVO-konform ab Werk.
+- **Deine Daten bleiben in deiner Region.** Cloud weist jeden Tenant fest der Schweiz oder der EU zu und legt alle Subprocessor:innen offen. Self-hosted verlässt das Netzwerk überhaupt nicht — weder Prompts noch Dokumentinhalte.
+- **Freie Modellwahl.** OpenAI, Anthropic, Google, Mistral, Meta oder selbst gehostete Modelle über Ollama, vLLM und LocalAI — pro Agent umschaltbar, ohne Migration.
+- **Auf Teams ausgelegt.** Sechs Rollen — vom lesenden Member bis zum Owner mit voller Kontrolle — lassen sich in Teams mit getrenntem Wissen und getrenntem Zugriff organisieren.
+- **Zertifiziert.** ISO 27001 und SOC 2 Type II. Schweizer Unternehmen, DSGVO-konform ohne Zusatzaufwand.
 
 ## Support und Community
 
-- [GitHub](https://github.com/tale-project/tale) — Quellcode, Issues, Discussions.
+- [GitHub](https://github.com/tale-project/tale) — Quellcode, Issues, Diskussionen.
 - [tale.dev](https://tale.dev) — Produktseite und Release-Ankündigungen.

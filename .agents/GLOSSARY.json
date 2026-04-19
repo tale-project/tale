@@ -1,0 +1,53 @@
+{
+  "_note": "Generated-by-hand (for now) glossary consumed by docs/scripts/lint-terminology.ts. Keep in sync with .agents/TERMINOLOGY_*.md — the markdown files are the human source of truth; this JSON is the machine-readable projection. Each entry in enToLocale[locale] maps an English product term to the shipped UI translation that docs in that locale must use. Entries where the English term equals the locale term are loanwords — not flagged. formalPronouns lists words that indicate the wrong politeness form; docs must use the informal form.",
+  "enToLocale": {
+    "de": {
+      "Prompt Library": "Prompt-Bibliothek",
+      "Knowledge Base": "Wissensdatenbank",
+      "Arbeitsbereich": "Arbeitsbereich",
+      "Workspace": "Arbeitsbereich",
+      "Settings": "Einstellungen",
+      "Automation": "Automatisierung",
+      "Automations": "Automatisierungen",
+      "Integration": "Integration",
+      "Integrations": "Integrationen",
+      "Approval": "Genehmigung",
+      "Approvals": "Genehmigungen",
+      "Research plan": "Recherche-Plan",
+      "Todo list": "Recherche-Plan",
+      "Member": "Member",
+      "Members": "Members",
+      "Provider": "Anbieter",
+      "Providers": "Anbieter",
+      "Canvas": "Canvas",
+      "Composer": "Composer",
+      "Arena Mode": "Arena-Modus"
+    },
+    "fr": {
+      "Canvas": "Canevas",
+      "Prompt Library": "Bibliothèque de prompts",
+      "Knowledge base": "Base de connaissances",
+      "Knowledge Base": "Base de connaissances",
+      "Workspace": "Espace de travail",
+      "Settings": "Paramètres",
+      "Automation": "Automatisation",
+      "Automations": "Automatisations",
+      "Integration": "Intégration",
+      "Integrations": "Intégrations",
+      "Approval": "Approbation",
+      "Approvals": "Approbations",
+      "Research plan": "Plan de recherche",
+      "Todo list": "Plan de recherche",
+      "Provider": "Fournisseur",
+      "Providers": "Fournisseurs",
+      "Website": "Site web",
+      "Websites": "Sites web",
+      "Arena Mode": "Mode Arène",
+      "Composer": "Composeur"
+    }
+  },
+  "formalPronouns": {
+    "de": ["Sie", "Ihnen", "Ihre", "Ihrer", "Ihres", "Ihrem"],
+    "fr": ["vous", "votre", "vos", "Vous", "Votre", "Vos"]
+  }
+}

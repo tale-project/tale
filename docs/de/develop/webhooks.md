@@ -90,5 +90,5 @@ Tale versucht fehlgeschlagene Webhook-Zustellungen (Non-2xx-Antworten, Timeouts)
 ## Siehe auch
 
 - [API-Referenz](/de/develop/api-reference) für die vollständige REST-API.
-- [Trigger](/de/build/automations/triggers) für die Konfiguration von Webhook-Triggern an Workflows.
-- [Agents — Webhook-Tab](/de/build/agents/create#tab-webhook) für die Agent-Webhook-Einrichtung.
+- [Trigger](/de/platform/automations/triggers) für die Konfiguration von Webhook-Triggern an Workflows.
+- [Agents — Webhook-Tab](/de/platform/agents/create#tab-webhook) für die Agent-Webhook-Einrichtung.

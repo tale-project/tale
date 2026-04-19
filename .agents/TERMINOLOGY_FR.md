@@ -1,60 +1,101 @@
 # French (fr) terminology
 
-See [`TERMINOLOGY.md`](TERMINOLOGY.md) for cross-locale rules. The Swiss variant has its own delta file:
+French base locale for the platform UI (`services/platform/messages/fr.json`) and the Mintlify docs (`docs/fr/`). Cross-locale rules — length, tone, plurals, placeholders — live in [`TERMINOLOGY.md`](TERMINOLOGY.md); read that file first. English source forms live in [`TERMINOLOGY_EN.md`](TERMINOLOGY_EN.md).
 
-- Switzerland: [`TERMINOLOGY_FR_CH.md`](TERMINOLOGY_FR_CH.md)
+The Swiss variant extends this file with deltas only:
 
-## Preferred forms
+- [`TERMINOLOGY_FR_CH.md`](TERMINOLOGY_FR_CH.md) — Swiss French
 
-| English                        | French                             | Notes                                                  |
-| ------------------------------ | ---------------------------------- | ------------------------------------------------------ |
-| AI                             | IA                                 | Intelligence artificielle                              |
-| Agent                          | Agent                              | Same in French                                         |
-| Workflow / Dashboard / Webhook | Keep English                       | Established loanwords                                  |
-| API / LLM / Token / Prompt     | Keep English                       | Universal tech terms                                   |
-| Provider                       | Fournisseur                        |                                                        |
-| Settings                       | Paramètres                         |                                                        |
-| Knowledge                      | Connaissances                      |                                                        |
-| Knowledge base                 | Base de connaissances              |                                                        |
-| Workspace                      | Espace de travail                  |                                                        |
-| Automation(s)                  | Automatisation(s)                  |                                                        |
-| Team                           | Équipe                             | Singular form is "équipe" (note the accent)            |
-| Branding                       | Keep English                       | Loanword                                               |
-| Integration(s)                 | Intégration(s)                     | Same root                                              |
-| Save / Delete / Edit           | Enregistrer / Supprimer / Modifier |                                                        |
-| Log in                         | Se connecter                       |                                                        |
-| Log out                        | Se déconnecter                     |                                                        |
-| Sign up                        | S'inscrire                         |                                                        |
-| Upload                         | Téléverser                         | Verb; noun: "téléversement"                            |
-| Download                       | Télécharger                        |                                                        |
-| PII                            | DCP                                | Données à caractère personnel                          |
-| E-mail                         | E-mail                             | With hyphen (Académie française)                       |
-| User                           | Utilisateur/trice                  | Or "utilisateur" in mixed/generic use                  |
-| Browser                        | Navigateur                         |                                                        |
-| Self-hosted                    | Auto-hébergé                       | Hyphenated                                             |
-| On-premises                    | Sur site                           | Alternative loanword: "on-premises"                    |
-| Open source                    | Open source                        | Loanword; invariable                                   |
-| Canvas                         | Canvas                             | Keep English (product feature name)                    |
-| Prompt / Prompt Library        | Prompt / Prompt Library            | Keep English (product feature names)                   |
-| Zero-downtime                  | Zero-downtime                      | Keep English                                           |
-| Blue-green                     | Blue-green                         | Keep English                                           |
+## Product features
+
+Match the UI verbatim — if the two ever disagree, update the UI first, then this file.
+
+| English | French | Notes |
+| --- | --- | --- |
+| Agent | Agent | Same spelling in French. |
+| Workflow | Workflow | Established loanword. |
+| Automation(s) | Automatisation(s) | |
+| Integration(s) | Intégration(s) | |
+| Dashboard | Dashboard | Loanword. |
+| Knowledge | Connaissances | |
+| Knowledge base | Base de connaissances | |
+| Workspace | Espace de travail | |
+| Canvas | Canevas | Matches UI label `chat.canvas.title` — **not** the English `Canvas`. |
+| Composer | Composeur | Matches UI label `composer.openMenu` (`menu du composeur`). |
+| Prompt library | Bibliothèque de prompts | Matches UI label `chat.promptLibrary` — **not** the loanword `Prompt Library`. |
+| Arena Mode | Mode Arène | Matches UI label `chat.arena.title`. Capitalize `Arène` as part of the feature name. |
+| Research plan | Plan de recherche | Matches UI label `todoList.title` — **never** `Liste de tâches`. |
+| Approval / Approvals | Approbation / Approbations | Singular for one pending item; plural for the workspace view. |
+| Human input request | Demande utilisateur | Context: a workflow step paused on a typed answer. Fall back to `Question à l'utilisateur` if the UI string is unclear. |
+| Location request | Demande de localisation | Matches UI label `locationRequest.title`. |
+
+## Knowledge-base entities
+
+| English | French | Notes |
+| --- | --- | --- |
+| Website / Websites | Site web / Sites web | Two words. Matches UI label `websites.title`. |
+| Customer / Customers | Client / Clients | Matches UI label `customers.title`. |
+| Vendor / Vendors | Fournisseur / Fournisseurs | Overloads with `Provider` below — disambiguate by context. For the knowledge-base entity, always `Fournisseur`. |
+| Product / Products | Produit / Produits | Matches UI label `products.title`. |
+| Document / Documents | Document / Documents | Matches UI label `documents.title`. |
+| Thread | **Conversation** | Use `Conversation` in user-facing prose. `Thread` stays only in code and API identifiers. |
+
+## Technical vocabulary
+
+| English | French | Notes |
+| --- | --- | --- |
+| AI | IA | Intelligence artificielle. |
+| API / LLM / Token / Prompt | Keep English | Universal tech terms. |
+| Webhook | Webhook | Loanword. |
+| Provider | Fournisseur | |
+| Settings | Paramètres | |
+| PII | DCP | Données à caractère personnel. Expand on first use per page. |
+| MCP server | Serveur MCP | Matches UI label `mcpServers.title`. |
+| User | Utilisateur | In mixed/generic use. Only reach for `utilisateur·rice` when gender inclusion is essential to the sentence. |
+| Browser | Navigateur | |
+| E-mail | E-mail | Hyphenated, per the Académie française. |
+
+## Actions and state verbs
+
+| English | French | Notes |
+| --- | --- | --- |
+| Save | Enregistrer | |
+| Delete | Supprimer | |
+| Edit | Modifier | |
+| Log in | Se connecter | |
+| Log out | Se déconnecter | |
+| Sign up | S'inscrire | |
+| Upload | Téléverser | Verb; noun form `téléversement`. |
+| Download | Télécharger | |
+
+## Deployment vocabulary
+
+| English | French | Notes |
+| --- | --- | --- |
+| Self-hosted | Auto-hébergé | Hyphenated. |
+| On-premises | Sur site | Alternative loanword: `on-premises`. |
+| Open source | Open source | Loanword; invariable. |
+| Zero-downtime | Zero-downtime | Keep English. |
+| Blue-green | Blue-green | Keep English. |
+| Team | Équipe | Singular form carries the accent. |
+| Branding | Branding | Loanword. |
 
 ## Role names
 
-Tale's roles stay in English as loanwords (matches the UI): **Owner**, **Admin**, **Developer**, **Editor**, **Member**, **Disabled**. In role references, capitalise them.
+The six Tale roles stay in English to match the UI: **Owner**, **Admin**, **Developer**, **Editor**, **Member**, **Disabled**. Capitalize when naming the role.
 
-When "member" is used generically (not as the Member role), translate to **membre(s)** — never leave it as "member" or "members" in French prose. Example: "Les membres de ton équipe utilisent le chat" vs. "Un Member peut consulter l'historique du chat".
+When the word is generic — someone on the team, not the capital-M Member role — translate it to **membre** / **membres**. Never leave `member` or `members` in French prose. Example: *Les membres de ton équipe utilisent le chat* vs. *Un Member peut consulter l'historique du chat*.
 
-## Style rules (French-specific)
+## Style rules
 
-- USE the informal "tu" form consistently — never "vous" for addressing the user.
-- USE « guillemets français » in running prose. Straight `"..."` inside UI labels and code blocks.
-- USE a **non-breaking space** before `:`, `;`, `!`, `?`, and `%`, and inside guillemets (`« texte »`). In markdown that's typically a regular space — rendering normalises it — but preserve the exact character when copying from an authoritative source.
-- USE comma as decimal separator in docs prose (`2,5 Go`). Inside code blocks and env-var values, keep the period (`2.5`).
-- USE narrow non-breaking space as thousands separator (`1 000`).
-- DATES in docs prose: `DD/MM/YYYY` (e.g. `19/04/2026`). In frontmatter and technical context, use ISO (`2026-04-19`).
-- USE 24-hour clock (`09 h 00`, `17 h 30`) in user-facing copy; cron and logs keep their canonical formats.
-- CAPITALISE only the first word of a heading and proper nouns (sentence case): `## Concepts des agents`, not `## Concepts des Agents`.
-- AVOID English gerunds dropped into prose untranslated. "Le monitoring" → "La supervision" where the sense is Tale's built-in Prometheus story; keep "monitoring" if it's a well-established tool-name loanword.
-- USE inclusive gender forms sparingly — prefer neutral nouns ("l'équipe", "les personnes") over the "utilisateur·rice" form in long-form docs. In space-tight UI, `utilisateur` alone is acceptable.
-- CONFIRM UI labels against `messages/fr.json` before quoting them in docs. A doc that tells the user to click "Enregistrer" must match the actual French button label.
+- **`tu`, never `vous`.** The informal form is used consistently across UI and docs.
+- **Quotation marks:** « guillemets français » in running prose. Straight `"..."` inside UI labels and code blocks.
+- **Non-breaking space** before `:`, `;`, `!`, `?`, `%`, and inside guillemets (`« texte »`). Markdown rendering normalizes a regular space, but preserve the exact character when copying from an authoritative source.
+- **Decimal comma** in docs prose (`2,5 Go`). Inside code blocks and env var values, keep the period (`2.5`).
+- **Thousands separator:** narrow non-breaking space (`1 000`).
+- **Dates:** `DD/MM/YYYY` in docs prose (`19/04/2026`). In frontmatter and technical contexts, use ISO (`2026-04-19`).
+- **Times:** 24-hour clock in user-facing copy (`09 h 00`, `17 h 30`). Cron expressions and server logs keep their canonical format.
+- **Headings are sentence case.** Capitalize only the first word and proper nouns — `## Concepts des agents`, not `## Concepts des Agents`.
+- **Gerunds:** avoid untranslated English `-ing` forms. `Le monitoring` → `La supervision` when the sense is Tale's built-in Prometheus story. Keep `monitoring` only when it is a well-established tool-name loanword.
+- **Inclusive forms:** prefer neutral nouns (`l'équipe`, `les personnes`) over `utilisateur·rice` in long-form docs. In space-tight UI, plain `utilisateur` is acceptable.
+- **UI labels must match the product.** Before quoting a button or menu, grep `services/platform/messages/fr.json` to confirm the exact wording.

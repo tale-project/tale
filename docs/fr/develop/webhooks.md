@@ -90,5 +90,5 @@ Tale retente les livraisons webhook échouées (réponses non-2xx, timeouts) ave
 ## Voir aussi
 
 - [Référence API](/fr/develop/api-reference) pour l'API REST complète.
-- [Triggers](/fr/build/automations/triggers) pour configurer des triggers webhook sur les workflows.
-- [Agents — onglet Webhook](/fr/build/agents/create#onglet-webhook) pour la mise en place des webhooks d'agent.
+- [Triggers](/fr/platform/automations/triggers) pour configurer des triggers webhook sur les workflows.
+- [Agents — onglet Webhook](/fr/platform/agents/create#onglet-webhook) pour la mise en place des webhooks d'agent.

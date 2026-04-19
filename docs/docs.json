@@ -75,117 +75,147 @@
             ]
           },
           {
-            "group": "Use Tale",
+            "group": "Cloud",
             "pages": [
-              "use/getting-started",
-              "use/preferences",
-              {
-                "group": "Chat",
-                "pages": [
-                  "use/chat/basics",
-                  "use/chat/attachments",
-                  "use/chat/agents-in-chat",
-                  "use/chat/arena-mode"
-                ]
-              },
-              {
-                "group": "Workspace",
-                "pages": [
-                  "use/workspace/knowledge-base",
-                  "use/workspace/conversations",
-                  "use/workspace/approvals",
-                  "use/workspace/canvas",
-                  "use/workspace/prompt-library",
-                  "use/workspace/document-comparison"
-                ]
-              }
+              "cloud/index"
             ]
           },
           {
-            "group": "Build with Tale",
+            "group": "Self-hosted",
             "pages": [
-              "build/overview",
+              "self-hosted/index",
+              "self-hosted/overview",
               {
-                "group": "Agents",
+                "group": "Install",
                 "pages": [
-                  "build/agents/concepts",
-                  "build/agents/create",
-                  "build/agents/versions"
-                ]
-              },
-              {
-                "group": "Automations",
-                "pages": [
-                  "build/automations/concepts",
-                  "build/automations/workflows",
-                  "build/automations/triggers",
-                  "build/automations/execution-logs"
-                ]
-              },
-              {
-                "group": "Knowledge",
-                "pages": [
-                  "build/knowledge/structured-data",
-                  "build/knowledge/crawling"
-                ]
-              },
-              {
-                "group": "Integrations",
-                "pages": [
-                  "build/integrations/overview",
-                  "build/integrations/providers"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Administer",
-            "pages": [
-              "admin/members-and-roles",
-              "admin/teams",
-              "admin/authentication",
-              "admin/providers",
-              "admin/branding",
-              "admin/governance",
-              "admin/usage-analytics"
-            ]
-          },
-          {
-            "group": "Operate",
-            "pages": [
-              "operate/overview",
-              {
-                "group": "Deployment",
-                "pages": [
-                  "operate/deployment/production",
-                  "operate/deployment/container-architecture"
+                  "self-hosted/install/linux-server"
                 ]
               },
               {
                 "group": "Configuration",
                 "pages": [
-                  "operate/configuration/environment-reference",
-                  "operate/configuration/retention"
+                  "self-hosted/configuration/environment-reference",
+                  "self-hosted/configuration/retention"
                 ]
               },
               {
-                "group": "Observability",
+                "group": "Operate",
                 "pages": [
-                  "operate/observability/operations",
-                  "operate/observability/troubleshooting"
+                  "self-hosted/operate/container-architecture",
+                  {
+                    "group": "Observability",
+                    "pages": [
+                      "self-hosted/operate/observability/operations",
+                      "self-hosted/operate/observability/troubleshooting"
+                    ]
+                  },
+                  {
+                    "group": "Security",
+                    "pages": [
+                      "self-hosted/operate/security/advisories"
+                    ]
+                  },
+                  {
+                    "group": "Release notes",
+                    "pages": [
+                      "self-hosted/operate/release-notes/format",
+                      "self-hosted/operate/release-notes/v0.2.34-split-convex"
+                    ]
+                  }
                 ]
               },
               {
-                "group": "Security",
+                "group": "Authentication",
                 "pages": [
-                  "operate/security/advisories"
+                  "self-hosted/admin/authentication"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Platform",
+            "pages": [
+              "platform/index",
+              {
+                "group": "Chat",
+                "pages": [
+                  "platform/chat/basics",
+                  "platform/chat/attachments",
+                  "platform/chat/agents-in-chat",
+                  "platform/chat/arena-mode"
                 ]
               },
               {
-                "group": "Release notes",
+                "group": "Workspace",
                 "pages": [
-                  "operate/release-notes/format",
-                  "operate/release-notes/v0.2.34-split-convex"
+                  "platform/workspace/knowledge-base",
+                  "platform/workspace/conversations",
+                  "platform/workspace/approvals",
+                  "platform/workspace/canvas",
+                  "platform/workspace/prompt-library",
+                  "platform/workspace/document-comparison"
+                ]
+              },
+              {
+                "group": "Agents",
+                "pages": [
+                  "platform/agents/concepts",
+                  "platform/agents/create",
+                  "platform/agents/versions"
+                ]
+              },
+              {
+                "group": "Automations",
+                "pages": [
+                  "platform/automations/concepts",
+                  "platform/automations/workflows",
+                  "platform/automations/triggers",
+                  "platform/automations/execution-logs"
+                ]
+              },
+              {
+                "group": "Knowledge",
+                "pages": [
+                  "platform/knowledge/structured-data",
+                  "platform/knowledge/crawling"
+                ]
+              },
+              {
+                "group": "Integrations",
+                "pages": [
+                  "platform/integrations/overview",
+                  "platform/integrations/providers"
+                ]
+              },
+              {
+                "group": "Member",
+                "pages": [
+                  "platform/member/overview",
+                  "platform/member/preferences"
+                ]
+              },
+              {
+                "group": "Editor",
+                "pages": [
+                  "platform/editor/overview"
+                ]
+              },
+              {
+                "group": "Developer",
+                "pages": [
+                  "platform/developer/overview"
+                ]
+              },
+              {
+                "group": "Admin",
+                "pages": [
+                  "platform/admin/overview",
+                  "platform/admin/members-and-roles",
+                  "platform/admin/teams",
+                  "platform/admin/providers",
+                  "platform/admin/branding",
+                  "platform/admin/governance",
+                  "platform/admin/usage-analytics"
                 ]
               }
             ]
@@ -233,117 +263,147 @@
             ]
           },
           {
-            "group": "Tale benutzen",
+            "group": "Cloud",
             "pages": [
-              "de/use/getting-started",
-              "de/use/preferences",
-              {
-                "group": "Chat",
-                "pages": [
-                  "de/use/chat/basics",
-                  "de/use/chat/attachments",
-                  "de/use/chat/agents-in-chat",
-                  "de/use/chat/arena-mode"
-                ]
-              },
-              {
-                "group": "Arbeitsbereich",
-                "pages": [
-                  "de/use/workspace/knowledge-base",
-                  "de/use/workspace/conversations",
-                  "de/use/workspace/approvals",
-                  "de/use/workspace/canvas",
-                  "de/use/workspace/prompt-library",
-                  "de/use/workspace/document-comparison"
-                ]
-              }
+              "de/cloud/index"
             ]
           },
           {
-            "group": "Mit Tale einrichten",
+            "group": "Self-hosted",
             "pages": [
-              "de/build/overview",
+              "de/self-hosted/index",
+              "de/self-hosted/overview",
               {
-                "group": "Agents",
+                "group": "Installation",
                 "pages": [
-                  "de/build/agents/concepts",
-                  "de/build/agents/create",
-                  "de/build/agents/versions"
-                ]
-              },
-              {
-                "group": "Automatisierungen",
-                "pages": [
-                  "de/build/automations/concepts",
-                  "de/build/automations/workflows",
-                  "de/build/automations/triggers",
-                  "de/build/automations/execution-logs"
-                ]
-              },
-              {
-                "group": "Wissen",
-                "pages": [
-                  "de/build/knowledge/structured-data",
-                  "de/build/knowledge/crawling"
-                ]
-              },
-              {
-                "group": "Integrationen",
-                "pages": [
-                  "de/build/integrations/overview",
-                  "de/build/integrations/providers"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Administration",
-            "pages": [
-              "de/admin/members-and-roles",
-              "de/admin/teams",
-              "de/admin/authentication",
-              "de/admin/providers",
-              "de/admin/branding",
-              "de/admin/governance",
-              "de/admin/usage-analytics"
-            ]
-          },
-          {
-            "group": "Betrieb",
-            "pages": [
-              "de/operate/overview",
-              {
-                "group": "Deployment",
-                "pages": [
-                  "de/operate/deployment/production",
-                  "de/operate/deployment/container-architecture"
+                  "de/self-hosted/install/linux-server"
                 ]
               },
               {
                 "group": "Konfiguration",
                 "pages": [
-                  "de/operate/configuration/environment-reference",
-                  "de/operate/configuration/retention"
+                  "de/self-hosted/configuration/environment-reference",
+                  "de/self-hosted/configuration/retention"
                 ]
               },
               {
-                "group": "Observability",
+                "group": "Betrieb",
                 "pages": [
-                  "de/operate/observability/operations",
-                  "de/operate/observability/troubleshooting"
+                  "de/self-hosted/operate/container-architecture",
+                  {
+                    "group": "Observability",
+                    "pages": [
+                      "de/self-hosted/operate/observability/operations",
+                      "de/self-hosted/operate/observability/troubleshooting"
+                    ]
+                  },
+                  {
+                    "group": "Sicherheit",
+                    "pages": [
+                      "de/self-hosted/operate/security/advisories"
+                    ]
+                  },
+                  {
+                    "group": "Release Notes",
+                    "pages": [
+                      "de/self-hosted/operate/release-notes/format",
+                      "de/self-hosted/operate/release-notes/v0.2.34-split-convex"
+                    ]
+                  }
                 ]
               },
               {
-                "group": "Sicherheit",
+                "group": "Authentifizierung",
                 "pages": [
-                  "de/operate/security/advisories"
+                  "de/self-hosted/admin/authentication"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Platform",
+            "pages": [
+              "de/platform/index",
+              {
+                "group": "Chat",
+                "pages": [
+                  "de/platform/chat/basics",
+                  "de/platform/chat/attachments",
+                  "de/platform/chat/agents-in-chat",
+                  "de/platform/chat/arena-mode"
                 ]
               },
               {
-                "group": "Release Notes",
+                "group": "Arbeitsbereich",
                 "pages": [
-                  "de/operate/release-notes/format",
-                  "de/operate/release-notes/v0.2.34-split-convex"
+                  "de/platform/workspace/knowledge-base",
+                  "de/platform/workspace/conversations",
+                  "de/platform/workspace/approvals",
+                  "de/platform/workspace/canvas",
+                  "de/platform/workspace/prompt-library",
+                  "de/platform/workspace/document-comparison"
+                ]
+              },
+              {
+                "group": "Agents",
+                "pages": [
+                  "de/platform/agents/concepts",
+                  "de/platform/agents/create",
+                  "de/platform/agents/versions"
+                ]
+              },
+              {
+                "group": "Automatisierungen",
+                "pages": [
+                  "de/platform/automations/concepts",
+                  "de/platform/automations/workflows",
+                  "de/platform/automations/triggers",
+                  "de/platform/automations/execution-logs"
+                ]
+              },
+              {
+                "group": "Wissen",
+                "pages": [
+                  "de/platform/knowledge/structured-data",
+                  "de/platform/knowledge/crawling"
+                ]
+              },
+              {
+                "group": "Integrationen",
+                "pages": [
+                  "de/platform/integrations/overview",
+                  "de/platform/integrations/providers"
+                ]
+              },
+              {
+                "group": "Member",
+                "pages": [
+                  "de/platform/member/overview",
+                  "de/platform/member/preferences"
+                ]
+              },
+              {
+                "group": "Editor",
+                "pages": [
+                  "de/platform/editor/overview"
+                ]
+              },
+              {
+                "group": "Developer",
+                "pages": [
+                  "de/platform/developer/overview"
+                ]
+              },
+              {
+                "group": "Administration",
+                "pages": [
+                  "de/platform/admin/overview",
+                  "de/platform/admin/members-and-roles",
+                  "de/platform/admin/teams",
+                  "de/platform/admin/providers",
+                  "de/platform/admin/branding",
+                  "de/platform/admin/governance",
+                  "de/platform/admin/usage-analytics"
                 ]
               }
             ]
@@ -391,117 +451,147 @@
             ]
           },
           {
-            "group": "Utiliser Tale",
+            "group": "Cloud",
             "pages": [
-              "fr/use/getting-started",
-              "fr/use/preferences",
-              {
-                "group": "Chat",
-                "pages": [
-                  "fr/use/chat/basics",
-                  "fr/use/chat/attachments",
-                  "fr/use/chat/agents-in-chat",
-                  "fr/use/chat/arena-mode"
-                ]
-              },
-              {
-                "group": "Espace de travail",
-                "pages": [
-                  "fr/use/workspace/knowledge-base",
-                  "fr/use/workspace/conversations",
-                  "fr/use/workspace/approvals",
-                  "fr/use/workspace/canvas",
-                  "fr/use/workspace/prompt-library",
-                  "fr/use/workspace/document-comparison"
-                ]
-              }
+              "fr/cloud/index"
             ]
           },
           {
-            "group": "Configurer Tale",
+            "group": "Self-hosted",
             "pages": [
-              "fr/build/overview",
+              "fr/self-hosted/index",
+              "fr/self-hosted/overview",
               {
-                "group": "Agents",
+                "group": "Installation",
                 "pages": [
-                  "fr/build/agents/concepts",
-                  "fr/build/agents/create",
-                  "fr/build/agents/versions"
-                ]
-              },
-              {
-                "group": "Automatisations",
-                "pages": [
-                  "fr/build/automations/concepts",
-                  "fr/build/automations/workflows",
-                  "fr/build/automations/triggers",
-                  "fr/build/automations/execution-logs"
-                ]
-              },
-              {
-                "group": "Connaissances",
-                "pages": [
-                  "fr/build/knowledge/structured-data",
-                  "fr/build/knowledge/crawling"
-                ]
-              },
-              {
-                "group": "Intégrations",
-                "pages": [
-                  "fr/build/integrations/overview",
-                  "fr/build/integrations/providers"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Administration",
-            "pages": [
-              "fr/admin/members-and-roles",
-              "fr/admin/teams",
-              "fr/admin/authentication",
-              "fr/admin/providers",
-              "fr/admin/branding",
-              "fr/admin/governance",
-              "fr/admin/usage-analytics"
-            ]
-          },
-          {
-            "group": "Exploiter",
-            "pages": [
-              "fr/operate/overview",
-              {
-                "group": "Déploiement",
-                "pages": [
-                  "fr/operate/deployment/production",
-                  "fr/operate/deployment/container-architecture"
+                  "fr/self-hosted/install/linux-server"
                 ]
               },
               {
                 "group": "Configuration",
                 "pages": [
-                  "fr/operate/configuration/environment-reference",
-                  "fr/operate/configuration/retention"
+                  "fr/self-hosted/configuration/environment-reference",
+                  "fr/self-hosted/configuration/retention"
                 ]
               },
               {
-                "group": "Observabilité",
+                "group": "Exploitation",
                 "pages": [
-                  "fr/operate/observability/operations",
-                  "fr/operate/observability/troubleshooting"
+                  "fr/self-hosted/operate/container-architecture",
+                  {
+                    "group": "Observabilité",
+                    "pages": [
+                      "fr/self-hosted/operate/observability/operations",
+                      "fr/self-hosted/operate/observability/troubleshooting"
+                    ]
+                  },
+                  {
+                    "group": "Sécurité",
+                    "pages": [
+                      "fr/self-hosted/operate/security/advisories"
+                    ]
+                  },
+                  {
+                    "group": "Notes de version",
+                    "pages": [
+                      "fr/self-hosted/operate/release-notes/format",
+                      "fr/self-hosted/operate/release-notes/v0.2.34-split-convex"
+                    ]
+                  }
                 ]
               },
               {
-                "group": "Sécurité",
+                "group": "Authentification",
                 "pages": [
-                  "fr/operate/security/advisories"
+                  "fr/self-hosted/admin/authentication"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Platform",
+            "pages": [
+              "fr/platform/index",
+              {
+                "group": "Chat",
+                "pages": [
+                  "fr/platform/chat/basics",
+                  "fr/platform/chat/attachments",
+                  "fr/platform/chat/agents-in-chat",
+                  "fr/platform/chat/arena-mode"
                 ]
               },
               {
-                "group": "Notes de version",
+                "group": "Espace de travail",
                 "pages": [
-                  "fr/operate/release-notes/format",
-                  "fr/operate/release-notes/v0.2.34-split-convex"
+                  "fr/platform/workspace/knowledge-base",
+                  "fr/platform/workspace/conversations",
+                  "fr/platform/workspace/approvals",
+                  "fr/platform/workspace/canvas",
+                  "fr/platform/workspace/prompt-library",
+                  "fr/platform/workspace/document-comparison"
+                ]
+              },
+              {
+                "group": "Agents",
+                "pages": [
+                  "fr/platform/agents/concepts",
+                  "fr/platform/agents/create",
+                  "fr/platform/agents/versions"
+                ]
+              },
+              {
+                "group": "Automatisations",
+                "pages": [
+                  "fr/platform/automations/concepts",
+                  "fr/platform/automations/workflows",
+                  "fr/platform/automations/triggers",
+                  "fr/platform/automations/execution-logs"
+                ]
+              },
+              {
+                "group": "Connaissances",
+                "pages": [
+                  "fr/platform/knowledge/structured-data",
+                  "fr/platform/knowledge/crawling"
+                ]
+              },
+              {
+                "group": "Intégrations",
+                "pages": [
+                  "fr/platform/integrations/overview",
+                  "fr/platform/integrations/providers"
+                ]
+              },
+              {
+                "group": "Member",
+                "pages": [
+                  "fr/platform/member/overview",
+                  "fr/platform/member/preferences"
+                ]
+              },
+              {
+                "group": "Editor",
+                "pages": [
+                  "fr/platform/editor/overview"
+                ]
+              },
+              {
+                "group": "Developer",
+                "pages": [
+                  "fr/platform/developer/overview"
+                ]
+              },
+              {
+                "group": "Administration",
+                "pages": [
+                  "fr/platform/admin/overview",
+                  "fr/platform/admin/members-and-roles",
+                  "fr/platform/admin/teams",
+                  "fr/platform/admin/providers",
+                  "fr/platform/admin/branding",
+                  "fr/platform/admin/governance",
+                  "fr/platform/admin/usage-analytics"
                 ]
               }
             ]
@@ -547,11 +637,11 @@
         "items": [
           {
             "label": "Overview",
-            "href": "/operate/overview"
+            "href": "/platform"
           },
           {
             "label": "Features",
-            "href": "/use/chat/basics"
+            "href": "/platform/chat/basics"
           },
           {
             "label": "API reference",
@@ -564,15 +654,15 @@
         "items": [
           {
             "label": "Getting started",
-            "href": "/use/getting-started"
+            "href": "/platform/member/overview"
           },
           {
             "label": "Environment reference",
-            "href": "/operate/configuration/environment-reference"
+            "href": "/self-hosted/configuration/environment-reference"
           },
           {
             "label": "Troubleshooting",
-            "href": "/operate/observability/troubleshooting"
+            "href": "/self-hosted/operate/observability/troubleshooting"
           }
         ]
       },

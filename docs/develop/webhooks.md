@@ -90,5 +90,5 @@ Tale retries failed webhook deliveries (non-2xx responses, timeouts) with expone
 ## See also
 
 - [API reference](/develop/api-reference) for the full REST API.
-- [Triggers](/build/automations/triggers) for configuring webhook triggers on workflows.
-- [Agents — Webhook tab](/build/agents/create#webhook-tab) for agent webhook setup.
+- [Triggers](/platform/automations/triggers) for configuring webhook triggers on workflows.
+- [Agents — Webhook tab](/platform/agents/create#webhook-tab) for agent webhook setup.

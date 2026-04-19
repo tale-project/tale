@@ -43,7 +43,7 @@ Visit https://localhost (or your configured domain) when you see "Tale Platform 
 
 > **Note:** Your browser will show a certificate warning for self-signed certificates. This is safe to accept.
 
-For detailed setup instructions, see the [Getting started guide](docs/use/getting-started.md).
+For detailed setup instructions, see the [Getting started guide](docs/platform/member/overview.md).
 
 ## What can you do?
 
@@ -109,11 +109,11 @@ See the [CLI reference](tools/cli/README.md) for all options and flags.
 tale deploy
 ```
 
-The CLI handles blue-green zero-downtime deployments with automatic health checks and rollback. For full production setup including reverse proxy configuration and subpath deployment, see the [Production deployment guide](docs/operate/deployment/production.md).
+The CLI handles blue-green zero-downtime deployments with automatic health checks and rollback. For full production setup including reverse proxy configuration and subpath deployment, see the [Production deployment guide](docs/self-hosted/install/linux-server.md).
 
 ## Authentication options
 
-Tale uses password-based authentication by default. The first user creates the owner account; all other users are created by an admin. To enable self-service login, connect SSO or trusted headers. See the [Authentication guide](docs/admin/authentication.md) for full details.
+Tale uses password-based authentication by default. The first user creates the owner account; all other users are created by an admin. To enable self-service login, connect SSO or trusted headers. See the [Authentication guide](docs/self-hosted/admin/authentication.md) for full details.
 
 - **Microsoft Entra ID (SSO):** Single sign-on with Microsoft 365 / Azure AD with automatic provisioning
 - **Trusted headers:** For deployments behind an authenticating reverse proxy (Authelia, Authentik, oauth2-proxy)
@@ -168,37 +168,37 @@ The docs are published in six locales (`en`, `de`, `de-AT`, `de-CH`, `fr`, `fr-C
 
 ### For everyday users
 
-- **[Getting started](docs/use/getting-started.md)** — install Tale and open the app
-- **[AI chat basics](docs/use/chat/basics.md)** — chat, attach files, pick agents
-- **[Knowledge base](docs/use/workspace/knowledge-base.md)** — documents and websites
-- **[Conversations](docs/use/workspace/conversations.md)** — customer inbox
-- **[Approvals](docs/use/workspace/approvals.md)** — review AI actions
-- **[Your preferences](docs/use/preferences.md)** — password, language, theme
+- **[Getting started](docs/platform/member/overview.md)** — install Tale and open the app
+- **[AI chat basics](docs/platform/chat/basics.md)** — chat, attach files, pick agents
+- **[Knowledge base](docs/platform/workspace/knowledge-base.md)** — documents and websites
+- **[Conversations](docs/platform/workspace/conversations.md)** — customer inbox
+- **[Approvals](docs/platform/workspace/approvals.md)** — review AI actions
+- **[Your preferences](docs/platform/member/preferences.md)** — password, language, theme
 
 ### For builders (agents, automations, integrations)
 
-- **[What you can build](docs/build/overview.md)** — orientation for Editors/Developers
-- **[Create an agent](docs/build/agents/create.md)** — specialised AI assistants
-- **[Workflows](docs/build/automations/workflows.md)** — multi-step automations
-- **[Structured data](docs/build/knowledge/structured-data.md)** — products, customers, vendors
-- **[Integrations overview](docs/build/integrations/overview.md)** — REST, SQL, e-mail, OneDrive
+- **[What you can build](docs/platform/developer/overview.md)** — orientation for Editors/Developers
+- **[Create an agent](docs/platform/agents/create.md)** — specialised AI assistants
+- **[Workflows](docs/platform/automations/workflows.md)** — multi-step automations
+- **[Structured data](docs/platform/knowledge/structured-data.md)** — products, customers, vendors
+- **[Integrations overview](docs/platform/integrations/overview.md)** — REST, SQL, e-mail, OneDrive
 
 ### For admins
 
-- **[Members and roles](docs/admin/members-and-roles.md)** — user management and permission matrix
-- **[Authentication](docs/admin/authentication.md)** — password, SSO, trusted headers
-- **[AI providers](docs/admin/providers.md)** — configure models in the admin UI
-- **[Governance](docs/admin/governance.md)** — budgets, retention, PII detection, audit logs
-- **[Usage analytics](docs/admin/usage-analytics.md)** — time-based token and cost reporting
+- **[Members and roles](docs/platform/admin/members-and-roles.md)** — user management and permission matrix
+- **[Authentication](docs/self-hosted/admin/authentication.md)** — password, SSO, trusted headers
+- **[AI providers](docs/platform/admin/providers.md)** — configure models in the admin UI
+- **[Governance](docs/platform/admin/governance.md)** — budgets, retention, PII detection, audit logs
+- **[Usage analytics](docs/platform/admin/usage-analytics.md)** — time-based token and cost reporting
 
 ### For operators
 
-- **[Platform overview](docs/operate/overview.md)** — architecture and services
-- **[Production deployment](docs/operate/deployment/production.md)** — Docker Compose, zero-downtime deploys, reverse proxy
+- **[Platform overview](docs/self-hosted/overview.md)** — architecture and services
+- **[Production deployment](docs/self-hosted/install/linux-server.md)** — Docker Compose, zero-downtime deploys, reverse proxy
 - **[Tale CLI](tools/cli/README.md)** — CLI reference
-- **[Environment reference](docs/operate/configuration/environment-reference.md)** — all environment variables
-- **[Operations](docs/operate/observability/operations.md)** — monitoring, error tracking, backups
-- **[Troubleshooting](docs/operate/observability/troubleshooting.md)** — common issues
+- **[Environment reference](docs/self-hosted/configuration/environment-reference.md)** — all environment variables
+- **[Operations](docs/self-hosted/operate/observability/operations.md)** — monitoring, error tracking, backups
+- **[Troubleshooting](docs/self-hosted/operate/observability/troubleshooting.md)** — common issues
 
 ### For developers
 

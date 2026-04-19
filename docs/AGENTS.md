@@ -1,119 +1,227 @@
-# Documentation guidelines
+# Tale docs — contributor guide
 
-Rules for writing and maintaining the Mintlify documentation under `docs/`. These supersede the shorter note in the repository-root `AGENTS.md` and are loaded automatically by agents working inside `docs/`.
+Rules for writing and maintaining the Mintlify documentation under [`docs/`](./). These rules are binding on every change that touches a page in the tree, supersede the shorter note in the root [`AGENTS.md`](../AGENTS.md), and are loaded automatically by agents working inside `docs/`.
 
-## The non-negotiable rule
+## The one rule
 
-Documentation is part of every change, not a follow-up. If a pull request changes what users see, configure, or interact with — a feature, a setting, an environment variable, an API, a CLI flag, a removal — the same PR updates the docs in every locale (`en`, `de`, `fr`). Code without up-to-date docs is incomplete work and should not be merged.
+Documentation is part of every shipping change, not a follow-up. If a pull request alters what users see, configure, or interact with — a feature, a setting, an environment variable, an API response, a CLI flag, a removal — the same PR updates the docs in every published locale (`en`, `de`, `fr`). Code without docs is incomplete work and does not merge.
 
-## Where docs live
+Everything below is mechanics for making that rule easy to follow.
 
-- Pages: Markdown files under `docs/`.
-- Navigation: [`docs/docs.json`](docs.json). Mintlify reads this file to build the site.
-- Scripts: [`docs/scripts/`](scripts/) (Bun + TypeScript).
-- Assets: [`docs/images/`](images/).
+## Where things live
 
-The site is published to Mintlify Cloud directly from the committed repo state — Mintlify does not run any of our scripts. Everything the site needs must be in git at merge time.
-
-## Taxonomy: write for a persona, not a feature
-
-Docs are organized by the reader, not by the feature. When you add a page, place it where its intended audience looks first:
-
-| Directory | Audience |
+| Path | Role |
 | --- | --- |
-| `docs/` root (`index.md`) | landing page and persona entry points |
-| `docs/use/` | end users — Members and Editors using Chat, Workspace, Approvals, Preferences |
-| `docs/build/` | Editors and Developers configuring agents, automations, integrations, structured knowledge |
-| `docs/admin/` | Owners and Admins managing members, teams, providers, branding, governance, analytics |
-| `docs/operate/` | infrastructure operators — deployment, configuration, observability, security, release notes |
-| `docs/develop/` | API consumers and source contributors |
-| `docs/legal/` | privacy policy, terms of service, DPA |
+| `docs/**/*.md` | English pages. The source tree. |
+| `docs/de/**/*.md`, `docs/fr/**/*.md` | Translated mirrors. Same tree shape as English. |
+| [`docs/docs.json`](docs.json) | Mintlify navigation. Edited alongside every page addition/rename/deletion. |
+| [`docs/scripts/`](scripts/) | Bun + TypeScript tooling (table formatter, linter, broken-link checker bindings). |
+| [`docs/images/`](images/) | Assets. Referenced from all three locales. |
+| [`docs/.locale-overrides/`](.locale-overrides/) | Regional variant overrides for the platform UI. **Not used by the Mintlify site** — Mintlify's config does not accept `de-AT`, `de-CH`, `fr-CH`. |
 
-Never mix audiences in one page. End-user guidance does not belong under `operate/` or `develop/`; operator runbooks do not belong under `use/` or `build/`. If a concept genuinely spans audiences, write two short focused pages that cross-link, not one mixed page.
+Mintlify Cloud builds straight from the committed repo state. None of our scripts run on their side — if it is not in git at merge time, it does not exist on the site.
+
+## Taxonomy
+
+Docs are organized on two axes. The first axis is the top-level Mintlify tab; the second axis applies only inside the Self-hosted tab, where readers split by platform role.
+
+### Top-level tabs
+
+| Directory | Tab | Audience |
+| --- | --- | --- |
+| `cloud/` | **Cloud** | Managed-SaaS readers. Onboarding, billing, data residency (Switzerland/EU), trust and compliance, Cloud-specific admin. |
+| `self-hosted/` | **Self-hosted** | Operators running Tale on their own infrastructure, and end users of those instances, split by role. |
+| `platform/` | **Platform** | Product feature reference. Identical for Cloud and Self-hosted. **The single source of truth for every feature** — Cloud and role pages link in. |
+| `develop/` | **Develop** | API consumers, webhook integrators, SDK users, source contributors. |
+| `legal/` | (footer) | Privacy policy, terms of service, DPA. `noindex: true` in frontmatter. |
+
+### Self-hosted sub-structure
+
+Operators and end users share the tab. They live in different subdirectories so each role can be navigated in isolation.
+
+| Subdirectory | Audience |
+| --- | --- |
+| `install/` | First-time installation — Linux, Docker Compose, Kubernetes, TLS. |
+| `cli/` | The `tale` CLI — commands, install, troubleshooting. |
+| `configuration/` | Environment variables, retention, providers, storage, networking. Authoritative reference pages. |
+| `operate/` | Running a live instance — deployments, observability, backups, upgrades, advisories, release notes. |
+| `admin/` | Owner and Admin workflows — members, roles, teams, auth, branding, governance, usage analytics. |
+| `developer/` | Developer-role tasks — agents, automations, integrations, API keys, webhooks. |
+| `editor/` | Editor-role tasks — knowledge base, conversations, approvals, products/customers/vendors. |
+| `member/` | Member-role tasks — chat, read-only knowledge and conversations, preferences. |
+
+### Placement rules
+
+- **Feature reference goes under `platform/`.** One canonical page per feature. Cloud and role pages link in; they do not re-document.
+- **Deployment-only content goes under its flavour tab.** Install docs only apply to Self-hosted; billing only applies to Cloud.
+- **Role pages own the task, platform pages own the concept.** An Editor's how-to on uploading a document lives at `self-hosted/editor/knowledge-base.md`; the full walkthrough lives at `platform/workspace/knowledge-base.md`. Never copy the walkthrough into a role page — link to it.
+- **Owner has no directory.** Owner is Admin plus a small set of org-lifecycle actions, which live in one page: `self-hosted/admin/organization-lifecycle.md`.
+- **Disabled has no docs.** A Disabled account cannot access the product.
+- **Cloud has no role split.** Cloud readers consume `platform/` directly; role permissions are covered by the shared canonical matrix at `self-hosted/admin/members-and-roles.md` (linked from Cloud admin pages).
+
+Never mix audiences in one page. If a concept genuinely spans audiences, write two short pages that cross-link, not one hybrid page.
 
 ## Writing style
 
-- **Frontmatter is required.** Every page has `title` and `description`. Legal pages must also include `noindex: true`.
-- **Filenames are dash-case.** `api-reference.md`, not `api_reference.md` or `APIReference.md`.
-- **Sentence case in headings.** `## Agent concepts`, not `## Agent Concepts`.
-- **One topic per file.** Split rather than append when a page starts covering two things.
-- **Cross-link, don't duplicate.** If you're about to repeat content from another page, link to it instead.
-- **Code blocks always have a language identifier.** `` ```bash ``, `` ```typescript ``, `` ```json ``, etc. — never bare `` ``` ``.
-- **Use Mermaid for architecture and flow diagrams.** Label nodes in full sentences; keep diagrams short enough to read without scrolling.
-- **Align markdown tables.** Pipes lined up, padding consistent. The `format:tables` script normalises every base locale automatically; run it before committing.
-- **Link to sources of truth, not copies.** Prefer `[Environment reference](/operate/configuration/environment-reference)` over re-documenting env vars inline.
-- **Imperative voice for instructions.** "Run `tale deploy`" not "You can run `tale deploy`".
-- **No status chatter in prose.** Don't write "Updated:", "New in v1.6:", "TODO:" — use release notes or git history.
+Every page is judged against the same bar: a reader who lands cold from a search result should come away with the concept *and* the next action they can take. Thin pages that only list bullets fail that bar.
+
+### Mechanics
+
+- **Frontmatter is required.** Every page has `title` and `description`. Legal pages also carry `noindex: true`.
+- **Filenames are dash-case.** `api-reference.md`, never `api_reference.md` or `APIReference.md`.
+- **Headings are sentence case.** `## Agent concepts`, not `## Agent Concepts`.
+- **One topic per file.** When a page drifts into a second subject, split it.
+- **Code blocks always carry a language identifier.** `` ```bash ``, `` ```typescript ``, `` ```json `` — never a bare `` ``` ``.
+- **Tables stay aligned.** Pipes line up, padding matches. Run `bun run --filter @tale/docs format:tables` before committing.
+- **Imperative voice for instructions.** "Run `tale deploy`" — never "You can run `tale deploy`".
+- **Link to sources of truth, never copies.** If an env var is documented in `configuration/environment-reference.md`, link to it; do not re-describe the variable inline.
+- **No status chatter.** `Updated:`, `New in v1.6:`, `TODO:` have no place in prose. Release notes and git history cover that.
+- **Use Mermaid for architecture and flow diagrams.** Label nodes in full sentences; size diagrams to fit on one screen.
+
+### Depth and voice
+
+Short is good. Fragmentary is not. A page that opens with one sentence and a bullet list forces the reader to assemble the mental model themselves, and leaves non-obvious "why" decisions invisible.
+
+- **Every page opens with a 2–4 sentence concept paragraph** that explains what the feature is, who it is for, and why it exists. Single-sentence intros are a bug.
+- **Explain *why*, not only *what*.** `Run tale deploy to apply the new config` tells the reader what to type; `Run tale deploy to trigger a blue-green rollout — the old container keeps serving traffic until the new one passes its health check` tells them why the command is safe in production.
+- **Paragraphs beat bullet lists for prose.** Reserve bullets for parallel items (commands, env vars, options). A bullet list of three items explaining a concept is almost always better as a paragraph.
+- **Short lists are prose.** Fewer than five items? Write a sentence. Tables and bullets are for five or more parallel items.
+- **Define every domain term on first use per page** (`The composer is the chat input at the bottom of the screen`). After the first definition, use the term freely.
+
+### Depth example
+
+The rule in practice:
+
+> ## Add a website
+>
+> Paste the URL. Click **Crawl**. Wait for the pages to index.
+
+Rewritten to meet the bar:
+
+> ## Add a website
+>
+> Adding a website pulls every page under a URL into the knowledge base so agents can answer questions using that content. Crawling runs in the background and can take minutes or hours depending on site size; the tab does not need to stay open.
+>
+> Paste the URL in the composer, open the website panel, and start a crawl. Crawl schedules and refresh cadence are covered separately in [Website crawling](/platform/knowledge/crawling).
 
 ## Internationalization
 
 ### Locales we publish
 
-Three locales, each with full coverage: `en`, `de`, `fr`. English files live at the `docs/` root; German and French live under `docs/de/` and `docs/fr/`. Mintlify does not fall back across languages — a missing translation becomes a 404 in that locale's navigation.
+Three locales, each with full coverage: `en`, `de`, `fr`. English lives at the `docs/` root; German and French live under `docs/de/` and `docs/fr/`. Mintlify does not fall back across languages — a missing translated file turns into a 404 on the navigation entry.
 
-> **Why only three, when the platform UI supports six?** Mintlify's config schema does not accept regional locale codes like `de-AT`, `de-CH`, or `fr-CH` (only `fr-CA` is permitted). The platform UI supports those five extra locales in its own translation files under `services/platform/messages/*.json`; docs readers on those locales see the closest base locale (`de` or `fr`). If Mintlify expands their allowed enum, we can revisit.
+> **Why three locales when the platform UI supports six?** Mintlify's config schema does not accept regional codes (`de-AT`, `de-CH`, `fr-CH`). Those locales exist in the platform UI translation files (`services/platform/messages/*.json`); docs readers on those locales see the closest base. When the Mintlify enum expands, we revisit.
 
-### When you add a page
+### Lifecycle rules
 
-1. Create the file in the English tree at `docs/<path>.md`.
+When you **add** a page:
+
+1. Create the English file at `docs/<path>.md`.
 2. Create translated mirrors at `docs/de/<path>.md` and `docs/fr/<path>.md`.
-3. Add the page to the `pages` array inside **every** `navigation.languages` block in `docs/docs.json` (all three locales) using locale-prefixed paths.
-4. Run `bun run --filter @tale/docs format:tables` to normalise any new Markdown tables.
-5. Stage and commit the locale files and `docs.json` together.
+3. Add the page to every `navigation.languages` block in [`docs/docs.json`](docs.json), using locale-prefixed paths.
+4. Run `bun run --filter @tale/docs format:tables` to normalize any new tables.
+5. Commit the locale files and `docs.json` together.
 
-### When you rename or move a page
+When you **rename or move** a page:
 
-1. Rename the file in every locale tree (`en`, `de`, `fr`).
-2. Update the `pages` entry in every `navigation.languages` block in `docs/docs.json`.
-3. Grep the codebase for the old path (`README.md` at minimum) and update references.
+1. Rename the file in every locale tree.
+2. Update the `pages` entry in every `navigation.languages` block.
+3. Grep the repo for the old path (at minimum [`README.md`](../README.md) and the sibling locales) and update references.
 
-### When you delete a page
+When you **delete** a page:
 
 1. Delete from every locale tree.
-2. Remove from every `navigation.languages` block in `docs/docs.json`.
+2. Remove from every `navigation.languages` block.
 
 ### Editing rules
 
-- **Rewrite internal links to include the locale prefix** in non-English files. A link in `docs/de/build/agents/create.md` points to `/de/build/agents/concepts`, not `/build/agents/concepts`.
-- **Translate frontmatter values** — both `title` and `description`. A German page titled `AI-assisted development` is a bug.
-- **Leave code and diagram syntax alone** — inside `` ``` `` blocks, inside `<CodeGroup>` tags, and inside Mermaid `graph`/`sequenceDiagram` DSL. Only translate Mermaid node labels (the prose inside node shapes), not the arrows or block structure.
-- **Never translate brand names.** Tale, Convex, Mintlify, OpenRouter, Claude, GitHub, Slack, etc.
-- **Keep anchor links stable.** If you change a heading in the English file, the generated slug changes, and any link to `#old-slug` breaks. Update every translated locale's heading (so its slug matches the target's locale-specific heading) when you rename a section.
+- **Locale-prefixed internal links** in non-English files. A link in `docs/de/build/agents/create.md` points to `/de/build/agents/concepts`, not `/build/agents/concepts`.
+- **Translate every frontmatter value.** Both `title` and `description`. A German page with an English title is a bug.
+- **Code and diagram syntax stays put.** Inside fenced code, `<CodeGroup>`, and Mermaid DSL, translate only human-readable node labels. Never the arrows, `participant` keywords, or block structure.
+- **Brand names never translate.** Tale, Convex, Mintlify, OpenRouter, Claude, GitHub, Slack, Gmail, Outlook, Shopify — all stay as-is in every locale.
+- **Keep anchors stable.** Mintlify slugs headings; when you change a heading in one locale, update every locale that links to the anchor, since the generated slug differs per locale.
 
 ### Translation style
 
-- Read `.agents/TERMINOLOGY.md` (at the repository root) for rules that apply to every locale (length parity, tone, plural rules, placeholder handling).
-- Read the locale file before translating or reviewing a page: `.agents/TERMINOLOGY_DE.md` for German, `.agents/TERMINOLOGY_FR.md` for French, `.agents/TERMINOLOGY_EN.md` when authoring English.
-- The `.agents/TERMINOLOGY_DE_AT.md`, `TERMINOLOGY_DE_CH.md`, and `TERMINOLOGY_FR_CH.md` files are for the platform UI only — docs do not have those locale variants.
-- **Informal form** throughout: "du" in German, "tu" in French. Never "Sie" or "vous".
-- **Sentence case** for headings in every locale.
-- **Preserve ICU placeholders** exactly if any appear (`{count, plural, ...}`, `{field}`). Docs usually don't have them, but flag if you see one broken.
+- [`.agents/TERMINOLOGY.md`](../.agents/TERMINOLOGY.md) — cross-locale rules: length parity, tone, plural handling, placeholder preservation.
+- [`.agents/TERMINOLOGY_EN.md`](../.agents/TERMINOLOGY_EN.md) — English source forms.
+- [`.agents/TERMINOLOGY_DE.md`](../.agents/TERMINOLOGY_DE.md) — German base.
+- [`.agents/TERMINOLOGY_FR.md`](../.agents/TERMINOLOGY_FR.md) — French base.
+- Regional variant files (`DE_AT`, `DE_CH`, `FR_CH`) are platform-UI only — docs do not publish those locales.
 
-## Workflow and verification
+Style rules in short:
+
+- **Informal form** everywhere — `du` in German, `tu` in French. Never `Sie` or `vous`.
+- **Sentence case** in headings in every locale.
+- **ICU placeholders preserved exactly** — `{count, plural, ...}`, `{field}`. Rare in docs; flag any you see broken.
+
+### Translate meaning, not words
+
+English-to-German and English-to-French are not word-substitution problems. Sentence structure, idiom, and noun choice all differ across languages. A mechanical, word-for-word render produces sentences native readers reject — even when every individual word is correct.
+
+Concrete rules, every one of which has failed in this repo before:
+
+- **Never calque English metaphors.** `Published certification story` was once rendered into German as *"eine veröffentlichte Zertifizierungsgeschichte"* — literally "a published history of certifications," a phrase no German speaker would write. The natural rendering names the certifications: *"ISO 27001, SOC 2 Type II und DSGVO-Konformität"*. When English reaches for a figurative noun (`story`, `journey`, `posture`, `surface`), translate its *meaning*, not the noun.
+- **Don't borrow English when the target language owns a native word.** `Surface opérationnelle` is an Anglicism; French uses *l'exploitation*. `Operative Seite` is awkward German; prefer *der Betrieb*. Verify the loanword actually exists in the target language with your intended meaning — many do not.
+- **Restructure sentences to fit the target language.** German compound nouns and verb-final subordinate clauses; French preference for relative clauses over stacked noun phrases. If English uses three short clauses and the natural German equivalent is one longer sentence, write the longer sentence.
+- **Prefer concrete nouns to abstract ones.** English tech prose leans on abstractions (`posture`, `story`, `flow`); most readers in the target language prefer the concrete thing. *Trust posture* → *unsere Zertifizierungen* / *nos certifications publiques*.
+- **Read the paragraph aloud.** If it sounds like a translation, rewrite it. A good translation reads as if originally authored in the target language.
+- **When in doubt, drop the figure of speech.** Stating the underlying fact plainly beats a literal rendering that reads as machine-generated.
+
+### UI terms must match the locale's shipped label
+
+Every user-facing term a doc page names — a button, a menu item, a panel title, a feature — **must match the string the UI actually displays in that locale**. The source of truth is `services/platform/messages/<locale>.json`. A German doc telling the user to click `Knowledge Base` when the German UI shows *Wissen* is a bug: the user cannot find what the doc points at.
+
+Rules:
+
+1. **Look up every UI element in the locale's `messages/*.json` and quote it verbatim.** If the key is missing, the string is probably hardcoded in a component — fix that first, then quote the resulting translation.
+2. **Don't carry English over as a loanword unless the UI itself does.** `Canvas` stays `Canvas` in German (UI shows `Canvas`) but becomes `Canevas` in French (UI shows `Canevas`). The [`.agents/TERMINOLOGY_<LOCALE>.md`](../.agents/) tables are the authoritative mapping — update them if the UI changes.
+3. **Code identifiers stay English.** CLI flags (`tale deploy --detach`), env vars (`TALE_CONFIG_DIR`), file paths (`docker-compose.yml`), i18n keys (`chat.canvas.title`) are international and never translate.
+4. **Role names follow the locale's TERMINOLOGY file.** Today all six roles stay as English loanwords because the UI shows them that way. If the UI ever localizes a role, the terminology file updates and docs follow.
+
+Worked examples:
+
+| Scenario | Wrong | Right |
+| --- | --- | --- |
+| German page naming the canvas feature | "Öffne das **Canvas** Panel" | "Öffne das **Canvas**" (matches `chat.canvas.title`) |
+| French page naming the canvas feature | "Ouvre le panneau **Canvas**" | "Ouvre le **Canevas**" (matches `chat.canvas.title`) |
+| German page naming the prompt library | "Öffne die **Prompt Library**" | "Öffne die **Prompt-Bibliothek**" (matches `chat.promptLibrary`) |
+| French page naming the prompt library | "Ouvre la **Prompt Library**" | "Ouvre la **Bibliothèque de prompts**" (matches `chat.promptLibrary`) |
+| German page naming the research plan pane | "Öffne die **Todo-Liste**" | "Öffne den **Recherche-Plan**" (matches `todoList.title`) |
+| French page naming the research plan pane | "Ouvre la **Todo list**" | "Ouvre le **Plan de recherche**" (matches `todoList.title`) |
+| Any locale naming a settings-nav item | "Gehe zu **Settings**" / "Va dans **Settings**" | Quote the locale's `navigation.*` or `settings.*.title` value |
+
+When unsure, grep the locale JSON:
+
+```bash
+grep -F '"Canvas"' services/platform/messages/de.json
+```
+
+## Workflow
 
 ### Local preview
 
 ```bash
 cd docs
-bun install       # first time only
-bun run dev       # runs predev (table formatter) + mintlify dev
+bun install        # first time only
+bun run dev        # predev (table formatter) + mintlify dev
 ```
 
-Click through the language switcher for every section on every locale. A 404 in any locale means a missing locale file or a stale `docs.json` entry.
+Click through the language switcher on every section on every locale. A 404 in any locale means a missing file or a stale `docs.json` entry.
 
-### Lints and checks
+### Before every PR
+
+All three must pass:
 
 ```bash
-bun run --filter @tale/docs format:tables # normalise Markdown tables
-bun run --filter @tale/docs lint          # frontmatter lint across all locales
-cd docs && bun run broken-links           # Mintlify's built-in link checker
+bun run --filter @tale/docs format:tables  # normalize Markdown tables
+bun run --filter @tale/docs lint           # frontmatter across all locales
+cd docs && bun run broken-links            # Mintlify link checker
 ```
-
-All three must pass before you open a PR.
 
 ### Navigation parity
 
-Every `pages` entry across the three `navigation.languages` blocks must resolve to a real `.md` / `.mdx` file. A quick script to catch drift:
+Every `pages` entry across the three `navigation.languages` blocks must resolve to a real `.md` / `.mdx` file. A quick drift check:
 
 ```bash
 cd docs && node -e "
@@ -128,8 +236,8 @@ for (const l of j.navigation.languages) for (const p of collect(l.groups)) {
 
 ## Common pitfalls
 
-- **Forgetting a `navigation.languages` block.** A page in the filesystem but not in docs.json is invisible in that locale.
-- **Translated anchors that don't match the target.** In `docs/de/foo.md`, a link to `/de/bar#some-heading` only works if `docs/de/bar.md` actually has a heading that slugs to `some-heading` in German.
-- **External links cast as internal.** `](/external-site)` is treated as an in-site link and 404s. External links must be fully qualified (`https://…`).
-- **Committing without formatting tables.** Run `bun run --filter @tale/docs format:tables` before every commit that touches `docs/` so CI reviewers don't see alignment noise in diffs.
-- **Duplicating env var or API reference content.** Those pages are authoritative; link to them instead.
+- **Forgetting a `navigation.languages` block.** A file on disk but not in `docs.json` is invisible in that locale.
+- **Translated anchors that don't match their target.** `/de/bar#some-heading` only works if `docs/de/bar.md` has a heading whose German slug is `some-heading`.
+- **External links cast as internal.** `](/external-site)` is treated as in-site and 404s. External links are fully qualified (`https://…`).
+- **Committing without formatting tables.** Run `format:tables` first so reviewers don't wade through alignment noise.
+- **Duplicating env var or API reference content.** The reference pages are authoritative — link to them.

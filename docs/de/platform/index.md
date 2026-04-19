@@ -1,0 +1,39 @@
+---
+title: Platform-Übersicht
+description: Produktdokumentation für Tale — Funktionen, Rollen und Organisationsverwaltung. Gilt identisch für Cloud und Self-hosted.
+---
+
+Platform ist die vollständige Produktdokumentation zu Tale. Sie beschreibt jede nutzerseitige Funktion — Chat, Wissensdatenbank, Agents, Automatisierungen, Integrationen — und enthält zusätzlich rollenspezifische Aufgaben-Leitfäden sowie alle Einstellungen auf Organisationsebene (Mitglieder, Rollen, Teams, Branding, Governance, KI-Anbieter, Analytics). Alles hier gilt gleichermaßen, egal ob du die gemanagte [Cloud](/de/cloud)-Edition nutzt oder eine eigene [Self-hosted](/de/self-hosted)-Instanz betreibst.
+
+Nur editionsspezifische Themen gehören **nicht** hierher: Cloud-Abrechnung, regionale Datenhaltung und gehostetes SSO stehen unter Cloud; Installation, Umgebungskonfiguration, Observability und Release Notes stehen unter Self-hosted. Alles, was du in der Produktoberfläche siehst, ist in diesem Bereich beschrieben.
+
+## Nach Funktion
+
+- **[Chat](/de/platform/chat/basics)** — die Konversationsoberfläche. Anhänge, Agents im Chat, Arena-Modus für den direkten Modellvergleich.
+- **[Arbeitsbereich](/de/platform/workspace/knowledge-base)** — Wissensdatenbank, Konversationen, Genehmigungen, Canvas, Prompt-Bibliothek und Dokumentenvergleich.
+- **[Agents](/de/platform/agents/concepts)** — eigene KI-Assistenten: was sie sind, wie du einen anlegst und wie Versionen funktionieren.
+- **[Automatisierungen](/de/platform/automations/concepts)** — mehrstufige Workflows, Trigger und Ausführungsprotokolle.
+- **[Wissen](/de/platform/knowledge/structured-data)** — strukturierte Daten und Website-Crawling.
+- **[Integrationen](/de/platform/integrations/overview)** — Tale mit KI-Anbietern, Datenquellen und Drittanbieter-Tools verbinden.
+
+## Nach Rolle
+
+Tale kennt sechs Rollen. Vier davon bekommen hier einen aufgabenorientierten Leitfaden; Owner entspricht Admin plus einigen Lebenszyklus-Aktionen; Disabled hat keinen Produktzugang.
+
+- **[Member](/de/platform/member/overview)** — Lesezugriff: Chat nutzen, Wissen durchsuchen, Konversationen und Genehmigungen lesen.
+- **[Editor](/de/platform/editor/overview)** — Member plus Inhaltspflege und Genehmigungsentscheidungen.
+- **[Developer](/de/platform/developer/overview)** — Editor plus Agents, Automatisierungen, Integrationen und API-Schlüssel.
+- **[Admin](/de/platform/admin/overview)** — Developer plus Organisationseinstellungen.
+
+## Organisationsverwaltung
+
+Organisationsweite Einstellungen gelten sowohl für Cloud als auch für Self-hosted, sofern nicht anders vermerkt. Kanonische Referenz:
+
+- [Mitglieder und Rollen](/de/platform/admin/members-and-roles) — die Sechs-Rollen-Rechtematrix.
+- [Teams](/de/platform/admin/teams) — Zugriff auf Wissen und Chat eingrenzen.
+- [KI-Anbieter](/de/platform/admin/providers) — OpenAI, Anthropic, Google und selbst gehostete Modelle konfigurieren.
+- [Branding](/de/platform/admin/branding) — Logos, Farben, Produktname.
+- [Governance](/de/platform/admin/governance) — Regeln für Inhalte und Richtlinien.
+- [Nutzungsanalyse](/de/platform/admin/usage-analytics) — Aktivität pro Person und organisationsweit.
+
+Für die Einrichtung der Authentifizierung (Passwort, SSO, Trusted Headers) siehe [Self-hosted-Authentifizierung](/de/self-hosted/admin/authentication) — die Konfiguration ist self-hosted-spezifisch; in Cloud erledigt das die gehostete Admin-Oberfläche.

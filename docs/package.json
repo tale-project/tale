@@ -11,6 +11,8 @@
     "prebuild": "bun run scripts/format-tables.ts",
     "build": "mintlify build",
     "broken-links": "mintlify broken-links",
-    "lint": "bun run scripts/lint-frontmatter.ts"
+    "lint:frontmatter": "bun run scripts/lint-frontmatter.ts",
+    "lint:terminology": "bun run scripts/lint-terminology.ts",
+    "lint": "bun run lint:frontmatter && bun run lint:terminology"
   }
 }

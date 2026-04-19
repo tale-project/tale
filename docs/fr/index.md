@@ -1,50 +1,36 @@
 ---
 title: Bienvenue sur Tale
-description: Plateforme IA souveraine — modèles locaux, agents et automatisations sur ton infrastructure.
+description: Plateforme IA souveraine — chat, connaissances, agents et automatisations. Disponible en Cloud managé ou entièrement auto-hébergée.
 ---
 
-Tale est une plateforme IA open source, auto-hébergée, pour les équipes qui veulent une application IA complète qu'elles possèdent, contrôlent et étendent. Dialogue avec l'IA sur tes documents, crée des agents personnalisés, exécute des workflows automatisés et gère les conversations clients — tout cela sur tes serveurs, avec les modèles IA de ton choix.
+Tale est une plateforme IA souveraine : tu échanges avec des modèles sur tes propres documents, tu construis tes propres agents, tu exécutes des automatisations multi-étapes et tu gères les conversations clients — le tout avec les fournisseurs d'IA de ton choix et avec tes données hébergées dans la région que tu décides. La même plateforme existe en deux éditions : **[Cloud](/fr/cloud)**, que nous exploitons pour toi en Suisse et dans l'UE, et **[Self-hosted](/fr/self-hosted)**, que tu exploites sur ton infrastructure. Les deux sont identiques côté produit ; seule l'exploitation diffère.
 
-## Choisis ton parcours
+## Choisis ton édition
 
-La façon dont tu utilises Tale dépend de ton rôle. Chaque section ci-dessous s'adresse à un public précis.
+Si tu n'as pas encore décidé comment Tale va tourner chez toi, commence ici :
 
-### Pour les utilisateurs au quotidien
+- **[Cloud](/fr/cloud)** — nous exploitons la stack, la tenons à jour et stockons tes données en Suisse ou dans l'UE. Le bon choix si tu veux utiliser Tale sans t'occuper de l'infrastructure.
+- **[Self-hosted](/fr/self-hosted)** — tu exécutes le bundle Docker Compose dans ton VPC, sur ton propre matériel ou dans un environnement isolé (air-gap). Le bon choix si la souveraineté des données, une configuration réseau particulière ou une build personnalisée sont requises.
 
-**[Utiliser Tale](/fr/use/getting-started)** — discute avec l'IA, parcours ta base de connaissances, collabore dans le canvas et traite les approbations.
+Si tu connais déjà l'édition et cherches simplement la référence des fonctionnalités, passe directement à **[Platform](/fr/platform)** : c'est la documentation complète du produit, commune aux deux éditions.
 
-_Si tu utilises Tale chaque jour pour avancer dans ton travail, commence ici._
+## Choisis ton rôle
 
-### Pour les constructeurs
+Tale comprend six rôles — Owner, Admin, Developer, Editor, Member et Disabled — chacun avec un jeu de permissions distinct. La documentation par rôle vit dans [Platform](/fr/platform) et s'applique aux deux éditions :
 
-**[Configurer Tale](/fr/build/overview)** — crée des agents personnalisés, conçois des automatisations multi-étapes, gère les intégrations et cure les connaissances structurées.
+- **[Member](/fr/platform/member/overview)** — utilisateur en lecture seule.
+- **[Editor](/fr/platform/editor/overview)** — gestion de contenu et décisions d'approbation.
+- **[Developer](/fr/platform/developer/overview)** — agents, automatisations, intégrations.
+- **[Admin](/fr/platform/admin/overview)** — paramètres d'organisation.
 
-_Si tu configures la plateforme pour ton équipe — en construisant des agents, en écrivant des workflows, en câblant des intégrations — c'est ta maison._
+Si tu intègres Tale à d'autres systèmes ou que tu contribues au code source, rends-toi dans **[Développer](/fr/develop/api-reference)** : tu y trouveras l'API REST, les webhooks, les modèles de SDK et les processus de contribution.
 
-### Pour les admins
+## Ce qui distingue Tale
 
-**[Administrer Tale](/fr/admin/members-and-roles)** — gère les members et les rôles, configure les fournisseurs IA et le SSO, applique les politiques de gouvernance et consulte les audit-logs.
-
-_Si tu possèdes les paramètres et les politiques au niveau de l'organisation, va ici._
-
-### Pour les opérateurs
-
-**[Exploiter Tale](/fr/operate/overview)** — déploie, surveille, mets à l'échelle et dépanne une instance Tale auto-hébergée.
-
-_Si tu fais tourner Tale sur ta propre infrastructure, cette section couvre le déploiement, l'observabilité et les upgrades._
-
-### Pour les développeurs
-
-**[Développer avec Tale](/fr/develop/api-reference)** — appelle l'API REST, traite les webhooks et contribue à la plateforme.
-
-_Si tu intègres Tale à d'autres systèmes ou étends son code source, commence ici._
-
-## Ce qui rend Tale différent
-
-- **Ton infrastructure, tes données** — Tale tourne entièrement sur tes serveurs. Pas de frais par siège, pas de verrouillage fournisseur, aucun prompt ni document ne quitte ton réseau.
-- **N'importe quel modèle** — utilise OpenAI, Anthropic, Google, Mistral, Meta ou des modèles auto-hébergés via Ollama, vLLM ou LocalAI.
-- **Pensé pour les équipes** — six rôles, du Member en lecture seule à l'Owner, organisés en équipes avec des connaissances et des accès cloisonnés.
-- **Certifié** — ISO 27001 et SOC 2 Type II, basé en Suisse, conforme RGPD par défaut.
+- **Tes données, ta région.** En Cloud, chaque tenant est rattaché à la Suisse ou à l'UE, avec la liste publique des sous-traitants. En Self-hosted, aucune donnée ne quitte ton réseau — pas même les prompts et le contenu des documents.
+- **Le modèle de ton choix.** OpenAI, Anthropic, Google, Mistral, Meta ou des modèles auto-hébergés via Ollama, vLLM ou LocalAI — interchangeables par agent, sans migration.
+- **Pensé pour les équipes.** Six rôles, du Member en lecture seule à l'Owner avec contrôle complet, organisés en équipes avec des connaissances et des accès cloisonnés.
+- **Certifié.** ISO 27001 et SOC 2 Type II. Entreprise suisse, conforme RGPD par défaut.
 
 ## Support et communauté
 
