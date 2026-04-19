@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 
 import { queryWithRLS } from '../lib/rls';
 import { getExecutionStepJournal as getExecutionStepJournalHelper } from '../workflows/executions/get_execution_step_journal';
+import { getOrgWorkflowMetrics as getOrgWorkflowMetricsHelper } from '../workflows/executions/get_org_workflow_metrics';
 import { getRawExecution as getRawExecutionHelper } from '../workflows/executions/get_raw_execution';
 import { listExecutionsCursor as listExecutionsCursorHelper } from '../workflows/executions/list_executions_cursor';
 import { listExecutionsPaginatedNative } from '../workflows/executions/list_executions_paginated_native';
@@ -76,6 +77,16 @@ export const getExecutionStatus = queryWithRLS({
       completedAt: exec.completedAt,
       output: exec.output,
     };
+  },
+});
+
+export const getOrgWorkflowMetrics = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+    periodDays: v.union(v.literal(7), v.literal(30), v.literal(90)),
+  },
+  handler: async (ctx, args) => {
+    return await getOrgWorkflowMetricsHelper(ctx, args);
   },
 });
 

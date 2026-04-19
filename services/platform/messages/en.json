@@ -1800,6 +1800,44 @@
       "openNamed": "Open {name}",
       "openLoop": "Open loop"
     },
+    "metrics": {
+      "link": "View metrics",
+      "title": "Workflow metrics",
+      "description": "Usage and performance KPIs across your automations.",
+      "cappedNotice": "Showing the most recent 5,000 runs in this window. Older runs in this period are not included in these totals.",
+      "period": {
+        "last7Days": "Last 7 days",
+        "last30Days": "Last 30 days",
+        "last90Days": "Last 90 days"
+      },
+      "cards": {
+        "totalRuns": "Total runs",
+        "successRate": "Success rate",
+        "avgDuration": "Avg duration",
+        "failedRuns": "Failed runs"
+      },
+      "chart": {
+        "trendTitle": "Runs over time",
+        "statusTitle": "Status breakdown",
+        "completed": "Completed",
+        "failed": "Failed",
+        "running": "Running"
+      },
+      "table": {
+        "title": "Top workflows",
+        "workflow": "Workflow",
+        "runs": "Runs",
+        "successRate": "Success rate",
+        "avgDuration": "Avg duration",
+        "failed": "Failed",
+        "lastRun": "Last run"
+      },
+      "empty": {
+        "title": "No workflow runs",
+        "description": "No workflows have run in the selected period.",
+        "noRuns": "No runs in this period"
+      }
+    },
     "createButton": "Create automation",
     "emptyState": {
       "noSteps": "No automation steps to display",

@@ -1798,6 +1798,44 @@
       "openNamed": "Ouvrir {name}",
       "openLoop": "Ouvrir la boucle"
     },
+    "metrics": {
+      "link": "Voir les métriques",
+      "title": "Métriques des workflows",
+      "description": "Indicateurs d'utilisation et de performance de vos automatisations.",
+      "cappedNotice": "Affichage des 5 000 exécutions les plus récentes sur cette période. Les exécutions plus anciennes ne sont pas incluses dans ces totaux.",
+      "period": {
+        "last7Days": "7 derniers jours",
+        "last30Days": "30 derniers jours",
+        "last90Days": "90 derniers jours"
+      },
+      "cards": {
+        "totalRuns": "Exécutions totales",
+        "successRate": "Taux de réussite",
+        "avgDuration": "Durée moyenne",
+        "failedRuns": "Échecs"
+      },
+      "chart": {
+        "trendTitle": "Exécutions dans le temps",
+        "statusTitle": "Répartition par statut",
+        "completed": "Terminées",
+        "failed": "Échouées",
+        "running": "En cours"
+      },
+      "table": {
+        "title": "Top workflows",
+        "workflow": "Workflow",
+        "runs": "Exécutions",
+        "successRate": "Taux de réussite",
+        "avgDuration": "Durée moyenne",
+        "failed": "Échecs",
+        "lastRun": "Dernière exécution"
+      },
+      "empty": {
+        "title": "Aucune exécution",
+        "description": "Aucun workflow n'a été exécuté sur la période sélectionnée.",
+        "noRuns": "Aucune exécution sur cette période"
+      }
+    },
     "createButton": "Créer une automatisation",
     "emptyState": {
       "noSteps": "Aucune étape d'automatisation à afficher",
