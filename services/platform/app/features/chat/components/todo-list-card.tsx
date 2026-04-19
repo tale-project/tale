@@ -28,9 +28,14 @@ type TodoStatus = 'pending' | 'in_progress' | 'done' | 'failed' | 'cancelled';
 interface TodoListCardProps {
   threadId: string;
   className?: string;
+  hideHeader?: boolean;
 }
 
-function TodoListCardComponent({ threadId, className }: TodoListCardProps) {
+function TodoListCardComponent({
+  threadId,
+  className,
+  hideHeader = false,
+}: TodoListCardProps) {
   const { t } = useT('todoList');
   const [collapsed, setCollapsed] = useState(false);
 
@@ -73,42 +78,44 @@ function TodoListCardComponent({ threadId, className }: TodoListCardProps) {
       aria-live="polite"
       aria-label={t('ariaLabel')}
     >
-      <HStack
-        align="center"
-        justify="between"
-        className="gap-2 border-b px-4 py-3"
-      >
-        <HStack align="center" className="min-w-0 gap-2">
-          <Telescope className="text-muted-foreground size-4 shrink-0" />
-          <Text as="div" className="truncate font-medium">
-            {t('title')}
-          </Text>
-          <Badge variant="outline" className="shrink-0">
-            {progressLabel}
-          </Badge>
-          {counts.failed > 0 && (
-            <Badge variant="destructive" className="shrink-0">
-              {t('failedCount', { count: counts.failed })}
+      {!hideHeader && (
+        <HStack
+          align="center"
+          justify="between"
+          className="gap-2 border-b px-4 py-3"
+        >
+          <HStack align="center" className="min-w-0 gap-2">
+            <Telescope className="text-muted-foreground size-4 shrink-0" />
+            <Text as="div" className="truncate font-medium">
+              {t('title')}
+            </Text>
+            <Badge variant="outline" className="shrink-0">
+              {progressLabel}
             </Badge>
-          )}
-        </HStack>
-        <Tooltip content={collapsed ? t('expand') : t('collapse')} side="top">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setCollapsed((prev) => !prev)}
-            aria-label={collapsed ? t('expand') : t('collapse')}
-            aria-expanded={!collapsed}
-          >
-            {collapsed ? (
-              <ChevronRight className="size-4" />
-            ) : (
-              <ChevronDown className="size-4" />
+            {counts.failed > 0 && (
+              <Badge variant="destructive" className="shrink-0">
+                {t('failedCount', { count: counts.failed })}
+              </Badge>
             )}
-          </Button>
-        </Tooltip>
-      </HStack>
-      {!collapsed && (
+          </HStack>
+          <Tooltip content={collapsed ? t('expand') : t('collapse')} side="top">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setCollapsed((prev) => !prev)}
+              aria-label={collapsed ? t('expand') : t('collapse')}
+              aria-expanded={!collapsed}
+            >
+              {collapsed ? (
+                <ChevronRight className="size-4" />
+              ) : (
+                <ChevronDown className="size-4" />
+              )}
+            </Button>
+          </Tooltip>
+        </HStack>
+      )}
+      {(hideHeader || !collapsed) && (
         <ol className="m-0 flex list-none flex-col gap-0 p-0">
           {todosData.todos.map((todo) => (
             <TodoRow key={todo.id} todo={todo} />

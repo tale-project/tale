@@ -146,3 +146,22 @@ export const getApprovalsForThread = internalQuery({
     return approvals;
   },
 });
+
+export const hasPendingHumanInputForThread = internalQuery({
+  args: {
+    threadId: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const match = await ctx.db
+      .query('approvals')
+      .withIndex('by_threadId_status_resourceType', (q) =>
+        q
+          .eq('threadId', args.threadId)
+          .eq('status', 'pending')
+          .eq('resourceType', 'human_input_request'),
+      )
+      .first();
+    return match !== null;
+  },
+});

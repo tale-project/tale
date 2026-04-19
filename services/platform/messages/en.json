@@ -2521,7 +2521,10 @@
     "statusInProgress": "In progress",
     "statusDone": "Done",
     "statusFailed": "Failed",
-    "statusCancelled": "Cancelled"
+    "statusCancelled": "Cancelled",
+    "paneClose": "Close plan",
+    "paneResizeHandle": "Resize plan panel",
+    "stripOpen": "Open research plan"
   },
   "humanInputRequest": {
     "questionTitle": "Question",

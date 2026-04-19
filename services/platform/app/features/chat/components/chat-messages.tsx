@@ -22,7 +22,6 @@ import { CollapsibleSystemMessage } from './collapsible-system-message';
 import { InlineEditInput } from './inline-edit-input';
 import { MessageBubble } from './message-bubble';
 import { ThinkingAnimation } from './thinking-animation';
-import { TodoListCard } from './todo-list-card';
 
 /**
  * Compute the response area min-height so that scrolling to bottom
@@ -516,9 +515,6 @@ export function ChatMessages({
         {t('aria.messageHistory')}
       </h2>
       <div className="flex flex-col gap-3 pt-6">
-        {threadId && (
-          <TodoListCard threadId={threadId} className="mx-auto w-full" />
-        )}
         {(canLoadMore || isLoadingMore) && (
           <div className="flex justify-center py-2">
             <Button

@@ -2521,7 +2521,10 @@
     "statusInProgress": "In Bearbeitung",
     "statusDone": "Erledigt",
     "statusFailed": "Fehlgeschlagen",
-    "statusCancelled": "Abgebrochen"
+    "statusCancelled": "Abgebrochen",
+    "paneClose": "Plan schließen",
+    "paneResizeHandle": "Planbereich vergrößern",
+    "stripOpen": "Recherche-Plan öffnen"
   },
   "humanInputRequest": {
     "questionTitle": "Frage",

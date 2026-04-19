@@ -2519,7 +2519,10 @@
     "statusInProgress": "En cours",
     "statusDone": "Terminé",
     "statusFailed": "Échoué",
-    "statusCancelled": "Annulé"
+    "statusCancelled": "Annulé",
+    "paneClose": "Fermer le plan",
+    "paneResizeHandle": "Redimensionner le panneau de plan",
+    "stripOpen": "Ouvrir le plan de recherche"
   },
   "humanInputRequest": {
     "questionTitle": "Question",

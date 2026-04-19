@@ -1133,6 +1133,14 @@ export const afterGenerateHook = internalAction({
       return null;
     }
 
+    const waitingForHuman = await ctx.runQuery(
+      internal.approvals.internal_queries.hasPendingHumanInputForThread,
+      { threadId },
+    );
+    if (waitingForHuman) {
+      return null;
+    }
+
     const threadMetadata = await ctx.runQuery(
       internal.threads.internal_queries.getThreadMetadata,
       { threadId },
@@ -1148,15 +1156,16 @@ export const afterGenerateHook = internalAction({
 
     const done = todosRecord.todos.filter((t) => t.status === 'done');
     const failed = todosRecord.todos.filter((t) => t.status === 'failed');
-    const unfinished = todosRecord.todos.filter(
-      (t) => t.status === 'pending' || t.status === 'in_progress',
+    const inProgress = todosRecord.todos.filter(
+      (t) => t.status === 'in_progress',
     );
+    const pending = todosRecord.todos.filter((t) => t.status === 'pending');
 
     const lines: string[] = [];
     lines.push('[[CONCLUSION]]');
     if (done.length === 0) {
       lines.push(
-        'I could not gather enough information to answer your question. The research run ended before any todo was completed.',
+        'The research run ended before I could reach a conclusion. The plan below shows where things stood — send a follow-up to continue or narrow the scope.',
       );
     } else {
       lines.push(
@@ -1173,7 +1182,7 @@ export const afterGenerateHook = internalAction({
         lines.push(`- ${findings}`);
       }
     }
-    if (failed.length > 0 || unfinished.length > 0) {
+    if (failed.length > 0 || inProgress.length > 0 || pending.length > 0) {
       lines.push('', '[[DETAILS]]');
       if (failed.length > 0) {
         lines.push('Failed todos:');
@@ -1182,9 +1191,15 @@ export const afterGenerateHook = internalAction({
           lines.push(`- ${todo.content} (${reason})`);
         }
       }
-      if (unfinished.length > 0) {
-        lines.push('Not investigated (ran out of budget or was interrupted):');
-        for (const todo of unfinished) {
+      if (inProgress.length > 0) {
+        lines.push('In progress when the run ended:');
+        for (const todo of inProgress) {
+          lines.push(`- ${todo.content}`);
+        }
+      }
+      if (pending.length > 0) {
+        lines.push('Not yet started:');
+        for (const todo of pending) {
           lines.push(`- ${todo.content}`);
         }
       }

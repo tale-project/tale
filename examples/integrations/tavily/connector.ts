@@ -119,6 +119,25 @@ function truncateToChars(text: string, max: number) {
   return text.slice(0, max) + '… [truncated]';
 }
 
+// Cross-realm-safe array coercion. Accepts arrays, single strings, or
+// array-like objects (the vm.createContext boundary occasionally produces
+// objects where Array.isArray() returns false even though they iterate fine).
+function coerceStringArray(value: unknown): string[] {
+  const out: string[] = [];
+  if (typeof value === 'string') {
+    if (value.length > 0) out.push(value);
+    return out;
+  }
+  if (!value || typeof value !== 'object') return out;
+  const maybeLen = (value as { length?: unknown }).length;
+  if (typeof maybeLen !== 'number' || maybeLen < 0) return out;
+  for (let i = 0; i < maybeLen; i++) {
+    const item = (value as Record<number, unknown>)[i];
+    if (typeof item === 'string' && item.length > 0) out.push(item);
+  }
+  return out;
+}
+
 function handleHttpError(response: HttpResponse, operation: string) {
   if (response.status === 0) return;
   if (response.status === 401 || response.status === 403) {
@@ -210,11 +229,13 @@ function search(
   if (typeof params['search_depth'] === 'string') {
     payload.search_depth = params['search_depth'];
   }
-  if (Array.isArray(params['include_domains'])) {
-    payload.include_domains = params['include_domains'];
+  const includeDomains = coerceStringArray(params['include_domains']);
+  if (includeDomains.length > 0) {
+    payload.include_domains = includeDomains;
   }
-  if (Array.isArray(params['exclude_domains'])) {
-    payload.exclude_domains = params['exclude_domains'];
+  const excludeDomains = coerceStringArray(params['exclude_domains']);
+  if (excludeDomains.length > 0) {
+    payload.exclude_domains = excludeDomains;
   }
   if (typeof params['include_answer'] === 'boolean') {
     payload.include_answer = params['include_answer'];
@@ -282,16 +303,35 @@ function extractUrls(
   params: Record<string, unknown>,
 ) {
   const urlsRaw = params['urls'];
-  if (!Array.isArray(urlsRaw) || urlsRaw.length === 0) {
-    throw new Error('extract requires a non-empty "urls" array.');
+  // Accept three input shapes for robustness:
+  //   1. Array of strings: ["https://...", "https://..."]
+  //   2. Single string: "https://..." (LLM convenience)
+  //   3. Cross-realm array (vm.createContext can occasionally produce one
+  //      where Array.isArray() returns false). Detect via numeric length.
+  const candidates: unknown[] = [];
+  if (typeof urlsRaw === 'string') {
+    candidates.push(urlsRaw);
+  } else if (urlsRaw && typeof urlsRaw === 'object') {
+    const maybeLen = (urlsRaw as { length?: unknown }).length;
+    if (typeof maybeLen === 'number' && maybeLen >= 0) {
+      for (let i = 0; i < maybeLen; i++) {
+        candidates.push((urlsRaw as Record<number, unknown>)[i]);
+      }
+    }
   }
-  const urls = urlsRaw
+
+  const urls = candidates
     .filter(function (u: unknown) {
       return typeof u === 'string' && u.length > 0;
     })
     .slice(0, MAX_EXTRACT_URLS);
+
   if (urls.length === 0) {
-    throw new Error('extract requires at least one valid URL.');
+    throw new Error(
+      'extract requires a non-empty "urls" array (or a single URL string). ' +
+        'Pass URLs from your most relevant tavily.search results, e.g. ' +
+        '{ urls: ["https://example.com/page1", "https://example.com/page2"] }.',
+    );
   }
 
   const payload: Record<string, unknown> = {

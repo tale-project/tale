@@ -178,7 +178,10 @@ async function handleSubmission({
     await ctx.db.patch(threadMeta._id, {
       generationStatus: 'generating' as const,
       streamId,
+      generationStartTime: Date.now(),
       updatedAt: Date.now(),
+      cancelledAt: undefined,
+      cancelledMessageId: undefined,
     });
   }
 
