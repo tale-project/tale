@@ -176,9 +176,15 @@ export function UserButton({
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={markChangelogSeen}
-                        className="text-foreground cursor-pointer underline underline-offset-2 hover:opacity-80"
+                        className="text-foreground relative inline-flex cursor-pointer items-center underline underline-offset-2 hover:opacity-80"
                       >
                         {t('userButton.whatsNew')}
+                        {hasUnseenVersion && (
+                          <span
+                            className="ml-1.5 size-1.5 rounded-full bg-red-500"
+                            aria-hidden="true"
+                          />
+                        )}
                       </a>
                     </Text>
                   )}
@@ -372,6 +378,7 @@ export function UserButton({
     currentVersion,
     releaseUrl,
     markChangelogSeen,
+    hasUnseenVersion,
   ]);
 
   const triggerContent = (
