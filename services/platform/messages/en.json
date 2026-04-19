@@ -254,6 +254,9 @@
     "teamFilter": {
       "allTeams": "All",
       "label": "Team"
+    },
+    "orgSwitcher": {
+      "label": "Organization"
     }
   },
   "knowledge": {
@@ -629,6 +632,21 @@
       "enterCompanyName": "Enter your company name",
       "organizationCreated": "Organization created successfully!",
       "creating": "Creating...",
+      "switching": "Switching\u2026",
+      "switchingTo": "Switching to {name}\u2026",
+      "switchingLabel": "Switching organization",
+      "yourOrganizationsTitle": "Your organizations",
+      "yourOrganizationsDescription": "All organizations you belong to. Switch between them or create a new one.",
+      "switchAction": "Switch",
+      "currentBadge": "Current",
+      "roleLabel": "role",
+      "deleteAriaLabel": "Delete {name}",
+      "deleteDialogTitle": "Delete organization",
+      "deleteDialogDescription": "Delete \"{name}\"? This removes its agents, workflows, providers, and integrations. Members will lose access. This cannot be undone.",
+      "deleteConfirmAction": "Delete organization",
+      "deleteLoading": "Deleting\u2026",
+      "deleteSuccess": "Organization deleted",
+      "deleteFailed": "Failed to delete organization",
       "editMember": "Edit member",
       "removeMember": "Remove member",
       "memberUpdated": "Member updated successfully",

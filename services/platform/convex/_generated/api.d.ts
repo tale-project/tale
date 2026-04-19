@@ -557,6 +557,7 @@ import type * as openai_compat_response_format from "../openai_compat/response_f
 import type * as openai_compat_tool_conversion from "../openai_compat/tool_conversion.js";
 import type * as organizations_actions from "../organizations/actions.js";
 import type * as organizations_create_organization from "../organizations/create_organization.js";
+import type * as organizations_delete_cleanup from "../organizations/delete_cleanup.js";
 import type * as organizations_delete_organization from "../organizations/delete_organization.js";
 import type * as organizations_delete_organization_logo from "../organizations/delete_organization_logo.js";
 import type * as organizations_get_organization from "../organizations/get_organization.js";
@@ -1519,6 +1520,7 @@ declare const fullApi: ApiFromModules<{
   "openai_compat/tool_conversion": typeof openai_compat_tool_conversion;
   "organizations/actions": typeof organizations_actions;
   "organizations/create_organization": typeof organizations_create_organization;
+  "organizations/delete_cleanup": typeof organizations_delete_cleanup;
   "organizations/delete_organization": typeof organizations_delete_organization;
   "organizations/delete_organization_logo": typeof organizations_delete_organization_logo;
   "organizations/get_organization": typeof organizations_get_organization;

@@ -11,7 +11,7 @@
  * with a warning rather than overwriting.
  */
 
-import { readdir, stat, readFile } from 'node:fs/promises';
+import { readdir, rm, stat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { v } from 'convex/values';
@@ -19,7 +19,11 @@ import { v } from 'convex/values';
 import { internalAction } from '../_generated/server';
 import { resolveAgentsDir } from '../agents/file_utils';
 import { resolveIntegrationsDir } from '../integrations/file_utils';
-import { atomicWrite, atomicWriteBuffer } from '../lib/file_io';
+import {
+  atomicWrite,
+  atomicWriteBuffer,
+  verifyPathWithinBase,
+} from '../lib/file_io';
 import { resolveProvidersDir } from '../providers/file_utils';
 import { resolveWorkflowsDir } from '../workflows/file_utils';
 
@@ -96,6 +100,77 @@ async function copyTree(sourceDir: string, targetDir: string): Promise<void> {
     }
   }
 }
+
+/**
+ * Remove a deleted org's per-domain filesystem dirs. Safety:
+ * - Refuses the `default` slug (the global/system org's baseline).
+ * - Uses each domain's own resolver so we only touch paths that follow
+ *   the established convention (no manual string-building).
+ * - Verifies the resolved per-org dir is strictly inside the domain's
+ *   base dir via `verifyPathWithinBase` — blocks slug traversal like
+ *   `../foo` even though `validateOrgSlug` should have already caught it.
+ * - ENOENT on the per-org dir is silently ignored (idempotent; nothing
+ *   to clean up).
+ */
+export const cleanupOrgFilesystem = internalAction({
+  args: {
+    orgSlug: v.string(),
+  },
+  returns: v.null(),
+  handler: async (_ctx, args) => {
+    if (args.orgSlug === 'default') {
+      console.warn(
+        '[cleanupOrgFilesystem] refusing to delete the default org filesystem',
+      );
+      return null;
+    }
+
+    for (const domain of DOMAINS) {
+      const baseDir = domain.resolve('default');
+      let targetDir: string;
+      try {
+        targetDir = domain.resolve(args.orgSlug);
+      } catch (err) {
+        console.warn(
+          `[cleanupOrgFilesystem] ${domain.name}: skipping invalid slug "${args.orgSlug}":`,
+          err instanceof Error ? err.message : err,
+        );
+        continue;
+      }
+
+      // The default-org's base dir is the per-domain baseDir itself; a
+      // per-org dir must be a strict descendant, never equal.
+      if (targetDir === baseDir) {
+        console.warn(
+          `[cleanupOrgFilesystem] ${domain.name}: target equals base dir, skipping`,
+        );
+        continue;
+      }
+
+      try {
+        await verifyPathWithinBase(targetDir, baseDir);
+      } catch (err) {
+        console.warn(
+          `[cleanupOrgFilesystem] ${domain.name}: path traversal guard tripped for "${args.orgSlug}":`,
+          err instanceof Error ? err.message : err,
+        );
+        continue;
+      }
+
+      try {
+        await rm(targetDir, { recursive: true, force: true });
+      } catch (err) {
+        if (errnoCode(err) === 'ENOENT') continue;
+        console.error(
+          `[cleanupOrgFilesystem] ${domain.name}: failed to remove "${targetDir}":`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+
+    return null;
+  },
+});
 
 export const scaffoldNewOrganization = internalAction({
   args: {

@@ -8,8 +8,12 @@ import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
 } from '@/app/components/layout/adaptive-header';
+import { Spinner } from '@/app/components/ui/feedback/spinner';
+import { FullPageCenter } from '@/app/components/ui/layout/full-page-center';
+import { VStack } from '@/app/components/ui/layout/layout';
 import { MobileNavigation } from '@/app/components/ui/navigation/mobile-navigation';
 import { Navigation } from '@/app/components/ui/navigation/navigation';
+import { Text } from '@/app/components/ui/typography/text';
 import {
   AbilityContext,
   AbilityLoadingContext,
@@ -41,6 +45,7 @@ function DashboardLayout() {
   } = useCurrentMemberContext(organizationId, isAuthLoading);
   const { t } = useT('accessDenied');
   const { t: tNotFound } = useT('common');
+  const { t: tSettings } = useT('settings');
 
   // Session-active-org guard: if the session's activeOrganizationId doesn't
   // match the route, silently sync it to the route (user is already verified
@@ -101,6 +106,16 @@ function DashboardLayout() {
   const hasRole = role !== null && !isDisabled;
   const isLoading = isAuthLoading || isQueryLoading || isError;
 
+  // "Switching" state: the route changed but the session/member-context is
+  // still catching up. Without this, the previous org's cached Outlet would
+  // flash briefly during a switch. Render the skeleton until the resolved
+  // member context points at the route's org.
+  const isSwitching =
+    !isLoading &&
+    memberContext?.status === 'ok' &&
+    !!activeOrganizationId &&
+    activeOrganizationId !== organizationId;
+
   useEffect(() => {
     if (isDisabled) {
       toast({
@@ -137,7 +152,19 @@ function DashboardLayout() {
                     organizationId={organizationId}
                   />
                 )}
-                {hasRole || isLoading ? (
+                {isSwitching ? (
+                  <FullPageCenter>
+                    <VStack gap={3} align="center">
+                      <Spinner
+                        size="lg"
+                        label={tSettings('organization.switchingLabel')}
+                      />
+                      <Text variant="muted" className="text-sm">
+                        {tSettings('organization.switching')}
+                      </Text>
+                    </VStack>
+                  </FullPageCenter>
+                ) : hasRole || isLoading ? (
                   <Outlet />
                 ) : status === 'not_found' ? (
                   <AccessDenied

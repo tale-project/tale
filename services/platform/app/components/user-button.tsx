@@ -1,9 +1,12 @@
 'use client';
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
-import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams, useRouter } from '@tanstack/react-router';
-import { useMutation } from 'convex/react';
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useRouter,
+} from '@tanstack/react-router';
 import {
   LogOut,
   Settings,
@@ -34,8 +37,6 @@ import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context'
 import { useLocale } from '@/app/hooks/use-locale';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -70,45 +71,31 @@ export function UserButton({
   const selectedTeamId = teamFilter?.selectedTeamId ?? null;
   const setSelectedTeamId = teamFilter?.setSelectedTeamId;
 
-  const queryClient = useQueryClient();
-  const recordOrgSwitch = useMutation(
-    api.organizations.record_org_switch.recordOrgSwitch,
-  );
   const { organizations: userOrgs } = useUserOrganizationsWithDetails();
   const availableOrgs = useMemo(() => userOrgs ?? [], [userOrgs]);
 
+  const location = useLocation();
   const switchOrganization = useCallback(
-    async (nextOrgId: string) => {
+    (nextOrgId: string) => {
       if (nextOrgId === organizationId) return;
-      try {
-        await authClient.organization.setActive({
-          organizationId: nextOrgId,
-        });
-        // Clear team filter before navigating: the previous team belongs to
-        // the old org and should not carry over.
-        setSelectedTeamId?.(null);
-        await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
-        try {
-          await recordOrgSwitch({ organizationId: nextOrgId });
-        } catch (err) {
-          console.warn('Failed to record org switch audit entry:', err);
-        }
-        // Hard navigation via router.push ensures all query caches keyed by
-        // the old org remount. Avoids stale data flickering across orgs.
-        void navigate({
-          to: '/dashboard/$id',
-          params: { id: nextOrgId },
-          replace: true,
-        });
-      } catch (err) {
-        console.error('Failed to switch organization:', err);
-        toast({
-          title: 'Failed to switch organization',
-          variant: 'destructive',
-        });
-      }
+      // Clear team filter — the previous team belongs to the old org and
+      // should not carry over.
+      setSelectedTeamId?.(null);
+      // Preserve the subpath after /dashboard/{orgId}/... so the user lands
+      // on the same page in the new org (e.g. Settings → Organization stays
+      // Settings → Organization, not a reset to chat).
+      const subpath =
+        location.pathname.match(/^\/dashboard\/[^/]+\/(.*)$/)?.[1] ?? '';
+      // Navigate to the dedicated switching route which owns setActive +
+      // session invalidation + audit logging. Keeping the work there avoids
+      // races between the old route's unmount and the new route's guard.
+      void navigate({
+        to: '/dashboard/switching',
+        search: { to: nextOrgId, subpath: subpath || undefined },
+        replace: true,
+      });
     },
-    [organizationId, navigate, queryClient, recordOrgSwitch, setSelectedTeamId],
+    [organizationId, navigate, setSelectedTeamId, location.pathname],
   );
 
   const { data: memberContext } = useCurrentMemberContext(
@@ -199,7 +186,7 @@ export function UserButton({
       if (availableOrgs.length > 1) {
         settingsGroup.push({
           type: 'sub',
-          label: 'Organization',
+          label: tNav('orgSwitcher.label'),
           icon: Briefcase,
           items: [
             [
@@ -207,7 +194,7 @@ export function UserButton({
                 type: 'radio-group',
                 value: organizationId ?? '',
                 onValueChange: (val) => {
-                  if (val) void switchOrganization(val);
+                  if (val) switchOrganization(val);
                 },
                 options: availableOrgs.map((org) => ({
                   value: org.organizationId,

@@ -17,6 +17,7 @@ import { Route as R2faEnrollRouteImport } from './routes/2fa-enroll'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as ForcedChangePasswordIdRouteImport } from './routes/forced-change-password.$id'
+import { Route as DashboardSwitchingRouteImport } from './routes/dashboard/switching'
 import { Route as DashboardCreateOrganizationRouteImport } from './routes/dashboard/create-organization'
 import { Route as DashboardIdRouteImport } from './routes/dashboard/$id'
 import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up'
@@ -106,6 +107,11 @@ const ForcedChangePasswordIdRoute = ForcedChangePasswordIdRouteImport.update({
   id: '/forced-change-password/$id',
   path: '/forced-change-password/$id',
   getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardSwitchingRoute = DashboardSwitchingRouteImport.update({
+  id: '/switching',
+  path: '/switching',
+  getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardCreateOrganizationRoute =
   DashboardCreateOrganizationRouteImport.update({
@@ -403,6 +409,7 @@ export interface FileRoutesByFullPath {
   '/sign-up': typeof AuthSignUpRoute
   '/dashboard/$id': typeof DashboardIdKnowledgeRouteWithChildren
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
+  '/dashboard/switching': typeof DashboardSwitchingRoute
   '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/$id/agents': typeof DashboardIdAgentsRouteWithChildren
@@ -459,6 +466,7 @@ export interface FileRoutesByTo {
   '/log-in': typeof AuthLogInRoute
   '/sign-up': typeof AuthSignUpRoute
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
+  '/dashboard/switching': typeof DashboardSwitchingRoute
   '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute
   '/dashboard': typeof DashboardIndexRoute
   '/dashboard/$id': typeof DashboardIdIndexRoute
@@ -513,6 +521,7 @@ export interface FileRoutesById {
   '/_auth/sign-up': typeof AuthSignUpRoute
   '/dashboard/$id': typeof DashboardIdRouteWithChildren
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
+  '/dashboard/switching': typeof DashboardSwitchingRoute
   '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/$id/_knowledge': typeof DashboardIdKnowledgeRouteWithChildren
@@ -574,6 +583,7 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/dashboard/$id'
     | '/dashboard/create-organization'
+    | '/dashboard/switching'
     | '/forced-change-password/$id'
     | '/dashboard/'
     | '/dashboard/$id/agents'
@@ -630,6 +640,7 @@ export interface FileRouteTypes {
     | '/log-in'
     | '/sign-up'
     | '/dashboard/create-organization'
+    | '/dashboard/switching'
     | '/forced-change-password/$id'
     | '/dashboard'
     | '/dashboard/$id'
@@ -683,6 +694,7 @@ export interface FileRouteTypes {
     | '/_auth/sign-up'
     | '/dashboard/$id'
     | '/dashboard/create-organization'
+    | '/dashboard/switching'
     | '/forced-change-password/$id'
     | '/dashboard/'
     | '/dashboard/$id/_knowledge'
@@ -799,6 +811,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/forced-change-password/$id'
       preLoaderRoute: typeof ForcedChangePasswordIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/switching': {
+      id: '/dashboard/switching'
+      path: '/switching'
+      fullPath: '/dashboard/switching'
+      preLoaderRoute: typeof DashboardSwitchingRouteImport
+      parentRoute: typeof DashboardRoute
     }
     '/dashboard/create-organization': {
       id: '/dashboard/create-organization'
@@ -1378,12 +1397,14 @@ const DashboardIdRouteWithChildren = DashboardIdRoute._addFileChildren(
 interface DashboardRouteChildren {
   DashboardIdRoute: typeof DashboardIdRouteWithChildren
   DashboardCreateOrganizationRoute: typeof DashboardCreateOrganizationRoute
+  DashboardSwitchingRoute: typeof DashboardSwitchingRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardIdRoute: DashboardIdRouteWithChildren,
   DashboardCreateOrganizationRoute: DashboardCreateOrganizationRoute,
+  DashboardSwitchingRoute: DashboardSwitchingRoute,
   DashboardIndexRoute: DashboardIndexRoute,
 }
 
