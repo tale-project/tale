@@ -1800,6 +1800,44 @@
       "openNamed": "{name} öffnen",
       "openLoop": "Schleife öffnen"
     },
+    "metrics": {
+      "link": "Metriken anzeigen",
+      "title": "Workflow-Metriken",
+      "description": "Nutzungs- und Leistungskennzahlen über alle Automatisierungen.",
+      "cappedNotice": "Es werden die letzten 5.000 Ausführungen in diesem Zeitraum angezeigt. Ältere Ausführungen sind nicht in diesen Summen enthalten.",
+      "period": {
+        "last7Days": "Letzte 7 Tage",
+        "last30Days": "Letzte 30 Tage",
+        "last90Days": "Letzte 90 Tage"
+      },
+      "cards": {
+        "totalRuns": "Ausführungen gesamt",
+        "successRate": "Erfolgsquote",
+        "avgDuration": "Ø Dauer",
+        "failedRuns": "Fehlgeschlagen"
+      },
+      "chart": {
+        "trendTitle": "Ausführungen im Zeitverlauf",
+        "statusTitle": "Statusverteilung",
+        "completed": "Abgeschlossen",
+        "failed": "Fehlgeschlagen",
+        "running": "Läuft"
+      },
+      "table": {
+        "title": "Top-Workflows",
+        "workflow": "Workflow",
+        "runs": "Ausführungen",
+        "successRate": "Erfolgsquote",
+        "avgDuration": "Ø Dauer",
+        "failed": "Fehlgeschlagen",
+        "lastRun": "Letzte Ausführung"
+      },
+      "empty": {
+        "title": "Keine Workflow-Ausführungen",
+        "description": "Im gewählten Zeitraum wurden keine Workflows ausgeführt.",
+        "noRuns": "Keine Ausführungen in diesem Zeitraum"
+      }
+    },
     "createButton": "Automatisierung erstellen",
     "emptyState": {
       "noSteps": "Keine Automatisierungsschritte vorhanden",

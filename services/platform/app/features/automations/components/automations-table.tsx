@@ -2,11 +2,12 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import { type Row } from '@tanstack/react-table';
-import { Workflow } from 'lucide-react';
+import { BarChart3, Workflow } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
+import { LinkButton } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
@@ -201,7 +202,17 @@ export function AutomationsTable({
             setSearchQuery(e.target.value)
           }
         />
-        <AutomationsActionMenu organizationId={organizationId} />
+        <div className="flex items-center gap-2">
+          <LinkButton
+            href="/dashboard/$id/automations/metrics"
+            params={{ id: organizationId }}
+            variant="secondary"
+            icon={BarChart3}
+          >
+            {tAutomations('metrics.link')}
+          </LinkButton>
+          <AutomationsActionMenu organizationId={organizationId} />
+        </div>
       </div>
 
       <DataTable
