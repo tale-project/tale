@@ -27,17 +27,12 @@ crons.cron(
   {},
 );
 
-// Audit log retention - clean up logs older than 90 days, runs daily at 3 AM UTC
+// Central retention cleanup - single entry point that dispatches to all
+// enabled categories (documents, chat history, audit logs, workflow logs,
+// usage ledger, login attempts, temp files) based on each org's
+// retention_policy config. Runs daily at 4 AM UTC.
 crons.cron(
-  'audit log retention cleanup (daily)',
-  '0 3 * * *',
-  internal.audit_logs.internal_mutations.runRetentionCleanup,
-  {},
-);
-
-// Document retention cleanup - delete expired documents daily at 4 AM UTC
-crons.cron(
-  'document retention cleanup (daily)',
+  'central retention cleanup (daily)',
   '0 4 * * *',
   internal.governance.retention_cleanup.runRetentionCleanup,
   {},

@@ -12,7 +12,6 @@ export const GOVERNANCE_POLICY_TYPES = [
   'pii_config',
   'default_models',
   'model_access',
-  'audit_retention',
   'login_policy',
   'password_policy',
   'two_factor_policy',

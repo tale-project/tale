@@ -147,6 +147,149 @@ export const listExpiredDocuments = internalQuery({
   },
 });
 
+export const listExpiredThreads = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const threads = [];
+    for await (const thread of ctx.db
+      .query('threadMetadata')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      const ts = thread.updatedAt ?? thread.createdAt;
+      if (ts >= args.cutoffMs) continue;
+
+      threads.push(thread);
+      if (threads.length >= args.batchSize) {
+        break;
+      }
+    }
+    return threads;
+  },
+});
+
+export const listExpiredWorkflowExecutions = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const executions = [];
+    for await (const execution of ctx.db
+      .query('wfExecutions')
+      .withIndex('by_org', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (execution.startedAt >= args.cutoffMs) continue;
+
+      executions.push(execution);
+      if (executions.length >= args.batchSize) {
+        break;
+      }
+    }
+    return executions;
+  },
+});
+
+export const listExpiredWorkflowTriggerLogs = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const logs = [];
+    for await (const log of ctx.db
+      .query('wfTriggerLogs')
+      .withIndex('by_org', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (log.receivedAt >= args.cutoffMs) continue;
+
+      logs.push(log);
+      if (logs.length >= args.batchSize) {
+        break;
+      }
+    }
+    return logs;
+  },
+});
+
+export const listExpiredUsageLedgerRows = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('usageLedger')
+      .withIndex('by_org_period', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (row._creationTime >= args.cutoffMs) continue;
+
+      rows.push(row);
+      if (rows.length >= args.batchSize) {
+        break;
+      }
+    }
+    return rows;
+  },
+});
+
+export const listExpiredLoginAttempts = internalQuery({
+  args: {
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const attempts = [];
+    for await (const attempt of ctx.db.query('loginAttempts')) {
+      if (attempt.lastFailureAt >= args.cutoffMs) continue;
+
+      attempts.push(attempt);
+      if (attempts.length >= args.batchSize) {
+        break;
+      }
+    }
+    return attempts;
+  },
+});
+
+export const listExpiredLoginBlockCounters = internalQuery({
+  args: {
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const counters = [];
+    for await (const counter of ctx.db
+      .query('loginBlockCounters')
+      .withIndex('by_window')) {
+      if (counter.windowStart >= args.cutoffMs) break;
+
+      counters.push(counter);
+      if (counters.length >= args.batchSize) {
+        break;
+      }
+    }
+    return counters;
+  },
+});
+
 interface BetterAuthTeamMember {
   teamId: string;
 }
