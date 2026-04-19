@@ -36,6 +36,7 @@ export const TOOL_NAMES = [
   'document_write',
   'request_user_location',
   'conversation_read',
+  'update_todos',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];

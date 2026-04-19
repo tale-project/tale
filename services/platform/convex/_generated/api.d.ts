@@ -95,6 +95,7 @@ import type * as agent_tools_sub_agents_helpers_validate_context from "../agent_
 import type * as agent_tools_tool_names from "../agent_tools/tool_names.js";
 import type * as agent_tools_tool_registry from "../agent_tools/tool_registry.js";
 import type * as agent_tools_types from "../agent_tools/types.js";
+import type * as agent_tools_update_todos_update_todos_tool from "../agent_tools/update_todos/update_todos_tool.js";
 import type * as agent_tools_web_helpers_browser_operate from "../agent_tools/web/helpers/browser_operate.js";
 import type * as agent_tools_web_helpers_fetch_and_extract from "../agent_tools/web/helpers/fetch_and_extract.js";
 import type * as agent_tools_web_helpers_format_web_results from "../agent_tools/web/helpers/format_web_results.js";
@@ -454,6 +455,7 @@ import type * as lib_summarization_internal_actions from "../lib/summarization/i
 import type * as lib_summarize_context from "../lib/summarize_context.js";
 import type * as lib_team_access from "../lib/team_access.js";
 import type * as lib_type_cast_helpers from "../lib/type_cast_helpers.js";
+import type * as lib_untrusted_content from "../lib/untrusted_content.js";
 import type * as lib_utils_client_ip from "../lib/utils/client_ip.js";
 import type * as lib_validators_common from "../lib/validators/common.js";
 import type * as lib_validators_json from "../lib/validators/json.js";
@@ -647,6 +649,11 @@ import type * as streaming_internal_mutations from "../streaming/internal_mutati
 import type * as streaming_validators from "../streaming/validators.js";
 import type * as team_members_mutations from "../team_members/mutations.js";
 import type * as team_members_queries from "../team_members/queries.js";
+import type * as thread_todos_helpers from "../thread_todos/helpers.js";
+import type * as thread_todos_internal_mutations from "../thread_todos/internal_mutations.js";
+import type * as thread_todos_internal_queries from "../thread_todos/internal_queries.js";
+import type * as thread_todos_plan_review_ttl from "../thread_todos/plan_review_ttl.js";
+import type * as thread_todos_queries from "../thread_todos/queries.js";
 import type * as threads_archive_chat_thread from "../threads/archive_chat_thread.js";
 import type * as threads_branch_schema from "../threads/branch_schema.js";
 import type * as threads_cancel_generation from "../threads/cancel_generation.js";
@@ -1063,6 +1070,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/tool_names": typeof agent_tools_tool_names;
   "agent_tools/tool_registry": typeof agent_tools_tool_registry;
   "agent_tools/types": typeof agent_tools_types;
+  "agent_tools/update_todos/update_todos_tool": typeof agent_tools_update_todos_update_todos_tool;
   "agent_tools/web/helpers/browser_operate": typeof agent_tools_web_helpers_browser_operate;
   "agent_tools/web/helpers/fetch_and_extract": typeof agent_tools_web_helpers_fetch_and_extract;
   "agent_tools/web/helpers/format_web_results": typeof agent_tools_web_helpers_format_web_results;
@@ -1422,6 +1430,7 @@ declare const fullApi: ApiFromModules<{
   "lib/summarize_context": typeof lib_summarize_context;
   "lib/team_access": typeof lib_team_access;
   "lib/type_cast_helpers": typeof lib_type_cast_helpers;
+  "lib/untrusted_content": typeof lib_untrusted_content;
   "lib/utils/client_ip": typeof lib_utils_client_ip;
   "lib/validators/common": typeof lib_validators_common;
   "lib/validators/json": typeof lib_validators_json;
@@ -1615,6 +1624,11 @@ declare const fullApi: ApiFromModules<{
   "streaming/validators": typeof streaming_validators;
   "team_members/mutations": typeof team_members_mutations;
   "team_members/queries": typeof team_members_queries;
+  "thread_todos/helpers": typeof thread_todos_helpers;
+  "thread_todos/internal_mutations": typeof thread_todos_internal_mutations;
+  "thread_todos/internal_queries": typeof thread_todos_internal_queries;
+  "thread_todos/plan_review_ttl": typeof thread_todos_plan_review_ttl;
+  "thread_todos/queries": typeof thread_todos_queries;
   "threads/archive_chat_thread": typeof threads_archive_chat_thread;
   "threads/branch_schema": typeof threads_branch_schema;
   "threads/cancel_generation": typeof threads_cancel_generation;

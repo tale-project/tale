@@ -14,6 +14,11 @@ const sharedFieldProps = {
   required: z.boolean().optional(),
 };
 
+const humanInputTodoItemSchema = z.object({
+  id: z.string(),
+  content: z.string(),
+});
+
 const humanInputFieldSchema = z.discriminatedUnion('type', [
   z.object({
     ...sharedFieldProps,
@@ -29,7 +34,16 @@ const humanInputFieldSchema = z.discriminatedUnion('type', [
     type: z.literal('yes_no'),
     options: z.array(humanInputOptionSchema).length(2).optional(),
   }),
+  z.object({
+    ...sharedFieldProps,
+    type: z.literal('todo_list'),
+    initialTodos: z.array(humanInputTodoItemSchema).optional(),
+    minItems: z.number().int().min(0).optional(),
+    maxItems: z.number().int().min(1).optional(),
+  }),
 ]);
+
+export type HumanInputTodoItem = z.infer<typeof humanInputTodoItemSchema>;
 
 const humanInputResponseSchema = z.object({
   value: z.union([z.string(), z.array(z.string())]),

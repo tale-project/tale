@@ -63,6 +63,12 @@ interface ChatLayoutContextType {
   setSelectedAgent: (agent: SelectedAgent | null) => void;
   selectedModelOverrides: Record<string, string>;
   setSelectedModelOverride: (agentName: string, modelId: string | null) => void;
+  /**
+   * Integration slugs toggled ON as composer capabilities.
+   * Persisted per user+org; sent with every chatWithAgent call.
+   */
+  enabledCapabilities: string[];
+  setCapabilityEnabled: (slug: string, enabled: boolean) => void;
   /** Content inserted from the sidebar prompt section — consumed by ChatInterface */
   insertedPrompt: string | null;
   setInsertedPrompt: (content: string | null) => void;
@@ -142,6 +148,30 @@ export function ChatLayoutProvider({
     [setRawModelOverrides],
   );
 
+  const capabilityKey = user?.userId
+    ? `enabled-capabilities-${user.userId}-${organizationId}`
+    : `enabled-capabilities-${organizationId}`;
+  const [enabledCapabilitiesRaw, setEnabledCapabilitiesRaw] = usePersistedState<
+    string[]
+  >(capabilityKey, []);
+  const enabledCapabilities = useMemo(
+    () => (Array.isArray(enabledCapabilitiesRaw) ? enabledCapabilitiesRaw : []),
+    [enabledCapabilitiesRaw],
+  );
+  const setCapabilityEnabled = useCallback(
+    (slug: string, enabled: boolean) => {
+      setEnabledCapabilitiesRaw((prev) => {
+        const current = Array.isArray(prev) ? prev : [];
+        if (enabled) {
+          if (current.includes(slug)) return current;
+          return [...current, slug];
+        }
+        return current.filter((s) => s !== slug);
+      });
+    },
+    [setEnabledCapabilitiesRaw],
+  );
+
   const clearChatState = useCallback(() => {
     setPendingThreadId(null);
     setPendingMessage(null);
@@ -160,6 +190,8 @@ export function ChatLayoutProvider({
       setSelectedAgent,
       selectedModelOverrides,
       setSelectedModelOverride,
+      enabledCapabilities,
+      setCapabilityEnabled,
       insertedPrompt,
       setInsertedPrompt,
     }),
@@ -172,6 +204,8 @@ export function ChatLayoutProvider({
       setSelectedAgent,
       selectedModelOverrides,
       setSelectedModelOverride,
+      enabledCapabilities,
+      setCapabilityEnabled,
       insertedPrompt,
     ],
   );

@@ -44,6 +44,13 @@ export interface AgentJsonConfig {
   maxSteps?: number;
   timeoutMs?: number;
   outputReserve?: number;
+  maxIntegrationCallsPerRun?: number;
+  composerMode?: {
+    label: string;
+    icon?: string;
+    tooltip?: string;
+    order?: number;
+  };
   roleRestriction?: 'admin_developer';
   conversationStarters?: string[];
   visibleInChat?: boolean;

@@ -52,6 +52,11 @@ const sharedFieldProps = {
     .describe('Whether the field must be filled. Defaults to false.'),
 };
 
+const todoItemInputSchema = z.object({
+  id: z.string().min(1).max(80),
+  content: z.string().min(1).max(500),
+});
+
 const fieldSchema = z.discriminatedUnion('type', [
   z.object({
     ...sharedFieldProps,
@@ -91,6 +96,22 @@ const fieldSchema = z.discriminatedUnion('type', [
       .describe(
         'Custom Yes/No options. Must be exactly 2 if provided. Defaults to [Yes, No] if omitted.',
       ),
+  }),
+  z.object({
+    ...sharedFieldProps,
+    type: z
+      .literal('todo_list')
+      .describe(
+        'Editable checklist of todo items. Renders as rows the user can add / edit / remove before confirming. Response is a JSON-stringified array of `{id, content}` objects.',
+      ),
+    initialTodos: z
+      .array(todoItemInputSchema)
+      .optional()
+      .describe(
+        'Pre-filled todos for the user to review/edit. IDs should be stable short slugs (e.g. q1, q2).',
+      ),
+    minItems: z.number().int().min(0).optional(),
+    maxItems: z.number().int().min(1).optional(),
   }),
 ]);
 
@@ -246,6 +267,13 @@ Every request is a form with one or more fields. Each field has a type that dete
                       description: opt.description,
                       value: opt.value,
                     })),
+                  }
+                : {}),
+              ...(f.type === 'todo_list'
+                ? {
+                    initialTodos: f.initialTodos,
+                    minItems: f.minItems,
+                    maxItems: f.maxItems,
                   }
                 : {}),
             })),

@@ -43,6 +43,7 @@ interface UseSendMessageParams {
   onBeforeSend?: () => void;
   selectedAgent: SelectedAgent | null;
   modelId?: string;
+  enabledCapabilities?: string[];
   userContext?: UserContext;
   arena?: ArenaParams;
   teamId?: string;
@@ -63,6 +64,7 @@ export function useSendMessage({
   onBeforeSend,
   selectedAgent,
   modelId,
+  enabledCapabilities = [],
   userContext,
   arena,
   teamId,
@@ -334,6 +336,8 @@ export function useSendMessage({
             organizationId,
             message,
             modelId: modelId || undefined,
+            capabilityBindings:
+              enabledCapabilities.length > 0 ? enabledCapabilities : undefined,
             attachments: mutationAttachments,
             userContext: userContext
               ? {
@@ -374,6 +378,7 @@ export function useSendMessage({
       chatWithAgent,
       selectedAgent,
       modelId,
+      enabledCapabilities,
       userContext,
       navigate,
       t,

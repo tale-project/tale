@@ -36,6 +36,7 @@ import { productsTable } from './products/schema';
 import { promptTemplatesTable } from './prompts/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
+import { threadTodosTable } from './thread_todos/schema';
 import { threadBranchesTable } from './threads/branch_schema';
 import { threadMetadataTable } from './threads/schema';
 import { twoFactorAttemptsTable } from './two_factor/schema';
@@ -94,6 +95,7 @@ export default defineSchema({
   onedriveSyncConfigs: onedriveSyncConfigsTable,
   threadBranches: threadBranchesTable,
   threadMetadata: threadMetadataTable,
+  threadTodos: threadTodosTable,
   twoFactorAttempts: twoFactorAttemptsTable,
   userPasswordMetadata: userPasswordMetadataTable,
   userNotificationState: userNotificationStateTable,

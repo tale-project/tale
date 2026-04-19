@@ -1,6 +1,7 @@
 'use client';
 
-import { memo, useCallback } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Description } from '@/app/components/ui/forms/description';
@@ -11,8 +12,12 @@ import {
   RadioGroupItem,
 } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Stack } from '@/app/components/ui/layout/layout';
-import type { HumanInputField } from '@/lib/shared/schemas/approvals';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
+import type {
+  HumanInputField,
+  HumanInputTodoItem,
+} from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
 
 interface HumanInputFieldsProps {
@@ -180,6 +185,32 @@ function HumanInputFieldsComponent({
         );
       }
 
+      case 'todo_list':
+        return (
+          <TodoListFieldInput
+            fieldLabel={field.label}
+            fieldId={fieldId}
+            initialTodos={
+              'initialTodos' in field && Array.isArray(field.initialTodos)
+                ? field.initialTodos
+                : []
+            }
+            minItems={
+              'minItems' in field && typeof field.minItems === 'number'
+                ? field.minItems
+                : 0
+            }
+            maxItems={
+              'maxItems' in field && typeof field.maxItems === 'number'
+                ? field.maxItems
+                : 20
+            }
+            rawValue={asString(formValues[field.label])}
+            disabled={disabled}
+            onChange={(serialized) => updateField(field.label, serialized)}
+          />
+        );
+
       default:
         return null;
     }
@@ -211,3 +242,137 @@ function HumanInputFieldsComponent({
 }
 
 export const HumanInputFields = memo(HumanInputFieldsComponent);
+
+interface TodoListFieldInputProps {
+  fieldLabel: string;
+  fieldId: string;
+  initialTodos: HumanInputTodoItem[];
+  minItems: number;
+  maxItems: number;
+  rawValue: string;
+  disabled: boolean;
+  onChange: (serialized: string) => void;
+}
+
+function parseTodoList(rawValue: string): HumanInputTodoItem[] | null {
+  if (!rawValue) return null;
+  try {
+    const parsed: unknown = JSON.parse(rawValue);
+    if (!Array.isArray(parsed)) return null;
+    const result: HumanInputTodoItem[] = [];
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue;
+      const record: { id?: unknown; content?: unknown } = item;
+      if (typeof record.id === 'string' && typeof record.content === 'string') {
+        result.push({ id: record.id, content: record.content });
+      }
+    }
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+function makeTodoId(seed: number): string {
+  return `t${seed}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function TodoListFieldInput({
+  fieldLabel,
+  fieldId,
+  initialTodos,
+  minItems,
+  maxItems,
+  rawValue,
+  disabled,
+  onChange,
+}: TodoListFieldInputProps) {
+  const initialParsed = useMemo(() => parseTodoList(rawValue), [rawValue]);
+  const [items, setItems] = useState<HumanInputTodoItem[]>(() => {
+    if (initialParsed && initialParsed.length > 0) return initialParsed;
+    return initialTodos.length > 0
+      ? initialTodos.map((t) => ({ ...t }))
+      : [{ id: makeTodoId(0), content: '' }];
+  });
+  const seedRef = useRef(items.length);
+  const lastSerialized = useRef('');
+
+  const serialized = useMemo(() => JSON.stringify(items), [items]);
+
+  useEffect(() => {
+    if (serialized === lastSerialized.current) return;
+    lastSerialized.current = serialized;
+    onChange(serialized);
+  }, [serialized, onChange]);
+
+  const updateContent = useCallback((id: string, value: string) => {
+    setItems((prev) =>
+      prev.map((todo) => (todo.id === id ? { ...todo, content: value } : todo)),
+    );
+  }, []);
+
+  const addRow = useCallback(() => {
+    if (items.length >= maxItems) return;
+    setItems((prev) => [
+      ...prev,
+      { id: makeTodoId(seedRef.current++), content: '' },
+    ]);
+  }, [items.length, maxItems]);
+
+  const removeRow = useCallback(
+    (id: string) => {
+      setItems((prev) => {
+        if (prev.length <= Math.max(1, minItems)) return prev;
+        return prev.filter((todo) => todo.id !== id);
+      });
+    },
+    [minItems],
+  );
+
+  return (
+    <Stack gap={2} role="list" aria-label={fieldLabel}>
+      {items.map((todo, index) => (
+        <HStack key={todo.id} align="center" gap={2} role="listitem">
+          <span
+            className="text-muted-foreground shrink-0 font-mono text-xs"
+            aria-hidden="true"
+          >
+            {index + 1}.
+          </span>
+          <Input
+            id={`${fieldId}-${todo.id}`}
+            value={todo.content}
+            placeholder={`Sub-question ${index + 1}`}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              updateContent(todo.id, e.target.value)
+            }
+            disabled={disabled}
+            aria-label={`${fieldLabel} item ${index + 1}`}
+            className="flex-1"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => removeRow(todo.id)}
+            disabled={disabled || items.length <= Math.max(1, minItems)}
+            aria-label={`Remove item ${index + 1}`}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </HStack>
+      ))}
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        onClick={addRow}
+        disabled={disabled || items.length >= maxItems}
+        className="gap-1 self-start"
+      >
+        <Plus className="size-4" aria-hidden="true" />
+        Add item
+      </Button>
+    </Stack>
+  );
+}

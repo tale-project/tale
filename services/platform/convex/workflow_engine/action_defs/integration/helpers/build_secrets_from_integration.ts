@@ -11,5 +11,9 @@ export async function buildSecretsFromIntegration(
   ctx: ActionCtx,
   integration: LoadedIntegration,
 ): Promise<Record<string, string>> {
-  return buildIntegrationSecrets(ctx, integration, integration._id);
+  return buildIntegrationSecrets(
+    ctx,
+    { ...integration, secretBindings: integration.connector?.secretBindings },
+    integration._id,
+  );
 }

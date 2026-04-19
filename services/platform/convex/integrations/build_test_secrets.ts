@@ -25,6 +25,12 @@ export async function buildIntegrationSecrets(
     }
   }
 
+  const declaredBindings = integration.secretBindings ?? [];
+  const apiKeyBinding = declaredBindings[0] ?? 'accessToken';
+  const oauth2Binding = declaredBindings.includes('accessToken')
+    ? 'accessToken'
+    : (declaredBindings[0] ?? 'accessToken');
+
   if (
     (integration.authMethod === 'api_key' ||
       integration.authMethod === 'bearer_token') &&
@@ -34,7 +40,7 @@ export async function buildIntegrationSecrets(
       internal.lib.crypto.internal_actions.decryptString,
       { jwe: integration.apiKeyAuth.keyEncrypted },
     );
-    secrets['accessToken'] = decrypted;
+    secrets[apiKeyBinding] = decrypted;
   }
 
   if (integration.authMethod === 'basic_auth' && integration.basicAuth) {
@@ -47,7 +53,7 @@ export async function buildIntegrationSecrets(
   }
 
   if (integration.authMethod === 'oauth2' && integration.oauth2Auth) {
-    secrets['accessToken'] = await decryptAndRefreshIntegrationOAuth2(
+    secrets[oauth2Binding] = await decryptAndRefreshIntegrationOAuth2(
       ctx,
       integration,
       credentialId,

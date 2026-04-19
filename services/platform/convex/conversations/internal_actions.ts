@@ -62,7 +62,10 @@ export const sendMessageViaIntegrationAction = internalAction({
 
       const secrets = await buildIntegrationSecrets(
         ctx,
-        integration,
+        {
+          ...integration,
+          secretBindings: integration.connector?.secretBindings,
+        },
         integration._id,
       );
 
@@ -240,7 +243,10 @@ export const checkMessageDeliveryAction = internalAction({
 
       const secrets = await buildIntegrationSecrets(
         ctx,
-        integration,
+        {
+          ...integration,
+          secretBindings: integration.connector?.secretBindings,
+        },
         integration._id,
       );
 
@@ -369,7 +375,10 @@ export const downloadAttachmentsAction = internalAction({
 
       const secrets = await buildIntegrationSecrets(
         ctx,
-        integration,
+        {
+          ...integration,
+          secretBindings: integration.connector?.secretBindings,
+        },
         integration._id,
       );
 

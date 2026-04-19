@@ -21,6 +21,7 @@ import type {
   HumanInputRequestMetadata,
   LocationRequestMetadata,
 } from '@/lib/shared/schemas/approvals';
+import { isRecord } from '@/lib/utils/type-guards';
 
 export interface Thread {
   _id: string;
@@ -121,6 +122,13 @@ export function useThreadStatus(threadId: string | undefined) {
   return data ?? null;
 }
 
+export interface ComposerModeMeta {
+  label: string;
+  icon?: string;
+  tooltip?: string;
+  order?: number;
+}
+
 export interface ChatAgent {
   name: string;
   displayName: string;
@@ -130,6 +138,7 @@ export interface ChatAgent {
   toolNames?: string[];
   roleRestriction?: string;
   conversationStarters?: string[];
+  composerMode?: ComposerModeMeta;
   i18n?: Record<
     string,
     {
@@ -138,6 +147,12 @@ export interface ChatAgent {
       conversationStarters?: string[];
     }
   >;
+}
+
+function isComposerModeMeta(value: unknown): value is ComposerModeMeta {
+  if (!isRecord(value)) return false;
+  const label = value.label;
+  return typeof label === 'string' && label.length > 0;
 }
 
 export function useChatAgents(_organizationId: string) {
@@ -160,6 +175,10 @@ export function useChatAgents(_organizationId: string) {
           visibleInChat: a.visibleInChat,
           supportedModels: a.supportedModels,
           conversationStarters: a.conversationStarters,
+          composerMode:
+            'composerMode' in a && isComposerModeMeta(a.composerMode)
+              ? a.composerMode
+              : undefined,
           i18n: a.i18n,
         });
       }

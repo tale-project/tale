@@ -72,12 +72,20 @@ const sqlOperationSchema = z.object({
   requiresApproval: z.boolean().optional(),
 });
 
+const exposeAsCapabilitySchema = z.object({
+  label: z.string().min(1).max(80),
+  icon: z.string().max(80).optional(),
+  tooltip: z.string().max(300).optional(),
+  order: z.number().int().optional(),
+});
+
 export const integrationJsonSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
   version: z.number().int().optional(),
   installed: z.boolean().default(false),
   type: z.enum(['rest_api', 'sql']).optional(),
+  exposeAsCapability: exposeAsCapabilitySchema.optional(),
   authMethod: z.enum(['api_key', 'bearer_token', 'basic_auth', 'oauth2']),
   supportedAuthMethods: z
     .array(z.enum(['api_key', 'bearer_token', 'basic_auth', 'oauth2']))

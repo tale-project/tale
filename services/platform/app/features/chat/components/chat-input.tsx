@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  X,
-  Paperclip,
-  ArrowUp,
-  CircleStop,
-  Loader,
-  Bookmark,
-} from 'lucide-react';
+import { X, ArrowUp, CircleStop, Loader } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
   useCallback,
@@ -23,7 +16,6 @@ import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/use-upload-policy';
@@ -36,8 +28,8 @@ import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
 import { AgentSelector } from './agent-selector';
 import { useArenaModeOptional } from './arena/arena-mode-context';
-import { ArenaModeToggle } from './arena/arena-mode-toggle';
 import { ArenaModelSelector } from './arena/arena-model-selector';
+import { ComposerModeMenu } from './composer-mode-menu';
 import { DictationButton } from './dictation-button';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
@@ -409,33 +401,16 @@ export function ChatInput({
 
           <HStack justify="between" align="center" className="flex-1 pb-3">
             <HStack gap={1} align="center">
-              {!fileUploadDisabled && (
-                <Tooltip content={tDialogs('attach')} side="top">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={inputDisabled}
-                    aria-label={tDialogs('attach')}
-                  >
-                    <Paperclip className="size-4" />
-                  </Button>
-                </Tooltip>
-              )}
-              {onSavePrompt && (
-                <Tooltip content={tChat('savePrompt')} side="top">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onSavePrompt(value)}
-                    disabled={inputDisabled || !value.trim()}
-                    aria-label={tChat('savePrompt')}
-                  >
-                    <Bookmark className="size-4" />
-                  </Button>
-                </Tooltip>
-              )}
-              <ArenaModeToggle disabled={isLoading} />
+              <ComposerModeMenu
+                organizationId={organizationId}
+                onAttachFile={() => fileInputRef.current?.click()}
+                fileUploadDisabled={fileUploadDisabled}
+                onSavePrompt={
+                  onSavePrompt ? () => onSavePrompt(value) : undefined
+                }
+                canSavePrompt={!inputDisabled && value.trim().length > 0}
+                disabled={inputDisabled}
+              />
               {isArenaMode ? (
                 <ArenaModelSelector organizationId={organizationId} />
               ) : (

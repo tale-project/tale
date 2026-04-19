@@ -2501,6 +2501,28 @@
       "unread": "Unread"
     }
   },
+  "composer": {
+    "openMenu": "Open composer menu",
+    "addFiles": "Add photos & files",
+    "modeHeader": "Modes",
+    "standardMode": "Standard",
+    "capabilityHeader": "Capabilities",
+    "capabilityUninstalled": "Not installed",
+    "connectInSettings": "Connect in Settings → Integrations"
+  },
+  "todoList": {
+    "title": "Research plan",
+    "ariaLabel": "Research plan",
+    "progress": "{done}/{total} done",
+    "failedCount": "{count} failed",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "statusPending": "Pending",
+    "statusInProgress": "In progress",
+    "statusDone": "Done",
+    "statusFailed": "Failed",
+    "statusCancelled": "Cancelled"
+  },
   "humanInputRequest": {
     "questionTitle": "Question",
     "submit": "Submit response",

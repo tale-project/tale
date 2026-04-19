@@ -26,6 +26,7 @@ import { productReadTool } from './products/product_read_tool';
 import { ragSearchTool } from './rag/rag_search_tool';
 import type { ToolName } from './tool_names';
 import type { ToolDefinition } from './types';
+import { updateTodosTool } from './update_todos/update_todos_tool';
 import { webTool } from './web/web_tool';
 import { createWorkflowTool } from './workflows/create_workflow_tool';
 import { runWorkflowTool } from './workflows/run_workflow_tool';
@@ -67,6 +68,7 @@ export const TOOL_REGISTRY = [
   documentWriteTool,
   requestUserLocationTool,
   conversationReadTool,
+  updateTodosTool,
 ] as const;
 
 /**

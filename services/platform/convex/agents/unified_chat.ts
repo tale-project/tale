@@ -48,6 +48,13 @@ export const chatWithAgent = action({
       ),
     ),
     modelId: v.optional(v.string()),
+    /**
+     * Per-message capability bindings — integration slugs the user has toggled
+     * ON in the composer. Merged into the active agent's integrationBindings
+     * for this call only. Any integration whose config declares
+     * `exposeAsCapability` is eligible.
+     */
+    capabilityBindings: v.optional(v.array(v.string())),
     additionalContext: v.optional(v.record(v.string(), v.string())),
     userContext: v.optional(
       v.object({
@@ -205,6 +212,7 @@ export const chatWithAgent = action({
       agentConfig,
       agentSlug: args.agentSlug,
       preAllocatedStreamId,
+      capabilityBindings: args.capabilityBindings,
     });
     console.log(
       `[chatWithAgent] DONE threadId=${args.threadId} messageAlreadyExists=${result.messageAlreadyExists}`,

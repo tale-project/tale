@@ -46,4 +46,13 @@ crons.cron(
   {},
 );
 
+// Plan-review TTL - cancel pending human_input approvals older than 30 min
+// so research runs never hang indefinitely on user input.
+crons.cron(
+  'expire stale plan-review approvals (every 5 min)',
+  '*/5 * * * *',
+  internal.thread_todos.plan_review_ttl.expirePlanReviews,
+  {},
+);
+
 export default crons;
