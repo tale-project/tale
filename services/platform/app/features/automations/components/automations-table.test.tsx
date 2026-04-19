@@ -14,12 +14,17 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({
     children,
     className,
+    to,
   }: {
     children?: React.ReactNode;
     className?: string;
     to?: string;
     params?: Record<string, string>;
-  }) => <a className={className}>{children}</a>,
+  }) => (
+    <a className={className} href={to ?? '#'}>
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({
