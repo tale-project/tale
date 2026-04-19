@@ -87,6 +87,10 @@ vi.mock(
   }),
 );
 
+vi.mock('@/app/features/changelog/components/changelog-toast-trigger', () => ({
+  ChangelogToastTrigger: () => null,
+}));
+
 vi.mock('@convex-dev/react-query', () => ({
   convexQuery: vi.fn(),
 }));

@@ -515,6 +515,8 @@
       "manageAccount": "Konto verwalten",
       "settings": "Einstellungen",
       "helpFeedback": "Hilfe & Feedback",
+      "currentVersion": "Aktuelle Version: v{version}",
+      "whatsNew": "Neuigkeiten",
       "themeSystem": "Systemdesign",
       "themeLight": "Helles Design",
       "themeDark": "Dunkles Design",
@@ -4491,6 +4493,13 @@
         "title": "Noch keine Nutzung",
         "description": "Für den ausgewählten Zeitraum wurde keine KI-Nutzung erfasst."
       }
+    }
+  },
+  "changelog": {
+    "toast": {
+      "title": "Aktualisiert auf v{version}",
+      "description": "Sehen Sie sich die Änderungen in dieser Version an.",
+      "action": "Anzeigen"
     }
   }
 }

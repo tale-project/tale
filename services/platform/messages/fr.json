@@ -515,6 +515,8 @@
       "manageAccount": "Gérer le compte",
       "settings": "Paramètres",
       "helpFeedback": "Aide et retours",
+      "currentVersion": "Version actuelle : v{version}",
+      "whatsNew": "Nouveautés",
       "themeSystem": "Thème système",
       "themeLight": "Thème clair",
       "themeDark": "Thème sombre",
@@ -4320,5 +4322,12 @@
       "similarityScore": "Similarité : {score} %"
     },
     "noResults": "Aucun résultat de comparaison pour le moment."
+  },
+  "changelog": {
+    "toast": {
+      "title": "Mis à jour vers v{version}",
+      "description": "Découvrez les changements de cette version.",
+      "action": "Voir"
+    }
   }
 }

@@ -515,6 +515,8 @@
       "manageAccount": "Manage account",
       "settings": "Settings",
       "helpFeedback": "Help & feedback",
+      "currentVersion": "Current version: v{version}",
+      "whatsNew": "What's new",
       "themeSystem": "System theme",
       "themeLight": "Light theme",
       "themeDark": "Dark theme",
@@ -4498,6 +4500,13 @@
         "title": "No usage yet",
         "description": "No AI usage has been recorded for the selected period."
       }
+    }
+  },
+  "changelog": {
+    "toast": {
+      "title": "Upgraded to v{version}",
+      "description": "See what changed in this release.",
+      "action": "View"
     }
   }
 }

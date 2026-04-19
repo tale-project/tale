@@ -32,6 +32,7 @@ import {
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Text } from '@/app/components/ui/typography/text';
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
+import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useLocale } from '@/app/hooks/use-locale';
@@ -73,6 +74,13 @@ export function UserButton({
 
   const { organizations: userOrgs } = useUserOrganizationsWithDetails();
   const availableOrgs = useMemo(() => userOrgs ?? [], [userOrgs]);
+
+  const {
+    currentVersion,
+    hasUnseenVersion,
+    releaseUrl,
+    markSeen: markChangelogSeen,
+  } = useChangelogNotification();
 
   const location = useLocation();
   const switchOrganization = useCallback(
@@ -156,6 +164,29 @@ export function UserButton({
                   <Text className="font-semibold">{displayName}</Text>
                   {displayName !== user.email && (
                     <Text variant="muted">{user.email}</Text>
+                  )}
+                  {currentVersion && releaseUrl && (
+                    <Text variant="muted" className="text-xs">
+                      {t('userButton.currentVersion', {
+                        version: currentVersion,
+                      })}
+                      {' · '}
+                      <a
+                        href={releaseUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={markChangelogSeen}
+                        className="text-foreground relative inline-flex cursor-pointer items-center underline underline-offset-2 hover:opacity-80"
+                      >
+                        {t('userButton.whatsNew')}
+                        {hasUnseenVersion && (
+                          <span
+                            className="ml-1.5 size-1.5 rounded-full bg-red-500"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </a>
+                    </Text>
                   )}
                 </>
               )}
@@ -344,6 +375,10 @@ export function UserButton({
     handleSignOutClick,
     availableOrgs,
     switchOrganization,
+    currentVersion,
+    releaseUrl,
+    markChangelogSeen,
+    hasUnseenVersion,
   ]);
 
   const triggerContent = (
@@ -353,7 +388,15 @@ export function UserButton({
         label ? 'gap-3 px-3 py-2 w-full' : 'justify-center p-2',
       )}
     >
-      <UserCircle className="text-muted-foreground size-5 shrink-0" />
+      <div className="relative">
+        <UserCircle className="text-muted-foreground size-5 shrink-0" />
+        {hasUnseenVersion && (
+          <span
+            className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red-500"
+            aria-hidden="true"
+          />
+        )}
+      </div>
       {label && (
         <Text as="span" variant="label">
           {label}
