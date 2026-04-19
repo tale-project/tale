@@ -1,0 +1,17 @@
+{
+  "name": "@tale/docs",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Tale Mintlify documentation site.",
+  "type": "module",
+  "scripts": {
+    "format:tables": "bun run scripts/format-tables.ts",
+    "generate:variants": "bun run scripts/generate-locale-variants.ts",
+    "predev": "bun run scripts/format-tables.ts && bun run scripts/generate-locale-variants.ts",
+    "dev": "mintlify dev",
+    "prebuild": "bun run scripts/format-tables.ts && bun run scripts/generate-locale-variants.ts",
+    "build": "mintlify build",
+    "broken-links": "mintlify broken-links",
+    "lint": "bun run scripts/lint-frontmatter.ts"
+  }
+}
