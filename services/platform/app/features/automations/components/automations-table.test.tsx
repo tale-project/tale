@@ -11,6 +11,15 @@ import { AutomationsTable } from './automations-table';
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
   useParams: () => ({ id: 'test-org-id' }),
+  Link: ({
+    children,
+    className,
+  }: {
+    children?: React.ReactNode;
+    className?: string;
+    to?: string;
+    params?: Record<string, string>;
+  }) => <a className={className}>{children}</a>,
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({
