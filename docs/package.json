@@ -6,10 +6,9 @@
   "type": "module",
   "scripts": {
     "format:tables": "bun run scripts/format-tables.ts",
-    "generate:variants": "bun run scripts/generate-locale-variants.ts",
-    "predev": "bun run scripts/format-tables.ts && bun run scripts/generate-locale-variants.ts",
+    "predev": "bun run scripts/format-tables.ts",
     "dev": "mintlify dev",
-    "prebuild": "bun run scripts/format-tables.ts && bun run scripts/generate-locale-variants.ts",
+    "prebuild": "bun run scripts/format-tables.ts",
     "build": "mintlify build",
     "broken-links": "mintlify broken-links",
     "lint": "bun run scripts/lint-frontmatter.ts"

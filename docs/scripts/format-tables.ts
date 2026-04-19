@@ -1,12 +1,11 @@
 #!/usr/bin/env bun
-// Normalizes GitHub-flavored Markdown tables across base locales:
+// Normalizes GitHub-flavored Markdown tables across all three locales:
 //   * pipes aligned vertically
 //   * cells padded to the maximum column width
 //   * single space on either side of the cell text
 //
-// Runs on the three base locales only (`docs/`, `docs/de/`, `docs/fr/`). Variant
-// locales are regenerated from the base, so they inherit the fix automatically.
-// Code fences and frontmatter are preserved verbatim.
+// Runs on `docs/`, `docs/de/`, `docs/fr/`. Code fences and frontmatter are
+// preserved verbatim so code and config values are never touched.
 
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
@@ -16,15 +15,7 @@ const currentDir = dirname(fileURLToPath(import.meta.url));
 const DOCS = dirname(currentDir);
 
 const BASE_LOCALES = ['.', 'de', 'fr'] as const;
-const SKIP_DIRS = new Set([
-  'node_modules',
-  'scripts',
-  'images',
-  'de-AT',
-  'de-CH',
-  'fr-CH',
-  '.locale-overrides',
-]);
+const SKIP_DIRS = new Set(['node_modules', 'scripts', 'images']);
 const SKIP_FILES = new Set(['AGENTS.md', 'README.md', 'CONTRIBUTING.md']);
 
 async function walk(dir: string, out: string[] = []): Promise<string[]> {

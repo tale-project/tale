@@ -4,7 +4,7 @@ Rules for writing and maintaining the Mintlify documentation under `docs/`. Thes
 
 ## The non-negotiable rule
 
-Documentation is part of every change, not a follow-up. If a pull request changes what users see, configure, or interact with — a feature, a setting, an environment variable, an API, a CLI flag, a removal — the same PR updates the docs in every base locale (`en`, `de`, `fr`) and regenerates the variant locales. Code without up-to-date docs is incomplete work and should not be merged.
+Documentation is part of every change, not a follow-up. If a pull request changes what users see, configure, or interact with — a feature, a setting, an environment variable, an API, a CLI flag, a removal — the same PR updates the docs in every locale (`en`, `de`, `fr`). Code without up-to-date docs is incomplete work and should not be merged.
 
 ## Where docs live
 
@@ -40,7 +40,7 @@ Never mix audiences in one page. End-user guidance does not belong under `operat
 - **Cross-link, don't duplicate.** If you're about to repeat content from another page, link to it instead.
 - **Code blocks always have a language identifier.** `` ```bash ``, `` ```typescript ``, `` ```json ``, etc. — never bare `` ``` ``.
 - **Use Mermaid for architecture and flow diagrams.** Label nodes in full sentences; keep diagrams short enough to read without scrolling.
-- **Align markdown tables.** Pipes lined up, padding consistent. Unreadable tables annoy editors and reviewers.
+- **Align markdown tables.** Pipes lined up, padding consistent. The `format:tables` script normalises every base locale automatically; run it before committing.
 - **Link to sources of truth, not copies.** Prefer `[Environment reference](/operate/configuration/environment-reference)` over re-documenting env vars inline.
 - **Imperative voice for instructions.** "Run `tale deploy`" not "You can run `tale deploy`".
 - **No status chatter in prose.** Don't write "Updated:", "New in v1.6:", "TODO:" — use release notes or git history.
@@ -49,47 +49,32 @@ Never mix audiences in one page. End-user guidance does not belong under `operat
 
 ### Locales we publish
 
-Six locales, all with full coverage: `en`, `de`, `de-AT`, `de-CH`, `fr`, `fr-CH`. Mintlify does not fall back across languages — a missing translation becomes a 404 in that locale's navigation.
+Three locales, each with full coverage: `en`, `de`, `fr`. English files live at the `docs/` root; German and French live under `docs/de/` and `docs/fr/`. Mintlify does not fall back across languages — a missing translation becomes a 404 in that locale's navigation.
 
-### Base locales vs regional variants
-
-**Base locales** — `en` (at the `docs/` root), `de` (at `docs/de/`), `fr` (at `docs/fr/`). These are written and edited by hand.
-
-**Regional variants** — `de-AT`, `de-CH`, `fr-CH`. These are **generated** from their base by [`scripts/generate-locale-variants.ts`](scripts/generate-locale-variants.ts):
-
-```text
-de  ──►  de-AT, de-CH
-fr  ──►  fr-CH
-```
-
-For a variant-specific divergence (Swiss legal notice, Austrian spelling preference), add a file-level override at `docs/.locale-overrides/<variant>/<same-path>.md`. The generator uses the override in place of the base file.
+> **Why only three, when the platform UI supports six?** Mintlify's config schema does not accept regional locale codes like `de-AT`, `de-CH`, or `fr-CH` (only `fr-CA` is permitted). The platform UI supports those five extra locales in its own translation files under `services/platform/messages/*.json`; docs readers on those locales see the closest base locale (`de` or `fr`). If Mintlify expands their allowed enum, we can revisit.
 
 ### When you add a page
 
 1. Create the file in the English tree at `docs/<path>.md`.
 2. Create translated mirrors at `docs/de/<path>.md` and `docs/fr/<path>.md`.
-3. Add the page to the `pages` array inside **every** `navigation.languages` block in `docs/docs.json` (all six locales) using locale-prefixed paths.
-4. Run `bun run --filter @tale/docs generate:variants` — this produces `de-AT`, `de-CH`, and `fr-CH` copies.
-5. Stage and commit the base-locale files, the variant dirs, and `docs.json` together.
+3. Add the page to the `pages` array inside **every** `navigation.languages` block in `docs/docs.json` (all three locales) using locale-prefixed paths.
+4. Run `bun run --filter @tale/docs format:tables` to normalise any new Markdown tables.
+5. Stage and commit the locale files and `docs.json` together.
 
 ### When you rename or move a page
 
-1. Rename the file in every base tree (`en`, `de`, `fr`).
+1. Rename the file in every locale tree (`en`, `de`, `fr`).
 2. Update the `pages` entry in every `navigation.languages` block in `docs/docs.json`.
 3. Grep the codebase for the old path (`README.md` at minimum) and update references.
-4. Regenerate variants and commit.
 
 ### When you delete a page
 
-1. Delete from every base tree.
+1. Delete from every locale tree.
 2. Remove from every `navigation.languages` block in `docs/docs.json`.
-3. Regenerate variants and commit.
 
 ### Editing rules
 
-- **Never edit `docs/de-AT/`, `docs/de-CH/`, or `docs/fr-CH/` by hand.** These directories are wiped and rewritten on every `bun run dev` or `bun run build`. Edit the base locale (`de` or `fr`) or an override file.
-- **Always regenerate variants before committing.** Run `bun run --filter @tale/docs generate:variants` after any base-locale change and stage the result. Stale variants = wrong content for AT / CH readers.
-- **Rewrite internal links to include the locale prefix** in non-English files. A link in `docs/de/build/agents/create.md` points to `/de/build/agents/concepts`, not `/build/agents/concepts`. The generator rewrites `/de/` → `/de-AT/` etc. automatically for variants.
+- **Rewrite internal links to include the locale prefix** in non-English files. A link in `docs/de/build/agents/create.md` points to `/de/build/agents/concepts`, not `/build/agents/concepts`.
 - **Translate frontmatter values** — both `title` and `description`. A German page titled `AI-assisted development` is a bug.
 - **Leave code and diagram syntax alone** — inside `` ``` `` blocks, inside `<CodeGroup>` tags, and inside Mermaid `graph`/`sequenceDiagram` DSL. Only translate Mermaid node labels (the prose inside node shapes), not the arrows or block structure.
 - **Never translate brand names.** Tale, Convex, Mintlify, OpenRouter, Claude, GitHub, Slack, etc.
@@ -98,11 +83,8 @@ For a variant-specific divergence (Swiss legal notice, Austrian spelling prefere
 ### Translation style
 
 - Read [`.agents/TERMINOLOGY.md`](../.agents/TERMINOLOGY.md) for rules that apply to every locale (length parity, tone, plural rules, placeholder handling).
-- Read the base-locale file before translating or reviewing a page: [`.agents/TERMINOLOGY_DE.md`](../.agents/TERMINOLOGY_DE.md) for German, [`.agents/TERMINOLOGY_FR.md`](../.agents/TERMINOLOGY_FR.md) for French, [`.agents/TERMINOLOGY_EN.md`](../.agents/TERMINOLOGY_EN.md) when authoring English.
-- When you write a **variant override** under `docs/.locale-overrides/<variant>/`, also read the matching variant file — it lists only the delta from the base:
-  - `de-AT`: [`.agents/TERMINOLOGY_DE_AT.md`](../.agents/TERMINOLOGY_DE_AT.md) (months like "Jänner")
-  - `de-CH`: [`.agents/TERMINOLOGY_DE_CH.md`](../.agents/TERMINOLOGY_DE_CH.md) (no "ß", CHF currency, apostrophe thousands separator)
-  - `fr-CH`: [`.agents/TERMINOLOGY_FR_CH.md`](../.agents/TERMINOLOGY_FR_CH.md) (septante / nonante, CHF, point decimal, apostrophe thousands)
+- Read the locale file before translating or reviewing a page: [`.agents/TERMINOLOGY_DE.md`](../.agents/TERMINOLOGY_DE.md) for German, [`.agents/TERMINOLOGY_FR.md`](../.agents/TERMINOLOGY_FR.md) for French, [`.agents/TERMINOLOGY_EN.md`](../.agents/TERMINOLOGY_EN.md) when authoring English.
+- The `.agents/TERMINOLOGY_DE_AT.md`, `TERMINOLOGY_DE_CH.md`, and `TERMINOLOGY_FR_CH.md` files are for the platform UI only — docs do not have those locale variants.
 - **Informal form** throughout: "du" in German, "tu" in French. Never "Sie" or "vous".
 - **Sentence case** for headings in every locale.
 - **Preserve ICU placeholders** exactly if any appear (`{count, plural, ...}`, `{field}`). Docs usually don't have them, but flag if you see one broken.
@@ -114,24 +96,24 @@ For a variant-specific divergence (Swiss legal notice, Austrian spelling prefere
 ```bash
 cd docs
 bun install       # first time only
-bun run dev       # runs predev (variant generation) + mintlify dev
+bun run dev       # runs predev (table formatter) + mintlify dev
 ```
 
-Click through the language switcher for every section on every locale. A 404 in any locale means a missing base file or a stale `docs.json` entry.
+Click through the language switcher for every section on every locale. A 404 in any locale means a missing locale file or a stale `docs.json` entry.
 
 ### Lints and checks
 
 ```bash
-bun run --filter @tale/docs lint           # frontmatter lint across all 294 files
-bun run --filter @tale/docs generate:variants  # regenerate variants; should be a no-op after the first run in a clean tree
-cd docs && bun run broken-links            # Mintlify's built-in link checker
+bun run --filter @tale/docs format:tables # normalise Markdown tables
+bun run --filter @tale/docs lint          # frontmatter lint across all locales
+cd docs && bun run broken-links           # Mintlify's built-in link checker
 ```
 
 All three must pass before you open a PR.
 
 ### Navigation parity
 
-Every `pages` entry across the six `navigation.languages` blocks must resolve to a real `.md` / `.mdx` file. A quick script to catch drift:
+Every `pages` entry across the three `navigation.languages` blocks must resolve to a real `.md` / `.mdx` file. A quick script to catch drift:
 
 ```bash
 cd docs && node -e "
@@ -146,9 +128,8 @@ for (const l of j.navigation.languages) for (const p of collect(l.groups)) {
 
 ## Common pitfalls
 
-- **Editing variants directly.** The change survives until the next `bun run dev`, then silently vanishes.
 - **Forgetting a `navigation.languages` block.** A page in the filesystem but not in docs.json is invisible in that locale.
 - **Translated anchors that don't match the target.** In `docs/de/foo.md`, a link to `/de/bar#some-heading` only works if `docs/de/bar.md` actually has a heading that slugs to `some-heading` in German.
 - **External links cast as internal.** `](/external-site)` is treated as an in-site link and 404s. External links must be fully qualified (`https://…`).
-- **Committing without regenerating.** CI will (eventually) fail a parity check; spare yourself the round trip by running `generate:variants` before every commit that touches `docs/`.
+- **Committing without formatting tables.** Run `bun run --filter @tale/docs format:tables` before every commit that touches `docs/` so CI reviewers don't see alignment noise in diffs.
 - **Duplicating env var or API reference content.** Those pages are authoritative; link to them instead.
