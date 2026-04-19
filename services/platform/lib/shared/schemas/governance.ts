@@ -9,7 +9,6 @@ export const POLICY_TYPES = [
   'feature_flags',
   'pii_config',
   'model_access',
-  'audit_retention',
   'login_policy',
   'password_policy',
   'two_factor_policy',
@@ -65,6 +64,16 @@ export const retentionPolicyConfigSchema = z.object({
   userTempRetentionHours: z.number().nonnegative().optional(),
   agentTempEnabled: z.boolean().optional(),
   agentTempRetentionHours: z.number().nonnegative().optional(),
+  chatHistoryEnabled: z.boolean().optional(),
+  chatHistoryRetentionDays: z.number().int().min(1).max(3650).optional(),
+  auditLogsEnabled: z.boolean().optional(),
+  auditLogRetentionDays: z.number().int().min(30).max(365).optional(),
+  workflowLogsEnabled: z.boolean().optional(),
+  workflowLogRetentionDays: z.number().int().min(1).max(365).optional(),
+  usageLedgerEnabled: z.boolean().optional(),
+  usageLedgerRetentionDays: z.number().int().min(30).max(3650).optional(),
+  loginAttemptsEnabled: z.boolean().optional(),
+  loginAttemptRetentionDays: z.number().int().min(7).max(365).optional(),
 });
 export type RetentionPolicyConfig = z.infer<typeof retentionPolicyConfigSchema>;
 
@@ -121,10 +130,6 @@ export const modelAccessConfigSchema = z.object({
   rules: z.array(modelAccessRuleSchema),
 });
 export type ModelAccessConfig = z.infer<typeof modelAccessConfigSchema>;
-
-export const auditRetentionConfigSchema = z.object({
-  retentionDays: z.number().int().min(30).max(365),
-});
 
 export const DEFAULT_LOGIN_BACKOFF_MS = [1_000, 10_000, 60_000, 600_000];
 export const DEFAULT_LOGIN_MAX_ATTEMPTS = 5;

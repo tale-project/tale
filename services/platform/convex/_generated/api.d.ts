@@ -492,6 +492,7 @@ import type * as migrations_backfill_folders from "../migrations/backfill_folder
 import type * as migrations_backfill_ledger_granularity from "../migrations/backfill_ledger_granularity.js";
 import type * as migrations_backfill_thread_metadata from "../migrations/backfill_thread_metadata.js";
 import type * as migrations_backfill_workflow_schedules from "../migrations/backfill_workflow_schedules.js";
+import type * as migrations_merge_audit_retention from "../migrations/merge_audit_retention.js";
 import type * as migrations_migrate_org_creators from "../migrations/migrate_org_creators.js";
 import type * as migrations_remove_deprecated_llm_fields from "../migrations/remove_deprecated_llm_fields.js";
 import type * as migrations_rename_org_slug from "../migrations/rename_org_slug.js";
@@ -1459,6 +1460,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/backfill_ledger_granularity": typeof migrations_backfill_ledger_granularity;
   "migrations/backfill_thread_metadata": typeof migrations_backfill_thread_metadata;
   "migrations/backfill_workflow_schedules": typeof migrations_backfill_workflow_schedules;
+  "migrations/merge_audit_retention": typeof migrations_merge_audit_retention;
   "migrations/migrate_org_creators": typeof migrations_migrate_org_creators;
   "migrations/remove_deprecated_llm_fields": typeof migrations_remove_deprecated_llm_fields;
   "migrations/rename_org_slug": typeof migrations_rename_org_slug;

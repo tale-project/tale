@@ -1,7 +1,6 @@
 import { v } from 'convex/values';
 
 import {
-  auditRetentionConfigSchema,
   budgetConfigSchema,
   defaultModelsConfigSchema,
   featureFlagsConfigSchema,
@@ -131,15 +130,6 @@ export const upsertPolicy = mutation({
       if (!parsed.success) {
         throw new Error(
           `Invalid model access configuration: ${parsed.error.message}`,
-        );
-      }
-    }
-
-    if (args.policyType === 'audit_retention') {
-      const parsed = auditRetentionConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid audit retention configuration: ${parsed.error.message}`,
         );
       }
     }
