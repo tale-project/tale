@@ -35,6 +35,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   email: string;
                   emailVerified: boolean;
                   image?: null | string;
+                  lastActiveOrganizationId?: null | string;
                   name: string;
                   twoFactorEnabled?: null | boolean;
                   twoFactorGraceUntil?: null | number;
@@ -200,6 +201,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "userId"
                     | "twoFactorEnabled"
                     | "twoFactorGraceUntil"
+                    | "lastActiveOrganizationId"
                     | "_id";
                   operator?:
                     | "lt"
@@ -624,6 +626,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "userId"
                     | "twoFactorEnabled"
                     | "twoFactorGraceUntil"
+                    | "lastActiveOrganizationId"
                     | "_id";
                   operator?:
                     | "lt"
@@ -1136,6 +1139,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   email?: string;
                   emailVerified?: boolean;
                   image?: null | string;
+                  lastActiveOrganizationId?: null | string;
                   name?: string;
                   twoFactorEnabled?: null | boolean;
                   twoFactorGraceUntil?: null | number;
@@ -1154,6 +1158,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "userId"
                     | "twoFactorEnabled"
                     | "twoFactorGraceUntil"
+                    | "lastActiveOrganizationId"
                     | "_id";
                   operator?:
                     | "lt"
@@ -1674,6 +1679,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   email?: string;
                   emailVerified?: boolean;
                   image?: null | string;
+                  lastActiveOrganizationId?: null | string;
                   name?: string;
                   twoFactorEnabled?: null | boolean;
                   twoFactorGraceUntil?: null | number;
@@ -1692,6 +1698,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "userId"
                     | "twoFactorEnabled"
                     | "twoFactorGraceUntil"
+                    | "lastActiveOrganizationId"
                     | "_id";
                   operator?:
                     | "lt"

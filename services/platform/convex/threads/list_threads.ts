@@ -30,6 +30,7 @@ export async function listThreads(
   args: Pick<ListThreadsArgs, 'userId'> & {
     paginationOpts: PaginationOptions;
     teamId?: string;
+    organizationId?: string;
   },
 ): Promise<ListThreadsPaginatedResult> {
   const result = await ctx.db
@@ -41,9 +42,20 @@ export async function listThreads(
         .eq('status', 'active'),
     )
     .filter((q) => {
-      const notBranch = q.neq(q.field('isBranch'), true);
-      if (!args.teamId) return notBranch;
-      return q.and(notBranch, q.eq(q.field('teamId'), args.teamId));
+      // Filter by organizationId so users who belong to multiple orgs don't
+      // see threads created in other tenants. threadMetadata.organizationId
+      // is optional for backward-compat with pre-multi-org rows.
+      let expr = q.neq(q.field('isBranch'), true);
+      if (args.teamId) {
+        expr = q.and(expr, q.eq(q.field('teamId'), args.teamId));
+      }
+      if (args.organizationId) {
+        expr = q.and(
+          expr,
+          q.eq(q.field('organizationId'), args.organizationId),
+        );
+      }
+      return expr;
     })
     .order('desc')
     .paginate(args.paginationOpts);

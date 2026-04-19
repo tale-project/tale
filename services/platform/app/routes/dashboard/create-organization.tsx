@@ -17,36 +17,25 @@ export const Route = createFileRoute('/dashboard/create-organization')({
 function CreateOrganizationPage() {
   const navigate = useNavigate();
   const {
-    organizations,
     isLoading: isOrgsLoading,
     isAuthLoading,
     isAuthenticated,
   } = useUserOrganizations();
 
   useEffect(() => {
-    if (isAuthLoading || !isAuthenticated || isOrgsLoading || !organizations) {
-      return;
+    // Only kick unauthenticated users back to login. Users who already
+    // belong to an org can still reach this route to create another one.
+    if (!isAuthLoading && !isAuthenticated) {
+      void navigate({ to: '/log-in' });
     }
+  }, [isAuthLoading, isAuthenticated, navigate]);
 
-    const firstOrgId = organizations[0]?.organizationId;
-    if (firstOrgId) {
-      void navigate({
-        to: '/dashboard/$id',
-        params: { id: firstOrgId },
-      });
-    }
-  }, [isAuthLoading, isAuthenticated, isOrgsLoading, organizations, navigate]);
-
-  if (isAuthLoading || isOrgsLoading || !organizations) {
+  if (isAuthLoading || isOrgsLoading) {
     return (
       <FullPageCenter>
         <Spinner size="lg" />
       </FullPageCenter>
     );
-  }
-
-  if (organizations.length > 0) {
-    return null;
   }
 
   return <OrganizationForm />;

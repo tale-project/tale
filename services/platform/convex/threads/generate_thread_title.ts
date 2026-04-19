@@ -14,6 +14,7 @@ import { v } from 'convex/values';
 
 import { components, internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 
 const TITLE_TIMEOUT_MS = 10_000;
@@ -40,13 +41,21 @@ export const generateThreadTitle = internalAction({
   args: {
     threadId: v.string(),
     firstMessage: v.string(),
+    organizationId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     try {
       const titlePromise = (async (): Promise<string | null> => {
+        // Resolve org-scoped provider when organizationId is available so
+        // the title uses the org's own API key; fall back to global default
+        // when invoked without org context.
+        const orgSlug = args.organizationId
+          ? await resolveOrgSlug(ctx, args.organizationId)
+          : undefined;
         const { languageModel } = await resolveLanguageModelWithFallback(ctx, {
           tag: 'chat',
+          orgSlug,
         });
 
         const generator = createTitleGenerator(languageModel);

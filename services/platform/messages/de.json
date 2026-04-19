@@ -2736,6 +2736,7 @@
     "errorGenerating": "Etwas ist schiefgelaufen",
     "errorGeneratingDescription": "Beim Generieren einer Antwort ist ein Fehler aufgetreten. Bitte versuche es erneut.",
     "retryGeneration": "Erneut versuchen",
+    "errorHintMissingApiKey": "Für diese Organisation ist noch kein API-Schlüssel konfiguriert. Öffne Einstellungen → KI-Anbieter und füge einen hinzu, um den Chat zu starten.",
     "errorHintCreditExhausted": "Das Guthaben des KI-Anbieters wurde überschritten. Kontaktiere deinen Administrator, um Guthaben aufzuladen.",
     "errorHintTokenLimit": "Das Token-Limit des Modells wurde überschritten. Versuche eine kürzere Anfrage oder bitte deinen Administrator, die Modelleinstellungen anzupassen.",
     "errorHintContextLength": "Die Konversation ist zu lang für das Kontextfenster des Modells. Versuche, einen neuen Chat zu starten.",

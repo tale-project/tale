@@ -297,15 +297,20 @@ export const runAgentGeneration = internalAction({
         const currentModelId = modelsToTry[attempt];
 
         try {
-          // Resolve model from provider files with automatic failover
+          // Resolve model from provider files with automatic failover.
+          // Pass orgSlug so multi-org deployments read each org's own
+          // provider/API-key files, not the global default.
+          const orgSlug = await resolveOrgSlug(ctx, organizationId);
           const { languageModel, modelData } = currentModelId
             ? await resolveLanguageModelById(ctx, {
                 modelId: currentModelId,
                 providerName: agentConfig.provider,
+                orgSlug,
               })
             : await resolveLanguageModelWithFallback(ctx, {
                 providerName: agentConfig.provider,
                 tag: 'chat',
+                orgSlug,
               });
           const resolvedProvider = modelData.providerName;
           const resolvedModelId = modelData.modelId;

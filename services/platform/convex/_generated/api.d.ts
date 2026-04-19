@@ -687,6 +687,7 @@ import type * as two_factor_queries from "../two_factor/queries.js";
 import type * as users_add_member_internal from "../users/add_member_internal.js";
 import type * as users_create_member from "../users/create_member.js";
 import type * as users_create_user_without_session from "../users/create_user_without_session.js";
+import type * as users_get_last_active_org from "../users/get_last_active_org.js";
 import type * as users_get_user_by_email from "../users/get_user_by_email.js";
 import type * as users_has_any_users from "../users/has_any_users.js";
 import type * as users_helpers from "../users/helpers.js";
@@ -1648,6 +1649,7 @@ declare const fullApi: ApiFromModules<{
   "users/add_member_internal": typeof users_add_member_internal;
   "users/create_member": typeof users_create_member;
   "users/create_user_without_session": typeof users_create_user_without_session;
+  "users/get_last_active_org": typeof users_get_last_active_org;
   "users/get_user_by_email": typeof users_get_user_by_email;
   "users/has_any_users": typeof users_has_any_users;
   "users/helpers": typeof users_helpers;

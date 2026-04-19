@@ -1,10 +1,14 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { useMutation } from 'convex/react';
 import { Plus } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { CopyableText } from '@/app/components/ui/data-display/copyable-field';
+import { Badge } from '@/app/components/ui/feedback/badge';
 import { Field } from '@/app/components/ui/forms/field';
 import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
@@ -14,8 +18,10 @@ import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useToast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { SUPPORTED_AGENT_LOCALES } from '@/lib/shared/constants/agents';
@@ -74,10 +80,48 @@ export function OrganizationSettings({
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
   const { t: tGlobal } = useT('global');
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const recordOrgSwitch = useMutation(
+    api.organizations.record_org_switch.recordOrgSwitch,
+  );
+  const { organizations: userOrgs } = useUserOrganizationsWithDetails();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
+  const [switchingOrgId, setSwitchingOrgId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const switchToOrg = useCallback(
+    async (nextOrgId: string) => {
+      if (nextOrgId === organization?._id) return;
+      setSwitchingOrgId(nextOrgId);
+      try {
+        await authClient.organization.setActive({
+          organizationId: nextOrgId,
+        });
+        await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
+        try {
+          await recordOrgSwitch({ organizationId: nextOrgId });
+        } catch (err) {
+          console.warn('Failed to record org switch audit entry:', err);
+        }
+        void navigate({
+          to: '/dashboard/$id/settings/organization',
+          params: { id: nextOrgId },
+        });
+      } catch (err) {
+        console.error('Failed to switch organization:', err);
+        toast({
+          title: 'Failed to switch organization',
+          variant: 'destructive',
+        });
+      } finally {
+        setSwitchingOrgId(null);
+      }
+    },
+    [organization?._id, queryClient, recordOrgSwitch, navigate, toast],
+  );
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -205,6 +249,60 @@ export function OrganizationSettings({
           />
         </Field>
       )}
+
+      <PageSection
+        title="Your organizations"
+        description="All organizations you belong to. Switch between them or create a new one."
+        className="pt-4"
+      >
+        <Stack gap={2}>
+          {(userOrgs ?? []).map((org) => {
+            const isCurrent = org.organizationId === organization?._id;
+            return (
+              <HStack
+                key={org.organizationId}
+                justify="between"
+                align="center"
+                className="rounded-lg border px-4 py-3"
+              >
+                <Stack gap={1}>
+                  <HStack gap={2} align="center">
+                    <span className="text-sm font-medium">{org.name}</span>
+                    {isCurrent && <Badge variant="green">Current</Badge>}
+                  </HStack>
+                  <span className="text-muted-foreground text-xs">
+                    {org.slug ? `@${org.slug} · ` : ''}role: {org.role}
+                  </span>
+                </Stack>
+                {!isCurrent && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void switchToOrg(org.organizationId)}
+                    disabled={switchingOrgId === org.organizationId}
+                  >
+                    {switchingOrgId === org.organizationId
+                      ? 'Switching…'
+                      : 'Switch'}
+                  </Button>
+                )}
+              </HStack>
+            );
+          })}
+        </Stack>
+
+        <HStack>
+          <Button
+            size="sm"
+            onClick={() =>
+              void navigate({ to: '/dashboard/create-organization' })
+            }
+          >
+            <Plus className="mr-2 size-4" />
+            {tSettings('organization.createOrganization')}
+          </Button>
+        </HStack>
+      </PageSection>
 
       <PageSection
         title={tSettings('organization.membersTitle')}

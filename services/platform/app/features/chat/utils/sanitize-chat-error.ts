@@ -1,4 +1,5 @@
 type ErrorCategory =
+  | 'missingApiKey'
   | 'creditExhausted'
   | 'authError'
   | 'modelNotFound'
@@ -17,6 +18,14 @@ interface SanitizedError {
 }
 
 const ERROR_PATTERNS: { pattern: RegExp; category: ErrorCategory }[] = [
+  // Match our typed error first — it's user-actionable and should override
+  // the generic auth/providerError matchers below (which the raw ENOENT
+  // stack trace would otherwise trip).
+  {
+    pattern:
+      /NoProviderAvailableError|No API key is configured for this organization/i,
+    category: 'missingApiKey',
+  },
   {
     pattern:
       /more credits|can only afford|credit.*insufficient|insufficient.*credit|never purchased credits|credit.*limit|credit.*reached|\b402\b/i,
@@ -59,6 +68,7 @@ const ERROR_PATTERNS: { pattern: RegExp; category: ErrorCategory }[] = [
 ];
 
 const CATEGORY_I18N_KEY: Record<ErrorCategory, string> = {
+  missingApiKey: 'errorHintMissingApiKey',
   creditExhausted: 'errorHintCreditExhausted',
   authError: 'errorHintAuthError',
   modelNotFound: 'errorHintModelNotFound',

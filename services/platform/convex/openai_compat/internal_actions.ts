@@ -15,6 +15,7 @@ import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { scrubPii, type PiiConfig } from '../governance/pii';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 import { convertOpenAITools, generateToolCallId } from './tool_conversion';
 
@@ -168,10 +169,13 @@ export const chatDirectModel = internalAction({
       args.modelId,
     );
 
-    // Resolve model directly — no agent config
+    // Resolve model directly — no agent config. Pass orgSlug so each org
+    // uses its own provider files / API keys.
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const resolved = await resolveLanguageModelWithFallback(ctx, {
       modelId: args.modelId,
       tag: 'chat',
+      orgSlug,
     });
 
     // Convert client tools to AI SDK format if provided

@@ -38,11 +38,21 @@ const THREADS_PAGE_SIZE = 20;
 export function useThreads({
   skip = false,
   teamId,
-}: { skip?: boolean; teamId?: string | null } = {}) {
+  organizationId,
+}: {
+  skip?: boolean;
+  teamId?: string | null;
+  organizationId?: string | null;
+} = {}) {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- paginationOpts is optional to handle Convex reconnection replays; usePaginatedQuery always provides it at runtime
   const listThreadsQuery = api.threads.queries
     .listThreads as unknown as Parameters<typeof useCachedPaginatedQuery>[0];
-  const queryArgs = skip ? ('skip' as const) : teamId ? { teamId } : {};
+  const queryArgs = skip
+    ? ('skip' as const)
+    : {
+        ...(teamId ? { teamId } : {}),
+        ...(organizationId ? { organizationId } : {}),
+      };
   const { results, status, loadMore, isLoading } = useCachedPaginatedQuery(
     listThreadsQuery,
     queryArgs,
@@ -66,13 +76,23 @@ export function useThreads({
 export function useArchivedThreads({
   skip = false,
   teamId,
-}: { skip?: boolean; teamId?: string | null } = {}) {
+  organizationId,
+}: {
+  skip?: boolean;
+  teamId?: string | null;
+  organizationId?: string | null;
+} = {}) {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- paginationOpts is optional to handle Convex reconnection replays; usePaginatedQuery always provides it at runtime
   const listArchivedThreadsQuery = api.threads.queries
     .listArchivedThreads as unknown as Parameters<
     typeof useCachedPaginatedQuery
   >[0];
-  const queryArgs = skip ? ('skip' as const) : teamId ? { teamId } : {};
+  const queryArgs = skip
+    ? ('skip' as const)
+    : {
+        ...(teamId ? { teamId } : {}),
+        ...(organizationId ? { organizationId } : {}),
+      };
   const { results, status, loadMore, isLoading } = useCachedPaginatedQuery(
     listArchivedThreadsQuery,
     queryArgs,

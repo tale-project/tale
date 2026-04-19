@@ -7,6 +7,7 @@
 
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
+import { resolveOrgSlug } from '../../../../organizations/resolve_org_slug';
 import { resolveLanguageModelWithFallback } from '../../../../providers/failover';
 import { resolveLanguageModel } from '../../../../providers/resolve_model';
 import type { StepExecutionResult, LLMNodeConfig } from '../../../types';
@@ -39,9 +40,11 @@ export async function executeLLMNode(
 ): Promise<StepExecutionResult> {
   // 1. Resolve default model from provider files, then validate and normalize config.
   // Use fallback-aware resolution unless the step explicitly disables it.
+  // orgSlug ensures the workflow uses its owning org's providers / API keys.
+  const orgSlug = await resolveOrgSlug(ctx, organizationId);
   const { languageModel, modelData: chatModelData } = config.noFallback
-    ? await resolveLanguageModel(ctx, { tag: 'chat' })
-    : await resolveLanguageModelWithFallback(ctx, { tag: 'chat' });
+    ? await resolveLanguageModel(ctx, { tag: 'chat', orgSlug })
+    : await resolveLanguageModelWithFallback(ctx, { tag: 'chat', orgSlug });
   const normalizedConfig = validateAndNormalizeConfig(
     config,
     chatModelData.modelId,

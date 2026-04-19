@@ -2,12 +2,18 @@
  * Record that a user entered (selected) an organization.
  *
  * Invoked by the client right after `authClient.organization.setActive()`
- * succeeds. This is the auditable "moment of tenant selection" required for
- * compliance — without it, multi-org users can switch tenants silently.
+ * succeeds. Does two things:
+ *   1. Writes an auditable `entered_organization` log entry — the compliance
+ *      "moment of tenant selection".
+ *   2. Persists `user.lastActiveOrganizationId` on the user record so the
+ *      preference survives logout/login. Better Auth's
+ *      `session.activeOrganizationId` only lives for the current session and
+ *      gets reset to null when the session is destroyed on logout.
  */
 
 import { v } from 'convex/values';
 
+import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { logSuccess } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
@@ -43,6 +49,16 @@ export const recordOrgSwitch = mutation({
       category: 'auth',
       resourceType: 'organization',
       resourceId: args.organizationId,
+    });
+
+    // Persist the preference so next login lands here again.
+    await ctx.runMutation(components.betterAuth.adapter.updateMany, {
+      input: {
+        model: 'user' as const,
+        where: [{ field: '_id', value: String(authUser._id), operator: 'eq' }],
+        update: { lastActiveOrganizationId: args.organizationId },
+      },
+      paginationOpts: { cursor: null, numItems: 1 },
     });
 
     return null;

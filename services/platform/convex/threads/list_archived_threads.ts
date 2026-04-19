@@ -15,6 +15,7 @@ export async function listArchivedThreads(
     userId: string;
     paginationOpts: PaginationOptions;
     teamId?: string;
+    organizationId?: string;
   },
 ): Promise<ListArchivedThreadsPaginatedResult> {
   const result = await ctx.db
@@ -26,8 +27,20 @@ export async function listArchivedThreads(
         .eq('status', 'archived'),
     )
     .filter((q) => {
-      if (!args.teamId) return true;
-      return q.eq(q.field('teamId'), args.teamId);
+      // Filter by organizationId to prevent cross-tenant thread visibility.
+      if (args.teamId && args.organizationId) {
+        return q.and(
+          q.eq(q.field('teamId'), args.teamId),
+          q.eq(q.field('organizationId'), args.organizationId),
+        );
+      }
+      if (args.organizationId) {
+        return q.eq(q.field('organizationId'), args.organizationId);
+      }
+      if (args.teamId) {
+        return q.eq(q.field('teamId'), args.teamId);
+      }
+      return true;
     })
     .order('desc')
     .paginate(args.paginationOpts);

@@ -327,6 +327,14 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
           required: false,
           input: false,
         } as const,
+        // Last organization the user entered — persists across logout/login,
+        // unlike session.activeOrganizationId which dies with the session.
+        // Written by recordOrgSwitch whenever the user enters an org.
+        lastActiveOrganizationId: {
+          type: 'string',
+          required: false,
+          input: false,
+        } as const,
       },
     },
     session: {

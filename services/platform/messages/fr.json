@@ -2734,6 +2734,7 @@
     "errorGenerating": "Une erreur s'est produite",
     "errorGeneratingDescription": "Une erreur est survenue lors de la génération de la réponse. Merci de réessayer.",
     "retryGeneration": "Réessayer",
+    "errorHintMissingApiKey": "Aucune clé API n'est encore configurée pour cette organisation. Ouvre Paramètres → Fournisseurs d'IA et ajoute-en une pour commencer à discuter.",
     "errorHintCreditExhausted": "Le plafond de crédits du fournisseur d'IA a été dépassé. Contacte ton administrateur pour ajouter des crédits.",
     "errorHintTokenLimit": "La limite de tokens en sortie du modèle a été dépassée. Essaie une requête plus courte ou demande à ton administrateur d'ajuster les paramètres du modèle.",
     "errorHintContextLength": "La conversation est trop longue pour la fenêtre de contexte du modèle. Essaie de démarrer un nouveau chat.",
