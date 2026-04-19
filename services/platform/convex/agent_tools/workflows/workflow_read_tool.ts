@@ -58,9 +58,30 @@ BEST PRACTICES:
       ctx: ToolCtx,
       args,
     ): Promise<WorkflowReadGetStructureResult | WorkflowReadListAllResult> => {
+      const { organizationId } = ctx;
+      if (!organizationId) {
+        if (args.operation === 'get_structure') {
+          return {
+            operation: 'get_structure',
+            slug: args.workflowSlug,
+            config: null,
+            error:
+              'organizationId is required in the tool context to read a workflow.',
+          };
+        }
+        return {
+          operation: 'list_all',
+          totalWorkflows: 0,
+          workflows: [],
+          error:
+            'organizationId is required in the tool context to list workflows.',
+        };
+      }
+
       if (args.operation === 'get_structure') {
         return readWorkflowStructure(ctx, {
           workflowSlug: args.workflowSlug,
+          organizationId,
         });
       }
 

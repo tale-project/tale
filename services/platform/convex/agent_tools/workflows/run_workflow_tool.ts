@@ -12,12 +12,11 @@ import { z } from 'zod/v4';
 import type { WorkflowJsonConfig } from '../../../lib/shared/schemas/workflows';
 import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import { validateWorkflowInput } from '../../workflow_engine/helpers/validation/validate_workflow_input';
 import type { ToolDefinition } from '../types';
 import { extractInputSchema } from './helpers/extract_input_schema';
-
-const DEFAULT_ORG_SLUG = 'default';
 
 const runWorkflowArgs = z.object({
   workflowSlug: z
@@ -91,9 +90,10 @@ This tool creates an approval card. The user must click "Run Workflow" to confir
         };
       }
 
+      const orgSlug = await resolveOrgSlug(ctx, organizationId);
       const result: unknown = await ctx.runAction(
         internal.workflows.file_actions.readWorkflowForExecution,
-        { orgSlug: DEFAULT_ORG_SLUG, workflowSlug: args.workflowSlug },
+        { orgSlug, workflowSlug: args.workflowSlug },
       );
 
       if (!isRecord(result) || result.ok !== true) {

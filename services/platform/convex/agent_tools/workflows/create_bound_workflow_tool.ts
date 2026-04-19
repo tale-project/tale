@@ -13,6 +13,7 @@ import { z } from 'zod/v4';
 import type { WorkflowJsonConfig } from '../../../lib/shared/schemas/workflows';
 import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import type { WorkflowInputSchema } from '../../workflow_engine/helpers/validation/validate_workflow_input';
 import { validateWorkflowInput } from '../../workflow_engine/helpers/validation/validate_workflow_input';
@@ -198,9 +199,10 @@ export function createBoundWorkflowTool(
         };
       }
 
+      const orgSlug = await resolveOrgSlug(ctx, organizationId);
       const result: unknown = await ctx.runAction(
         internal.workflows.file_actions.readWorkflowForExecution,
-        { orgSlug: 'default', workflowSlug: wfDefinition.workflowSlug },
+        { orgSlug, workflowSlug: wfDefinition.workflowSlug },
       );
 
       if (!isRecord(result) || result.ok !== true) {

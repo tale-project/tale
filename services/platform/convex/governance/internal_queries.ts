@@ -4,7 +4,9 @@ import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
+import { checkBudget } from './budget_enforcement';
 import { checkModelAccess } from './model_access_enforcement';
+import { resolveBudgetContext } from './resolve_budget_context';
 import { resolveDefaultModel } from './resolve_default_model';
 
 export const getPiiConfigInternal = internalQuery({
@@ -38,6 +40,42 @@ export const getSystemPromptPolicyInternal = internalQuery({
           .eq('policyType', 'system_prompt'),
       )
       .first();
+  },
+});
+
+/**
+ * Budget check wrapper for action callers (workflow LLM nodes, openai-compat
+ * endpoint). Actions can't directly invoke helper functions that call ctx.db,
+ * so they invoke this internal query via ctx.runQuery.
+ */
+export const checkBudgetForRequest = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+  },
+  returns: v.object({
+    allowed: v.boolean(),
+    reason: v.optional(v.string()),
+    code: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const { userTeamIds, userRole } = await resolveBudgetContext(
+      ctx,
+      args.organizationId,
+      args.userId,
+    );
+    const result = await checkBudget(
+      ctx,
+      args.organizationId,
+      args.userId,
+      userTeamIds,
+      userRole,
+    );
+    return {
+      allowed: result.allowed,
+      reason: result.reason,
+      code: result.code,
+    };
   },
 });
 

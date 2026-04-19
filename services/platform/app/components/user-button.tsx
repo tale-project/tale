@@ -1,7 +1,9 @@
 'use client';
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useRouter } from '@tanstack/react-router';
+import { useMutation } from 'convex/react';
 import {
   LogOut,
   Settings,
@@ -11,6 +13,7 @@ import {
   Moon,
   UserCircle,
   Building2,
+  Briefcase,
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -25,11 +28,14 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Text } from '@/app/components/ui/typography/text';
+import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useLocale } from '@/app/hooks/use-locale';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
+import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -63,6 +69,47 @@ export function UserButton({
   const teams = teamFilter?.teams;
   const selectedTeamId = teamFilter?.selectedTeamId ?? null;
   const setSelectedTeamId = teamFilter?.setSelectedTeamId;
+
+  const queryClient = useQueryClient();
+  const recordOrgSwitch = useMutation(
+    api.organizations.record_org_switch.recordOrgSwitch,
+  );
+  const { organizations: userOrgs } = useUserOrganizationsWithDetails();
+  const availableOrgs = useMemo(() => userOrgs ?? [], [userOrgs]);
+
+  const switchOrganization = useCallback(
+    async (nextOrgId: string) => {
+      if (nextOrgId === organizationId) return;
+      try {
+        await authClient.organization.setActive({
+          organizationId: nextOrgId,
+        });
+        // Clear team filter before navigating: the previous team belongs to
+        // the old org and should not carry over.
+        setSelectedTeamId?.(null);
+        await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
+        try {
+          await recordOrgSwitch({ organizationId: nextOrgId });
+        } catch (err) {
+          console.warn('Failed to record org switch audit entry:', err);
+        }
+        // Hard navigation via router.push ensures all query caches keyed by
+        // the old org remount. Avoids stale data flickering across orgs.
+        void navigate({
+          to: '/dashboard/$id',
+          params: { id: nextOrgId },
+          replace: true,
+        });
+      } catch (err) {
+        console.error('Failed to switch organization:', err);
+        toast({
+          title: 'Failed to switch organization',
+          variant: 'destructive',
+        });
+      }
+    },
+    [organizationId, navigate, queryClient, recordOrgSwitch, setSelectedTeamId],
+  );
 
   const { data: memberContext } = useCurrentMemberContext(
     organizationId,
@@ -148,6 +195,30 @@ export function UserButton({
           className: 'py-2.5',
         },
       ];
+
+      if (availableOrgs.length > 1) {
+        settingsGroup.push({
+          type: 'sub',
+          label: 'Organization',
+          icon: Briefcase,
+          items: [
+            [
+              {
+                type: 'radio-group',
+                value: organizationId ?? '',
+                onValueChange: (val) => {
+                  if (val) void switchOrganization(val);
+                },
+                options: availableOrgs.map((org) => ({
+                  value: org.organizationId,
+                  label: org.name,
+                })),
+              },
+            ],
+          ],
+          className: 'py-2.5',
+        });
+      }
 
       if (teams && teams.length > 0) {
         settingsGroup.push({
@@ -283,6 +354,8 @@ export function UserButton({
     setLocale,
     setSelectedTeamId,
     handleSignOutClick,
+    availableOrgs,
+    switchOrganization,
   ]);
 
   const triggerContent = (

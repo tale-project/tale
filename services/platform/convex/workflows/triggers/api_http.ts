@@ -10,6 +10,7 @@ import {
   checkIpRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate_limiter/helpers';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { hashSecret } from './helpers/crypto';
 import { extractIdempotencyKey, extractClientIp } from './helpers/validate';
 
@@ -100,13 +101,14 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
   }
 
   if (apiKeyRecord.workflowSlug) {
+    const orgSlug = await resolveOrgSlug(ctx, apiKeyRecord.organizationId);
     await ctx.scheduler.runAfter(
       0,
       internal.workflow_engine.helpers.engine.start_workflow_from_file
         .startWorkflowFromFile,
       {
         organizationId: apiKeyRecord.organizationId,
-        orgSlug: 'default',
+        orgSlug,
         workflowSlug: apiKeyRecord.workflowSlug,
         input: body.input ?? {},
         triggeredBy: 'api',

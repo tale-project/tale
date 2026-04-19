@@ -13,9 +13,8 @@ import type {
   WorkflowRunMetadata,
   WorkflowUpdateMetadata,
 } from '../../approvals/types';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { sanitizeWorkflowName } from './create_bound_workflow_tool';
-
-const DEFAULT_ORG_SLUG = 'default';
 
 const VALID_STEP_TYPES = new Set<StepType>([
   'start',
@@ -136,10 +135,12 @@ export const executeApprovedWorkflowCreation = internalAction({
         })),
       };
 
+      const orgSlug = await resolveOrgSlug(ctx, approval.organizationId);
+
       await ctx.runAction(
         internal.workflows.file_actions.saveWorkflowForExecution,
         {
-          orgSlug: DEFAULT_ORG_SLUG,
+          orgSlug,
           workflowSlug,
           config,
         },
@@ -264,12 +265,13 @@ export const executeApprovedWorkflowRun = internalAction({
     }
 
     try {
+      const orgSlug = await resolveOrgSlug(ctx, approval.organizationId);
       const executionId = await ctx.runAction(
         internal.workflow_engine.helpers.engine.start_workflow_from_file
           .startWorkflowFromFile,
         {
           organizationId: approval.organizationId,
-          orgSlug: DEFAULT_ORG_SLUG,
+          orgSlug,
           workflowSlug: metadata.workflowSlug,
           input: metadata.parameters ?? {},
           triggeredBy: 'agent_tool:run_workflow',
@@ -410,12 +412,14 @@ export const executeApprovedWorkflowUpdate = internalAction({
       );
     }
 
+    const orgSlug = await resolveOrgSlug(ctx, approval.organizationId);
+
     // Read the current workflow file
     const readResult: { ok: boolean; config?: WorkflowJsonConfig } =
       await ctx.runAction(
         internal.workflows.file_actions.readWorkflowForExecution,
         {
-          orgSlug: DEFAULT_ORG_SLUG,
+          orgSlug,
           workflowSlug,
         },
       );
@@ -518,7 +522,7 @@ export const executeApprovedWorkflowUpdate = internalAction({
       await ctx.runAction(
         internal.workflows.file_actions.saveWorkflowForExecution,
         {
-          orgSlug: DEFAULT_ORG_SLUG,
+          orgSlug,
           workflowSlug,
           config: updatedConfig,
         },

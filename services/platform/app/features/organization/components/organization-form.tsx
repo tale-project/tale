@@ -1,7 +1,9 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { useMutation } from 'convex/react';
 import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -15,6 +17,7 @@ import { Heading } from '@/app/components/ui/typography/heading';
 import { UserButton } from '@/app/components/user-button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
@@ -24,6 +27,10 @@ type FormData = { name: string };
 
 export function OrganizationForm() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const recordOrgSwitch = useMutation(
+    api.organizations.record_org_switch.recordOrgSwitch,
+  );
   const { user } = useAuth();
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -69,10 +76,19 @@ export function OrganizationForm() {
         await authClient.organization.setActive({
           organizationId: result.data.id,
         });
+        // Invalidate the TanStack-cached session (5-min stale) so downstream
+        // route guards see the fresh activeOrganizationId.
+        await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
 
         await initializeDefaultWorkflows({
           organizationId: result.data.id,
         });
+
+        try {
+          await recordOrgSwitch({ organizationId: result.data.id });
+        } catch (err) {
+          console.warn('Failed to record org switch audit entry:', err);
+        }
       }
 
       toast({

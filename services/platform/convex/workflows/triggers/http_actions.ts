@@ -12,6 +12,7 @@ import {
   checkIpRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate_limiter/helpers';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { extractIdempotencyKey, extractClientIp } from './helpers/validate';
 
 function jsonResponse(data: Record<string, unknown>, status: number) {
@@ -90,13 +91,14 @@ export const webhookHandler = httpAction(async (ctx, req) => {
   }
 
   if (webhook.workflowSlug) {
+    const orgSlug = await resolveOrgSlug(ctx, webhook.organizationId);
     await ctx.scheduler.runAfter(
       0,
       internal.workflow_engine.helpers.engine.start_workflow_from_file
         .startWorkflowFromFile,
       {
         organizationId: webhook.organizationId,
-        orgSlug: 'default',
+        orgSlug,
         workflowSlug: webhook.workflowSlug,
         input: payload,
         triggeredBy: 'webhook',

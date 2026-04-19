@@ -2,9 +2,8 @@ import type { ToolCtx } from '@convex-dev/agent';
 
 import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
+import { resolveOrgSlug } from '../../../organizations/resolve_org_slug';
 import type { WorkflowReadListAllResult, WorkflowSummary } from './types';
-
-const DEFAULT_ORG_SLUG = 'default';
 
 export async function readAllWorkflows(
   ctx: ToolCtx,
@@ -23,9 +22,10 @@ export async function readAllWorkflows(
   }
 
   try {
+    const orgSlug = await resolveOrgSlug(ctx, organizationId);
     const rawResults: unknown = await ctx.runAction(
       internal.workflows.file_actions.listWorkflowsForAgent,
-      { orgSlug: DEFAULT_ORG_SLUG },
+      { orgSlug },
     );
 
     if (!Array.isArray(rawResults)) {

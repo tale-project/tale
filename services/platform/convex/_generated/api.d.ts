@@ -562,6 +562,9 @@ import type * as organizations_delete_organization_logo from "../organizations/d
 import type * as organizations_get_organization from "../organizations/get_organization.js";
 import type * as organizations_helpers from "../organizations/helpers.js";
 import type * as organizations_queries from "../organizations/queries.js";
+import type * as organizations_record_org_switch from "../organizations/record_org_switch.js";
+import type * as organizations_resolve_org_slug from "../organizations/resolve_org_slug.js";
+import type * as organizations_scaffold from "../organizations/scaffold.js";
 import type * as organizations_update_organization from "../organizations/update_organization.js";
 import type * as organizations_validators from "../organizations/validators.js";
 import type * as products_bulk_create_products from "../products/bulk_create_products.js";
@@ -1520,6 +1523,9 @@ declare const fullApi: ApiFromModules<{
   "organizations/get_organization": typeof organizations_get_organization;
   "organizations/helpers": typeof organizations_helpers;
   "organizations/queries": typeof organizations_queries;
+  "organizations/record_org_switch": typeof organizations_record_org_switch;
+  "organizations/resolve_org_slug": typeof organizations_resolve_org_slug;
+  "organizations/scaffold": typeof organizations_scaffold;
   "organizations/update_organization": typeof organizations_update_organization;
   "organizations/validators": typeof organizations_validators;
   "products/bulk_create_products": typeof products_bulk_create_products;

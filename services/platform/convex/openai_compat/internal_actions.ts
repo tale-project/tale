@@ -143,6 +143,22 @@ export const chatDirectModel = internalAction({
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<DirectModelResult> => {
+    // Pre-call budget enforcement. Matches chat/workflow paths so the
+    // OpenAI-compat endpoint shares the same per-org budget ceiling.
+    const budgetResult = await ctx.runQuery(
+      internal.governance.internal_queries.checkBudgetForRequest,
+      {
+        organizationId: args.organizationId,
+        userId: args.userId,
+      },
+    );
+    if (!budgetResult.allowed) {
+      throw new Error(
+        budgetResult.reason ??
+          'Usage limit reached for this period. Contact your administrator.',
+      );
+    }
+
     const message = await scrubMessagePii(
       ctx,
       args.message,

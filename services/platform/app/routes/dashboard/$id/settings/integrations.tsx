@@ -8,6 +8,7 @@ import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Card } from '@/app/components/ui/layout/card';
 import { Grid, HStack, Stack } from '@/app/components/ui/layout/layout';
+import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { getTemplateIconUrl } from '@/app/features/settings/integrations/components/integration-upload/constants/integration-templates';
 import {
   type IntegrationListItem,
@@ -103,8 +104,12 @@ function IntegrationsPage() {
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
 
+  const { data: organization, isLoading: isOrgLoading } =
+    useOrganization(organizationId);
+  const orgSlug = organization?.slug ?? '';
+
   const { integrations: fileIntegrations, isLoading: isIntegrationsLoading } =
-    useIntegrations('default');
+    useIntegrations(orgSlug);
   const { data: credentials } = useIntegrationCredentials(organizationId);
   const { data: ssoProvider, isLoading: isSsoLoading } = useSsoProvider();
 
@@ -112,7 +117,7 @@ function IntegrationsPage() {
   const installFn = useAction(api.integrations.file_actions.installIntegration);
   const ensuredRef = useRef(new Set<string>());
   useEffect(() => {
-    if (!credentials || !fileIntegrations.length) return;
+    if (!orgSlug || !credentials || !fileIntegrations.length) return;
     const credSlugs = new Set(
       (credentials ?? []).map((c: { slug: string }) => c.slug),
     );
@@ -122,10 +127,10 @@ function IntegrationsPage() {
       const slug = String(item.slug);
       if (!credSlugs.has(slug) && !ensuredRef.current.has(slug)) {
         ensuredRef.current.add(slug);
-        void installFn({ orgSlug: 'default', slug, organizationId });
+        void installFn({ orgSlug, slug, organizationId });
       }
     }
-  }, [fileIntegrations, credentials, installFn, organizationId]);
+  }, [fileIntegrations, credentials, installFn, organizationId, orgSlug]);
 
   // Handle OAuth2 redirect query params
   useEffect(() => {
@@ -154,7 +159,7 @@ function IntegrationsPage() {
     }
   }, [search.integration_oauth2, search.integration_oauth2_error]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (abilityLoading || isIntegrationsLoading || isSsoLoading) {
+  if (abilityLoading || isOrgLoading || isIntegrationsLoading || isSsoLoading) {
     return <IntegrationsSkeleton />;
   }
 

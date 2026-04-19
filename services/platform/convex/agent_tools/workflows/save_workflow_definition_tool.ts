@@ -17,6 +17,7 @@ import { z } from 'zod/v4';
 
 import type { WorkflowJsonConfig } from '../../../lib/shared/schemas/workflows';
 import { internal } from '../../_generated/api';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import { validateWorkflowDefinition } from '../../workflow_engine/helpers/validation/validate_workflow_definition';
 import type { ToolDefinition } from '../types';
@@ -97,8 +98,6 @@ const stepConfigSchema = z.object({
     ),
 });
 
-const DEFAULT_ORG_SLUG = 'default';
-
 export const saveWorkflowDefinitionTool = {
   name: 'save_workflow_definition' as const,
   tool: createTool({
@@ -176,11 +175,12 @@ Inform the user the update is ready for review in the chat UI.`,
       }
 
       // Read workflow file to verify it exists and get current metadata
+      const orgSlug = await resolveOrgSlug(ctx, organizationId);
       const readResult: { ok: boolean; config?: WorkflowJsonConfig } =
         await ctx.runAction(
           internal.workflows.file_actions.readWorkflowForExecution,
           {
-            orgSlug: DEFAULT_ORG_SLUG,
+            orgSlug,
             workflowSlug: args.workflowSlug,
           },
         );

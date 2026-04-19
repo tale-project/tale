@@ -7,11 +7,30 @@ export type UserOrganization = ConvexItemOf<
   typeof api.members.queries.getUserOrganizationsList
 >;
 
+export type UserOrganizationWithDetails = ConvexItemOf<
+  typeof api.members.queries.getUserOrganizationsWithDetails
+>;
+
 export function useUserOrganizations() {
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
 
   const { data, isLoading } = useConvexQuery(
     api.members.queries.getUserOrganizationsList,
+  );
+
+  return {
+    organizations: data,
+    isLoading: isAuthLoading || isLoading,
+    isAuthenticated,
+    isAuthLoading,
+  };
+}
+
+export function useUserOrganizationsWithDetails() {
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
+
+  const { data, isLoading } = useConvexQuery(
+    api.members.queries.getUserOrganizationsWithDetails,
   );
 
   return {

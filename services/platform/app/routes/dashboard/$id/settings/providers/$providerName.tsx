@@ -22,6 +22,7 @@ import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
+import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { ProviderEditPanel } from '@/app/features/settings/providers/components/provider-edit-panel';
 import { useSaveProviderSecret } from '@/app/features/settings/providers/hooks/mutations';
 import {
@@ -44,9 +45,12 @@ export const Route = createFileRoute(
 function ProviderDetailRoute() {
   const { t } = useT('settings');
   const { id: organizationId, providerName } = Route.useParams();
-  const { data, isLoading } = useReadProvider('default', providerName);
+  const { data: organization, isLoading: isOrgLoading } =
+    useOrganization(organizationId);
+  const orgSlug = organization?.slug ?? '';
+  const { data, isLoading } = useReadProvider(orgSlug, providerName);
 
-  if (isLoading) {
+  if (isOrgLoading || isLoading) {
     return <ProviderDetailSkeleton />;
   }
 
@@ -73,6 +77,7 @@ function ProviderDetailRoute() {
     >
       <ProviderDetailContent
         organizationId={organizationId}
+        orgSlug={orgSlug}
         providerName={providerName}
         maskedModelKeys={data.maskedModelKeys ?? {}}
       />
@@ -136,10 +141,12 @@ function ProviderDetailSkeleton() {
 
 function ProviderDetailContent({
   organizationId,
+  orgSlug,
   providerName,
   maskedModelKeys,
 }: {
   organizationId: string;
+  orgSlug: string;
   providerName: string;
   maskedModelKeys: Record<string, string>;
 }) {
@@ -163,8 +170,9 @@ function ProviderDetailContent({
       </HStack>
 
       <GeneralSection providerName={providerName} />
-      <ApiKeySection providerName={providerName} />
+      <ApiKeySection orgSlug={orgSlug} providerName={providerName} />
       <ModelsSection
+        orgSlug={orgSlug}
         providerName={providerName}
         maskedModelKeys={maskedModelKeys}
       />
@@ -282,10 +290,16 @@ function GeneralSection({ providerName }: { providerName: string }) {
   );
 }
 
-function ApiKeySection({ providerName }: { providerName: string }) {
+function ApiKeySection({
+  orgSlug,
+  providerName,
+}: {
+  orgSlug: string;
+  providerName: string;
+}) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const { data: maskedKey } = useHasProviderSecret('default', providerName);
+  const { data: maskedKey } = useHasProviderSecret(orgSlug, providerName);
   const hasSecret = maskedKey != null;
   const saveSecret = useSaveProviderSecret();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -295,11 +309,11 @@ function ApiKeySection({ providerName }: { providerName: string }) {
   const handleSaveKey = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!apiKey.trim()) return;
+      if (!apiKey.trim() || !orgSlug) return;
       setSaving(true);
       try {
         await saveSecret.mutateAsync({
-          orgSlug: 'default',
+          orgSlug,
           providerName,
           apiKey: apiKey.trim(),
         });
@@ -314,7 +328,7 @@ function ApiKeySection({ providerName }: { providerName: string }) {
         setSaving(false);
       }
     },
-    [apiKey, providerName, saveSecret, t],
+    [apiKey, orgSlug, providerName, saveSecret, t],
   );
 
   return (
@@ -456,9 +470,11 @@ const EMPTY_MODEL_FORM: ModelFormState = {
 };
 
 function ModelsSection({
+  orgSlug,
   providerName,
   maskedModelKeys,
 }: {
+  orgSlug: string;
   providerName: string;
   maskedModelKeys: Record<string, string>;
 }) {
@@ -544,11 +560,11 @@ function ModelsSection({
           : [...config.models, model];
       try {
         await saveConfig({ models: updatedModels });
-        if (form.apiKey.trim() || modelKeyAction === 'remove') {
+        if ((form.apiKey.trim() || modelKeyAction === 'remove') && orgSlug) {
           setSavingSecret(true);
           try {
             await saveSecret.mutateAsync({
-              orgSlug: 'default',
+              orgSlug,
               providerName,
               modelKeys: {
                 [form.id]:
@@ -570,6 +586,7 @@ function ModelsSection({
       config.models,
       saveConfig,
       saveSecret,
+      orgSlug,
       providerName,
       modelKeyAction,
       t,
@@ -583,9 +600,9 @@ function ModelsSection({
       await saveConfig({
         models: config.models.filter((_, i) => i !== deleteIndex),
       });
-      if (deletedModel) {
+      if (deletedModel && orgSlug) {
         await saveSecret.mutateAsync({
-          orgSlug: 'default',
+          orgSlug,
           providerName,
           modelKeys: { [deletedModel.id]: '' },
         });
@@ -594,7 +611,15 @@ function ModelsSection({
     } catch {
       toast({ title: t('providers.saveFailed'), variant: 'destructive' });
     }
-  }, [deleteIndex, config.models, saveConfig, saveSecret, providerName, t]);
+  }, [
+    deleteIndex,
+    config.models,
+    saveConfig,
+    saveSecret,
+    orgSlug,
+    providerName,
+    t,
+  ]);
 
   return (
     <>

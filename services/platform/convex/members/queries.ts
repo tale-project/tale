@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import type { MemberRole } from '../../lib/shared/schemas/organizations';
+import { getString, isRecord } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { query, QueryCtx } from '../_generated/server';
 import {
@@ -237,6 +238,53 @@ export const getUserOrganizationsList = query({
       organizationId: o.organizationId,
       role: o.role,
     }));
+  },
+});
+
+/**
+ * Same as getUserOrganizationsList but also includes each org's name and slug.
+ * Used by the login-time org picker to render a human-readable list without
+ * needing N follow-up queries on the client.
+ */
+export const getUserOrganizationsWithDetails = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      organizationId: v.string(),
+      role: memberRoleValidator,
+      name: v.string(),
+      slug: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      return [];
+    }
+
+    const orgs = await getUserOrganizations(ctx, authUser);
+
+    const enriched = await Promise.all(
+      orgs.map(async (o) => {
+        const org = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+          model: 'organization',
+          where: [{ field: '_id', value: o.organizationId, operator: 'eq' }],
+        });
+        const record = isRecord(org) ? org : undefined;
+        const name = record
+          ? (getString(record, 'name') ?? o.organizationId)
+          : o.organizationId;
+        const slug = record ? getString(record, 'slug') : undefined;
+        return {
+          organizationId: o.organizationId,
+          role: o.role,
+          name,
+          slug,
+        };
+      }),
+    );
+
+    return enriched;
   },
 });
 

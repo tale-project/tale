@@ -16,6 +16,7 @@ import { isSqlIntegration } from '../../../integrations/helpers';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toConvexJsonRecord } from '../../../lib/type_cast_helpers';
 import { jsonRecordValidator } from '../../../lib/validators/json';
+import { resolveOrgSlug } from '../../../organizations/resolve_org_slug';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { buildSecretsFromIntegration } from './helpers/build_secrets_from_integration';
 import {
@@ -74,9 +75,10 @@ export const integrationAction: ActionDefinition<{
     }
 
     // 1. Load integration config (file) + credentials (DB) via unified loader
+    const orgSlug = await resolveOrgSlug(ctx, organizationId);
     const integration = await ctx.runAction(
       internal.integrations.load_integration.loadIntegration,
-      { orgSlug: 'default', organizationId, slug: name },
+      { orgSlug, organizationId, slug: name },
     );
 
     if (!integration) {

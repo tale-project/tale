@@ -9,6 +9,7 @@ import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { isSqlIntegration } from '../../integrations/helpers';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 
 export interface OperationInfo {
   name: string;
@@ -51,9 +52,10 @@ export async function fetchOperationsWithSchema(
   organizationId: string,
   integrationName: string,
 ): Promise<FetchedOperations | undefined> {
+  const orgSlug = await resolveOrgSlug(ctx, organizationId);
   const integration = await ctx.runAction(
     internal.integrations.load_integration.loadIntegration,
-    { orgSlug: 'default', organizationId, slug: integrationName },
+    { orgSlug, organizationId, slug: integrationName },
   );
 
   if (!integration) {
