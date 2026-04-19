@@ -39,7 +39,10 @@ import { messageMetadataTable } from './streaming/schema';
 import { threadBranchesTable } from './threads/branch_schema';
 import { threadMetadataTable } from './threads/schema';
 import { twoFactorAttemptsTable } from './two_factor/schema';
-import { userPasswordMetadataTable } from './users/schema';
+import {
+  userNotificationStateTable,
+  userPasswordMetadataTable,
+} from './users/schema';
 import { vendorsTable } from './vendors/schema';
 import { websitesTable } from './websites/schema';
 import {
@@ -93,6 +96,7 @@ export default defineSchema({
   threadMetadata: threadMetadataTable,
   twoFactorAttempts: twoFactorAttemptsTable,
   userPasswordMetadata: userPasswordMetadataTable,
+  userNotificationState: userNotificationStateTable,
   products: productsTable,
   ssoProviders: ssoProvidersTable,
   vendors: vendorsTable,

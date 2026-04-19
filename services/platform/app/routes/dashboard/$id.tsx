@@ -21,6 +21,7 @@ import {
 import { TwoFactorGraceBanner } from '@/app/features/auth/components/two-factor-grace-banner';
 import { TwoFactorLowBackupCodesBanner } from '@/app/features/auth/components/two-factor-low-backup-codes-banner';
 import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-expiry-gate';
+import { ChangelogToastTrigger } from '@/app/features/changelog/components/changelog-toast-trigger';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
@@ -152,6 +153,7 @@ function DashboardLayout() {
                     organizationId={organizationId}
                   />
                 )}
+                {hasRole && <ChangelogToastTrigger />}
                 {isSwitching ? (
                   <FullPageCenter>
                     <VStack gap={3} align="center">

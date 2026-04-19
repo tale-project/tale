@@ -7,6 +7,7 @@ interface EnvConfig {
   FILE_EVENTS_ENABLED: boolean;
   SENTRY_DSN?: string;
   SENTRY_TRACES_SAMPLE_RATE: number;
+  TALE_VERSION?: string;
 }
 
 function getEnvConfig(): EnvConfig {
@@ -22,6 +23,7 @@ function getEnvConfig(): EnvConfig {
     SENTRY_TRACES_SAMPLE_RATE: parseFloat(
       process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0',
     ),
+    TALE_VERSION: process.env.TALE_VERSION,
   };
 }
 

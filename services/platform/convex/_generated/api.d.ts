@@ -696,6 +696,7 @@ import type * as users_has_any_users from "../users/has_any_users.js";
 import type * as users_helpers from "../users/helpers.js";
 import type * as users_internal_mutations from "../users/internal_mutations.js";
 import type * as users_mutations from "../users/mutations.js";
+import type * as users_notification_state from "../users/notification_state.js";
 import type * as users_password_metadata from "../users/password_metadata.js";
 import type * as users_queries from "../users/queries.js";
 import type * as users_reset_owner from "../users/reset_owner.js";
@@ -1662,6 +1663,7 @@ declare const fullApi: ApiFromModules<{
   "users/helpers": typeof users_helpers;
   "users/internal_mutations": typeof users_internal_mutations;
   "users/mutations": typeof users_mutations;
+  "users/notification_state": typeof users_notification_state;
   "users/password_metadata": typeof users_password_metadata;
   "users/queries": typeof users_queries;
   "users/reset_owner": typeof users_reset_owner;
