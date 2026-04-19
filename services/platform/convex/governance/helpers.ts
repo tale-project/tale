@@ -189,12 +189,26 @@ export function buildPeriodKeyFromTimestamp(
     case 'daily':
       return `${year}-${month}-${day}`;
     case 'weekly': {
-      const jan1 = new Date(Date.UTC(year, 0, 1));
-      const dayOfYear =
-        Math.floor((date.getTime() - jan1.getTime()) / (24 * 60 * 60 * 1000)) +
-        1;
-      const weekNum = Math.ceil(dayOfYear / 7);
-      return `${year}-W${String(weekNum).padStart(2, '0')}`;
+      // ISO 8601: the week-year is the year of the Thursday in that week.
+      // Shift the date to the Thursday of its ISO week, then count weeks
+      // from the Thursday of the reference week that contains Jan 4.
+      const target = new Date(
+        Date.UTC(year, date.getUTCMonth(), date.getUTCDate()),
+      );
+      const dayNr = (target.getUTCDay() + 6) % 7; // Mon=0..Sun=6
+      target.setUTCDate(target.getUTCDate() - dayNr + 3);
+      const isoYear = target.getUTCFullYear();
+      const firstThursday = new Date(Date.UTC(isoYear, 0, 4));
+      firstThursday.setUTCDate(
+        firstThursday.getUTCDate() - ((firstThursday.getUTCDay() + 6) % 7) + 3,
+      );
+      const weekNum =
+        1 +
+        Math.round(
+          (target.getTime() - firstThursday.getTime()) /
+            (7 * 24 * 60 * 60 * 1000),
+        );
+      return `${isoYear}-W${String(weekNum).padStart(2, '0')}`;
     }
     case 'monthly':
       return `${year}-${month}`;

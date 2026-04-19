@@ -4421,5 +4421,83 @@
       "similarityScore": "Similarity: {score}%"
     },
     "noResults": "No comparison results yet."
+  },
+  "analytics": {
+    "usage": {
+      "title": "Usage Analytics",
+      "description": "Token consumption, requests, and active users over time.",
+      "cappedNotice": "Results are capped because the time range contains too many records. Narrow the range for complete data.",
+      "activeUsersTooltip": "Users who made AI requests during this period.",
+      "unknownAgent": "Unknown assistant",
+      "unknownModel": "Unknown model",
+      "period": {
+        "label": "Period",
+        "last7Days": "Last 7 days",
+        "last30Days": "Last 30 days",
+        "last90Days": "Last 90 days"
+      },
+      "granularity": {
+        "label": "Granularity",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "monthly": "Monthly"
+      },
+      "metric": {
+        "label": "Metric",
+        "requests": "Requests",
+        "tokens": "Tokens",
+        "cost": "Cost"
+      },
+      "cards": {
+        "totalRequests": "Total Requests",
+        "totalTokens": "Total Tokens",
+        "totalCost": "Total Cost",
+        "activeUsers": "Active Users"
+      },
+      "chart": {
+        "ariaLabel": "{metric} over time",
+        "inputTokens": "Input",
+        "outputTokens": "Output"
+      },
+      "tables": {
+        "topAgents": {
+          "title": "Top Assistants",
+          "rank": "#",
+          "agent": "Assistant",
+          "requests": "Requests",
+          "tokens": "Tokens",
+          "cost": "Cost"
+        },
+        "topModels": {
+          "title": "Top Models",
+          "rank": "#",
+          "model": "Model",
+          "provider": "Provider",
+          "requests": "Requests",
+          "tokens": "Tokens",
+          "cost": "Cost"
+        },
+        "users": {
+          "title": "Per-User Usage",
+          "user": "User",
+          "team": "Team",
+          "inputTokens": "Input Tokens",
+          "outputTokens": "Output Tokens",
+          "requests": "Requests",
+          "tokens": "Tokens",
+          "cost": "Cost"
+        }
+      },
+      "filterChips": {
+        "agent": "Assistant: {value}",
+        "model": "Model: {value}",
+        "provider": "Provider: {value}",
+        "clear": "Clear filters"
+      },
+      "empty": {
+        "title": "No usage yet",
+        "description": "No AI usage has been recorded for the selected period."
+      }
+    }
   }
 }

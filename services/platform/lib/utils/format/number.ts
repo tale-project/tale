@@ -60,6 +60,48 @@ export function formatCurrency(
 }
 
 /**
+ * Format a cost in cents as locale-aware currency.
+ *
+ * Small values (< $1) fall back to 3 significant digits so micro-costs
+ * like $0.00068 remain readable; $0 stays as a clean "$0.00".
+ *
+ * @param cents - Cost in integer cents
+ * @param currency - ISO 4217 currency code (default 'USD')
+ * @param locale - The locale to use (defaults to app default locale)
+ *
+ * @example
+ * formatCostCents(0)      // "$0.00"
+ * formatCostCents(1234)   // "$12.34"
+ * formatCostCents(12)     // "$0.12"
+ * formatCostCents(1)      // "$0.0100" (3 sig figs)
+ */
+export function formatCostCents(
+  cents: number,
+  currency: string = 'USD',
+  locale: string = defaultLocale,
+): string {
+  const value = cents / 100;
+  if (value === 0 || Math.abs(value) >= 1) {
+    return formatCurrency(value, currency, locale);
+  }
+  // Small values — preserve 3 significant digits.
+  const digits = Math.max(
+    2,
+    2 - Math.floor(Math.log10(Math.abs(value))) - 1 + 2,
+  );
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: Math.min(digits, 10),
+    }).format(value);
+  } catch {
+    return `${currency} ${value.toPrecision(3)}`;
+  }
+}
+
+/**
  * Format a duration in milliseconds
  *
  * @param ms - Duration in milliseconds

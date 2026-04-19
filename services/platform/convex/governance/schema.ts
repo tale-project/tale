@@ -44,6 +44,20 @@ export const usageLedgerTable = defineTable({
   userId: v.string(),
   teamId: v.optional(v.string()),
   periodKey: v.string(),
+  // Granularity of periodKey (daily=YYYY-MM-DD, weekly=YYYY-Www, monthly=YYYY-MM).
+  // Optional only for back-compat with legacy rows; backfilled at deploy.
+  granularity: v.optional(
+    v.union(v.literal('daily'), v.literal('weekly'), v.literal('monthly')),
+  ),
+  // Assistant / workflow step that produced the usage. Undefined for direct
+  // model-API callers (openai-compat) and for legacy rows.
+  agentSlug: v.optional(v.string()),
+  // LLM model identifier, e.g. "gpt-4o-mini", "claude-opus-4-7". Undefined
+  // for legacy rows only.
+  model: v.optional(v.string()),
+  // LLM provider, e.g. "openai", "anthropic". Stored for breakdown display;
+  // not part of the dedup key (model uniquely determines provider).
+  provider: v.optional(v.string()),
   inputTokens: v.number(),
   outputTokens: v.number(),
   totalTokens: v.number(),
@@ -57,5 +71,18 @@ export const usageLedgerTable = defineTable({
     'periodKey',
     'teamId',
   ])
+  .index('by_org_user_period_team_agent_model', [
+    'organizationId',
+    'userId',
+    'periodKey',
+    'teamId',
+    'agentSlug',
+    'model',
+  ])
   .index('by_org_team_period', ['organizationId', 'teamId', 'periodKey'])
-  .index('by_org_period', ['organizationId', 'periodKey']);
+  .index('by_org_period', ['organizationId', 'periodKey'])
+  .index('by_org_granularity_period', [
+    'organizationId',
+    'granularity',
+    'periodKey',
+  ]);

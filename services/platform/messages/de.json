@@ -4414,5 +4414,83 @@
       "similarityScore": "Ähnlichkeit: {score}%"
     },
     "noResults": "Noch keine Vergleichsergebnisse."
+  },
+  "analytics": {
+    "usage": {
+      "title": "Nutzungsanalyse",
+      "description": "Tokenverbrauch, Anfragen und aktive Benutzer im Zeitverlauf.",
+      "cappedNotice": "Ergebnisse sind begrenzt, weil der Zeitraum zu viele Datensätze enthält. Verringere den Zeitraum für vollständige Daten.",
+      "activeUsersTooltip": "Benutzer, die in diesem Zeitraum KI-Anfragen gestellt haben.",
+      "unknownAgent": "Unbekannter Assistent",
+      "unknownModel": "Unbekanntes Modell",
+      "period": {
+        "label": "Zeitraum",
+        "last7Days": "Letzte 7 Tage",
+        "last30Days": "Letzte 30 Tage",
+        "last90Days": "Letzte 90 Tage"
+      },
+      "granularity": {
+        "label": "Granularität",
+        "daily": "Täglich",
+        "weekly": "Wöchentlich",
+        "monthly": "Monatlich"
+      },
+      "metric": {
+        "label": "Metrik",
+        "requests": "Anfragen",
+        "tokens": "Tokens",
+        "cost": "Kosten"
+      },
+      "cards": {
+        "totalRequests": "Anfragen gesamt",
+        "totalTokens": "Tokens gesamt",
+        "totalCost": "Kosten gesamt",
+        "activeUsers": "Aktive Benutzer"
+      },
+      "chart": {
+        "ariaLabel": "{metric} im Zeitverlauf",
+        "inputTokens": "Eingabe",
+        "outputTokens": "Ausgabe"
+      },
+      "tables": {
+        "topAgents": {
+          "title": "Top-Assistenten",
+          "rank": "#",
+          "agent": "Assistent",
+          "requests": "Anfragen",
+          "tokens": "Tokens",
+          "cost": "Kosten"
+        },
+        "topModels": {
+          "title": "Top-Modelle",
+          "rank": "#",
+          "model": "Modell",
+          "provider": "Anbieter",
+          "requests": "Anfragen",
+          "tokens": "Tokens",
+          "cost": "Kosten"
+        },
+        "users": {
+          "title": "Nutzung pro Benutzer",
+          "user": "Benutzer",
+          "team": "Team",
+          "inputTokens": "Eingabe-Tokens",
+          "outputTokens": "Ausgabe-Tokens",
+          "requests": "Anfragen",
+          "tokens": "Tokens",
+          "cost": "Kosten"
+        }
+      },
+      "filterChips": {
+        "agent": "Assistent: {value}",
+        "model": "Modell: {value}",
+        "provider": "Anbieter: {value}",
+        "clear": "Filter zurücksetzen"
+      },
+      "empty": {
+        "title": "Noch keine Nutzung",
+        "description": "Für den ausgewählten Zeitraum wurde keine KI-Nutzung erfasst."
+      }
+    }
   }
 }

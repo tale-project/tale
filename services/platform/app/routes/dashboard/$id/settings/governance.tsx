@@ -5,13 +5,13 @@ import { z } from 'zod';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
+import { UsageMetricsPage } from '@/app/features/analytics/usage/usage-metrics-page';
 import { BudgetEditor } from '@/app/features/settings/governance/components/budget-editor';
 import { FeatureFlagsEditor } from '@/app/features/settings/governance/components/feature-flags-editor';
 import { ModelAccessEditor } from '@/app/features/settings/governance/components/model-access-editor';
 import { PiiConfig } from '@/app/features/settings/governance/components/pii-config';
 import { RetentionEditor } from '@/app/features/settings/governance/components/retention-editor';
 import { SystemPromptEditor } from '@/app/features/settings/governance/components/system-prompt-editor';
-import { UsageDashboard } from '@/app/features/settings/governance/components/usage-dashboard';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -179,7 +179,7 @@ function GovernanceSettingsPage() {
               {
                 value: 'usage',
                 label: t('groups.subtabs.usage'),
-                content: <UsageDashboard organizationId={organizationId} />,
+                content: <UsageMetricsPage organizationId={organizationId} />,
               },
             ]}
           />,
