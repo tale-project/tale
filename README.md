@@ -31,7 +31,7 @@ tale init my-project
 cd my-project
 ```
 
-The CLI prompts for your domain, API key, and TLS mode. Security secrets are generated automatically. It also generates AI editor configuration files and extracts the platform source code to `.tale/reference/` so AI-powered editors can create and edit configs with full platform awareness. See [AI-assisted development](docs/ai-assisted-development.md).
+The CLI prompts for your domain, API key, and TLS mode. Security secrets are generated automatically. It also generates AI editor configuration files and extracts the platform source code to `.tale/reference/` so AI-powered editors can create and edit configs with full platform awareness. See [AI-assisted development](docs/develop/ai-assisted-development.md).
 
 ### 3. Start Tale
 
@@ -43,7 +43,7 @@ Visit https://localhost (or your configured domain) when you see "Tale Platform 
 
 > **Note:** Your browser will show a certificate warning for self-signed certificates. This is safe to accept.
 
-For detailed setup instructions, see the [Quick start guide](docs/quickstart.md).
+For detailed setup instructions, see the [Getting started guide](docs/use/getting-started.md).
 
 ## What can you do?
 
@@ -87,9 +87,9 @@ tale cleanup                       # Remove inactive containers
 tale reset --force                 # Remove all containers
 ```
 
-### Upgrading from v0.2.x → v0.3.x (split-convex)
+### Upgrading across the split-convex release (v0.2.34)
 
-v0.3.0 splits the Convex backend into its own service. Migrations are detected
+v0.2.34 splits the Convex backend into its own service. Migrations are detected
 and applied automatically on the next `tale start` or `tale deploy`; there is
 no separate `tale migrate` command.
 
@@ -109,11 +109,11 @@ See the [CLI reference](tools/cli/README.md) for all options and flags.
 tale deploy
 ```
 
-The CLI handles blue-green zero-downtime deployments with automatic health checks and rollback. For full production setup including reverse proxy configuration and subpath deployment, see the [Production deployment guide](docs/production-deployment.md).
+The CLI handles blue-green zero-downtime deployments with automatic health checks and rollback. For full production setup including reverse proxy configuration and subpath deployment, see the [Production deployment guide](docs/operate/deployment/production.md).
 
 ## Authentication options
 
-Tale uses password-based authentication by default. The first user creates the owner account; all other users are created by an admin. To enable self-service login, connect SSO or trusted headers. See the [Authentication guide](docs/authentication.md) for full details.
+Tale uses password-based authentication by default. The first user creates the owner account; all other users are created by an admin. To enable self-service login, connect SSO or trusted headers. See the [Authentication guide](docs/admin/authentication.md) for full details.
 
 - **Microsoft Entra ID (SSO):** Single sign-on with Microsoft 365 / Azure AD with automatic provisioning
 - **Trusted headers:** For deployments behind an authenticating reverse proxy (Authelia, Authentik, oauth2-proxy)
@@ -141,7 +141,7 @@ bun run build                    # Build all services
 
 #### Optional: hybrid mode against a containerised Convex
 
-After the v0.3.0 split, you can run Vite locally against the dedicated `convex` container instead of spawning `bunx convex dev`:
+After the v0.2.34 split, you can run Vite locally against the dedicated `convex` container instead of spawning `bunx convex dev`:
 
 ```bash
 docker compose up convex                        # in one terminal
@@ -164,29 +164,48 @@ cd services/crawler && uv sync --extra dev
 
 ## Documentation
 
-### User guides
+The docs are published in six locales (`en`, `de`, `de-AT`, `de-CH`, `fr`, `fr-CH`) with full coverage. Start at [`docs/index.md`](docs/index.md) to pick an entry point by persona.
 
-- **[AI-assisted development](docs/ai-assisted-development.md)** — Use AI-powered editors to create agents, workflows, and integrations
-- **[AI Chat](docs/ai-chat.md)** — Use the AI chat assistant to explore data, attach files, and select agents
-- **[Knowledge Base](docs/knowledge-base.md)** — Manage documents, websites, products, customers, and vendors
-- **[Conversations](docs/conversations.md)** — Manage customer conversations from a unified inbox
-- **[Automations](docs/automations.md)** — Build multi-step workflows with triggers, conditions, loops, and AI steps
-- **[Agents](docs/agents.md)** — Create specialized AI assistants with custom instructions and tools
+### For everyday users
 
-### Administration
+- **[Getting started](docs/use/getting-started.md)** — install Tale and open the app
+- **[AI chat basics](docs/use/chat/basics.md)** — chat, attach files, pick agents
+- **[Knowledge base](docs/use/workspace/knowledge-base.md)** — documents and websites
+- **[Conversations](docs/use/workspace/conversations.md)** — customer inbox
+- **[Approvals](docs/use/workspace/approvals.md)** — review AI actions
+- **[Your preferences](docs/use/preferences.md)** — password, language, theme
 
-- **[Roles and Permissions](docs/roles-and-permissions.md)** — User roles, permission matrix, and SSO configuration
-- **[Authentication](docs/authentication.md)** — Email/password, Microsoft Entra ID SSO, and trusted headers
-- **[Settings](docs/settings.md)** — Organization settings, teams, integrations, branding, and API keys
+### For builders (agents, automations, integrations)
 
-### Operations
+- **[What you can build](docs/build/overview.md)** — orientation for Editors/Developers
+- **[Create an agent](docs/build/agents/create.md)** — specialised AI assistants
+- **[Workflows](docs/build/automations/workflows.md)** — multi-step automations
+- **[Structured data](docs/build/knowledge/structured-data.md)** — products, customers, vendors
+- **[Integrations overview](docs/build/integrations/overview.md)** — REST, SQL, e-mail, OneDrive
 
-- **[Production Deployment](docs/production-deployment.md)** — Docker Compose, zero-downtime deployments, and reverse proxy setup
-- **[Tale CLI](tools/cli/README.md)** — CLI reference for all commands and options
-- **[Environment Reference](docs/environment-reference.md)** — Complete reference of all environment variables
-- **[Operations](docs/operations.md)** — Monitoring, error tracking, logs, backups, and health checks
-- **[API Reference](docs/api-reference.md)** — REST API endpoints for all services
-- **[Troubleshooting](docs/troubleshooting.md)** — Common issues and solutions
+### For admins
+
+- **[Members and roles](docs/admin/members-and-roles.md)** — user management and permission matrix
+- **[Authentication](docs/admin/authentication.md)** — password, SSO, trusted headers
+- **[AI providers](docs/admin/providers.md)** — configure models in the admin UI
+- **[Governance](docs/admin/governance.md)** — budgets, retention, PII detection, audit logs
+- **[Usage analytics](docs/admin/usage-analytics.md)** — time-based token and cost reporting
+
+### For operators
+
+- **[Platform overview](docs/operate/overview.md)** — architecture and services
+- **[Production deployment](docs/operate/deployment/production.md)** — Docker Compose, zero-downtime deploys, reverse proxy
+- **[Tale CLI](tools/cli/README.md)** — CLI reference
+- **[Environment reference](docs/operate/configuration/environment-reference.md)** — all environment variables
+- **[Operations](docs/operate/observability/operations.md)** — monitoring, error tracking, backups
+- **[Troubleshooting](docs/operate/observability/troubleshooting.md)** — common issues
+
+### For developers
+
+- **[API reference](docs/develop/api-reference.md)** — REST API for RAG, Crawler, and Platform
+- **[Webhooks](docs/develop/webhooks.md)** — workflow and agent webhooks with signature verification
+- **[AI-assisted development](docs/develop/ai-assisted-development.md)** — configure agents/workflows in AI editors
+- **[Contributing Docker](docs/develop/contributing-docker.md)** — modify Dockerfiles and run container tests
 
 ## Need help?
 

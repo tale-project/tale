@@ -140,7 +140,12 @@ Cross-locale rules (length parity with English, tone, plurals, placeholders) liv
 - **General (all locales):** [`.agents/TERMINOLOGY.md`](.agents/TERMINOLOGY.md)
 - **English (en):** [`.agents/TERMINOLOGY_EN.md`](.agents/TERMINOLOGY_EN.md)
 - **German (de):** [`.agents/TERMINOLOGY_DE.md`](.agents/TERMINOLOGY_DE.md)
+  - **Austrian German (de-AT):** [`.agents/TERMINOLOGY_DE_AT.md`](.agents/TERMINOLOGY_DE_AT.md) — delta from `de`
+  - **Swiss German (de-CH):** [`.agents/TERMINOLOGY_DE_CH.md`](.agents/TERMINOLOGY_DE_CH.md) — delta from `de`
 - **French (fr):** [`.agents/TERMINOLOGY_FR.md`](.agents/TERMINOLOGY_FR.md)
+  - **Swiss French (fr-CH):** [`.agents/TERMINOLOGY_FR_CH.md`](.agents/TERMINOLOGY_FR_CH.md) — delta from `fr`
+
+The same terminology rules apply to the Mintlify docs under `docs/`. See the "Documentation i18n" subsection below for how those rules map to doc pages.
 
 ## Python
 
@@ -150,18 +155,12 @@ Cross-locale rules (length parity with English, tone, plurals, placeholders) liv
 
 ## Documentation
 
-- Documentation lives in `docs/` and uses Mintlify (`docs/docs.json` controls navigation).
-- TREAT documentation as part of the deliverable, not an afterthought. Any change that affects what users see, configure, or interact with MUST include a corresponding documentation update in the same PR. This includes new features, changed behavior, renamed settings, new environment variables, updated APIs, and removed functionality. Work without up-to-date docs is not complete.
-- WHEN adding a new doc page, also add it to the appropriate navigation group in `docs/docs.json`.
-- WHEN renaming or removing a doc page, update all references in `README.md` and `docs/docs.json`.
-- ALWAYS add Mintlify frontmatter (`title` and `description`) to every doc file.
-- USE dash-case for documentation filenames (e.g., `api-reference.md`).
-- KEEP each doc file focused on a single topic. Do not combine unrelated topics in one file.
-- PREFER cross-linking between doc pages over duplicating content.
-- USE code blocks with language identifiers for all command examples.
-- USE Mermaid diagrams for flow charts and architecture diagrams in documentation.
-- USE sentence case for headings.
-- FORMAT tables with aligned columns and consistent spacing for readability in editors.
+Docs are part of every change, not a follow-up. The detailed rules live with the docs themselves — read them before editing anything under `docs/`.
+
+- **Source of truth:** [`docs/AGENTS.md`](docs/AGENTS.md) — taxonomy, writing style, i18n across six locales, base-vs-variant generator, verification commands. That file is loaded automatically by agents working inside `docs/`; read it in full before your first doc edit.
+- **Non-negotiable rule:** every PR that changes what users see, configure, or interact with — a feature, a setting, an environment variable, an API, a CLI flag, a removal — updates the docs in **every base locale** (`en`, `de`, `fr`) and regenerates the variant locales (`de-AT`, `de-CH`, `fr-CH`) in the same commit. Work without up-to-date docs is incomplete and does not merge.
+- **Translation style** follows the same rules as the platform UI (see "Internationalization (i18n)" above): sentence case, informal "du"/"tu", no translated brand names, ICU placeholders preserved. Read [`.agents/TERMINOLOGY.md`](.agents/TERMINOLOGY.md) plus the relevant base-locale file ([`.agents/TERMINOLOGY_DE.md`](.agents/TERMINOLOGY_DE.md), [`.agents/TERMINOLOGY_FR.md`](.agents/TERMINOLOGY_FR.md)) before translating a doc page. When writing a variant override (`de-AT`, `de-CH`, `fr-CH`), also read the matching delta file ([`.agents/TERMINOLOGY_DE_AT.md`](.agents/TERMINOLOGY_DE_AT.md), [`.agents/TERMINOLOGY_DE_CH.md`](.agents/TERMINOLOGY_DE_CH.md), [`.agents/TERMINOLOGY_FR_CH.md`](.agents/TERMINOLOGY_FR_CH.md)).
+- **Before opening a PR that touches `docs/`:** run `bun run --filter @tale/docs generate:variants` (regenerates `de-AT`/`de-CH`/`fr-CH`), `bun run --filter @tale/docs lint` (frontmatter across all locales), and `cd docs && bun run broken-links` (Mintlify's link checker). All three must pass.
 
 ## Accessibility (WCAG 2.1 Level AA)
 

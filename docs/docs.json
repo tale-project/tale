@@ -21,96 +21,884 @@
     "default": "system"
   },
   "fonts": {
-    "heading": {
-      "family": "Inter",
-      "weight": 600
-    },
-    "body": {
-      "family": "Inter",
-      "weight": 400
-    }
+    "heading": { "family": "Inter", "weight": 600 },
+    "body": { "family": "Inter", "weight": 400 }
   },
   "icons": {
     "library": "lucide"
   },
   "background": {
-    "color": {
-      "light": "#FFFFFF",
-      "dark": "#0A0A0A"
-    }
+    "color": { "light": "#FFFFFF", "dark": "#0A0A0A" }
   },
   "styling": {
     "eyebrows": "breadcrumbs",
     "codeblocks": {
-      "theme": {
-        "light": "github-light",
-        "dark": "github-dark-default"
-      }
+      "theme": { "light": "github-light", "dark": "github-dark-default" }
     }
   },
   "navigation": {
-    "global": {
-      "anchors": [
-        {
-          "anchor": "GitHub",
-          "icon": "github",
-          "href": "https://github.com/tale-project/tale"
-        },
-        {
-          "anchor": "API Reference",
-          "icon": "code",
-          "href": "/api-reference"
-        }
-      ],
-      "tabs": [
-        {
-          "tab": "Documentation",
-          "href": "/"
-        },
-        {
-          "tab": "API Reference",
-          "href": "/api-reference"
-        }
-      ]
-    },
-    "groups": [
+    "languages": [
       {
-        "group": "Getting started",
-        "pages": ["overview", "quickstart", "ai-assisted-development", "production-deployment"]
-      },
-      {
-        "group": "Features",
-        "pages": [
-          "ai-chat",
-          "arena-mode",
-          "canvas",
-          "prompt-library",
-          "knowledge-base",
-          "document-comparison",
-          "conversations",
-          "approvals",
-          "automations",
-          "agents",
-          "settings"
+        "language": "en",
+        "default": true,
+        "global": {
+          "anchors": [
+            { "anchor": "GitHub", "icon": "github", "href": "https://github.com/tale-project/tale" },
+            { "anchor": "API reference", "icon": "code", "href": "/develop/api-reference" }
+          ]
+        },
+        "groups": [
+          {
+            "group": "Start here",
+            "pages": ["index"]
+          },
+          {
+            "group": "Use Tale",
+            "pages": [
+              "use/getting-started",
+              "use/preferences",
+              {
+                "group": "Chat",
+                "pages": [
+                  "use/chat/basics",
+                  "use/chat/attachments",
+                  "use/chat/agents-in-chat",
+                  "use/chat/arena-mode"
+                ]
+              },
+              {
+                "group": "Workspace",
+                "pages": [
+                  "use/workspace/knowledge-base",
+                  "use/workspace/conversations",
+                  "use/workspace/approvals",
+                  "use/workspace/canvas",
+                  "use/workspace/prompt-library",
+                  "use/workspace/document-comparison"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Build with Tale",
+            "pages": [
+              "build/overview",
+              {
+                "group": "Agents",
+                "pages": [
+                  "build/agents/concepts",
+                  "build/agents/create",
+                  "build/agents/versions"
+                ]
+              },
+              {
+                "group": "Automations",
+                "pages": [
+                  "build/automations/concepts",
+                  "build/automations/workflows",
+                  "build/automations/triggers",
+                  "build/automations/execution-logs"
+                ]
+              },
+              {
+                "group": "Knowledge",
+                "pages": [
+                  "build/knowledge/structured-data",
+                  "build/knowledge/crawling"
+                ]
+              },
+              {
+                "group": "Integrations",
+                "pages": [
+                  "build/integrations/overview",
+                  "build/integrations/providers"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Administer",
+            "pages": [
+              "admin/members-and-roles",
+              "admin/teams",
+              "admin/authentication",
+              "admin/providers",
+              "admin/branding",
+              "admin/governance",
+              "admin/usage-analytics"
+            ]
+          },
+          {
+            "group": "Operate",
+            "pages": [
+              "operate/overview",
+              {
+                "group": "Deployment",
+                "pages": [
+                  "operate/deployment/production",
+                  "operate/deployment/container-architecture"
+                ]
+              },
+              {
+                "group": "Configuration",
+                "pages": [
+                  "operate/configuration/environment-reference",
+                  "operate/configuration/retention"
+                ]
+              },
+              {
+                "group": "Observability",
+                "pages": [
+                  "operate/observability/operations",
+                  "operate/observability/troubleshooting"
+                ]
+              },
+              {
+                "group": "Security",
+                "pages": ["operate/security/advisories"]
+              },
+              {
+                "group": "Release notes",
+                "pages": [
+                  "operate/release-notes/format",
+                  "operate/release-notes/v0.2.34-split-convex"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Develop",
+            "pages": [
+              "develop/api-reference",
+              "develop/webhooks",
+              "develop/ai-assisted-development",
+              "develop/contributing-docker"
+            ]
+          },
+          {
+            "group": "Legal",
+            "pages": [
+              "legal/privacy-policy",
+              "legal/terms-of-service",
+              "legal/data-processing-agreement"
+            ]
+          }
         ]
       },
       {
-        "group": "Administration",
-        "pages": ["roles-and-permissions", "authentication", "providers"]
-      },
-      {
-        "group": "Operations",
-        "pages": [
-          "api-reference",
-          "environment-reference",
-          "operations",
-          "container-architecture",
-          "troubleshooting"
+        "language": "de",
+        "global": {
+          "anchors": [
+            { "anchor": "GitHub", "icon": "github", "href": "https://github.com/tale-project/tale" },
+            { "anchor": "API-Referenz", "icon": "code", "href": "/de/develop/api-reference" }
+          ]
+        },
+        "groups": [
+          { "group": "Start", "pages": ["de/index"] },
+          {
+            "group": "Tale benutzen",
+            "pages": [
+              "de/use/getting-started",
+              "de/use/preferences",
+              {
+                "group": "Chat",
+                "pages": [
+                  "de/use/chat/basics",
+                  "de/use/chat/attachments",
+                  "de/use/chat/agents-in-chat",
+                  "de/use/chat/arena-mode"
+                ]
+              },
+              {
+                "group": "Arbeitsbereich",
+                "pages": [
+                  "de/use/workspace/knowledge-base",
+                  "de/use/workspace/conversations",
+                  "de/use/workspace/approvals",
+                  "de/use/workspace/canvas",
+                  "de/use/workspace/prompt-library",
+                  "de/use/workspace/document-comparison"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Mit Tale einrichten",
+            "pages": [
+              "de/build/overview",
+              {
+                "group": "Agents",
+                "pages": [
+                  "de/build/agents/concepts",
+                  "de/build/agents/create",
+                  "de/build/agents/versions"
+                ]
+              },
+              {
+                "group": "Automatisierungen",
+                "pages": [
+                  "de/build/automations/concepts",
+                  "de/build/automations/workflows",
+                  "de/build/automations/triggers",
+                  "de/build/automations/execution-logs"
+                ]
+              },
+              {
+                "group": "Wissen",
+                "pages": [
+                  "de/build/knowledge/structured-data",
+                  "de/build/knowledge/crawling"
+                ]
+              },
+              {
+                "group": "Integrationen",
+                "pages": [
+                  "de/build/integrations/overview",
+                  "de/build/integrations/providers"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Administration",
+            "pages": [
+              "de/admin/members-and-roles",
+              "de/admin/teams",
+              "de/admin/authentication",
+              "de/admin/providers",
+              "de/admin/branding",
+              "de/admin/governance",
+              "de/admin/usage-analytics"
+            ]
+          },
+          {
+            "group": "Betrieb",
+            "pages": [
+              "de/operate/overview",
+              {
+                "group": "Deployment",
+                "pages": [
+                  "de/operate/deployment/production",
+                  "de/operate/deployment/container-architecture"
+                ]
+              },
+              {
+                "group": "Konfiguration",
+                "pages": [
+                  "de/operate/configuration/environment-reference",
+                  "de/operate/configuration/retention"
+                ]
+              },
+              {
+                "group": "Observability",
+                "pages": [
+                  "de/operate/observability/operations",
+                  "de/operate/observability/troubleshooting"
+                ]
+              },
+              {
+                "group": "Sicherheit",
+                "pages": ["de/operate/security/advisories"]
+              },
+              {
+                "group": "Release Notes",
+                "pages": [
+                  "de/operate/release-notes/format",
+                  "de/operate/release-notes/v0.2.34-split-convex"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Entwickeln",
+            "pages": [
+              "de/develop/api-reference",
+              "de/develop/webhooks",
+              "de/develop/ai-assisted-development",
+              "de/develop/contributing-docker"
+            ]
+          },
+          {
+            "group": "Rechtliches",
+            "pages": [
+              "de/legal/privacy-policy",
+              "de/legal/terms-of-service",
+              "de/legal/data-processing-agreement"
+            ]
+          }
         ]
       },
       {
-        "group": "Contributing",
-        "pages": ["contributing-docker"]
+        "language": "de-AT",
+        "global": {
+          "anchors": [
+            { "anchor": "GitHub", "icon": "github", "href": "https://github.com/tale-project/tale" },
+            { "anchor": "API-Referenz", "icon": "code", "href": "/de-AT/develop/api-reference" }
+          ]
+        },
+        "groups": [
+          { "group": "Start", "pages": ["de-AT/index"] },
+          {
+            "group": "Tale benutzen",
+            "pages": [
+              "de-AT/use/getting-started",
+              "de-AT/use/preferences",
+              {
+                "group": "Chat",
+                "pages": [
+                  "de-AT/use/chat/basics",
+                  "de-AT/use/chat/attachments",
+                  "de-AT/use/chat/agents-in-chat",
+                  "de-AT/use/chat/arena-mode"
+                ]
+              },
+              {
+                "group": "Arbeitsbereich",
+                "pages": [
+                  "de-AT/use/workspace/knowledge-base",
+                  "de-AT/use/workspace/conversations",
+                  "de-AT/use/workspace/approvals",
+                  "de-AT/use/workspace/canvas",
+                  "de-AT/use/workspace/prompt-library",
+                  "de-AT/use/workspace/document-comparison"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Mit Tale einrichten",
+            "pages": [
+              "de-AT/build/overview",
+              {
+                "group": "Agents",
+                "pages": [
+                  "de-AT/build/agents/concepts",
+                  "de-AT/build/agents/create",
+                  "de-AT/build/agents/versions"
+                ]
+              },
+              {
+                "group": "Automatisierungen",
+                "pages": [
+                  "de-AT/build/automations/concepts",
+                  "de-AT/build/automations/workflows",
+                  "de-AT/build/automations/triggers",
+                  "de-AT/build/automations/execution-logs"
+                ]
+              },
+              {
+                "group": "Wissen",
+                "pages": [
+                  "de-AT/build/knowledge/structured-data",
+                  "de-AT/build/knowledge/crawling"
+                ]
+              },
+              {
+                "group": "Integrationen",
+                "pages": [
+                  "de-AT/build/integrations/overview",
+                  "de-AT/build/integrations/providers"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Administration",
+            "pages": [
+              "de-AT/admin/members-and-roles",
+              "de-AT/admin/teams",
+              "de-AT/admin/authentication",
+              "de-AT/admin/providers",
+              "de-AT/admin/branding",
+              "de-AT/admin/governance",
+              "de-AT/admin/usage-analytics"
+            ]
+          },
+          {
+            "group": "Betrieb",
+            "pages": [
+              "de-AT/operate/overview",
+              {
+                "group": "Deployment",
+                "pages": [
+                  "de-AT/operate/deployment/production",
+                  "de-AT/operate/deployment/container-architecture"
+                ]
+              },
+              {
+                "group": "Konfiguration",
+                "pages": [
+                  "de-AT/operate/configuration/environment-reference",
+                  "de-AT/operate/configuration/retention"
+                ]
+              },
+              {
+                "group": "Observability",
+                "pages": [
+                  "de-AT/operate/observability/operations",
+                  "de-AT/operate/observability/troubleshooting"
+                ]
+              },
+              {
+                "group": "Sicherheit",
+                "pages": ["de-AT/operate/security/advisories"]
+              },
+              {
+                "group": "Release Notes",
+                "pages": [
+                  "de-AT/operate/release-notes/format",
+                  "de-AT/operate/release-notes/v0.2.34-split-convex"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Entwickeln",
+            "pages": [
+              "de-AT/develop/api-reference",
+              "de-AT/develop/webhooks",
+              "de-AT/develop/ai-assisted-development",
+              "de-AT/develop/contributing-docker"
+            ]
+          },
+          {
+            "group": "Rechtliches",
+            "pages": [
+              "de-AT/legal/privacy-policy",
+              "de-AT/legal/terms-of-service",
+              "de-AT/legal/data-processing-agreement"
+            ]
+          }
+        ]
+      },
+      {
+        "language": "de-CH",
+        "global": {
+          "anchors": [
+            { "anchor": "GitHub", "icon": "github", "href": "https://github.com/tale-project/tale" },
+            { "anchor": "API-Referenz", "icon": "code", "href": "/de-CH/develop/api-reference" }
+          ]
+        },
+        "groups": [
+          { "group": "Start", "pages": ["de-CH/index"] },
+          {
+            "group": "Tale benutzen",
+            "pages": [
+              "de-CH/use/getting-started",
+              "de-CH/use/preferences",
+              {
+                "group": "Chat",
+                "pages": [
+                  "de-CH/use/chat/basics",
+                  "de-CH/use/chat/attachments",
+                  "de-CH/use/chat/agents-in-chat",
+                  "de-CH/use/chat/arena-mode"
+                ]
+              },
+              {
+                "group": "Arbeitsbereich",
+                "pages": [
+                  "de-CH/use/workspace/knowledge-base",
+                  "de-CH/use/workspace/conversations",
+                  "de-CH/use/workspace/approvals",
+                  "de-CH/use/workspace/canvas",
+                  "de-CH/use/workspace/prompt-library",
+                  "de-CH/use/workspace/document-comparison"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Mit Tale einrichten",
+            "pages": [
+              "de-CH/build/overview",
+              {
+                "group": "Agents",
+                "pages": [
+                  "de-CH/build/agents/concepts",
+                  "de-CH/build/agents/create",
+                  "de-CH/build/agents/versions"
+                ]
+              },
+              {
+                "group": "Automatisierungen",
+                "pages": [
+                  "de-CH/build/automations/concepts",
+                  "de-CH/build/automations/workflows",
+                  "de-CH/build/automations/triggers",
+                  "de-CH/build/automations/execution-logs"
+                ]
+              },
+              {
+                "group": "Wissen",
+                "pages": [
+                  "de-CH/build/knowledge/structured-data",
+                  "de-CH/build/knowledge/crawling"
+                ]
+              },
+              {
+                "group": "Integrationen",
+                "pages": [
+                  "de-CH/build/integrations/overview",
+                  "de-CH/build/integrations/providers"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Administration",
+            "pages": [
+              "de-CH/admin/members-and-roles",
+              "de-CH/admin/teams",
+              "de-CH/admin/authentication",
+              "de-CH/admin/providers",
+              "de-CH/admin/branding",
+              "de-CH/admin/governance",
+              "de-CH/admin/usage-analytics"
+            ]
+          },
+          {
+            "group": "Betrieb",
+            "pages": [
+              "de-CH/operate/overview",
+              {
+                "group": "Deployment",
+                "pages": [
+                  "de-CH/operate/deployment/production",
+                  "de-CH/operate/deployment/container-architecture"
+                ]
+              },
+              {
+                "group": "Konfiguration",
+                "pages": [
+                  "de-CH/operate/configuration/environment-reference",
+                  "de-CH/operate/configuration/retention"
+                ]
+              },
+              {
+                "group": "Observability",
+                "pages": [
+                  "de-CH/operate/observability/operations",
+                  "de-CH/operate/observability/troubleshooting"
+                ]
+              },
+              {
+                "group": "Sicherheit",
+                "pages": ["de-CH/operate/security/advisories"]
+              },
+              {
+                "group": "Release Notes",
+                "pages": [
+                  "de-CH/operate/release-notes/format",
+                  "de-CH/operate/release-notes/v0.2.34-split-convex"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Entwickeln",
+            "pages": [
+              "de-CH/develop/api-reference",
+              "de-CH/develop/webhooks",
+              "de-CH/develop/ai-assisted-development",
+              "de-CH/develop/contributing-docker"
+            ]
+          },
+          {
+            "group": "Rechtliches",
+            "pages": [
+              "de-CH/legal/privacy-policy",
+              "de-CH/legal/terms-of-service",
+              "de-CH/legal/data-processing-agreement"
+            ]
+          }
+        ]
+      },
+      {
+        "language": "fr",
+        "global": {
+          "anchors": [
+            { "anchor": "GitHub", "icon": "github", "href": "https://github.com/tale-project/tale" },
+            { "anchor": "Référence API", "icon": "code", "href": "/fr/develop/api-reference" }
+          ]
+        },
+        "groups": [
+          { "group": "Démarrer", "pages": ["fr/index"] },
+          {
+            "group": "Utiliser Tale",
+            "pages": [
+              "fr/use/getting-started",
+              "fr/use/preferences",
+              {
+                "group": "Chat",
+                "pages": [
+                  "fr/use/chat/basics",
+                  "fr/use/chat/attachments",
+                  "fr/use/chat/agents-in-chat",
+                  "fr/use/chat/arena-mode"
+                ]
+              },
+              {
+                "group": "Espace de travail",
+                "pages": [
+                  "fr/use/workspace/knowledge-base",
+                  "fr/use/workspace/conversations",
+                  "fr/use/workspace/approvals",
+                  "fr/use/workspace/canvas",
+                  "fr/use/workspace/prompt-library",
+                  "fr/use/workspace/document-comparison"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Configurer Tale",
+            "pages": [
+              "fr/build/overview",
+              {
+                "group": "Agents",
+                "pages": [
+                  "fr/build/agents/concepts",
+                  "fr/build/agents/create",
+                  "fr/build/agents/versions"
+                ]
+              },
+              {
+                "group": "Automatisations",
+                "pages": [
+                  "fr/build/automations/concepts",
+                  "fr/build/automations/workflows",
+                  "fr/build/automations/triggers",
+                  "fr/build/automations/execution-logs"
+                ]
+              },
+              {
+                "group": "Connaissances",
+                "pages": [
+                  "fr/build/knowledge/structured-data",
+                  "fr/build/knowledge/crawling"
+                ]
+              },
+              {
+                "group": "Intégrations",
+                "pages": [
+                  "fr/build/integrations/overview",
+                  "fr/build/integrations/providers"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Administration",
+            "pages": [
+              "fr/admin/members-and-roles",
+              "fr/admin/teams",
+              "fr/admin/authentication",
+              "fr/admin/providers",
+              "fr/admin/branding",
+              "fr/admin/governance",
+              "fr/admin/usage-analytics"
+            ]
+          },
+          {
+            "group": "Exploiter",
+            "pages": [
+              "fr/operate/overview",
+              {
+                "group": "Déploiement",
+                "pages": [
+                  "fr/operate/deployment/production",
+                  "fr/operate/deployment/container-architecture"
+                ]
+              },
+              {
+                "group": "Configuration",
+                "pages": [
+                  "fr/operate/configuration/environment-reference",
+                  "fr/operate/configuration/retention"
+                ]
+              },
+              {
+                "group": "Observabilité",
+                "pages": [
+                  "fr/operate/observability/operations",
+                  "fr/operate/observability/troubleshooting"
+                ]
+              },
+              {
+                "group": "Sécurité",
+                "pages": ["fr/operate/security/advisories"]
+              },
+              {
+                "group": "Notes de version",
+                "pages": [
+                  "fr/operate/release-notes/format",
+                  "fr/operate/release-notes/v0.2.34-split-convex"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Développer",
+            "pages": [
+              "fr/develop/api-reference",
+              "fr/develop/webhooks",
+              "fr/develop/ai-assisted-development",
+              "fr/develop/contributing-docker"
+            ]
+          },
+          {
+            "group": "Mentions légales",
+            "pages": [
+              "fr/legal/privacy-policy",
+              "fr/legal/terms-of-service",
+              "fr/legal/data-processing-agreement"
+            ]
+          }
+        ]
+      },
+      {
+        "language": "fr-CH",
+        "global": {
+          "anchors": [
+            { "anchor": "GitHub", "icon": "github", "href": "https://github.com/tale-project/tale" },
+            { "anchor": "Référence API", "icon": "code", "href": "/fr-CH/develop/api-reference" }
+          ]
+        },
+        "groups": [
+          { "group": "Démarrer", "pages": ["fr-CH/index"] },
+          {
+            "group": "Utiliser Tale",
+            "pages": [
+              "fr-CH/use/getting-started",
+              "fr-CH/use/preferences",
+              {
+                "group": "Chat",
+                "pages": [
+                  "fr-CH/use/chat/basics",
+                  "fr-CH/use/chat/attachments",
+                  "fr-CH/use/chat/agents-in-chat",
+                  "fr-CH/use/chat/arena-mode"
+                ]
+              },
+              {
+                "group": "Espace de travail",
+                "pages": [
+                  "fr-CH/use/workspace/knowledge-base",
+                  "fr-CH/use/workspace/conversations",
+                  "fr-CH/use/workspace/approvals",
+                  "fr-CH/use/workspace/canvas",
+                  "fr-CH/use/workspace/prompt-library",
+                  "fr-CH/use/workspace/document-comparison"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Configurer Tale",
+            "pages": [
+              "fr-CH/build/overview",
+              {
+                "group": "Agents",
+                "pages": [
+                  "fr-CH/build/agents/concepts",
+                  "fr-CH/build/agents/create",
+                  "fr-CH/build/agents/versions"
+                ]
+              },
+              {
+                "group": "Automatisations",
+                "pages": [
+                  "fr-CH/build/automations/concepts",
+                  "fr-CH/build/automations/workflows",
+                  "fr-CH/build/automations/triggers",
+                  "fr-CH/build/automations/execution-logs"
+                ]
+              },
+              {
+                "group": "Connaissances",
+                "pages": [
+                  "fr-CH/build/knowledge/structured-data",
+                  "fr-CH/build/knowledge/crawling"
+                ]
+              },
+              {
+                "group": "Intégrations",
+                "pages": [
+                  "fr-CH/build/integrations/overview",
+                  "fr-CH/build/integrations/providers"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Administration",
+            "pages": [
+              "fr-CH/admin/members-and-roles",
+              "fr-CH/admin/teams",
+              "fr-CH/admin/authentication",
+              "fr-CH/admin/providers",
+              "fr-CH/admin/branding",
+              "fr-CH/admin/governance",
+              "fr-CH/admin/usage-analytics"
+            ]
+          },
+          {
+            "group": "Exploiter",
+            "pages": [
+              "fr-CH/operate/overview",
+              {
+                "group": "Déploiement",
+                "pages": [
+                  "fr-CH/operate/deployment/production",
+                  "fr-CH/operate/deployment/container-architecture"
+                ]
+              },
+              {
+                "group": "Configuration",
+                "pages": [
+                  "fr-CH/operate/configuration/environment-reference",
+                  "fr-CH/operate/configuration/retention"
+                ]
+              },
+              {
+                "group": "Observabilité",
+                "pages": [
+                  "fr-CH/operate/observability/operations",
+                  "fr-CH/operate/observability/troubleshooting"
+                ]
+              },
+              {
+                "group": "Sécurité",
+                "pages": ["fr-CH/operate/security/advisories"]
+              },
+              {
+                "group": "Notes de version",
+                "pages": [
+                  "fr-CH/operate/release-notes/format",
+                  "fr-CH/operate/release-notes/v0.2.34-split-convex"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Développer",
+            "pages": [
+              "fr-CH/develop/api-reference",
+              "fr-CH/develop/webhooks",
+              "fr-CH/develop/ai-assisted-development",
+              "fr-CH/develop/contributing-docker"
+            ]
+          },
+          {
+            "group": "Mentions légales",
+            "pages": [
+              "fr-CH/legal/privacy-policy",
+              "fr-CH/legal/terms-of-service",
+              "fr-CH/legal/data-processing-agreement"
+            ]
+          }
+        ]
       }
     ]
   },
@@ -132,49 +920,35 @@
       {
         "header": "Product",
         "items": [
-          { "label": "Overview", "href": "/overview" },
-          { "label": "Features", "href": "/ai-chat" },
-          { "label": "API Reference", "href": "/api-reference" }
+          { "label": "Overview", "href": "/operate/overview" },
+          { "label": "Features", "href": "/use/chat/basics" },
+          { "label": "API reference", "href": "/develop/api-reference" }
         ]
       },
       {
         "header": "Resources",
         "items": [
-          { "label": "Quick start", "href": "/quickstart" },
-          {
-            "label": "Environment reference",
-            "href": "/environment-reference"
-          },
-          { "label": "Troubleshooting", "href": "/troubleshooting" }
+          { "label": "Getting started", "href": "/use/getting-started" },
+          { "label": "Environment reference", "href": "/operate/configuration/environment-reference" },
+          { "label": "Troubleshooting", "href": "/operate/observability/troubleshooting" }
         ]
       },
       {
         "header": "Legal",
         "items": [
-          { "label": "Privacy policy", "href": "/privacy-policy" },
-          { "label": "Terms of service", "href": "/terms-of-service" },
-          {
-            "label": "Data processing agreement",
-            "href": "/data-processing-agreement"
-          }
+          { "label": "Privacy policy", "href": "/legal/privacy-policy" },
+          { "label": "Terms of service", "href": "/legal/terms-of-service" },
+          { "label": "Data processing agreement", "href": "/legal/data-processing-agreement" }
         ]
       }
     ]
   },
-  "interaction": {
-    "drilldown": true
-  },
+  "interaction": { "drilldown": true },
   "contextual": {
     "options": ["copy", "view", "claude", "chatgpt", "cursor"],
     "display": "header"
   },
-  "search": {
-    "prompt": "Search documentation..."
-  },
-  "seo": {
-    "indexing": "navigable"
-  },
-  "metadata": {
-    "timestamp": true
-  }
+  "search": { "prompt": "Search documentation..." },
+  "seo": { "indexing": "navigable" },
+  "metadata": { "timestamp": true }
 }
