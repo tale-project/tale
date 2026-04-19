@@ -10,11 +10,12 @@ import {
   Presentation,
   Settings2,
 } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useState } from 'react';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { VStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
+import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { useT } from '@/lib/i18n/client';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 import {
@@ -25,6 +26,14 @@ import {
 
 import { useFileUrl } from '../../hooks/queries';
 import type { FileAttachment, FilePart } from './types';
+
+function extractStorageFileId(url: string): string | undefined {
+  try {
+    return new URL(url).searchParams.get('id') ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 
@@ -230,11 +239,14 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
 export const FilePartDisplay = memo(function FilePartDisplay({
   filePart,
   onImageClick,
+  organizationId,
 }: {
   filePart: FilePart;
   onImageClick?: () => void;
+  organizationId?: string;
 }) {
   const { t } = useT('chat');
+  const [previewOpen, setPreviewOpen] = useState(false);
   const isImage = filePart.mediaType.startsWith('image/');
 
   if (isImage) {
@@ -256,11 +268,13 @@ export const FilePartDisplay = memo(function FilePartDisplay({
 
   const fileName = filePart.filename || t('fallback.file');
   const fileTypeLabel = getFileTypeLabel(fileName, filePart.mediaType, t);
+  const fileId = extractStorageFileId(filePart.url);
+  const canPreview = !!(fileId && organizationId);
 
-  return (
-    <div className="bg-background border-border flex w-full items-center gap-3 rounded-xl border px-4 py-3 shadow-xs">
+  const body = (
+    <>
       <FileTypeIcon fileType={filePart.mediaType} fileName={fileName} />
-      <VStack gap={1} className="min-w-0 flex-1">
+      <VStack gap={1} className="min-w-0 flex-1 text-left">
         <p
           className="text-foreground text-[13px] leading-tight font-medium"
           title={fileName}
@@ -271,17 +285,46 @@ export const FilePartDisplay = memo(function FilePartDisplay({
           {fileTypeLabel}
         </p>
       </VStack>
-      <a
-        href={filePart.url}
-        download={fileName}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="border-border text-muted-foreground hover:bg-muted flex shrink-0 items-center justify-center rounded-lg border p-2 transition-colors"
-        aria-label={t('downloadFile')}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Download className="size-4" strokeWidth={1.5} />
-      </a>
-    </div>
+    </>
+  );
+
+  return (
+    <>
+      <div className="bg-background border-border flex w-full items-center gap-3 rounded-xl border px-4 py-3 shadow-xs">
+        {canPreview ? (
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-md border-none bg-transparent p-0 text-left transition-opacity hover:opacity-80 focus:outline-none focus-visible:opacity-80"
+          >
+            {body}
+          </button>
+        ) : (
+          <div className="flex min-w-0 flex-1 items-center gap-3">{body}</div>
+        )}
+        <a
+          href={filePart.url}
+          download={fileName}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="border-border text-muted-foreground hover:bg-muted flex shrink-0 items-center justify-center rounded-lg border p-2 transition-colors"
+          aria-label={t('downloadFile')}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Download className="size-4" strokeWidth={1.5} />
+        </a>
+      </div>
+      {canPreview && previewOpen && (
+        <DocumentPreviewDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setPreviewOpen(false);
+          }}
+          organizationId={organizationId}
+          fileId={fileId}
+          fileName={fileName}
+        />
+      )}
+    </>
   );
 });
