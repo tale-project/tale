@@ -25,7 +25,7 @@ Clique **Utiliser ce prompt** sur une carte pour insérer son contenu dans la sa
 | **Titre**       | Oui          | nom court du prompt.                                                    |
 | **Contenu**     | Oui          | texte du prompt. Affiché en monospace.                                  |
 | **Description** | Non          | brève explication de ce que fait le prompt.                             |
-| **Visibilité**  | Oui          | qui peut voir le prompt (voir [Visibilités](#visibilites)).             |
+| **Visibilité**  | Oui          | qui peut voir le prompt (voir [Visibilités](#visibilités)).             |
 | **Équipe**      | Conditionnel | requis si la visibilité est Équipe.                                     |
 | **Catégorie**   | Non          | un label comme "writing", "analysis" ou "coding".                       |
 | **Tags**        | Non          | mots-clés séparés par des virgules pour la recherche et l'organisation. |

@@ -326,7 +326,7 @@ services:
 
 This keeps the service definition (so `depends_on` references don't break) but prevents it from starting unless you explicitly request the `disabled` profile.
 
-## Upgrading from pre-split-convex (pre-v0.2.34)
+## Upgrading from pre-split-convex (pre-v0.2.34) {#upgrading-from-pre-split-convex-pre-v0234}
 
 v0.2.34 splits the Convex backend into its own `convex` service. Existing
 deployments store Convex data in the `platform-data` volume; new deployments

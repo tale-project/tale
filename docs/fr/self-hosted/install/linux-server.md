@@ -107,7 +107,7 @@ tale rollback                      # revenir à la précédente
 tale rollback --version 0.9.0      # revenir à une version précise
 ```
 
-> **Changements de schéma forward-only.** `tale rollback` n'échange que les images ; il ne **rollback pas** les données Convex. Voir [Compatibilité de schéma et rollback](#compatibilite-de-schema-et-rollback).
+> **Changements de schéma forward-only.** `tale rollback` n'échange que les images ; il ne **rollback pas** les données Convex. Voir [Compatibilité de schéma et rollback](#compatibilité-de-schéma-et-rollback).
 
 ### Nettoyage
 
@@ -306,7 +306,7 @@ services:
 
 Ça garde la définition (pour que `depends_on` ne casse pas) mais empêche le démarrage sauf profil `disabled` explicite.
 
-## Upgrade depuis pre-split-convex (pre-v0.2.34)
+## Upgrade depuis pre-split-convex (pre-v0.2.34) {#upgrade-depuis-pre-split-convex-pre-v0234}
 
 v0.2.34 sépare le backend Convex dans son propre service `convex`. Les déploiements existants stockent les données Convex dans `platform-data` ; les nouveaux (et v0.2.x après upgrade) utilisent un volume dédié `convex-data`. Les migrations sont détectées et appliquées au prochain `tale start` ou `tale deploy` — il n'y a **pas** de commande `tale migrate` séparée :
 

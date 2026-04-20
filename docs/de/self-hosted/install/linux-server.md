@@ -117,7 +117,7 @@ tale rollback
 tale rollback --version 0.9.0
 ```
 
-> **Nur Vorwärts-Schema-Änderungen.** `tale rollback` tauscht nur Container-Images, **nicht** Convex-Daten oder Indexes. Siehe [Schema-Kompatibilität und Rollback](#schema-kompatibilitat-und-rollback) für Details.
+> **Nur Vorwärts-Schema-Änderungen.** `tale rollback` tauscht nur Container-Images, **nicht** Convex-Daten oder Indexes. Siehe [Schema-Kompatibilität und Rollback](#schema-kompatibilität-und-rollback) für Details.
 
 ### Cleanup
 
@@ -321,7 +321,7 @@ services:
 
 So bleibt die Service-Definition bestehen (damit `depends_on`-Referenzen nicht brechen), startet aber nur, wenn du das Profil `disabled` explizit anforderst.
 
-## Upgrade von Pre-Split-Convex (vor v0.2.34)
+## Upgrade von Pre-Split-Convex (vor v0.2.34) {#upgrade-von-pre-split-convex-vor-v0234}
 
 v0.2.34 trennt das Convex-Backend in einen eigenen `convex`-Dienst. Bestehende Deployments speichern Convex-Daten im Volume `platform-data`; neue Deployments (und v0.2.x-Installationen nach dem Upgrade) nutzen ein dediziertes `convex-data`-Volume. Migrationen werden beim nächsten `tale start` oder `tale deploy` automatisch erkannt und angewendet — es gibt **kein separates `tale migrate`**:
 
