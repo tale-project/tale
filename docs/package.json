@@ -7,11 +7,11 @@
   "scripts": {
     "format": "bunx oxfmt -c ../.oxfmtrc.json",
     "format:check": "bunx oxfmt -c ../.oxfmtrc.json --check",
-    "dev": "mintlify dev",
-    "build": "mintlify build",
+    "dev": "bunx mintlify dev",
+    "build": "bunx mintlify build",
     "lint:frontmatter": "bun run scripts/lint-frontmatter.ts",
     "lint:terminology": "bun run scripts/lint-terminology.ts",
-    "lint:broken-links": "mintlify broken-links",
+    "lint:broken-links": "bunx mintlify broken-links --check-anchors",
     "lint": "bun run lint:frontmatter && bun run lint:terminology && bun run lint:broken-links"
   }
 }
