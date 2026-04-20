@@ -424,13 +424,11 @@ export function ChatInput({
                 fileUploadDisabled={fileUploadDisabled}
                 disabled={inputDisabled}
               />
-              {(onSavePrompt || onOpenPromptLibrary) && (
+              {onSavePrompt && onOpenPromptLibrary && (
                 <SavePromptMenu
-                  onSavePromptDraft={() => onSavePrompt?.(value)}
-                  onOpenPromptLibrary={() => onOpenPromptLibrary?.()}
-                  canSavePromptDraft={
-                    !!onSavePrompt && !inputDisabled && value.trim().length > 0
-                  }
+                  onSavePromptDraft={() => onSavePrompt(value)}
+                  onOpenPromptLibrary={onOpenPromptLibrary}
+                  canSavePromptDraft={!inputDisabled && value.trim().length > 0}
                   disabled={inputDisabled}
                 />
               )}
