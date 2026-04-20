@@ -11,6 +11,11 @@ vi.mock('../../../_generated/api', () => ({
         findDocumentByFileId: 'mock-find-document-by-file-id',
       },
     },
+    file_metadata: {
+      internal_queries: {
+        getByStorageId: 'mock-get-by-storage-id',
+      },
+    },
   },
 }));
 
@@ -172,14 +177,123 @@ describe('retrieveDocument helper', () => {
     ).rejects.toThrow('userId is required');
   });
 
-  it('throws when fileId is not found', async () => {
+  it('throws when fileId is in neither documents hub nor fileMetadata', async () => {
     const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValueOnce(null), // findDocumentByFileId returns null
+      runQuery: vi
+        .fn()
+        .mockResolvedValueOnce(null) // findDocumentByFileId returns null
+        .mockResolvedValueOnce(null), // getByStorageId returns null
     });
 
     await expect(
       retrieveDocument(ctx as never, { fileId: 'nonexistent-file' }),
     ).rejects.toThrow('Document not found');
+  });
+
+  it('falls back to fileMetadata + RAG for chat-uploaded files not in documents hub', async () => {
+    mockFetchSuccess(
+      createRagResponse({
+        file_id: 'chat-upload-1',
+        title: 'Chat Attachment',
+      }),
+    );
+    const ctx = createMockCtx({
+      runQuery: vi
+        .fn()
+        .mockResolvedValueOnce(null) // findDocumentByFileId — no hub row
+        .mockResolvedValueOnce({
+          organizationId: 'org1',
+          storageId: 'chat-upload-1',
+          ragStatus: 'completed',
+        }), // getByStorageId — chat attachment, indexed
+    });
+
+    const result = await retrieveDocument(ctx as never, {
+      fileId: 'chat-upload-1',
+    });
+
+    expect(result.name).toBe('Chat Attachment');
+    expect(result.content).toBe('Hello world');
+    expect(vi.mocked(globalThis.fetch).mock.calls[0]?.[0]).toContain(
+      'chat-upload-1',
+    );
+  });
+
+  it('rejects fileMetadata from a different organization as not found', async () => {
+    const ctx = createMockCtx({
+      runQuery: vi
+        .fn()
+        .mockResolvedValueOnce(null) // findDocumentByFileId — no hub row
+        .mockResolvedValueOnce({
+          organizationId: 'other-org',
+          storageId: 'chat-upload-1',
+          ragStatus: 'completed',
+        }),
+    });
+
+    await expect(
+      retrieveDocument(ctx as never, { fileId: 'chat-upload-1' }),
+    ).rejects.toThrow('Document not found');
+  });
+
+  it('throws transient error when chat attachment is still being indexed', async () => {
+    const ctx = createMockCtx({
+      runQuery: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({
+        organizationId: 'org1',
+        storageId: 'chat-upload-1',
+        ragStatus: 'running',
+      }),
+    });
+
+    await expect(
+      retrieveDocument(ctx as never, { fileId: 'chat-upload-1' }),
+    ).rejects.toThrow('still being indexed');
+  });
+
+  it('throws transient error when ragStatus is undefined (pending)', async () => {
+    const ctx = createMockCtx({
+      runQuery: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({
+        organizationId: 'org1',
+        storageId: 'chat-upload-1',
+        // ragStatus undefined
+      }),
+    });
+
+    await expect(
+      retrieveDocument(ctx as never, { fileId: 'chat-upload-1' }),
+    ).rejects.toThrow('still being indexed');
+  });
+
+  it('throws with stored ragError when indexing has failed', async () => {
+    const ctx = createMockCtx({
+      runQuery: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({
+        organizationId: 'org1',
+        storageId: 'chat-upload-1',
+        ragStatus: 'failed',
+        ragError: 'crawler timeout after 3 retries',
+      }),
+    });
+
+    await expect(
+      retrieveDocument(ctx as never, { fileId: 'chat-upload-1' }),
+    ).rejects.toThrow('crawler timeout after 3 retries');
+  });
+
+  it('does not call getAccessibleDocumentIds on the fileMetadata fallback path', async () => {
+    const runQuery = vi
+      .fn()
+      .mockResolvedValueOnce(null) // findDocumentByFileId
+      .mockResolvedValueOnce({
+        organizationId: 'org1',
+        storageId: 'chat-upload-1',
+        ragStatus: 'completed',
+      }); // getByStorageId
+    const ctx = createMockCtx({ runQuery });
+
+    await retrieveDocument(ctx as never, { fileId: 'chat-upload-1' });
+
+    const queryIdentifiers = runQuery.mock.calls.map((call) => call[0]);
+    expect(queryIdentifiers).not.toContain('mock-get-accessible-document-ids');
   });
 
   it('throws when document is not in accessible IDs', async () => {
