@@ -16,8 +16,8 @@
     "request_user_location"
   ],
   "supportedModels": [
-    "qwen/qwen3-next-80b-a3b-instruct",
-    "qwen/qwen3.5-35b-a3b"
+    "openrouter:qwen/qwen3-next-80b-a3b-instruct",
+    "openrouter:qwen/qwen3.5-35b-a3b"
   ],
   "knowledgeMode": "tool",
   "includeTeamKnowledge": false,

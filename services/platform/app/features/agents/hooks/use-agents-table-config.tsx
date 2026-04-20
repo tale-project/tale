@@ -7,6 +7,7 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
+import { stripModelRefQualifier } from '@/lib/shared/utils/model-ref';
 
 import { AgentRowActions } from '../components/agent-row-actions';
 import type { AgentRow } from '../components/agents-table';
@@ -52,7 +53,9 @@ export function useAgentsTableConfig({
         cell: ({ row }) => {
           const model = row.original.supportedModels?.[0];
           if (!model) return null;
-          return <Badge variant="outline">{model}</Badge>;
+          return (
+            <Badge variant="outline">{stripModelRefQualifier(model)}</Badge>
+          );
         },
         size: 200,
       },

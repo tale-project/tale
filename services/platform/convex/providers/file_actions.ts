@@ -13,7 +13,7 @@
 import { readdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import type { ProviderSecrets } from '../../lib/shared/schemas/providers';
 import { providerJsonSchema } from '../../lib/shared/schemas/providers';
@@ -360,40 +360,64 @@ export const resolveModelData = internalAction({
 
     if (args.providerName && candidates.length === 0) {
       const available = providers.map((p) => p.name);
-      throw new Error(
-        `Provider "${args.providerName}" not found. Available: ${available.join(', ')}`,
-      );
+      throw new ConvexError({
+        code: 'UNKNOWN_PROVIDER',
+        message: `Provider "${args.providerName}" not found. Available: ${available.join(', ')}`,
+      });
     }
 
+    let firstMatch:
+      | {
+          provider: (typeof candidates)[number];
+          definition: (typeof candidates)[number]['config']['models'][number];
+        }
+      | undefined;
+    const secondaryMatchProviders: string[] = [];
     for (const provider of candidates) {
       const definition = provider.config.models.find(
         (m) => m.id === args.modelId,
       );
-      if (definition) {
-        return {
-          providerName: provider.name,
-          baseUrl: definition.baseUrl ?? provider.config.baseUrl,
-          apiKey:
-            provider.secrets.modelKeys?.[definition.id] ??
-            provider.secrets.apiKey,
-          modelId: args.modelId,
-          maxOutputTokens: definition.maxOutputTokens,
-          supportsStructuredOutputs:
-            definition.supportsStructuredOutputs ??
-            provider.config.supportsStructuredOutputs ??
-            false,
-          inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
-          outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
-        };
+      if (!definition) continue;
+      if (!firstMatch) {
+        firstMatch = { provider, definition };
+      } else {
+        secondaryMatchProviders.push(provider.name);
       }
+    }
+
+    if (firstMatch) {
+      if (!args.providerName && secondaryMatchProviders.length > 0) {
+        console.warn(
+          `[resolveModelData] Unqualified model "${args.modelId}" matches multiple providers ` +
+            `(pinned: ${firstMatch.provider.name}; also in: ${secondaryMatchProviders.join(', ')}). ` +
+            `Qualify as "${firstMatch.provider.name}:${args.modelId}" to pin explicitly.`,
+        );
+      }
+      const { provider, definition } = firstMatch;
+      return {
+        providerName: provider.name,
+        baseUrl: definition.baseUrl ?? provider.config.baseUrl,
+        apiKey:
+          provider.secrets.modelKeys?.[definition.id] ??
+          provider.secrets.apiKey,
+        modelId: args.modelId,
+        maxOutputTokens: definition.maxOutputTokens,
+        supportsStructuredOutputs:
+          definition.supportsStructuredOutputs ??
+          provider.config.supportsStructuredOutputs ??
+          false,
+        inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
+        outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
+      };
     }
 
     const allModelIds = candidates.flatMap((p) =>
       p.config.models.map((m) => m.id),
     );
-    throw new Error(
-      `Model "${args.modelId}" not found${args.providerName ? ` in provider "${args.providerName}"` : ' in any provider'}. Available: ${allModelIds.join(', ')}`,
-    );
+    throw new ConvexError({
+      code: 'UNKNOWN_MODEL',
+      message: `Model "${args.modelId}" not found${args.providerName ? ` in provider "${args.providerName}"` : ' in any provider'}. Available: ${allModelIds.join(', ')}`,
+    });
   },
 });
 
@@ -427,9 +451,10 @@ export const resolveModelByTag = internalAction({
 
     if (args.providerName && candidates.length === 0) {
       const available = providers.map((p) => p.name);
-      throw new Error(
-        `Provider "${args.providerName}" not found. Available: ${available.join(', ')}`,
-      );
+      throw new ConvexError({
+        code: 'UNKNOWN_PROVIDER',
+        message: `Provider "${args.providerName}" not found. Available: ${available.join(', ')}`,
+      });
     }
 
     // First pass: check for explicit per-tag default
@@ -488,9 +513,10 @@ export const resolveModelByTag = internalAction({
       }
     }
 
-    throw new Error(
-      `No model with tag "${args.tag}" found${args.providerName ? ` in provider "${args.providerName}"` : ' in any provider'}.`,
-    );
+    throw new ConvexError({
+      code: 'UNKNOWN_MODEL',
+      message: `No model with tag "${args.tag}" found${args.providerName ? ` in provider "${args.providerName}"` : ' in any provider'}.`,
+    });
   },
 });
 

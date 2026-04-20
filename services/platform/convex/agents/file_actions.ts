@@ -12,9 +12,11 @@ import { mkdir, readdir, rm, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
 import { ConvexError, v } from 'convex/values';
+import { ZodError } from 'zod/v4';
 
 import { PROTECTED_AGENT_NAMES } from '../../lib/shared/constants/agents';
 import { agentJsonSchema } from '../../lib/shared/schemas/agents';
+import { parseModelRef } from '../../lib/shared/utils/model-ref';
 import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
 import { authComponent } from '../auth';
@@ -134,8 +136,14 @@ export const saveAgent = action({
     isNew: v.optional(v.boolean()),
     oldAgentName: v.optional(v.string()),
   },
-  returns: v.object({ hash: v.string() }),
-  handler: async (ctx, args): Promise<{ hash: string }> => {
+  returns: v.object({
+    hash: v.string(),
+    warnings: v.optional(v.array(v.string())),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ hash: string; warnings?: string[] }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -143,7 +151,66 @@ export const saveAgent = action({
       throw new Error(`Invalid agent name: ${args.agentName}`);
     }
 
-    const config = agentJsonSchema.parse(stripNulls(args.config));
+    let config;
+    try {
+      config = agentJsonSchema.parse(stripNulls(args.config));
+    } catch (err) {
+      if (err instanceof ZodError) {
+        throw new ConvexError({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid agent configuration',
+          fieldErrors: err.flatten().fieldErrors,
+        });
+      }
+      throw err;
+    }
+
+    // Cross-validate supportedModels against provider model lists.
+    // Qualified entries ("provider:model") must resolve strictly;
+    // unqualified entries that match multiple providers produce a soft warning.
+    const allModels = await ctx.runAction(
+      internal.providers.file_actions.getAllModelIds,
+      { orgSlug: args.orgSlug },
+    );
+    const byProvider = new Map<string, Set<string>>();
+    for (const m of allModels) {
+      let set = byProvider.get(m.providerName);
+      if (!set) {
+        set = new Set();
+        byProvider.set(m.providerName, set);
+      }
+      set.add(m.id);
+    }
+
+    const warnings: string[] = [];
+    for (const ref of config.supportedModels) {
+      const { providerName, modelId } = parseModelRef(ref);
+      if (providerName) {
+        const set = byProvider.get(providerName);
+        if (!set) {
+          throw new ConvexError({
+            code: 'UNKNOWN_PROVIDER',
+            message: `Provider "${providerName}" not found`,
+          });
+        }
+        if (!set.has(modelId)) {
+          throw new ConvexError({
+            code: 'UNKNOWN_MODEL',
+            message: `Model "${modelId}" not defined in provider "${providerName}"`,
+          });
+        }
+      } else {
+        const matches = [...byProvider.entries()]
+          .filter(([, s]) => s.has(modelId))
+          .map(([p]) => p);
+        if (matches.length > 1) {
+          warnings.push(
+            `"${modelId}" matches ${matches.length} providers (${matches.join(', ')}); pinning to "${matches[0]}". Use "${matches[0]}:${modelId}" to pin explicitly.`,
+          );
+        }
+      }
+    }
+
     const content = serializeAgentJson(config);
     const filePath = resolveAgentFilePath(args.orgSlug, args.agentName);
 
@@ -175,7 +242,10 @@ export const saveAgent = action({
 
     await atomicWrite(filePath, content);
 
-    return { hash: sha256(content) };
+    return {
+      hash: sha256(content),
+      ...(warnings.length > 0 ? { warnings } : {}),
+    };
   },
 });
 
@@ -444,29 +514,57 @@ export const resolveAgentConfig = internalAction({
     );
 
     // Cross-validate supportedModels against provider model lists so the
-    // user is never presented with models that cannot be resolved.
+    // user is never presented with models that cannot be resolved. Both
+    // qualified ("provider:model") and unqualified entries are supported.
     const allModels = await ctx.runAction(
       internal.providers.file_actions.getAllModelIds,
       { orgSlug: args.orgSlug },
     );
 
-    const providerModelIds = new Set<string>();
-    const chatModelIds = new Set<string>();
+    const byProvider = new Map<string, Set<string>>();
+    const chatByProvider = new Map<string, Set<string>>();
     for (const m of allModels) {
-      providerModelIds.add(m.id);
-      if (m.tags.includes('chat')) {
-        chatModelIds.add(m.id);
+      let set = byProvider.get(m.providerName);
+      let chatSet = chatByProvider.get(m.providerName);
+      if (!set) {
+        set = new Set();
+        chatSet = new Set();
+        byProvider.set(m.providerName, set);
+        chatByProvider.set(m.providerName, chatSet);
+      }
+      set.add(m.id);
+      if (m.tags.includes('chat') && chatSet) {
+        chatSet.add(m.id);
       }
     }
 
-    const validatedModels = result.config.supportedModels.filter((modelId) => {
-      if (!providerModelIds.has(modelId)) {
+    const validatedModels = result.config.supportedModels.filter((ref) => {
+      const { providerName, modelId } = parseModelRef(ref);
+      if (providerName) {
+        const set = byProvider.get(providerName);
+        if (!set?.has(modelId)) {
+          console.warn(
+            `[resolveAgentConfig] Agent "${args.agentSlug}": model "${ref}" not found in provider "${providerName}", filtering out.`,
+          );
+          return false;
+        }
+        if (!chatByProvider.get(providerName)?.has(modelId)) {
+          console.warn(
+            `[resolveAgentConfig] Agent "${args.agentSlug}": model "${ref}" lacks the "chat" tag in provider "${providerName}", filtering out.`,
+          );
+          return false;
+        }
+        return true;
+      }
+      const anyMatch = [...byProvider.values()].some((s) => s.has(modelId));
+      if (!anyMatch) {
         console.warn(
           `[resolveAgentConfig] Agent "${args.agentSlug}": model "${modelId}" not found in any provider, filtering out.`,
         );
         return false;
       }
-      if (!chatModelIds.has(modelId)) {
+      const anyChat = [...chatByProvider.values()].some((s) => s.has(modelId));
+      if (!anyChat) {
         console.warn(
           `[resolveAgentConfig] Agent "${args.agentSlug}": model "${modelId}" lacks the "chat" tag, filtering out.`,
         );

@@ -67,3 +67,18 @@ After adding a provider with models, you also need to add the model IDs to the a
 The IDs must match the `id` field in the provider's model definition exactly.
 
 Only models listed in `supportedModels` with the `chat` tag appear in the model selector dropdown.
+
+### Pinning an entry to a specific provider
+
+When the same model id is defined in more than one provider file (e.g., `anthropic/claude-opus-4.6` in both `openrouter.json` and a direct `anthropic.json`), prefix the entry with `<provider>:` to pin routing explicitly:
+
+```json
+{
+  "supportedModels": [
+    "openrouter:anthropic/claude-opus-4.6",
+    "anthropic:claude-opus-4.6"
+  ]
+}
+```
+
+Plain entries (no colon) continue to work and resolve to the first provider that defines the id; the agent save path emits a warning whenever an unqualified entry matches more than one provider so you can disambiguate. Direct filesystem edits to agent JSON bypass this save-time validation — the runtime resolver will still surface warnings, but pinning explicitly in the file is safer for multi-provider setups.
