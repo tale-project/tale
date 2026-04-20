@@ -18,6 +18,10 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
+COPY docs/package.json ./docs/
+COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
+COPY packages/tale_shared/package.json ./packages/tale_shared/
+COPY packages/tale_telemetry/package.json ./packages/tale_telemetry/
 COPY services/platform/package.json ./services/platform/
 COPY services/crawler/package.json ./services/crawler/
 COPY services/rag/package.json ./services/rag/
@@ -87,6 +91,10 @@ COPY services/platform/server.ts \
 FROM builder AS pruner
 
 COPY --from=workspace-deps /app/package.json /app/bun.lock /app/bunfig.toml /tmp/workspace/
+COPY --from=workspace-deps /app/docs/package.json /tmp/workspace/docs/
+COPY --from=workspace-deps /app/packages/tale_knowledge/package.json /tmp/workspace/packages/tale_knowledge/
+COPY --from=workspace-deps /app/packages/tale_shared/package.json /tmp/workspace/packages/tale_shared/
+COPY --from=workspace-deps /app/packages/tale_telemetry/package.json /tmp/workspace/packages/tale_telemetry/
 COPY --from=workspace-deps /app/services/platform/package.json /tmp/workspace/services/platform/
 COPY --from=workspace-deps /app/services/crawler/package.json /tmp/workspace/services/crawler/
 COPY --from=workspace-deps /app/services/rag/package.json /tmp/workspace/services/rag/
