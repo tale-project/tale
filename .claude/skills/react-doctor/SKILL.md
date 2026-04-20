@@ -1,0 +1,1 @@
+../../../.agents/react-doctor/AGENTS.md

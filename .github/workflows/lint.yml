@@ -49,6 +49,7 @@ on:
       - '.oxlintrc.json'
       - '.oxfmtrc.json'
       - 'tsconfig.base.json'
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -72,7 +73,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -95,7 +96,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -118,7 +119,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -141,7 +142,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo

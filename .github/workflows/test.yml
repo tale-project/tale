@@ -35,6 +35,7 @@ on:
       - 'bun.lock'
       - 'turbo.json'
       - 'tsconfig.base.json'
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -58,7 +59,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -69,10 +70,11 @@ jobs:
         run: bunx turbo run test
 
   # ---------------------------------------------------------------------------
-  # UI tests (browser / component).
+  # UI tests. Draft PRs skip.
   # ---------------------------------------------------------------------------
   test-ui:
     name: UI
+    if: github.event.pull_request.draft != true
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
     permissions:
@@ -80,7 +82,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo

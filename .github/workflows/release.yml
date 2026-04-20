@@ -55,6 +55,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # Build and push each service image per architecture.
   # Blacksmith caches layers on sticky disks automatically.
+  # max-parallel caps concurrent Blacksmith runners during a release.
   # ---------------------------------------------------------------------------
   build:
     name: Build ${{ matrix.service.name }} (${{ matrix.arch.name }})
@@ -67,6 +68,7 @@ jobs:
 
     strategy:
       fail-fast: false
+      max-parallel: 6
       matrix:
         service:
           - { name: platform }
@@ -89,7 +91,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Reclaim disk space
         if: matrix.service.name == 'platform' || matrix.service.name == 'rag' || matrix.service.name == 'crawler' || matrix.service.name == 'convex'
@@ -98,10 +100,10 @@ jobs:
           sudo docker image prune -af
 
       - name: Setup Docker builder
-        uses: useblacksmith/setup-docker-builder@v1
+        uses: useblacksmith/setup-docker-builder@ac083cc84672d01c60d5e8561d0a939b697de542 # v1
 
       - name: Login to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -114,7 +116,7 @@ jobs:
           echo "revision=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
-        uses: useblacksmith/build-push-action@v2
+        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
         with:
           context: .
           file: services/${{ matrix.service.name }}/Dockerfile
@@ -144,7 +146,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Reclaim disk space
         run: |
@@ -152,7 +154,7 @@ jobs:
           sudo docker image prune -af
 
       - name: Login to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -205,7 +207,7 @@ jobs:
 
     steps:
       - name: Login to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -244,7 +246,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Verify manifests are pullable
         run: |

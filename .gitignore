@@ -95,6 +95,7 @@ trivy-reports/
 !.claude/CLAUDE.md
 !.claude/settings.json
 !.claude/hooks/
+!.claude/skills/
 
 .agent/*
 !.agent/rules/

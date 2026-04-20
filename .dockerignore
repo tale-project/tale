@@ -26,6 +26,33 @@ services/platform/.env*.local
 .gitattributes
 
 # ============================================================================
+# CI / tooling configuration not needed inside images
+# ============================================================================
+.github/
+.husky/
+.claude/
+.agents/
+.vscode/
+.idea/
+.ruff_cache/
+.turbo/
+.trivyignore
+.oxlintrc.json
+.oxfmtrc.json
+
+# ============================================================================
+# Repo-level directories not shipped in service images
+# ============================================================================
+# NOTE: keep tools/, examples/, and patches/ — Dockerfiles reference them:
+#   - platform image copies tools/cli/package.json and patches/
+#   - convex image copies examples/{agents,workflows,integrations,providers,branding}
+tests/
+designs/
+scripts/
+knip-results.json
+.playwright-mcp/
+
+# ============================================================================
 # Documentation
 # ============================================================================
 *.md

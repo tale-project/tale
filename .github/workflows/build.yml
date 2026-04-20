@@ -27,6 +27,7 @@ on:
       - 'tests/container-*'
       - 'package.json'
       - 'bun.lock'
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -53,10 +54,10 @@ jobs:
       ci_tests: ${{ steps.filter.outputs.ci_tests }}
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Filter paths
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         id: filter
         with:
           filters: |
@@ -90,11 +91,12 @@ jobs:
   # ---------------------------------------------------------------------------
   # Build each changed service's Docker image. Blacksmith caches layers on
   # sticky disks automatically; no cache-from/cache-to directives needed.
+  # Draft PRs skip to save minutes.
   # ---------------------------------------------------------------------------
   build:
     name: Build ${{ matrix.service }}
     needs: changes
-    if: needs.changes.outputs.services != '[]'
+    if: needs.changes.outputs.services != '[]' && github.event.pull_request.draft != true
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 20
     permissions:
@@ -106,10 +108,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Setup Docker builder
-        uses: useblacksmith/setup-docker-builder@v1
+        uses: useblacksmith/setup-docker-builder@ac083cc84672d01c60d5e8561d0a939b697de542 # v1
 
       - name: Resolve build metadata
         id: meta
@@ -118,7 +120,7 @@ jobs:
           echo "revision=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Build image
-        uses: useblacksmith/build-push-action@v2
+        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
         with:
           context: .
           file: services/${{ matrix.service }}/Dockerfile
@@ -133,12 +135,12 @@ jobs:
         run: echo "## Built tale-${{ matrix.service }}" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Run container smoke tests via docker compose.
+  # Run container smoke tests via docker compose. Draft PRs skip.
   # ---------------------------------------------------------------------------
   smoke-test:
     name: Smoke test
     needs: changes
-    if: needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true'
+    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -146,7 +148,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Reclaim disk space
         run: |
@@ -178,12 +180,12 @@ jobs:
         run: echo "## Smoke tests complete" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Validate container image metadata, healthchecks, entrypoints, etc.
+  # Validate container image metadata, healthchecks, entrypoints. Draft PRs skip.
   # ---------------------------------------------------------------------------
   image-validate:
     name: Validate images
     needs: changes
-    if: needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true'
+    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -191,7 +193,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Reclaim disk space
         run: |
@@ -207,11 +209,12 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Trivy vulnerability scan per changed service (non-blocking).
+  # Push-to-main only — PRs rely on security.yml scheduled scans.
   # ---------------------------------------------------------------------------
   vulnerability-scan:
     name: Scan ${{ matrix.service }}
     needs: changes
-    if: needs.changes.outputs.services != '[]'
+    if: github.event_name == 'push' && needs.changes.outputs.services != '[]'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -225,13 +228,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Setup Docker builder
-        uses: useblacksmith/setup-docker-builder@v1
+        uses: useblacksmith/setup-docker-builder@ac083cc84672d01c60d5e8561d0a939b697de542 # v1
 
       - name: Build image for scan
-        uses: useblacksmith/build-push-action@v2
+        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
         with:
           context: .
           file: services/${{ matrix.service }}/Dockerfile
@@ -241,7 +244,7 @@ jobs:
           tags: tale-${{ matrix.service }}:scan
 
       - name: Run Trivy
-        uses: aquasecurity/trivy-action@0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           image-ref: tale-${{ matrix.service }}:scan
           format: 'sarif'
@@ -250,7 +253,7 @@ jobs:
           exit-code: '0'
 
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4
         if: always()
         with:
           sarif_file: '${{ matrix.service }}-trivy.sarif'
@@ -264,11 +267,12 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Storybook static build — only when the platform service changed.
+  # Draft PRs skip.
   # ---------------------------------------------------------------------------
   storybook:
     name: Storybook
     needs: changes
-    if: contains(fromJson(needs.changes.outputs.services), 'platform')
+    if: contains(fromJson(needs.changes.outputs.services), 'platform') && github.event.pull_request.draft != true
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
     permissions:
@@ -276,7 +280,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo

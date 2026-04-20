@@ -1,0 +1,108 @@
+name: Security
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'bun.lock'
+      - 'package.json'
+      - 'services/*/package.json'
+      - 'services/rag/uv.lock'
+      - 'services/rag/pyproject.toml'
+      - 'packages/*/pyproject.toml'
+      - '.github/workflows/security.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'bun.lock'
+      - 'package.json'
+      - 'services/*/package.json'
+      - 'services/rag/uv.lock'
+      - 'services/rag/pyproject.toml'
+      - 'packages/*/pyproject.toml'
+      - '.github/workflows/security.yml'
+  schedule:
+    - cron: '0 3 * * 1' # Monday 03:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Audit JS dependencies for known advisories.
+  # Non-blocking: we upload findings, we don't fail the build on them.
+  # ---------------------------------------------------------------------------
+  bun-audit:
+    name: Bun audit
+    if: github.event.pull_request.draft != true
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.3.12'
+
+      - name: Run bun audit
+        continue-on-error: true
+        run: bun audit --prod | tee bun-audit.txt
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Bun audit" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 50 bun-audit.txt >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Scan source tree for known CVEs in dependencies + misconfigurations + secrets.
+  # Uploads SARIF to GitHub Security so findings surface in the code-scanning tab.
+  # ---------------------------------------------------------------------------
+  trivy-fs:
+    name: Trivy filesystem scan
+    if: github.event.pull_request.draft != true
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '0'
+          scanners: 'vuln,secret,misconfig'
+          ignore-unfixed: true
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4
+        if: always()
+        with:
+          sarif_file: 'trivy-fs.sarif'
+          category: 'trivy-fs'
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Trivy filesystem scan complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "Results uploaded to the Security tab under category \`trivy-fs\`." >> "$GITHUB_STEP_SUMMARY"
