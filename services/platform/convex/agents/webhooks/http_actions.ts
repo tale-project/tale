@@ -431,6 +431,14 @@ async function handleOpenAIRequest(
     { webhookId: webhook._id, lastTriggeredAt: Date.now() },
   );
 
+  // If the client sent a non-empty `model`, forward it. `resolveAgentConfig`
+  // validates against the agent's `supportedModels` allowlist and silently
+  // falls back to the agent's default when the requested model isn't allowed.
+  const preferredModel =
+    typeof body.model === 'string' && body.model.length > 0
+      ? body.model
+      : undefined;
+
   let chatResult: { threadId: string; streamId: string };
   try {
     chatResult = await ctx.runAction(
@@ -445,6 +453,7 @@ async function handleOpenAIRequest(
         userHash,
         agentType: 'openai_webhook',
         chatOwnerId: webhook.createdByUserId,
+        preferredModel,
       },
     );
   } catch (error) {

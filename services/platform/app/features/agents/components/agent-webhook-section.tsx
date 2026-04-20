@@ -285,7 +285,7 @@ export function AgentWebhookSection({
       {
         key: 'openAIMeetilyConfig',
         label: t('agents.webhook.exampleOpenAIMeetilyConfig'),
-        code: `Base URL:  ${usageUrl}\nAPI key:   (any non-empty value)\nModel:     (any value — agent config wins)\n\n# The client appends /chat/completions automatically.\n# Note: attachments/multipart uploads are only supported on the\n# base webhook URL, NOT on the /chat/completions sub-path.`,
+        code: `Base URL:  ${usageUrl}\nAPI key:   (any non-empty value)\nModel:     a model ID from the agent's supportedModels\n           (unrecognised values silently fall back to the default)\n\n# The client appends /chat/completions automatically.\n# Note: attachments/multipart uploads are only supported on the\n# base webhook URL, NOT on the /chat/completions sub-path.`,
       },
     ];
   }, [usageUrl, t]);

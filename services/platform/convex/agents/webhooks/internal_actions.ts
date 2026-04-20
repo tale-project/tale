@@ -64,6 +64,14 @@ export const chatViaWebhook = internalAction({
      * auto-created threads show up in the creator's chat history.
      */
     chatOwnerId: v.optional(v.string()),
+    /**
+     * Client-requested model (raw OpenAI `model` field from the request
+     * body). Forwarded to `resolveAgentConfig` which validates it against
+     * the agent's `supportedModels` allowlist via `applyModelOverride` —
+     * matches are honored, mismatches silently fall back to the agent's
+     * default (first entry in `supportedModels`).
+     */
+    preferredModel: v.optional(v.string()),
   },
   returns: v.object({
     threadId: v.string(),
@@ -90,6 +98,7 @@ export const chatViaWebhook = internalAction({
         orgSlug,
         agentSlug: args.agentSlug,
         organizationId: args.organizationId,
+        modelId: args.preferredModel,
       },
     );
 

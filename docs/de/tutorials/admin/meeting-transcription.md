@@ -52,11 +52,11 @@ Lade Meetily von der Release-Seite des Projekts herunter und installiere es; die
 
 Wähle in Meetilys `Settings > LLM provider` (Label variiert je Version) **Custom OpenAI-compatible** und setze:
 
-| Feld     | Wert                                                                         |
-| -------- | ---------------------------------------------------------------------------- |
-| Base URL | Die Webhook-URL aus Schritt 2 (z. B. `https://<tale>/api/agents/wh/<TOKEN>`) |
-| API key  | Ein beliebiger, nicht-leerer Wert — das Credential ist der Token in der URL  |
-| Model    | Ein beliebiger Wert — das konfigurierte Modell des Agents gewinnt            |
+| Feld     | Wert                                                                                                                                  |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Base URL | Die Webhook-URL aus Schritt 2 (z. B. `https://<tale>/api/agents/wh/<TOKEN>`)                                                          |
+| API key  | Ein beliebiger, nicht-leerer Wert — das Credential ist der Token in der URL                                                           |
+| Model    | Eine Modell-ID aus `supportedModels` des Agents (z. B. `openai/gpt-4o`). Unbekannte Werte fallen still zurück auf das Standardmodell. |
 
 Speichern. Meetily hängt `/chat/completions` automatisch an die Base URL an; jede erzeugte Zusammenfassung fließt jetzt durch den konfigurierten Tale-Agent.
 
