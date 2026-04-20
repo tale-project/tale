@@ -1032,7 +1032,9 @@
         "exampleStreaming": "Streaming (réponse SSE)",
         "exampleMultiTurn": "Conversation multi-tours",
         "exampleFileUpload": "Téléversement de fichier (multipart/form-data)",
-        "exampleFileUploadStream": "Téléversement de fichier avec streaming (réponse SSE)"
+        "exampleFileUploadStream": "Téléversement de fichier avec streaming (réponse SSE)",
+        "exampleOpenAICompat": "Point de terminaison compatible OpenAI (ChatCompletion)",
+        "exampleOpenAIMeetilyConfig": "Configuration client OpenAI (p. ex. Meetily)"
       }
     },
     "integrations": {

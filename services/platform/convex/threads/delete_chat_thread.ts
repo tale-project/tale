@@ -29,6 +29,18 @@ export async function deleteChatThread(
     await ctx.db.patch(existing._id, { status: 'deleted' });
   }
 
+  // Cascade: drop any agent-webhook `user` → threadId mapping rows pointing
+  // at this thread. Otherwise a deleted thread remains reachable via the
+  // OpenAI-compat webhook path, and new POSTs would try to write into a
+  // tombstoned thread.
+  const webhookMappings = await ctx.db
+    .query('agentWebhookUserThreads')
+    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+    .collect();
+  for (const row of webhookMappings) {
+    await ctx.db.delete(row._id);
+  }
+
   const subThreadIds = parseSubThreadIds(thread.summary);
   if (subThreadIds.length > 0) {
     await ctx.scheduler.runAfter(

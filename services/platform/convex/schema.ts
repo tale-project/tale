@@ -5,7 +5,10 @@ import {
   customAgentWebhooksTable,
 } from './agents/legacy_schema';
 import { agentBindingsTable } from './agents/schema';
-import { agentWebhooksTable } from './agents/webhooks/schema';
+import {
+  agentWebhooksTable,
+  agentWebhookUserThreadsTable,
+} from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
 import { auditLogsTable } from './audit_logs/schema';
 import {
@@ -76,6 +79,7 @@ export default defineSchema({
   conversations: conversationsTable,
   agentBindings: agentBindingsTable,
   agentWebhooks: agentWebhooksTable,
+  agentWebhookUserThreads: agentWebhookUserThreadsTable,
   /** @deprecated Retained for backward compatibility with existing data. */
   customAgents: customAgentsTable,
   /** @deprecated Retained for backward compatibility with existing data. */

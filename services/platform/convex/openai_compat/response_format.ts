@@ -17,7 +17,7 @@ export interface OpenAIUsage {
   total_tokens: number;
 }
 
-const ZERO_USAGE: OpenAIUsage = {
+export const ZERO_USAGE: OpenAIUsage = {
   prompt_tokens: 0,
   completion_tokens: 0,
   total_tokens: 0,
