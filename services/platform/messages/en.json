@@ -2737,7 +2737,9 @@
     "toast": {
       "generateFailed": "Failed to generate response",
       "sendFailed": "Failed to send message",
-      "piiBlocked": "Message blocked by PII policy"
+      "piiBlocked": "Message blocked by PII policy",
+      "modelAccessDenied": "Model not available",
+      "budgetExceeded": "Usage limit reached"
     },
     "thinking": {
       "default": "Thinking",
@@ -4077,7 +4079,11 @@
       "noModelsFound": "No models found",
       "noTeamsFound": "No teams found",
       "enabled": "Enabled",
-      "confirm": "Confirm"
+      "confirm": "Confirm",
+      "allowlistConflictWarningTitle": "Model not in allowlist",
+      "allowlistConflictWarning": "This model isn't currently permitted by the Model access allowlist for this scope. Users receiving this default will fall back to an allowlist-permitted model.",
+      "blocklistConflictWarningTitle": "Model is blocked",
+      "blocklistConflictWarning": "This model is currently blocked by the Model access policy for this scope. Users receiving this default will fall back to a permitted model."
     },
     "uploadPolicy": {
       "title": "Upload policy",
@@ -4302,7 +4308,10 @@
       "preview": "Preview",
       "saved": "Model access policy saved",
       "saveFailed": "Failed to save model access policy",
-      "denied": "Model not available for your account. Contact your administrator to request access."
+      "denied": "Model not available for your account. Contact your administrator to request access.",
+      "removeDefaultConfirmTitle": "Remove permission for active default model?",
+      "removeDefaultConfirmBody": "The following default model rule(s) currently assign models that would no longer be permitted: {rules}. Affected users will fall back to another permitted model.",
+      "removeDefaultConfirmAction": "Save anyway"
     }
   },
   "prompts": {

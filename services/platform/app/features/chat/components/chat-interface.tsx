@@ -51,7 +51,6 @@ import {
   useWorkflowUpdateApprovals,
 } from '../hooks/queries';
 import { useConvexFileUpload } from '../hooks/use-convex-file-upload';
-import { useDefaultModel } from '../hooks/use-default-model';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';
 import { useMergedChatItems } from '../hooks/use-merged-chat-items';
@@ -196,7 +195,6 @@ export function ChatInterface({
 
   const { agent: effectiveAgent, isLoading: isAgentLoading } =
     useEffectiveAgent(organizationId);
-  const { data: governanceDefault } = useDefaultModel(organizationId);
 
   const [inputValue, setInputValue, clearInputValue] = usePersistedState(
     chatDraftKey(user?.userId, organizationId, threadId),
@@ -636,8 +634,7 @@ export function ChatInterface({
     },
     selectedAgent: effectiveAgent,
     modelId: effectiveAgent?.name
-      ? (selectedModelOverrides[effectiveAgent.name] ??
-        governanceDefault?.modelId)
+      ? selectedModelOverrides[effectiveAgent.name]
       : undefined,
     enabledCapabilities,
     userContext,
@@ -717,8 +714,7 @@ export function ChatInterface({
     async (newContent: string) => {
       if (!editingMessage || !dataThreadId || !effectiveAgent) return;
       const modelId = effectiveAgent.name
-        ? (selectedModelOverrides[effectiveAgent.name] ??
-          governanceDefault?.modelId)
+        ? selectedModelOverrides[effectiveAgent.name]
         : undefined;
 
       // Optimistic: show edited content immediately, truncate messages after it.
@@ -755,7 +751,6 @@ export function ChatInterface({
       rootThreadId,
       effectiveAgent,
       selectedModelOverrides,
-      governanceDefault,
       organizationId,
       userContext,
       editAndBranchAction,

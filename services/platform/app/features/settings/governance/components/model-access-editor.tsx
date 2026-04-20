@@ -3,6 +3,7 @@
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
@@ -20,7 +21,10 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
+  defaultModelsConfigSchema,
   modelAccessConfigSchema,
+  type DefaultModelRule,
+  type DefaultModelsConfig,
   type ModelAccessConfig,
   type ModelAccessRule,
 } from '@/lib/shared/schemas/governance';
@@ -30,6 +34,61 @@ import { isRecord } from '@/lib/utils/type-guards';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { SelectTriggerButton } from './select-trigger-button';
+
+function stripQualifier(s: string): string {
+  const idx = s.indexOf(':');
+  return idx === -1 ? s : s.slice(idx + 1);
+}
+
+function parseDefaultModelsConfig(policy: unknown): DefaultModelsConfig | null {
+  const config = isRecord(policy) ? policy : null;
+  if (!config) return null;
+  const result = defaultModelsConfigSchema.safeParse(config);
+  return result.success ? result.data : null;
+}
+
+/**
+ * Given a proposed model_access configuration, return the default-model rules
+ * whose modelId would be denied. Mirrors backend `checkModelAccess` priority:
+ * team > role > default (default_models has no user scope).
+ */
+function findDefaultRulesDeniedBy(
+  nextAccess: ModelAccessConfig,
+  defaultRules: DefaultModelRule[],
+): DefaultModelRule[] {
+  if (!nextAccess.enabled || nextAccess.rules.length === 0) return [];
+
+  const denied: DefaultModelRule[] = [];
+  for (const d of defaultRules) {
+    let matched: ModelAccessRule | undefined;
+    if (d.scope === 'team' && d.scopeId) {
+      matched = nextAccess.rules.find(
+        (r) => r.scope === 'team' && r.scopeId === d.scopeId,
+      );
+    }
+    if (!matched && d.scope === 'role' && d.scopeId) {
+      matched = nextAccess.rules.find(
+        (r) => r.scope === 'role' && r.scopeId === d.scopeId,
+      );
+    }
+    if (!matched) {
+      matched = nextAccess.rules.find((r) => r.scope === 'default');
+    }
+    if (!matched) continue;
+
+    const target = stripQualifier(d.modelId);
+    const blocked = (matched.blockedModels ?? []).map(stripQualifier);
+    const allowed = matched.allowedModels.map(stripQualifier);
+    if (blocked.includes(target)) {
+      denied.push(d);
+      continue;
+    }
+    if (nextAccess.mode === 'allowlist' && !allowed.includes(target)) {
+      denied.push(d);
+    }
+  }
+  return denied;
+}
 
 interface ModelAccessEditorProps {
   organizationId: string;
@@ -261,6 +320,14 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     organizationId,
     'model_access',
   );
+  const { data: defaultPolicy } = useGovernancePolicy(
+    organizationId,
+    'default_models',
+  );
+  const defaultRules = useMemo<DefaultModelRule[]>(() => {
+    const parsed = parseDefaultModelsConfig(defaultPolicy?.config);
+    return parsed?.enabled ? parsed.rules : [];
+  }, [defaultPolicy]);
   const upsertMutation = useUpsertGovernancePolicy();
   const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
@@ -318,6 +385,13 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [dialogRule, setDialogRule] = useState(emptyRule());
 
+  // Pending save + affected-defaults confirmation state.
+  const [pendingSave, setPendingSave] = useState<{
+    next: ModelAccessConfig;
+    affected: DefaultModelRule[];
+    revert: () => void;
+  } | null>(null);
+
   if (!isLoading && !initializedRef.current) {
     initializedRef.current = true;
     setEnabled(savedConfig.enabled);
@@ -345,30 +419,54 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     [organizationId, upsertMutation, toast, t],
   );
 
+  /**
+   * Attempt to save; if the proposed config would deny any current
+   * default-model rule, open a confirm dialog. `revert` restores local state
+   * if the admin cancels.
+   */
+  const attemptSaveConfig = useCallback(
+    (next: ModelAccessConfig, revert: () => void) => {
+      const affected = findDefaultRulesDeniedBy(next, defaultRules);
+      if (affected.length === 0) {
+        void saveConfig(next);
+        return;
+      }
+      setPendingSave({ next, affected, revert });
+    },
+    [defaultRules, saveConfig],
+  );
+
   const handleToggleEnabled = useCallback(
     (checked: boolean) => {
+      const prev = enabled;
       setEnabled(checked);
-      void saveConfig({ enabled: checked, mode, rules });
+      attemptSaveConfig({ enabled: checked, mode, rules }, () =>
+        setEnabled(prev),
+      );
     },
-    [saveConfig, mode, rules],
+    [attemptSaveConfig, enabled, mode, rules],
   );
 
   const handleModeChange = useCallback(
     (value: string) => {
       if (!isModeValue(value)) return;
+      const prev = mode;
       setMode(value);
-      void saveConfig({ enabled, mode: value, rules });
+      attemptSaveConfig({ enabled, mode: value, rules }, () => setMode(prev));
     },
-    [saveConfig, enabled, rules],
+    [attemptSaveConfig, enabled, mode, rules],
   );
 
   const removeRule = useCallback(
     (index: number) => {
+      const prev = rules;
       const newRules = rules.filter((_, i) => i !== index);
       setRules(newRules);
-      void saveConfig({ enabled, mode, rules: newRules });
+      attemptSaveConfig({ enabled, mode, rules: newRules }, () =>
+        setRules(prev),
+      );
     },
-    [rules, enabled, mode, saveConfig],
+    [rules, enabled, mode, attemptSaveConfig],
   );
 
   const openAddDialog = useCallback(() => {
@@ -388,6 +486,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
 
   const handleDialogSave = useCallback(
     (rule: ModelAccessRule) => {
+      const prev = rules;
       let newRules: ModelAccessRule[];
       if (editingIndex === null) {
         newRules = [...rules, rule];
@@ -395,9 +494,11 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
         newRules = rules.map((r, i) => (i === editingIndex ? rule : r));
       }
       setRules(newRules);
-      void saveConfig({ enabled, mode, rules: newRules });
+      attemptSaveConfig({ enabled, mode, rules: newRules }, () =>
+        setRules(prev),
+      );
     },
-    [editingIndex, rules, enabled, mode, saveConfig],
+    [editingIndex, rules, enabled, mode, attemptSaveConfig],
   );
 
   const resolveTarget = useCallback(
@@ -598,6 +699,37 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
           mode={mode}
         />
       )}
+
+      <ConfirmDialog
+        open={pendingSave !== null}
+        onOpenChange={(open) => {
+          if (!open && pendingSave) {
+            pendingSave.revert();
+            setPendingSave(null);
+          }
+        }}
+        title={t('modelAccess.removeDefaultConfirmTitle')}
+        description={t('modelAccess.removeDefaultConfirmBody', {
+          rules:
+            pendingSave?.affected
+              .map((r) => {
+                const target =
+                  r.scope === 'default'
+                    ? t('modelAccess.allUsers')
+                    : (r.scopeId ?? r.scope);
+                return `${r.modelId} (${target})`;
+              })
+              .join(', ') ?? '',
+        })}
+        confirmText={t('modelAccess.removeDefaultConfirmAction')}
+        variant="destructive"
+        onConfirm={() => {
+          if (pendingSave) {
+            void saveConfig(pendingSave.next);
+            setPendingSave(null);
+          }
+        }}
+      />
     </PageSection>
   );
 }

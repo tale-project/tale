@@ -1,6 +1,7 @@
 import type { GenericQueryCtx } from 'convex/server';
 
 import type { ModelAccessConfig } from '../../lib/shared/schemas/governance';
+import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
 import type { DataModel } from '../_generated/dataModel';
 import { readPolicyConfig } from './helpers';
 
@@ -98,12 +99,15 @@ function isModelPermitted(
   blockedModels: string[],
   modelId: string,
 ): boolean {
-  if (blockedModels.includes(modelId)) {
+  const plainId = stripModelRefQualifier(modelId);
+  const plainBlocked = blockedModels.map(stripModelRefQualifier);
+  if (plainBlocked.includes(plainId)) {
     return false;
   }
 
   if (mode === 'allowlist') {
-    return allowedModels.includes(modelId);
+    const plainAllowed = allowedModels.map(stripModelRefQualifier);
+    return plainAllowed.includes(plainId);
   }
 
   // blocklist mode: everything allowed except blocked

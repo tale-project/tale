@@ -5,9 +5,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ---------------------------------------------------------------------------
 
 const mockReadPolicyConfig = vi.fn();
+const mockCheckModelAccess = vi.fn();
 
 vi.mock('../helpers', () => ({
   readPolicyConfig: (...args: unknown[]) => mockReadPolicyConfig(...args),
+}));
+
+vi.mock('../model_access_enforcement', () => ({
+  checkModelAccess: (...args: unknown[]) => mockCheckModelAccess(...args),
 }));
 
 // Import after mocks
@@ -23,6 +28,9 @@ const ctx = {} as Parameters<typeof resolveDefaultModel>[0];
 describe('resolveDefaultModel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: allow every model so existing scope-priority tests stay focused
+    // on scope behavior. Access-check cases override this per test.
+    mockCheckModelAccess.mockResolvedValue({ allowed: true });
   });
 
   it('returns null when no default_models policy exists', async () => {
@@ -31,6 +39,7 @@ describe('resolveDefaultModel', () => {
     const result = await resolveDefaultModel(
       ctx,
       'org-1',
+      'user-1',
       ['team-1'],
       'member',
     );
@@ -58,6 +67,7 @@ describe('resolveDefaultModel', () => {
     const result = await resolveDefaultModel(
       ctx,
       'org-1',
+      'user-1',
       ['team-1'],
       'member',
     );
@@ -74,6 +84,7 @@ describe('resolveDefaultModel', () => {
     const result = await resolveDefaultModel(
       ctx,
       'org-1',
+      'user-1',
       ['team-1'],
       'member',
     );
@@ -102,6 +113,7 @@ describe('resolveDefaultModel', () => {
     const result = await resolveDefaultModel(
       ctx,
       'org-1',
+      'user-1',
       ['team-engineering'],
       'member',
     );
@@ -133,7 +145,13 @@ describe('resolveDefaultModel', () => {
       ],
     });
 
-    const result = await resolveDefaultModel(ctx, 'org-1', ['team-1'], 'admin');
+    const result = await resolveDefaultModel(
+      ctx,
+      'org-1',
+      'user-1',
+      ['team-1'],
+      'admin',
+    );
 
     expect(result).toEqual({ providerName: 'openai', modelId: 'gpt-4o' });
   });
@@ -159,6 +177,7 @@ describe('resolveDefaultModel', () => {
     const result = await resolveDefaultModel(
       ctx,
       'org-1',
+      'user-1',
       ['team-unrelated'],
       'developer',
     );
@@ -196,6 +215,7 @@ describe('resolveDefaultModel', () => {
     const result = await resolveDefaultModel(
       ctx,
       'org-1',
+      'user-1',
       ['team-marketing'],
       'member',
     );
@@ -225,6 +245,7 @@ describe('resolveDefaultModel', () => {
     const result = await resolveDefaultModel(
       ctx,
       'org-1',
+      'user-1',
       ['team-a', 'team-b'],
       'member',
     );
@@ -248,8 +269,105 @@ describe('resolveDefaultModel', () => {
       ],
     });
 
-    const result = await resolveDefaultModel(ctx, 'org-1', [], undefined);
+    const result = await resolveDefaultModel(
+      ctx,
+      'org-1',
+      'user-1',
+      [],
+      undefined,
+    );
 
     expect(result).toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // Model-access cross-check (Layer 1)
+  // -------------------------------------------------------------------------
+
+  it('returns null when the resolved default is denied by model_access', async () => {
+    mockReadPolicyConfig.mockResolvedValue({
+      enabled: true,
+      rules: [
+        {
+          scope: 'default',
+          providerName: 'openrouter',
+          modelId: 'qwen/qwen3-vl-32b-instruct',
+        },
+      ],
+    });
+    mockCheckModelAccess.mockResolvedValue({
+      allowed: false,
+      reason: 'Model not in allowlist',
+    });
+
+    const result = await resolveDefaultModel(
+      ctx,
+      'org-1',
+      'user-1',
+      ['team-1'],
+      'member',
+    );
+
+    expect(result).toBeNull();
+    expect(mockCheckModelAccess).toHaveBeenCalledWith(
+      ctx,
+      'org-1',
+      'user-1',
+      ['team-1'],
+      'member',
+      'qwen/qwen3-vl-32b-instruct',
+    );
+  });
+
+  it('returns the rule when the resolved default is allowed by model_access', async () => {
+    mockReadPolicyConfig.mockResolvedValue({
+      enabled: true,
+      rules: [
+        {
+          scope: 'default',
+          providerName: 'openrouter',
+          modelId: 'kimi-k2.5',
+        },
+      ],
+    });
+    mockCheckModelAccess.mockResolvedValue({ allowed: true });
+
+    const result = await resolveDefaultModel(
+      ctx,
+      'org-1',
+      'user-1',
+      [],
+      'member',
+    );
+
+    expect(result).toEqual({
+      providerName: 'openrouter',
+      modelId: 'kimi-k2.5',
+    });
+  });
+
+  it('does not call checkModelAccess when no rule applies', async () => {
+    mockReadPolicyConfig.mockResolvedValue({
+      enabled: true,
+      rules: [
+        {
+          scope: 'role',
+          scopeId: 'admin',
+          providerName: 'openai',
+          modelId: 'gpt-4o',
+        },
+      ],
+    });
+
+    const result = await resolveDefaultModel(
+      ctx,
+      'org-1',
+      'user-1',
+      [],
+      'member',
+    );
+
+    expect(result).toBeNull();
+    expect(mockCheckModelAccess).not.toHaveBeenCalled();
   });
 });

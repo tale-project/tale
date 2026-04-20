@@ -352,13 +352,29 @@ export function useSendMessage({
         clearChatState();
         resetGlobalFreeze();
 
-        const errorMessage =
+        const rawMessage =
           error instanceof Error ? error.message : String(error);
-        const isPiiBlocked = errorMessage.includes('Message blocked: PII');
+        // First-line truncation defends against multi-line stack-like payloads
+        // from upstream LLM providers leaking into the toast.
+        const errorMessage = rawMessage.split('\n')[0] ?? rawMessage;
+        const lower = errorMessage.toLowerCase();
+
+        let title = t('toast.sendFailed');
+        if (errorMessage.includes('Message blocked: PII')) {
+          title = t('toast.piiBlocked');
+        } else if (
+          lower.includes('not available for your account') ||
+          lower.includes('model access policy') ||
+          lower.includes('do not have access to the selected model')
+        ) {
+          title = t('toast.modelAccessDenied');
+        } else if (lower.includes('usage limit') || lower.includes('budget')) {
+          title = t('toast.budgetExceeded');
+        }
 
         toast({
-          title: isPiiBlocked ? t('toast.piiBlocked') : t('toast.sendFailed'),
-          description: isPiiBlocked ? errorMessage : undefined,
+          title,
+          description: errorMessage,
           variant: 'destructive',
         });
       } finally {

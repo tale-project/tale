@@ -333,7 +333,13 @@ export const resolveDefaultModelInternal = internalQuery({
 
     const teamIds = membershipsResult?.page.map((m) => m.teamId) ?? [];
 
-    return resolveDefaultModel(ctx, args.organizationId, teamIds, member.role);
+    return resolveDefaultModel(
+      ctx,
+      args.organizationId,
+      args.userId,
+      teamIds,
+      member.role,
+    );
   },
 });
 
