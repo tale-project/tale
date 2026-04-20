@@ -50,6 +50,13 @@ interface SheetProps extends VariantProps<typeof sheetVariants> {
   hideClose?: boolean;
   /** Width of the sheet panel */
   size?: 'sm' | 'md';
+  /**
+   * Called when focus moves into the sheet on open. Call `event.preventDefault()`
+   * to suppress Radix's default (focus first tabbable inside Content) and take
+   * over focus management — useful to avoid races with `autoFocus` + slide-in
+   * animation.
+   */
+  onOpenAutoFocus?: (event: Event) => void;
 }
 
 const SheetCloseButton = forwardRef<
@@ -79,6 +86,7 @@ export function Sheet({
   children,
   className,
   hideClose,
+  onOpenAutoFocus,
 }: SheetProps) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -86,6 +94,7 @@ export function Sheet({
         <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80" />
         <DialogPrimitive.Content
           className={cn(sheetVariants({ side, size }), className)}
+          onOpenAutoFocus={onOpenAutoFocus}
         >
           <DialogPrimitive.Title className="sr-only">
             {title}

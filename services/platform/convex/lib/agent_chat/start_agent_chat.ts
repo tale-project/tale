@@ -21,6 +21,7 @@ import { createAuditLog } from '../../audit_logs/helpers';
 import { checkBudget } from '../../governance/budget_enforcement';
 import { resolveFeatureFlags } from '../../governance/feature_enforcement';
 import { resolveBudgetContext } from '../../governance/resolve_budget_context';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { persistentStreaming } from '../../streaming/helpers';
 import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management/constants';
@@ -337,6 +338,45 @@ export async function startAgentChat(
       internal.threads.generate_thread_title.generateThreadTitle,
       { threadId, firstMessage: messageContent, organizationId },
     );
+  }
+
+  // Direct-mode image-generation agents skip the tool-loop pipeline — the
+  // user's latest message is sent straight to an image model.
+  if (enforcedConfig.primaryBehavior === 'image-generation') {
+    const imageAttachments = (actionAttachments ?? []).filter((a) =>
+      a.fileType.startsWith('image/'),
+    );
+    const orgSlug = await resolveOrgSlug(ctx, organizationId);
+
+    debugLog('SCHEDULE_IMAGE_GENERATION', {
+      threadId,
+      model,
+      hasAttachments: imageAttachments.length > 0,
+    });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.agents.image_generation.run_image_generation.runImageGeneration,
+      {
+        threadId,
+        promptMessageId,
+        modelRef: model,
+        rawPrompt: trimmedMessage,
+        systemInstructions: enforcedConfig.instructions || undefined,
+        attachmentImages: imageAttachments.map((a) => ({
+          fileId: a.fileId,
+          fileName: a.fileName,
+          mimeType: a.fileType,
+        })),
+        streamId: streamId || undefined,
+        agentSlug: args.agentSlug,
+        orgSlug,
+        organizationId,
+        userId: thread?.userId,
+      },
+    );
+
+    return { messageAlreadyExists, streamId };
   }
 
   // Schedule the generic agent action with full configuration

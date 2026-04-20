@@ -43,6 +43,19 @@ export interface SelectedAgent {
   displayName: string;
 }
 
+/**
+ * Reference to an image that should be attached to the next composer
+ * submission as an edit target (for primaryBehavior='image-generation' agents).
+ * Set explicitly via the ↻ Edit button or the ThumbnailPicker popover; when
+ * null, the EditingBanner falls back to the latest image in the thread.
+ */
+export interface EditingImageRef {
+  fileId: string;
+  url: string;
+  mimeType: string;
+  fileName?: string;
+}
+
 /** Internal storage shape — includes expiry timestamp per override. */
 interface ModelOverrideEntry {
   modelId: string;
@@ -72,6 +85,19 @@ interface ChatLayoutContextType {
   /** Content inserted from the sidebar prompt section — consumed by ChatInterface */
   insertedPrompt: string | null;
   setInsertedPrompt: (content: string | null) => void;
+  /**
+   * Explicit editing target, set via ↻ Edit button or ThumbnailPicker. When
+   * non-null, overrides the "latest image" auto-pick in EditingBanner.
+   */
+  editingImageRef: EditingImageRef | null;
+  setEditingImageRef: (ref: EditingImageRef | null) => void;
+  /**
+   * Image key (from useThreadImages) the user dismissed via × on the banner.
+   * Kept in state so that when a NEW image lands, its key differs from this
+   * and the banner re-appears automatically.
+   */
+  dismissedImageKey: string | null;
+  setDismissedImageKey: (key: string | null) => void;
 }
 
 const ChatLayoutContext = createContext<ChatLayoutContextType | null>(null);
@@ -100,6 +126,11 @@ export function ChatLayoutProvider({
   );
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [insertedPrompt, setInsertedPrompt] = useState<string | null>(null);
+  const [editingImageRef, setEditingImageRef] =
+    useState<EditingImageRef | null>(null);
+  const [dismissedImageKey, setDismissedImageKey] = useState<string | null>(
+    null,
+  );
   const agentKey = user?.userId
     ? `selected-agent-${user.userId}-${organizationId}`
     : `selected-agent-${organizationId}`;
@@ -177,6 +208,8 @@ export function ChatLayoutProvider({
   const clearChatState = useCallback(() => {
     setPendingThreadId(null);
     setPendingMessage(null);
+    setEditingImageRef(null);
+    setDismissedImageKey(null);
   }, []);
 
   const value = useMemo(
@@ -196,6 +229,10 @@ export function ChatLayoutProvider({
       setCapabilityEnabled,
       insertedPrompt,
       setInsertedPrompt,
+      editingImageRef,
+      setEditingImageRef,
+      dismissedImageKey,
+      setDismissedImageKey,
     }),
     [
       pendingThreadId,
@@ -209,6 +246,8 @@ export function ChatLayoutProvider({
       enabledCapabilities,
       setCapabilityEnabled,
       insertedPrompt,
+      editingImageRef,
+      dismissedImageKey,
     ],
   );
 

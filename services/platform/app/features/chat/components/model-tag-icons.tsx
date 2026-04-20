@@ -1,4 +1,11 @@
-import { Brain, Image, MessageCircle, type LucideIcon } from 'lucide-react';
+import {
+  Brain,
+  Image,
+  ImagePlus,
+  MessageCircle,
+  Pencil,
+  type LucideIcon,
+} from 'lucide-react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 
@@ -6,6 +13,14 @@ const TAG_CONFIG: Record<string, { icon: LucideIcon; labelKey: string }> = {
   chat: { icon: MessageCircle, labelKey: 'modelSelector.tags.chat' },
   vision: { icon: Image, labelKey: 'modelSelector.tags.vision' },
   embedding: { icon: Brain, labelKey: 'modelSelector.tags.embedding' },
+  'image-generation': {
+    icon: ImagePlus,
+    labelKey: 'modelSelector.tags.imageGeneration',
+  },
+  'image-edit': {
+    icon: Pencil,
+    labelKey: 'modelSelector.tags.imageEdit',
+  },
 };
 
 interface ModelTagIconsProps {

@@ -1567,6 +1567,11 @@
       "tagChat": "Chat",
       "tagVision": "Vision",
       "tagEmbedding": "Embedding",
+      "tagImageGeneration": "Génération d'images",
+      "tagImageEdit": "Édition d'images",
+      "imageGenerationMode": "Mode de génération d'images",
+      "imageGenerationModeHelp": "Comment ce modèle d'image est invoqué. `images-api` utilise le point de terminaison standard /v1/images/generations (FLUX, Imagen ; édition via /v1/images/edits). `chat-multimodal` utilise /v1/chat/completions avec des parties d'image dans le contenu (Nano Banana, GPT-Image ; édition via les parties image dans le message utilisateur).",
+      "default": "défaut",
       "displayNameRequired": "Le nom d'affichage est requis",
       "invalidBaseUrl": "L'URL de base doit être une URL valide",
       "modelIdRequired": "Tous les modèles doivent avoir un ID",
@@ -2800,7 +2805,9 @@
       "tags": {
         "chat": "Chat",
         "vision": "Vision",
-        "embedding": "Embedding"
+        "embedding": "Embedding",
+        "imageGeneration": "Génération d'images",
+        "imageEdit": "Édition d'images"
       }
     },
     "searchChat": "Rechercher dans le chat",
@@ -2886,6 +2893,19 @@
       "file": "Fichier",
       "attachment": "Pièce jointe",
       "imageAttachment": "Pièce jointe image"
+    },
+    "imageEdit": {
+      "editThis": "Modifier cette image",
+      "previewReference": "Prévisualiser l'image de référence",
+      "editingLatest": "Modifier la dernière image",
+      "editing": "Modifier",
+      "dismiss": "Ne pas référencer cette image",
+      "change": "Changer",
+      "placeholder": "Décrivez la modification…",
+      "placeholderCreate": "Décrivez une image à créer…",
+      "modelCannotEdit": "Ce modèle ne crée que de nouvelles images. Passez à un modèle d'édition pour appliquer des modifications.",
+      "pickAnImage": "Choisir une image à modifier",
+      "noOtherImages": "Aucune autre image dans ce fil."
     },
     "downloadFile": "Télécharger le fichier",
     "toolStatus": {

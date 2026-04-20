@@ -16,6 +16,7 @@ import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/use-upload-policy';
@@ -66,6 +67,16 @@ interface ChatInputProps extends Omit<
     { status?: string; error?: string; progress?: string }
   >;
   onSavePrompt?: (content: string) => void;
+  /**
+   * When true, the send button is disabled. Unlike `disabled`, the input
+   * itself stays editable so the user can still revise their message — they
+   * just can't send it in the current state (e.g. an edit reference is
+   * attached but the selected model doesn't support editing). Pair with a
+   * visible reason (e.g. the EditingBanner) so it isn't mysterious.
+   */
+  sendBlocked?: boolean;
+  /** Tooltip shown on the send button when `sendBlocked` is true. */
+  sendBlockedReason?: string;
 }
 
 export function ChatInput({
@@ -87,6 +98,8 @@ export function ChatInput({
   isIndexing = false,
   indexingStatuses,
   onSavePrompt,
+  sendBlocked = false,
+  sendBlockedReason,
   ...restProps
 }: ChatInputProps) {
   const { t: tChat } = useT('chat');
@@ -126,7 +139,8 @@ export function ChatInput({
       isLoading ||
       disabled ||
       isUploading ||
-      isIndexing
+      isIndexing ||
+      sendBlocked
     )
       return;
 
@@ -426,27 +440,39 @@ export function ChatInput({
                 lang={speechLang}
                 onTranscript={handleTranscript}
               />
-              <Button
-                type="button"
-                onClick={isLoading ? onStopGenerating : handleSendMessage}
-                disabled={
-                  isLoading
-                    ? !onStopGenerating
-                    : (!value.trim() && attachments.length === 0) ||
-                      inputDisabled ||
-                      isUploading ||
-                      isIndexing
+              <Tooltip
+                content={
+                  sendBlocked && sendBlockedReason && !isLoading
+                    ? sendBlockedReason
+                    : ''
                 }
-                size="icon"
-                className="rounded-full"
-                aria-label={isLoading ? tChat('stopGenerating') : tChat('send')}
+                side="top"
               >
-                {isLoading ? (
-                  <CircleStop className="size-4" />
-                ) : (
-                  <ArrowUp className="size-4" />
-                )}
-              </Button>
+                <Button
+                  type="button"
+                  onClick={isLoading ? onStopGenerating : handleSendMessage}
+                  disabled={
+                    isLoading
+                      ? !onStopGenerating
+                      : (!value.trim() && attachments.length === 0) ||
+                        inputDisabled ||
+                        isUploading ||
+                        isIndexing ||
+                        sendBlocked
+                  }
+                  size="icon"
+                  className="rounded-full"
+                  aria-label={
+                    isLoading ? tChat('stopGenerating') : tChat('send')
+                  }
+                >
+                  {isLoading ? (
+                    <CircleStop className="size-4" />
+                  ) : (
+                    <ArrowUp className="size-4" />
+                  )}
+                </Button>
+              </Tooltip>
             </HStack>
           </HStack>
         </div>

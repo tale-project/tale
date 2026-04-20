@@ -296,8 +296,18 @@ export function useMessageProcessing(
     }
 
     // Merge file-only assistant messages into the nearest following text-bearing
-    // assistant message. The file part message has an earlier _creationTime
-    // (saved during the tool call) so it sorts before the text message.
+    // assistant message in the SAME turn (matching `order`). The file part
+    // message has an earlier _creationTime (saved during the tool call) so it
+    // sorts before the text message.
+    //
+    // The `order` guard is critical: without it, a file-only assistant message
+    // whose companion text never arrives (e.g. an image-generation agent that
+    // outputs only fileParts) would steal-attach to whatever subsequent turn's
+    // assistant text happens to exist — most visibly, an error message from
+    // the NEXT user turn, making the successful image appear fused with an
+    // unrelated later error. `order` corresponds to a logical turn, so
+    // constraining the merge to a single turn prevents cross-turn bleeding
+    // while still preserving tool-call behavior (file + text share an order).
     //
     // Pass 1: build a map of key → extra fileParts to attach, O(n)
     const extraFileParts = new Map<string, FilePart[]>();
@@ -313,10 +323,20 @@ export function useMessageProcessing(
       )
         continue;
 
-      // Find the next text-bearing assistant message
+      // Find the next text-bearing assistant message in the SAME turn.
       for (let j = i + 1; j < result.length; j++) {
         const next = result[j];
-        if (next?.role === 'assistant' && next.content) {
+        if (!next) continue;
+        // Bail out once we cross into a later turn — file-only message stays
+        // standalone in its own turn.
+        if (
+          msg.order != null &&
+          next.order != null &&
+          next.order !== msg.order
+        ) {
+          break;
+        }
+        if (next.role === 'assistant' && next.content) {
           extraFileParts.set(next.key, [
             ...(extraFileParts.get(next.key) ?? []),
             ...(msg.fileParts ?? []),

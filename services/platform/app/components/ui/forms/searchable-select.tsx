@@ -19,6 +19,11 @@ import { cn } from '@/lib/utils/cn';
 export interface SearchableSelectOption {
   value: string;
   label: string;
+  /**
+   * Optional inline badge rendered right after the label (e.g. a provider
+   * tag on a model row). Wraps onto a second line when the label is long.
+   */
+  labelBadge?: ReactNode;
   description?: string;
   disabled?: boolean;
 }
@@ -363,9 +368,12 @@ function SearchableSelectOptionItem({
         </span>
       )}
       <div className="min-w-0 flex-1">
-        <Text as="div" variant="label">
-          {option.label}
-        </Text>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <Text as="span" variant="label">
+            {option.label}
+          </Text>
+          {option.labelBadge}
+        </div>
         {option.description && (
           <Text as="div" variant="caption">
             {option.description}

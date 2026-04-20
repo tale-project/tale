@@ -29,9 +29,15 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { useChatLayout } from '../context/chat-layout-context';
 import { CitationsContext } from '../context/citations-context';
-import { useMessageMetadata, useFileUrls } from '../hooks/queries';
+import {
+  useChatAgents,
+  useMessageMetadata,
+  useFileUrls,
+} from '../hooks/queries';
 import { useCitations } from '../hooks/use-citations';
+import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { injectCitationTags } from '../utils/inject-citation-tags';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
 import {
@@ -169,6 +175,34 @@ function MessageBubbleComponent({
 
   const { metadata } = useMessageMetadata(message.id, message.threadId);
   const { citations, hasCitations } = useCitations(metadata?.citations);
+
+  // Image-generation agents show a ↻ Edit button on assistant image parts.
+  const { agent: effectiveAgentForEdit } = useEffectiveAgent(
+    organizationId ?? '',
+  );
+  const { agents: agentsForEdit } = useChatAgents(organizationId ?? '');
+  const isImageGenAgent =
+    agentsForEdit?.find((a) => a.name === effectiveAgentForEdit?.name)
+      ?.primaryBehavior === 'image-generation';
+  const { setEditingImageRef, setDismissedImageKey } = useChatLayout();
+  const handleEditImagePart = useCallback(
+    (part: { url: string; mediaType: string; filename?: string }) => {
+      let fileId = '';
+      try {
+        fileId = new URL(part.url).searchParams.get('id') ?? '';
+      } catch {
+        // Non-storage URL (e.g. data URL); edit reference won't resolve server-side
+      }
+      setEditingImageRef({
+        fileId,
+        url: part.url,
+        mimeType: part.mediaType,
+        fileName: part.filename,
+      });
+      setDismissedImageKey(null);
+    },
+    [setEditingImageRef, setDismissedImageKey],
+  );
   const citationNumbers = useMemo(() => new Set(citations.keys()), [citations]);
   const citationsContextValue = useMemo(() => ({ citations }), [citations]);
   const messageContentContextValue = useMemo(
@@ -413,6 +447,9 @@ function MessageBubbleComponent({
           <div className="mt-2 flex flex-col gap-2">
             {message.fileParts.map((part, i) => {
               const galleryIdx = filePartGalleryIndices[i];
+              const isAssistantImage =
+                message.role === 'assistant' &&
+                part.mediaType.startsWith('image/');
               return (
                 <FilePartDisplay
                   key={part.url}
@@ -420,6 +457,11 @@ function MessageBubbleComponent({
                   organizationId={organizationId}
                   onImageClick={
                     galleryIdx >= 0 ? () => openGallery(galleryIdx) : undefined
+                  }
+                  onEditImage={
+                    isImageGenAgent && isAssistantImage
+                      ? () => handleEditImagePart(part)
+                      : undefined
                   }
                 />
               );
@@ -445,7 +487,8 @@ function MessageBubbleComponent({
         )}
         {!isUser &&
           !isAssistantStreaming &&
-          !!displayContent &&
+          (!!displayContent ||
+            (message.fileParts && message.fileParts.length > 0)) &&
           (!hideFeedback && organizationId && message.threadId ? (
             <MessageFeedback
               messageId={message.id}

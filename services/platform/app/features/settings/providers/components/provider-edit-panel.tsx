@@ -16,6 +16,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useSaveProvider } from '../hooks/mutations';
 import { useReadProvider } from '../hooks/queries';
+import { modelTagLabel } from '../utils/model-tag-label';
 
 const NONE_VALUE = '__none__';
 
@@ -181,13 +182,7 @@ export function ProviderEditPanel({
                   return (
                     <Select
                       key={tag}
-                      label={
-                        tag === 'chat'
-                          ? t('providers.tagChat')
-                          : tag === 'vision'
-                            ? t('providers.tagVision')
-                            : t('providers.tagEmbedding')
-                      }
+                      label={modelTagLabel(tag, t)}
                       options={[
                         {
                           value: NONE_VALUE,

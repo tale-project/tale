@@ -270,7 +270,7 @@ function InstructionsTab() {
         open={promptLibraryOpen}
         onOpenChange={setPromptLibraryOpen}
         onSelectPrompt={(content) => {
-          const current = config.systemInstructions;
+          const current = config.systemInstructions ?? '';
           const separator = current.trim() ? '\n\n' : '';
           updateConfig({
             systemInstructions: current + separator + content,

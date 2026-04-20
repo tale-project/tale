@@ -9,6 +9,7 @@
 
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type {
+  ImageModelV3,
   LanguageModelV3,
   LanguageModelV3Middleware,
 } from '@ai-sdk/provider';
@@ -22,17 +23,42 @@ export interface ResolvedModelData {
   baseUrl: string;
   apiKey: string;
   modelId: string;
+  tags: string[];
   dimensions?: number;
   maxOutputTokens?: number;
   supportsStructuredOutputs: boolean;
+  imageGenerationMode?: 'images-api' | 'chat-multimodal';
   inputCentsPerMillion?: number;
   outputCentsPerMillion?: number;
+  /** For per-image pricing (image-generation models). Complements the token
+   * fields above, which remain the cost source for chat/embedding models. */
+  imageCentsPerImage?: number;
 }
 
 interface ResolvedLanguageModel {
   languageModel: LanguageModelV3;
   modelData: ResolvedModelData;
 }
+
+/**
+ * Outcome of resolving an image-generation model. Branches on the model's
+ * `imageGenerationMode`:
+ * - `'images-api'`: uses `/v1/images/generations` via `generateImage()`
+ *   (FLUX, Imagen).
+ * - `'chat-multimodal'`: uses `/v1/chat/completions` with image parts,
+ *   images returned in `result.files` (Nano Banana, GPT-Image).
+ */
+export type ResolvedImageModel =
+  | {
+      kind: 'images-api';
+      imageModel: ImageModelV3;
+      modelData: ResolvedModelData;
+    }
+  | {
+      kind: 'chat-multimodal';
+      languageModel: LanguageModelV3;
+      modelData: ResolvedModelData;
+    };
 
 /**
  * Workaround: Flatten tool inputSchemas that use `oneOf`/`anyOf` at the root.
@@ -231,4 +257,81 @@ export async function resolveLanguageModelById(
     },
   )) as ResolvedModelData;
   return { languageModel: createLanguageModel(modelData), modelData };
+}
+
+// ---------------------------------------------------------------------------
+// Image model resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a bare image or language model for direct image generation.
+ * No middleware is applied — the chat-schema-fix workaround is tool-specific
+ * and irrelevant when no tools are passed.
+ */
+function buildImageResolution(
+  modelData: ResolvedModelData,
+): ResolvedImageModel {
+  const provider = createOpenAICompatible({
+    name: modelData.providerName,
+    baseURL: modelData.baseUrl,
+    apiKey: modelData.apiKey,
+  });
+  if (modelData.imageGenerationMode === 'chat-multimodal') {
+    return {
+      kind: 'chat-multimodal',
+      languageModel: provider.chatModel(modelData.modelId),
+      modelData,
+    };
+  }
+  return {
+    kind: 'images-api',
+    imageModel: provider.imageModel(modelData.modelId),
+    modelData,
+  };
+}
+
+/**
+ * Resolve an image-generation model by explicit model ID.
+ * Throws if the resolved model lacks the `'image-generation'` tag.
+ */
+export async function resolveImageModelById(
+  ctx: ActionCtx,
+  opts: { modelId: string; providerName?: string; orgSlug?: string },
+): Promise<ResolvedImageModel> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelData returns v.any() but shape is guaranteed by file_actions contract
+  const modelData = (await ctx.runAction(
+    internal.providers.file_actions.resolveModelData,
+    {
+      modelId: opts.modelId,
+      providerName: opts.providerName,
+      orgSlug: opts.orgSlug,
+    },
+  )) as ResolvedModelData;
+  if (!modelData.tags.includes('image-generation')) {
+    throw new Error(
+      `Model "${modelData.modelId}" lacks the "image-generation" tag.`,
+    );
+  }
+  return buildImageResolution(modelData);
+}
+
+/**
+ * Resolve the default image-generation model for the org (or first provider
+ * that has one). Uses the `defaults['image-generation']` field when set,
+ * otherwise falls back to the first model carrying the tag.
+ */
+export async function resolveImageModelByTag(
+  ctx: ActionCtx,
+  opts: { providerName?: string; orgSlug?: string } = {},
+): Promise<ResolvedImageModel> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by file_actions contract
+  const modelData = (await ctx.runAction(
+    internal.providers.file_actions.resolveModelByTag,
+    {
+      tag: 'image-generation',
+      providerName: opts.providerName,
+      orgSlug: opts.orgSlug,
+    },
+  )) as ResolvedModelData;
+  return buildImageResolution(modelData);
 }

@@ -108,6 +108,7 @@ export const listAgents = action({
             displayName: result.config.displayName,
             description: result.config.description,
             visibleInChat: result.config.visibleInChat,
+            primaryBehavior: result.config.primaryBehavior,
             supportedModels: result.config.supportedModels,
             toolNames: result.config.toolNames,
             roleRestriction: result.config.roleRestriction,
@@ -173,6 +174,7 @@ export const saveAgent = action({
       { orgSlug: args.orgSlug },
     );
     const byProvider = new Map<string, Set<string>>();
+    const modelTagLookup = new Map<string, string[]>();
     for (const m of allModels) {
       let set = byProvider.get(m.providerName);
       if (!set) {
@@ -180,11 +182,15 @@ export const saveAgent = action({
         byProvider.set(m.providerName, set);
       }
       set.add(m.id);
+      modelTagLookup.set(`${m.providerName}:${m.id}`, m.tags);
     }
 
+    const requireImageGenerationTag =
+      config.primaryBehavior === 'image-generation';
     const warnings: string[] = [];
     for (const ref of config.supportedModels) {
       const { providerName, modelId } = parseModelRef(ref);
+      let resolvedProviderName = providerName;
       if (providerName) {
         const set = byProvider.get(providerName);
         if (!set) {
@@ -207,6 +213,17 @@ export const saveAgent = action({
           warnings.push(
             `"${modelId}" matches ${matches.length} providers (${matches.join(', ')}); pinning to "${matches[0]}". Use "${matches[0]}:${modelId}" to pin explicitly.`,
           );
+        }
+        resolvedProviderName = matches[0];
+      }
+
+      if (requireImageGenerationTag && resolvedProviderName) {
+        const tags = modelTagLookup.get(`${resolvedProviderName}:${modelId}`);
+        if (!tags || !tags.includes('image-generation')) {
+          throw new ConvexError({
+            code: 'VALIDATION_ERROR',
+            message: `Model "${ref}" is missing the "image-generation" tag and cannot be used by an image-generation agent.`,
+          });
         }
       }
     }

@@ -76,6 +76,12 @@ export interface OnAgentCompleteArgs {
     inputCentsPerMillion: number;
     outputCentsPerMillion: number;
   };
+  /**
+   * When set, overrides the token-derived cost estimate and is recorded
+   * directly on message metadata and the usage ledger. Used for models
+   * priced per unit other than tokens (e.g. per-image for image gen).
+   */
+  costCentsOverride?: number;
   options?: {
     skipMetadata?: boolean;
   };
@@ -104,18 +110,22 @@ export async function onAgentComplete(
 
   const promises: Promise<unknown>[] = [];
 
-  // Compute cost estimate (used by both metadata save and ledger)
+  // Compute cost estimate (used by both metadata save and ledger). Models
+  // priced per-unit other than tokens (e.g. per-image for image gen) can
+  // pass `costCentsOverride` to bypass the token-based math entirely.
   const msgInputTokens = result.usage?.inputTokens ?? 0;
   const msgOutputTokens = result.usage?.outputTokens ?? 0;
   const costCents =
-    msgInputTokens > 0 || msgOutputTokens > 0
-      ? estimateCostCents(
-          result.model,
-          msgInputTokens,
-          msgOutputTokens,
-          args.providerCost,
-        )
-      : undefined;
+    args.costCentsOverride != null
+      ? args.costCentsOverride
+      : msgInputTokens > 0 || msgOutputTokens > 0
+        ? estimateCostCents(
+            result.model,
+            msgInputTokens,
+            msgOutputTokens,
+            args.providerCost,
+          )
+        : undefined;
 
   // Step 1: Save message metadata (unless skipped)
   if (!options?.skipMetadata) {
@@ -174,10 +184,14 @@ export async function onAgentComplete(
     }
   }
 
-  // Step 2: Increment usage ledger
+  // Step 2: Increment usage ledger.
+  // Record whenever we have ANY metered signal (tokens > 0 OR a direct cost
+  // override, e.g. per-image pricing for image-gen models). Skipping purely
+  // on tokens would cause image generations to go uncounted.
   const totalTokens = msgInputTokens + msgOutputTokens;
+  const hasMeteredSignal = totalTokens > 0 || args.costCentsOverride != null;
 
-  if (totalTokens > 0 && organizationId && userId && costCents != null) {
+  if (hasMeteredSignal && organizationId && userId && costCents != null) {
     const timestamp = Date.now();
 
     const teamId = teamIds?.[0];
