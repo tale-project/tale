@@ -6,6 +6,7 @@ import type {
 } from '../../lib/shared/schemas/governance';
 import type { DataModel } from '../_generated/dataModel';
 import { readPolicyConfig } from './helpers';
+import { checkModelAccess } from './model_access_enforcement';
 
 interface DefaultModelOverride {
   providerName: string;
@@ -39,11 +40,15 @@ function findApplicableModelRule(
 /**
  * Resolve the default model override for a user based on governance policies.
  *
- * Returns the provider/model override or null if no governance override exists.
+ * Returns the provider/model override or null if no governance override exists,
+ * or if the resolved model is denied by the org's model_access policy (so that
+ * callers fall through to an access-safe auto-pick rather than propagating a
+ * model that will be rejected downstream).
  */
 export async function resolveDefaultModel(
   ctx: GenericQueryCtx<DataModel>,
   organizationId: string,
+  userId: string,
   teamIds: string[],
   userRole?: string,
 ): Promise<DefaultModelOverride | null> {
@@ -59,6 +64,18 @@ export async function resolveDefaultModel(
 
   const rule = findApplicableModelRule(config.rules, teamIds, userRole);
   if (!rule) {
+    return null;
+  }
+
+  const accessCheck = await checkModelAccess(
+    ctx,
+    organizationId,
+    userId,
+    teamIds,
+    userRole,
+    rule.modelId,
+  );
+  if (!accessCheck.allowed) {
     return null;
   }
 

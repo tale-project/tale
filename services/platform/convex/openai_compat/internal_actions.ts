@@ -10,6 +10,7 @@
 import { streamText, type ModelMessage } from 'ai';
 import { v } from 'convex/values';
 
+import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
 import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
@@ -157,6 +158,39 @@ export const chatDirectModel = internalAction({
       throw new Error(
         budgetResult.reason ??
           'Usage limit reached for this period. Contact your administrator.',
+      );
+    }
+
+    // Model access RBAC. Strip provider qualifier so governance policies
+    // (which store plain model ids) match regardless of routing.
+    const accessCheck = await ctx.runQuery(
+      internal.governance.internal_queries.checkModelAccessInternal,
+      {
+        organizationId: args.organizationId,
+        userId: args.userId,
+        modelId: stripModelRefQualifier(args.modelId),
+      },
+    );
+    if (!accessCheck.allowed) {
+      await ctx.runMutation(
+        internal.audit_logs.internal_mutations.createAuditLog,
+        {
+          organizationId: args.organizationId,
+          actorId: args.userId,
+          actorEmail: args.userEmail,
+          actorType: 'api',
+          action: 'model_access.denied',
+          category: 'ai',
+          resourceType: 'openai_compat_request',
+          status: 'denied',
+          metadata: {
+            requestedModelId: args.modelId,
+            reason: accessCheck.reason ?? null,
+          },
+        },
+      );
+      throw new Error(
+        accessCheck.reason ?? 'You do not have access to the selected model.',
       );
     }
 

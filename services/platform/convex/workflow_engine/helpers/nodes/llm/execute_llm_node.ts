@@ -75,6 +75,7 @@ export async function executeLLMNode(
       knowledgeFileIds,
       userId,
       languageModel,
+      resolvedModelId: chatModelData.modelId,
     },
   );
 

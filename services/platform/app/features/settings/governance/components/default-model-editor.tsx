@@ -1,9 +1,10 @@
 'use client';
 
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { Alert } from '@/app/components/ui/feedback/alert';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
@@ -19,8 +20,10 @@ import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   defaultModelsConfigSchema,
+  modelAccessConfigSchema,
   type DefaultModelsConfig,
   type DefaultModelRule,
+  type ModelAccessConfig,
 } from '@/lib/shared/schemas/governance';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
@@ -28,6 +31,59 @@ import { isRecord } from '@/lib/utils/type-guards';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { SelectTriggerButton } from './select-trigger-button';
+
+function stripQualifier(s: string): string {
+  const idx = s.indexOf(':');
+  return idx === -1 ? s : s.slice(idx + 1);
+}
+
+/**
+ * Simulate which model_access rule applies to a user who matches the given
+ * default-model rule's scope, and decide whether the chosen model would be
+ * denied. Mirrors the backend priority: team > role > default (user scope is
+ * not a valid default-model scope).
+ */
+function computeAccessConflict(
+  accessConfig: ModelAccessConfig | null,
+  rule: DefaultModelRule,
+): 'allowlist' | 'blocklist' | null {
+  if (!rule.modelId) return null;
+  if (!accessConfig || !accessConfig.enabled || accessConfig.rules.length === 0)
+    return null;
+
+  let matched = undefined as (typeof accessConfig.rules)[number] | undefined;
+  if (rule.scope === 'team' && rule.scopeId) {
+    matched = accessConfig.rules.find(
+      (r) => r.scope === 'team' && r.scopeId === rule.scopeId,
+    );
+  }
+  if (!matched && rule.scope === 'role' && rule.scopeId) {
+    matched = accessConfig.rules.find(
+      (r) => r.scope === 'role' && r.scopeId === rule.scopeId,
+    );
+  }
+  if (!matched) {
+    matched = accessConfig.rules.find((r) => r.scope === 'default');
+  }
+  if (!matched) return null;
+
+  const target = stripQualifier(rule.modelId);
+  const blocked = (matched.blockedModels ?? []).map(stripQualifier);
+  if (blocked.includes(target)) return 'blocklist';
+
+  const allowed = matched.allowedModels.map(stripQualifier);
+  if (accessConfig.mode === 'allowlist' && !allowed.includes(target))
+    return 'allowlist';
+
+  return null;
+}
+
+function parseModelAccessConfig(policy: unknown): ModelAccessConfig | null {
+  const config = isRecord(policy) ? policy : null;
+  if (!config) return null;
+  const result = modelAccessConfigSchema.safeParse(config);
+  return result.success ? result.data : null;
+}
 
 interface DefaultModelEditorProps {
   organizationId: string;
@@ -88,6 +144,7 @@ interface RuleDialogProps {
   cannotManage: boolean;
   teamOptions: { value: string; label: string }[];
   providerList: ProviderInfo[];
+  accessConfig: ModelAccessConfig | null;
 }
 
 function RuleDialog({
@@ -99,6 +156,7 @@ function RuleDialog({
   cannotManage,
   teamOptions,
   providerList,
+  accessConfig,
 }: RuleDialogProps) {
   const { t } = useT('governance');
   const [draft, setDraft] = useState(initialRule);
@@ -156,6 +214,11 @@ function RuleDialog({
         label: m.displayName || m.id,
       }));
   }, [providerList, draft.providerName]);
+
+  const conflict = useMemo(
+    () => computeAccessConflict(accessConfig, draft),
+    [accessConfig, draft],
+  );
 
   return (
     <FormDialog
@@ -272,6 +335,23 @@ function RuleDialog({
             }
           />
         </div>
+
+        {conflict && (
+          <Alert
+            variant="warning"
+            icon={AlertCircle}
+            title={t(
+              conflict === 'allowlist'
+                ? 'defaultModels.allowlistConflictWarningTitle'
+                : 'defaultModels.blocklistConflictWarningTitle',
+            )}
+            description={t(
+              conflict === 'allowlist'
+                ? 'defaultModels.allowlistConflictWarning'
+                : 'defaultModels.blocklistConflictWarning',
+            )}
+          />
+        )}
       </Stack>
     </FormDialog>
   );
@@ -288,9 +368,18 @@ export function DefaultModelEditor({
     organizationId,
     'default_models',
   );
+  const { data: accessPolicy } = useGovernancePolicy(
+    organizationId,
+    'model_access',
+  );
   const upsertMutation = useUpsertGovernancePolicy();
   const { teams } = useOrgTeams();
   const { providers } = useListProviders('default');
+
+  const accessConfig = useMemo(
+    () => parseModelAccessConfig(accessPolicy?.config),
+    [accessPolicy],
+  );
 
   const teamOptions = useMemo(
     () =>
@@ -605,6 +694,7 @@ export function DefaultModelEditor({
         cannotManage={cannotManage}
         teamOptions={teamOptions}
         providerList={providerList}
+        accessConfig={accessConfig}
       />
     </PageSection>
   );

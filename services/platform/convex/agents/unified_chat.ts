@@ -126,9 +126,16 @@ export const chatWithAgent = action({
     // Same supportedModels gate as the explicit modelId path — silently
     // ignored if the governance model isn't in the agent's supported list.
     if (!args.modelId && governanceDefault?.modelId) {
+      // Reconstruct a qualified ref so the governance-specified provider flows
+      // through to parseModelRef downstream. applyModelOverride's matching is
+      // qualifier-insensitive, so matching against supportedModels still works
+      // whether entries are qualified or plain.
+      const qualifiedRef = governanceDefault.providerName
+        ? `${governanceDefault.providerName}:${governanceDefault.modelId}`
+        : governanceDefault.modelId;
       applyModelOverride(
         agentConfig,
-        governanceDefault.modelId,
+        qualifiedRef,
         configResult.supportedModels,
       );
     }
@@ -233,6 +240,25 @@ export const chatWithAgent = action({
         },
       );
       if (!accessCheck.allowed) {
+        await ctx.runMutation(
+          internal.audit_logs.internal_mutations.createAuditLog,
+          {
+            organizationId: args.organizationId,
+            actorId: authUserId,
+            actorEmail: authUserEmail,
+            actorType: 'user',
+            action: 'model_access.denied',
+            category: 'ai',
+            resourceType: 'chat_message',
+            resourceId: args.threadId,
+            status: 'denied',
+            metadata: {
+              requestedModelId: args.modelId,
+              reason: accessCheck.reason ?? null,
+              agentSlug: args.agentSlug,
+            },
+          },
+        );
         await rollbackGenerating();
         throw new Error(
           accessCheck.reason ?? 'You do not have access to the selected model.',

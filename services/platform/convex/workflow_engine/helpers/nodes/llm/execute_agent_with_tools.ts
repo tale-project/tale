@@ -13,6 +13,7 @@ import type { LanguageModelV3 } from '@ai-sdk/provider';
 import { Agent } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
+import { stripModelRefQualifier } from '../../../../../lib/shared/utils/model-ref';
 import { isRecord } from '../../../../../lib/utils/type-guards';
 import { components, internal } from '../../../../_generated/api';
 import type { ActionCtx } from '../../../../_generated/server';
@@ -147,6 +148,7 @@ export async function executeAgentWithTools(
     stepSlug?: string;
     knowledgeFileIds?: string[];
     languageModel: LanguageModelV3;
+    resolvedModelId?: string;
   },
 ): Promise<LLMExecutionResult> {
   if (config.outputFormat === 'json' && !config.outputSchema) {
@@ -171,6 +173,45 @@ export async function executeAgentWithTools(
         budgetResult.reason ??
           'Workflow LLM step blocked: usage limit reached for this period.',
       );
+    }
+
+    // Model access RBAC for the resolved chat model. Skipped when no user
+    // identity is attached (e.g. system-triggered executions), matching the
+    // conditional above.
+    if (_args.resolvedModelId) {
+      const accessCheck = await ctx.runQuery(
+        internal.governance.internal_queries.checkModelAccessInternal,
+        {
+          organizationId: _args.organizationId,
+          userId: _args.userId,
+          modelId: stripModelRefQualifier(_args.resolvedModelId),
+        },
+      );
+      if (!accessCheck.allowed) {
+        await ctx.runMutation(
+          internal.audit_logs.internal_mutations.createAuditLog,
+          {
+            organizationId: _args.organizationId,
+            actorId: _args.userId,
+            actorType: 'workflow',
+            action: 'model_access.denied',
+            category: 'ai',
+            resourceType: 'workflow_llm_step',
+            ...(_args.stepSlug ? { resourceId: _args.stepSlug } : {}),
+            status: 'denied',
+            metadata: {
+              requestedModelId: _args.resolvedModelId,
+              reason: accessCheck.reason ?? null,
+              executionId: _args.executionId,
+              stepSlug: _args.stepSlug ?? null,
+            },
+          },
+        );
+        throw new Error(
+          accessCheck.reason ??
+            'Workflow LLM step blocked: model not permitted by model access policy.',
+        );
+      }
     }
   }
 

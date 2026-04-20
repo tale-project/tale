@@ -51,6 +51,12 @@ export const getMyDefaultModel = query({
 
     const teamIds = membershipsResult?.page.map((m) => m.teamId) ?? [];
 
-    return resolveDefaultModel(ctx, args.organizationId, teamIds, member.role);
+    return resolveDefaultModel(
+      ctx,
+      args.organizationId,
+      member.userId,
+      teamIds,
+      member.role,
+    );
   },
 });

@@ -2737,7 +2737,9 @@
     "toast": {
       "generateFailed": "Antwort konnte nicht generiert werden",
       "sendFailed": "Nachricht konnte nicht gesendet werden",
-      "piiBlocked": "Nachricht durch PII-Richtlinie blockiert"
+      "piiBlocked": "Nachricht durch PII-Richtlinie blockiert",
+      "modelAccessDenied": "Modell nicht verfügbar",
+      "budgetExceeded": "Nutzungslimit erreicht"
     },
     "thinking": {
       "default": "Denkt nach",
@@ -4077,7 +4079,11 @@
       "noModelsFound": "Keine Modelle gefunden",
       "noTeamsFound": "Keine Teams gefunden",
       "enabled": "Aktiviert",
-      "confirm": "Bestätigen"
+      "confirm": "Bestätigen",
+      "allowlistConflictWarningTitle": "Modell nicht in Allowlist",
+      "allowlistConflictWarning": "Dieses Modell ist derzeit nicht durch die Allowlist der Modellzugriffsrichtlinie für diesen Geltungsbereich zugelassen. Betroffene Benutzer weichen auf ein erlaubtes Modell aus.",
+      "blocklistConflictWarningTitle": "Modell ist blockiert",
+      "blocklistConflictWarning": "Dieses Modell ist derzeit durch die Modellzugriffsrichtlinie für diesen Geltungsbereich blockiert. Betroffene Benutzer weichen auf ein erlaubtes Modell aus."
     },
     "uploadPolicy": {
       "title": "Upload-Richtlinie",
@@ -4295,7 +4301,10 @@
       "preview": "Vorschau",
       "saved": "Modellzugriffsrichtlinie gespeichert",
       "saveFailed": "Modellzugriffsrichtlinie konnte nicht gespeichert werden",
-      "denied": "Modell für dein Konto nicht verfügbar. Wende dich an deinen Administrator, um Zugriff zu beantragen."
+      "denied": "Modell für dein Konto nicht verfügbar. Wende dich an deinen Administrator, um Zugriff zu beantragen.",
+      "removeDefaultConfirmTitle": "Berechtigung für aktives Standardmodell entfernen?",
+      "removeDefaultConfirmBody": "Folgende Standardmodell-Regel(n) verwenden Modelle, die nicht mehr erlaubt wären: {rules}. Betroffene Benutzer weichen auf ein anderes erlaubtes Modell aus.",
+      "removeDefaultConfirmAction": "Trotzdem speichern"
     }
   },
   "prompts": {

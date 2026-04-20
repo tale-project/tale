@@ -2733,7 +2733,9 @@
     "toast": {
       "generateFailed": "Échec de la génération de la réponse",
       "sendFailed": "Échec de l'envoi du message",
-      "piiBlocked": "Message bloqué par la politique de protection des données personnelles"
+      "piiBlocked": "Message bloqué par la politique de protection des données personnelles",
+      "modelAccessDenied": "Modèle non disponible",
+      "budgetExceeded": "Limite d'utilisation atteinte"
     },
     "thinking": {
       "default": "Réflexion",
@@ -3995,7 +3997,11 @@
       "noModelsFound": "Aucun modèle trouvé",
       "noTeamsFound": "Aucune équipe trouvée",
       "enabled": "Activé",
-      "confirm": "Confirmer"
+      "confirm": "Confirmer",
+      "allowlistConflictWarningTitle": "Modèle absent de la liste d'autorisation",
+      "allowlistConflictWarning": "Ce modèle n'est actuellement pas autorisé par la politique d'accès aux modèles pour cette portée. Les utilisateurs concernés basculeront vers un modèle autorisé.",
+      "blocklistConflictWarningTitle": "Modèle bloqué",
+      "blocklistConflictWarning": "Ce modèle est actuellement bloqué par la politique d'accès aux modèles pour cette portée. Les utilisateurs concernés basculeront vers un modèle autorisé."
     },
     "uploadPolicy": {
       "title": "Politique de téléversement",
@@ -4199,7 +4205,10 @@
       "preview": "Aperçu",
       "saved": "Politique d'accès aux modèles enregistrée",
       "saveFailed": "Échec de l'enregistrement de la politique d'accès aux modèles",
-      "denied": "Modèle non disponible pour ton compte. Contacte ton administrateur pour demander l'accès."
+      "denied": "Modèle non disponible pour ton compte. Contacte ton administrateur pour demander l'accès.",
+      "removeDefaultConfirmTitle": "Révoquer l'accès à un modèle par défaut actif ?",
+      "removeDefaultConfirmBody": "Les règles de modèle par défaut suivantes utilisent des modèles qui ne seraient plus autorisés : {rules}. Les utilisateurs concernés basculeront vers un autre modèle autorisé.",
+      "removeDefaultConfirmAction": "Enregistrer quand même"
     }
   },
   "prompts": {
