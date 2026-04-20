@@ -50,7 +50,7 @@ Télécharge et installe Meetily depuis la page des releases du projet ; les doc
 
 ## Étape 4 — Pointer Meetily sur le webhook Tale
 
-Dans **Settings > LLM provider** de Meetily (le label varie selon la version), choisis **Custom OpenAI-compatible** et règle :
+Dans `Settings > LLM provider` de Meetily (le label varie selon la version), choisis **Custom OpenAI-compatible** et règle :
 
 | Champ    | Valeur                                                                        |
 | -------- | ----------------------------------------------------------------------------- |

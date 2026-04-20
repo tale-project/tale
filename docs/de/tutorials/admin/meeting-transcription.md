@@ -50,7 +50,7 @@ Lade Meetily von der Release-Seite des Projekts herunter und installiere es; die
 
 ## Schritt 4 — Meetily auf den Tale-Webhook zeigen lassen
 
-Wähle in Meetilys **Settings > LLM provider** (Label variiert je Version) **Custom OpenAI-compatible** und setze:
+Wähle in Meetilys `Settings > LLM provider` (Label variiert je Version) **Custom OpenAI-compatible** und setze:
 
 | Feld     | Wert                                                                         |
 | -------- | ---------------------------------------------------------------------------- |
@@ -76,7 +76,7 @@ In Tale wird die Anfrage zu einem echten Konversations-Thread unter dem Zusammen
 
 ## Troubleshooting
 
-- **Kontextfenster-Fehler bei langen Meetings** — das Transkript übersteigt das Eingabelimit des Modells. Wechsle im Agent zu einem Modell mit größerem Kontext oder chunke das Transkript in den Summary-Settings von Meetily vorab. Siehe [Agent-Konzepte — Modell](/de/platform/agents/concepts#modell).
+- **Kontextfenster-Fehler bei langen Meetings** — das Transkript übersteigt das Eingabelimit des Modells. Wechsle im Agent zu einem Modell mit größerem Kontext oder chunke das Transkript in Meetilys Summary-Einstellungen vorab. Siehe [Agent-Konzepte — Modell](/de/platform/agents/concepts#modell).
 - **Meetily hat ein Timeout** — der client-seitige Timeout von Meetily liegt bei 300 Sekunden. Bei langsamen Providern kann ein langes Transkript das überschreiten. Optionen: schnelleres Modell wählen, Transkript kürzen, oder nach Fertigstellung der Generierung erneut probieren (der Thread in Tale enthält weiterhin die vollständige Zusammenfassung).
 - **Zusammenfassungen in falscher Sprache** — entweder war das Transkript sprachlich gemischt, oder der Systemprompt pinnt die Ausgabesprache nicht. Zieh die Regel-Sektion des Prompts an.
 - **Leere oder abgelehnte Zusammenfassung** — den Konversations-Thread des Agents in Tale prüfen; die vollständige Modell-Antwort (inklusive Ablehnungs- oder Governance-Meldungen) steht dort.

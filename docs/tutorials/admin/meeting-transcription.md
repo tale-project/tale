@@ -50,7 +50,7 @@ Download and install Meetily from the project's releases page; the project docs 
 
 ## Step 4 — Point Meetily at the Tale webhook
 
-In Meetily's **Settings > LLM provider** (label varies by version), choose **Custom OpenAI-compatible** and set:
+In Meetily's `Settings > LLM provider` (label varies by version), choose **Custom OpenAI-compatible** and set:
 
 | Field    | Value                                                                     |
 | -------- | ------------------------------------------------------------------------- |
