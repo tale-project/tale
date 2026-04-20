@@ -1,6 +1,32 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# ---------------------------------------------------------------------------
+# OS / editor
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+
+# ---------------------------------------------------------------------------
+# Secrets / credentials — NEVER commit these
+# ---------------------------------------------------------------------------
+.env
+*.env
+.env.local
+.env*.local
+services/platform/.env
+services/platform/.env.local
+*.pem
+/.auth/
+
+# Keep example and test env files tracked
+!.env.example
+!.env.test
+!services/platform/.env.example
+
+# ---------------------------------------------------------------------------
+# Node / JS dependencies
+# ---------------------------------------------------------------------------
 node_modules/
 /.pnp
 .pnp.*
@@ -10,86 +36,79 @@ node_modules/
 !.yarn/releases
 !.yarn/versions
 
-# testing
+# Bun is the package manager — ignore other package managers' lockfiles
+package-lock.json
+
+# ---------------------------------------------------------------------------
+# Build output
+# ---------------------------------------------------------------------------
+/build
+/dist
+*.tsbuildinfo
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+build/
+.venv/
+venv/
+.ruff_cache/
+
+# ---------------------------------------------------------------------------
+# Tooling caches
+# ---------------------------------------------------------------------------
+.turbo
+.husky/_/
+
+# ---------------------------------------------------------------------------
+# Testing
+# ---------------------------------------------------------------------------
 /coverage
 tests/screenshots/
 .playwright-mcp/
 
-# production
-/build
-/dist
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# ---------------------------------------------------------------------------
+# Logs
+# ---------------------------------------------------------------------------
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# bun
-package-lock.json
-
-# env files - NEVER commit secrets!
-.env
-*.env
-.env.local
-.env*.local
-services/platform/.env
-services/platform/.env.local
-
-# Keep example and test env files in git
-!.env.example
-!.env.test
-!services/platform/.env.example
-
-# typescript
-*.tsbuildinfo
-
-# auth configuration (can include secrets)
-/.auth/
-
-# docker compose
+# ---------------------------------------------------------------------------
+# Docker / deployment
+# ---------------------------------------------------------------------------
 compose.override.yml
-
-# Trivy vulnerability scan reports
+services/operator/Dockerfile.arm64
 trivy-reports/
-
-# deployment state files
 .tale/
 
-# Claude
+# ---------------------------------------------------------------------------
+# Claude / agent tooling
+# ---------------------------------------------------------------------------
 .claude/*
 !.claude/CLAUDE.md
 !.claude/settings.json
 !.claude/hooks/
 
-# Agent rules
 .agent/*
 !.agent/rules/
 !.agent/rules/README.md
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.venv/
-venv/
-*.egg-info/
-build/
-
-# Turborepo
-.turbo
-
-# Local ARM64 Dockerfile for operator
-services/operator/Dockerfile.arm64
-
-# Examples – seed configs are tracked; runtime additions are ignored
+# ---------------------------------------------------------------------------
+# Examples — seed configs are tracked; runtime additions are ignored
+# ---------------------------------------------------------------------------
 examples/**/.history/
 examples/providers/*
 !examples/providers/openrouter.json
 !examples/providers/openrouter.secrets.json
+
+# ---------------------------------------------------------------------------
+# Misc generated reports
+# ---------------------------------------------------------------------------
 delivery_report.html
