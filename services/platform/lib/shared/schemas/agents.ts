@@ -12,7 +12,6 @@ export function isRetrievalMode(value: string): value is RetrievalMode {
 const retrievalModeSchema = z.enum(retrievalModeLiterals);
 
 const primaryBehaviorLiterals = ['chat', 'image-generation'] as const;
-export type AgentPrimaryBehavior = (typeof primaryBehaviorLiterals)[number];
 const primaryBehaviorSchema = z.enum(primaryBehaviorLiterals);
 
 const composerModeSchema = z.object({

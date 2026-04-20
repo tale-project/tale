@@ -12,7 +12,6 @@ export type ModelTag = z.infer<typeof modelTagSchema>;
 
 const imageGenerationModeLiterals = ['images-api', 'chat-multimodal'] as const;
 const imageGenerationModeSchema = z.enum(imageGenerationModeLiterals);
-export type ImageGenerationMode = z.infer<typeof imageGenerationModeSchema>;
 
 const modelDefinitionSchema = z.object({
   id: z.string().min(1).max(200),
