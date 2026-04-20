@@ -28,7 +28,16 @@ export interface AgentJsonConfig {
   displayName: string;
   description?: string;
   avatarUrl?: string;
-  systemInstructions: string;
+  /**
+   * Root behavior. Omitted = 'chat' (default). 'image-generation' routes the
+   * user's message straight to an image model, bypassing the tool loop.
+   */
+  primaryBehavior?: 'chat' | 'image-generation';
+  /**
+   * Required for chat agents. Optional for image-generation agents (used as a
+   * style/constraint prefix prepended to the user prompt if present).
+   */
+  systemInstructions?: string;
   toolNames?: string[];
   integrationBindings?: string[];
   delegates?: string[];

@@ -1,5 +1,6 @@
 'use client';
 
+import startCase from 'lodash/startCase';
 import { ChevronDown, Cpu } from 'lucide-react';
 import {
   type ReactNode,
@@ -9,6 +10,7 @@ import {
   useState,
 } from 'react';
 
+import { Badge } from '@/app/components/ui/feedback/badge';
 import {
   SearchableSelect,
   type SearchableSelectOption,
@@ -16,7 +18,10 @@ import {
 import { useAccessibleModels } from '@/app/features/settings/governance/hooks/queries';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { useT } from '@/lib/i18n/client';
-import { stripModelRefQualifier } from '@/lib/shared/utils/model-ref';
+import {
+  parseModelRef,
+  stripModelRefQualifier,
+} from '@/lib/shared/utils/model-ref';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
@@ -42,15 +47,29 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const { selectedModelOverrides, setSelectedModelOverride } = useChatLayout();
   const [open, setOpen] = useState(false);
 
+  const activeAgent = useMemo(
+    () => agents?.find((a) => a.name === effectiveAgent?.name),
+    [agents, effectiveAgent?.name],
+  );
+
   const supportedModels = useMemo(() => {
-    const agent = agents?.find((a) => a.name === effectiveAgent?.name);
-    return agent?.supportedModels ?? [];
-  }, [agents, effectiveAgent?.name]);
+    return activeAgent?.supportedModels ?? [];
+  }, [activeAgent]);
+
+  const requiredTag =
+    activeAgent?.primaryBehavior === 'image-generation'
+      ? 'image-generation'
+      : 'chat';
 
   const modelInfoMap = useMemo(() => {
     const map = new Map<
       string,
-      { displayName: string; description?: string; tags: string[] }
+      {
+        displayName: string;
+        description?: string;
+        tags: string[];
+        providerName: string;
+      }
     >();
     for (const provider of providers) {
       if (
@@ -64,11 +83,24 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
           displayName: model.displayName,
           description: model.description || undefined,
           tags: model.tags ?? [],
+          providerName: provider.name,
         });
       }
     }
     return map;
   }, [providers]);
+
+  // Return the provider's slug (its JSON filename without extension) — this
+  // is the stable, machine-readable identifier users write in model refs,
+  // not the cosmetic `displayName` from the provider JSON.
+  const getProviderSlug = useCallback(
+    (ref: string): string | undefined => {
+      const parsed = parseModelRef(ref);
+      if (parsed.providerName) return parsed.providerName;
+      return modelInfoMap.get(parsed.modelId)?.providerName;
+    },
+    [modelInfoMap],
+  );
 
   const renderTagIcons = useCallback(
     (option: SearchableSelectOption): ReactNode => {
@@ -82,9 +114,9 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const chatModels = useMemo(() => {
     return supportedModels.filter((ref) => {
       const info = modelInfoMap.get(stripModelRefQualifier(ref));
-      return info?.tags.includes('chat');
+      return info?.tags.includes(requiredTag);
     });
-  }, [supportedModels, modelInfoMap]);
+  }, [supportedModels, modelInfoMap, requiredTag]);
 
   // Governance policies match on plain model ids; strip qualifiers before asking.
   const chatModelPlainIds = useMemo(
@@ -112,14 +144,31 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
     [modelInfoMap],
   );
 
+  // Auto mode is only meaningful for chat agents, where models are
+  // interchangeable from a capability/style standpoint. Image-gen models
+  // differ visibly per-model (style, editing ability, cost), so "Auto" would
+  // just hide a creative decision behind a vague default — we force an
+  // explicit pick instead.
+  const isImageGenAgent = requiredTag === 'image-generation';
+
   const currentModelId = useMemo(() => {
     // User's explicit override (localStorage) takes highest priority
     if (effectiveAgent?.name && selectedModelOverrides[effectiveAgent.name]) {
       return selectedModelOverrides[effectiveAgent.name];
     }
-    // No override → Auto mode
+    // No override: chat agents show Auto; image-gen agents show the first
+    // supported model (which matches what the backend resolves when no
+    // override is set — the agent JSON's `supportedModels[0]`).
+    if (isImageGenAgent) {
+      return filteredModels[0] ?? AUTO_MODEL;
+    }
     return AUTO_MODEL;
-  }, [effectiveAgent?.name, selectedModelOverrides]);
+  }, [
+    effectiveAgent?.name,
+    selectedModelOverrides,
+    isImageGenAgent,
+    filteredModels,
+  ]);
 
   // Clear stale override when agent changes
   useEffect(() => {
@@ -164,19 +213,32 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
     );
   }
 
-  const autoOption: SearchableSelectOption = {
-    value: AUTO_MODEL,
-    label: t('modelSelector.auto'),
-    description: t('modelSelector.autoDescription'),
-  };
+  const modelOptions = filteredModels.map((ref) => {
+    const info = modelInfoMap.get(stripModelRefQualifier(ref));
+    const providerSlug = getProviderSlug(ref);
+    return {
+      value: ref,
+      label: getDisplayName(ref),
+      labelBadge: providerSlug ? (
+        <Badge variant="outline" className="text-[10px] font-normal">
+          {startCase(providerSlug)}
+        </Badge>
+      ) : undefined,
+      description: info?.description,
+    };
+  });
 
-  const modelOptions = filteredModels.map((ref) => ({
-    value: ref,
-    label: getDisplayName(ref),
-    description: modelInfoMap.get(stripModelRefQualifier(ref))?.description,
-  }));
-
-  const options = [autoOption, ...modelOptions];
+  // Auto option only makes sense for chat agents (see comment on isImageGenAgent).
+  const options: SearchableSelectOption[] = isImageGenAgent
+    ? modelOptions
+    : [
+        {
+          value: AUTO_MODEL,
+          label: t('modelSelector.auto'),
+          description: t('modelSelector.autoDescription'),
+        },
+        ...modelOptions,
+      ];
 
   return (
     <SearchableSelect

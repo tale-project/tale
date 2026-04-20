@@ -127,6 +127,7 @@ import type * as agents_arena_chat from "../agents/arena_chat.js";
 import type * as agents_config from "../agents/config.js";
 import type * as agents_file_actions from "../agents/file_actions.js";
 import type * as agents_file_utils from "../agents/file_utils.js";
+import type * as agents_image_generation_run_image_generation from "../agents/image_generation/run_image_generation.js";
 import type * as agents_internal_actions from "../agents/internal_actions.js";
 import type * as agents_internal_mutations from "../agents/internal_mutations.js";
 import type * as agents_internal_queries from "../agents/internal_queries.js";
@@ -1103,6 +1104,7 @@ declare const fullApi: ApiFromModules<{
   "agents/config": typeof agents_config;
   "agents/file_actions": typeof agents_file_actions;
   "agents/file_utils": typeof agents_file_utils;
+  "agents/image_generation/run_image_generation": typeof agents_image_generation_run_image_generation;
   "agents/internal_actions": typeof agents_internal_actions;
   "agents/internal_mutations": typeof agents_internal_mutations;
   "agents/internal_queries": typeof agents_internal_queries;

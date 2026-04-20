@@ -1571,6 +1571,11 @@
       "tagChat": "Chat",
       "tagVision": "Vision",
       "tagEmbedding": "Embedding",
+      "tagImageGeneration": "Image generation",
+      "tagImageEdit": "Image edit",
+      "imageGenerationMode": "Image generation mode",
+      "imageGenerationModeHelp": "How this image model is invoked. `images-api` uses the standard /v1/images/generations endpoint (FLUX, Imagen; edit mode via /v1/images/edits). `chat-multimodal` uses /v1/chat/completions with image content parts (Nano Banana, GPT-Image; edit mode via image parts in the user message).",
+      "default": "default",
       "displayNameRequired": "Display name is required",
       "invalidBaseUrl": "Base URL must be a valid URL",
       "modelIdRequired": "All models must have an ID",
@@ -2804,7 +2809,9 @@
       "tags": {
         "chat": "Chat",
         "vision": "Vision",
-        "embedding": "Embedding"
+        "embedding": "Embedding",
+        "imageGeneration": "Image generation",
+        "imageEdit": "Image editing"
       }
     },
     "searchChat": "Search chat",
@@ -2890,6 +2897,19 @@
       "file": "File",
       "attachment": "Attachment",
       "imageAttachment": "Image attachment"
+    },
+    "imageEdit": {
+      "editThis": "Edit this image",
+      "previewReference": "Preview reference image",
+      "editingLatest": "Editing last image",
+      "editing": "Editing",
+      "dismiss": "Don't reference this image",
+      "change": "Change",
+      "placeholder": "Describe the edit…",
+      "placeholderCreate": "Describe an image to create…",
+      "modelCannotEdit": "This model creates new images only. Switch to an editing model to apply changes.",
+      "pickAnImage": "Pick an image to edit",
+      "noOtherImages": "No other images in this thread."
     },
     "downloadFile": "Download file",
     "toolStatus": {

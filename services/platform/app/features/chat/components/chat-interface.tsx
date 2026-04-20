@@ -26,9 +26,11 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
+import { stripModelRefQualifier } from '../../../../lib/shared/utils/model-ref';
 import { useDeletePrompt } from '../../prompts/hooks/mutations';
 import { usePrompts } from '../../prompts/hooks/queries';
 import { useMyFeatureFlags } from '../../settings/governance/hooks/queries';
+import { useListProviders } from '../../settings/providers/hooks/queries';
 import { useBranchContext } from '../context/branch-context';
 import { useChatLayout } from '../context/chat-layout-context';
 import {
@@ -58,12 +60,15 @@ import { usePendingMessages } from '../hooks/use-pending-messages';
 import { usePersistedAttachments } from '../hooks/use-persisted-attachments';
 import { useSendMessage } from '../hooks/use-send-message';
 import { useStopGenerating } from '../hooks/use-stop-generating';
+import { useThreadImages } from '../hooks/use-thread-images';
 import { useUserContext } from '../hooks/use-user-context';
 import type { FileAttachment } from '../types';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaSplitView } from './arena/arena-split-view';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
+import { EditingBanner, imageRefToAttachment } from './editing-banner';
+import { useEffectiveEditingImage } from './editing-banner';
 import { MessagesSkeleton } from './messages-skeleton';
 import { WelcomeView } from './welcome-view';
 
@@ -278,6 +283,37 @@ export function ChatInterface({
   // Agent availability — disable input when no agents exist
   const { agents } = useChatAgents(organizationId);
   const hasNoAgents = agents !== undefined && agents.length === 0;
+
+  // Image-generation agent derivations for EditingBanner.
+  const activeAgentMeta = useMemo(
+    () => agents?.find((a) => a.name === effectiveAgent?.name),
+    [agents, effectiveAgent?.name],
+  );
+  const isImageGenAgent =
+    activeAgentMeta?.primaryBehavior === 'image-generation';
+  const threadImages = useThreadImages(isImageGenAgent ? messages : undefined);
+  const { providers: providersForEdit } = useListProviders('default');
+  const activeModelRef = effectiveAgent?.name
+    ? (selectedModelOverrides[effectiveAgent.name] ??
+      activeAgentMeta?.supportedModels?.[0])
+    : undefined;
+  const activeModelInfo = useMemo(() => {
+    if (!activeModelRef) return undefined;
+    const plain = stripModelRefQualifier(activeModelRef);
+    for (const p of providersForEdit) {
+      if (!p || !('models' in p) || !Array.isArray(p.models)) continue;
+      for (const model of p.models) {
+        if (model.id === plain) return model;
+      }
+    }
+    return undefined;
+  }, [activeModelRef, providersForEdit]);
+  const currentModelSupportsEdit = Boolean(
+    activeModelInfo?.tags?.includes('image-edit'),
+  );
+  const currentModelLabel = activeModelInfo?.displayName;
+  const { active: activeEditingImage } = useEffectiveEditingImage(threadImages);
+  const { setEditingImageRef, setDismissedImageKey } = useChatLayout();
 
   // Thread status — disable input for archived threads
   // Always check the URL threadId (root thread), not dataThreadId (which may
@@ -617,7 +653,31 @@ export function ChatInterface({
     // during the budget-banner → thread transition). Smooth for existing threads.
     scrollingToBottomBehaviorRef.current = threadId ? 'smooth' : 'instant';
     clearInputValue();
-    await sendMessage(message, sentAttachments);
+
+    // For image-generation agents, if an editing image is active in the
+    // banner and not dismissed, prepend it as the reference attachment.
+    let finalAttachments = sentAttachments;
+    if (
+      isImageGenAgent &&
+      currentModelSupportsEdit &&
+      activeEditingImage &&
+      activeEditingImage.ref.fileId
+    ) {
+      const imageAtt = imageRefToAttachment(activeEditingImage.ref);
+      if (imageAtt) {
+        finalAttachments = [
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- FileAttachment.fileId is a branded Id<'_storage'>; runtime value is the same string the server accepts.
+          imageAtt as unknown as FileAttachment,
+          ...(sentAttachments ?? []),
+        ];
+      }
+      // Consume: clear explicit ref. dismissedImageKey reset naturally when a
+      // new image lands because its key differs.
+      setEditingImageRef(null);
+      setDismissedImageKey(null);
+    }
+
+    await sendMessage(message, finalAttachments);
   };
 
   // No client-side optimistic loading needed — server sets
@@ -919,9 +979,24 @@ export function ChatInterface({
           </div>
         ) : (
           <FileUpload.Root>
+            {isImageGenAgent && threadImages.length > 0 && (
+              <div className="mx-auto w-full max-w-(--chat-max-width)">
+                <EditingBanner
+                  threadImages={threadImages}
+                  currentModelSupportsEdit={currentModelSupportsEdit}
+                  currentModelLabel={currentModelLabel}
+                />
+              </div>
+            )}
             <ChatInput
               className="mx-auto w-full max-w-(--chat-max-width)"
-              placeholder={t('placeholder')}
+              placeholder={
+                isImageGenAgent
+                  ? activeEditingImage && currentModelSupportsEdit
+                    ? t('imageEdit.placeholder')
+                    : t('imageEdit.placeholderCreate')
+                  : t('placeholder')
+              }
               value={inputValue}
               onChange={setInputValue}
               onSendMessage={handleSendMessage}
@@ -944,6 +1019,18 @@ export function ChatInterface({
               fileUploadDisabled={fileUploadDisabled}
               isIndexing={isIndexing}
               indexingStatuses={indexingStatuses}
+              sendBlocked={
+                isImageGenAgent &&
+                !!activeEditingImage &&
+                !currentModelSupportsEdit
+              }
+              sendBlockedReason={
+                isImageGenAgent &&
+                !!activeEditingImage &&
+                !currentModelSupportsEdit
+                  ? t('imageEdit.modelCannotEdit')
+                  : undefined
+              }
               onSavePrompt={(content) =>
                 setSavePromptData({ messageId: '', content })
               }

@@ -26,6 +26,7 @@ import {
   useSaveProvider,
   useSaveProviderSecret,
 } from '../hooks/mutations';
+import { modelTagLabel } from '../utils/model-tag-label';
 
 const modelTagLiterals = ['chat', 'vision', 'embedding'] as const;
 
@@ -655,11 +656,7 @@ export function ProviderAddPanel({
                             </Text>
                             {watchedModels[index]?.tags.map((tag) => (
                               <Badge key={tag} variant="outline">
-                                {tag === 'chat'
-                                  ? t('providers.tagChat')
-                                  : tag === 'vision'
-                                    ? t('providers.tagVision')
-                                    : t('providers.tagEmbedding')}
+                                {modelTagLabel(tag, t)}
                               </Badge>
                             ))}
                           </HStack>
@@ -757,11 +754,7 @@ export function ProviderAddPanel({
                     handleDialogTagToggle(tag, checked === true)
                   }
                 />
-                {tag === 'chat'
-                  ? t('providers.tagChat')
-                  : tag === 'vision'
-                    ? t('providers.tagVision')
-                    : t('providers.tagEmbedding')}
+                {modelTagLabel(tag, t)}
               </label>
             ))}
           </HStack>

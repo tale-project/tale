@@ -1571,6 +1571,11 @@
       "tagChat": "Chat",
       "tagVision": "Vision",
       "tagEmbedding": "Embedding",
+      "tagImageGeneration": "Bildgenerierung",
+      "tagImageEdit": "Bildbearbeitung",
+      "imageGenerationMode": "Bildgenerierungs-Modus",
+      "imageGenerationModeHelp": "Wie dieses Bildmodell aufgerufen wird. `images-api` nutzt den Standard-Endpunkt /v1/images/generations (FLUX, Imagen; Bearbeitung via /v1/images/edits). `chat-multimodal` nutzt /v1/chat/completions mit Bild-Inhaltsteilen (Nano Banana, GPT-Image; Bearbeitung via Bild-Teile in der Nutzernachricht).",
+      "default": "Standard",
       "displayNameRequired": "Anzeigename ist erforderlich",
       "invalidBaseUrl": "Basis-URL muss eine gültige URL sein",
       "modelIdRequired": "Alle Modelle müssen eine ID haben",
@@ -2804,7 +2809,9 @@
       "tags": {
         "chat": "Chat",
         "vision": "Vision",
-        "embedding": "Embedding"
+        "embedding": "Embedding",
+        "imageGeneration": "Bildgenerierung",
+        "imageEdit": "Bildbearbeitung"
       }
     },
     "searchChat": "Chat durchsuchen",
@@ -2890,6 +2897,19 @@
       "file": "Datei",
       "attachment": "Anhang",
       "imageAttachment": "Bildanhang"
+    },
+    "imageEdit": {
+      "editThis": "Dieses Bild bearbeiten",
+      "previewReference": "Referenzbild in Vollbild anzeigen",
+      "editingLatest": "Letztes Bild bearbeiten",
+      "editing": "Bearbeiten",
+      "dismiss": "Dieses Bild nicht referenzieren",
+      "change": "Ändern",
+      "placeholder": "Beschreibe die Bearbeitung…",
+      "placeholderCreate": "Beschreibe ein zu erzeugendes Bild…",
+      "modelCannotEdit": "Dieses Modell erzeugt nur neue Bilder. Wechsle zu einem Bearbeitungsmodell, um Änderungen anzuwenden.",
+      "pickAnImage": "Bild zum Bearbeiten auswählen",
+      "noOtherImages": "Keine weiteren Bilder in diesem Thread."
     },
     "downloadFile": "Datei herunterladen",
     "toolStatus": {

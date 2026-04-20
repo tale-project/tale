@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChevronRight, Loader2, Pencil, Trash2, X } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import {
   Table,
@@ -33,6 +33,7 @@ import {
   ProviderConfigProvider,
   useProviderConfig,
 } from '@/app/features/settings/providers/hooks/use-provider-config-context';
+import { modelTagLabel } from '@/app/features/settings/providers/utils/model-tag-label';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -305,6 +306,7 @@ function ApiKeySection({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
+  const apiKeyInputRef = useRef<HTMLInputElement>(null);
 
   const handleSaveKey = useCallback(
     async (e: React.FormEvent) => {
@@ -379,6 +381,10 @@ function ApiKeySection({
         size="md"
         hideClose
         className="flex flex-col gap-0 p-0"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          requestAnimationFrame(() => apiKeyInputRef.current?.focus());
+        }}
       >
         <HStack
           justify="between"
@@ -412,12 +418,12 @@ function ApiKeySection({
                 </Text>
               )}
               <Input
+                ref={apiKeyInputRef}
                 type="password"
                 label={t('providers.apiKey')}
                 placeholder={t('providers.apiKeyEnter')}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                autoFocus
               />
             </Stack>
           </div>
@@ -453,6 +459,8 @@ interface ModelFormState {
   dimensions: string;
   inputCostPerMillion: string;
   outputCostPerMillion: string;
+  imageCostPerImage: string;
+  imageGenerationMode: '' | 'images-api' | 'chat-multimodal';
   baseUrl: string;
   apiKey: string;
 }
@@ -465,6 +473,8 @@ const EMPTY_MODEL_FORM: ModelFormState = {
   dimensions: '',
   inputCostPerMillion: '',
   outputCostPerMillion: '',
+  imageCostPerImage: '',
+  imageGenerationMode: '',
   baseUrl: '',
   apiKey: '',
 };
@@ -491,6 +501,7 @@ function ModelsSection({
   const [modelKeyAction, setModelKeyAction] = useState<
     'none' | 'remove' | 'replace'
   >('none');
+  const modelIdInputRef = useRef<HTMLInputElement>(null);
 
   const openAddDialog = useCallback(() => {
     setEditingIndex(null);
@@ -505,7 +516,7 @@ function ModelsSection({
       const model = config.models[index];
       if (!model) return;
       setEditingIndex(index);
-      const formData = {
+      const formData: ModelFormState = {
         id: model.id,
         displayName: model.displayName,
         description: model.description ?? '',
@@ -519,6 +530,11 @@ function ModelsSection({
           model.cost?.outputCentsPerMillion != null
             ? String(model.cost.outputCentsPerMillion / 100)
             : '',
+        imageCostPerImage:
+          model.cost?.imageCentsPerImage != null
+            ? String(model.cost.imageCentsPerImage / 100)
+            : '',
+        imageGenerationMode: model.imageGenerationMode ?? '',
         baseUrl: model.baseUrl ?? '',
         apiKey: '',
       };
@@ -533,24 +549,45 @@ function ModelsSection({
   const handleSubmitModel = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+      const hasTokenCost =
+        !!form.inputCostPerMillion || !!form.outputCostPerMillion;
+      const hasImageCost = !!form.imageCostPerImage;
       const cost =
-        form.inputCostPerMillion || form.outputCostPerMillion
+        hasTokenCost || hasImageCost
           ? {
-              inputCentsPerMillion: form.inputCostPerMillion
-                ? Math.round(Number(form.inputCostPerMillion) * 100)
-                : 0,
-              outputCentsPerMillion: form.outputCostPerMillion
-                ? Math.round(Number(form.outputCostPerMillion) * 100)
-                : 0,
+              ...(hasTokenCost
+                ? {
+                    inputCentsPerMillion: form.inputCostPerMillion
+                      ? Math.round(Number(form.inputCostPerMillion) * 100)
+                      : 0,
+                    outputCentsPerMillion: form.outputCostPerMillion
+                      ? Math.round(Number(form.outputCostPerMillion) * 100)
+                      : 0,
+                  }
+                : {}),
+              ...(hasImageCost
+                ? {
+                    imageCentsPerImage: Math.round(
+                      Number(form.imageCostPerImage) * 100,
+                    ),
+                  }
+                : {}),
             }
           : undefined;
+      const isImageGen = form.tags.includes('image-generation');
       const model = {
         id: form.id,
         displayName: form.displayName,
         description: form.description || undefined,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- tags are constrained to checkbox values
-        tags: form.tags as Array<'chat' | 'vision' | 'embedding'>,
+        tags: form.tags as Array<
+          'chat' | 'vision' | 'embedding' | 'image-generation' | 'image-edit'
+        >,
         dimensions: form.dimensions ? Number(form.dimensions) : undefined,
+        imageGenerationMode:
+          isImageGen && form.imageGenerationMode
+            ? form.imageGenerationMode
+            : undefined,
         baseUrl: form.baseUrl.trim() || undefined,
         cost,
       };
@@ -690,22 +727,27 @@ function ModelsSection({
                     <HStack gap={1}>
                       {model.tags.map((tag) => (
                         <Badge key={tag} variant="outline" className="text-xs">
-                          {tag === 'chat'
-                            ? t('providers.tagChat')
-                            : tag === 'vision'
-                              ? t('providers.tagVision')
-                              : tag === 'embedding'
-                                ? t('providers.tagEmbedding')
-                                : tag}
+                          {modelTagLabel(tag, t)}
                         </Badge>
                       ))}
                     </HStack>
                   </TableCell>
                   <TableCell className="text-right">
-                    {model.cost ? (
+                    {model.cost?.imageCentsPerImage != null ? (
                       <Text className="text-muted-foreground text-xs">
-                        ${(model.cost.inputCentsPerMillion / 100).toFixed(2)} /
-                        ${(model.cost.outputCentsPerMillion / 100).toFixed(2)}
+                        ${(model.cost.imageCentsPerImage / 100).toFixed(2)}/img
+                      </Text>
+                    ) : model.cost?.inputCentsPerMillion != null ||
+                      model.cost?.outputCentsPerMillion != null ? (
+                      <Text className="text-muted-foreground text-xs">
+                        $
+                        {((model.cost.inputCentsPerMillion ?? 0) / 100).toFixed(
+                          2,
+                        )}{' '}
+                        / $
+                        {(
+                          (model.cost.outputCentsPerMillion ?? 0) / 100
+                        ).toFixed(2)}
                       </Text>
                     ) : (
                       <Text className="text-muted-foreground text-xs">—</Text>
@@ -743,6 +785,10 @@ function ModelsSection({
         size="md"
         hideClose
         className="flex flex-col gap-0 p-0"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          requestAnimationFrame(() => modelIdInputRef.current?.focus());
+        }}
       >
         <HStack
           justify="between"
@@ -772,11 +818,11 @@ function ModelsSection({
           <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
             <Stack gap={4}>
               <Input
+                ref={modelIdInputRef}
                 label={t('providers.modelId')}
                 value={form.id}
                 onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))}
                 placeholder={t('providers.modelIdPlaceholder')}
-                autoFocus
               />
               <Input
                 label={t('providers.displayName')}
@@ -796,7 +842,15 @@ function ModelsSection({
                 rows={2}
               />
               <HStack gap={4} align="center" className="flex-wrap">
-                {(['chat', 'vision', 'embedding'] as const).map((tag) => (
+                {(
+                  [
+                    'chat',
+                    'vision',
+                    'embedding',
+                    'image-generation',
+                    'image-edit',
+                  ] as const
+                ).map((tag) => (
                   <label
                     key={tag}
                     className="flex items-center gap-1.5 text-sm"
@@ -812,13 +866,7 @@ function ModelsSection({
                         }));
                       }}
                     />
-                    {tag === 'chat'
-                      ? t('providers.tagChat')
-                      : tag === 'vision'
-                        ? t('providers.tagVision')
-                        : tag === 'embedding'
-                          ? t('providers.tagEmbedding')
-                          : tag}
+                    {modelTagLabel(tag, t)}
                   </label>
                 ))}
               </HStack>
@@ -832,6 +880,36 @@ function ModelsSection({
                   }
                   placeholder="e.g., 1536"
                 />
+              )}
+              {form.tags.includes('image-generation') && (
+                <Stack gap={3}>
+                  <div>
+                    <label className="text-foreground mb-1 block text-xs font-medium">
+                      {t('providers.imageGenerationMode')}
+                    </label>
+                    <select
+                      className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
+                      value={form.imageGenerationMode}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- select option values are constrained to the empty string or one of the two enum variants
+                          imageGenerationMode: e.target
+                            .value as ModelFormState['imageGenerationMode'],
+                        }))
+                      }
+                    >
+                      <option value="">
+                        images-api ({t('providers.default')})
+                      </option>
+                      <option value="images-api">images-api</option>
+                      <option value="chat-multimodal">chat-multimodal</option>
+                    </select>
+                    <Text className="text-muted-foreground mt-1 text-xs">
+                      {t('providers.imageGenerationModeHelp')}
+                    </Text>
+                  </div>
+                </Stack>
               )}
               <HStack gap={3}>
                 <Input
@@ -863,6 +941,22 @@ function ModelsSection({
                   step={0.01}
                 />
               </HStack>
+              {form.tags.includes('image-generation') && (
+                <Input
+                  label="Cost per image (USD)"
+                  type="number"
+                  value={form.imageCostPerImage}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      imageCostPerImage: e.target.value,
+                    }))
+                  }
+                  placeholder="e.g., 0.06"
+                  min={0}
+                  step={0.01}
+                />
+              )}
               <Text className="text-muted-foreground text-xs">
                 {t('providers.costHelp')}
               </Text>

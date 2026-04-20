@@ -1,8 +1,17 @@
 import { z } from 'zod/v4';
 
-const modelTagLiterals = ['chat', 'vision', 'embedding'] as const;
+const modelTagLiterals = [
+  'chat',
+  'vision',
+  'embedding',
+  'image-generation',
+  'image-edit',
+] as const;
 const modelTagSchema = z.enum(modelTagLiterals);
-type ModelTag = z.infer<typeof modelTagSchema>;
+export type ModelTag = z.infer<typeof modelTagSchema>;
+
+const imageGenerationModeLiterals = ['images-api', 'chat-multimodal'] as const;
+const imageGenerationModeSchema = z.enum(imageGenerationModeLiterals);
 
 const modelDefinitionSchema = z.object({
   id: z.string().min(1).max(200),
@@ -14,10 +23,17 @@ const modelDefinitionSchema = z.object({
   supportsStructuredOutputs: z.boolean().optional(),
   fallbackModelId: z.string().min(1).max(200).optional(),
   baseUrl: z.string().url().optional(),
+  imageGenerationMode: imageGenerationModeSchema.optional(),
   cost: z
     .object({
-      inputCentsPerMillion: z.number(),
-      outputCentsPerMillion: z.number(),
+      inputCentsPerMillion: z.number().optional(),
+      outputCentsPerMillion: z.number().optional(),
+      /**
+       * For image-generation models that charge per image rather than per
+       * token. When set, cost tracking for this model uses
+       * `imageCount * imageCentsPerImage` directly, bypassing token math.
+       */
+      imageCentsPerImage: z.number().optional(),
     })
     .optional(),
 });
@@ -28,6 +44,7 @@ const providerDefaultsSchema = z.object({
   chat: z.string().min(1).max(200).optional(),
   vision: z.string().min(1).max(200).optional(),
   embedding: z.string().min(1).max(200).optional(),
+  'image-generation': z.string().min(1).max(200).optional(),
   fallbackProviderName: z.string().min(1).max(200).optional(),
   fallbackModelId: z.string().min(1).max(200).optional(),
 });

@@ -134,6 +134,12 @@ export interface ChatAgent {
   displayName: string;
   description?: string;
   visibleInChat?: boolean;
+  /**
+   * Root behavior. Omitted = 'chat'. 'image-generation' flips the composer
+   * into direct image-gen mode (model picker filters on image tag, EditingBanner
+   * activates when the thread has images).
+   */
+  primaryBehavior?: 'chat' | 'image-generation';
   supportedModels?: string[];
   toolNames?: string[];
   roleRestriction?: string;
@@ -173,6 +179,12 @@ export function useChatAgents(_organizationId: string) {
           displayName: a.displayName,
           description: a.description,
           visibleInChat: a.visibleInChat,
+          primaryBehavior:
+            'primaryBehavior' in a &&
+            (a.primaryBehavior === 'chat' ||
+              a.primaryBehavior === 'image-generation')
+              ? a.primaryBehavior
+              : undefined,
           supportedModels: a.supportedModels,
           conversationStarters: a.conversationStarters,
           composerMode:

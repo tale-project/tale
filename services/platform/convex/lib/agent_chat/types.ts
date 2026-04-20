@@ -15,7 +15,12 @@ import type { AgentType } from '../context_management/constants';
 export interface SerializableAgentConfig {
   /** Agent name identifier */
   name: string;
-  /** System instructions for the agent */
+  /**
+   * Root behavior. Omitted = 'chat'. When 'image-generation', the startAgentChat
+   * helper routes to the direct image-gen action instead of runAgentGeneration.
+   */
+  primaryBehavior?: 'chat' | 'image-generation';
+  /** System instructions for the agent (empty for image-generation agents with no style prefix) */
   instructions: string;
   /** List of Convex tool names to enable */
   convexToolNames?: ToolName[];

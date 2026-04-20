@@ -11,6 +11,9 @@ export function isRetrievalMode(value: string): value is RetrievalMode {
 
 const retrievalModeSchema = z.enum(retrievalModeLiterals);
 
+const primaryBehaviorLiterals = ['chat', 'image-generation'] as const;
+const primaryBehaviorSchema = z.enum(primaryBehaviorLiterals);
+
 const composerModeSchema = z.object({
   label: z.string().min(1).max(80),
   icon: z.string().max(80).optional(),
@@ -31,57 +34,102 @@ const translatableFieldsSchema = z.object({
  * Schema for the agent JSON file format.
  * Matches the AgentJsonConfig type in convex/agents/file_utils.ts.
  */
-export const agentJsonSchema = z.object({
-  displayName: z.string().min(1).max(200),
-  description: z.string().max(1000).optional(),
-  avatarUrl: z.string().url().optional(),
-  systemInstructions: z.string().min(1),
-  toolNames: z.array(z.string()).optional(),
-  integrationBindings: z.array(z.string()).optional(),
-  delegates: z.array(z.string()).optional(),
-  workflows: z.array(z.string()).optional(),
-  supportedModels: z
-    .array(
-      z.string().min(1).refine(isValidModelRef, {
-        message: 'Invalid model ref (expected "[provider:]model-id")',
-      }),
-    )
-    .min(1),
-  provider: z
-    .string()
-    .min(1)
-    .max(100)
-    .regex(/^[a-z0-9][a-z0-9_-]*$/)
-    .optional(),
-  knowledgeMode: retrievalModeSchema.optional(),
-  webSearchMode: retrievalModeSchema.optional(),
-  includeOrgKnowledge: z.boolean().optional(),
-  includeTeamKnowledge: z.boolean().optional(),
-  knowledgeTopK: z.number().int().min(1).max(50).optional(),
-  structuredResponsesEnabled: z.boolean().optional(),
-  maxSteps: z.number().int().min(1).max(100).optional(),
-  timeoutMs: z.number().int().min(1000).optional(),
-  outputReserve: z.number().int().optional(),
-  /**
-   * Max number of integration tool calls allowed for a single agent run.
-   * Enforced at the integration-tool wrapper. Agents that cannot call
-   * integrations should leave this unset.
-   */
-  maxIntegrationCallsPerRun: z.number().int().min(1).max(500).optional(),
-  composerMode: composerModeSchema.optional(),
-  roleRestriction: z.literal('admin_developer').optional(),
-  conversationStarters: z.array(z.string().max(200)).max(4).optional(),
-  visibleInChat: z.boolean().optional(),
-  responseCacheEnabled: z.boolean().optional(),
-  responseCacheTtlMs: z.number().int().min(1000).max(604_800_000).optional(),
-  noCacheToolNames: z.array(z.string().min(1)).optional(),
-  i18n: z
-    .record(
-      z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
-      translatableFieldsSchema,
-    )
-    .optional(),
-});
+export const agentJsonSchema = z
+  .object({
+    displayName: z.string().min(1).max(200),
+    description: z.string().max(1000).optional(),
+    avatarUrl: z.string().url().optional(),
+    /**
+     * Root behavior this agent runs. Omitted = 'chat' (default tool-calling chat
+     * loop). When set to 'image-generation', the user message is routed straight
+     * to an image model; toolNames/integrationBindings/workflows are ignored.
+     */
+    primaryBehavior: primaryBehaviorSchema.optional(),
+    /**
+     * Required for chat agents (enforced by superRefine). Optional for
+     * image-generation agents, where an empty value means the user prompt goes
+     * to the image model unchanged; non-empty is prepended to the prompt as a
+     * style/constraint prefix.
+     */
+    systemInstructions: z.string().optional(),
+    toolNames: z.array(z.string()).optional(),
+    integrationBindings: z.array(z.string()).optional(),
+    delegates: z.array(z.string()).optional(),
+    workflows: z.array(z.string()).optional(),
+    supportedModels: z
+      .array(
+        z.string().min(1).refine(isValidModelRef, {
+          message: 'Invalid model ref (expected "[provider:]model-id")',
+        }),
+      )
+      .min(1),
+    provider: z
+      .string()
+      .min(1)
+      .max(100)
+      .regex(/^[a-z0-9][a-z0-9_-]*$/)
+      .optional(),
+    knowledgeMode: retrievalModeSchema.optional(),
+    webSearchMode: retrievalModeSchema.optional(),
+    includeOrgKnowledge: z.boolean().optional(),
+    includeTeamKnowledge: z.boolean().optional(),
+    knowledgeTopK: z.number().int().min(1).max(50).optional(),
+    structuredResponsesEnabled: z.boolean().optional(),
+    maxSteps: z.number().int().min(1).max(100).optional(),
+    timeoutMs: z.number().int().min(1000).optional(),
+    outputReserve: z.number().int().optional(),
+    /**
+     * Max number of integration tool calls allowed for a single agent run.
+     * Enforced at the integration-tool wrapper. Agents that cannot call
+     * integrations should leave this unset.
+     */
+    maxIntegrationCallsPerRun: z.number().int().min(1).max(500).optional(),
+    composerMode: composerModeSchema.optional(),
+    roleRestriction: z.literal('admin_developer').optional(),
+    conversationStarters: z.array(z.string().max(200)).max(4).optional(),
+    visibleInChat: z.boolean().optional(),
+    responseCacheEnabled: z.boolean().optional(),
+    responseCacheTtlMs: z.number().int().min(1000).max(604_800_000).optional(),
+    noCacheToolNames: z.array(z.string().min(1)).optional(),
+    i18n: z
+      .record(
+        z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
+        translatableFieldsSchema,
+      )
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    // Chat agents require non-empty systemInstructions.
+    if (
+      (data.primaryBehavior ?? 'chat') === 'chat' &&
+      (data.systemInstructions == null || data.systemInstructions.length === 0)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['systemInstructions'],
+        message: 'systemInstructions is required for chat agents',
+      });
+    }
+    // Image-generation agents have no tool loop — these fields are meaningless.
+    if (data.primaryBehavior === 'image-generation') {
+      const disallowed: Array<keyof typeof data> = [
+        'toolNames',
+        'integrationBindings',
+        'workflows',
+        'delegates',
+      ];
+      for (const key of disallowed) {
+        const value = data[key];
+        if (Array.isArray(value) && value.length > 0) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: `${String(key)} is not supported when primaryBehavior is "image-generation" — the agent bypasses the tool loop.`,
+          });
+        }
+      }
+    }
+  });
 type AgentJson = z.infer<typeof agentJsonSchema>;
 
 /**

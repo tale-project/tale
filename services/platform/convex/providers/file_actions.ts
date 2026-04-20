@@ -344,11 +344,16 @@ export const resolveModelData = internalAction({
     baseUrl: v.string(),
     apiKey: v.string(),
     modelId: v.string(),
+    tags: v.array(v.string()),
     dimensions: v.optional(v.number()),
     maxOutputTokens: v.optional(v.number()),
     supportsStructuredOutputs: v.boolean(),
+    imageGenerationMode: v.optional(
+      v.union(v.literal('images-api'), v.literal('chat-multimodal')),
+    ),
     inputCentsPerMillion: v.optional(v.number()),
     outputCentsPerMillion: v.optional(v.number()),
+    imageCentsPerImage: v.optional(v.number()),
   }),
   handler: async (_ctx, args) => {
     const orgSlug = args.orgSlug ?? 'default';
@@ -401,13 +406,17 @@ export const resolveModelData = internalAction({
           provider.secrets.modelKeys?.[definition.id] ??
           provider.secrets.apiKey,
         modelId: args.modelId,
+        tags: [...definition.tags],
+        dimensions: definition.dimensions,
         maxOutputTokens: definition.maxOutputTokens,
         supportsStructuredOutputs:
           definition.supportsStructuredOutputs ??
           provider.config.supportsStructuredOutputs ??
           false,
+        imageGenerationMode: definition.imageGenerationMode,
         inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
         outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
+        imageCentsPerImage: definition.cost?.imageCentsPerImage,
       };
     }
 
@@ -435,11 +444,16 @@ export const resolveModelByTag = internalAction({
     baseUrl: v.string(),
     apiKey: v.string(),
     modelId: v.string(),
+    tags: v.array(v.string()),
     dimensions: v.optional(v.number()),
     maxOutputTokens: v.optional(v.number()),
     supportsStructuredOutputs: v.boolean(),
+    imageGenerationMode: v.optional(
+      v.union(v.literal('images-api'), v.literal('chat-multimodal')),
+    ),
     inputCentsPerMillion: v.optional(v.number()),
     outputCentsPerMillion: v.optional(v.number()),
+    imageCentsPerImage: v.optional(v.number()),
   }),
   handler: async (_ctx, args) => {
     const orgSlug = args.orgSlug ?? 'default';
@@ -475,14 +489,17 @@ export const resolveModelByTag = internalAction({
               provider.secrets.modelKeys?.[definition.id] ??
               provider.secrets.apiKey,
             modelId: definition.id,
+            tags: [...definition.tags],
             dimensions: definition.dimensions,
             maxOutputTokens: definition.maxOutputTokens,
             supportsStructuredOutputs:
               definition.supportsStructuredOutputs ??
               provider.config.supportsStructuredOutputs ??
               false,
+            imageGenerationMode: definition.imageGenerationMode,
             inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
             outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
+            imageCentsPerImage: definition.cost?.imageCentsPerImage,
           };
         }
       }
@@ -501,14 +518,17 @@ export const resolveModelByTag = internalAction({
             provider.secrets.modelKeys?.[definition.id] ??
             provider.secrets.apiKey,
           modelId: definition.id,
+          tags: [...definition.tags],
           dimensions: definition.dimensions,
           maxOutputTokens: definition.maxOutputTokens,
           supportsStructuredOutputs:
             definition.supportsStructuredOutputs ??
             provider.config.supportsStructuredOutputs ??
             false,
+          imageGenerationMode: definition.imageGenerationMode,
           inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
           outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
+          imageCentsPerImage: definition.cost?.imageCentsPerImage,
         };
       }
     }

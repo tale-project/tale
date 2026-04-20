@@ -191,6 +191,38 @@
         "inputCentsPerMillion": 8,
         "outputCentsPerMillion": 30
       }
+    },
+    {
+      "id": "black-forest-labs/flux.2-pro",
+      "displayName": "FLUX.2 [pro]",
+      "description": "Frontier-level image generation and editing from Black Forest Labs. Served via OpenRouter's chat/completions endpoint with multimodal output.",
+      "tags": ["image-generation", "image-edit"],
+      "imageGenerationMode": "chat-multimodal",
+      "cost": { "imageCentsPerImage": 6 }
+    },
+    {
+      "id": "black-forest-labs/flux.2-max",
+      "displayName": "FLUX.2 [max]",
+      "description": "Top-tier FLUX.2 variant; highest quality and editing consistency. Served via OpenRouter's chat/completions endpoint with multimodal output.",
+      "tags": ["image-generation", "image-edit"],
+      "imageGenerationMode": "chat-multimodal",
+      "cost": { "imageCentsPerImage": 9 }
+    },
+    {
+      "id": "black-forest-labs/flux.2-flex",
+      "displayName": "FLUX.2 [flex]",
+      "description": "FLUX.2 variant tuned for complex text, typography, and multi-reference editing. Served via OpenRouter's chat/completions endpoint with multimodal output.",
+      "tags": ["image-generation", "image-edit"],
+      "imageGenerationMode": "chat-multimodal",
+      "cost": { "imageCentsPerImage": 4 }
+    },
+    {
+      "id": "google/gemini-2.5-flash-image",
+      "displayName": "Nano Banana (Gemini 2.5 Flash Image)",
+      "description": "Gemini 2.5 multimodal image generation + editing. Supports reference images.",
+      "tags": ["image-generation", "image-edit"],
+      "imageGenerationMode": "chat-multimodal",
+      "cost": { "imageCentsPerImage": 4 }
     }
   ],
   "i18n": {

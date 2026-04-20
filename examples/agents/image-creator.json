@@ -1,16 +1,44 @@
 {
   "displayName": "Image Creator",
-  "description": "Generate and edit images using AI. Describe what you want, and I'll create or modify images for you.",
-  "systemInstructions": "You are a helpful assistant.",
-  "integrationBindings": ["ai-image"],
+  "description": "Generates and edits images from text prompts using FLUX, Imagen, or Nano Banana.",
+  "primaryBehavior": "image-generation",
   "supportedModels": [
-    "openrouter:moonshotai/kimi-k2.5",
-    "openrouter:anthropic/claude-sonnet-4.6"
+    "vercel-gateway:bfl/flux-2-pro",
+    "vercel-gateway:bfl/flux-pro-1.1-ultra",
+    "vercel-gateway:bfl/flux-kontext-pro",
+    "vercel-gateway:bfl/flux-kontext-max",
+    "vercel-gateway:google/imagen-4.0-generate-001",
+    "vercel-gateway:google/imagen-4.0-fast-generate-001",
+    "vercel-gateway:google/imagen-4.0-ultra-generate-001",
+    "vercel-gateway:google/gemini-2.5-flash-image",
+    "openrouter:black-forest-labs/flux.2-pro",
+    "openrouter:black-forest-labs/flux.2-max",
+    "openrouter:black-forest-labs/flux.2-flex"
   ],
+  "timeoutMs": 120000,
+  "composerMode": {
+    "label": "Image generation",
+    "icon": "image",
+    "tooltip": "Generate or edit images from a description",
+    "order": 30
+  },
   "conversationStarters": [
     "Generate a product photo for a minimalist white coffee mug",
     "Create a watercolor illustration of a sunset over the ocean",
     "Design a social media banner for a summer sale event",
     "Generate a logo concept for a tech startup called 'NovaByte'"
-  ]
+  ],
+  "visibleInChat": true,
+  "i18n": {
+    "de": {
+      "displayName": "Bildgenerator",
+      "description": "Erzeugt und bearbeitet Bilder aus Textbeschreibungen mit FLUX, Imagen oder Nano Banana.",
+      "conversationStarters": [
+        "Erzeuge ein Produktfoto einer minimalistischen weißen Kaffeetasse",
+        "Erstelle eine Aquarell-Illustration eines Sonnenuntergangs über dem Meer",
+        "Entwirf ein Social-Media-Banner für einen Sommerschlussverkauf",
+        "Erzeuge ein Logo-Konzept für ein Tech-Startup namens 'NovaByte'"
+      ]
+    }
+  }
 }
