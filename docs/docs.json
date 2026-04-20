@@ -207,7 +207,7 @@
             ]
           },
           {
-            "group": "Develop",
+            "group": "Development",
             "pages": [
               "develop/api-reference",
               "develop/webhooks",
@@ -381,7 +381,7 @@
             ]
           },
           {
-            "group": "Entwickeln",
+            "group": "Entwicklung",
             "pages": [
               "de/develop/api-reference",
               "de/develop/webhooks",
@@ -555,7 +555,7 @@
             ]
           },
           {
-            "group": "Développer",
+            "group": "Développement",
             "pages": [
               "fr/develop/api-reference",
               "fr/develop/webhooks",
