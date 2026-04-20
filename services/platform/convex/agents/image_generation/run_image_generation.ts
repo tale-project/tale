@@ -134,6 +134,7 @@ export const runImageGeneration = internalAction({
       let usage:
         | { inputTokens: number; outputTokens: number; totalTokens: number }
         | undefined;
+      let providerCostUsd: number | undefined;
 
       if (resolved.kind === 'images-api') {
         // `prompt.images` at the AI SDK level routes to the standard OpenAI
@@ -173,16 +174,20 @@ export const runImageGeneration = internalAction({
         //
         // The wire shape is well-defined, so we issue the /chat/completions
         // call directly and parse the images out ourselves.
-        const { images: extractedImages, usage: extractedUsage } =
-          await fetchChatCompletionImages({
-            baseUrl: resolved.modelData.baseUrl,
-            apiKey: resolved.modelData.apiKey,
-            modelId: resolved.modelData.modelId,
-            textPrompt,
-            attachmentImages: attachmentBytes,
-          });
+        const {
+          images: extractedImages,
+          usage: extractedUsage,
+          providerCostUsd: extractedCostUsd,
+        } = await fetchChatCompletionImages({
+          baseUrl: resolved.modelData.baseUrl,
+          apiKey: resolved.modelData.apiKey,
+          modelId: resolved.modelData.modelId,
+          textPrompt,
+          attachmentImages: attachmentBytes,
+        });
         for (const img of extractedImages) imageBlobs.push(img);
         usage = extractedUsage;
+        providerCostUsd = extractedCostUsd;
       }
 
       if (imageBlobs.length === 0) {
@@ -232,14 +237,19 @@ export const runImageGeneration = internalAction({
 
       const durationMs = Date.now() - startedAt;
 
-      // Cost accounting. For image-only models (FLUX / Imagen) we charge per
-      // image using the model's `imageCentsPerImage`. For chat-multimodal
-      // image gen (Nano Banana / GPT-Image) we have real token usage AND
-      // typically a per-image fee — charge whichever is present (per-image
-      // dominates when both are set).
+      // Cost accounting. Prefer the gateway's billed USD amount
+      // (`usage.cost` from OpenRouter-compatible responses) — it accounts
+      // for resolution-dependent pricing that a flat per-image rate cannot
+      // express (FLUX.2 charges per megapixel). Fall back to the model's
+      // `imageCentsPerImage` when no provider cost was reported, and to
+      // token-derived math (computed in onAgentComplete) otherwise.
       const perImageCost = resolved.modelData.imageCentsPerImage;
       const imageCostCents =
-        perImageCost != null ? imageBlobs.length * perImageCost : undefined;
+        providerCostUsd != null
+          ? providerCostUsd * 100
+          : perImageCost != null
+            ? imageBlobs.length * perImageCost
+            : undefined;
 
       // Usage ledger + audit (best effort — don't fail the turn on telemetry)
       try {
@@ -327,6 +337,12 @@ export const runImageGeneration = internalAction({
 interface ChatCompletionsImageResult {
   images: Array<{ bytes: Uint8Array; mediaType: string }>;
   usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+  /**
+   * Actual cost in USD reported by the gateway (OpenRouter exposes this via
+   * `usage.cost`). Undefined when the gateway doesn't return a cost field,
+   * in which case callers fall back to the model's static per-image price.
+   */
+  providerCostUsd?: number;
 }
 
 /**
@@ -360,10 +376,14 @@ async function fetchChatCompletionImages(opts: {
 
   // Gateways that honor OpenAI's multimodal-output spec read `modalities`
   // as a top-level body field. Unknown-field tolerant gateways ignore it.
+  // `usage.include` asks OpenRouter to return the actual USD cost in
+  // `usage.cost` — megapixel-priced image models don't fit a flat per-image
+  // rate, so we prefer the gateway's billed amount over a static estimate.
   const body = {
     model: opts.modelId,
     messages: [{ role: 'user', content: userContent }],
     modalities: ['image'],
+    usage: { include: true },
   };
 
   const url = `${opts.baseUrl.replace(/\/+$/, '')}/chat/completions`;
@@ -407,6 +427,7 @@ async function fetchChatCompletionImages(opts: {
       prompt_tokens?: number;
       completion_tokens?: number;
       total_tokens?: number;
+      cost?: number;
     };
   };
 
@@ -429,6 +450,8 @@ async function fetchChatCompletionImages(opts: {
       outputTokens: body_.usage?.completion_tokens ?? 0,
       totalTokens: body_.usage?.total_tokens ?? 0,
     },
+    providerCostUsd:
+      typeof body_.usage?.cost === 'number' ? body_.usage.cost : undefined,
   };
 }
 

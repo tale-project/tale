@@ -352,19 +352,28 @@ function SearchableSelectOptionItem({
       )}
     >
       {showRadio && (
+        // Outer wrapper matches the first label-row height (~24px, driven by
+        // the optional badge's line-height + py) and centers the 16px radio
+        // within it. Without this, `items-start` on the parent would top-align
+        // the smaller radio against a taller label+badge row, leaving the
+        // circle visibly above the badge's vertical center.
         <span
           aria-hidden="true"
-          className={cn(
-            'border-border bg-background pointer-events-none flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
-            isSelected && 'border-blue-600',
-          )}
+          className="pointer-events-none flex h-6 shrink-0 items-center"
         >
-          {isSelected && (
-            <Circle
-              className="size-2.5 fill-blue-600 text-blue-600"
-              aria-hidden="true"
-            />
-          )}
+          <span
+            className={cn(
+              'border-border bg-background flex size-4 items-center justify-center rounded-full border transition-colors duration-150',
+              isSelected && 'border-blue-600',
+            )}
+          >
+            {isSelected && (
+              <Circle
+                className="size-2.5 fill-blue-600 text-blue-600"
+                aria-hidden="true"
+              />
+            )}
+          </span>
         </span>
       )}
       <div className="min-w-0 flex-1">
