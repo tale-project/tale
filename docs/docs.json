@@ -207,6 +207,35 @@
             ]
           },
           {
+            "group": "Tutorials",
+            "pages": [
+              "tutorials/overview",
+              {
+                "group": "Member",
+                "pages": ["tutorials/member/chat-effectively"]
+              },
+              {
+                "group": "Editor",
+                "pages": ["tutorials/editor/first-agent-end-to-end"]
+              },
+              {
+                "group": "Developer",
+                "pages": [
+                  "tutorials/developer/call-tale-from-a-script",
+                  "tutorials/developer/trigger-automation-via-webhook"
+                ]
+              },
+              {
+                "group": "Admin",
+                "pages": [
+                  "tutorials/admin/office-add-in",
+                  "tutorials/admin/meeting-transcription",
+                  "tutorials/admin/connect-local-provider"
+                ]
+              }
+            ]
+          },
+          {
             "group": "Development",
             "pages": [
               "develop/api-reference",
@@ -381,6 +410,35 @@
             ]
           },
           {
+            "group": "Tutorials",
+            "pages": [
+              "de/tutorials/overview",
+              {
+                "group": "Member",
+                "pages": ["de/tutorials/member/chat-effectively"]
+              },
+              {
+                "group": "Editor",
+                "pages": ["de/tutorials/editor/first-agent-end-to-end"]
+              },
+              {
+                "group": "Developer",
+                "pages": [
+                  "de/tutorials/developer/call-tale-from-a-script",
+                  "de/tutorials/developer/trigger-automation-via-webhook"
+                ]
+              },
+              {
+                "group": "Admin",
+                "pages": [
+                  "de/tutorials/admin/office-add-in",
+                  "de/tutorials/admin/meeting-transcription",
+                  "de/tutorials/admin/connect-local-provider"
+                ]
+              }
+            ]
+          },
+          {
             "group": "Entwicklung",
             "pages": [
               "de/develop/api-reference",
@@ -550,6 +608,35 @@
                   "fr/platform/admin/branding",
                   "fr/platform/admin/governance",
                   "fr/platform/admin/usage-analytics"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Tutoriels",
+            "pages": [
+              "fr/tutorials/overview",
+              {
+                "group": "Member",
+                "pages": ["fr/tutorials/member/chat-effectively"]
+              },
+              {
+                "group": "Editor",
+                "pages": ["fr/tutorials/editor/first-agent-end-to-end"]
+              },
+              {
+                "group": "Developer",
+                "pages": [
+                  "fr/tutorials/developer/call-tale-from-a-script",
+                  "fr/tutorials/developer/trigger-automation-via-webhook"
+                ]
+              },
+              {
+                "group": "Admin",
+                "pages": [
+                  "fr/tutorials/admin/office-add-in",
+                  "fr/tutorials/admin/meeting-transcription",
+                  "fr/tutorials/admin/connect-local-provider"
                 ]
               }
             ]
