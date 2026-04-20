@@ -9,11 +9,11 @@ Kanal-Anbindungen werden einmalig von einem Developer unter [Integrationen – �
 
 ## Konversations-Status
 
-| Status      | Bedeutung                                                                                    |
-| ----------- | -------------------------------------------------------------------------------------------- |
-| Offen       | Aktive Konversation, die eine Antwort braucht oder in Bearbeitung ist.                       |
-| Geschlossen | Konversation, die gelöst und als erledigt markiert wurde.                                    |
-| Spam        | Als unerwünscht oder irrelevant markierte Nachrichten.                                       |
+| Status      | Bedeutung                                                                                          |
+| ----------- | -------------------------------------------------------------------------------------------------- |
+| Offen       | Aktive Konversation, die eine Antwort braucht oder in Bearbeitung ist.                             |
+| Geschlossen | Konversation, die gelöst und als erledigt markiert wurde.                                          |
+| Spam        | Als unerwünscht oder irrelevant markierte Nachrichten.                                             |
 | Archiviert  | Konversationen, die als Referenz erhalten bleiben, aber aus dem aktiven Posteingang entfernt sind. |
 
 ## Auf eine Konversation antworten
