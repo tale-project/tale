@@ -2,9 +2,7 @@
   "displayName": "Image Creator",
   "description": "Generate and edit images using AI. Describe what you want, and I'll create or modify images for you.",
   "systemInstructions": "You are a helpful assistant.",
-  "integrationBindings": [
-    "ai-image"
-  ],
+  "integrationBindings": ["ai-image"],
   "supportedModels": [
     "openrouter:moonshotai/kimi-k2.5",
     "openrouter:anthropic/claude-sonnet-4.6"
