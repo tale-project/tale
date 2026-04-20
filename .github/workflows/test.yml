@@ -13,6 +13,7 @@ on:
       - 'services/proxy/**'
       - 'tools/cli/**'
       - '.github/workflows/test.yml'
+      - '.github/actions/setup-turbo/**'
       - 'package.json'
       - 'bun.lock'
       - 'turbo.json'
@@ -29,32 +30,37 @@ on:
       - 'services/proxy/**'
       - 'tools/cli/**'
       - '.github/workflows/test.yml'
+      - '.github/actions/setup-turbo/**'
       - 'package.json'
       - 'bun.lock'
       - 'turbo.json'
       - 'tsconfig.base.json'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  TURBO_API: 'http://127.0.0.1:9080'
+  TURBO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TURBO_TEAM: 'tale'
+
 jobs:
+  # ---------------------------------------------------------------------------
+  # Unit tests via Turborepo.
+  # ---------------------------------------------------------------------------
   test:
-    name: Test
+    name: Unit
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
     permissions:
       contents: read
-    env:
-      TURBO_API: 'http://127.0.0.1:9080'
-      TURBO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TURBO_TEAM: 'tale'
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: useblacksmith/checkout@v1
 
-      - name: Setup Turbo
+      - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -62,25 +68,25 @@ jobs:
       - name: Run tests
         run: bunx turbo run test
 
+  # ---------------------------------------------------------------------------
+  # UI tests (browser / component).
+  # ---------------------------------------------------------------------------
   test-ui:
-    name: Test UI
+    name: UI
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
     permissions:
       contents: read
-    env:
-      TURBO_API: 'http://127.0.0.1:9080'
-      TURBO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TURBO_TEAM: 'tale'
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: useblacksmith/checkout@v1
 
-      - name: Setup Turbo
+      - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          install-python: 'false'
 
       - name: Run UI tests
         run: bunx turbo run test:ui

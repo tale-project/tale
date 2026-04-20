@@ -6,28 +6,29 @@ on:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   commitlint:
-    name: Lint commit messages
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    name: Lint commits
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
     permissions:
       contents: read
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: useblacksmith/checkout@v1
         with:
           fetch-depth: 0
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          install-python: 'false'
+          start-turbo-cache: 'false'
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Lint commits
+      - name: Run commitlint
         run: bunx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose

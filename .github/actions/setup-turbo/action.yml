@@ -1,13 +1,19 @@
-name: Setup Turbo
-description: Installs Bun, Python, uv, dependencies, and starts turbo cache server
+name: Setup toolchain
+description: Bun + deps with cache, optional Python/uv, optional Turbo remote cache server
 
 inputs:
   bun-version:
     description: Bun version
-    default: '1.3.10'
+    default: '1.3.12'
   python-version:
     description: Python version
     default: '3.11'
+  install-python:
+    description: Install Python + uv (disable for JS-only jobs)
+    default: 'true'
+  start-turbo-cache:
+    description: Start the Turborepo GH artifacts cache server
+    default: 'true'
   github-token:
     description: GitHub token for turbo cache
     required: true
@@ -20,19 +26,35 @@ runs:
       with:
         bun-version: ${{ inputs.bun-version }}
 
-    - name: Install dependencies
+    - name: Restore Bun install cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.bun/install/cache
+        key: bun-install-${{ runner.os }}-${{ inputs.bun-version }}-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          bun-install-${{ runner.os }}-${{ inputs.bun-version }}-
+
+    - name: Install JS dependencies
       shell: bash
       run: bun install --frozen-lockfile
 
     - name: Setup Python
+      if: inputs.install-python == 'true'
       uses: actions/setup-python@v6
       with:
         python-version: ${{ inputs.python-version }}
 
-    - name: Install uv
+    - name: Setup uv
+      if: inputs.install-python == 'true'
       uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+        cache-dependency-glob: |
+          services/rag/uv.lock
+          services/rag/pyproject.toml
 
-    - name: Start Turbo cache server
+    - name: Start Turbo remote cache
+      if: inputs.start-turbo-cache == 'true'
       uses: felixmosh/turborepo-gh-artifacts@v4
       with:
         repo-token: ${{ inputs.github-token }}

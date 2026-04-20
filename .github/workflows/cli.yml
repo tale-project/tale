@@ -1,4 +1,4 @@
-name: Build Tale CLI
+name: CLI
 
 on:
   workflow_dispatch:
@@ -17,16 +17,23 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
 jobs:
+  # ---------------------------------------------------------------------------
+  # Resolve the version string for the build matrix.
+  # ---------------------------------------------------------------------------
   prepare:
     name: Prepare
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 5
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 3
     outputs:
       version: ${{ steps.version.outputs.version }}
 
     steps:
-      - name: Determine version
+      - name: Resolve version
         id: version
         run: |
           if [ -n "${{ github.event.inputs.release_tag }}" ]; then
@@ -35,17 +42,22 @@ jobs:
             VERSION="dev"
           fi
           VERSION="${VERSION#v}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+  # ---------------------------------------------------------------------------
+  # Build the CLI binary for each target platform.
+  # linux -> Blacksmith (cheap+fast). macos/windows -> GitHub-hosted.
+  # ---------------------------------------------------------------------------
   build:
     name: Build (${{ matrix.platform }})
     needs: prepare
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: blacksmith-4vcpu-ubuntu-2404
             platform: linux
             build_script: build:linux
             binary: tale
@@ -72,7 +84,15 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: '1.3.12'
+
+      - name: Restore Bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-install-${{ runner.os }}-1.3.12-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-install-${{ runner.os }}-1.3.12-
 
       - name: Install dependencies
         working-directory: tools/cli
@@ -82,7 +102,7 @@ jobs:
         working-directory: tools/cli
         run: bun run generate
 
-      - name: Type check
+      - name: Run type check
         if: matrix.platform == 'linux'
         working-directory: tools/cli
         run: bun run typecheck
@@ -116,15 +136,18 @@ jobs:
           path: tools/cli/dist/${{ matrix.artifact }}
           retention-days: 30
 
+  # ---------------------------------------------------------------------------
+  # Attach built binaries to the GitHub release (dispatch only).
+  # ---------------------------------------------------------------------------
   release:
-    name: Upload to Release
+    name: Attach to release
     needs: build
     if: ${{ github.event_name == 'workflow_dispatch' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 10
 
     steps:
-      - name: Download all artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
           path: artifacts
@@ -152,7 +175,7 @@ jobs:
           echo "::error::Release $TAG not found after $MAX_ATTEMPTS attempts."
           exit 1
 
-      - name: Upload to release
+      - name: Upload binaries
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

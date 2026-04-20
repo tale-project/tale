@@ -8,6 +8,7 @@ on:
       - 'services/**'
       - 'packages/**'
       - '.github/workflows/build.yml'
+      - '.github/actions/setup-turbo/**'
       - 'compose.yml'
       - 'compose.test.yml'
       - 'tests/container-*'
@@ -20,6 +21,7 @@ on:
       - 'services/**'
       - 'packages/**'
       - '.github/workflows/build.yml'
+      - '.github/actions/setup-turbo/**'
       - 'compose.yml'
       - 'compose.test.yml'
       - 'tests/container-*'
@@ -27,7 +29,7 @@ on:
       - 'bun.lock'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -36,10 +38,13 @@ env:
   TURBO_TEAM: 'tale'
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Discover which services changed so matrix jobs only run for them.
+  # ---------------------------------------------------------------------------
   changes:
     name: Detect changes
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 5
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 3
     permissions:
       contents: read
       pull-requests: read
@@ -47,10 +52,10 @@ jobs:
       services: ${{ steps.services.outputs.list }}
       ci_tests: ${{ steps.filter.outputs.ci_tests }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: useblacksmith/checkout@v1
 
-      - name: Detect changed services
+      - name: Filter paths
         uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -75,14 +80,17 @@ jobs:
               - '.github/workflows/build.yml'
               - 'services/**'
 
-      - name: Compute service list
+      - name: Compute service matrix
         id: services
         run: |
-          # Remove ci_tests from the changes array — it's not a real service
           SERVICES=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "ci_tests")]')
-          echo "list=${SERVICES}" >> $GITHUB_OUTPUT
+          echo "list=${SERVICES}" >> "$GITHUB_OUTPUT"
           echo "Services to build: ${SERVICES}"
 
+  # ---------------------------------------------------------------------------
+  # Build each changed service's Docker image. Blacksmith caches layers on
+  # sticky disks automatically; no cache-from/cache-to directives needed.
+  # ---------------------------------------------------------------------------
   build:
     name: Build ${{ matrix.service }}
     needs: changes
@@ -95,55 +103,40 @@ jobs:
       fail-fast: false
       matrix:
         service: ${{ fromJson(needs.changes.outputs.services) }}
-        include:
-          - service: platform
-            context: '.'
-          - service: crawler
-            context: '.'
-          - service: rag
-            context: '.'
-          - service: db
-            context: '.'
-          - service: proxy
-            context: '.'
-          - service: convex
-            context: '.'
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: useblacksmith/checkout@v1
 
-      - name: Setup Blacksmith Builder
+      - name: Setup Docker builder
         uses: useblacksmith/setup-docker-builder@v1
 
-      - name: Generate build metadata
+      - name: Resolve build metadata
         id: meta
         run: |
-          echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
-          echo "revision=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+          echo "revision=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
-      - name: Build Docker image
+      - name: Build image
         uses: useblacksmith/build-push-action@v2
         with:
-          context: ${{ matrix.context }}
+          context: .
           file: services/${{ matrix.service }}/Dockerfile
           platforms: linux/amd64
           push: false
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
           labels: |
             org.opencontainers.image.created=${{ steps.meta.outputs.created }}
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
-      - name: Build summary
-        run: echo "## ${{ matrix.service }} Docker image built successfully" >> $GITHUB_STEP_SUMMARY
+      - name: Summary
+        run: echo "## Built tale-${{ matrix.service }}" >> "$GITHUB_STEP_SUMMARY"
 
-  # ===========================================================================
-  # Container Smoke Tests
-  # ===========================================================================
+  # ---------------------------------------------------------------------------
+  # Run container smoke tests via docker compose.
+  # ---------------------------------------------------------------------------
   smoke-test:
-    name: Container smoke test
+    name: Smoke test
     needs: changes
     if: needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true'
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -152,50 +145,43 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: useblacksmith/checkout@v1
 
-      - name: Free disk space
+      - name: Reclaim disk space
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune -af
 
-      - name: Show Docker environment
+      - name: Log Docker environment
         run: |
-          echo "=== Docker version ==="
           docker version
-          echo ""
-          echo "=== Docker Compose version ==="
           docker compose version
-          echo ""
-          echo "=== Disk space ==="
           df -h /
-          echo ""
-          echo "=== Available memory ==="
           free -h
 
-      - name: Run container smoke tests
+      - name: Run smoke tests
         run: bash tests/container-smoke-test.sh
         env:
           SMOKE_TEST_TIMEOUT: 300
 
-      - name: Show container logs on failure
+      - name: Dump container logs on failure
         if: failure()
         run: |
-          echo "## Container Logs (on failure)" >> $GITHUB_STEP_SUMMARY
-          cd ${{ github.workspace }}
+          echo "## Container Logs (on failure)" >> "$GITHUB_STEP_SUMMARY"
+          cd "${{ github.workspace }}"
           docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-test logs --tail=100 2>&1 || true
           docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-test ps -a 2>&1 || true
 
-      - name: Smoke test summary
+      - name: Summary
         if: always()
-        run: echo "## Container smoke tests completed" >> $GITHUB_STEP_SUMMARY
+        run: echo "## Smoke tests complete" >> "$GITHUB_STEP_SUMMARY"
 
-  # ===========================================================================
-  # Container Image Validation
-  # ===========================================================================
+  # ---------------------------------------------------------------------------
+  # Validate container image metadata, healthchecks, entrypoints, etc.
+  # ---------------------------------------------------------------------------
   image-validate:
-    name: Image validation
+    name: Validate images
     needs: changes
     if: needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true'
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -204,26 +190,26 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: useblacksmith/checkout@v1
 
-      - name: Free disk space
+      - name: Reclaim disk space
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune -af
 
-      - name: Run image validation tests
+      - name: Run image validation
         run: bash tests/container-image-test.sh
 
-      - name: Image validation summary
+      - name: Summary
         if: always()
-        run: echo "## Image validation completed" >> $GITHUB_STEP_SUMMARY
+        run: echo "## Image validation complete" >> "$GITHUB_STEP_SUMMARY"
 
-  # ===========================================================================
-  # Vulnerability Scanning (non-blocking)
-  # ===========================================================================
+  # ---------------------------------------------------------------------------
+  # Trivy vulnerability scan per changed service (non-blocking).
+  # ---------------------------------------------------------------------------
   vulnerability-scan:
-    name: Vulnerability scan (${{ matrix.service }})
+    name: Scan ${{ matrix.service }}
     needs: changes
     if: needs.changes.outputs.services != '[]'
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -236,40 +222,26 @@ jobs:
       fail-fast: false
       matrix:
         service: ${{ fromJson(needs.changes.outputs.services) }}
-        include:
-          - service: platform
-            context: '.'
-          - service: crawler
-            context: '.'
-          - service: rag
-            context: '.'
-          - service: db
-            context: '.'
-          - service: proxy
-            context: '.'
-          - service: convex
-            context: '.'
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: useblacksmith/checkout@v1
 
-      - name: Setup Blacksmith Builder
+      - name: Setup Docker builder
         uses: useblacksmith/setup-docker-builder@v1
 
-      - name: Build Docker image
+      - name: Build image for scan
         uses: useblacksmith/build-push-action@v2
         with:
-          context: ${{ matrix.context }}
+          context: .
           file: services/${{ matrix.service }}/Dockerfile
           platforms: linux/amd64
           push: false
           load: true
           tags: tale-${{ matrix.service }}:scan
-          cache-from: type=gha,scope=${{ matrix.service }}
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: tale-${{ matrix.service }}:scan
           format: 'sarif'
@@ -277,19 +249,22 @@ jobs:
           severity: 'HIGH,CRITICAL'
           exit-code: '0'
 
-      - name: Upload Trivy scan results to GitHub Security tab
+      - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: '${{ matrix.service }}-trivy.sarif'
           category: 'trivy-${{ matrix.service }}'
 
-      - name: Vulnerability scan summary
+      - name: Summary
         if: always()
         run: |
-          echo "## ${{ matrix.service }} vulnerability scan completed" >> $GITHUB_STEP_SUMMARY
-          echo "Results uploaded to the Security tab." >> $GITHUB_STEP_SUMMARY
+          echo "## ${{ matrix.service }} vulnerability scan complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "Results uploaded to the Security tab." >> "$GITHUB_STEP_SUMMARY"
 
+  # ---------------------------------------------------------------------------
+  # Storybook static build — only when the platform service changed.
+  # ---------------------------------------------------------------------------
   storybook:
     name: Storybook
     needs: changes
@@ -300,13 +275,14 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: useblacksmith/checkout@v1
 
-      - name: Setup Turbo
+      - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          install-python: 'false'
 
       - name: Build Storybook
         run: bunx turbo run storybook:build
