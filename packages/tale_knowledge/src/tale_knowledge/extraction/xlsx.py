@@ -33,8 +33,8 @@ async def extract_text_from_xlsx_bytes(
         if total > MAX_UNCOMPRESSED_SIZE:
             raise ValueError(f"File exceeds maximum decompressed size ({total} bytes)")
         zf.close()
-    except zipfile.BadZipFile:
-        raise ValueError("Invalid or corrupt file")
+    except zipfile.BadZipFile as err:
+        raise ValueError("Invalid or corrupt file") from err
 
     wb = load_workbook(BytesIO(xlsx_bytes), read_only=True, data_only=True)
     try:

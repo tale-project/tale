@@ -168,9 +168,9 @@ class TestPageBreakDetection:
     @pytest.mark.asyncio
     async def test_inline_page_break(self):
         from io import BytesIO
-        from lxml import etree
 
         from docx import Document
+        from lxml import etree
 
         doc = Document()
         doc.add_paragraph("Page one content")
@@ -196,9 +196,9 @@ class TestPageBreakDetection:
     @pytest.mark.asyncio
     async def test_page_break_before_style(self):
         from io import BytesIO
-        from lxml import etree
 
         from docx import Document
+        from lxml import etree
 
         WP = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
         doc = Document()
@@ -220,9 +220,9 @@ class TestPageBreakDetection:
     @pytest.mark.asyncio
     async def test_multiple_page_breaks(self):
         from io import BytesIO
-        from lxml import etree
 
         from docx import Document
+        from lxml import etree
 
         WP = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
         doc = Document()
@@ -249,9 +249,9 @@ class TestPageBreakDetection:
     @pytest.mark.asyncio
     async def test_text_unchanged_with_page_breaks(self):
         from io import BytesIO
-        from lxml import etree
 
         from docx import Document
+        from lxml import etree
 
         WP = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
