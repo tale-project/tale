@@ -29,6 +29,7 @@ vi.mock('../../_generated/api', () => ({
       internal_queries: {
         getPiiConfigInternal: 'getPiiConfigInternal',
         resolveDefaultModelInternal: 'resolveDefaultModelInternal',
+        getAccessibleModelsInternal: 'getAccessibleModelsInternal',
       },
     },
     threads: {
@@ -128,12 +129,17 @@ describe('chatWithAgent — TTFT parallelization', () => {
       hash: 'abc',
     });
     mockCtx = {
-      runQuery: vi.fn().mockImplementation((fn: string) => {
+      runQuery: vi.fn().mockImplementation((fn: string, args?: unknown) => {
         if (fn === 'getPiiConfigInternal') {
           return Promise.resolve({ enabled: false });
         }
         if (fn === 'getBindingByAgent') {
           return Promise.resolve(null);
+        }
+        if (fn === 'getAccessibleModelsInternal') {
+          return Promise.resolve(
+            (args as { modelIds?: string[] } | undefined)?.modelIds ?? [],
+          );
         }
         return Promise.resolve(null);
       }),
@@ -165,7 +171,7 @@ describe('chatWithAgent — TTFT parallelization', () => {
     const callOrder: string[] = [];
 
     // PII query resolves after 100ms
-    mockCtx.runQuery.mockImplementation((fn: string) => {
+    mockCtx.runQuery.mockImplementation((fn: string, args?: unknown) => {
       callOrder.push(`query:${fn}`);
       if (fn === 'getPiiConfigInternal') {
         return new Promise((resolve) =>
@@ -174,6 +180,11 @@ describe('chatWithAgent — TTFT parallelization', () => {
       }
       if (fn === 'getBindingByAgent') {
         return Promise.resolve(null);
+      }
+      if (fn === 'getAccessibleModelsInternal') {
+        return Promise.resolve(
+          (args as { modelIds?: string[] } | undefined)?.modelIds ?? [],
+        );
       }
       return Promise.resolve(null);
     });
@@ -229,7 +240,7 @@ describe('chatWithAgent — TTFT parallelization', () => {
       detectedTypes: ['email'],
     });
 
-    mockCtx.runQuery.mockImplementation((fn: string) => {
+    mockCtx.runQuery.mockImplementation((fn: string, args?: unknown) => {
       if (fn === 'getPiiConfigInternal') {
         return Promise.resolve({
           enabled: true,
@@ -242,6 +253,11 @@ describe('chatWithAgent — TTFT parallelization', () => {
       }
       if (fn === 'getBindingByAgent') {
         return Promise.resolve(null);
+      }
+      if (fn === 'getAccessibleModelsInternal') {
+        return Promise.resolve(
+          (args as { modelIds?: string[] } | undefined)?.modelIds ?? [],
+        );
       }
       return Promise.resolve(null);
     });
