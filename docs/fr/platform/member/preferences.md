@@ -13,7 +13,7 @@ Si tu t'es inscrit via SSO ou Trusted Headers et n'as jamais eu de mot de passe,
 
 ## Nom affiché
 
-Le nom visible dans la barre latérale, les messages de chat et les commentaires. Les admins peuvent remplacer ton nom affiché depuis **Paramètres > Members**, mais s'ils ne l'ont pas fait, tu peux le modifier ici.
+Le nom visible dans la barre latérale, les messages de chat et les commentaires. Les admins peuvent remplacer ton nom affiché depuis **Paramètres > Membres**, mais s'ils ne l'ont pas fait, tu peux le modifier ici.
 
 ## Langue
 

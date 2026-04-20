@@ -70,15 +70,11 @@
         "groups": [
           {
             "group": "Start here",
-            "pages": [
-              "index"
-            ]
+            "pages": ["index"]
           },
           {
             "group": "Cloud",
-            "pages": [
-              "cloud/index"
-            ]
+            "pages": ["cloud/index"]
           },
           {
             "group": "Self-hosted",
@@ -87,9 +83,7 @@
               "self-hosted/overview",
               {
                 "group": "Install",
-                "pages": [
-                  "self-hosted/install/linux-server"
-                ]
+                "pages": ["self-hosted/install/linux-server"]
               },
               {
                 "group": "Configuration",
@@ -111,9 +105,7 @@
                   },
                   {
                     "group": "Security",
-                    "pages": [
-                      "self-hosted/operate/security/advisories"
-                    ]
+                    "pages": ["self-hosted/operate/security/advisories"]
                   },
                   {
                     "group": "Release notes",
@@ -126,9 +118,7 @@
               },
               {
                 "group": "Authentication",
-                "pages": [
-                  "self-hosted/admin/authentication"
-                ]
+                "pages": ["self-hosted/admin/authentication"]
               }
             ]
           },
@@ -196,15 +186,11 @@
               },
               {
                 "group": "Editor",
-                "pages": [
-                  "platform/editor/overview"
-                ]
+                "pages": ["platform/editor/overview"]
               },
               {
                 "group": "Developer",
-                "pages": [
-                  "platform/developer/overview"
-                ]
+                "pages": ["platform/developer/overview"]
               },
               {
                 "group": "Admin",
@@ -258,15 +244,11 @@
         "groups": [
           {
             "group": "Start",
-            "pages": [
-              "de/index"
-            ]
+            "pages": ["de/index"]
           },
           {
             "group": "Cloud",
-            "pages": [
-              "de/cloud/index"
-            ]
+            "pages": ["de/cloud/index"]
           },
           {
             "group": "Self-hosted",
@@ -275,9 +257,7 @@
               "de/self-hosted/overview",
               {
                 "group": "Installation",
-                "pages": [
-                  "de/self-hosted/install/linux-server"
-                ]
+                "pages": ["de/self-hosted/install/linux-server"]
               },
               {
                 "group": "Konfiguration",
@@ -299,9 +279,7 @@
                   },
                   {
                     "group": "Sicherheit",
-                    "pages": [
-                      "de/self-hosted/operate/security/advisories"
-                    ]
+                    "pages": ["de/self-hosted/operate/security/advisories"]
                   },
                   {
                     "group": "Release Notes",
@@ -314,9 +292,7 @@
               },
               {
                 "group": "Authentifizierung",
-                "pages": [
-                  "de/self-hosted/admin/authentication"
-                ]
+                "pages": ["de/self-hosted/admin/authentication"]
               }
             ]
           },
@@ -384,15 +360,11 @@
               },
               {
                 "group": "Editor",
-                "pages": [
-                  "de/platform/editor/overview"
-                ]
+                "pages": ["de/platform/editor/overview"]
               },
               {
                 "group": "Developer",
-                "pages": [
-                  "de/platform/developer/overview"
-                ]
+                "pages": ["de/platform/developer/overview"]
               },
               {
                 "group": "Administration",
@@ -446,15 +418,11 @@
         "groups": [
           {
             "group": "Démarrer",
-            "pages": [
-              "fr/index"
-            ]
+            "pages": ["fr/index"]
           },
           {
             "group": "Cloud",
-            "pages": [
-              "fr/cloud/index"
-            ]
+            "pages": ["fr/cloud/index"]
           },
           {
             "group": "Self-hosted",
@@ -463,9 +431,7 @@
               "fr/self-hosted/overview",
               {
                 "group": "Installation",
-                "pages": [
-                  "fr/self-hosted/install/linux-server"
-                ]
+                "pages": ["fr/self-hosted/install/linux-server"]
               },
               {
                 "group": "Configuration",
@@ -487,9 +453,7 @@
                   },
                   {
                     "group": "Sécurité",
-                    "pages": [
-                      "fr/self-hosted/operate/security/advisories"
-                    ]
+                    "pages": ["fr/self-hosted/operate/security/advisories"]
                   },
                   {
                     "group": "Notes de version",
@@ -502,9 +466,7 @@
               },
               {
                 "group": "Authentification",
-                "pages": [
-                  "fr/self-hosted/admin/authentication"
-                ]
+                "pages": ["fr/self-hosted/admin/authentication"]
               }
             ]
           },
@@ -572,15 +534,11 @@
               },
               {
                 "group": "Editor",
-                "pages": [
-                  "fr/platform/editor/overview"
-                ]
+                "pages": ["fr/platform/editor/overview"]
               },
               {
                 "group": "Developer",
-                "pages": [
-                  "fr/platform/developer/overview"
-                ]
+                "pages": ["fr/platform/developer/overview"]
               },
               {
                 "group": "Administration",
@@ -689,13 +647,7 @@
     "drilldown": true
   },
   "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "claude",
-      "chatgpt",
-      "cursor"
-    ],
+    "options": ["copy", "view", "claude", "chatgpt", "cursor"],
     "display": "header"
   },
   "search": {

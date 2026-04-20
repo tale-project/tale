@@ -149,9 +149,7 @@ class TestExtractTextFromPptxBytes:
     @pytest.mark.asyncio
     async def test_no_vision_without_client(self):
         pptx_bytes = _make_simple_pptx("No vision")
-        text, vision_used = await extract_text_from_pptx_bytes(
-            pptx_bytes, vision_client=None
-        )
+        text, vision_used = await extract_text_from_pptx_bytes(pptx_bytes, vision_client=None)
         assert "No vision" in text
         assert vision_used is False
 
@@ -165,9 +163,7 @@ class TestExtractTextFromPptxBytes:
         prs = Presentation()
         slide_layout = prs.slide_layouts[5]
         slide = prs.slides.add_slide(slide_layout)
-        table_shape = slide.shapes.add_table(
-            2, 2, Inches(1), Inches(1), Inches(4), Inches(2)
-        )
+        table_shape = slide.shapes.add_table(2, 2, Inches(1), Inches(1), Inches(4), Inches(2))
         table = table_shape.table
         table.cell(0, 0).text = "A1"
         table.cell(0, 1).text = "B1"

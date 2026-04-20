@@ -17,7 +17,7 @@ Changer les instructions change la personnalité, le périmètre et le format de
 
 ## Connaissances
 
-Les connaissances sont le sous-ensemble de la [base de connaissances](/fr/platform/workspace/knowledge-base) que l'agent peut chercher. Par défaut, les agents peuvent chercher dans tout ce que l'organisation a téléversé. Tu peux restreindre par dossier, équipe ou type d'entité (documents, Products, Customers, Vendors).
+Les connaissances sont le sous-ensemble de la [base de connaissances](/fr/platform/workspace/knowledge-base) que l'agent peut chercher. Par défaut, les agents peuvent chercher dans tout ce que l'organisation a téléversé. Tu peux restreindre par dossier, équipe ou type d'entité (Documents, Produits, Clients, Fournisseurs).
 
 Des connaissances plus étroites donnent des résultats plus pertinents — un agent support qui ne cherche que dans le dossier "Help Center" ne se laisse pas distraire par les docs internes d'ingénierie.
 
@@ -29,17 +29,17 @@ Tu peux activer ou désactiver chaque outil par agent. Un agent de recherche en 
 
 ## Modèle
 
-Chaque agent est lié à un preset de modèle — **Fast**, **Standard** ou **Advanced**. Chaque preset pointe vers un modèle IA précis configuré dans tes [fournisseurs](/fr/platform/admin/providers). Fast est le moins cher et le plus rapide ; Advanced est le plus capable.
+Chaque agent est lié à un préréglage de modèle — **Rapide**, **Standard** ou **Avancé**. Chaque préréglage pointe vers un modèle IA précis configuré dans tes [fournisseurs](/fr/platform/admin/providers). **Rapide** est le moins cher et le plus rapide ; **Avancé** est le plus capable.
 
 ## Tout ensemble
 
 Ces quatre boutons permettent de créer beaucoup d'agents depuis la même plateforme :
 
-| Scénario               | Instructions                            | Connaissances                  | Outils                     | Modèle   |
-| ---------------------- | --------------------------------------- | ------------------------------ | -------------------------- | -------- |
-| Support amical         | serviable, concis, refuse hors-sujet    | uniquement docs du Help Center | recherche, lookup client   | Standard |
-| Recherche commerciale  | fouille en profondeur, cite les sources | tous docs + sites + Products   | recherche, recherche web   | Advanced |
-| Exploration de données | prudent, explique les requêtes          | toutes connexions SQL          | intégration SQL, recherche | Fast     |
+| Scénario               | Instructions                            | Connaissances                     | Outils                     | Modèle   |
+| ---------------------- | --------------------------------------- | --------------------------------- | -------------------------- | -------- |
+| Support amical         | serviable, concis, refuse hors-sujet    | uniquement docs du Help Center    | recherche, lookup client   | Standard |
+| Recherche commerciale  | fouille en profondeur, cite les sources | tous documents + sites + Produits | recherche, recherche web   | Avancé   |
+| Exploration de données | prudent, explique les requêtes          | toutes connexions SQL             | intégration SQL, recherche | Rapide   |
 
 ## Suite
 

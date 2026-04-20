@@ -36,7 +36,7 @@ Connecte un compte Microsoft 365 pour activer la synchro OneDrive. Les utilisate
 
 ## Clés API
 
-Génère des clés API pour l'accès programmatique à l'API Tale. Les clés héritent des permissions de l'utilisateur qui les a créées, limitées à son rôle. Révocables à tout moment depuis **Paramètres > Intégrations > API keys**.
+Génère des clés API pour l'accès programmatique à l'API Tale. Les clés héritent des permissions de l'utilisateur qui les a créées, limitées à son rôle. Révocables à tout moment depuis **Paramètres > Intégrations > Clés API**.
 
 Pour les endpoints, voir la [référence API](/fr/develop/api-reference).
 

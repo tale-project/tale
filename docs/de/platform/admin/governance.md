@@ -29,9 +29,9 @@ Setze Ausgabelimits pro Nutzer, pro Team oder für die ganze Organisation. Konfi
 
 Beschränke Datei-Uploads nach Typ, Größe oder Anzahl. Nützlich, wenn du große Binär-Uploads oder ausführbare Dateitypen verhindern willst.
 
-### Retention
+### Aufbewahrung
 
-Konfiguriere, wie lange Konversationen, hochgeladene Dateien und Audit-Daten aufbewahrt werden, bevor sie automatisch gelöscht werden. Siehe [Retention](/de/self-hosted/configuration/retention) für die passenden Environment-Standards auf Deployment-Ebene.
+Konfiguriere, wie lange Konversationen, hochgeladene Dateien und Audit-Daten aufbewahrt werden, bevor sie automatisch gelöscht werden. Siehe [Aufbewahrung](/de/self-hosted/configuration/retention) für die passenden Environment-Standards auf Deployment-Ebene.
 
 ### Feature Controls
 
@@ -49,6 +49,6 @@ Sieh Token-Verbrauch, Kosten-Aufschlüsselung und Nutzungs-Trends über die gesa
 
 ## Audit-Logs
 
-Eine zeitlich geordnete Aufzeichnung wichtiger Aktionen in der Organisation. Kategorien umfassen Authentifizierungs-Events, Member-Änderungen, Daten-Operationen, Integrationen-Updates, Workflow-Publishings, Sicherheits-Events und Admin-Aktionen. Nützlich für Compliance und Fehlersuche.
+Eine zeitlich geordnete Aufzeichnung wichtiger Aktionen in der Organisation. Kategorien umfassen Authentifizierungs-Events, Mitglieder-Änderungen, Daten-Operationen, Integrationen-Updates, Workflow-Publishings, Sicherheits-Events und Admin-Aktionen. Nützlich für Compliance und Fehlersuche.
 
 Admins können Audit-Logs per Button über der Log-Tabelle als **CSV** oder **JSON** exportieren. Exports respektieren den aktuell aktiven Kategorie-Filter.

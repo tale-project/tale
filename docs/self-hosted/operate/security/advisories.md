@@ -24,12 +24,12 @@ File a GitHub Security Advisory when any of the following applies:
 
 ## Severity → escalation matrix
 
-| CVSS             | Advisory   | Release notes               | Direct email to operators                                           |
-| ---------------- | ---------- | --------------------------- | ------------------------------------------------------------------- |
-| Critical (9.0+)  | Required   | Required, prominent summary | Yes — before public disclosure if coordinated, otherwise at publish |
-| High (7.0–8.9)   | Required   | Required                    | Only if exploitation requires no user action                        |
-| Medium (4.0–6.9) | Required   | Required                    | No                                                                  |
-| Low (&lt;4.0)    | Optional   | Required                    | No                                                                  |
+| CVSS             | Advisory | Release notes               | Direct email to operators                                           |
+| ---------------- | -------- | --------------------------- | ------------------------------------------------------------------- |
+| Critical (9.0+)  | Required | Required, prominent summary | Yes — before public disclosure if coordinated, otherwise at publish |
+| High (7.0–8.9)   | Required | Required                    | Only if exploitation requires no user action                        |
+| Medium (4.0–6.9) | Required | Required                    | No                                                                  |
+| Low (&lt;4.0)    | Optional | Required                    | No                                                                  |
 
 ## Timeline
 

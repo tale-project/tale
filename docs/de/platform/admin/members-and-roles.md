@@ -1,30 +1,30 @@
 ---
-title: Members und Rollen
+title: Mitglieder und Rollen
 description: Verwalten, wer Zugriff auf deine Organisation hat und was dort erlaubt ist.
 ---
 
 Tale nutzt sechs Rollen. Jeder Nutzer hat genau eine Rolle innerhalb einer Organisation. Dieselbe Person kann in verschiedenen Organisationen unterschiedliche Rollen haben.
 
-## Members verwalten
+## Mitglieder verwalten
 
-Die Mitglieder-Tabelle unter **Einstellungen > Members** listet alle Nutzer der Organisation mit E-Mail, Anzeigename, Rolle und Beitrittsdatum. Admins können:
+Die Mitglieder-Tabelle unter **Einstellungen > Mitglieder** listet alle Nutzer der Organisation mit E-Mail, Anzeigename, Rolle und Beitrittsdatum. Admins können:
 
-- **Members hinzufügen** — E-Mail, optionales Passwort, Anzeigename und Rolle eingeben. Existiert die E-Mail bereits in Tale, wird der Nutzer der Organisation hinzugefügt, ohne dass ein neues Konto entsteht.
-- **Members bearbeiten** — Anzeigename, Rolle oder ein neues Passwort für ein Mitglied setzen.
-- **Members entfernen** — das Mitglied aus der Organisation entfernen. Das Konto wird nicht gelöscht; der Nutzer verliert lediglich den Zugriff.
+- **Mitglieder hinzufügen** — E-Mail, optionales Passwort, Anzeigename und Rolle eingeben. Existiert die E-Mail bereits in Tale, wird der Nutzer der Organisation hinzugefügt, ohne dass ein neues Konto entsteht.
+- **Mitglieder bearbeiten** — Anzeigename, Rolle oder ein neues Passwort für ein Mitglied setzen.
+- **Mitglieder entfernen** — das Mitglied aus der Organisation entfernen. Das Konto wird nicht gelöscht; der Nutzer verliert lediglich den Zugriff.
 
 Für Authentifizierungsoptionen (Passwort, Microsoft Entra ID SSO, Trusted Headers) siehe [Authentifizierung](/de/self-hosted/admin/authentication).
 
 ## Rollen-Übersicht
 
-| Rolle     | Wen sie adressiert                                                                                                                  |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Owner     | Ersteller der Organisation. Gleiche Berechtigungen wie Admin plus Eigentums-Übertragung.                                            |
-| Admin     | Vollständige Kontrolle über die Organisation. Verwaltet Members, Einstellungen, Integrationen und sämtliche Inhalte.                |
-| Developer | Für Engineers und Integrationen-Builder. Vollzugriff auf Daten, aber keine Verwaltung von Members oder Organisations-Einstellungen. |
-| Editor    | Für Content- und Support-Teams. Legt Wissensbasis-Inhalte an, bearbeitet Konversationen, verwaltet Agents und bestätigt Aktionen.   |
-| Member    | Nur-Lese-Zugriff. Kann den KI-Chat zum Erkunden von Daten nutzen, aber keinen Content anlegen oder bearbeiten.                      |
-| Disabled  | Gesperrtes Konto. Kein Zugriff auf Funktionen.                                                                                      |
+| Rolle     | Wen sie adressiert                                                                                                                      |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Owner     | Ersteller der Organisation. Gleiche Berechtigungen wie Admin plus Eigentums-Übertragung.                                                |
+| Admin     | Vollständige Kontrolle über die Organisation. Verwaltet Mitglieder, Einstellungen, Integrationen und sämtliche Inhalte.                 |
+| Developer | Für Engineers und Integrationen-Builder. Vollzugriff auf Daten, aber keine Verwaltung von Mitgliedern oder Organisations-Einstellungen. |
+| Editor    | Für Content- und Support-Teams. Legt Wissensbasis-Inhalte an, bearbeitet Konversationen, verwaltet Agents und bestätigt Aktionen.       |
+| Member    | Nur-Lese-Zugriff. Kann den KI-Chat zum Erkunden von Daten nutzen, aber keinen Content anlegen oder bearbeiten.                          |
+| Disabled  | Gesperrtes Konto. Kein Zugriff auf Funktionen.                                                                                          |
 
 ## Berechtigungs-Matrix
 
@@ -42,7 +42,7 @@ Für Authentifizierungsoptionen (Passwort, Microsoft Entra ID SSO, Trusted Heade
 | ------------------------------------------ | ------ | ------ | --------- | ----- |
 | Alle Wissens-Einträge sehen                | ✓      | ✓      | ✓         | ✓     |
 | Dokumente hochladen / bearbeiten / löschen | —      | ✓      | ✓         | ✓     |
-| Products, Customers, Vendors verwalten     | —      | ✓      | ✓         | ✓     |
+| Produkte, Kunden, Lieferanten verwalten    | —      | ✓      | ✓         | ✓     |
 | Website-Crawling konfigurieren             | —      | ✓      | ✓         | ✓     |
 
 ### Konversationen
@@ -91,8 +91,8 @@ Für Authentifizierungsoptionen (Passwort, Microsoft Entra ID SSO, Trusted Heade
 | ----------------------------------------- | ------ | ------ | --------- | ----- |
 | Organisations-Einstellungen sehen         | —      | —      | —         | ✓     |
 | Organisationsname und Branding bearbeiten | —      | —      | —         | ✓     |
-| Members hinzufügen und entfernen          | —      | —      | —         | ✓     |
-| Rollen der Members ändern                 | —      | —      | —         | ✓     |
+| Mitglieder hinzufügen und entfernen       | —      | —      | —         | ✓     |
+| Rollen der Mitglieder ändern              | —      | —      | —         | ✓     |
 
 ## Authentifizierung
 

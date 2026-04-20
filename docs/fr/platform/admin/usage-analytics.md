@@ -3,7 +3,7 @@ title: Analyses d'utilisation
 description: Analyses temporelles de la consommation de tokens, des coûts et des performances des workflows.
 ---
 
-Le tableau de bord Usage Analytics sous **Paramètres > Gouvernance > Usage Dashboard** donne aux admins une vue temporelle de la façon dont l'organisation utilise Tale. C'est un sur-ensemble des chiffres ponctuels affichés dans les budgets — ici tu vois les tendances, descends jusqu'à des utilisateurs ou équipes précis et exportes pour la finance ou la planification de capacité.
+Le tableau de bord d'utilisation sous **Paramètres > Gouvernance > Utilisation** donne aux admins une vue temporelle de la façon dont l'organisation utilise Tale. C'est un sur-ensemble des chiffres ponctuels affichés dans les budgets — ici tu vois les tendances, descends jusqu'à des utilisateurs ou équipes précis et exportes pour la finance ou la planification de capacité.
 
 ## Graphiques disponibles
 
@@ -28,7 +28,7 @@ Chaque graphique respecte la barre de filtres globale :
 
 ## Export
 
-Le bouton **Export** au-dessus d'un graphique produit un CSV avec les lignes sous-jacentes, en respectant les filtres actifs. Utile pour le reporting board, la réconciliation finance ou l'alimentation d'un BI externe.
+Le bouton **Exporter** au-dessus d'un graphique produit un CSV avec les lignes sous-jacentes, en respectant les filtres actifs. Utile pour le reporting board, la réconciliation finance ou l'alimentation d'un BI externe.
 
 ## Rétention
 
@@ -37,4 +37,4 @@ Les données analytiques suivent la [politique de rétention](/fr/platform/admin
 ## Lié
 
 - [Gouvernance](/fr/platform/admin/governance) — régler les budgets et limites affichés ici.
-- [Operations](/fr/self-hosted/operate/observability/operations) — observabilité côté opérateur (Prometheus, logs, health).
+- [Opérations](/fr/self-hosted/operate/observability/operations) — observabilité côté opérateur (Prometheus, logs, health).

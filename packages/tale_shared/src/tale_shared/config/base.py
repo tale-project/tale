@@ -70,8 +70,4 @@ class BaseServiceSettings(BaseSettings):
         """Parse allowed origins from comma-separated string."""
         if self.allowed_origins == "*":
             return ["*"]
-        return [
-            o
-            for o in (origin.strip() for origin in self.allowed_origins.split(","))
-            if o
-        ]
+        return [o for o in (origin.strip() for origin in self.allowed_origins.split(",")) if o]

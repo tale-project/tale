@@ -25,13 +25,13 @@ Jede Karte enthält:
 
 - einen Header mit dem Freigabe-Typ;
 - detaillierte Metadaten, die du aufklappen kannst (Parameter, Dateilisten, Workflow-Schritte);
-- die Buttons **Approve** und **Reject**.
+- die Buttons **Genehmigen** und **Ablehnen**.
 
-Klicke **Approve**, damit die Aktion ausgeführt wird. Die Karte zeigt den Fortschritt und das Endergebnis. Klicke **Reject**, um sie abzubrechen. Der Agent erhält eine Benachrichtigung, dass die Aktion abgelehnt wurde, und kann sein Vorgehen anpassen.
+Klicke **Genehmigen**, damit die Aktion ausgeführt wird. Die Karte zeigt den Fortschritt und das Endergebnis. Klicke **Ablehnen**, um sie abzubrechen. Der Agent erhält eine Benachrichtigung, dass die Aktion abgelehnt wurde, und kann sein Vorgehen anpassen.
 
 ## Human-Input- und Location-Anfragen
 
 Manche Freigaben sind interaktiv statt einfach nur zu bestätigen oder abzulehnen:
 
 - **Human-Input-Anfragen** zeigen ein Formular mit Feldern (Text, Dropdowns, Ja/Nein), das ein pausierter Workflow von dir ausgefüllt haben will. Mit dem Abschicken setzt sich der Workflow fort.
-- **Location-Anfragen** fragen nach deiner Browser-Position. Klicke **Share location**, um den Zugriff zu erlauben, oder lehne die Anfrage ab.
+- **Location-Anfragen** fragen nach deiner Browser-Position. Klicke **Standort teilen**, um den Zugriff zu erlauben, oder lehne die Anfrage ab.

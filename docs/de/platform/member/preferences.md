@@ -13,7 +13,7 @@ Wenn du dich per SSO oder Trusted Headers registriert hast und noch kein Passwor
 
 ## Anzeigename
 
-Der Name, der in der Seitenleiste, in Chat-Nachrichten und Kommentaren erscheint. Admins können deinen Anzeigenamen unter **Einstellungen > Members** überschreiben, aber wenn sie es nicht getan haben, kannst du ihn hier bearbeiten.
+Der Name, der in der Seitenleiste, in Chat-Nachrichten und Kommentaren erscheint. Admins können deinen Anzeigenamen unter **Einstellungen > Mitglieder** überschreiben, aber wenn sie es nicht getan haben, kannst du ihn hier bearbeiten.
 
 ## Sprache
 

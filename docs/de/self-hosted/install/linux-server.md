@@ -14,14 +14,14 @@ description: Tale auf einen Produktionsserver mit der Tale-CLI und Zero-Downtime
 
 Tale lädt vorgebaute Images aus der GitHub Container Registry. Aktuelle Image-Größen:
 
-| Dienst     | Image                                        | Größe      |
-| ---------- | -------------------------------------------- | ---------- |
-| Platform   | `ghcr.io/tale-project/tale/tale-platform`    | ~320 MB    |
-| Convex     | `ghcr.io/tale-project/tale/tale-convex`      | ~485 MB    |
-| Crawler    | `ghcr.io/tale-project/tale/tale-crawler`     | ~1.9 GB    |
-| RAG        | `ghcr.io/tale-project/tale/tale-rag`         | ~515 MB    |
-| DB         | `ghcr.io/tale-project/tale/tale-db`          | ~1.1 GB    |
-| Proxy      | `ghcr.io/tale-project/tale/tale-proxy`       | ~88 MB     |
+| Dienst   | Image                                     | Größe   |
+| -------- | ----------------------------------------- | ------- |
+| Platform | `ghcr.io/tale-project/tale/tale-platform` | ~320 MB |
+| Convex   | `ghcr.io/tale-project/tale/tale-convex`   | ~485 MB |
+| Crawler  | `ghcr.io/tale-project/tale/tale-crawler`  | ~1.9 GB |
+| RAG      | `ghcr.io/tale-project/tale/tale-rag`      | ~515 MB |
+| DB       | `ghcr.io/tale-project/tale/tale-db`       | ~1.1 GB |
+| Proxy    | `ghcr.io/tale-project/tale/tale-proxy`    | ~88 MB  |
 
 > **Tipp:** Der erste Pull lädt ca. 4,4 GB (komprimiert). Folgende Updates laden nur geänderte Layer. Die Werte gelten post-Phase-2 (split-Convex) — das Platform-Image ist jetzt deutlich kleiner, weil das Convex-Backend einen eigenen Dienst hat.
 
@@ -274,11 +274,11 @@ POSTGRES_URL=postgresql://tale:your-password@your-db-host:5432
 
 Du kannst einzelne Service-Verbindungen überschreiben, falls nötig:
 
-| Variable               | Dienst    | Beschreibung                                                             |
-| ---------------------- | --------- | ------------------------------------------------------------------------ |
-| `POSTGRES_URL`         | alle      | Basis-Connection-URL (ohne DB-Namen).                                    |
-| `RAG_DATABASE_URL`     | RAG       | vollständige URL inkl. DB-Name, überschreibt `POSTGRES_URL` für RAG.     |
-| `CRAWLER_DATABASE_URL` | Crawler   | vollständige URL inkl. DB-Name, überschreibt `POSTGRES_URL` für Crawler. |
+| Variable               | Dienst  | Beschreibung                                                             |
+| ---------------------- | ------- | ------------------------------------------------------------------------ |
+| `POSTGRES_URL`         | alle    | Basis-Connection-URL (ohne DB-Namen).                                    |
+| `RAG_DATABASE_URL`     | RAG     | vollständige URL inkl. DB-Name, überschreibt `POSTGRES_URL` für RAG.     |
+| `CRAWLER_DATABASE_URL` | Crawler | vollständige URL inkl. DB-Name, überschreibt `POSTGRES_URL` für Crawler. |
 
 Bei Service-spezifischen URLs den DB-Namen angeben:
 
@@ -316,7 +316,7 @@ Nach der Konfiguration einer externen Datenbank kannst du verhindern, dass der e
 ```yaml
 services:
   db:
-    profiles: ["disabled"]
+    profiles: ['disabled']
 ```
 
 So bleibt die Service-Definition bestehen (damit `depends_on`-Referenzen nicht brechen), startet aber nur, wenn du das Profil `disabled` explizit anforderst.

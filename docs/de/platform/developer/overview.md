@@ -21,7 +21,7 @@ Siehe [Automatisierungs-Konzepte](/de/platform/automations/concepts) für das me
 
 ### Wissen
 
-Die Wissensdatenbank ist das, was Agents durchsuchen, um Fragen zu beantworten. Du kannst Dokumente hochladen, Websites zum Crawlen angeben und strukturierte Datensätze (Products, Customers, Vendors) importieren. Gut gepflegtes Wissen ist das, was die Antworten der KI nützlich macht.
+Die Wissensdatenbank ist das, was Agents durchsuchen, um Fragen zu beantworten. Du kannst Dokumente hochladen, Websites zum Crawlen angeben und strukturierte Datensätze (Produkte, Kunden, Lieferanten) importieren. Gut gepflegtes Wissen ist das, was die Antworten der KI nützlich macht.
 
 Siehe [Strukturierte Daten](/de/platform/knowledge/structured-data) und [Website-Crawling](/de/platform/knowledge/crawling).
 
@@ -33,7 +33,7 @@ Siehe [Integrationen – Überblick](/de/platform/integrations/overview) und [Br
 
 ## Berechtigungen
 
-Das Einrichten erfordert für Agents die **Editor**-Rolle und für Automatisierungen, Integrationen und API-Schlüssel die **Developer**-Rolle. Siehe [Members und Rollen](/de/platform/admin/members-and-roles) für die vollständige Berechtigungs-Matrix.
+Das Einrichten erfordert für Agents die **Editor**-Rolle und für Automatisierungen, Integrationen und API-Schlüssel die **Developer**-Rolle. Siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles) für die vollständige Berechtigungs-Matrix.
 
 ## KI-gestütztes Einrichten
 

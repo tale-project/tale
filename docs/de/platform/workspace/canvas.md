@@ -7,7 +7,7 @@ Canvas ist ein Seitenbereich neben dem Chat, der dir einen fokussierten Arbeitsb
 
 ## Canvas öffnen
 
-Wenn die KI einen Code-Block, ein HTML-Snippet, ein Mermaid-Diagramm oder Markdown erzeugt, erscheint auf dem Block ein Button **Open in Canvas**. Klicke darauf, um den Inhalt im Canvas-Bereich auf der rechten Seite des Chats zu öffnen.
+Wenn die KI einen Code-Block, ein HTML-Snippet, ein Mermaid-Diagramm oder Markdown erzeugt, erscheint auf dem Block ein Button **In Canvas öffnen**. Klicke darauf, um den Inhalt im Canvas-Bereich auf der rechten Seite des Chats zu öffnen.
 
 ## Unterstützte Inhaltstypen
 
@@ -23,20 +23,20 @@ Wenn die KI einen Code-Block, ein HTML-Snippet, ein Mermaid-Diagramm oder Markdo
 
 Der Canvas-Header enthält:
 
-- **Edit / Preview-Umschalter** — zwischen Bearbeitung der Quelle und Anzeige der gerenderten Ausgabe wechseln.
-- **Apply** — deine Änderungen in die ursprüngliche Nachricht im Chat zurückschreiben. Erscheint nur, wenn du etwas geändert hast.
-- **Copy** — den Inhalt in die Zwischenablage kopieren.
-- **Download** — den Inhalt als Datei mit passender Endung herunterladen (`.html`, `.mmd`, `.svg`, `.md` oder die Endung der Code-Datei).
-- **Close** — den Canvas-Bereich schließen.
+- **Bearbeiten / Vorschau**-Umschalter — zwischen Bearbeitung der Quelle und Anzeige der gerenderten Ausgabe wechseln.
+- **Änderungen übernehmen** — deine Änderungen in die ursprüngliche Nachricht im Chat zurückschreiben. Erscheint nur, wenn du etwas geändert hast.
+- **Kopieren** — den Inhalt in die Zwischenablage kopieren.
+- **Herunterladen** — den Inhalt als Datei mit passender Endung herunterladen (`.html`, `.mmd`, `.svg`, `.md` oder die Endung der Code-Datei).
+- **Canvas schließen** — den Canvas-Bereich schließen.
 
 ## Bearbeiten und Anwenden
 
 1. Klicke auf das **Bleistift**-Icon, um in den Bearbeitungsmodus zu wechseln.
 2. Ändere den Inhalt im Text-Editor.
 3. Klicke auf das **Auge**-Icon, um das Ergebnis in der Vorschau zu sehen.
-4. Klicke auf **Apply**, um die Änderungen in die Quellnachricht der Konversation zurückzuschreiben.
+4. Klicke auf **Änderungen übernehmen**, um die Änderungen in die Quellnachricht der Konversation zurückzuschreiben.
 
-Der Apply-Button erscheint nur, wenn der Inhalt vom Original abweicht. Ein Bestätigungs-Toast zeigt an, wann Änderungen erfolgreich übernommen wurden.
+Der Button **Änderungen übernehmen** erscheint nur, wenn der Inhalt vom Original abweicht. Ein Bestätigungs-Toast zeigt an, wann Änderungen erfolgreich übernommen wurden.
 
 ## Größe ändern
 

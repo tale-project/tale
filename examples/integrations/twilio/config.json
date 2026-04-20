@@ -4,16 +4,9 @@
   "description": "Twilio API integration for SMS messaging, voice calls, and phone number management",
   "version": 1,
   "authMethod": "basic_auth",
-  "supportedAuthMethods": [
-    "basic_auth"
-  ],
-  "secretBindings": [
-    "username",
-    "password"
-  ],
-  "allowedHosts": [
-    "api.twilio.com"
-  ],
+  "supportedAuthMethods": ["basic_auth"],
+  "secretBindings": ["username", "password"],
+  "allowedHosts": ["api.twilio.com"],
   "operations": [
     {
       "name": "send_sms",

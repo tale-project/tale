@@ -9,13 +9,13 @@ Wähle Cloud, wenn du den vollen Funktionsumfang von Tale nutzen willst, ohne de
 
 ## Cloud vs. Self-hosted im Überblick
 
-| Dimension        | Cloud                                             | Self-hosted                                                                  |
-| ---------------- | ------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Betrieb          | Tale (wir)                                        | Dein Team                                                                    |
-| Hosting          | Schweiz oder EU (pro Tenant festgelegt)           | Deine Infrastruktur, weltweit                                                |
-| Updates          | Automatisch, ohne Ausfallzeit                     | Du führst `tale deploy` aus                                                  |
-| Funktionsumfang  | Identisch zu Self-hosted                          | Identisch zu Cloud                                                           |
-| Passend für      | Teams, die Tale ohne Betriebsaufwand nutzen       | Teams mit Anforderungen an Datensouveränität, Air-Gap oder eigenen Build     |
+| Dimension       | Cloud                                       | Self-hosted                                                              |
+| --------------- | ------------------------------------------- | ------------------------------------------------------------------------ |
+| Betrieb         | Tale (wir)                                  | Dein Team                                                                |
+| Hosting         | Schweiz oder EU (pro Tenant festgelegt)     | Deine Infrastruktur, weltweit                                            |
+| Updates         | Automatisch, ohne Ausfallzeit               | Du führst `tale deploy` aus                                              |
+| Funktionsumfang | Identisch zu Self-hosted                    | Identisch zu Cloud                                                       |
+| Passend für     | Teams, die Tale ohne Betriebsaufwand nutzen | Teams mit Anforderungen an Datensouveränität, Air-Gap oder eigenen Build |
 
 ## In diesem Bereich
 

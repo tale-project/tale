@@ -11,14 +11,14 @@ Trois façons de créer un workflow :
 
 ### Avec assistance IA
 
-1. Va dans Automatisations et clique New Automatisation.
+1. Va dans Automatisations et clique **Nouvelle automatisation**.
 2. Entre un nom et une description de ce que le workflow doit faire. Plus tu détailles, mieux l'IA construit les premières étapes.
-3. Clique Continue. La plateforme crée le workflow et ouvre le chat IA à droite pour affiner par conversation.
+3. Clique **Continuer**. La plateforme crée le workflow et ouvre le chat IA à droite pour affiner par conversation.
 
 ### Éditeur visuel manuel
 
 1. Crée un nouveau workflow comme ci-dessus mais laisse la description vide.
-2. Utilise le bouton Add Step sur le canvas pour ajouter les étapes une à une.
+2. Utilise le bouton **Ajouter une étape** sur le canevas pour ajouter les étapes une à une.
 3. Configure chaque étape via le panneau latéral qui apparaît au clic.
 4. Relie les étapes en cliquant les poignées et en traçant des liens.
 
@@ -28,14 +28,14 @@ Tu peux créer des workflows en ajoutant des fichiers JSON dans le répertoire `
 
 ## Types d'étapes
 
-| Type       | Couleur | Ce qu'elle fait                                                                                           |
-| ---------- | ------- | --------------------------------------------------------------------------------------------------------- |
-| Start      | Bleu    | point d'entrée. Définit le schéma d'entrée et quand il démarre (calendrier, événement, webhook, manuel).  |
-| Action     | Orange  | exécute une opération — créer un enregistrement, envoyer un message, appeler une API, mettre à jour.      |
-| LLM        | Violet  | envoie un prompt à un modèle et passe la réponse à l'étape suivante.                                      |
-| Condition  | Ambre   | vérifie une condition et route selon des branches.                                                        |
-| Loop       | Cyan    | répète un groupe d'étapes pour chaque élément d'une liste.                                                |
-| Output     | Vert    | définit le mapping de sortie — ce qui est renvoyé à la fin.                                               |
+| Type      | Couleur | Ce qu'elle fait                                                                                          |
+| --------- | ------- | -------------------------------------------------------------------------------------------------------- |
+| Start     | Bleu    | point d'entrée. Définit le schéma d'entrée et quand il démarre (calendrier, événement, webhook, manuel). |
+| Action    | Orange  | exécute une opération — créer un enregistrement, envoyer un message, appeler une API, mettre à jour.     |
+| LLM       | Violet  | envoie un prompt à un modèle et passe la réponse à l'étape suivante.                                     |
+| Condition | Ambre   | vérifie une condition et route selon des branches.                                                       |
+| Loop      | Cyan    | répète un groupe d'étapes pour chaque élément d'une liste.                                               |
+| Output    | Vert    | définit le mapping de sortie — ce qui est renvoyé à la fin.                                              |
 
 ## Triggers
 
@@ -69,8 +69,8 @@ Onglet Configuration :
 
 Utilise le panneau Test dans l'éditeur pour :
 
-- Execute : lance un run réel avec des données de test. Résultat dans l'onglet Executions.
+- Exécuter : lance un run réel avec des données de test. Résultat dans l'onglet Exécutions.
 
 ## Historique d'exécution
 
-L'onglet Executions de chaque workflow liste tous les runs passés avec date, durée, statut, entrée et sortie de chaque étape.
+L'onglet Exécutions de chaque workflow liste tous les runs passés avec date, durée, statut, entrée et sortie de chaque étape.

@@ -13,9 +13,9 @@ Un agent est une version de l'IA adaptée à un usage précis — agent support,
 
 Chaque conversation garde son agent sélectionné. Un nouveau chat repart sur l'agent par défaut.
 
-## Démarreurs de conversation
+## Amorces de conversation
 
-Quand tu commences une nouvelle conversation avec un agent qui a des **démarreurs** configurés, une rangée de suggestions cliquables apparaît. Clique-en une pour l'envoyer comme premier message — c'est plus rapide que de taper, et c'est un bon moyen de découvrir à quoi sert l'agent.
+Quand tu commences une nouvelle conversation avec un agent qui a des **amorces** configurées, une rangée de suggestions cliquables apparaît. Clique-en une pour l'envoyer comme premier message — c'est plus rapide que de taper, et c'est un bon moyen de découvrir à quoi sert l'agent.
 
 ## Pourquoi changer d'agent ?
 

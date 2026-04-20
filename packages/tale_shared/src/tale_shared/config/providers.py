@@ -49,11 +49,7 @@ def load_providers(config_dir: str | None = None) -> list[ProviderConfig]:
     if shared_config:
         base = Path(shared_config)
     else:
-        base = Path(
-            config_dir
-            or os.environ.get("TALE_CONFIG_DIR")
-            or os.environ.get("CONFIG_DIR", DEFAULT_CONFIG_DIR)
-        )
+        base = Path(config_dir or os.environ.get("TALE_CONFIG_DIR") or os.environ.get("CONFIG_DIR", DEFAULT_CONFIG_DIR))
     providers_dir = base / "providers"
 
     if not providers_dir.is_dir():
@@ -100,11 +96,7 @@ def load_providers(config_dir: str | None = None) -> list[ProviderConfig]:
         # Read defaults map, migrating legacy per-model default if needed
         defaults: dict[str, str] = {}
         if "defaults" in data and isinstance(data["defaults"], dict):
-            defaults = {
-                k: v
-                for k, v in data["defaults"].items()
-                if isinstance(k, str) and isinstance(v, str)
-            }
+            defaults = {k: v for k, v in data["defaults"].items() if isinstance(k, str) and isinstance(v, str)}
         else:
             # Migrate legacy format: model-level default: true
             for m in data.get("models", []):
@@ -120,9 +112,7 @@ def load_providers(config_dir: str | None = None) -> list[ProviderConfig]:
                 base_url=data.get("baseUrl", ""),
                 models=models,
                 description=data.get("description", ""),
-                supports_structured_outputs=data.get(
-                    "supportsStructuredOutputs", False
-                ),
+                supports_structured_outputs=data.get("supportsStructuredOutputs", False),
                 api_key=api_key,
                 defaults=defaults,
             )
@@ -187,8 +177,7 @@ def get_embedding_model(
     dims = model.dimensions
     if dims is None:
         raise ValueError(
-            f"Embedding model {model.id} does not specify dimensions. "
-            "Add a 'dimensions' field to the model definition."
+            f"Embedding model {model.id} does not specify dimensions. Add a 'dimensions' field to the model definition."
         )
     return (provider.base_url, api_key, model.id, dims)
 

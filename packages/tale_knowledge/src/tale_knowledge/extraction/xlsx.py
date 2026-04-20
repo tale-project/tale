@@ -59,8 +59,6 @@ async def extract_text_from_xlsx_bytes(
         wb.close()
 
     combined_text = "\n\n".join(sheets_text)
-    logger.info(
-        f"XLSX processing complete: {len(sheets_text)} sheets, {len(combined_text)} chars"
-    )
+    logger.info(f"XLSX processing complete: {len(sheets_text)} sheets, {len(combined_text)} chars")
 
     return combined_text, False

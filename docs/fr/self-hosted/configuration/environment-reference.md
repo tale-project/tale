@@ -38,35 +38,35 @@ Toute la configuration passe par des variables d'environnement dans `.env`. Copi
 
 ## Fournisseurs IA
 
-La configuration des fournisseurs IA (clés API, base URLs, modèles) passe par des fichiers dans `providers/`, pas par des variables d'environnement. Voir la page Paramètres > Fournisseurs dans l'admin UI, ou édite les JSON directement.
+La configuration des fournisseurs IA (clés API, base URLs, modèles) passe par des fichiers dans `providers/`, pas par des variables d'environnement. Voir la page Paramètres > Fournisseurs IA dans l'admin UI, ou édite les JSON directement.
 
 - `providers/<name>.json` — config publique (base URL, modèles, tags).
 - `providers/<name>.secrets.json` — clés API chiffrées par SOPS (auto-générées par `tale init`).
 
 ## Base de données
 
-| Variable               | Requis | Défaut  | Description                                                                                                      |
-| ---------------------- | ------ | ------- | ---------------------------------------------------------------------------------------------------------------- |
-| `DB_PASSWORD`          | Oui    |         | mot de passe pour la base PostgreSQL auto-hébergée.                                                              |
-| `POSTGRES_URL`         | Non    |         | surcharge l'URL de connexion auto-générée. Sinon calculée comme `postgresql://tale:${DB_PASSWORD}@db:5432`.      |
-| `RAG_DATABASE_URL`     | Non    |         | surcharge l'URL DB pour le service RAG (doit inclure le nom de base, ex. `postgresql://...host/tale_knowledge`). |
-| `CRAWLER_DATABASE_URL` | Non    |         | surcharge l'URL DB pour le service Crawler (doit inclure le nom de base).                                        |
+| Variable               | Requis | Défaut | Description                                                                                                      |
+| ---------------------- | ------ | ------ | ---------------------------------------------------------------------------------------------------------------- |
+| `DB_PASSWORD`          | Oui    |        | mot de passe pour la base PostgreSQL auto-hébergée.                                                              |
+| `POSTGRES_URL`         | Non    |        | surcharge l'URL de connexion auto-générée. Sinon calculée comme `postgresql://tale:${DB_PASSWORD}@db:5432`.      |
+| `RAG_DATABASE_URL`     | Non    |        | surcharge l'URL DB pour le service RAG (doit inclure le nom de base, ex. `postgresql://...host/tale_knowledge`). |
+| `CRAWLER_DATABASE_URL` | Non    |        | surcharge l'URL DB pour le service Crawler (doit inclure le nom de base).                                        |
 
 Pour utiliser une instance PostgreSQL externe au lieu du conteneur fourni, voir [Utiliser une base externe](/fr/self-hosted/install/linux-server#utiliser-une-base-externe).
 
 ## Tracking d'erreurs
 
-| Variable     | Requis | Défaut  | Description                                                         |
-| ------------ | ------ | ------- | ------------------------------------------------------------------- |
-| `SENTRY_DSN` | Non    |         | DSN Sentry pour le tracking. Compatible GlitchTip et Bugsink.       |
+| Variable     | Requis | Défaut | Description                                                   |
+| ------------ | ------ | ------ | ------------------------------------------------------------- |
+| `SENTRY_DSN` | Non    |        | DSN Sentry pour le tracking. Compatible GlitchTip et Bugsink. |
 
 Sans valeur, le tracking est désactivé et les erreurs n'apparaissent que dans les logs Docker.
 
 ## Monitoring
 
-| Variable               | Requis | Défaut  | Description                                                 |
-| ---------------------- | ------ | ------- | ----------------------------------------------------------- |
-| `METRICS_BEARER_TOKEN` | Non    |         | bearer token pour l'accès externe aux métriques Prometheus. |
+| Variable               | Requis | Défaut | Description                                                 |
+| ---------------------- | ------ | ------ | ----------------------------------------------------------- |
+| `METRICS_BEARER_TOKEN` | Non    |        | bearer token pour l'accès externe aux métriques Prometheus. |
 
 Non défini, les endpoints `/metrics/*` renvoient `401`. Voir [Operations](/fr/self-hosted/operate/observability/operations) pour les détails.
 
@@ -74,17 +74,17 @@ Non défini, les endpoints `/metrics/*` renvoient `401`. Voir [Operations](/fr/s
 
 Automatiques dans Docker Compose, surchargeables pour des setups personnalisés :
 
-| Variable       | Défaut                   | Description                                    |
-| -------------- | ------------------------ | ---------------------------------------------- |
-| `CRAWLER_URL`  | `http://crawler:8002`    | service Crawler pour le crawling.              |
-| `RAG_URL`      | `http://rag:8001`        | service RAG pour l'indexation et la recherche. |
+| Variable      | Défaut                | Description                                    |
+| ------------- | --------------------- | ---------------------------------------------- |
+| `CRAWLER_URL` | `http://crawler:8002` | service Crawler pour le crawling.              |
+| `RAG_URL`     | `http://rag:8001`     | service RAG pour l'indexation et la recherche. |
 
 ## Déploiement Docker
 
-| Variable      | Requis | Défaut  | Description                                                                         |
-| ------------- | ------ | ------- | ----------------------------------------------------------------------------------- |
-| `PULL_POLICY` | Non    |         | `always` pour utiliser des images pré-construites depuis GitHub.                    |
-| `VERSION`     | Non    |         | tag de version d'image (ex. `latest`, `v1.0.0`). Utilisé avec `PULL_POLICY=always`. |
+| Variable      | Requis | Défaut | Description                                                                         |
+| ------------- | ------ | ------ | ----------------------------------------------------------------------------------- |
+| `PULL_POLICY` | Non    |        | `always` pour utiliser des images pré-construites depuis GitHub.                    |
+| `VERSION`     | Non    |        | tag de version d'image (ex. `latest`, `v1.0.0`). Utilisé avec `PULL_POLICY=always`. |
 
 ## SSO Microsoft Entra ID
 

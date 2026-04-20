@@ -52,12 +52,12 @@ Quand tu visites notre site, notre hébergeur (Framer) peut traiter temporaireme
 
 Nous traitons tes données personnelles pour les finalités suivantes :
 
-| Finalité                                      | Données concernées                                 | Base légale (LPD)   | Base légale (RGPD)                                                |
-| --------------------------------------------- | -------------------------------------------------- | ------------------- | ----------------------------------------------------------------- |
-| Répondre à ta demande                         | nom, e-mail, entreprise, message                   | intérêt légitime    | Art. 6(1)(f) RGPD — intérêt légitime                              |
-| Organiser et conduire une démo produit        | nom, e-mail, téléphone, entreprise, domaine        | intérêt légitime    | Art. 6(1)(b) RGPD — mesures précontractuelles                     |
-| Maintenir et sécuriser le site                | données techniques (IP, navigateur)                | intérêt légitime    | Art. 6(1)(f) RGPD — intérêt légitime                              |
-| Établir une relation d'affaires potentielle   | données du formulaire de contact                   | intérêt légitime    | Art. 6(1)(f) RGPD — intérêt légitime                              |
+| Finalité                                    | Données concernées                          | Base légale (LPD) | Base légale (RGPD)                            |
+| ------------------------------------------- | ------------------------------------------- | ----------------- | --------------------------------------------- |
+| Répondre à ta demande                       | nom, e-mail, entreprise, message            | intérêt légitime  | Art. 6(1)(f) RGPD — intérêt légitime          |
+| Organiser et conduire une démo produit      | nom, e-mail, téléphone, entreprise, domaine | intérêt légitime  | Art. 6(1)(b) RGPD — mesures précontractuelles |
+| Maintenir et sécuriser le site              | données techniques (IP, navigateur)         | intérêt légitime  | Art. 6(1)(f) RGPD — intérêt légitime          |
+| Établir une relation d'affaires potentielle | données du formulaire de contact            | intérêt légitime  | Art. 6(1)(f) RGPD — intérêt légitime          |
 
 Sous la LPD suisse, le traitement de données personnelles est généralement permis tant qu'il ne viole pas les droits de la personnalité de la personne concernée. Nous traitons tes données de bonne foi, de manière proportionnée et uniquement aux fins indiquées.
 

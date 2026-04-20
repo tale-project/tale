@@ -43,16 +43,16 @@ cp examples/providers/openrouter.secrets.json $TALE_CONFIG_DIR/providers/
 
 The example provider includes models across multiple vendors:
 
-| Vendor     | Models                                     | Tags           |
-| ---------- | ------------------------------------------ | -------------- |
-| Anthropic  | Claude Opus 4.6, Sonnet 4.6, Haiku 4.5     | chat, vision   |
-| OpenAI     | GPT-5.2, GPT-5.2 Instant, GPT-5.2 Pro      | chat, vision   |
-| Google     | Gemini 3 Pro, Gemini 3 Flash               | chat, vision   |
-| Mistral    | Mistral Large 3, Mistral Medium 3          | chat           |
-| Meta       | LLaMA 4 Maverick, LLaMA 4 Scout            | chat           |
-| DeepSeek   | DeepSeek V3.2                              | chat           |
-| Moonshot   | Kimi K2.5                                  | chat           |
-| Qwen       | Qwen3 Next 80B, Qwen3.5 35B, Qwen3 VL 32B  | chat, vision   |
+| Vendor    | Models                                    | Tags         |
+| --------- | ----------------------------------------- | ------------ |
+| Anthropic | Claude Opus 4.6, Sonnet 4.6, Haiku 4.5    | chat, vision |
+| OpenAI    | GPT-5.2, GPT-5.2 Instant, GPT-5.2 Pro     | chat, vision |
+| Google    | Gemini 3 Pro, Gemini 3 Flash              | chat, vision |
+| Mistral   | Mistral Large 3, Mistral Medium 3         | chat         |
+| Meta      | LLaMA 4 Maverick, LLaMA 4 Scout           | chat         |
+| DeepSeek  | DeepSeek V3.2                             | chat         |
+| Moonshot  | Kimi K2.5                                 | chat         |
+| Qwen      | Qwen3 Next 80B, Qwen3.5 35B, Qwen3 VL 32B | chat, vision |
 
 ## Making models available in chat
 
@@ -60,10 +60,7 @@ After adding a provider with models, you also need to add the model IDs to the a
 
 ```json
 {
-  "supportedModels": [
-    "llama3.3",
-    "anthropic/claude-opus-4.6"
-  ]
+  "supportedModels": ["llama3.3", "anthropic/claude-opus-4.6"]
 }
 ```
 

@@ -17,11 +17,11 @@ Voir [Concepts des agents](/fr/platform/agents/concepts) pour le modèle mental,
 
 Une automatisation est un workflow multi-étapes qui démarre sur un trigger — un calendrier, un événement, un webhook ou un lancement manuel. Chaque étape fait une chose : appeler une API, interroger une base, demander à un LLM, faire un branchement, parcourir une liste. Les automatisations gèrent le travail qui se passe sans humain dans le chat.
 
-Voir [Concepts des automatisations](/fr/platform/automations/concepts), [Workflows](/fr/platform/automations/workflows), [Triggers](/fr/platform/automations/triggers) et [Logs d'exécution](/fr/platform/automations/execution-logs).
+Voir [Concepts des automatisations](/fr/platform/automations/concepts), [Workflows](/fr/platform/automations/workflows), [Triggers](/fr/platform/automations/triggers) et [Journaux d'exécution](/fr/platform/automations/execution-logs).
 
 ### Connaissances
 
-La base de connaissances est ce que les agents cherchent pour répondre aux questions. Tu peux téléverser des documents, pointer vers des sites web à crawler et importer des enregistrements structurés (Products, Customers, Vendors). Bien curer la base de connaissances est ce qui rend les réponses de l'IA utiles.
+La base de connaissances est ce que les agents cherchent pour répondre aux questions. Tu peux téléverser des documents, pointer vers des sites web à crawler et importer des enregistrements structurés (Produits, Clients, Fournisseurs). Bien curer la base de connaissances est ce qui rend les réponses de l'IA utiles.
 
 Voir [Données structurées](/fr/platform/knowledge/structured-data) et [Crawling de sites](/fr/platform/knowledge/crawling).
 
@@ -33,7 +33,7 @@ Voir [Intégrations — aperçu](/fr/platform/integrations/overview) et [Bring y
 
 ## Permissions
 
-Construire requiert le rôle **Editor** pour les agents et le rôle **Developer** pour les automatisations, intégrations et clés API. Voir [Members et rôles](/fr/platform/admin/members-and-roles) pour la matrice complète.
+Construire requiert le rôle **Editor** pour les agents et le rôle **Developer** pour les automatisations, intégrations et clés API. Voir [Membres et rôles](/fr/platform/admin/members-and-roles) pour la matrice complète.
 
 ## Construction assistée par IA
 

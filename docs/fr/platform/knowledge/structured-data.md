@@ -35,4 +35,4 @@ La section Fournisseurs stocke les enregistrements de fournisseurs et partenaire
 
 ## Utiliser des données structurées dans les agents
 
-Les enregistrements structurés sont indexés dans le même store que les documents. Les agents avec accès aux connaissances peuvent chercher sur tous les types. Pour limiter un agent à un sous-ensemble — par exemple un agent commercial qui ne voit que Produits et Clients — configure son onglet Connaissances. Voir [Créer un agent](/fr/platform/agents/create).
+Les enregistrements structurés sont indexés dans le même store que les documents. Les agents avec accès aux connaissances peuvent chercher sur tous les types. Pour limiter un agent à un sous-ensemble — par exemple un agent commercial qui ne voit que Produits et Clients — configure son onglet Base de connaissances. Voir [Créer un agent](/fr/platform/agents/create).

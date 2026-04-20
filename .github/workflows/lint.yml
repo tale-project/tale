@@ -12,6 +12,10 @@ on:
       - 'services/db/**'
       - 'services/proxy/**'
       - 'tools/cli/**'
+      - 'docs/**'
+      - '.agents/**'
+      - 'AGENTS.md'
+      - 'README.md'
       - '.github/workflows/lint.yml'
       - 'package.json'
       - 'bun.lock'
@@ -31,6 +35,10 @@ on:
       - 'services/db/**'
       - 'services/proxy/**'
       - 'tools/cli/**'
+      - 'docs/**'
+      - '.agents/**'
+      - 'AGENTS.md'
+      - 'README.md'
       - '.github/workflows/lint.yml'
       - 'package.json'
       - 'bun.lock'
@@ -89,7 +97,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Format check
-        run: bunx turbo run format:check
+        run: bun run format:check
 
   typecheck:
     name: Type check

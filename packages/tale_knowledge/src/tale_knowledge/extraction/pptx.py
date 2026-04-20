@@ -59,11 +59,7 @@ async def _process_slide(
             if table_text:
                 elements.append((top, f"[Table]\n{table_text}"))
 
-        if (
-            process_images
-            and vision_client
-            and shape.shape_type == MSO_SHAPE_TYPE.PICTURE
-        ):
+        if process_images and vision_client and shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
             try:
                 image_tasks.append((top, shape.image.blob))
             except Exception as e:
@@ -72,17 +68,12 @@ async def _process_slide(
     vision_used = False
     if image_tasks and vision_client:
         results = await asyncio.gather(
-            *[
-                describe_image_bytes(img_bytes, semaphore, vision_client)
-                for _, img_bytes in image_tasks
-            ],
+            *[describe_image_bytes(img_bytes, semaphore, vision_client) for _, img_bytes in image_tasks],
             return_exceptions=True,
         )
         for (top, _), result in zip(image_tasks, results, strict=False):
             if isinstance(result, Exception):
-                logger.warning(
-                    f"Failed to describe image on slide {slide_num}: {result}"
-                )
+                logger.warning(f"Failed to describe image on slide {slide_num}: {result}")
             elif result:
                 elements.append((top, f"[Image: {result}]"))
                 vision_used = True
@@ -125,9 +116,7 @@ async def extract_text_from_pptx_bytes(
         with zipfile.ZipFile(BytesIO(pptx_bytes)) as zf:
             total = sum(info.file_size for info in zf.infolist())
             if total > MAX_UNCOMPRESSED_SIZE:
-                raise ValueError(
-                    f"File exceeds maximum decompressed size ({total} bytes)"
-                )
+                raise ValueError(f"File exceeds maximum decompressed size ({total} bytes)")
     except zipfile.BadZipFile:
         raise ValueError("Invalid or corrupt file")
 
@@ -135,8 +124,7 @@ async def extract_text_from_pptx_bytes(
     semaphore = asyncio.Semaphore(max_concurrent)
 
     tasks = [
-        _process_slide(i + 1, slide, semaphore, vision_client, process_images)
-        for i, slide in enumerate(prs.slides)
+        _process_slide(i + 1, slide, semaphore, vision_client, process_images) for i, slide in enumerate(prs.slides)
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -155,8 +143,6 @@ async def extract_text_from_pptx_bytes(
     slides_content.sort(key=lambda x: x[0])
     combined_text = "\n\n".join(s[1] for s in slides_content)
 
-    logger.info(
-        f"PPTX processing complete: {len(slides_content)} slides, Vision API used: {vision_used}"
-    )
+    logger.info(f"PPTX processing complete: {len(slides_content)} slides, Vision API used: {vision_used}")
 
     return combined_text, vision_used

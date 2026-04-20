@@ -47,7 +47,4 @@ def merge_rrf(
     num_contributing = max(1, sum(1 for r in ranked_lists if r))
     max_score = num_contributing / (k + 1) if sorted_ids else 1.0
 
-    return [
-        {**items[item_id], "rrf_score": scores[item_id] / max_score}
-        for item_id in sorted_ids
-    ]
+    return [{**items[item_id], "rrf_score": scores[item_id] / max_score} for item_id in sorted_ids]

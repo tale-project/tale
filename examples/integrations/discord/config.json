@@ -4,15 +4,9 @@
   "description": "Discord Bot API integration for guilds, channels, and messages",
   "version": 1,
   "authMethod": "bearer_token",
-  "supportedAuthMethods": [
-    "bearer_token"
-  ],
-  "secretBindings": [
-    "accessToken"
-  ],
-  "allowedHosts": [
-    "discord.com"
-  ],
+  "supportedAuthMethods": ["bearer_token"],
+  "secretBindings": ["accessToken"],
+  "allowedHosts": ["discord.com"],
   "operations": [
     {
       "name": "list_guilds",

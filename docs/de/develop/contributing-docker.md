@@ -92,13 +92,13 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 Jedes Image hat ein Size-Budget. CI schlägt fehl, wenn ein Image sein Budget überschreitet.
 
-| Dienst    | Budget   | Aktuell   |
-| --------- | -------- | --------- |
-| Crawler   | 2.100 MB | ~1.850 MB |
-| RAG       | 600 MB   | ~515 MB   |
-| Platform  | 2.900 MB | ~2.580 MB |
-| DB        | 1.200 MB | ~1.060 MB |
-| Proxy     | 100 MB   | ~88 MB    |
+| Dienst   | Budget   | Aktuell   |
+| -------- | -------- | --------- |
+| Crawler  | 2.100 MB | ~1.850 MB |
+| RAG      | 600 MB   | ~515 MB   |
+| Platform | 2.900 MB | ~2.580 MB |
+| DB       | 1.200 MB | ~1.060 MB |
+| Proxy    | 100 MB   | ~88 MB    |
 
 ### Häufige Ursachen für Größenzuwächse
 

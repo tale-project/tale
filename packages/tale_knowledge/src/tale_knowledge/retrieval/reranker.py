@@ -47,9 +47,7 @@ class Reranker:
                 return self._cross_encoder
 
             loop = asyncio.get_running_loop()
-            self._cross_encoder = await loop.run_in_executor(
-                None, self._load_cross_encoder
-            )
+            self._cross_encoder = await loop.run_in_executor(None, self._load_cross_encoder)
             return self._cross_encoder
 
     def _load_cross_encoder(self) -> Any:
@@ -61,10 +59,7 @@ class Reranker:
             logger.info("Loaded cross-encoder model: {}", self._model_name)
             return model
         except ImportError:
-            logger.error(
-                "sentence-transformers not installed. "
-                "Install with: pip install sentence-transformers"
-            )
+            logger.error("sentence-transformers not installed. Install with: pip install sentence-transformers")
             raise
         except Exception:
             logger.error(
@@ -110,14 +105,10 @@ class Reranker:
         """Re-rank using local sentence-transformers CrossEncoder."""
         cross_encoder = await self._ensure_local_model()
 
-        pairs = [
-            (query, r.get("content") or r.get("chunk_content", "")) for r in results
-        ]
+        pairs = [(query, r.get("content") or r.get("chunk_content", "")) for r in results]
 
         loop = asyncio.get_running_loop()
-        scores = await loop.run_in_executor(
-            None, lambda: cross_encoder.predict(pairs).tolist()
-        )
+        scores = await loop.run_in_executor(None, lambda: cross_encoder.predict(pairs).tolist())
 
         for result, score in zip(results, scores):
             result["reranking_score"] = float(score)
@@ -131,9 +122,7 @@ class Reranker:
             score_range = max_score - min_score
             if score_range > 0:
                 for r in results:
-                    r["reranking_score"] = (
-                        r["reranking_score"] - min_score
-                    ) / score_range
+                    r["reranking_score"] = (r["reranking_score"] - min_score) / score_range
 
         return results[:top_k]
 
@@ -145,17 +134,13 @@ class Reranker:
     ) -> list[dict[str, Any]]:
         """Re-rank using an external API provider."""
         if not self._api_base_url:
-            logger.warning(
-                "API reranking requested but no api_base_url configured, returning original results"
-            )
+            logger.warning("API reranking requested but no api_base_url configured, returning original results")
             return results[:top_k]
 
         try:
             import httpx
 
-            documents = [
-                r.get("content") or r.get("chunk_content", "") for r in results
-            ]
+            documents = [r.get("content") or r.get("chunk_content", "") for r in results]
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
@@ -166,11 +151,7 @@ class Reranker:
                         "documents": documents,
                         "top_n": top_k,
                     },
-                    headers=(
-                        {"Authorization": f"Bearer {self._api_key}"}
-                        if self._api_key
-                        else {}
-                    ),
+                    headers=({"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}),
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -186,7 +167,5 @@ class Reranker:
             ranked_results.sort(key=lambda r: r.get("reranking_score", 0), reverse=True)
             return ranked_results[:top_k]
         except Exception:
-            logger.warning(
-                "API reranking failed, returning original results", exc_info=True
-            )
+            logger.warning("API reranking failed, returning original results", exc_info=True)
             return results[:top_k]

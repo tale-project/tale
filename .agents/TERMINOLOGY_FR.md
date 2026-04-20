@@ -10,81 +10,81 @@ The Swiss variant extends this file with deltas only:
 
 Match the UI verbatim — if the two ever disagree, update the UI first, then this file.
 
-| English | French | Notes |
-| --- | --- | --- |
-| Agent | Agent | Same spelling in French. |
-| Workflow | Workflow | Established loanword. |
-| Automation(s) | Automatisation(s) | |
-| Integration(s) | Intégration(s) | |
-| Dashboard | Dashboard | Loanword. |
-| Knowledge | Connaissances | |
-| Knowledge base | Base de connaissances | |
-| Workspace | Espace de travail | |
-| Canvas | Canevas | Matches UI label `chat.canvas.title` — **not** the English `Canvas`. |
-| Composer | Composeur | Matches UI label `composer.openMenu` (`menu du composeur`). |
-| Prompt library | Bibliothèque de prompts | Matches UI label `chat.promptLibrary` — **not** the loanword `Prompt Library`. |
-| Arena Mode | Mode Arène | Matches UI label `chat.arena.title`. Capitalize `Arène` as part of the feature name. |
-| Research plan | Plan de recherche | Matches UI label `todoList.title` — **never** `Liste de tâches`. |
-| Approval / Approvals | Approbation / Approbations | Singular for one pending item; plural for the workspace view. |
-| Human input request | Demande utilisateur | Context: a workflow step paused on a typed answer. Fall back to `Question à l'utilisateur` if the UI string is unclear. |
-| Location request | Demande de localisation | Matches UI label `locationRequest.title`. |
+| English              | French                     | Notes                                                                                                                   |
+| -------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Agent                | Agent                      | Same spelling in French.                                                                                                |
+| Workflow             | Workflow                   | Established loanword.                                                                                                   |
+| Automation(s)        | Automatisation(s)          |                                                                                                                         |
+| Integration(s)       | Intégration(s)             |                                                                                                                         |
+| Dashboard            | Dashboard                  | Loanword.                                                                                                               |
+| Knowledge            | Connaissances              |                                                                                                                         |
+| Knowledge base       | Base de connaissances      |                                                                                                                         |
+| Workspace            | Espace de travail          |                                                                                                                         |
+| Canvas               | Canevas                    | Matches UI label `chat.canvas.title` — **not** the English `Canvas`.                                                    |
+| Composer             | Composeur                  | Matches UI label `composer.openMenu` (`menu du composeur`).                                                             |
+| Prompt library       | Bibliothèque de prompts    | Matches UI label `chat.promptLibrary` — **not** the loanword `Prompt Library`.                                          |
+| Arena Mode           | Mode Arène                 | Matches UI label `chat.arena.title`. Capitalize `Arène` as part of the feature name.                                    |
+| Research plan        | Plan de recherche          | Matches UI label `todoList.title` — **never** `Liste de tâches`.                                                        |
+| Approval / Approvals | Approbation / Approbations | Singular for one pending item; plural for the workspace view.                                                           |
+| Human input request  | Demande utilisateur        | Context: a workflow step paused on a typed answer. Fall back to `Question à l'utilisateur` if the UI string is unclear. |
+| Location request     | Demande de localisation    | Matches UI label `locationRequest.title`.                                                                               |
 
 ## Knowledge-base entities
 
-| English | French | Notes |
-| --- | --- | --- |
-| Website / Websites | Site web / Sites web | Two words. Matches UI label `websites.title`. |
-| Customer / Customers | Client / Clients | Matches UI label `customers.title`. |
-| Vendor / Vendors | Fournisseur / Fournisseurs | Overloads with `Provider` below — disambiguate by context. For the knowledge-base entity, always `Fournisseur`. |
-| Product / Products | Produit / Produits | Matches UI label `products.title`. |
-| Document / Documents | Document / Documents | Matches UI label `documents.title`. |
-| Thread | **Conversation** | Use `Conversation` in user-facing prose. `Thread` stays only in code and API identifiers. |
+| English              | French                     | Notes                                                                                                           |
+| -------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Website / Websites   | Site web / Sites web       | Two words. Matches UI label `websites.title`.                                                                   |
+| Customer / Customers | Client / Clients           | Matches UI label `customers.title`.                                                                             |
+| Vendor / Vendors     | Fournisseur / Fournisseurs | Overloads with `Provider` below — disambiguate by context. For the knowledge-base entity, always `Fournisseur`. |
+| Product / Products   | Produit / Produits         | Matches UI label `products.title`.                                                                              |
+| Document / Documents | Document / Documents       | Matches UI label `documents.title`.                                                                             |
+| Thread               | **Conversation**           | Use `Conversation` in user-facing prose. `Thread` stays only in code and API identifiers.                       |
 
 ## Technical vocabulary
 
-| English | French | Notes |
-| --- | --- | --- |
-| AI | IA | Intelligence artificielle. |
-| API / LLM / Token / Prompt | Keep English | Universal tech terms. |
-| Webhook | Webhook | Loanword. |
-| Provider | Fournisseur | |
-| Settings | Paramètres | |
-| PII | DCP | Données à caractère personnel. Expand on first use per page. |
-| MCP server | Serveur MCP | Matches UI label `mcpServers.title`. |
-| User | Utilisateur | In mixed/generic use. Only reach for `utilisateur·rice` when gender inclusion is essential to the sentence. |
-| Browser | Navigateur | |
-| E-mail | E-mail | Hyphenated, per the Académie française. |
+| English                    | French       | Notes                                                                                                       |
+| -------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------- |
+| AI                         | IA           | Intelligence artificielle.                                                                                  |
+| API / LLM / Token / Prompt | Keep English | Universal tech terms.                                                                                       |
+| Webhook                    | Webhook      | Loanword.                                                                                                   |
+| Provider                   | Fournisseur  |                                                                                                             |
+| Settings                   | Paramètres   |                                                                                                             |
+| PII                        | DCP          | Données à caractère personnel. Expand on first use per page.                                                |
+| MCP server                 | Serveur MCP  | Matches UI label `mcpServers.title`.                                                                        |
+| User                       | Utilisateur  | In mixed/generic use. Only reach for `utilisateur·rice` when gender inclusion is essential to the sentence. |
+| Browser                    | Navigateur   |                                                                                                             |
+| E-mail                     | E-mail       | Hyphenated, per the Académie française.                                                                     |
 
 ## Actions and state verbs
 
-| English | French | Notes |
-| --- | --- | --- |
-| Save | Enregistrer | |
-| Delete | Supprimer | |
-| Edit | Modifier | |
-| Log in | Se connecter | |
-| Log out | Se déconnecter | |
-| Sign up | S'inscrire | |
-| Upload | Téléverser | Verb; noun form `téléversement`. |
-| Download | Télécharger | |
+| English  | French         | Notes                            |
+| -------- | -------------- | -------------------------------- |
+| Save     | Enregistrer    |                                  |
+| Delete   | Supprimer      |                                  |
+| Edit     | Modifier       |                                  |
+| Log in   | Se connecter   |                                  |
+| Log out  | Se déconnecter |                                  |
+| Sign up  | S'inscrire     |                                  |
+| Upload   | Téléverser     | Verb; noun form `téléversement`. |
+| Download | Télécharger    |                                  |
 
 ## Deployment vocabulary
 
-| English | French | Notes |
-| --- | --- | --- |
-| Self-hosted | Auto-hébergé | Hyphenated. |
-| On-premises | Sur site | Alternative loanword: `on-premises`. |
-| Open source | Open source | Loanword; invariable. |
-| Zero-downtime | Zero-downtime | Keep English. |
-| Blue-green | Blue-green | Keep English. |
-| Team | Équipe | Singular form carries the accent. |
-| Branding | Branding | Loanword. |
+| English       | French        | Notes                                |
+| ------------- | ------------- | ------------------------------------ |
+| Self-hosted   | Auto-hébergé  | Hyphenated.                          |
+| On-premises   | Sur site      | Alternative loanword: `on-premises`. |
+| Open source   | Open source   | Loanword; invariable.                |
+| Zero-downtime | Zero-downtime | Keep English.                        |
+| Blue-green    | Blue-green    | Keep English.                        |
+| Team          | Équipe        | Singular form carries the accent.    |
+| Branding      | Branding      | Loanword.                            |
 
 ## Role names
 
 The six Tale roles stay in English to match the UI: **Owner**, **Admin**, **Developer**, **Editor**, **Member**, **Disabled**. Capitalize when naming the role.
 
-When the word is generic — someone on the team, not the capital-M Member role — translate it to **membre** / **membres**. Never leave `member` or `members` in French prose. Example: *Les membres de ton équipe utilisent le chat* vs. *Un Member peut consulter l'historique du chat*.
+When the word is generic — someone on the team, not the capital-M Member role — translate it to **membre** / **membres**. Never leave `member` or `members` in French prose. Example: _Les membres de ton équipe utilisent le chat_ vs. _Un Member peut consulter l'historique du chat_.
 
 ## Style rules
 

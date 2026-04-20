@@ -9,13 +9,13 @@ Choisis Cloud si tu veux profiter de Tale sans exploiter toi-même la stack, ou 
 
 ## Cloud et Self-hosted en bref
 
-| Dimension            | Cloud                                               | Self-hosted                                                                   |
-| -------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Exploitation         | Tale (nous)                                         | Ton équipe                                                                    |
-| Hébergement          | Suisse ou UE (fixé par tenant)                      | Ton infrastructure, où tu veux                                                |
-| Mises à jour         | Automatiques, sans interruption de service          | Tu lances `tale deploy`                                                       |
-| Parité fonctionnelle | Identique à Self-hosted                             | Identique à Cloud                                                             |
-| Adapté à             | Équipes qui veulent Tale sans la charge d'exploit.  | Équipes ayant des exigences de souveraineté, d'air-gap ou de build sur mesure |
+| Dimension            | Cloud                                              | Self-hosted                                                                   |
+| -------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Exploitation         | Tale (nous)                                        | Ton équipe                                                                    |
+| Hébergement          | Suisse ou UE (fixé par tenant)                     | Ton infrastructure, où tu veux                                                |
+| Mises à jour         | Automatiques, sans interruption de service         | Tu lances `tale deploy`                                                       |
+| Parité fonctionnelle | Identique à Self-hosted                            | Identique à Cloud                                                             |
+| Adapté à             | Équipes qui veulent Tale sans la charge d'exploit. | Équipes ayant des exigences de souveraineté, d'air-gap ou de build sur mesure |
 
 ## Dans cette section
 

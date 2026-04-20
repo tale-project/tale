@@ -27,4 +27,4 @@ Commence par l'[aperçu auto-hébergé](/fr/self-hosted/overview) pour l'archite
 
 ## Fonctionnalités et administration
 
-La documentation des fonctionnalités (chat, agents, automatisations, connaissances, intégrations) et toute l'administration de l'organisation (membres, rôles, équipes, branding, gouvernance, fournisseurs d'IA, analytique) se trouve dans [Platform](/fr/platform). Les guides par rôle destinés aux utilisateurs finaux y vivent également.
+La documentation des fonctionnalités (chat, agents, automatisations, connaissances, intégrations) et toute l'administration de l'organisation (membres, rôles, équipes, image de marque, gouvernance, fournisseurs d'IA, analytique) se trouve dans [Platform](/fr/platform). Les guides par rôle destinés aux utilisateurs finaux y vivent également.

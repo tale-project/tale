@@ -25,13 +25,13 @@ Chaque carte contient :
 
 - un en-tête identifiant le type d'approbation ;
 - des métadonnées détaillées que tu peux déplier (paramètres, listes de fichiers, étapes) ;
-- les boutons **Approve** et **Reject**.
+- les boutons **Approuver** et **Rejeter**.
 
-Clique **Approve** pour laisser l'action se poursuivre. La carte montre la progression et le résultat final. Clique **Reject** pour l'annuler. L'agent reçoit une notification de refus et peut ajuster son approche.
+Clique **Approuver** pour laisser l'action se poursuivre. La carte montre la progression et le résultat final. Clique **Rejeter** pour l'annuler. L'agent reçoit une notification de refus et peut ajuster son approche.
 
 ## Input humain et demandes de localisation
 
-Certaines approbations sont interactives plutôt que de simples Approve/Reject :
+Certaines approbations sont interactives plutôt que de simples Approuver/Rejeter :
 
 - **Demandes d'input humain** affichent un formulaire (textes, menus déroulants, oui/non) que le workflow en pause demande à remplir. Soumets ta réponse pour reprendre.
-- **Demandes de localisation** sollicitent ta position navigateur. Clique **Share location** pour autoriser ou refuse.
+- **Demandes de localisation** sollicitent ta position navigateur. Clique **Partager la position** pour autoriser ou refuse.

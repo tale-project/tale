@@ -167,10 +167,7 @@ class TestVisionCacheAsync:
             await asyncio.sleep(0.05)
             return "fetched once"
 
-        tasks = [
-            asyncio.create_task(cache.get_or_set_ocr(b"same-image", slow_fetch))
-            for _ in range(5)
-        ]
+        tasks = [asyncio.create_task(cache.get_or_set_ocr(b"same-image", slow_fetch)) for _ in range(5)]
         results = await asyncio.gather(*tasks)
 
         assert all(r == "fetched once" for r in results)
@@ -191,10 +188,7 @@ class TestVisionCacheAsync:
             await asyncio.sleep(0.05)
             return "described once"
 
-        tasks = [
-            asyncio.create_task(cache.get_or_set_description(b"same-image", slow_fetch))
-            for _ in range(5)
-        ]
+        tasks = [asyncio.create_task(cache.get_or_set_description(b"same-image", slow_fetch)) for _ in range(5)]
         results = await asyncio.gather(*tasks)
 
         assert all(r == "described once" for r in results)
@@ -216,10 +210,7 @@ class TestVisionCacheAsync:
             await asyncio.sleep(0.01)
             return f"result-{my_id}"
 
-        tasks = [
-            asyncio.create_task(cache.get_or_set_ocr(f"image-{i}".encode(), fetch))
-            for i in range(3)
-        ]
+        tasks = [asyncio.create_task(cache.get_or_set_ocr(f"image-{i}".encode(), fetch)) for i in range(3)]
         results = await asyncio.gather(*tasks)
 
         assert call_count == 3

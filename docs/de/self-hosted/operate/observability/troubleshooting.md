@@ -52,7 +52,7 @@ Alle Dienste, die an die Datenbank angeschlossen sind, brauchen `DB_PASSWORD` in
 
 ### Admin-Passwort vergessen
 
-Wenn du aus deinem Admin-Konto ausgesperrt bist, kann ein anderer Admin dein Passwort unter Einstellungen > Organisation > Members-Zeile > Bearbeiten > Passwort setzen zurücksetzen. Gibt es keinen anderen Admin, kann jemand mit Docker-Zugriff den Nutzer-Datensatz im Convex-Dashboard direkt anpassen.
+Wenn du aus deinem Admin-Konto ausgesperrt bist, kann ein anderer Admin dein Passwort unter **Einstellungen > Organisation > Mitglieder**-Zeile > **Bearbeiten > Passwort setzen** zurücksetzen. Gibt es keinen anderen Admin, kann jemand mit Docker-Zugriff den Nutzer-Datensatz im Convex-Dashboard direkt anpassen.
 
 ## Docker-Build- und Container-Probleme
 

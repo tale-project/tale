@@ -3,22 +3,22 @@ title: Ausführungslogs
 description: Vergangene Workflow-Runs untersuchen, Fehler debuggen und mit Anpassungen neu laufen lassen.
 ---
 
-Der Executions-Tab jedes Workflows listet jeden Run — ob per Zeitplan, Event, Webhook oder manuell gestartet — mit Zeitstempeln, Dauer, Endstatus und Schritt-für-Schritt-Details.
+Der **Ausführungen**-Tab jedes Workflows listet jeden Lauf — ob per Zeitplan, Event, Webhook oder manuell gestartet — mit Zeitstempeln, Dauer, Endstatus und Schritt-für-Schritt-Details.
 
-## Was ein Execution-Datensatz zeigt
+## Was ein Ausführungs-Datensatz zeigt
 
-Klicke in der Executions-Tabelle auf eine Zeile, um das Detail-Panel zu öffnen:
+Klicke in der **Ausführungen**-Tabelle auf eine Zeile, um das Detail-Panel zu öffnen:
 
-- **Overview** — Trigger-Typ, Start- und Endzeit, Dauer, Endstatus und das vollständige Input-Payload.
-- **Steps** — jeder Schritt mit Status (erfolgreich, fehlgeschlagen, übersprungen), Input, Output, Dauer und etwaiger Fehlermeldung.
-- **Variables** — die Workflow-Variablen zum Zeitpunkt des Runs (hilfreich, falls du sie seither geändert hast).
-- **Raw** — die JSON-Trace des gesamten Runs, per Copy-Button exportierbar.
+- **Übersicht** — Trigger-Typ, Start- und Endzeit, Dauer, Endstatus und das vollständige Input-Payload.
+- **Schritte** — jeder Schritt mit Status (erfolgreich, fehlgeschlagen, übersprungen), Input, Output, Dauer und etwaiger Fehlermeldung.
+- **Variablen** — die Workflow-Variablen zum Zeitpunkt des Laufs (hilfreich, falls du sie seither geändert hast).
+- **Roh** — die JSON-Trace des gesamten Laufs, per Kopier-Button exportierbar.
 
 Fehlgeschlagene Schritte sind standardmäßig aufgeklappt, damit du den Fehler ohne Klick siehst.
 
 ## Filtern und Suchen
 
-Die Executions-Tabelle unterstützt:
+Die **Ausführungen**-Tabelle unterstützt:
 
 - **Status-Filter** — erfolgreich, fehlgeschlagen, laufend, abgebrochen.
 - **Zeitbereich** — letzte Stunde, letzte 24 Stunden, letzte 7 Tage, benutzerdefiniert.
@@ -27,17 +27,17 @@ Die Executions-Tabelle unterstützt:
 
 ## Neu starten
 
-Aus dem Detail-Panel einer Execution kannst du:
+Aus dem Detail-Panel einer Ausführung kannst du:
 
-- **Rerun with same input** — eine neue Execution mit demselben Input starten. Nützlich, wenn sich der Workflow geändert hat und du einen vergangenen Request erneut durchspielen willst.
-- **Rerun with different input** — das Input-Payload vor dem Rerun bearbeiten. Nützlich für das Debuggen von Edge Cases.
+- **Mit gleichem Input erneut ausführen** — eine neue Ausführung mit demselben Input starten. Nützlich, wenn sich der Workflow geändert hat und du einen vergangenen Request erneut durchspielen willst.
+- **Mit anderem Input erneut ausführen** — das Input-Payload vor dem erneuten Lauf bearbeiten. Nützlich für das Debuggen von Edge Cases.
 
-Reruns erscheinen als neue Executions — der Originalsatz bleibt erhalten.
+Erneute Läufe erscheinen als neue Ausführungen — der Originalsatz bleibt erhalten.
 
 ## Aufbewahrung
 
-Execution-Datensätze werden gemäß der [Retention-Richtlinie](/de/platform/admin/governance) deiner Organisation aufbewahrt. Standardmäßig bleiben Schritt-Details 90 Tage erhalten, Summary-Datensätze ein Jahr.
+Ausführungs-Datensätze werden gemäß der [Aufbewahrungsrichtlinie](/de/platform/admin/governance) deiner Organisation aufbewahrt. Standardmäßig bleiben Schritt-Details 90 Tage erhalten, Zusammenfassungs-Datensätze ein Jahr.
 
 ## Alarme
 
-Konfiguriere Alarme im Alerts-Tab des Workflows, damit ein Admin per E-Mail benachrichtigt wird, wenn ein Workflow fehlschlägt, länger als ein Schwellwert läuft oder einen Fehler erzeugt, der einem Muster entspricht. Für Workflow-übergreifende Alarme (z. B. "mehr als 5 Fehlschläge pro Stunde über alle Workflows") nutze [Operations](/de/self-hosted/operate/observability/operations).
+Konfiguriere Alarme im **Alarme**-Tab des Workflows, damit ein Admin per E-Mail benachrichtigt wird, wenn ein Workflow fehlschlägt, länger als ein Schwellwert läuft oder einen Fehler erzeugt, der einem Muster entspricht. Für Workflow-übergreifende Alarme (z. B. "mehr als 5 Fehlschläge pro Stunde über alle Workflows") nutze [Operations](/de/self-hosted/operate/observability/operations).

@@ -4,13 +4,8 @@
   "description": "Shopify Admin API integration for products, customers, and orders",
   "version": 1,
   "authMethod": "api_key",
-  "secretBindings": [
-    "domain",
-    "accessToken"
-  ],
-  "allowedHosts": [
-    "myshopify.com"
-  ],
+  "secretBindings": ["domain", "accessToken"],
+  "allowedHosts": ["myshopify.com"],
   "operations": [
     {
       "name": "list_products",

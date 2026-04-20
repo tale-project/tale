@@ -3,13 +3,13 @@ title: Authentification
 description: Comment fonctionne l'authentification dans Tale — mot de passe, SSO Microsoft Entra ID et Trusted Headers.
 ---
 
-Tale est une plateforme offline-first. Pas d'inscription self-service ni de reset de mot de passe. Le premier utilisateur qui ouvre l'application crée le compte Owner. Tous les suivants sont créés par un admin dans **Paramètres > Members**.
+Tale est une plateforme offline-first. Pas d'inscription self-service ni de reset de mot de passe. Le premier utilisateur qui ouvre l'application crée le compte Owner. Tous les suivants sont créés par un admin dans **Paramètres > Membres**.
 
 Pour activer la connexion self-service et le provisioning automatique des comptes, connecte Tale à un fournisseur SSO ou configure des Trusted Headers.
 
 ## Mot de passe (par défaut)
 
-Aucune configuration requise. Les admins créent les utilisateurs avec e-mail, mot de passe et rôle dans **Paramètres > Members**. Les utilisateurs se connectent avec leurs credentials sur la page de login.
+Aucune configuration requise. Les admins créent les utilisateurs avec e-mail, mot de passe et rôle dans **Paramètres > Membres**. Les utilisateurs se connectent avec leurs credentials sur la page de login.
 
 Les utilisateurs venus par SSO ou Trusted Headers peuvent aussi définir un mot de passe depuis **Paramètres du compte** pour activer la connexion directe.
 
@@ -53,12 +53,12 @@ TRUSTED_HEADERS_ENABLED=true
 
 Par défaut, Tale lit ces headers :
 
-| Header         | Requis | Nom par défaut  | Description                                                                                   |
-| -------------- | ------ | --------------- | --------------------------------------------------------------------------------------------- |
-| E-mail         | Oui    | `Remote-Email`  | adresse e-mail de l'utilisateur.                                                              |
-| Nom affiché    | Non    | `Remote-Name`   | nom affiché (retombe sur la partie avant `@`).                                                |
-| Rôle           | Non    | `Remote-Role`   | `admin`, `developer`, `editor` ou `member` (défaut : `member`).                               |
-| Équipes        | Non    | `Remote-Teams`  | liste séparée par virgules au format `id:name` (ex. `abc123:Engineering, def456:Design`).     |
+| Header      | Requis | Nom par défaut | Description                                                                               |
+| ----------- | ------ | -------------- | ----------------------------------------------------------------------------------------- |
+| E-mail      | Oui    | `Remote-Email` | adresse e-mail de l'utilisateur.                                                          |
+| Nom affiché | Non    | `Remote-Name`  | nom affiché (retombe sur la partie avant `@`).                                            |
+| Rôle        | Non    | `Remote-Role`  | `admin`, `developer`, `editor` ou `member` (défaut : `member`).                           |
+| Équipes     | Non    | `Remote-Teams` | liste séparée par virgules au format `id:name` (ex. `abc123:Engineering, def456:Design`). |
 
 Chaque proxy utilise des noms différents. Surcharge les défauts avec des variables d'environnement :
 
@@ -71,11 +71,11 @@ TRUSTED_TEAMS_HEADER=X-Forwarded-Teams
 
 Configurations proxy courantes :
 
-| Proxy          | Header e-mail               | Header nom                  | Header groupes/rôle         |
-| -------------- | --------------------------- | --------------------------- | --------------------------- |
-| Authelia       | `Remote-Email`              | `Remote-Name`               | `Remote-Groups`             |
-| Authentik      | `X-authentik-email`         | `X-authentik-name`          | `X-authentik-groups`        |
-| oauth2-proxy   | `X-Forwarded-Email`         | `X-Forwarded-User`          | `X-Forwarded-Groups`        |
+| Proxy        | Header e-mail       | Header nom         | Header groupes/rôle  |
+| ------------ | ------------------- | ------------------ | -------------------- |
+| Authelia     | `Remote-Email`      | `Remote-Name`      | `Remote-Groups`      |
+| Authentik    | `X-authentik-email` | `X-authentik-name` | `X-authentik-groups` |
+| oauth2-proxy | `X-Forwarded-Email` | `X-Forwarded-User` | `X-Forwarded-Groups` |
 
 ### Fonctionnement
 

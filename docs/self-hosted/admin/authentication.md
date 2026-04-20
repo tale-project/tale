@@ -53,12 +53,12 @@ TRUSTED_HEADERS_ENABLED=true
 
 By default, Tale reads these headers:
 
-| Header         | Required | Default name    | Description                                                                                    |
-| -------------- | -------- | --------------- | ---------------------------------------------------------------------------------------------- |
-| Email          | Yes      | `Remote-Email`  | User's email address                                                                           |
-| Display name   | No       | `Remote-Name`   | User's display name (falls back to email username)                                             |
-| Role           | No       | `Remote-Role`   | One of `admin`, `developer`, `editor`, or `member` (defaults to `member`)                      |
-| Teams          | No       | `Remote-Teams`  | Comma-separated list in `id:name` format (e.g., `abc123:Engineering, def456:Design`)           |
+| Header       | Required | Default name   | Description                                                                          |
+| ------------ | -------- | -------------- | ------------------------------------------------------------------------------------ |
+| Email        | Yes      | `Remote-Email` | User's email address                                                                 |
+| Display name | No       | `Remote-Name`  | User's display name (falls back to email username)                                   |
+| Role         | No       | `Remote-Role`  | One of `admin`, `developer`, `editor`, or `member` (defaults to `member`)            |
+| Teams        | No       | `Remote-Teams` | Comma-separated list in `id:name` format (e.g., `abc123:Engineering, def456:Design`) |
 
 Every proxy uses different header names. Override the defaults with environment variables to match your proxy:
 
@@ -71,11 +71,11 @@ TRUSTED_TEAMS_HEADER=X-Forwarded-Teams
 
 Common proxy configurations:
 
-| Proxy          | Email header                | Name header                 | Groups/Role header          |
-| -------------- | --------------------------- | --------------------------- | --------------------------- |
-| Authelia       | `Remote-Email`              | `Remote-Name`               | `Remote-Groups`             |
-| Authentik      | `X-authentik-email`         | `X-authentik-name`          | `X-authentik-groups`        |
-| oauth2-proxy   | `X-Forwarded-Email`         | `X-Forwarded-User`          | `X-Forwarded-Groups`        |
+| Proxy        | Email header        | Name header        | Groups/Role header   |
+| ------------ | ------------------- | ------------------ | -------------------- |
+| Authelia     | `Remote-Email`      | `Remote-Name`      | `Remote-Groups`      |
+| Authentik    | `X-authentik-email` | `X-authentik-name` | `X-authentik-groups` |
+| oauth2-proxy | `X-Forwarded-Email` | `X-Forwarded-User` | `X-Forwarded-Groups` |
 
 ### How it works
 

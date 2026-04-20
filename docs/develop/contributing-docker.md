@@ -92,13 +92,13 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 Each image has a size budget. CI will fail if an image exceeds its budget.
 
-| Service   | Budget   | Current   |
-| --------- | -------- | --------- |
-| Crawler   | 2,100 MB | ~1,850 MB |
-| RAG       | 600 MB   | ~515 MB   |
-| Platform  | 2,900 MB | ~2,580 MB |
-| DB        | 1,200 MB | ~1,060 MB |
-| Proxy     | 100 MB   | ~88 MB    |
+| Service  | Budget   | Current   |
+| -------- | -------- | --------- |
+| Crawler  | 2,100 MB | ~1,850 MB |
+| RAG      | 600 MB   | ~515 MB   |
+| Platform | 2,900 MB | ~2,580 MB |
+| DB       | 1,200 MB | ~1,060 MB |
+| Proxy    | 100 MB   | ~88 MB    |
 
 ### Common reasons for size increases
 
@@ -131,6 +131,7 @@ bun run docker:test
 ```
 
 This runs `tests/container-smoke-test.sh` which:
+
 - Builds all 5 images
 - Starts services on non-conflicting ports (15432, 18001, 18002, etc.)
 - Waits for health checks
@@ -145,6 +146,7 @@ bun run docker:test:image
 ```
 
 Checks each image for:
+
 - OCI `org.opencontainers.image.version` label
 - Non-root user (required for platform)
 - No secrets baked into image env or filesystem
@@ -210,6 +212,7 @@ docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-t
 ### Python package not found at runtime
 
 If a package is installed in the builder but not available in the runtime stage, check that:
+
 1. You're copying from the correct path: `COPY --from=builder /usr/local/lib/python3.11/site-packages ...`
 2. The package's `.dist-info` isn't being removed if something depends on metadata at runtime
 3. The strip step isn't removing required `.so` files
@@ -217,5 +220,6 @@ If a package is installed in the builder but not available in the runtime stage,
 ### Node.js module not found at runtime
 
 If a module is missing after the pruner stage, check:
+
 1. Whether it's listed in `dependencies` (not `devDependencies`) in `package.json`
 2. Whether the pruner step explicitly removes it in the `rm -rf` list

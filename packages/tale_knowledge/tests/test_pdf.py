@@ -32,9 +32,7 @@ def _make_pdf_with_image(text: str = "Caption text", image_size: int = 200) -> b
     pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, image_size, image_size), 1)
     pixmap.set_rect(pixmap.irect, (255, 0, 0, 255))
     img_bytes = pixmap.tobytes("png")
-    page.insert_image(
-        fitz.Rect(72, 150, 72 + image_size, 150 + image_size), stream=img_bytes
-    )
+    page.insert_image(fitz.Rect(72, 150, 72 + image_size, 150 + image_size), stream=img_bytes)
     pixmap = None
 
     pdf_bytes = doc.tobytes()
@@ -186,9 +184,7 @@ class TestExtractTextFromPdfBytes:
         mock_client = AsyncMock()
         mock_client.max_concurrent_pages = 3
 
-        result = await extract_text_from_pdf_bytes(
-            pdf_bytes, vision_client=mock_client, process_images=False
-        )
+        result = await extract_text_from_pdf_bytes(pdf_bytes, vision_client=mock_client, process_images=False)
         assert long_text in result.text
         assert "[Image:" not in result.text
         mock_client.describe_image.assert_not_called()

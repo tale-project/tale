@@ -52,12 +52,12 @@ When you visit our website, our hosting provider (Framer) may temporarily proces
 
 We process your personal data for the following purposes:
 
-| Purpose                                        | Data involved                                    | Legal basis (FADP)  | Legal basis (GDPR)                                              |
-| ---------------------------------------------- | ------------------------------------------------ | ------------------- | --------------------------------------------------------------- |
-| Responding to your inquiry                     | Name, email, company, message                    | Legitimate interest | Art. 6(1)(f) GDPR — Legitimate interest                         |
-| Scheduling and conducting a product demo       | Name, email, phone, company, area of interest    | Legitimate interest | Art. 6(1)(b) GDPR — Pre-contractual measures                    |
-| Maintaining and securing our website           | Technical data (IP address, browser)             | Legitimate interest | Art. 6(1)(f) GDPR — Legitimate interest                         |
-| Establishing a potential business relationship | Contact form data                                | Legitimate interest | Art. 6(1)(f) GDPR — Legitimate interest                         |
+| Purpose                                        | Data involved                                 | Legal basis (FADP)  | Legal basis (GDPR)                           |
+| ---------------------------------------------- | --------------------------------------------- | ------------------- | -------------------------------------------- |
+| Responding to your inquiry                     | Name, email, company, message                 | Legitimate interest | Art. 6(1)(f) GDPR — Legitimate interest      |
+| Scheduling and conducting a product demo       | Name, email, phone, company, area of interest | Legitimate interest | Art. 6(1)(b) GDPR — Pre-contractual measures |
+| Maintaining and securing our website           | Technical data (IP address, browser)          | Legitimate interest | Art. 6(1)(f) GDPR — Legitimate interest      |
+| Establishing a potential business relationship | Contact form data                             | Legitimate interest | Art. 6(1)(f) GDPR — Legitimate interest      |
 
 Under the Swiss FADP, processing of personal data is generally permitted unless it violates the personality rights of the data subject. We process your data in good faith, proportionally, and only for the purposes stated above.
 

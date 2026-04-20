@@ -7,13 +7,13 @@ Quand tu lances `tale init`, le CLI génère des fichiers de configuration qui r
 
 ## Ce qui est généré
 
-| Fichier                            | Rôle                                       | Éditeur             |
-| ---------------------------------- | ------------------------------------------ | ------------------- |
-| `CLAUDE.md`                        | règles et contexte projet                  | Claude Code         |
-| `.cursor/rules/tale.mdc`           | règles avec frontmatter glob               | Cursor              |
-| `.github/copilot-instructions.md`  | règles projet                              | GitHub Copilot      |
-| `.windsurfrules`                   | règles projet                              | Windsurf            |
-| `.tale/reference/`                 | code source plateforme complet (read-only) | tous les précédents |
+| Fichier                           | Rôle                                       | Éditeur             |
+| --------------------------------- | ------------------------------------------ | ------------------- |
+| `CLAUDE.md`                       | règles et contexte projet                  | Claude Code         |
+| `.cursor/rules/tale.mdc`          | règles avec frontmatter glob               | Cursor              |
+| `.github/copilot-instructions.md` | règles projet                              | GitHub Copilot      |
+| `.windsurfrules`                  | règles projet                              | Windsurf            |
+| `.tale/reference/`                | code source plateforme complet (read-only) | tous les précédents |
 
 Les fichiers de règles contiennent le même cœur : structure projet, conventions de config et instruction de consulter `.tale/reference/` avant toute modification. Le répertoire reference contient tout le code source backend — schémas DB, validators, outils d'agent, types d'étape workflow et connecteurs d'intégration. L'IA a tout ce qu'il faut pour générer des configurations correctes.
 

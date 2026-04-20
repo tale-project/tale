@@ -1,20 +1,20 @@
 ---
 title: Teams
-description: Members in Teams organisieren und die Sichtbarkeit der Wissensdatenbank beschränken.
+description: Mitglieder in Teams organisieren und die Sichtbarkeit der Wissensdatenbank beschränken.
 ---
 
-Teams erlauben dir, Members zu gruppieren — Engineering, Sales, Support, Legal — und zu steuern, welches Wissen jede Gruppe sieht. Ein Team ist eine weiche Gruppierung: Login, Rollen und Berechtigungen werden nicht beeinflusst. Es _wirkt_ sich aber darauf aus, welche Dokumente und Konversationen in den gefilterten Ansichten jedes Mitglieds erscheinen.
+Teams erlauben dir, Mitglieder zu gruppieren — Engineering, Sales, Support, Legal — und zu steuern, welches Wissen jede Gruppe sieht. Ein Team ist eine weiche Gruppierung: Login, Rollen und Berechtigungen werden nicht beeinflusst. Es _wirkt_ sich aber darauf aus, welche Dokumente und Konversationen in den gefilterten Ansichten jedes Mitglieds erscheinen.
 
 Die Team-Verwaltung liegt unter **Einstellungen > Teams** und ist Admin-only.
 
 ## Ein Team anlegen
 
-1. Gehe zu **Einstellungen > Teams** und klicke auf **Add team**.
+1. Gehe zu **Einstellungen > Teams** und klicke auf **Team erstellen**.
 2. Gib einen Team-Namen ein — kurz, er erscheint in Filtermenüs durch die ganze UI.
 3. Optional eine Beschreibung hinzufügen.
-4. Klicke Create.
+4. Klicke auf **Erstellen**.
 
-Members fügst du separat über die Detailseite des Teams hinzu. Dieselbe Person kann beliebig vielen Teams angehören.
+Mitglieder fügst du separat über die Detailseite des Teams hinzu. Dieselbe Person kann beliebig vielen Teams angehören.
 
 ## Was Teams beeinflussen
 
@@ -22,7 +22,7 @@ Members fügst du separat über die Detailseite des Teams hinzu. Dieselbe Person
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Dokumente**                | Ein Dokument kann beim Upload einem oder mehreren Teams zugeordnet werden. Mitglieder sehen bei aktivem Team-Filter nur Dokumente ihrer Teams.                 |
 | **Konversationen**           | Konversationen lassen sich einem Team zuordnen. Team-basierte Inboxes erlauben Support, Support-Threads zu sehen, und Sales, Sales-Threads — ohne Vermischung. |
-| **Agents**                   | Der Knowledge-Tab eines Agents kann auf team-getaggtes Wissen beschränkt werden, sodass ein Support-Agent nur Support-Inhalte durchsucht.                      |
+| **Agents**                   | Der Wissen-Tab eines Agents kann auf team-getaggtes Wissen beschränkt werden, sodass ein Support-Agent nur Support-Inhalte durchsucht.                         |
 | **Budgets und Model Access** | Governance-Richtlinien (siehe [Governance](/de/platform/admin/governance)) lassen sich pro Team scopen.                                                        |
 
 ## Team-Manager

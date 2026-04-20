@@ -1,14 +1,14 @@
 name: Improvement
 description: Suggest an enhancement to an existing feature.
-title: "Improvement: "
-labels: ["improvement"]
+title: 'Improvement: '
+labels: ['improvement']
 body:
   - type: textarea
     id: description
     attributes:
       label: What should be improved?
       description: Which existing feature could be better?
-      placeholder: "e.g. The document preview should support syntax highlighting for more languages."
+      placeholder: 'e.g. The document preview should support syntax highlighting for more languages.'
     validations:
       required: true
 
@@ -17,7 +17,7 @@ body:
     attributes:
       label: Current behavior
       description: How does it work today?
-      placeholder: "e.g. Only JavaScript and Python files get syntax highlighting in the preview."
+      placeholder: 'e.g. Only JavaScript and Python files get syntax highlighting in the preview.'
     validations:
       required: true
 
@@ -26,7 +26,7 @@ body:
     attributes:
       label: Proposed change
       description: What would the improved behavior look like?
-      placeholder: "e.g. Add highlighting for Go, Rust, and YAML files using the existing Shiki setup."
+      placeholder: 'e.g. Add highlighting for Go, Rust, and YAML files using the existing Shiki setup.'
     validations:
       required: true
 

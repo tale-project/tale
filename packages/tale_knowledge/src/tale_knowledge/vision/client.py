@@ -107,9 +107,7 @@ class VisionClient:
                                 {"type": "text", "text": prompt},
                                 {
                                     "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:{mime_type};base64,{image_b64}"
-                                    },
+                                    "image_url": {"url": f"data:{mime_type};base64,{image_b64}"},
                                 },
                             ],
                         }
@@ -133,9 +131,7 @@ class VisionClient:
             return result
 
         except TimeoutError:
-            raise TimeoutError(
-                f"Vision API OCR request timed out after {self._request_timeout}s"
-            ) from None
+            raise TimeoutError(f"Vision API OCR request timed out after {self._request_timeout}s") from None
         except Exception as e:
             logger.error(f"Vision API OCR request failed: {e}")
             raise
@@ -158,9 +154,7 @@ class VisionClient:
                                 {"type": "text", "text": prompt},
                                 {
                                     "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:{mime_type};base64,{image_b64}"
-                                    },
+                                    "image_url": {"url": f"data:{mime_type};base64,{image_b64}"},
                                 },
                             ],
                         }
@@ -180,9 +174,7 @@ class VisionClient:
             return result
 
         except TimeoutError:
-            raise TimeoutError(
-                f"Vision API describe_image request timed out after {self._request_timeout}s"
-            ) from None
+            raise TimeoutError(f"Vision API describe_image request timed out after {self._request_timeout}s") from None
         except Exception as e:
             logger.error(f"Vision API description request failed: {e}")
             raise
@@ -198,9 +190,7 @@ class VisionClient:
             lambda: self._do_ocr(image_bytes, extraction_prompt),
         )
 
-    async def describe_image(
-        self, image_bytes: bytes, prompt: str | None = None
-    ) -> str:
+    async def describe_image(self, image_bytes: bytes, prompt: str | None = None) -> str:
         """Generate a description of an image for indexing.
 
         Uses per-key locking to prevent duplicate API calls for the same image.

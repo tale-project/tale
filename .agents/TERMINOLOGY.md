@@ -77,7 +77,7 @@ Each language file specifies its quotation style. As a default:
 
 - SENTENCE case for headings in every locale. `## Agent concepts`, `## Concepts des agents`, `## Agent-Konzepte`.
 - ALIGN markdown tables — pipes lined up, cells padded evenly. Reviewers read tables in editors, not just rendered.
-- PRESERVE code-block language identifiers (`` ```bash ``, `` ```json ``) — they control syntax highlighting.
+- PRESERVE code-block language identifiers (` ```bash `, ` ```json `) — they control syntax highlighting.
 - KEEP Mermaid diagram syntax untouched. Translate only node labels and prose captions, never the `-->` arrows, `participant` keywords, or block structures.
 
 ## Anchor links across locales

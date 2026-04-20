@@ -25,7 +25,7 @@ Attends le message Ready dans les logs. Ça peut prendre jusqu'à deux minutes. 
 
 ### Les réponses IA sont lentes ou échouent
 
-Vérifie ta clé API fournisseur dans Paramètres > Fournisseurs. Causes courantes :
+Vérifie ta clé API fournisseur dans Paramètres > Fournisseurs IA. Causes courantes :
 
 - Clé API expirée ou révoquée. Régénère-la sur openrouter.ai et mets-la à jour.
 - Crédit insuffisant sur ton compte OpenRouter.
@@ -34,7 +34,7 @@ Vérifie ta clé API fournisseur dans Paramètres > Fournisseurs. Causes courant
 
 ### Les documents ne sont pas cherchables après upload
 
-L'indexation tourne en arrière-plan. Après l'upload, le service RAG extrait le texte, le découpe en morceaux, génère les embeddings et écrit dans la base. Les gros fichiers comme des PDF de centaines de pages peuvent prendre plusieurs minutes. Regarde l'indicateur de statut dans Connaissances > Documents.
+L'indexation tourne en arrière-plan. Après l'upload, le service RAG extrait le texte, le découpe en morceaux, génère les embeddings et écrit dans la base. Les gros fichiers comme des PDF de centaines de pages peuvent prendre plusieurs minutes. Regarde l'indicateur de statut dans Base de connaissances > Documents.
 
 ### Le crawling ne remonte aucune page
 
@@ -52,7 +52,7 @@ ouvre ton `.env` et assure-toi que `DB_PASSWORD` a une valeur non vide. À la pr
 
 ### Mot de passe admin oublié
 
-Si tu es verrouillé hors de ton compte admin, un autre admin peut réinitialiser ton mot de passe depuis Paramètres > Organisation > ligne du member > Modifier > Définir le mot de passe. Si aucun admin n'est disponible, quelqu'un avec accès Docker peut utiliser le Convex Dashboard pour mettre à jour l'enregistrement utilisateur directement.
+Si tu es verrouillé hors de ton compte admin, un autre admin peut réinitialiser ton mot de passe depuis Paramètres > Membres > ligne du membre > Modifier > Définir le mot de passe. Si aucun admin n'est disponible, quelqu'un avec accès Docker peut utiliser le Convex Dashboard pour mettre à jour l'enregistrement utilisateur directement.
 
 ## Problèmes de build et de conteneurs
 

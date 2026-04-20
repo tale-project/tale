@@ -92,13 +92,13 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 Chaque image a un budget de taille. CI échoue si dépassé.
 
-| Service   | Budget   | Actuel    |
-| --------- | -------- | --------- |
-| Crawler   | 2 100 Mo | ~1 850 Mo |
-| RAG       | 600 Mo   | ~515 Mo   |
-| Platform  | 2 900 Mo | ~2 580 Mo |
-| DB        | 1 200 Mo | ~1 060 Mo |
-| Proxy     | 100 Mo   | ~88 Mo    |
+| Service  | Budget   | Actuel    |
+| -------- | -------- | --------- |
+| Crawler  | 2 100 Mo | ~1 850 Mo |
+| RAG      | 600 Mo   | ~515 Mo   |
+| Platform | 2 900 Mo | ~2 580 Mo |
+| DB       | 1 200 Mo | ~1 060 Mo |
+| Proxy    | 100 Mo   | ~88 Mo    |
 
 ### Causes courantes d'augmentation
 

@@ -19,10 +19,10 @@ Les connexions de canaux sont mises en place une fois par un Developer dans [Int
 ## Répondre
 
 1. Clique une conversation pour l'ouvrir dans le panneau de droite.
-2. Le compositeur se charge en bas. C'est un éditeur rich-text qui supporte gras, italique, listes, liens et blocs de code.
+2. Le composeur se charge en bas. C'est un éditeur rich-text qui supporte gras, italique, listes, liens et blocs de code.
 3. Écris ta réponse. Tu peux joindre des fichiers avec l'icône trombone.
-4. Utilise le bouton **AI Improve**, si activé, pour que l'IA nettoie ton message avant envoi.
-5. Clique Send. Le message part par le canal utilisé par le client.
+4. Utilise le bouton **Améliorer avec l'IA** (si activé) pour que l'IA nettoie ton message avant envoi.
+5. Clique **Envoyer**. Le message part par le canal utilisé par le client.
 
 ## Actions en masse
 

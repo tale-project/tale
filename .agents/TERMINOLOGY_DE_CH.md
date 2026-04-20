@@ -27,13 +27,13 @@ Note that most of Tale's current German text already avoids "ß" (e.g. "muss", "
 
 Swiss German accepts more English loanwords than standard German, and has some distinct vocabulary. Only override when the Swiss form is clearly preferred; avoid forcing Helvetisms for their own sake.
 
-| Standard German (de) | Swiss German (de-CH)         | When to override                                       |
-| -------------------- | ---------------------------- | ------------------------------------------------------ |
-| Bürgersteig          | Trottoir                     | Unlikely in Tale content; noted for completeness       |
-| Geldbörse / Brieftasche | Portemonnaie              | Unlikely in Tale content                               |
-| parken               | parkieren                    | Rarely applicable                                      |
-| Velo (bicycle)       | Velo                         | Same; only notable if comparing to standard "Fahrrad"  |
-| E-Mail               | E-Mail                       | Same — no override needed                              |
+| Standard German (de)    | Swiss German (de-CH) | When to override                                      |
+| ----------------------- | -------------------- | ----------------------------------------------------- |
+| Bürgersteig             | Trottoir             | Unlikely in Tale content; noted for completeness      |
+| Geldbörse / Brieftasche | Portemonnaie         | Unlikely in Tale content                              |
+| parken                  | parkieren            | Rarely applicable                                     |
+| Velo (bicycle)          | Velo                 | Same; only notable if comparing to standard "Fahrrad" |
+| E-Mail                  | E-Mail               | Same — no override needed                             |
 
 In practice, most Tale UI and docs strings need no lexical Swiss override. The "ß" → "ss" substitution is the main mechanical transform.
 

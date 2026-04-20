@@ -4,14 +4,14 @@ version = "0.1.0"
 description = "Knowledge pipeline primitives for Tale Python services"
 requires-python = ">=3.11"
 dependencies = [
-    "tale-shared",
-    "openai==2.31.0",
-    "semantic-text-splitter==0.29.0",
-    "pymupdf==1.27.2.2",
-    "python-docx==1.2.0",
-    "python-pptx==1.0.2",
-    "openpyxl==3.1.5",
-    "loguru==0.7.3",
+  "tale-shared",
+  "openai==2.31.0",
+  "semantic-text-splitter==0.29.0",
+  "pymupdf==1.27.2.2",
+  "python-docx==1.2.0",
+  "python-pptx==1.0.2",
+  "openpyxl==3.1.5",
+  "loguru==0.7.3",
 ]
 
 [tool.uv.sources]
@@ -24,6 +24,18 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["tale_knowledge*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"

@@ -7,13 +7,13 @@ Wenn du `tale init` ausführst, erzeugt die CLI Konfigurationsdateien, mit denen
 
 ## Was erzeugt wird
 
-| Datei                              | Zweck                                         | Editor          |
-| ---------------------------------- | --------------------------------------------- | --------------- |
-| `CLAUDE.md`                        | Projekt-Regeln und Kontext                    | Claude Code     |
-| `.cursor/rules/tale.mdc`           | Projekt-Regeln mit glob-basiertem Frontmatter | Cursor          |
-| `.github/copilot-instructions.md`  | Projekt-Regeln                                | GitHub Copilot  |
-| `.windsurfrules`                   | Projekt-Regeln                                | Windsurf        |
-| `.tale/reference/`                 | vollständiger Plattform-Quellcode (read-only) | alle oben       |
+| Datei                             | Zweck                                         | Editor         |
+| --------------------------------- | --------------------------------------------- | -------------- |
+| `CLAUDE.md`                       | Projekt-Regeln und Kontext                    | Claude Code    |
+| `.cursor/rules/tale.mdc`          | Projekt-Regeln mit glob-basiertem Frontmatter | Cursor         |
+| `.github/copilot-instructions.md` | Projekt-Regeln                                | GitHub Copilot |
+| `.windsurfrules`                  | Projekt-Regeln                                | Windsurf       |
+| `.tale/reference/`                | vollständiger Plattform-Quellcode (read-only) | alle oben      |
 
 Die Regel-Dateien enthalten denselben Kerninhalt: Projektstruktur, Konfigurations-Konventionen und Anweisungen, vor Änderungen `.tale/reference/` zu konsultieren. Das Reference-Verzeichnis enthält den kompletten Backend-Quellcode — Datenbankschemas, Validatoren, Agent-Tools, Workflow-Schritttypen und Integrationen-Connectors. Damit hat die KI alles, was sie braucht, um korrekte Konfigurationen zu erzeugen.
 

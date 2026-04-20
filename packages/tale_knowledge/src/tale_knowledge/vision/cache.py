@@ -116,17 +116,13 @@ class VisionCache:
             logger.debug(f"Vision cache HIT (OCR): {image_hash[:16]}...")
             return self._ocr_cache[image_hash]
 
-        key_lock = await self._acquire_key_lock(
-            image_hash, self._ocr_key_locks, self._ocr_locks_guard
-        )
+        key_lock = await self._acquire_key_lock(image_hash, self._ocr_key_locks, self._ocr_locks_guard)
         try:
             async with key_lock:
                 if image_hash in self._ocr_cache:
                     self._stats["ocr_hits"] += 1
                     self._ocr_cache.move_to_end(image_hash)
-                    logger.debug(
-                        f"Vision cache HIT (OCR, after lock): {image_hash[:16]}..."
-                    )
+                    logger.debug(f"Vision cache HIT (OCR, after lock): {image_hash[:16]}...")
                     return self._ocr_cache[image_hash]
 
                 self._stats["ocr_misses"] += 1
@@ -134,9 +130,7 @@ class VisionCache:
                 self.set_ocr(image_hash, result)
                 return result
         finally:
-            await self._release_key_lock(
-                image_hash, self._ocr_key_locks, self._ocr_locks_guard
-            )
+            await self._release_key_lock(image_hash, self._ocr_key_locks, self._ocr_locks_guard)
 
     def get_description(self, image_bytes: bytes) -> tuple[str | None, str]:
         """Get cached image description. Returns (cached_result_or_None, image_hash)."""
@@ -173,17 +167,13 @@ class VisionCache:
             logger.debug(f"Vision cache HIT (description): {image_hash[:16]}...")
             return self._description_cache[image_hash]
 
-        key_lock = await self._acquire_key_lock(
-            image_hash, self._description_key_locks, self._description_locks_guard
-        )
+        key_lock = await self._acquire_key_lock(image_hash, self._description_key_locks, self._description_locks_guard)
         try:
             async with key_lock:
                 if image_hash in self._description_cache:
                     self._stats["description_hits"] += 1
                     self._description_cache.move_to_end(image_hash)
-                    logger.debug(
-                        f"Vision cache HIT (description, after lock): {image_hash[:16]}..."
-                    )
+                    logger.debug(f"Vision cache HIT (description, after lock): {image_hash[:16]}...")
                     return self._description_cache[image_hash]
 
                 self._stats["description_misses"] += 1
@@ -191,9 +181,7 @@ class VisionCache:
                 self.set_description(image_hash, result)
                 return result
         finally:
-            await self._release_key_lock(
-                image_hash, self._description_key_locks, self._description_locks_guard
-            )
+            await self._release_key_lock(image_hash, self._description_key_locks, self._description_locks_guard)
 
     def get_stats(self) -> dict[str, int]:
         return {

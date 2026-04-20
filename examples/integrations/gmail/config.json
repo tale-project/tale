@@ -4,16 +4,9 @@
   "description": "Google Gmail API integration for email, labels, threads, and drafts",
   "version": 2,
   "authMethod": "oauth2",
-  "supportedAuthMethods": [
-    "oauth2"
-  ],
-  "secretBindings": [
-    "accessToken"
-  ],
-  "allowedHosts": [
-    "gmail.googleapis.com",
-    "www.googleapis.com"
-  ],
+  "supportedAuthMethods": ["oauth2"],
+  "secretBindings": ["accessToken"],
+  "allowedHosts": ["gmail.googleapis.com", "www.googleapis.com"],
   "oauth2Config": {
     "authorizationUrl": "https://accounts.google.com/o/oauth2/v2/auth",
     "tokenUrl": "https://oauth2.googleapis.com/token",

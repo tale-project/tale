@@ -35,7 +35,7 @@ Configure combien de temps les conversations, fichiers téléversés et enregist
 
 ### Contrôles de fonctionnalités
 
-Active/désactive des fonctionnalités à l'échelle de l'organisation : téléversement de fichiers, recherche web, génération d'image, arena mode, etc. Les fonctionnalités désactivées ici sont masquées de l'UI pour tous les utilisateurs.
+Active/désactive des fonctionnalités à l'échelle de l'organisation : téléversement de fichiers, recherche web, génération d'image, Mode Arène, etc. Les fonctionnalités désactivées ici sont masquées de l'UI pour tous les utilisateurs.
 
 ## Sécurité et monitoring
 
@@ -45,10 +45,10 @@ Active la détection automatique et le masquage (ou blocage) des données à car
 
 ### Tableau de bord d'utilisation
 
-Vois la consommation de tokens, la ventilation des coûts et les tendances d'usage. Filtre par équipe, utilisateur, modèle ou période. Pour une analyse plus poussée, voir [Usage analytics](/fr/platform/admin/usage-analytics).
+Vois la consommation de tokens, la ventilation des coûts et les tendances d'usage. Filtre par équipe, utilisateur, modèle ou période. Pour une analyse plus poussée, voir [Analyses d'utilisation](/fr/platform/admin/usage-analytics).
 
 ## Audit logs
 
-Enregistrement chronologique des actions significatives dans l'organisation. Catégories : événements d'authentification, changements de members, opérations sur données, mises à jour d'intégrations, publications de workflows, événements de sécurité, actions admin. Utile pour la conformité et le dépannage.
+Enregistrement chronologique des actions significatives dans l'organisation. Catégories : événements d'authentification, changements de membres, opérations sur données, mises à jour d'intégrations, publications de workflows, événements de sécurité, actions admin. Utile pour la conformité et le dépannage.
 
 Les admins peuvent exporter les audit logs en **CSV** ou **JSON** depuis les boutons au-dessus de la table. Les exports respectent le filtre de catégorie actif.

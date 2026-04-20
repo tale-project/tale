@@ -7,7 +7,7 @@ La comparaison de documents te laisse téléverser ou sélectionner deux documen
 
 ## Démarrer une comparaison
 
-1. Va dans **Connaissances > Documents**.
+1. Va dans **Base de connaissances > Documents**.
 2. Ouvre le dialogue de comparaison depuis le menu d'actions.
 3. Sélectionne deux documents :
 
@@ -18,10 +18,10 @@ La comparaison de documents te laisse téléverser ou sélectionner deux documen
 
 Chaque côté a deux onglets :
 
-- **Upload** — glisse-dépose ou parcours pour téléverser depuis ton appareil.
-- **Existing** — cherche et sélectionne dans les documents déjà dans ta base.
+- **Téléverser** — glisse-dépose ou parcours pour téléverser depuis ton appareil.
+- **Existant** — cherche et sélectionne dans les documents déjà dans ta base.
 
-4. Clique **Compare**. La plateforme envoie les deux documents au service RAG pour analyse.
+4. Clique **Comparer**. La plateforme envoie les deux documents au service RAG pour analyse.
 
 ### Types de fichiers pris en charge
 

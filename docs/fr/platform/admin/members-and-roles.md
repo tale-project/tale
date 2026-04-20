@@ -7,7 +7,7 @@ Tale utilise six rôles. Chaque utilisateur a exactement un rôle dans une organ
 
 ## Gérer les membres
 
-La table sous **Paramètres > Members** liste tous les utilisateurs de l'organisation avec e-mail, nom affiché, rôle et date d'arrivée. Les admins peuvent :
+La table sous **Paramètres > Membres** liste tous les utilisateurs de l'organisation avec e-mail, nom affiché, rôle et date d'arrivée. Les admins peuvent :
 
 - **Ajouter des membres** — e-mail, mot de passe optionnel, nom affiché et rôle. Si l'e-mail existe déjà dans Tale, l'utilisateur est ajouté à l'organisation sans créer de nouveau compte.
 - **Éditer des membres** — changer le nom affiché, le rôle, ou définir un nouveau mot de passe.
@@ -42,7 +42,7 @@ Pour les options d'authentification (mot de passe, SSO Microsoft Entra ID, Trust
 | --------------------------------------------- | ------ | ------ | --------- | ----- |
 | Voir toutes les entrées                       | ✓      | ✓      | ✓         | ✓     |
 | Téléverser / éditer / supprimer des documents | —      | ✓      | ✓         | ✓     |
-| Gérer Products, Customers, Vendors            | —      | ✓      | ✓         | ✓     |
+| Gérer Produits, Clients, Fournisseurs         | —      | ✓      | ✓         | ✓     |
 | Ajouter et configurer le crawling             | —      | ✓      | ✓         | ✓     |
 
 ### Conversations
@@ -90,7 +90,7 @@ Pour les options d'authentification (mot de passe, SSO Microsoft Entra ID, Trust
 | Fonctionnalité                        | Member | Editor | Developer | Admin |
 | ------------------------------------- | ------ | ------ | --------- | ----- |
 | Voir les paramètres de l'organisation | —      | —      | —         | ✓     |
-| Éditer nom et branding                | —      | —      | —         | ✓     |
+| Éditer nom et image de marque         | —      | —      | —         | ✓     |
 | Ajouter et retirer des membres        | —      | —      | —         | ✓     |
 | Changer le rôle des membres           | —      | —      | —         | ✓     |
 

@@ -4,15 +4,9 @@
   "description": "GitHub REST API integration for repositories, issues, pull requests, and code search",
   "version": 1,
   "authMethod": "bearer_token",
-  "supportedAuthMethods": [
-    "bearer_token"
-  ],
-  "secretBindings": [
-    "accessToken"
-  ],
-  "allowedHosts": [
-    "api.github.com"
-  ],
+  "supportedAuthMethods": ["bearer_token"],
+  "secretBindings": ["accessToken"],
+  "allowedHosts": ["api.github.com"],
   "operations": [
     {
       "name": "list_repos",

@@ -22,7 +22,7 @@ Das Usage-Analytics-Dashboard unter **Einstellungen > Governance > Usage Dashboa
 Jedes Chart respektiert die globale Filterleiste:
 
 - **Zeitraum** — letzte 7 Tage, letzte 30 Tage, aktueller Monat, letztes Quartal, benutzerdefiniert.
-- **Team** — auf Members ausgewählter Teams beschränken.
+- **Team** — auf Mitglieder ausgewählter Teams beschränken.
 - **Nutzer** — Einzel-Nutzer-Ansicht für gezielte Untersuchungen.
 - **Agent** — auf Konversationen und Automatisierungen beschränken, die einen bestimmten Agent nutzen.
 
@@ -32,7 +32,7 @@ Der **Export**-Button über jedem Chart erzeugt eine CSV mit den zugrunde liegen
 
 ## Aufbewahrung
 
-Analytics-Daten folgen der allgemeinen [Retention-Richtlinie](/de/platform/admin/governance). Standardmäßig werden detaillierte Usage-Datensätze 13 Monate lang aufbewahrt, sodass du Jahr-über-Jahr-Vergleiche hast; aggregierte Monatswerte bleiben unbegrenzt.
+Analytics-Daten folgen der allgemeinen [Aufbewahrungsrichtlinie](/de/platform/admin/governance). Standardmäßig werden detaillierte Usage-Datensätze 13 Monate lang aufbewahrt, sodass du Jahr-über-Jahr-Vergleiche hast; aggregierte Monatswerte bleiben unbegrenzt.
 
 ## Verwandt
 

@@ -1,7 +1,7 @@
 name: Documentation
 description: Report missing, incorrect, or unclear documentation.
-title: "Docs: "
-labels: ["docs"]
+title: 'Docs: '
+labels: ['docs']
 body:
   - type: textarea
     id: description
@@ -17,7 +17,7 @@ body:
     attributes:
       label: Which page or section?
       description: Link or path to the affected documentation.
-      placeholder: "e.g. docs/getting-started.md or https://docs.tale.dev/setup"
+      placeholder: 'e.g. docs/getting-started.md or https://docs.tale.dev/setup'
     validations:
       required: true
 

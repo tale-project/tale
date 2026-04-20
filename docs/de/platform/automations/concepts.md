@@ -7,7 +7,7 @@ Eine Automatisierung ist ein kleines, deterministisches Programm, das startet, w
 
 ## Workflow
 
-Ein Workflow ist die gesamte Automatisierung. Er hat einen Namen, eine Beschreibung, eine Liste von Schritten, einen oder mehrere Trigger und eine Reihe von Konfigurationen (Timeout, Retries, Variables).
+Ein Workflow ist die gesamte Automatisierung. Er hat einen Namen, eine Beschreibung, eine Liste von Schritten, einen oder mehrere Trigger und eine Reihe von Konfigurationen (Timeout, Retries, Variablen).
 
 ## Schritt
 
@@ -28,19 +28,19 @@ Schritte werden mit gerichteten Links verbunden. Die Ausführung folgt den Links
 
 Ein Trigger sagt dem Workflow, wann er laufen soll. Siehe [Trigger](/de/platform/automations/triggers) für die drei Arten (Zeitplan, Event, Webhook) und deren Konfiguration.
 
-## Variables
+## Variablen
 
-Variables sind gemeinsam genutzte Key-Value-Daten, auf die jeder Schritt zugreifen kann. Nützlich für API-Schlüssel, die mehrere Schritte referenzieren, für Feature-Flags, die das Workflow-Verhalten ändern, oder für Konstanten, die du nicht in jeder Schritt-Konfiguration wiederholen willst.
+Variablen sind gemeinsam genutzte Key-Value-Daten, auf die jeder Schritt zugreifen kann. Nützlich für API-Schlüssel, die mehrere Schritte referenzieren, für Feature-Flags, die das Workflow-Verhalten ändern, oder für Konstanten, die du nicht in jeder Schritt-Konfiguration wiederholen willst.
 
-Variables liegen im Configuration-Tab des Workflows. Jeder Schritt kann sie per `{{ variables.name }}` auslesen.
+Variablen liegen im **Konfiguration**-Tab des Workflows. Jeder Schritt kann sie per `{{ variables.name }}` auslesen.
 
-## Draft vs. Active
+## Entwurf vs. Aktiv
 
-Workflows haben, wie Agents, ein Draft-Publish-Modell. Ein Workflow kann erst aktiviert werden, wenn er publiziert ist. Änderungen nach der Aktivierung erzeugen einen neuen Draft, der neben der Live-Version läuft, bis du erneut publizierst.
+Workflows haben, wie Agents, ein Entwurf-Veröffentlichen-Modell. Ein Workflow kann erst aktiviert werden, wenn er veröffentlicht ist. Änderungen nach der Aktivierung erzeugen einen neuen Entwurf, der neben der aktiven Version läuft, bis du erneut veröffentlichst.
 
-## Runs und Executions
+## Läufe und Ausführungen
 
-Jedes Mal, wenn ein Trigger feuert, erstellt die Plattform eine **Execution**. Executions leben im Tab Executions des Workflows mit Startzeit, Dauer, Endstatus und einer Pro-Schritt-Aufschlüsselung von Inputs, Outputs und Fehlern. Siehe [Ausführungslogs](/de/platform/automations/execution-logs).
+Jedes Mal, wenn ein Trigger feuert, erstellt die Plattform eine **Ausführung**. Ausführungen leben im **Ausführungen**-Tab des Workflows mit Startzeit, Dauer, Endstatus und einer Pro-Schritt-Aufschlüsselung von Inputs, Outputs und Fehlern. Siehe [Ausführungslogs](/de/platform/automations/execution-logs).
 
 ## Weiter
 

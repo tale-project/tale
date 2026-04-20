@@ -3,10 +3,7 @@ name = "tale-telemetry"
 version = "0.1.0"
 description = "Prometheus telemetry for Tale Python services"
 requires-python = ">=3.11"
-dependencies = [
-    "fastapi==0.135.3",
-    "prometheus-client==0.25.0",
-]
+dependencies = ["fastapi==0.135.3", "prometheus-client==0.25.0"]
 
 [build-system]
 requires = ["setuptools>=61.0"]
@@ -15,3 +12,15 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["tale_telemetry*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

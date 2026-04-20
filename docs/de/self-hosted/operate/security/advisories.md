@@ -24,12 +24,12 @@ Ein GitHub Security Advisory wird eingereicht, wenn eines der folgenden Kriterie
 
 ## Schwere → Eskalations-Matrix
 
-| CVSS             | Advisory   | Release-Notes                       | Direkte E-Mail an Operatoren                                                   |
-| ---------------- | ---------- | ----------------------------------- | ------------------------------------------------------------------------------ |
-| Critical (9.0+)  | Pflicht    | Pflicht, prominente Zusammenfassung | Ja — vor öffentlicher Offenlegung bei Koordination, sonst bei Veröffentlichung |
-| High (7.0–8.9)   | Pflicht    | Pflicht                             | Nur wenn Ausnutzung keine Nutzer-Aktion braucht                                |
-| Medium (4.0–6.9) | Pflicht    | Pflicht                             | Nein                                                                           |
-| Low (&lt;4.0)    | Optional   | Pflicht                             | Nein                                                                           |
+| CVSS             | Advisory | Release-Notes                       | Direkte E-Mail an Operatoren                                                   |
+| ---------------- | -------- | ----------------------------------- | ------------------------------------------------------------------------------ |
+| Critical (9.0+)  | Pflicht  | Pflicht, prominente Zusammenfassung | Ja — vor öffentlicher Offenlegung bei Koordination, sonst bei Veröffentlichung |
+| High (7.0–8.9)   | Pflicht  | Pflicht                             | Nur wenn Ausnutzung keine Nutzer-Aktion braucht                                |
+| Medium (4.0–6.9) | Pflicht  | Pflicht                             | Nein                                                                           |
+| Low (&lt;4.0)    | Optional | Pflicht                             | Nein                                                                           |
 
 ## Zeitablauf
 

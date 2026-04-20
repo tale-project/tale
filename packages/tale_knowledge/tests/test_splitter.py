@@ -76,9 +76,6 @@ class TestChunkContent:
 
     def test_long_content_multiple_chunks(self):
         # Generate content that's definitely larger than one chunk
-        text = (
-            "# Document Title\n\n"
-            + ("This is a paragraph of text. " * 50 + "\n\n") * 10
-        )
+        text = "# Document Title\n\n" + ("This is a paragraph of text. " * 50 + "\n\n") * 10
         chunks = chunk_content(text)
         assert len(chunks) > 1

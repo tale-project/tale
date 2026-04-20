@@ -29,7 +29,7 @@ Du kannst mehrere Dateien gleichzeitig anhängen. Jede Datei zeigt während des 
 
 Im Chat angehängte Dateien bleiben bei der Konversation — sie werden nicht automatisch in die gemeinsame Wissensdatenbank aufgenommen. Wenn du willst, dass die KI eine Datei für spätere Konversationen behält, lade sie separat in die Wissensdatenbank hoch.
 
-Das Löschen einer Konversation löscht auch ihre Anhänge, sofern deine Organisations-[Retention-Richtlinie](/de/platform/admin/governance) sie nicht länger aufbewahrt.
+Das Löschen einer Konversation löscht auch ihre Anhänge, sofern deine Organisations-[Aufbewahrungsrichtlinie](/de/platform/admin/governance) sie nicht länger aufbewahrt.
 
 ## Sicherheit
 

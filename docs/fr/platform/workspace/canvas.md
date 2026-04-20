@@ -3,11 +3,11 @@ title: Canevas
 description: Visualise, édite et exporte le code, HTML, diagrammes et Markdown générés par l'IA dans un panneau dédié.
 ---
 
-Canevas est un panneau latéral à côté du chat, un espace de travail concentré pour voir et éditer le contenu généré par l'IA. Au lieu de faire défiler les blocs de code dans la conversation, tu les ouvres dans Canevas pour coloration syntaxique, aperçu en direct, édition et export.
+Le canevas est un panneau latéral à côté du chat, un espace de travail concentré pour voir et éditer le contenu généré par l'IA. Au lieu de faire défiler les blocs de code dans la conversation, tu les ouvres dans le canevas pour coloration syntaxique, aperçu en direct, édition et export.
 
-## Ouvrir Canevas
+## Ouvrir le canevas
 
-Quand l'IA génère un bloc de code, un snippet HTML, un diagramme Mermaid ou un bloc Markdown, un bouton **Open in Canevas** apparaît sur le bloc. Clique-le pour ouvrir le contenu dans le panneau Canevas à droite.
+Quand l'IA génère un bloc de code, un snippet HTML, un diagramme Mermaid ou un bloc Markdown, un bouton **Ouvrir dans le canevas** apparaît sur le bloc. Clique-le pour ouvrir le contenu dans le panneau canevas à droite.
 
 ## Types de contenu pris en charge
 
@@ -21,22 +21,22 @@ Quand l'IA génère un bloc de code, un snippet HTML, un diagramme Mermaid ou un
 
 ## Actions de la barre d'outils
 
-L'en-tête Canevas comprend :
+L'en-tête du canevas comprend :
 
-- **bascule Edit / Preview** — passe entre l'édition de la source et l'aperçu du rendu.
-- **Apply** — réécrit tes modifications dans le message source du chat. Apparaît seulement si tu as modifié.
-- **Copy** — copie le contenu dans le presse-papiers.
-- **Download** — télécharge comme fichier avec l'extension adaptée (`.html`, `.mmd`, `.svg`, `.md` ou l'extension du code d'origine).
-- **Close** — ferme le panneau Canevas.
+- **bascule Modifier / Aperçu** — passe entre l'édition de la source et l'aperçu du rendu.
+- **Appliquer les modifications** — réécrit tes modifications dans le message source du chat. Apparaît seulement si tu as modifié.
+- **Copier** — copie le contenu dans le presse-papiers.
+- **Télécharger** — télécharge comme fichier avec l'extension adaptée (`.html`, `.mmd`, `.svg`, `.md` ou l'extension du code d'origine).
+- **Fermer le canevas** — ferme le panneau.
 
 ## Éditer et appliquer
 
 1. Clique l'icône **crayon** pour entrer en mode édition.
 2. Modifie dans l'éditeur.
 3. Clique l'icône **œil** pour voir le rendu.
-4. Clique **Apply** pour réécrire les modifications dans le message source.
+4. Clique **Appliquer les modifications** pour réécrire les modifications dans le message source.
 
-Le bouton Apply n'apparaît que si le contenu diffère de l'original. Un toast confirme l'application.
+Le bouton Appliquer n'apparaît que si le contenu diffère de l'original. Un toast confirme l'application.
 
 ## Redimensionner
 

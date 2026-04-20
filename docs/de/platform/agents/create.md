@@ -7,37 +7,37 @@ Agents sind spezialisierte KI-Assistenten, die du für bestimmte Aufgaben konfig
 
 ## Einen Agent erstellen
 
-1. Navigiere in der Seitenleiste zu Agents.
-2. Klicke auf New Agent.
-3. Gib einen Display Name (im Agent-Selector angezeigt) und einen Internal Name (URL-sicherer Slug für API-Aufrufe, z. B. `support-agent`) ein.
-4. Optional eine Beschreibung hinzufügen, dann Create klicken.
-5. Du landest auf der Konfigurationsseite des Agents, auf der du Instructions, Knowledge, Tools und Webhook einrichtest.
+1. Navigiere in der Seitenleiste zu **Agents**.
+2. Klicke auf **Agent erstellen**.
+3. Gib einen **Anzeigenamen** (im Agent-Selector angezeigt) und einen **Namen** (URL-sicherer Slug für API-Aufrufe, z. B. `support-agent`) ein.
+4. Optional eine Beschreibung hinzufügen, dann auf **Erstellen** klicken.
+5. Du landest auf der Konfigurationsseite des Agents, auf der du **Anweisungen & Modell**, **Wissen**, **Tools** und **Webhook** einrichtest.
 
 ### Datei-basiert mit KI-Unterstützung
 
 Du kannst Agents auch erstellen, indem du JSON-Dateien direkt in das Verzeichnis `agents/` deines Projekts legst. Wenn du das Projekt in einem KI-Editor (Claude Code, Cursor, GitHub Copilot oder Windsurf) öffnest, kennt der Editor die Agent-Schemas und Plattform-Fähigkeiten vollständig. Beschreibe den gewünschten Agent, und er erzeugt eine gültige Konfigurationsdatei. Siehe [AI-assisted development](/de/develop/ai-assisted-development) für die Einrichtung.
 
-## Tab Instructions
+## Tab Anweisungen & Modell
 
 Das ist der wichtigste Tab. Er definiert, was der Agent weiß, wie er sich verhält und was er tun kann.
 
-- System Instructions: der Prompt, der dem Modell vor jeder Konversation vorangestellt wird. Nutze ihn, um Rolle, Ton, erlaubte und verbotene Themen und Antwortformate festzulegen.
-- Model Preset: wähle zwischen Fast, Standard und Advanced. Jede Stufe ist einem in den Anbieter-Dateien (`providers/*.json`) konfigurierten KI-Modell zugeordnet.
-- Structured Responses: wenn an, formatiert der Agent seine Antworten mit einheitlicher Struktur (Abschnitte und Listen) statt Freitext.
+- **Systemanweisungen**: der Prompt, der dem Modell vor jeder Konversation vorangestellt wird. Nutze ihn, um Rolle, Ton, erlaubte und verbotene Themen und Antwortformate festzulegen.
+- **Modellvoreinstellung**: wähle zwischen **Schnell**, **Standard** und **Erweitert**. Jede Stufe ist einem in den Anbieter-Dateien (`providers/*.json`) konfigurierten KI-Modell zugeordnet.
+- **Strukturierte Antworten**: wenn an, formatiert der Agent seine Antworten mit einheitlicher Struktur (Abschnitte und Listen) statt Freitext.
 
 Änderungen in diesem Tab werden automatisch gespeichert. Eine Speicher-Anzeige oben rechts zeigt den aktuellen Status.
 
-## Tab Knowledge
+## Tab Wissen
 
 Steuert, welche Teile der Wissensdatenbank dieser Agent durchsuchen darf. Standardmäßig können Agents das gesamte Organisationswissen durchsuchen. Du kannst den Zugriff auf bestimmte Dokumenten-Ordner, Produktkategorien oder team-gebundene Daten einschränken.
 
 ## Tab Tools
 
-Steuert, welche Plattform-Fähigkeiten der Agent nutzen darf. Schalte einzelne Tools ein oder aus. Zum Beispiel kann ein reiner Support-Agent Web-Browsing aus- und Customer-Lookup anhaben.
+Steuert, welche Plattform-Fähigkeiten der Agent nutzen darf. Schalte einzelne Tools ein oder aus. Zum Beispiel kann ein reiner Support-Agent Web-Browsing aus- und Kunden-Lookup anhaben.
 
-## Tab Conversation Starters
+## Tab Gesprächseinstiege
 
-Definiere Vorschläge, die erscheinen, wenn Nutzer eine neue Konversation mit diesem Agent starten. Conversation Starter helfen Nutzern zu entdecken, was der Agent kann, und senken die Hürde für die erste Nachricht.
+Definiere Vorschläge, die erscheinen, wenn Nutzer eine neue Konversation mit diesem Agent starten. Gesprächseinstiege helfen Nutzern zu entdecken, was der Agent kann, und senken die Hürde für die erste Nachricht.
 
 Jeder Starter hat einen Titel und einen Prompt. Der Titel erscheint als klickbarer Vorschlag; der Prompt wird beim Klicken als erste Nachricht gesendet.
 
@@ -53,4 +53,4 @@ Du kannst ein Webhook-Secret hinzufügen, um die Authentizität eingehender Requ
 
 ## Versionierung
 
-Agents unterstützen Versionen. Beim Bearbeiten der Anweisungen eines Agents wird eine Draft-Version erzeugt. Die Live-Version bedient weiter Requests, bis du den Draft publizierst. Der Versionsverlauf-Dialog zeigt alle vergangenen Versionen und erlaubt Vergleich und Rollback.
+Agents unterstützen Versionen. Beim Bearbeiten der Anweisungen eines Agents wird eine Entwurf-Version erzeugt. Die aktive Version bedient weiter Requests, bis du den Entwurf veröffentlichst. Der Versionsverlauf-Dialog zeigt alle vergangenen Versionen und erlaubt Vergleich und Rollback.

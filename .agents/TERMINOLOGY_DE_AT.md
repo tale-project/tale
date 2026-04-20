@@ -13,14 +13,14 @@ Most Tale docs and UI strings do not need an Austrian override. Only add an over
 
 Prefer Austrian usage when it's clearly the more natural choice. Don't force an Austrian term where Austrians accept the standard-German form.
 
-| Standard German (de) | Austrian German (de-AT) | When to override                                        |
-| -------------------- | ----------------------- | ------------------------------------------------------- |
-| Januar               | Jänner                  | Calendar month names in prose and date strings          |
-| Februar              | Feber                   | Older form — only in traditional/legal contexts         |
-| dieses Jahr          | heuer                   | Only in casual UX copy; keep "dieses Jahr" in docs      |
-| Sahne                | Schlagobers             | Unlikely to appear; noted for completeness              |
-| E-Mail               | E-Mail                  | Same — no override needed                               |
-| Handy                | Handy                   | Same loanword for mobile phone                          |
+| Standard German (de) | Austrian German (de-AT) | When to override                                   |
+| -------------------- | ----------------------- | -------------------------------------------------- |
+| Januar               | Jänner                  | Calendar month names in prose and date strings     |
+| Februar              | Feber                   | Older form — only in traditional/legal contexts    |
+| dieses Jahr          | heuer                   | Only in casual UX copy; keep "dieses Jahr" in docs |
+| Sahne                | Schlagobers             | Unlikely to appear; noted for completeness         |
+| E-Mail               | E-Mail                  | Same — no override needed                          |
+| Handy                | Handy                   | Same loanword for mobile phone                     |
 
 ## Business / legal terms
 

@@ -9,10 +9,10 @@ La gestion des équipes est sous **Paramètres > Équipes** et réservée aux ad
 
 ## Créer une équipe
 
-1. Va dans **Paramètres > Équipes** et clique **Add team**.
+1. Va dans **Paramètres > Équipes** et clique **Créer une équipe**.
 2. Entre un nom d'équipe — court, il apparaît dans les menus de filtres partout dans l'UI.
 3. Optionnellement ajoute une description.
-4. Clique Create.
+4. Clique **Créer**.
 
 Les membres sont ajoutés séparément depuis la page de détail de l'équipe. La même personne peut appartenir à plusieurs équipes.
 
@@ -22,8 +22,8 @@ Les membres sont ajoutés séparément depuis la page de détail de l'équipe. L
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Documents**               | un document peut être tagué sur une ou plusieurs équipes à l'upload. Les membres voient seulement les documents tagués sur leurs équipes quand un filtre est actif. |
 | **Conversations**           | les conversations peuvent être assignées à une équipe. Les inboxes par équipe laissent Support voir ses fils sans pollution Sales.                                  |
-| **Agents**                  | l'onglet Knowledge d'un agent peut être restreint aux connaissances taguées par équipe pour qu'un agent Support ne cherche que du contenu Support.                  |
-| **Budgets et accès modèle** | les politiques de gouvernance (voir [Governance](/fr/platform/admin/governance)) peuvent être cadrées par équipe.                                                   |
+| **Agents**                  | l'onglet Base de connaissances d'un agent peut être restreint aux connaissances taguées par équipe pour qu'un agent Support ne cherche que du contenu Support.      |
+| **Budgets et accès modèle** | les politiques de gouvernance (voir [Gouvernance](/fr/platform/admin/governance)) peuvent être cadrées par équipe.                                                  |
 
 ## Managers d'équipe
 

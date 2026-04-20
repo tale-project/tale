@@ -18,10 +18,10 @@ Mit dem Dokumenten-Vergleich lädst du zwei Dokumente hoch oder wählst sie aus 
 
 Jede Seite hat zwei Tabs:
 
-- **Upload** — per Drag-and-drop oder Auswählen eine Datei vom Gerät hochladen.
-- **Existing** — aus Dokumenten in deiner Wissensdatenbank suchen und wählen.
+- **Hochladen** — per Drag-and-drop oder Auswählen eine Datei vom Gerät hochladen.
+- **Vorhanden** — aus Dokumenten in deiner Wissensdatenbank suchen und wählen.
 
-4. Klicke auf **Compare**. Die Plattform schickt beide Dokumente zur Analyse an den RAG-Dienst.
+4. Klicke auf **Vergleichen**. Die Plattform schickt beide Dokumente zur Analyse an den RAG-Dienst.
 
 ### Unterstützte Dateitypen
 

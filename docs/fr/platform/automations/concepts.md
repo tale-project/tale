@@ -34,13 +34,13 @@ Les variables sont des données clé-valeur partagées, accessibles depuis chaqu
 
 Les variables vivent dans l'onglet Configuration du workflow. Toute étape peut les lire via `{{ variables.name }}`.
 
-## Draft vs Active
+## Brouillon vs Actif
 
-Les workflows, comme les agents, utilisent un modèle draft-et-publish. Un workflow ne peut être activé qu'après publication. Les modifications après activation créent une nouvelle draft qui tourne à côté de la version live jusqu'à la prochaine publication.
+Les workflows, comme les agents, utilisent un modèle brouillon-et-publication. Un workflow ne peut être activé qu'après publication. Les modifications après activation créent un nouveau brouillon qui tourne à côté de la version active jusqu'à la prochaine publication.
 
-## Runs et Executions
+## Runs et exécutions
 
-Chaque déclenchement crée une **execution**. Les executions vivent dans l'onglet Executions du workflow avec date de début, durée, statut final et détail par étape (entrées, sorties, erreurs). Voir [Logs d'exécution](/fr/platform/automations/execution-logs).
+Chaque déclenchement crée une **exécution**. Les exécutions vivent dans l'onglet Exécutions du workflow avec date de début, durée, statut final et détail par étape (entrées, sorties, erreurs). Voir [Journaux d'exécution](/fr/platform/automations/execution-logs).
 
 ## Suite
 

@@ -110,12 +110,12 @@ bun run docker:test:image
 
 Each container image has a size budget enforced by CI. Current sizes and budgets:
 
-| Service    | Current size  | Budget   |
-| ---------- | ------------- | -------- |
-| Crawler    | ~1.85 GB      | 2.1 GB   |
-| RAG        | ~515 MB       | 600 MB   |
-| Platform   | ~2.58 GB      | 2.9 GB   |
-| DB         | ~1.06 GB      | 1.2 GB   |
-| Proxy      | ~88 MB        | 100 MB   |
+| Service  | Current size | Budget |
+| -------- | ------------ | ------ |
+| Crawler  | ~1.85 GB     | 2.1 GB |
+| RAG      | ~515 MB      | 600 MB |
+| Platform | ~2.58 GB     | 2.9 GB |
+| DB       | ~1.06 GB     | 1.2 GB |
+| Proxy    | ~88 MB       | 100 MB |
 
 If an image exceeds its budget after a change, `bun run docker:test:image` will fail. See the [container architecture](/self-hosted/operate/container-architecture) page for details on multi-stage build strategies that keep images lean.

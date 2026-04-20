@@ -4,15 +4,9 @@
   "description": "Microsoft Graph API integration for Outlook mail, calendar, and contacts",
   "version": 2,
   "authMethod": "oauth2",
-  "supportedAuthMethods": [
-    "oauth2"
-  ],
-  "secretBindings": [
-    "accessToken"
-  ],
-  "allowedHosts": [
-    "graph.microsoft.com"
-  ],
+  "supportedAuthMethods": ["oauth2"],
+  "secretBindings": ["accessToken"],
+  "allowedHosts": ["graph.microsoft.com"],
   "oauth2Config": {
     "authorizationUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
     "tokenUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/token",

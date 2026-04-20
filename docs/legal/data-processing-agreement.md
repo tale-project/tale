@@ -38,13 +38,13 @@ The Customer is the Controller and Tale is the Processor with respect to the Per
 
 ### 2.2 Details of processing
 
-| Element                         | Description                                                                                                                                                                                                                                                   |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Purpose of processing**       | Provision of the Tale platform and related services as described in the Agreement, including AI-powered workflow automation, conversation management, and related operational features                                                                        |
-| **Nature of processing**        | Storage, retrieval, organization, structuring, computation, transmission, and display of data as necessary to deliver the services                                                                                                                            |
-| **Categories of data subjects** | Determined by the Customer, and may include the Customer's employees, end users, clients, contractors, business contacts, and any other individuals whose data the Customer submits to the services                                                           |
-| **Categories of personal data** | Determined by the Customer, and may include names, email addresses, phone numbers, company information, message content, conversation data, workflow data, documents, and any other data the Customer submits to the services                                 |
-| **Duration of processing**      | For the duration of the Agreement, plus any period required for the return or deletion of Personal Data as described in Section 12                                                                                                                            |
+| Element                         | Description                                                                                                                                                                                                                   |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Purpose of processing**       | Provision of the Tale platform and related services as described in the Agreement, including AI-powered workflow automation, conversation management, and related operational features                                        |
+| **Nature of processing**        | Storage, retrieval, organization, structuring, computation, transmission, and display of data as necessary to deliver the services                                                                                            |
+| **Categories of data subjects** | Determined by the Customer, and may include the Customer's employees, end users, clients, contractors, business contacts, and any other individuals whose data the Customer submits to the services                           |
+| **Categories of personal data** | Determined by the Customer, and may include names, email addresses, phone numbers, company information, message content, conversation data, workflow data, documents, and any other data the Customer submits to the services |
+| **Duration of processing**      | For the duration of the Agreement, plus any period required for the return or deletion of Personal Data as described in Section 12                                                                                            |
 
 ### 2.3 Customer responsibilities
 

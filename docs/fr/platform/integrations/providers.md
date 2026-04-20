@@ -14,8 +14,8 @@ Serveurs couramment utilisés :
 
 ## Connecter un modèle auto-hébergé
 
-1. Va dans **Paramètres > Fournisseurs** et clique **Add provider**.
-2. Entre un nom (ex. `ollama`), un display name et la base URL de ton serveur.
+1. Va dans **Paramètres > Fournisseurs IA** et clique **Ajouter un fournisseur**.
+2. Entre un nom (ex. `ollama`), un nom d'affichage et la base URL de ton serveur.
 3. Entre une clé API (n'importe quelle chaîne non vide si ton serveur ne demande pas d'auth).
 4. Ajoute un ou plusieurs modèles — l'ID doit matcher le nom servi par ton endpoint (ex. `llama3` pour Ollama).
 5. Choisis les tags (en général `chat` pour les modèles de langue).

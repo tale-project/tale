@@ -23,8 +23,7 @@ def decrypt_secrets_file(file_path: str | Path) -> dict:
     )
     if result.returncode != 0:
         raise RuntimeError(
-            f"Failed to decrypt {path}: {result.stderr}. "
-            "Ensure sops is installed and SOPS_AGE_KEY is set."
+            f"Failed to decrypt {path}: {result.stderr}. Ensure sops is installed and SOPS_AGE_KEY is set."
         )
 
     data = json.loads(result.stdout)

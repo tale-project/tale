@@ -19,16 +19,16 @@ Konsistente Abschnitte — in konsistenter Reihenfolge — machen es leicht, ein
 
 Nur Abschnitte einfügen, zu denen Inhalt existiert. Immer in dieser Reihenfolge verwenden:
 
-| Nr.     | Abschnitts-Header       | Umfang                                                                                               |
-| ------- | ----------------------- | ---------------------------------------------------------------------------------------------------- |
-| 1       | `## 🔒 Security`         | CVE-Fixes, Abhängigkeits-Patches, Auth-/Session-/Crypto-Härtung, Secret-Handling                     |
-| 2       | `## 🤖 Model & Provider` | LLM-Modell-Wechsel/-Upgrade/-Deprecation, Anbieter-Config-Änderungen, die Output verändern           |
-| 3       | `## 💥 Breaking Changes` | API-Entfernung/-Umbenennung, Schema-Änderungen, die manuelle Migration erfordern, entfernte Features |
-| 4       | `## 🚀 Features`         | Neue für Nutzer sichtbare Funktionalität                                                             |
-| 5       | `## ⚡ Performance`      | Messbare Performance-Gewinne, die erwähnt werden sollten                                             |
-| 6       | `## 🛠 Improvements`     | Nicht-brechende Verbesserungen, UX-Polish                                                            |
-| 7       | `## 🐛 Fixes`            | Bug-Fixes (nicht sicherheitsrelevant)                                                                |
-| 8       | `## 📝 Other`            | Docs, Refactors, Chores — sparsam einsetzen                                                          |
+| Nr. | Abschnitts-Header        | Umfang                                                                                               |
+| --- | ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| 1   | `## 🔒 Security`         | CVE-Fixes, Abhängigkeits-Patches, Auth-/Session-/Crypto-Härtung, Secret-Handling                     |
+| 2   | `## 🤖 Model & Provider` | LLM-Modell-Wechsel/-Upgrade/-Deprecation, Anbieter-Config-Änderungen, die Output verändern           |
+| 3   | `## 💥 Breaking Changes` | API-Entfernung/-Umbenennung, Schema-Änderungen, die manuelle Migration erfordern, entfernte Features |
+| 4   | `## 🚀 Features`         | Neue für Nutzer sichtbare Funktionalität                                                             |
+| 5   | `## ⚡ Performance`      | Messbare Performance-Gewinne, die erwähnt werden sollten                                             |
+| 6   | `## 🛠 Improvements`     | Nicht-brechende Verbesserungen, UX-Polish                                                            |
+| 7   | `## 🐛 Fixes`            | Bug-Fixes (nicht sicherheitsrelevant)                                                                |
+| 8   | `## 📝 Other`            | Docs, Refactors, Chores — sparsam einsetzen                                                          |
 
 ## Pflicht-Rahmen
 
@@ -37,12 +37,15 @@ Jedes Release muss mindestens enthalten:
 1. **Titel**: `v{version} — {kurzer Tagline}`, z. B. `v1.6.0 — Usage analytics & multi-tenancy`.
 2. **Zusammenfassung**: 2–3 Sätze oben, die beschreiben, was sich geändert hat und warum. Keine Emojis.
 3. **Upgrade-Anleitung**:
+
    ```markdown
    ## Upgrade
 
    Run `tale upgrade` to update the CLI, then `tale deploy` to apply the new version.
    ```
+
    Beide Schritte sind Pflicht — `tale upgrade` lädt die neue CLI, `tale deploy` wendet sie an. Ein fehlender Schritt lässt das Deployment auf der alten Version.
+
 4. **Manuelle Migrations-Hinweise** (nur bei Bedarf): Erfordert eine Breaking Change Operator-Aktion über `tale deploy` hinaus, füge einen Abschnitt `## Migration Guide` mit nummerierten Schritten ein.
 5. **Full-Changelog-Link** ganz unten:
    ```markdown
@@ -65,19 +68,24 @@ This release adds time-based usage analytics, hardens multi-tenant org isolation
 and bumps the default reasoning model. No breaking changes.
 
 ## 🔒 Security
+
 - Tighten org-scoping on governance policy queries (#1573)
 
 ## 🤖 Model & Provider
+
 - Default reasoning model bumped from Opus 4.6 → Opus 4.7 (#1590)
 
 ## 🚀 Features
+
 - Time-based usage analytics dashboard under `/metrics/usage` (#1574)
 - Multi-org support: users can belong to multiple organizations (#1573)
 
 ## 🛠 Improvements
+
 - Tabs underline variant adopted across settings surfaces (#1571)
 
 ## 🐛 Fixes
+
 - Fix prompt library sidebar scroll on short viewports (#1572)
 
 ## Upgrade

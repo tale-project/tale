@@ -23,11 +23,11 @@ Lance le workflow quand quelque chose se passe dans Tale.
 
 | Événement                 | Exemple d'usage                             |
 | ------------------------- | ------------------------------------------- |
-| New customer added        | envoyer un e-mail de bienvenue.             |
-| New conversation opened   | taguer le fil selon l'historique du client. |
-| Approbation requested     | notifier un canal Slack.                    |
-| Document uploaded         | extraire métadonnées et classifier.         |
-| Product stock ≤ threshold | réapprovisionner ou alerter les achats.     |
+| Nouveau client ajouté     | envoyer un e-mail de bienvenue.             |
+| Nouvelle conversation     | taguer le fil selon l'historique du client. |
+| Approbation demandée      | notifier un canal Slack.                    |
+| Document téléversé        | extraire métadonnées et classifier.         |
+| Stock produit ≤ threshold | réapprovisionner ou alerter les achats.     |
 
 Chaque type d'événement accepte des conditions de filtre optionnelles. Le filtre agit avant le démarrage — les événements non matchés sont silencieusement ignorés.
 
@@ -37,20 +37,20 @@ Chaque workflow a une URL webhook unique à laquelle tu peux POSTer. Utilise les
 
 - Le body de la requête est disponible comme entrée pour toutes les étapes.
 - Ajoute un secret webhook pour vérifier l'authenticité. Tale vérifie un header `X-Tale-Signature` et rejette les requêtes qui ne matchent pas.
-- L'URL webhook est visible sur l'étape Start et dans l'onglet Configuration.
+- L'URL webhook est visible sur l'étape **Start** et dans l'onglet **Configuration**.
 
 Voir [Webhooks](/fr/develop/webhooks) pour les formats détaillés et le code de vérification de signature.
 
 ## Triggers manuels
 
-Le bouton **Run now** de chaque workflow permet un démarrage manuel avec une entrée personnalisée. Utile pour :
+Le bouton **Démarrer l'exécution** de chaque workflow permet un démarrage manuel avec une entrée personnalisée. Utile pour :
 
 - tester un nouveau workflow avant de le planifier ;
 - des runs ponctuels quand le workflow existe mais ne doit pas tourner automatiquement ;
 - lancer un backfill.
 
-Les runs manuels apparaissent dans Executions comme les autres.
+Les runs manuels apparaissent dans Exécutions comme les autres.
 
 ## Plusieurs triggers sur un workflow
 
-Un workflow peut être déclenché par exemple à la fois par un calendrier (chaque heure) et un webhook (à la demande). Chaque execution enregistre quel trigger l'a lancée.
+Un workflow peut être déclenché par exemple à la fois par un calendrier (chaque heure) et un webhook (à la demande). Chaque exécution enregistre quel trigger l'a lancée.

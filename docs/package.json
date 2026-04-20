@@ -1,18 +1,17 @@
 {
   "name": "@tale/docs",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
   "description": "Tale Mintlify documentation site.",
   "type": "module",
   "scripts": {
-    "format:tables": "bun run scripts/format-tables.ts",
-    "predev": "bun run scripts/format-tables.ts",
+    "format": "bunx oxfmt -c ../.oxfmtrc.json",
+    "format:check": "bunx oxfmt -c ../.oxfmtrc.json --check",
     "dev": "mintlify dev",
-    "prebuild": "bun run scripts/format-tables.ts",
     "build": "mintlify build",
-    "broken-links": "mintlify broken-links",
     "lint:frontmatter": "bun run scripts/lint-frontmatter.ts",
     "lint:terminology": "bun run scripts/lint-terminology.ts",
-    "lint": "bun run lint:frontmatter && bun run lint:terminology"
+    "lint:broken-links": "mintlify broken-links",
+    "lint": "bun run lint:frontmatter && bun run lint:terminology && bun run lint:broken-links"
   }
 }

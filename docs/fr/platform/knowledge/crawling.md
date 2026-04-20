@@ -45,10 +45,10 @@ Pour crawler des sites derrière une auth ou exigeant un user-agent personnalis�
 
 Si un crawl ne remonte pas les pages attendues :
 
-- Ouvre la page de détail sous **Connaissances > Sites web**. La liste **Discovered pages** montre ce que le crawler a trouvé.
-- L'onglet **Errors** liste les pages dont le fetch ou le parse a échoué, avec statut HTTP et message.
+- Ouvre la page de détail sous **Base de connaissances > Sites web**. La liste **Pages découvertes** montre ce que le crawler a trouvé.
+- L'onglet **Erreurs** liste les pages dont le fetch ou le parse a échoué, avec statut HTTP et message.
 - Vérifie que les pages attendues sont liées depuis la page d'accueil ou le sitemap. Le crawler ne trouve que ce qu'il peut atteindre via des liens.
 
 ## Supprimer un site
 
-Supprimer un site suivi depuis **Connaissances > Sites web** retire tout le contenu indexé de ce site. C'est immédiat — l'IA ne les trouvera plus.
+Supprimer un site suivi depuis **Base de connaissances > Sites web** retire tout le contenu indexé de ce site. C'est immédiat — l'IA ne les trouvera plus.

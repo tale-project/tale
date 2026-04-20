@@ -77,9 +77,7 @@ class TestEmbeddingService:
             call_count += 1
             batch = kwargs["input"]
             mock_response = MagicMock()
-            mock_response.data = [
-                MagicMock(embedding=[float(call_count)]) for _ in batch
-            ]
+            mock_response.data = [MagicMock(embedding=[float(call_count)]) for _ in batch]
             return mock_response
 
         svc._client = MagicMock()
@@ -110,9 +108,7 @@ class TestEmbeddingService:
             ]
         )
 
-        with patch(
-            "tale_knowledge.embedding.service.asyncio.sleep", new_callable=AsyncMock
-        ):
+        with patch("tale_knowledge.embedding.service.asyncio.sleep", new_callable=AsyncMock):
             result = await svc.embed_texts(["test"])
             assert result == [[1.0]]
 

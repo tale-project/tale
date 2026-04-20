@@ -58,7 +58,7 @@ Voir [Mode Arène](/fr/platform/chat/arena-mode) pour tous les détails.
 
 ## Canevas
 
-Quand l'IA génère un bloc de code, un snippet HTML, un diagramme Mermaid ou du Markdown, clique **Open in Canevas** pour l'ouvrir dans un panneau latéral dédié. Canevas offre coloration syntaxique, aperçu en direct, édition et export. Tu peux modifier puis réappliquer dans la conversation.
+Quand l'IA génère un bloc de code, un snippet HTML, un diagramme Mermaid ou du Markdown, clique **Ouvrir dans le canevas** pour l'ouvrir dans un panneau latéral dédié. Le canevas offre coloration syntaxique, aperçu en direct, édition et export. Tu peux modifier puis réappliquer dans la conversation.
 
 Voir [Canevas](/fr/platform/workspace/canvas) pour tous les détails.
 
@@ -66,7 +66,7 @@ Voir [Canevas](/fr/platform/workspace/canvas) pour tous les détails.
 
 Enregistre et réutilise des modèles de prompt dans toute ton organisation. Ouvre la Bibliothèque de prompts depuis la barre d'outils pour parcourir, chercher et insérer des prompts enregistrés. Tu peux aussi enregistrer un message de chat comme modèle directement depuis la conversation.
 
-Voir [Prompt library](/fr/platform/workspace/prompt-library) pour tous les détails.
+Voir [Bibliothèque de prompts](/fr/platform/workspace/prompt-library) pour tous les détails.
 
 ## Raccourcis clavier
 

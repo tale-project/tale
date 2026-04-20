@@ -3,9 +3,9 @@ title: Base de connaissances
 description: Téléverse, organise et cherche dans tes documents et sites crawlés.
 ---
 
-La base de connaissances est l'endroit où Tale stocke les informations utilisables par l'IA. Tout ce que tu y ajoutes devient cherchable par l'agent via la recherche sémantique. Cette page couvre les deux sections utilisateurs — **Documents** et **Sites web**. Pour les sections de données structurées (Products, Customers, Vendors), voir [Données structurées](/fr/platform/knowledge/structured-data).
+La base de connaissances est l'endroit où Tale stocke les informations utilisables par l'IA. Tout ce que tu y ajoutes devient cherchable par l'agent via la recherche sémantique. Cette page couvre les deux sections utilisateurs — **Documents** et **Sites web**. Pour les sections de données structurées (Produits, Clients, Fournisseurs), voir [Données structurées](/fr/platform/knowledge/structured-data).
 
-> **Note :** Modifier la base de connaissances demande le rôle Editor ou plus. Les Members voient tous les éléments mais ne peuvent pas créer, mettre à jour ou supprimer.
+> **Note :** Modifier la base de connaissances demande le rôle Editor ou plus. Les membres en lecture seule voient tous les éléments mais ne peuvent pas créer, mettre à jour ou supprimer.
 
 ## Documents
 
@@ -13,11 +13,11 @@ Les documents sont le cœur de la base. Tu peux téléverser des fichiers ou syn
 
 ### Téléverser des documents
 
-1. Va dans Connaissances > Documents.
-2. Clique Upload dans le menu d'actions en haut à droite.
+1. Va dans Base de connaissances > Documents.
+2. Clique **Téléverser** dans le menu d'actions en haut à droite.
 3. Dépose les fichiers ou clique pour parcourir. Tu peux en sélectionner plusieurs à la fois.
 4. Optionnellement, assigne les documents à une ou plusieurs équipes. Cela contrôle dans quelles vues filtrées ils apparaissent.
-5. Clique Upload. Chaque fichier est mis en file d'attente pour traitement. Un indicateur montre la fin de l'indexation.
+5. Clique **Téléverser**. Chaque fichier est mis en file d'attente pour traitement. Un indicateur montre la fin de l'indexation.
 
 Types pris en charge : PDF, DOCX, PPTX, XLSX, TXT, Markdown, CSV, HTML, JSON, YAML, et la plupart des fichiers code.
 
@@ -29,7 +29,7 @@ Les documents peuvent être rangés en dossiers. Utilise le fil d'Ariane en haut
 
 ### Synchro Microsoft OneDrive
 
-Si une intégration Microsoft Account est configurée, l'option Sync from OneDrive apparaît dans le menu. Elle importe les documents directement depuis OneDrive sans les télécharger sur ton serveur.
+Si une intégration Microsoft Account est configurée, l'option **Synchroniser depuis OneDrive** apparaît dans le menu. Elle importe les documents directement depuis OneDrive sans les télécharger sur ton serveur.
 
 ### Comparaison de documents
 
@@ -43,10 +43,10 @@ Le suivi de site web indique au crawler de Tale de visiter et indexer les pages 
 
 ### Ajouter un site
 
-1. Va dans Connaissances > Sites web et clique Add website.
+1. Va dans Base de connaissances > Sites web et clique **Ajouter un site web**.
 2. Entre l'URL complète, par exemple `https://docs.example.com`.
 3. Choisis un intervalle de scan, qui contrôle la fréquence à laquelle le crawler revérifie les mises à jour.
-4. Clique Add. Le crawler récupère la page d'accueil tout de suite et commence à découvrir les liens.
+4. Clique **Ajouter**. Le crawler récupère la page d'accueil tout de suite et commence à découvrir les liens.
 
 | Intervalle de scan           | Idéal pour                                    |
 | ---------------------------- | --------------------------------------------- |

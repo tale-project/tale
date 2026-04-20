@@ -47,16 +47,16 @@ For detailed setup instructions, see the [Getting started guide](docs/platform/m
 
 ## What can you do?
 
-| Goal                              | How                                                                      |
-| --------------------------------- | ------------------------------------------------------------------------ |
-| **Create custom agents**          | Edit JSON files in `agents/` — define instructions, tools, and models    |
-| **Build automations**             | Edit JSON files in `workflows/` — triggers, conditions, loops, AI steps  |
-| **Add integrations**              | Edit files in `integrations/` — REST APIs, SQL databases, custom connectors |
-| **Use AI to build configs**       | Open the project in Claude Code, Cursor, Copilot, or Windsurf — the AI knows your schemas |
-| **Chat with AI assistants**       | Built into the platform — start chatting immediately                      |
-| **Build a knowledge base**        | Upload documents, crawl websites, manage products and customers           |
-| **Manage conversations**          | Unified inbox for customer conversations with AI-assisted replies         |
-| **View backend data**             | Run `tale convex admin` and open the Convex Dashboard                     |
+| Goal                        | How                                                                                       |
+| --------------------------- | ----------------------------------------------------------------------------------------- |
+| **Create custom agents**    | Edit JSON files in `agents/` — define instructions, tools, and models                     |
+| **Build automations**       | Edit JSON files in `workflows/` — triggers, conditions, loops, AI steps                   |
+| **Add integrations**        | Edit files in `integrations/` — REST APIs, SQL databases, custom connectors               |
+| **Use AI to build configs** | Open the project in Claude Code, Cursor, Copilot, or Windsurf — the AI knows your schemas |
+| **Chat with AI assistants** | Built into the platform — start chatting immediately                                      |
+| **Build a knowledge base**  | Upload documents, crawl websites, manage products and customers                           |
+| **Manage conversations**    | Unified inbox for customer conversations with AI-assisted replies                         |
+| **View backend data**       | Run `tale convex admin` and open the Convex Dashboard                                     |
 
 All files in `agents/`, `workflows/`, and `integrations/` are live-reloaded — edit and see changes instantly.
 

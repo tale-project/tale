@@ -4,15 +4,9 @@
   "description": "Slack API integration for channels, messages, and users",
   "version": 1,
   "authMethod": "oauth2",
-  "supportedAuthMethods": [
-    "oauth2"
-  ],
-  "secretBindings": [
-    "accessToken"
-  ],
-  "allowedHosts": [
-    "slack.com"
-  ],
+  "supportedAuthMethods": ["oauth2"],
+  "secretBindings": ["accessToken"],
+  "allowedHosts": ["slack.com"],
   "oauth2Config": {
     "authorizationUrl": "https://slack.com/oauth/v2/authorize",
     "tokenUrl": "https://slack.com/api/oauth.v2.access",
@@ -66,10 +60,7 @@
       "name": "get_channel",
       "title": "Get Channel",
       "description": "Get detailed information about a specific channel",
-      "requiredScopes": [
-        "channels:read",
-        "groups:read"
-      ],
+      "requiredScopes": ["channels:read", "groups:read"],
       "parametersSchema": {
         "type": "object",
         "properties": {
@@ -128,9 +119,7 @@
       "description": "Send a message to a Slack channel or thread",
       "operationType": "write",
       "requiresApproval": true,
-      "requiredScopes": [
-        "chat:write"
-      ],
+      "requiredScopes": ["chat:write"],
       "parametersSchema": {
         "type": "object",
         "properties": {
@@ -161,9 +150,7 @@
       "name": "list_users",
       "title": "List Users",
       "description": "List all users in the Slack workspace",
-      "requiredScopes": [
-        "users:read"
-      ],
+      "requiredScopes": ["users:read"],
       "parametersSchema": {
         "type": "object",
         "properties": {
@@ -184,9 +171,7 @@
       "name": "get_user",
       "title": "Get User",
       "description": "Get detailed profile information for a specific user",
-      "requiredScopes": [
-        "users:read"
-      ],
+      "requiredScopes": ["users:read"],
       "parametersSchema": {
         "type": "object",
         "properties": {
@@ -204,9 +189,7 @@
       "description": "Upload a file to one or more Slack channels",
       "operationType": "write",
       "requiresApproval": true,
-      "requiredScopes": [
-        "files:write"
-      ],
+      "requiredScopes": ["files:write"],
       "parametersSchema": {
         "type": "object",
         "properties": {

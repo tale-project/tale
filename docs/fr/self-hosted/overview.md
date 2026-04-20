@@ -52,10 +52,10 @@ graph TD
 
 ## Capacités principales
 
-- Chat IA avec conversations multi-tours, pièces jointes, sélection d'agent, [arena mode](/fr/platform/chat/arena-mode) pour comparer des modèles, [canvas](/fr/platform/workspace/canvas) pour éditer du contenu et outils intégrés.
-- [Prompt library](/fr/platform/workspace/prompt-library) pour enregistrer et partager des modèles de prompt.
-- Base de connaissances sémantique pour documents, sites, Products, Customers, Vendors avec [comparaison de documents](/fr/platform/workspace/document-comparison).
-- Inbox pour conversations clients avec réponses assistées par IA et actions en masse.
+- Chat IA avec conversations multi-tours, pièces jointes, sélection d'agent, [Mode Arène](/fr/platform/chat/arena-mode) pour comparer des modèles, [canevas](/fr/platform/workspace/canvas) pour éditer du contenu et outils intégrés.
+- [Bibliothèque de prompts](/fr/platform/workspace/prompt-library) pour enregistrer et partager des modèles de prompt.
+- Base de connaissances sémantique pour documents, sites, Produits, Clients, Fournisseurs avec [comparaison de documents](/fr/platform/workspace/document-comparison).
+- Boîte de réception pour conversations clients avec réponses assistées par IA et actions en masse.
 - Constructeur d'automatisation visuel avec étapes LLM, conditions, boucles et plannings.
 - Agents IA sur mesure avec instructions, connaissances et outils dédiés.
 - Contrôle d'accès par rôle, du Member en lecture seule à l'Admin complet.

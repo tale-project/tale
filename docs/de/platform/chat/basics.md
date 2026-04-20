@@ -58,7 +58,7 @@ Siehe [Arena mode](/de/platform/chat/arena-mode) für alle Details.
 
 ## Canvas
 
-Wenn die KI einen Code-Block, ein HTML-Snippet, ein Mermaid-Diagramm oder Markdown erzeugt, klicke auf **Open in Canvas**, um den Inhalt in einem eigenen Seitenbereich zu öffnen. Canvas bietet Syntax-Highlighting, Live-Vorschau, Bearbeitung und Export. Du kannst Inhalte ändern und wieder in die Konversation zurückschreiben.
+Wenn die KI einen Code-Block, ein HTML-Snippet, ein Mermaid-Diagramm oder Markdown erzeugt, klicke auf **In Canvas öffnen**, um den Inhalt in einem eigenen Seitenbereich zu öffnen. Canvas bietet Syntax-Highlighting, Live-Vorschau, Bearbeitung und Export. Du kannst Inhalte ändern und wieder in die Konversation zurückschreiben.
 
 Siehe [Canvas](/de/platform/workspace/canvas) für alle Details.
 

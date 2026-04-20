@@ -3,7 +3,7 @@ title: Aperçu de la plateforme
 description: Documentation produit de Tale — fonctionnalités, rôles et administration de l'organisation. S'applique de manière identique en Cloud et en auto-hébergé.
 ---
 
-Platform rassemble toute la documentation produit de Tale. Tu y trouves chaque fonctionnalité visible par l'utilisateur — chat, base de connaissances, agents, automatisations, intégrations — ainsi que les guides par rôle orientés tâches et l'ensemble des paramètres au niveau de l'organisation (membres, rôles, équipes, branding, gouvernance, fournisseurs d'IA, analytique). Tout ce qui est ici s'applique à l'identique, que tu utilises l'édition [Cloud](/fr/cloud) managée ou une instance [Self-hosted](/fr/self-hosted).
+Platform rassemble toute la documentation produit de Tale. Tu y trouves chaque fonctionnalité visible par l'utilisateur — chat, base de connaissances, agents, automatisations, intégrations — ainsi que les guides par rôle orientés tâches et l'ensemble des paramètres au niveau de l'organisation (membres, rôles, équipes, image de marque, gouvernance, fournisseurs d'IA, analytique). Tout ce qui est ici s'applique à l'identique, que tu utilises l'édition [Cloud](/fr/cloud) managée ou une instance [Self-hosted](/fr/self-hosted).
 
 Seuls les sujets propres à une édition vivent ailleurs : facturation Cloud, résidence et SSO hébergé sont dans Cloud ; installation, configuration d'environnement, observabilité et notes de version sont dans Self-hosted. Si une page décrit ce que tu vois dans l'interface, elle est dans cette section.
 
@@ -32,8 +32,8 @@ Les paramètres organisationnels s'appliquent aussi bien en Cloud qu'en auto-hé
 - [Membres et rôles](/fr/platform/admin/members-and-roles) — la matrice de permissions à six rôles.
 - [Équipes](/fr/platform/admin/teams) — cloisonner l'accès aux connaissances et au chat.
 - [Fournisseurs d'IA](/fr/platform/admin/providers) — configurer OpenAI, Anthropic, Google et des modèles auto-hébergés.
-- [Branding](/fr/platform/admin/branding) — logos, couleurs, nom du produit.
+- [Image de marque](/fr/platform/admin/branding) — logos, couleurs, nom du produit.
 - [Gouvernance](/fr/platform/admin/governance) — règles de contenu et de politique.
-- [Analytique d'utilisation](/fr/platform/admin/usage-analytics) — activité par utilisateur et à l'échelle de l'organisation.
+- [Analyses d'utilisation](/fr/platform/admin/usage-analytics) — activité par utilisateur et à l'échelle de l'organisation.
 
 Pour la configuration de l'authentification (mot de passe, SSO, en-têtes de confiance), voir [Authentification auto-hébergée](/fr/self-hosted/admin/authentication) — la configuration est spécifique à l'auto-hébergement ; en Cloud, c'est l'interface d'administration hébergée qui s'en occupe.

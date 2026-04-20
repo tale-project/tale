@@ -1,7 +1,7 @@
 name: Feature request
 description: Suggest a new feature or capability.
-title: "Feature: "
-labels: ["feat"]
+title: 'Feature: '
+labels: ['feat']
 body:
   - type: textarea
     id: description
@@ -17,7 +17,7 @@ body:
     attributes:
       label: Why do you need this?
       description: What problem does this solve or what use case does it enable?
-      placeholder: "e.g. Our team needs to archive conversations for compliance."
+      placeholder: 'e.g. Our team needs to archive conversations for compliance.'
     validations:
       required: true
 

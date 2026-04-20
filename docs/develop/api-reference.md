@@ -172,17 +172,17 @@ print(response.choices[0].message.content)
 ```
 
 ```typescript Node.js
-import OpenAI from "openai";
+import OpenAI from 'openai';
 
 const client = new OpenAI({
-  baseURL: "https://your-tale-instance.com/api/v1",
-  apiKey: "tale_...",
-  defaultHeaders: { "X-Organization-Slug": "default" },
+  baseURL: 'https://your-tale-instance.com/api/v1',
+  apiKey: 'tale_...',
+  defaultHeaders: { 'X-Organization-Slug': 'default' },
 });
 
 const response = await client.chat.completions.create({
-  model: "chat-agent",
-  messages: [{ role: "user", content: "Hello!" }],
+  model: 'chat-agent',
+  messages: [{ role: 'user', content: 'Hello!' }],
 });
 console.log(response.choices[0].message.content);
 ```
@@ -288,8 +288,8 @@ List available agents (models).
 {
   "object": "list",
   "data": [
-    {"id": "chat-agent", "object": "model", "owned_by": "default"},
-    {"id": "workflow-assistant", "object": "model", "owned_by": "default"}
+    { "id": "chat-agent", "object": "model", "owned_by": "default" },
+    { "id": "workflow-assistant", "object": "model", "owned_by": "default" }
   ]
 }
 ```

@@ -7,7 +7,7 @@ Tale bietet zwei Arten von Webhooks: **Workflow-Webhooks** (lösen eine Automati
 
 ## Workflow-Webhooks
 
-Jeder Workflow hat eine eigene Webhook-URL, sichtbar im Configuration-Tab:
+Jeder Workflow hat eine eigene Webhook-URL, sichtbar im **Konfiguration**-Tab:
 
 ```text
 https://<your-tale-domain>/api/webhooks/workflow/<workflow-id>
@@ -22,7 +22,7 @@ curl -X POST https://tale.example.com/api/webhooks/workflow/abc123 \
   -d '{"customerId": "c-42", "priority": "high"}'
 ```
 
-Die Antwort enthält sofort eine Execution-ID. Den Status und Output siehst du im Executions-Tab des Workflows (oder über die REST-API).
+Die Antwort enthält sofort eine Ausführungs-ID. Den Status und Output siehst du im **Ausführungen**-Tab des Workflows (oder über die REST-API).
 
 ## Agent-Webhooks
 

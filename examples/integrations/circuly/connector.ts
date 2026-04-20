@@ -2,78 +2,6 @@
 // These types describe the APIs available inside the integration sandbox.
 // They are stripped during transpilation and exist only for editor support.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Circuly Connector - Fetch data from Circuly API
@@ -153,22 +81,18 @@ const connector = {
     // Build query parameters
     const queryParts = [];
     const page = params.page || 1;
-    const perPage = Math.min((params.per_page ) || 50, 100);
+    const perPage = Math.min(params.per_page || 50, 100);
     queryParts.push('page=' + page);
     queryParts.push('per_page=' + perPage);
 
-    if (params.sort)
-      queryParts.push('sort=' + encodeURIComponent(params.sort ));
+    if (params.sort) queryParts.push('sort=' + encodeURIComponent(params.sort));
     if (params.desc !== undefined)
-      queryParts.push('desc=' + encodeURIComponent(params.desc ));
-    if (params.id)
-      queryParts.push('id=' + encodeURIComponent(params.id ));
+      queryParts.push('desc=' + encodeURIComponent(params.desc));
+    if (params.id) queryParts.push('id=' + encodeURIComponent(params.id));
     if (params.customer_id)
-      queryParts.push(
-        'customer_id=' + encodeURIComponent(params.customer_id ),
-      );
+      queryParts.push('customer_id=' + encodeURIComponent(params.customer_id));
     if (params.status)
-      queryParts.push('status=' + encodeURIComponent(params.status ));
+      queryParts.push('status=' + encodeURIComponent(params.status));
 
     const fullUrl = baseUrl + endpoint + '?' + queryParts.join('&');
 
@@ -190,9 +114,9 @@ const connector = {
       );
     }
 
-    const responseData = response.json() ;
-    const data = responseData.data ;
-    const meta = responseData.meta ;
+    const responseData = response.json();
+    const data = responseData.data;
+    const meta = responseData.meta;
 
     // Extract pagination
     let pagination = null;

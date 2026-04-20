@@ -5,10 +5,7 @@
   "version": 1,
   "type": "sql",
   "authMethod": "basic_auth",
-  "secretBindings": [
-    "username",
-    "password"
-  ],
+  "secretBindings": ["username", "password"],
   "sqlConnectionConfig": {
     "engine": "mssql",
     "readOnly": false,

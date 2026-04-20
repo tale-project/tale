@@ -14,14 +14,14 @@ description: Deploy Tale to a production server using the Tale CLI with zero-dow
 
 Tale pulls pre-built images from GitHub Container Registry. Here are the current image sizes:
 
-| Service    | Image                                        | Size       |
-| ---------- | -------------------------------------------- | ---------- |
-| Platform   | `ghcr.io/tale-project/tale/tale-platform`    | ~320 MB    |
-| Convex     | `ghcr.io/tale-project/tale/tale-convex`      | ~485 MB    |
-| Crawler    | `ghcr.io/tale-project/tale/tale-crawler`     | ~1.9 GB    |
-| RAG        | `ghcr.io/tale-project/tale/tale-rag`         | ~515 MB    |
-| DB         | `ghcr.io/tale-project/tale/tale-db`          | ~1.1 GB    |
-| Proxy      | `ghcr.io/tale-project/tale/tale-proxy`       | ~88 MB     |
+| Service  | Image                                     | Size    |
+| -------- | ----------------------------------------- | ------- |
+| Platform | `ghcr.io/tale-project/tale/tale-platform` | ~320 MB |
+| Convex   | `ghcr.io/tale-project/tale/tale-convex`   | ~485 MB |
+| Crawler  | `ghcr.io/tale-project/tale/tale-crawler`  | ~1.9 GB |
+| RAG      | `ghcr.io/tale-project/tale/tale-rag`      | ~515 MB |
+| DB       | `ghcr.io/tale-project/tale/tale-db`       | ~1.1 GB |
+| Proxy    | `ghcr.io/tale-project/tale/tale-proxy`    | ~88 MB  |
 
 > **Tip:** First pull downloads ~4.4 GB total (compressed). Subsequent updates only download changed layers. Sizes shown are post-Phase-2 (split-Convex) — the Platform image is significantly smaller now that the Convex backend lives in its own service.
 
@@ -189,6 +189,7 @@ TLS_MODE=external
 `SITE_URL` must match the URL users access in their browser. If your reverse proxy uses a non-standard port, include it (e.g., `SITE_URL=https://yourdomain.com:8443`).
 
 Caddy will listen on HTTP only (port 80). Your reverse proxy must:
+
 - Terminate TLS and forward all traffic (including WebSocket) to Tale on port 80
 - Set `X-Forwarded-Proto` and `X-Forwarded-For` headers
 
@@ -249,6 +250,7 @@ location /tale/ {
 ```
 
 **Known limitations:**
+
 - Convex Dashboard (`/convex-dashboard`) is not accessible under subpath deployments
 
 ## Using an external database
@@ -277,11 +279,11 @@ POSTGRES_URL=postgresql://tale:your-password@your-db-host:5432
 
 You can also override individual service connections if needed:
 
-| Variable               | Service   | Description                                                            |
-| ---------------------- | --------- | ---------------------------------------------------------------------- |
-| `POSTGRES_URL`         | All       | Base connection URL (without database name)                            |
-| `RAG_DATABASE_URL`     | RAG       | Full URL including database name, overrides `POSTGRES_URL` for RAG     |
-| `CRAWLER_DATABASE_URL` | Crawler   | Full URL including database name, overrides `POSTGRES_URL` for Crawler |
+| Variable               | Service | Description                                                            |
+| ---------------------- | ------- | ---------------------------------------------------------------------- |
+| `POSTGRES_URL`         | All     | Base connection URL (without database name)                            |
+| `RAG_DATABASE_URL`     | RAG     | Full URL including database name, overrides `POSTGRES_URL` for RAG     |
+| `CRAWLER_DATABASE_URL` | Crawler | Full URL including database name, overrides `POSTGRES_URL` for Crawler |
 
 When using service-specific URLs, include the database name:
 
@@ -319,7 +321,7 @@ After configuring the external database, you can prevent the bundled `db` contai
 ```yaml
 services:
   db:
-    profiles: ["disabled"]
+    profiles: ['disabled']
 ```
 
 This keeps the service definition (so `depends_on` references don't break) but prevents it from starting unless you explicitly request the `disabled` profile.
@@ -350,7 +352,7 @@ What the split-convex migration does when triggered:
 3. **Stop** — brings down compose projects / individual containers holding
    the source volume so `cp -a` doesn't race a live writer.
 4. **Copy** — `docker run --rm --user 1001:1001 -v src:/src:ro -v dst:/dst
-   alpine sh -c "cp -a /src/. /dst/ && touch /dst/.tale-migration-complete"`.
+alpine sh -c "cp -a /src/. /dst/ && touch /dst/.tale-migration-complete"`.
 5. **Verify** — compares file counts between source and destination.
 6. **Record** — appends the migration id to `.tale/migrations.json` so
    subsequent runs skip it. The legacy volume is **preserved** so you can

@@ -1,7 +1,7 @@
 name: Bug report
 description: Something is broken or not working as expected.
-title: "Bug: "
-labels: ["bug"]
+title: 'Bug: '
+labels: ['bug']
 body:
   - type: textarea
     id: description
@@ -29,7 +29,7 @@ body:
     attributes:
       label: Expected behavior
       description: What should have happened instead?
-      placeholder: "e.g. The message should appear in the chat and the agent should respond."
+      placeholder: 'e.g. The message should appear in the chat and the agent should respond.'
     validations:
       required: true
 
@@ -55,7 +55,7 @@ body:
     attributes:
       label: Version or commit
       description: Which version or commit SHA are you running?
-      placeholder: "e.g. 0.1.0 or abc1234"
+      placeholder: 'e.g. 0.1.0 or abc1234'
     validations:
       required: false
 
@@ -64,7 +64,7 @@ body:
     attributes:
       label: Browser and OS
       description: Only needed for UI bugs.
-      placeholder: "e.g. Chrome 124 on macOS 15.4"
+      placeholder: 'e.g. Chrome 124 on macOS 15.4'
     validations:
       required: false
 

@@ -14,14 +14,14 @@ description: Déploie Tale sur un serveur de production avec le CLI Tale et des 
 
 Tale tire des images pré-construites depuis GitHub Container Registry. Tailles actuelles :
 
-| Service    | Image                                        | Taille     |
-| ---------- | -------------------------------------------- | ---------- |
-| Platform   | `ghcr.io/tale-project/tale/tale-platform`    | ~320 Mo    |
-| Convex     | `ghcr.io/tale-project/tale/tale-convex`      | ~485 Mo    |
-| Crawler    | `ghcr.io/tale-project/tale/tale-crawler`     | ~1,9 Go    |
-| RAG        | `ghcr.io/tale-project/tale/tale-rag`         | ~515 Mo    |
-| DB         | `ghcr.io/tale-project/tale/tale-db`          | ~1,1 Go    |
-| Proxy      | `ghcr.io/tale-project/tale/tale-proxy`       | ~88 Mo     |
+| Service  | Image                                     | Taille  |
+| -------- | ----------------------------------------- | ------- |
+| Platform | `ghcr.io/tale-project/tale/tale-platform` | ~320 Mo |
+| Convex   | `ghcr.io/tale-project/tale/tale-convex`   | ~485 Mo |
+| Crawler  | `ghcr.io/tale-project/tale/tale-crawler`  | ~1,9 Go |
+| RAG      | `ghcr.io/tale-project/tale/tale-rag`      | ~515 Mo |
+| DB       | `ghcr.io/tale-project/tale/tale-db`       | ~1,1 Go |
+| Proxy    | `ghcr.io/tale-project/tale/tale-proxy`    | ~88 Mo  |
 
 > **Astuce :** Le premier pull télécharge ~4,4 Go (compressés). Les mises à jour suivantes ne téléchargent que les layers modifiés.
 
@@ -259,11 +259,11 @@ POSTGRES_URL=postgresql://tale:your-password@your-db-host:5432
 
 Tu peux aussi surcharger les connexions par service :
 
-| Variable               | Service   | Description                                                           |
-| ---------------------- | --------- | --------------------------------------------------------------------- |
-| `POSTGRES_URL`         | tous      | URL de base sans nom de base.                                         |
-| `RAG_DATABASE_URL`     | RAG       | URL complète avec nom de base, surcharge `POSTGRES_URL` pour RAG.     |
-| `CRAWLER_DATABASE_URL` | Crawler   | URL complète avec nom de base, surcharge `POSTGRES_URL` pour Crawler. |
+| Variable               | Service | Description                                                           |
+| ---------------------- | ------- | --------------------------------------------------------------------- |
+| `POSTGRES_URL`         | tous    | URL de base sans nom de base.                                         |
+| `RAG_DATABASE_URL`     | RAG     | URL complète avec nom de base, surcharge `POSTGRES_URL` pour RAG.     |
+| `CRAWLER_DATABASE_URL` | Crawler | URL complète avec nom de base, surcharge `POSTGRES_URL` pour Crawler. |
 
 Avec les URLs par service, inclus le nom de base :
 
@@ -301,7 +301,7 @@ Après avoir configuré la DB externe, empêche le conteneur DB fourni de démar
 ```yaml
 services:
   db:
-    profiles: ["disabled"]
+    profiles: ['disabled']
 ```
 
 Ça garde la définition (pour que `depends_on` ne casse pas) mais empêche le démarrage sauf profil `disabled` explicite.

@@ -5,17 +5,9 @@
   "installed": true,
   "type": "rest_api",
   "authMethod": "bearer_token",
-  "supportedAuthMethods": [
-    "bearer_token"
-  ],
-  "secretBindings": [
-    "domain",
-    "accessToken"
-  ],
-  "allowedHosts": [
-    "api.together.xyz",
-    "api.openai.com"
-  ],
+  "supportedAuthMethods": ["bearer_token"],
+  "secretBindings": ["domain", "accessToken"],
+  "allowedHosts": ["api.together.xyz", "api.openai.com"],
   "operations": [
     {
       "name": "create",

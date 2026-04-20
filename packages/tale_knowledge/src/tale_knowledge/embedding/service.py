@@ -73,9 +73,7 @@ class EmbeddingService:
     def _zero_vector(self) -> list[float]:
         return [0.0] * self._dimensions
 
-    async def _embed_batch_with_usage(
-        self, batch: list[str], usage: EmbeddingUsage
-    ) -> list[list[float]]:
+    async def _embed_batch_with_usage(self, batch: list[str], usage: EmbeddingUsage) -> list[list[float]]:
         valid = [(i, text) for i, text in enumerate(batch) if text.strip()]
         if not valid:
             return [self._zero_vector() for _ in batch]
@@ -138,12 +136,8 @@ class EmbeddingService:
         if not texts:
             return EmbeddingResult()
         usage = EmbeddingUsage(model=self._model)
-        batches = [
-            texts[i : i + MAX_BATCH_SIZE] for i in range(0, len(texts), MAX_BATCH_SIZE)
-        ]
-        results = await asyncio.gather(
-            *[self._embed_batch_with_usage(batch, usage) for batch in batches]
-        )
+        batches = [texts[i : i + MAX_BATCH_SIZE] for i in range(0, len(texts), MAX_BATCH_SIZE)]
+        results = await asyncio.gather(*[self._embed_batch_with_usage(batch, usage) for batch in batches])
         embeddings = [emb for batch_result in results for emb in batch_result]
         return EmbeddingResult(embeddings=embeddings, usage=usage)
 
@@ -154,9 +148,7 @@ class EmbeddingService:
     async def embed_query_with_usage(self, query: str) -> EmbeddingQueryResult:
         result = await self.embed_texts_with_usage([query])
         return EmbeddingQueryResult(
-            embedding=result.embeddings[0]
-            if result.embeddings
-            else self._zero_vector(),
+            embedding=result.embeddings[0] if result.embeddings else self._zero_vector(),
             usage=result.usage,
         )
 

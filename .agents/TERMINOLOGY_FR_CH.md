@@ -13,11 +13,11 @@ Swiss French ("français de Suisse") is the written form used in French-speaking
 
 The most well-known difference: Swiss French uses single-word forms for 70, 80 and 90 instead of the French compound forms. Override only when a doc explicitly writes numbers out in words (rare in Tale content).
 
-| Metropolitan French (fr) | Swiss French (fr-CH) |
-| ------------------------ | -------------------- |
-| soixante-dix             | septante             |
-| quatre-vingts            | huitante *(VD, VS, FR)* / quatre-vingts *(GE, NE, JU)* |
-| quatre-vingt-dix         | nonante              |
+| Metropolitan French (fr) | Swiss French (fr-CH)                                   |
+| ------------------------ | ------------------------------------------------------ |
+| soixante-dix             | septante                                               |
+| quatre-vingts            | huitante _(VD, VS, FR)_ / quatre-vingts _(GE, NE, JU)_ |
+| quatre-vingt-dix         | nonante                                                |
 
 Note that "huitante" is only used in some cantons (Vaud, Valais, Fribourg). In Geneva, Neuchâtel, and Jura, the metropolitan "quatre-vingts" is used. Unless you know the target audience, prefer "quatre-vingts" for 80, and override only `septante`/`nonante`.
 
@@ -27,14 +27,14 @@ Numeric form (`70`, `80`, `90`) needs no override — the digits are the same in
 
 Swiss French has a handful of distinct vocabulary items. Most do not appear in Tale content. Do not force Helvetisms where the metropolitan form is equally natural to a Swiss reader.
 
-| Metropolitan French (fr) | Swiss French (fr-CH)  | Notes                                                  |
-| ------------------------ | --------------------- | ------------------------------------------------------ |
-| Petit-déjeuner           | Déjeuner              | Unlikely in Tale content                               |
-| Déjeuner                 | Dîner                 | Unlikely in Tale content                               |
-| Dîner                    | Souper                | Unlikely in Tale content                               |
-| Téléphoner               | Téléphoner            | Same                                                   |
-| E-mail                   | E-mail                | Same — no override needed                              |
-| Week-end                 | Week-end              | Same                                                   |
+| Metropolitan French (fr) | Swiss French (fr-CH) | Notes                     |
+| ------------------------ | -------------------- | ------------------------- |
+| Petit-déjeuner           | Déjeuner             | Unlikely in Tale content  |
+| Déjeuner                 | Dîner                | Unlikely in Tale content  |
+| Dîner                    | Souper               | Unlikely in Tale content  |
+| Téléphoner               | Téléphoner           | Same                      |
+| E-mail                   | E-mail               | Same — no override needed |
+| Week-end                 | Week-end             | Same                      |
 
 ## Currency and numbers
 

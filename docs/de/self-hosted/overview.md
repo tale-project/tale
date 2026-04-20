@@ -54,11 +54,11 @@ graph TD
 
 - KI-Chat-Assistent mit mehrstufigen Konversationen, Datei-Anhängen, Agent-Auswahl, [Arena-Modus](/de/platform/chat/arena-mode) zum Modellvergleich, [Canvas](/de/platform/workspace/canvas) zur Inhaltsbearbeitung und eingebauten Tools.
 - [Prompt-Bibliothek](/de/platform/workspace/prompt-library) zum Speichern und Teilen wiederverwendbarer Prompt-Vorlagen.
-- Semantische Wissensdatenbank für Dokumente, Websites, Products, Customers und Vendors mit [Dokumenten-Vergleich](/de/platform/workspace/document-comparison).
-- Inbox für Kundenkonversationen mit KI-gestützten Antworten und Sammelaktionen.
+- Semantische Wissensdatenbank für Dokumente, Websites, Produkte, Kunden und Lieferanten mit [Dokumenten-Vergleich](/de/platform/workspace/document-comparison).
+- Posteingang für Kundenkonversationen mit KI-gestützten Antworten und Sammelaktionen.
 - Visueller Automatisierungs-Builder mit LLM-Schritten, Bedingungen, Schleifen und Zeitplänen.
 - Eigene KI-Agents mit maßgeschneiderten Anweisungen, Wissen und Tools.
-- Rollenbasierte Zugriffskontrolle vom Nur-Lese-Member bis zum vollständigen Admin.
+- Rollenbasierte Zugriffskontrolle vom Nur-Lese-Zugriff bis zum vollständigen Admin.
 - SSO und Integrationen mit Microsoft Entra ID, REST-APIs, OneDrive-Sync und SQL-Connectors.
 - Produktions-Ops mit Zero-Downtime-Deployments, Prometheus-Metriken und Sentry-Fehlererfassung.
 - WCAG-2.1-AA-Barrierefreiheit auf allen Seiten und Komponenten.

@@ -26,9 +26,9 @@ Verbinde eine PostgreSQL-, MySQL- oder Microsoft-SQL-Server-Datenbank. Der KI-Ag
 
 Nur-Lese-Credentials sind dringend empfohlen — die vom KI generierten Abfragen werden wie sie sind gegen die Datenbank ausgeführt.
 
-### E-Mail (Conversations)
+### E-Mail (Konversationen)
 
-Verbinde ein IMAP- und SMTP-Postfach, um das [Conversations](/de/platform/workspace/conversations)-Inbox zu versorgen. Eingehende E-Mails werden zu Konversations-Threads. Antworten aus der Plattform werden als normale E-Mails zugestellt.
+Verbinde ein IMAP- und SMTP-Postfach, um den [Konversationen](/de/platform/workspace/conversations)-Posteingang zu versorgen. Eingehende E-Mails werden zu Konversationen. Antworten aus der Plattform werden als normale E-Mails zugestellt.
 
 ### Microsoft OneDrive
 

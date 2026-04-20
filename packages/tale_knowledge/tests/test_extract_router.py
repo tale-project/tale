@@ -48,9 +48,7 @@ class TestExtractText:
     async def test_text_file(self):
         from tale_knowledge.extraction.router import extract_text
 
-        content = (
-            b"Hello, this is a test document with enough content to be meaningful."
-        )
+        content = b"Hello, this is a test document with enough content to be meaningful."
         text, vision_used = await extract_text(content, "test.txt")
         assert text == content.decode("utf-8")
         assert vision_used is False

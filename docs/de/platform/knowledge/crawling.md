@@ -45,8 +45,8 @@ Für Sites mit Auth oder angepasstem User-Agent konfiguriere stattdessen eine RE
 
 Wenn ein Crawl Seiten nicht findet, die du erwartest:
 
-- Öffne die Detailseite der Site unter **Wissen > Websites**. Die Liste **Discovered pages** zeigt, was der Crawler gefunden hat.
-- Der **Errors**-Tab listet Seiten, deren Abruf oder Parsing fehlgeschlagen ist, mit HTTP-Status und Fehlermeldung.
+- Öffne die Detailseite der Site unter **Wissen > Websites**. Die Liste der gefundenen Seiten zeigt, was der Crawler entdeckt hat.
+- Der Fehler-Tab listet Seiten, deren Abruf oder Parsing fehlgeschlagen ist, mit HTTP-Status und Fehlermeldung.
 - Prüfe, ob die erwarteten Seiten von der Startseite oder der Sitemap verlinkt sind. Der Crawler findet nur, was er über Links erreichen kann.
 
 ## Eine Site entfernen

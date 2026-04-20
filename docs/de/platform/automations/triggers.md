@@ -21,13 +21,13 @@ Alle Zeitpläne laufen in **UTC**. Wenn dein Team in einer anderen Zeitzone ist,
 
 Lasse den Workflow laufen, wenn in Tale etwas passiert.
 
-| Event                     | Beispiel-Einsatz                                    |
-| ------------------------- | --------------------------------------------------- |
-| New customer added        | Eine Willkommens-E-Mail senden.                     |
-| New conversation opened   | Den Thread basierend auf der Kundenhistorie taggen. |
-| Genehmigung angefordert   | Einen Slack-Kanal benachrichtigen.                  |
-| Document uploaded         | Metadaten extrahieren und klassifizieren.           |
-| Product stock ≤ threshold | Nachbestellen oder die Beschaffung alarmieren.      |
+| Event                      | Beispiel-Einsatz                                          |
+| -------------------------- | --------------------------------------------------------- |
+| Neuer Kunde hinzugefügt    | Eine Willkommens-E-Mail senden.                           |
+| Neue Konversation geöffnet | Die Konversation basierend auf der Kundenhistorie taggen. |
+| Genehmigung angefordert    | Einen Slack-Kanal benachrichtigen.                        |
+| Dokument hochgeladen       | Metadaten extrahieren und klassifizieren.                 |
+| Produktbestand ≤ Schwelle  | Nachbestellen oder die Beschaffung alarmieren.            |
 
 Jeder Event-Typ unterstützt optionale Filter. Der Filter greift, bevor der Workflow startet — unpassende Events werden still übersprungen.
 
@@ -37,20 +37,20 @@ Jeder Workflow bekommt eine eigene Webhook-URL, an die du POSTen kannst. Nutze W
 
 - Der Request-Body steht jedem Schritt als Workflow-Input zur Verfügung.
 - Füge ein Webhook-Secret hinzu, um Request-Authentizität zu prüfen. Tale prüft den Header `X-Tale-Signature` und lehnt nicht passende Requests ab.
-- Die Webhook-URL ist auf dem Start-Schritt und im Configuration-Tab des Workflows sichtbar.
+- Die Webhook-URL ist auf dem Start-Schritt und im **Konfiguration**-Tab des Workflows sichtbar.
 
 Siehe [Webhooks](/de/develop/webhooks) für detaillierte Request-/Response-Formate und Signatur-Verifizierungs-Code.
 
 ## Manuelle Trigger
 
-Der **Run now**-Button auf jedem Workflow erlaubt einen manuellen Start mit eigenem Input. Nützlich für:
+Der **Ausführen**-Button auf jedem Workflow erlaubt einen manuellen Start mit eigenem Input. Nützlich für:
 
 - einen neuen Workflow testen, bevor du ihn einplanst;
 - einmalige Runs, wenn der Workflow existiert, aber nicht automatisch laufen soll;
 - Backfills anstoßen.
 
-Manuelle Runs erscheinen genau wie andere Runs im Executions-Tab.
+Manuelle Läufe erscheinen genau wie andere Läufe im **Ausführungen**-Tab.
 
 ## Mehrere Trigger auf einem Workflow
 
-Ein Workflow kann z. B. sowohl per Zeitplan (jede Stunde) als auch per Webhook (on-demand) getriggert werden. Jede Execution zeigt, welcher Trigger sie gestartet hat.
+Ein Workflow kann z. B. sowohl per Zeitplan (jede Stunde) als auch per Webhook (on-demand) getriggert werden. Jede Ausführung zeigt, welcher Trigger sie gestartet hat.

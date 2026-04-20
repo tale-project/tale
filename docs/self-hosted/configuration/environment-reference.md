@@ -74,10 +74,10 @@ When unset, all `/metrics/*` endpoints return `401`. See [Operations](/self-host
 
 These are automatically configured in Docker Compose but can be overridden for custom setups:
 
-| Variable       | Default                  | Description                                  |
-| -------------- | ------------------------ | -------------------------------------------- |
-| `CRAWLER_URL`  | `http://crawler:8002`    | Crawler service for website crawling         |
-| `RAG_URL`      | `http://rag:8001`        | RAG service for document indexing and search |
+| Variable      | Default               | Description                                  |
+| ------------- | --------------------- | -------------------------------------------- |
+| `CRAWLER_URL` | `http://crawler:8002` | Crawler service for website crawling         |
+| `RAG_URL`     | `http://rag:8001`     | RAG service for document indexing and search |
 
 ## Docker deployment
 
@@ -90,21 +90,21 @@ These are automatically configured in Docker Compose but can be overridden for c
 
 These variables are only needed if you configure SSO through environment variables instead of the in-app Settings > Integrations UI.
 
-| Variable                            | Required | Description                                 |
-| ----------------------------------- | -------- | ------------------------------------------- |
-| `AUTH_MICROSOFT_ENTRA_ID_ID`        | No       | Microsoft Entra ID application (client) ID  |
-| `AUTH_MICROSOFT_ENTRA_ID_SECRET`    | No       | Microsoft Entra ID client secret            |
-| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` | No       | Microsoft Entra ID tenant ID                |
+| Variable                            | Required | Description                                |
+| ----------------------------------- | -------- | ------------------------------------------ |
+| `AUTH_MICROSOFT_ENTRA_ID_ID`        | No       | Microsoft Entra ID application (client) ID |
+| `AUTH_MICROSOFT_ENTRA_ID_SECRET`    | No       | Microsoft Entra ID client secret           |
+| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` | No       | Microsoft Entra ID tenant ID               |
 
 ## Trusted headers authentication
 
-| Variable                          | Required | Description                                                                |
-| --------------------------------- | -------- | -------------------------------------------------------------------------- |
-| `TRUSTED_HEADERS_ENABLED`         | No       | Set to `true` to enable trusted headers authentication                     |
-| `TRUSTED_HEADERS_INTERNAL_SECRET` | No       | Shared secret for validating trusted header requests (defense-in-depth)    |
-| `TRUSTED_EMAIL_HEADER`            | No       | Header name for the user's email (default: `Remote-Email`)                 |
-| `TRUSTED_NAME_HEADER`             | No       | Header name for the user's display name (default: `Remote-Name`)           |
-| `TRUSTED_ROLE_HEADER`             | No       | Header name for the user's role (default: `Remote-Role`)                   |
-| `TRUSTED_TEAMS_HEADER`            | No       | Header name for the user's teams (default: `Remote-Teams`)                 |
+| Variable                          | Required | Description                                                             |
+| --------------------------------- | -------- | ----------------------------------------------------------------------- |
+| `TRUSTED_HEADERS_ENABLED`         | No       | Set to `true` to enable trusted headers authentication                  |
+| `TRUSTED_HEADERS_INTERNAL_SECRET` | No       | Shared secret for validating trusted header requests (defense-in-depth) |
+| `TRUSTED_EMAIL_HEADER`            | No       | Header name for the user's email (default: `Remote-Email`)              |
+| `TRUSTED_NAME_HEADER`             | No       | Header name for the user's display name (default: `Remote-Name`)        |
+| `TRUSTED_ROLE_HEADER`             | No       | Header name for the user's role (default: `Remote-Role`)                |
+| `TRUSTED_TEAMS_HEADER`            | No       | Header name for the user's teams (default: `Remote-Teams`)              |
 
 See the [Authentication guide](/self-hosted/admin/authentication) for details on configuring trusted headers.

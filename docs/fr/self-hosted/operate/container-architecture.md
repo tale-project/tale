@@ -38,14 +38,14 @@ graph TB
 
 ## Détails des images
 
-| Service   | Image de base                                                              | Taille optimisée      | Stratégie de build                                                        |
-| --------- | -------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------- |
-| Platform  | `ghcr.io/get-convex/convex-backend` (pour le binaire glibc `generate_key`) | **~320 Mo compressé** | 5 stages : deps → builder → pruner → runner → squash                      |
-| Convex    | `ghcr.io/get-convex/convex-backend`                                        | **~485 Mo compressé** | 2 stages : dashboard → runner (Dashboard COPY depuis image upstream)      |
-| Crawler   | `python:3.11-slim`                                                         | **~650 Mo compressé** | 3 stages : builder → runtime → squash. Chromium headless_shell uniquement |
-| RAG       | `python:3.11-slim`                                                         | **~515 Mo**           | 3 stages : builder → runtime → squash. libpq5 uniquement                  |
-| DB        | `paradedb/paradedb:0.22.5-pg16`                                            | **~1,06 Go**          | 3 stages : cleanup → runtime → squash                                     |
-| Proxy     | `caddy:2.11-alpine`                                                        | **~88 Mo**            | un seul stage                                                             |
+| Service  | Image de base                                                              | Taille optimisée      | Stratégie de build                                                        |
+| -------- | -------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------- |
+| Platform | `ghcr.io/get-convex/convex-backend` (pour le binaire glibc `generate_key`) | **~320 Mo compressé** | 5 stages : deps → builder → pruner → runner → squash                      |
+| Convex   | `ghcr.io/get-convex/convex-backend`                                        | **~485 Mo compressé** | 2 stages : dashboard → runner (Dashboard COPY depuis image upstream)      |
+| Crawler  | `python:3.11-slim`                                                         | **~650 Mo compressé** | 3 stages : builder → runtime → squash. Chromium headless_shell uniquement |
+| RAG      | `python:3.11-slim`                                                         | **~515 Mo**           | 3 stages : builder → runtime → squash. libpq5 uniquement                  |
+| DB       | `paradedb/paradedb:0.22.5-pg16`                                            | **~1,06 Go**          | 3 stages : cleanup → runtime → squash                                     |
+| Proxy    | `caddy:2.11-alpine`                                                        | **~88 Mo**            | un seul stage                                                             |
 
 Séparer Convex de platform a réduit l'image platform de ~2,58 Go à ~320 Mo compressé ; le service convex est une nouvelle image ~485 Mo. Le disque total est similaire mais le layer platform rebuild bien plus vite pour des changements app-only.
 
@@ -53,25 +53,25 @@ Séparer Convex de platform a réduit l'image platform de ~2,58 Go à ~320 Mo co
 
 ### Ports dev (`compose.yml`)
 
-| Service   | Port hôte   | Port conteneur   | Protocole           |
-| --------- | ----------- | ---------------- | ------------------- |
-| DB        | 5432        | 5432             | TCP (PostgreSQL)    |
-| Crawler   | 8002        | 8002             | HTTP                |
-| RAG       | 8001        | 8001             | HTTP                |
-| Convex    | —           | 3210, 3211, 6791 | WS/HTTP (via proxy) |
-| Platform  | —           | 3000             | HTTP (via proxy)    |
-| Proxy     | 80, 443     | 80, 443          | HTTP/HTTPS          |
+| Service  | Port hôte | Port conteneur   | Protocole           |
+| -------- | --------- | ---------------- | ------------------- |
+| DB       | 5432      | 5432             | TCP (PostgreSQL)    |
+| Crawler  | 8002      | 8002             | HTTP                |
+| RAG      | 8001      | 8001             | HTTP                |
+| Convex   | —         | 3210, 3211, 6791 | WS/HTTP (via proxy) |
+| Platform | —         | 3000             | HTTP (via proxy)    |
+| Proxy    | 80, 443   | 80, 443          | HTTP/HTTPS          |
 
 ### Ports test (`compose.test.yml`)
 
-| Service   | Port hôte           | Port conteneur   |
-| --------- | ------------------- | ---------------- |
-| DB        | 15432               | 5432             |
-| Crawler   | 18002               | 8002             |
-| RAG       | 18001               | 8001             |
-| Convex    | 13210, 13211, 16791 | 3210, 3211, 6791 |
-| Platform  | 13000               | 3000             |
-| Proxy     | 10080, 10443        | 80, 443          |
+| Service  | Port hôte           | Port conteneur   |
+| -------- | ------------------- | ---------------- |
+| DB       | 15432               | 5432             |
+| Crawler  | 18002               | 8002             |
+| RAG      | 18001               | 8001             |
+| Convex   | 13210, 13211, 16791 | 3210, 3211, 6791 |
+| Platform | 13000               | 3000             |
+| Proxy    | 10080, 10443        | 80, 443          |
 
 ## Mapping des volumes
 
@@ -86,16 +86,16 @@ Séparer Convex de platform a réduit l'image platform de ~2,58 Go à ~320 Mo co
 | `convex-data`   | Crawler, RAG            | `/app/platform-config` **(read-only)** | config provider partagée.                                                                                                                    |
 | `caddy-data`    | Proxy, Convex           | `/data`, `/caddy-data`                 | certificats TLS.                                                                                                                             |
 | `caddy-config`  | Proxy                   | `/config`                              | configuration Caddy.                                                                                                                         |
-| `platform-data` | — *(legacy, non monté)* | —                                      | préservé après upgrade pour la sécurité du rollback ; à retirer manuellement après validation : `docker volume rm <projectId>_platform-data` |
+| `platform-data` | — _(legacy, non monté)_ | —                                      | préservé après upgrade pour la sécurité du rollback ; à retirer manuellement après validation : `docker volume rm <projectId>_platform-data` |
 
 > **Important :** Ne lance jamais `docker compose down -v`. Le flag `-v` supprime tous les volumes Docker, effaçant définitivement ta base et toutes les données plateforme.
 
 ## Arguments de build
 
-| Argument            | Défaut    | Utilisé par | Description                                             |
-| ------------------- | --------- | ----------- | ------------------------------------------------------- |
-| `VERSION`           | `dev`     | tous        | tag de version d'image (posé par CI depuis le tag git). |
-| `INSTALL_CJK_FONTS` | `false`   | Crawler     | installer le support des polices CJK (~100 Mo).         |
+| Argument            | Défaut  | Utilisé par | Description                                             |
+| ------------------- | ------- | ----------- | ------------------------------------------------------- |
+| `VERSION`           | `dev`   | tous        | tag de version d'image (posé par CI depuis le tag git). |
+| `INSTALL_CJK_FONTS` | `false` | Crawler     | installer le support des polices CJK (~100 Mo).         |
 
 ## Stratégie multi-stage
 
@@ -135,14 +135,14 @@ Tous les services utilisent un squash `FROM scratch` en stage final. Ça aplati 
 
 ## Health checks
 
-| Service   | Endpoint                                              | Protocole      | Démarrage     |
-| --------- | ----------------------------------------------------- | -------------- | ------------- |
-| DB        | `pg_isready -U tale -d tale`                          | CLI            | 60 s          |
-| Crawler   | `GET /health` sur :8002                               | HTTP           | 40 s          |
-| RAG       | `GET /health` sur :8001                               | HTTP           | 40 s          |
-| Convex    | `GET :3210/version` + `[ -f /tmp/convex-ready ]`      | HTTP + fichier | 60 s          |
-| Platform  | `GET :3000/api/health` + `[ -f /tmp/platform-ready ]` | HTTP + fichier | 180 s         |
-| Proxy     | `GET /health` sur :2020 (interne)                     | HTTP           | 10 s          |
+| Service  | Endpoint                                              | Protocole      | Démarrage |
+| -------- | ----------------------------------------------------- | -------------- | --------- |
+| DB       | `pg_isready -U tale -d tale`                          | CLI            | 60 s      |
+| Crawler  | `GET /health` sur :8002                               | HTTP           | 40 s      |
+| RAG      | `GET /health` sur :8001                               | HTTP           | 40 s      |
+| Convex   | `GET :3210/version` + `[ -f /tmp/convex-ready ]`      | HTTP + fichier | 60 s      |
+| Platform | `GET :3000/api/health` + `[ -f /tmp/platform-ready ]` | HTTP + fichier | 180 s     |
+| Proxy    | `GET /health` sur :2020 (interne)                     | HTTP           | 10 s      |
 
 Les marqueurs `/tmp/<service>-ready` sont posés par l'entrypoint de chaque service après ses tâches d'init one-shot (Convex : backend up + seed builtin ; Platform : env sync + `convex deploy`). Ça empêche le trafic d'être routé avant que le service soit vraiment prêt.
 

@@ -1,11 +1,11 @@
 ---
-title: Branding
+title: Image de marque
 description: Personnalise le nom de l'application, le logo, la favicon et les couleurs de marque pour ton organisation.
 ---
 
-Branding permet aux admins de personnaliser l'apparence de Tale pour tous dans l'organisation. Les changements s'appliquent à l'onglet du navigateur, la barre de navigation, les e-mails et les en-têtes de notification.
+L'image de marque permet aux admins de personnaliser l'apparence de Tale pour tous dans l'organisation. Les changements s'appliquent à l'onglet du navigateur, la barre de navigation, les e-mails et les en-têtes de notification.
 
-Options disponibles dans **Paramètres > Branding** :
+Options disponibles dans **Paramètres > Image de marque** :
 
 | Option                   | Description                                                                    |
 | ------------------------ | ------------------------------------------------------------------------------ |
@@ -29,4 +29,4 @@ Les couleurs sont entrées en codes hex. La plateforme impose un ratio de contra
 
 ## Réinitialiser
 
-Clique l'icône reset à côté d'un champ pour revenir à la valeur Tale par défaut. Réinitialiser nom et logo ensemble restaure le branding Tale par défaut.
+Clique l'icône reset à côté d'un champ pour revenir à la valeur Tale par défaut. Réinitialiser nom et logo ensemble restaure l'image de marque Tale par défaut.

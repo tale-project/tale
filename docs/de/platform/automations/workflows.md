@@ -11,16 +11,16 @@ Es gibt drei Wege, einen Workflow zu erstellen:
 
 ### KI-unterstützt
 
-1. Navigiere zu Automatisierungen und klicke auf New Automatisierung.
+1. Navigiere zu **Automatisierungen** und klicke auf **Neue Automatisierung**.
 2. Gib einen Namen und eine Beschreibung ein, was der Workflow tun soll. Je mehr Details, desto besser kann die KI die ersten Schritte bauen.
-3. Klicke auf Continue. Die Plattform erstellt den Workflow und öffnet rechts den KI-Chat, in dem du gesprächsweise verfeinern kannst.
+3. Klicke auf **Weiter**. Die Plattform erstellt den Workflow und öffnet rechts den KI-Chat, in dem du gesprächsweise verfeinern kannst.
 
 ### Manueller visueller Editor
 
 1. Erstelle einen neuen Workflow wie oben, aber lasse die Beschreibung leer.
-2. Nutze den Add-Step-Button auf dem Workflow-Canvas, um Schritte einzeln hinzuzufügen.
+2. Nutze den **Schritt hinzufügen**-Button auf dem Workflow-Canvas, um Schritte einzeln hinzuzufügen.
 3. Konfiguriere jeden Schritt im Seitenpanel, das beim Klick auf einen Schritt erscheint.
-4. Verbinde Schritte, indem du die Connector-Griffe anklickst und Linien dazwischen ziehst.
+4. Verbinde Schritte, indem du die Verbinder-Griffe anklickst und Linien dazwischen ziehst.
 
 ### Datei-basiert mit KI-Unterstützung
 
@@ -49,7 +49,7 @@ Alle Zeitpläne laufen in UTC. Quick-Presets: alle 5 Minuten, stündlich, tägli
 
 ### Event-Trigger
 
-Lasse den Workflow laufen, wenn in der Plattform etwas passiert, z. B. wenn ein neuer Customer angelegt, eine Konversation eröffnet oder der Bestand eines Produkts 0 erreicht. Jeder Event-Typ kann optionale Filterbedingungen haben.
+Lasse den Workflow laufen, wenn in der Plattform etwas passiert, z. B. wenn ein neuer Kunde angelegt, eine Konversation eröffnet oder der Bestand eines Produkts 0 erreicht. Jeder Event-Typ kann optionale Filterbedingungen haben.
 
 ### Webhook-Trigger
 
@@ -57,20 +57,20 @@ Jeder Workflow bekommt eine eigene Webhook-URL. Ein HTTP-POST an diese URL mit e
 
 ## Workflow-Konfiguration
 
-Navigiere zum Configuration-Tab eines Workflows, um Folgendes anzupassen:
+Navigiere zum **Konfiguration**-Tab eines Workflows, um Folgendes anzupassen:
 
-- Active-Umschalter: Workflow aktivieren oder deaktivieren. Drafts lassen sich erst aktivieren, wenn sie publiziert sind.
-- Timeout: maximale Laufzeit eines Workflows in Millisekunden, bevor er gestoppt wird. Standard ist 300.000 ms (5 Minuten).
-- Max Retries: wie oft ein fehlgeschlagener Schritt erneut versucht wird, bevor der Workflow fehlschlägt. Standard ist 3.
-- Backoff: Wartezeit in Millisekunden zwischen Retry-Versuchen. Standard ist 1.000 ms.
-- Variables: ein JSON-Objekt aus Key-Value-Paaren, auf das alle Schritte als gemeinsame Konfiguration zugreifen.
+- **Aktiv**-Umschalter: Workflow aktivieren oder deaktivieren. Entwürfe lassen sich erst aktivieren, wenn sie veröffentlicht sind.
+- **Timeout**: maximale Laufzeit eines Workflows in Millisekunden, bevor er gestoppt wird. Standard ist 300.000 ms (5 Minuten).
+- **Max. Wiederholungen**: wie oft ein fehlgeschlagener Schritt erneut versucht wird, bevor der Workflow fehlschlägt. Standard ist 3.
+- **Backoff**: Wartezeit in Millisekunden zwischen Wiederholungen. Standard ist 1.000 ms.
+- **Variablen**: ein JSON-Objekt aus Key-Value-Paaren, auf das alle Schritte als gemeinsame Konfiguration zugreifen.
 
 ## Einen Workflow testen
 
 Nutze das Test-Panel (verfügbar im Seitenpanel des Workflow-Editors), um:
 
-- Execute: einen echten Run mit Test-Input auszulösen. Das Ergebnis siehst du im Executions-Tab.
+- **Ausführen**: einen echten Lauf mit Test-Input auszulösen. Das Ergebnis siehst du im **Ausführungen**-Tab.
 
 ## Ausführungsverlauf
 
-Navigiere zum Executions-Tab eines beliebigen Workflows, um ein Log aller vergangenen Runs zu sehen, inklusive Startzeit, Dauer, Status sowie Input- und Output-Daten in jedem Schritt.
+Navigiere zum **Ausführungen**-Tab eines beliebigen Workflows, um ein Log aller vergangenen Läufe zu sehen, inklusive Startzeit, Dauer, Status sowie Input- und Output-Daten in jedem Schritt.

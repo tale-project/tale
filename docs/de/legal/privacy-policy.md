@@ -52,12 +52,12 @@ Wenn du unsere Website besuchst, verarbeitet unser Hosting-Anbieter (Framer) mö
 
 Wir verarbeiten deine personenbezogenen Daten zu folgenden Zwecken:
 
-| Zweck                                          | Betroffene Daten                                 | Rechtsgrundlage (FADP) | Rechtsgrundlage (DSGVO)                                               |
-| ---------------------------------------------- | ------------------------------------------------ | ---------------------- | --------------------------------------------------------------------- |
-| Beantwortung deiner Anfrage                    | Name, E-Mail, Firma, Nachricht                   | Berechtigtes Interesse | Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse                   |
-| Planung und Durchführung einer Produkt-Demo    | Name, E-Mail, Telefon, Firma, Interessensbereich | Berechtigtes Interesse | Art. 6 Abs. 1 lit. b DSGVO — Vorvertragliche Maßnahmen                |
-| Betrieb und Sicherheit unserer Website         | Technische Daten (IP-Adresse, Browser)           | Berechtigtes Interesse | Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse                   |
-| Anbahnung einer möglichen Geschäftsbeziehung   | Daten aus Kontaktformularen                      | Berechtigtes Interesse | Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse                   |
+| Zweck                                        | Betroffene Daten                                 | Rechtsgrundlage (FADP) | Rechtsgrundlage (DSGVO)                                |
+| -------------------------------------------- | ------------------------------------------------ | ---------------------- | ------------------------------------------------------ |
+| Beantwortung deiner Anfrage                  | Name, E-Mail, Firma, Nachricht                   | Berechtigtes Interesse | Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse    |
+| Planung und Durchführung einer Produkt-Demo  | Name, E-Mail, Telefon, Firma, Interessensbereich | Berechtigtes Interesse | Art. 6 Abs. 1 lit. b DSGVO — Vorvertragliche Maßnahmen |
+| Betrieb und Sicherheit unserer Website       | Technische Daten (IP-Adresse, Browser)           | Berechtigtes Interesse | Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse    |
+| Anbahnung einer möglichen Geschäftsbeziehung | Daten aus Kontaktformularen                      | Berechtigtes Interesse | Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse    |
 
 Nach dem Schweizer FADP ist die Verarbeitung personenbezogener Daten grundsätzlich zulässig, solange sie die Persönlichkeit der betroffenen Person nicht verletzt. Wir verarbeiten deine Daten in gutem Glauben, verhältnismäßig und ausschließlich zu den oben genannten Zwecken.
 

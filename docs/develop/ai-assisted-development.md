@@ -7,13 +7,13 @@ When you run `tale init`, the CLI generates configuration files that make AI-pow
 
 ## What gets generated
 
-| File                              | Purpose                                    | Editor           |
-| --------------------------------- | ------------------------------------------ | ---------------- |
-| `CLAUDE.md`                       | Project rules and context                  | Claude Code      |
-| `.cursor/rules/tale.mdc`          | Project rules with glob-based frontmatter  | Cursor           |
-| `.github/copilot-instructions.md` | Project rules                              | GitHub Copilot   |
-| `.windsurfrules`                  | Project rules                              | Windsurf         |
-| `.tale/reference/`                | Full platform source code (read-only)      | All of the above |
+| File                              | Purpose                                   | Editor           |
+| --------------------------------- | ----------------------------------------- | ---------------- |
+| `CLAUDE.md`                       | Project rules and context                 | Claude Code      |
+| `.cursor/rules/tale.mdc`          | Project rules with glob-based frontmatter | Cursor           |
+| `.github/copilot-instructions.md` | Project rules                             | GitHub Copilot   |
+| `.windsurfrules`                  | Project rules                             | Windsurf         |
+| `.tale/reference/`                | Full platform source code (read-only)     | All of the above |
 
 The rules files contain the same core content: project structure, configuration conventions, and instructions to consult `.tale/reference/` before making changes. The reference directory contains the complete backend implementation source, including database schemas, validators, agent tools, workflow step types, and integration connectors. This gives the AI everything it needs to generate correct configurations.
 

@@ -145,7 +145,7 @@ GET /api/v1/websites/{domain}/urls
 
 ## API Platform
 
-Le service Platform expose une API publique sur `/api/v1/*` pour l'accès programmatique à tes données. Authentification par clé API depuis **Paramètres > API keys**.
+Le service Platform expose une API publique sur `/api/v1/*` pour l'accès programmatique à tes données. Authentification par clé API depuis **Paramètres > Clés API**.
 
 ### Chat completions compatibles OpenAI
 
@@ -160,7 +160,7 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="https://your-tale-instance.com/api/v1",
-    api_key="tale_...",  # depuis Paramètres > API keys
+    api_key="tale_...",  # depuis Paramètres > Clés API
     default_headers={"X-Organization-Slug": "default"},
 )
 
@@ -172,17 +172,17 @@ print(response.choices[0].message.content)
 ```
 
 ```typescript Node.js
-import OpenAI from "openai";
+import OpenAI from 'openai';
 
 const client = new OpenAI({
-  baseURL: "https://your-tale-instance.com/api/v1",
-  apiKey: "tale_...",
-  defaultHeaders: { "X-Organization-Slug": "default" },
+  baseURL: 'https://your-tale-instance.com/api/v1',
+  apiKey: 'tale_...',
+  defaultHeaders: { 'X-Organization-Slug': 'default' },
 });
 
 const response = await client.chat.completions.create({
-  model: "chat-agent",
-  messages: [{ role: "user", content: "Bonjour !" }],
+  model: 'chat-agent',
+  messages: [{ role: 'user', content: 'Bonjour !' }],
 });
 console.log(response.choices[0].message.content);
 ```
@@ -205,7 +205,7 @@ Toutes les requêtes exigent un bearer token dans l'en-tête `Authorization` :
 Authorization: Bearer tale_...
 ```
 
-Crée les clés API dans **Paramètres > API keys** de l'UI.
+Crée les clés API dans **Paramètres > Clés API** de l'UI.
 
 #### En-têtes
 
@@ -288,8 +288,8 @@ Liste les agents disponibles (modèles).
 {
   "object": "list",
   "data": [
-    {"id": "chat-agent", "object": "model", "owned_by": "default"},
-    {"id": "workflow-assistant", "object": "model", "owned_by": "default"}
+    { "id": "chat-agent", "object": "model", "owned_by": "default" },
+    { "id": "workflow-assistant", "object": "model", "owned_by": "default" }
   ]
 }
 ```

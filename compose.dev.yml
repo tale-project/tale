@@ -21,7 +21,16 @@ services:
       - CRAWLER_LOG_LEVEL=debug
       # Enable uvicorn auto-reload for Python code changes
       - UVICORN_RELOAD=true
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002", "--reload"]
+    command:
+      [
+        'uvicorn',
+        'app.main:app',
+        '--host',
+        '0.0.0.0',
+        '--port',
+        '8002',
+        '--reload',
+      ]
     healthcheck:
       interval: 30s
       timeout: 10s

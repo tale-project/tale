@@ -23,16 +23,17 @@ The design file is organized into three top-level container frames on the canvas
 
 ### Canvas Organization
 
-| Container Frame | ID | Contents |
-|----------------|-----|----------|
-| `--- Components ---` | `LFO5t` | All reusable UI components (buttons, inputs, icons, toasts, tooltips, chat input, image/doc previews, rich text, etc.) |
-| `--- Pages/Auth ---` | `IDh7b` | Authentication screens (SignUp, SignIn, UpdatePassword) — light on top row, dark on bottom row |
-| `--- Pages/Chat ---` | `gz7c1` | All chat screens (48+ screens) — light on top row, dark on bottom row, arranged chronologically by feature |
-| `--- Pages/Conversations ---` | `tnsiL` | Conversations/inbox screens — light on top row, dark on bottom row |
+| Container Frame               | ID      | Contents                                                                                                               |
+| ----------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `--- Components ---`          | `LFO5t` | All reusable UI components (buttons, inputs, icons, toasts, tooltips, chat input, image/doc previews, rich text, etc.) |
+| `--- Pages/Auth ---`          | `IDh7b` | Authentication screens (SignUp, SignIn, UpdatePassword) — light on top row, dark on bottom row                         |
+| `--- Pages/Chat ---`          | `gz7c1` | All chat screens (48+ screens) — light on top row, dark on bottom row, arranged chronologically by feature             |
+| `--- Pages/Conversations ---` | `tnsiL` | Conversations/inbox screens — light on top row, dark on bottom row                                                     |
 
 ### Naming Convention
 
 All nodes use a path-style prefix:
+
 - **`Pages/[Section]/[ScreenName]`** — Full-page screens
 - **`Components/[Category]/[Name]`** — Reusable UI components
 
@@ -91,6 +92,7 @@ src/
 ### Design Tokens File
 
 Variables and themes from the `.pen` file should be exported as:
+
 - **CSS custom properties** for runtime theming (light/dark switch)
 - **TypeScript constants** for spacing, radii, typography scales
 
@@ -104,104 +106,104 @@ The design supports **light** and **dark** modes via a `mode` theme axis.
 
 ### Semantic Tokens (Themed)
 
-| Token | Light | Dark | Usage |
-|-------|-------|------|-------|
-| `bg-color` | `#FFFFFF` | `#0C1017` | Page/app background |
-| `surface-primary` | `#FFFFFF` | `#030712` | Cards, modals, panels |
-| `surface-secondary` | `#FFFFFF` | `#1F2937` | Secondary surfaces |
-| `surface-hover` | `#F9FAFB` | `#111827` | Hover state backgrounds |
-| `surface-disabled` | `#F9FAFB` | `#1F2937` | Disabled surface fills |
-| `border-primary` | `#E5E7EB` | `#4B5563` | Default borders |
-| `border-hover` | `#D1D5DB` | `#4B5563` | Hover state borders |
-| `border-focus` | `#056CFF` | `#5098FF` | Focus ring color |
-| `border-error` | `#DC2626` | `#F87171` | Error state borders |
-| `border-disabled` | `#D1D5DB` | `#374151` | Disabled borders |
-| `text-primary` | `#030712` | `#FFFFFF` | Primary text |
-| `text-secondary` | `#374151` | `#D1D5DB` | Secondary text |
-| `text-tertiary` | `#6B7280` | `#9CA3AF` | Tertiary/muted text |
-| `text-disabled` | `#9CA3AF` | `#4B5563` | Disabled text |
-| `text-error` | `#DC2626` | `#F87171` | Error text |
-| `button-primary-bg` | `#030712` | `#FFFFFF` | Primary button fill |
-| `button-primary-text` | `#FFFFFF` | `#030712` | Primary button text |
-| `icon-primary` | `#374151` | `#D1D5DB` | Default icon color |
-| `icon-success` | `#057747` | `#12B76A` | Success icon color |
-| `logo-color` | `#060809` | `#FFFFFF` | Logo fill |
-| `tooltip-bg` | `#030712` | `#F9FAFB` | Tooltip background |
-| `tooltip-text` | `#FFFFFF` | `#030712` | Tooltip text |
-| `overlay-bg` | `#00000066` | `#030712CC` | Modal overlay background (40% light / 80% dark) |
+| Token                 | Light       | Dark        | Usage                                           |
+| --------------------- | ----------- | ----------- | ----------------------------------------------- |
+| `bg-color`            | `#FFFFFF`   | `#0C1017`   | Page/app background                             |
+| `surface-primary`     | `#FFFFFF`   | `#030712`   | Cards, modals, panels                           |
+| `surface-secondary`   | `#FFFFFF`   | `#1F2937`   | Secondary surfaces                              |
+| `surface-hover`       | `#F9FAFB`   | `#111827`   | Hover state backgrounds                         |
+| `surface-disabled`    | `#F9FAFB`   | `#1F2937`   | Disabled surface fills                          |
+| `border-primary`      | `#E5E7EB`   | `#4B5563`   | Default borders                                 |
+| `border-hover`        | `#D1D5DB`   | `#4B5563`   | Hover state borders                             |
+| `border-focus`        | `#056CFF`   | `#5098FF`   | Focus ring color                                |
+| `border-error`        | `#DC2626`   | `#F87171`   | Error state borders                             |
+| `border-disabled`     | `#D1D5DB`   | `#374151`   | Disabled borders                                |
+| `text-primary`        | `#030712`   | `#FFFFFF`   | Primary text                                    |
+| `text-secondary`      | `#374151`   | `#D1D5DB`   | Secondary text                                  |
+| `text-tertiary`       | `#6B7280`   | `#9CA3AF`   | Tertiary/muted text                             |
+| `text-disabled`       | `#9CA3AF`   | `#4B5563`   | Disabled text                                   |
+| `text-error`          | `#DC2626`   | `#F87171`   | Error text                                      |
+| `button-primary-bg`   | `#030712`   | `#FFFFFF`   | Primary button fill                             |
+| `button-primary-text` | `#FFFFFF`   | `#030712`   | Primary button text                             |
+| `icon-primary`        | `#374151`   | `#D1D5DB`   | Default icon color                              |
+| `icon-success`        | `#057747`   | `#12B76A`   | Success icon color                              |
+| `logo-color`          | `#060809`   | `#FFFFFF`   | Logo fill                                       |
+| `tooltip-bg`          | `#030712`   | `#F9FAFB`   | Tooltip background                              |
+| `tooltip-text`        | `#FFFFFF`   | `#030712`   | Tooltip text                                    |
+| `overlay-bg`          | `#00000066` | `#030712CC` | Modal overlay background (40% light / 80% dark) |
 
 ### Color Scales (Static)
 
-| Scale | Range | Example |
-|-------|-------|---------|
-| `gray-*` | 25, 50, 100–950 | `gray-100`: `#F3F4F6`, `gray-900`: `#111827` |
-| `primary-*` | 25, 50, 100–950 | `primary-500`: `#056CFF` |
-| `error-*` | 25, 50, 100–950 | `error-500`: `#EF4444` |
-| `success-*` | 25, 50, 100–950 | `success-500`: `#12B76A` |
-| `warning-*` | 25, 50, 100–950 | `warning-500`: `#F79009` |
-| `info-*` | 25, 50, 100–950 | `info-500`: `#3B82F6` |
+| Scale       | Range           | Example                                      |
+| ----------- | --------------- | -------------------------------------------- |
+| `gray-*`    | 25, 50, 100–950 | `gray-100`: `#F3F4F6`, `gray-900`: `#111827` |
+| `primary-*` | 25, 50, 100–950 | `primary-500`: `#056CFF`                     |
+| `error-*`   | 25, 50, 100–950 | `error-500`: `#EF4444`                       |
+| `success-*` | 25, 50, 100–950 | `success-500`: `#12B76A`                     |
+| `warning-*` | 25, 50, 100–950 | `warning-500`: `#F79009`                     |
+| `info-*`    | 25, 50, 100–950 | `info-500`: `#3B82F6`                        |
 
 ### Spacing
 
-| Token | Value |
-|-------|-------|
-| `spacing-2xs` | 4px |
-| `spacing-4xs` | 6px |
-| `spacing-xs` | 8px |
-| `spacing-sm` | 12px |
-| `spacing-md` | 16px |
-| `spacing-md-plus` | 20px |
-| `spacing-lg` | 24px |
-| `spacing-xl` | 32px |
-| `spacing-2xl` | 40px |
-| `spacing-3xl` | 48px |
-| `spacing-4xl` | 64px |
-| `spacing-5xl` | 80px |
-| `spacing-6xl` | 96px |
-| `spacing-7xl` | 120px |
+| Token             | Value |
+| ----------------- | ----- |
+| `spacing-2xs`     | 4px   |
+| `spacing-4xs`     | 6px   |
+| `spacing-xs`      | 8px   |
+| `spacing-sm`      | 12px  |
+| `spacing-md`      | 16px  |
+| `spacing-md-plus` | 20px  |
+| `spacing-lg`      | 24px  |
+| `spacing-xl`      | 32px  |
+| `spacing-2xl`     | 40px  |
+| `spacing-3xl`     | 48px  |
+| `spacing-4xl`     | 64px  |
+| `spacing-5xl`     | 80px  |
+| `spacing-6xl`     | 96px  |
+| `spacing-7xl`     | 120px |
 
 ### Border Radius
 
-| Token | Value |
-|-------|-------|
-| `radii-none` | 0 |
-| `radii-xs` | 2px |
-| `radii-sm` | 4px |
-| `radii-md` | 8px |
-| `radii-lg` | 12px |
-| `radii-xl` | 16px |
-| `radii-2xl` | 24px |
-| `radii-3xl` | 32px |
+| Token        | Value  |
+| ------------ | ------ |
+| `radii-none` | 0      |
+| `radii-xs`   | 2px    |
+| `radii-sm`   | 4px    |
+| `radii-md`   | 8px    |
+| `radii-lg`   | 12px   |
+| `radii-xl`   | 16px   |
+| `radii-2xl`  | 24px   |
+| `radii-3xl`  | 32px   |
 | `radii-full` | 9999px |
 
 ### Typography
 
-| Token | Value |
-|-------|-------|
-| Font Family | Inter |
-| `font-size-0` | 60px |
-| `font-size-1` | 48px |
-| `font-size-2` | 36px |
-| `font-size-3` | 32px |
-| `font-size-4` | 24px |
-| `font-size-5` | 20px |
-| `font-size-6` | 18px |
-| `font-size-7` | 16px |
-| `font-size-8` | 14px |
-| `font-size-9` | 12px |
-| `font-weight-regular` | 400 |
-| `font-weight-medium` | 500 |
-| `font-weight-semi-bold` | 600 |
+| Token                   | Value |
+| ----------------------- | ----- |
+| Font Family             | Inter |
+| `font-size-0`           | 60px  |
+| `font-size-1`           | 48px  |
+| `font-size-2`           | 36px  |
+| `font-size-3`           | 32px  |
+| `font-size-4`           | 24px  |
+| `font-size-5`           | 20px  |
+| `font-size-6`           | 18px  |
+| `font-size-7`           | 16px  |
+| `font-size-8`           | 14px  |
+| `font-size-9`           | 12px  |
+| `font-weight-regular`   | 400   |
+| `font-weight-medium`    | 500   |
+| `font-weight-semi-bold` | 600   |
 
 ### Icon Sizes
 
-| Token | Value |
-|-------|-------|
-| `icon-xs` | 12px |
-| `icon-sm` | 16px |
-| `icon-md` | 20px |
-| `icon-lg` | 24px |
-| `icon-xl` | 32px |
+| Token     | Value |
+| --------- | ----- |
+| `icon-xs` | 12px  |
+| `icon-sm` | 16px  |
+| `icon-md` | 20px  |
+| `icon-lg` | 24px  |
+| `icon-xl` | 32px  |
 
 ---
 
@@ -211,120 +213,120 @@ All icons throughout the project use the **Lucide** icon font.
 
 ### Logo
 
-| | |
-|---|---|
-| **ID** | `FN6Oy` |
-| **Size** | 73.65 x 20 |
+|          |                        |
+| -------- | ---------------------- |
+| **ID**   | `FN6Oy`                |
+| **Size** | 73.65 x 20             |
 | **Fill** | `$logo-color` (themed) |
 
 ---
 
 ### Button / Primary
 
-| | |
-|---|---|
-| **ID** | `vxV71` |
-| **Size** | 352 x auto |
-| **Corner Radius** | 8px |
-| **Fill** | `$button-primary-bg` + white gradient overlay |
-| **Text** | `$button-primary-text`, Inter 14px medium |
-| **Shadow** | `$button-primary-bg` outer shadow (spread 1 + blur 2) |
+|                   |                                                       |
+| ----------------- | ----------------------------------------------------- |
+| **ID**            | `vxV71`                                               |
+| **Size**          | 352 x auto                                            |
+| **Corner Radius** | 8px                                                   |
+| **Fill**          | `$button-primary-bg` + white gradient overlay         |
+| **Text**          | `$button-primary-text`, Inter 14px medium             |
+| **Shadow**        | `$button-primary-bg` outer shadow (spread 1 + blur 2) |
 
-| Variant | ID | Notes |
-|---------|-----|-------|
-| Default | `vxV71` | Base component — themed (dark on light, white on dark) |
-| Hover | `5p4JU` | Same themed fill + gradient overlay |
-| Disabled | `sHzWt` | 50% opacity, no shadow |
+| Variant  | ID      | Notes                                                  |
+| -------- | ------- | ------------------------------------------------------ |
+| Default  | `vxV71` | Base component — themed (dark on light, white on dark) |
+| Hover    | `5p4JU` | Same themed fill + gradient overlay                    |
+| Disabled | `sHzWt` | 50% opacity, no shadow                                 |
 
 ---
 
 ### Button / Microsoft
 
-| | |
-|---|---|
-| **ID** | `Hyrof` |
-| **Size** | 352 x 40 |
-| **Corner Radius** | 8px |
-| **Fill** | `$surface-primary` |
-| **Border** | `$border-primary` 1px |
-| **Content** | Microsoft 4-color icon + "Continue with Microsoft" label |
+|                   |                                                          |
+| ----------------- | -------------------------------------------------------- |
+| **ID**            | `Hyrof`                                                  |
+| **Size**          | 352 x 40                                                 |
+| **Corner Radius** | 8px                                                      |
+| **Fill**          | `$surface-primary`                                       |
+| **Border**        | `$border-primary` 1px                                    |
+| **Content**       | Microsoft 4-color icon + "Continue with Microsoft" label |
 
-| Variant | ID | Notes |
-|---------|-----|-------|
-| Default | `Hyrof` | Base component |
-| Hover | `BhJOW` | Fill: `$surface-hover`, border: `$border-hover` |
+| Variant | ID      | Notes                                           |
+| ------- | ------- | ----------------------------------------------- |
+| Default | `Hyrof` | Base component                                  |
+| Hover   | `BhJOW` | Fill: `$surface-hover`, border: `$border-hover` |
 
 ---
 
 ### Input / Text
 
-| | |
-|---|---|
-| **ID** | `cmk07` |
-| **Width** | 352px |
+|               |                                                                                                          |
+| ------------- | -------------------------------------------------------------------------------------------------------- |
+| **ID**        | `cmk07`                                                                                                  |
+| **Width**     | 352px                                                                                                    |
 | **Structure** | Label (`KlwOn`) + Input container (`Us9w9`) with placeholder (`ieJix`) + Error message (`BDINh`, hidden) |
 
-| Variant | ID | Notes |
-|---------|-----|-------|
-| Default | `cmk07` | Placeholder text, `$border-primary` |
-| Hover | `ftNNP` | Border: `$border-hover` |
-| Active/Focus | `Ta6OY` | Border: `$border-focus` 1.5px outside, blue glow shadow, typed text |
-| Disabled | `xZ0I9` | Fill: `$surface-disabled`, border: `$border-disabled`, text: `$text-disabled` |
-| Error | `nwWno` | Border: `$border-error`, error message visible |
+| Variant      | ID      | Notes                                                                         |
+| ------------ | ------- | ----------------------------------------------------------------------------- |
+| Default      | `cmk07` | Placeholder text, `$border-primary`                                           |
+| Hover        | `ftNNP` | Border: `$border-hover`                                                       |
+| Active/Focus | `Ta6OY` | Border: `$border-focus` 1.5px outside, blue glow shadow, typed text           |
+| Disabled     | `xZ0I9` | Fill: `$surface-disabled`, border: `$border-disabled`, text: `$text-disabled` |
+| Error        | `nwWno` | Border: `$border-error`, error message visible                                |
 
 ---
 
 ### Input / Password
 
-| | |
-|---|---|
-| **ID** | `vq37Q` |
-| **Width** | 352px |
+|               |                                                                                                                            |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **ID**        | `vq37Q`                                                                                                                    |
+| **Width**     | 352px                                                                                                                      |
 | **Structure** | Label (`hFsyo`) + Input container (`OszHr`) with placeholder (`QEv8h`) + Eye toggle icon + Error message (`YOBL2`, hidden) |
 
-| Variant | ID | Notes |
-|---------|-----|-------|
-| Default | `vq37Q` | Same pattern as Text input |
-| Hover | `cpI64` | Border: `$border-hover` |
-| Active/Focus | `7cOnX` | Blue focus ring, masked dots |
-| Disabled | `D2Pmf` | Disabled styling |
-| Error | `UErQs` | Red border, error message visible |
+| Variant      | ID      | Notes                             |
+| ------------ | ------- | --------------------------------- |
+| Default      | `vq37Q` | Same pattern as Text input        |
+| Hover        | `cpI64` | Border: `$border-hover`           |
+| Active/Focus | `7cOnX` | Blue focus ring, masked dots      |
+| Disabled     | `D2Pmf` | Disabled styling                  |
+| Error        | `UErQs` | Red border, error message visible |
 
 ---
 
 ### Input / TextArea
 
-| | |
-|---|---|
-| **ID** | `MMD6s` |
-| **Width** | 352px |
+|               |                                                                                                             |
+| ------------- | ----------------------------------------------------------------------------------------------------------- |
+| **ID**        | `MMD6s`                                                                                                     |
+| **Width**     | 352px                                                                                                       |
 | **Structure** | Label (`dIoWi`) + TextArea container (`ecABj`) with placeholder (`RleZu`) + Error message (`FdV8J`, hidden) |
 
-| Variant | ID | Notes |
-|---------|-----|-------|
-| Default | `MMD6s` | Base component |
-| Hover | `5G04n` | Border: `$border-hover` |
-| Active/Focus | `t0lWz` | Blue focus ring, typed text |
-| Disabled | `UF2Xa` | Disabled styling |
-| Error | `p0kkq` | Red border, error message visible |
+| Variant      | ID      | Notes                             |
+| ------------ | ------- | --------------------------------- |
+| Default      | `MMD6s` | Base component                    |
+| Hover        | `5G04n` | Border: `$border-hover`           |
+| Active/Focus | `t0lWz` | Blue focus ring, typed text       |
+| Disabled     | `UF2Xa` | Disabled styling                  |
+| Error        | `p0kkq` | Red border, error message visible |
 
 ---
 
 ### Input / Dropdown
 
-| | |
-|---|---|
-| **ID** | `CXIFf` |
-| **Width** | 352px |
+|               |                                                                                                                            |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **ID**        | `CXIFf`                                                                                                                    |
+| **Width**     | 352px                                                                                                                      |
 | **Structure** | Label (`gs6o2`) + Dropdown container (`G5R9i`) with placeholder (`1XQGz`) + chevron icon + Error message (`OXKYb`, hidden) |
 
-| Variant | ID | Notes |
-|---------|-----|-------|
-| Default | `CXIFf` | Base component |
-| Hover | `WgUNB` | Border: `$border-hover` |
+| Variant      | ID      | Notes                                  |
+| ------------ | ------- | -------------------------------------- |
+| Default      | `CXIFf` | Base component                         |
+| Hover        | `WgUNB` | Border: `$border-hover`                |
 | Active/Focus | `UsTdD` | Blue focus ring, selected option shown |
-| Disabled | `r3Tjh` | Disabled styling |
-| Error | `hjANT` | Red border, error message visible |
+| Disabled     | `r3Tjh` | Disabled styling                       |
+| Error        | `hjANT` | Red border, error message visible      |
 
 ---
 
@@ -332,50 +334,51 @@ All icons throughout the project use the **Lucide** icon font.
 
 All icons use **Lucide** (`iconFontFamily: "lucide"`).
 
-| Component | ID | Icon Name | Fill | Size |
-|-----------|-----|-----------|------|------|
-| Icon/Eye | `6E3og` | `eye` | `$icon-primary` | 16x16 |
-| Icon/EyeOff | `BsNSc` | `eye-off` | `$icon-primary` | 16x16 |
-| Icon/Check | `sdeEz` | `check` | `$icon-success` | 12x12 |
-| Icon/Minus | `JwdkS` | `minus` | `$text-tertiary` | 12x12 |
-| Icon/CircleX | `vyjdA` | `circle-x` | `$text-error` | 20x20 |
-| Icon/CircleCheck | `znmwU` | `circle-check` | `$icon-success` | 20x20 |
-| Icon/Info | `qjr3Z` | `info` | `$primary-500` | 20x20 |
-| Icon/TriangleAlert | `u8St1` | `triangle-alert` | `$warning-500` | 20x20 |
+| Component          | ID      | Icon Name        | Fill             | Size  |
+| ------------------ | ------- | ---------------- | ---------------- | ----- |
+| Icon/Eye           | `6E3og` | `eye`            | `$icon-primary`  | 16x16 |
+| Icon/EyeOff        | `BsNSc` | `eye-off`        | `$icon-primary`  | 16x16 |
+| Icon/Check         | `sdeEz` | `check`          | `$icon-success`  | 12x12 |
+| Icon/Minus         | `JwdkS` | `minus`          | `$text-tertiary` | 12x12 |
+| Icon/CircleX       | `vyjdA` | `circle-x`       | `$text-error`    | 20x20 |
+| Icon/CircleCheck   | `znmwU` | `circle-check`   | `$icon-success`  | 20x20 |
+| Icon/Info          | `qjr3Z` | `info`           | `$primary-500`   | 20x20 |
+| Icon/TriangleAlert | `u8St1` | `triangle-alert` | `$warning-500`   | 20x20 |
 
 ---
 
 ### Toast
 
-| | |
-|---|---|
-| **ID** | `ACtGC` |
-| **Width** | 340px |
-| **Corner Radius** | 12px |
-| **Fill** | `$surface-primary` |
-| **Border** | `$border-primary` 1px |
-| **Shadow** | Soft double shadow (`blur: 24, #0000000f` + `blur: 8, #0000000a`) |
-| **Structure** | Icon (`ep12k`) + Title (`QL6Rt`) + Description (`OiTFB`, hidden by default) + Close button (`Ri021`) |
+|                   |                                                                                                      |
+| ----------------- | ---------------------------------------------------------------------------------------------------- |
+| **ID**            | `ACtGC`                                                                                              |
+| **Width**         | 340px                                                                                                |
+| **Corner Radius** | 12px                                                                                                 |
+| **Fill**          | `$surface-primary`                                                                                   |
+| **Border**        | `$border-primary` 1px                                                                                |
+| **Shadow**        | Soft double shadow (`blur: 24, #0000000f` + `blur: 8, #0000000a`)                                    |
+| **Structure**     | Icon (`ep12k`) + Title (`QL6Rt`) + Description (`OiTFB`, hidden by default) + Close button (`Ri021`) |
 
 #### With Description
 
-| Variant | ID | Icon | Title | Description |
-|---------|-----|------|-------|-------------|
-| Error | `JY8cD` | CircleX | "Something went wrong" | "Please try again later." |
-| Success | `OzPwb` | CircleCheck | "Account created" | "Welcome aboard!" |
-| Info | `FL3pC` | Info | "Syncing data" | "Data synchronization will begin shortly." |
-| Warning | `R348Y` | TriangleAlert | "Session expiring" | "Your session will expire in 5 minutes." |
+| Variant | ID      | Icon          | Title                  | Description                                |
+| ------- | ------- | ------------- | ---------------------- | ------------------------------------------ |
+| Error   | `JY8cD` | CircleX       | "Something went wrong" | "Please try again later."                  |
+| Success | `OzPwb` | CircleCheck   | "Account created"      | "Welcome aboard!"                          |
+| Info    | `FL3pC` | Info          | "Syncing data"         | "Data synchronization will begin shortly." |
+| Warning | `R348Y` | TriangleAlert | "Session expiring"     | "Your session will expire in 5 minutes."   |
 
 #### Title Only (no description)
 
-| Variant | ID | Icon | Title |
-|---------|-----|------|-------|
-| Error | `WBB2a` | CircleX | "Something went wrong" |
-| Success | `4WPRd` | CircleCheck | "Account created" |
-| Info | `8TJzP` | Info | "Syncing data" |
-| Warning | `1h6CW` | TriangleAlert | "Session expiring" |
+| Variant | ID      | Icon          | Title                  |
+| ------- | ------- | ------------- | ---------------------- |
+| Error   | `WBB2a` | CircleX       | "Something went wrong" |
+| Success | `4WPRd` | CircleCheck   | "Account created"      |
+| Info    | `8TJzP` | Info          | "Syncing data"         |
+| Warning | `1h6CW` | TriangleAlert | "Session expiring"     |
 
 **Behavior:**
+
 - Default duration: **5 seconds** then auto-dismiss
 - Error toasts: **persist until dismissed** by user (X button)
 - Dismiss animation: fade out + slide up
@@ -384,26 +387,27 @@ All icons use **Lucide** (`iconFontFamily: "lucide"`).
 
 ### Tooltip
 
-| | |
-|---|---|
-| **ID** | `bBmqY` |
-| **Fill** | `$tooltip-bg` |
-| **Text** | `$tooltip-text`, Inter 12px |
-| **Corner Radius** | 6px |
-| **Structure** | Body (`ItRsM`) containing content text (`GEm0Y`) + optional shortcut badge (`7TcCQ`, hidden) + Arrow (`Wfv0S`) |
+|                   |                                                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------------------------------- |
+| **ID**            | `bBmqY`                                                                                                        |
+| **Fill**          | `$tooltip-bg`                                                                                                  |
+| **Text**          | `$tooltip-text`, Inter 12px                                                                                    |
+| **Corner Radius** | 6px                                                                                                            |
+| **Structure**     | Body (`ItRsM`) containing content text (`GEm0Y`) + optional shortcut badge (`7TcCQ`, hidden) + Arrow (`Wfv0S`) |
 
-| Variant | ID | Notes |
-|---------|-----|-------|
-| Default (arrow down) | `bBmqY` | Arrow below body |
-| No Arrow | `O5q8w` | Arrow disabled |
-| Bottom (arrow up) | `ZLBoY` | Standalone frame, arrow on top |
-| Left (arrow right) | `CH3Pi` | Horizontal layout, arrow 6x12 |
-| Right (arrow left) | `eoGs2` | Horizontal layout, arrow 6x12 |
-| With Shortcut | `tqnSb` | Shortcut badge enabled, shows keyboard shortcut |
+| Variant              | ID      | Notes                                           |
+| -------------------- | ------- | ----------------------------------------------- |
+| Default (arrow down) | `bBmqY` | Arrow below body                                |
+| No Arrow             | `O5q8w` | Arrow disabled                                  |
+| Bottom (arrow up)    | `ZLBoY` | Standalone frame, arrow on top                  |
+| Left (arrow right)   | `CH3Pi` | Horizontal layout, arrow 6x12                   |
+| Right (arrow left)   | `eoGs2` | Horizontal layout, arrow 6x12                   |
+| With Shortcut        | `tqnSb` | Shortcut badge enabled, shows keyboard shortcut |
 
 **Shortcut badge:** `7TcCQ` — gray-700 fill, 4px radius, contains `kbd` text (`riNtS`) in gray-400. Hidden by default, enable via `descendants: {"7TcCQ": {"enabled": true}, "riNtS": {"content": "⌘K"}}`.
 
 **Behavior:**
+
 - Tooltips appear **on hover only**, not on click
 - Hidden by default (`enabled: false`)
 - **Arrow is disabled on the base component** — all tooltip instances render as no-arrow by default (single-line pill style)
@@ -414,22 +418,24 @@ All icons use **Lucide** (`iconFontFamily: "lucide"`).
 
 ### Modal Overlay
 
-| | |
-|---|---|
-| **ID** | `TNz4n` |
-| **Fill** | `$overlay-bg` (themed: `#00000066` light / `#030712CC` dark) |
-| **Effect** | `background_blur`, radius 8 |
-| **Layout** | `none` (absolute positioning for dialog) |
-| **Size** | Typically 1232x720 (Conversations, covers main content) or 1280x720 (Chat, covers full screen) |
+|               |                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ID**        | `TNz4n`                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Fill**      | `$overlay-bg` (themed: `#00000066` light / `#030712CC` dark)                                                                                                                                                                                                                                                                                                                                                                              |
+| **Effect**    | `background_blur`, radius 8                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **Layout**    | `none` (absolute positioning for dialog)                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Size**      | Typically 1232x720 (Conversations, covers main content) or 1280x720 (Chat, covers full screen)                                                                                                                                                                                                                                                                                                                                            |
 | **Structure** | DialogSlot (`CSZ5O`, slot frame, layout: vertical, gap: 16, padding: 24, cornerRadius: 12) containing: Header frame (`M4krg`, horizontal, space_between) with Title text (`gmZvb`, 16px semibold) + CloseButton frame (`KyIH9`, 28x28, cornerRadius: 6) with X icon, Description text (`pCn9D`, 14px, lineHeight 1.5, fixed-width), Actions frame (`IHpTr`) with Cancel button (`Vrufi` + `tQA8s`) and Confirm button (`04phX` + `RgYEP`) |
 
 **Usage:** Used for all confirmation dialogs and view modals across Chat, Conversations, and Knowledge:
+
 - **ConfirmClose**: overrides title to "Close conversation?", confirm button uses `$button-primary-bg`
 - **ConfirmSpam**: overrides title to "Mark as spam?", confirm button uses `#DC2626` (red)
 - **Chat DeleteConfirmation**: overrides title to "Delete conversation", confirm button uses `#DC2626`, dialog width 360px
 - **Products-View**: overrides dialog content entirely (custom header with Edit button, product detail fields), hides default Actions (`IHpTr: {enabled: false}`)
 
 **Instance override pattern (confirmation dialog):**
+
 ```
 {type: "ref", ref: "TNz4n", width: 1232, height: 720, descendants: {
   "gmZvb": {content: "Dialog title"},
@@ -441,6 +447,7 @@ All icons use **Lucide** (`iconFontFamily: "lucide"`).
 ```
 
 **Instance override pattern (view modal with custom content):**
+
 ```
 {type: "ref", ref: "TNz4n", width: 1280, height: 720, descendants: {
   "CSZ5O": {width: 420, x: 430, y: 140, cornerRadius: 16},
@@ -454,20 +461,20 @@ All icons use **Lucide** (`iconFontFamily: "lucide"`).
 
 ### Tab
 
-| | |
-|---|---|
-| **Active ID** | `fXKVI` |
-| **Inactive ID** | `DaNrX` |
-| **Text** | Inter 14px medium, letterSpacing -0.084 |
-| **Layout** | Vertical, `alignItems: center`, `justifyContent: center` |
-| **Height** | `fill_container(48)` (fills tab bar height) |
-| **Structure** | LabelWrap frame (Active: `Ej708`, Inactive: `BBqTN` — vertical, `fill_container` height, `justifyContent: center`, `alignItems: center`) containing label text (Active: `lImpW`, Inactive: `a8PwH`). Active tab also has underline rectangle (`d4UA2`, 2px height, `fill_container` width, `$text-primary` fill) below the labelWrap. |
+|                 |                                                                                                                                                                                                                                                                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Active ID**   | `fXKVI`                                                                                                                                                                                                                                                                                                                               |
+| **Inactive ID** | `DaNrX`                                                                                                                                                                                                                                                                                                                               |
+| **Text**        | Inter 14px medium, letterSpacing -0.084                                                                                                                                                                                                                                                                                               |
+| **Layout**      | Vertical, `alignItems: center`, `justifyContent: center`                                                                                                                                                                                                                                                                              |
+| **Height**      | `fill_container(48)` (fills tab bar height)                                                                                                                                                                                                                                                                                           |
+| **Structure**   | LabelWrap frame (Active: `Ej708`, Inactive: `BBqTN` — vertical, `fill_container` height, `justifyContent: center`, `alignItems: center`) containing label text (Active: `lImpW`, Inactive: `a8PwH`). Active tab also has underline rectangle (`d4UA2`, 2px height, `fill_container` width, `$text-primary` fill) below the labelWrap. |
 
-| Variant | ID | Text Fill | Underline | Label ID | LabelWrap ID |
-|---------|-----|-----------|-----------|----------|--------------|
-| Active | `fXKVI` | `$text-primary` | 2px rectangle (`d4UA2`), `$text-primary` | `lImpW` | `Ej708` |
-| Inactive | `DaNrX` | `$text-tertiary` | None | `a8PwH` | `BBqTN` |
-| Disabled | `vaAu8` | `$text-disabled` | None | `ZZLyh` | `O20YJ` |
+| Variant  | ID      | Text Fill        | Underline                                | Label ID | LabelWrap ID |
+| -------- | ------- | ---------------- | ---------------------------------------- | -------- | ------------ |
+| Active   | `fXKVI` | `$text-primary`  | 2px rectangle (`d4UA2`), `$text-primary` | `lImpW`  | `Ej708`      |
+| Inactive | `DaNrX` | `$text-tertiary` | None                                     | `a8PwH`  | `BBqTN`      |
+| Disabled | `vaAu8` | `$text-disabled` | None                                     | `ZZLyh`  | `O20YJ`      |
 
 **Label override:** Use `descendants: {"lImpW": {content: "Open"}}` for Active, `descendants: {"a8PwH": {content: "Closed"}}` for Inactive, `descendants: {"ZZLyh": {content: "Drafts"}}` for Disabled.
 
@@ -477,18 +484,18 @@ All icons use **Lucide** (`iconFontFamily: "lucide"`).
 
 ### Checkbox
 
-| | |
-|---|---|
-| **Size** | 16x16 |
-| **Corner Radius** | 4px (outer), 2.6px (inner) |
-| **Structure** | Outer rectangle (`bg`, `$border-primary`) + inner rectangle (`fg`) + optional icon (check/minus path) |
+|                   |                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------- |
+| **Size**          | 16x16                                                                                                 |
+| **Corner Radius** | 4px (outer), 2.6px (inner)                                                                            |
+| **Structure**     | Outer rectangle (`bg`, `$border-primary`) + inner rectangle (`fg`) + optional icon (check/minus path) |
 
-| Variant | ID | Inner Fill | Icon | Notes |
-|---------|-----|-----------|------|-------|
-| Default | `aMXW9` | `$surface-primary` | None | Unchecked state |
-| Checked | `9juMr` | `#0561E6` | White check path (2px stroke) | Selected state |
-| Indeterminate | `CyoBq` | `#0561E6` | White minus path (1.5px stroke) | Partial selection (e.g., select-all with mixed state) |
-| Disabled | `YE9Pp` | `$surface-disabled` | None | 50% opacity, non-interactive |
+| Variant       | ID      | Inner Fill          | Icon                            | Notes                                                 |
+| ------------- | ------- | ------------------- | ------------------------------- | ----------------------------------------------------- |
+| Default       | `aMXW9` | `$surface-primary`  | None                            | Unchecked state                                       |
+| Checked       | `9juMr` | `#0561E6`           | White check path (2px stroke)   | Selected state                                        |
+| Indeterminate | `CyoBq` | `#0561E6`           | White minus path (1.5px stroke) | Partial selection (e.g., select-all with mixed state) |
+| Disabled      | `YE9Pp` | `$surface-disabled` | None                            | 50% opacity, non-interactive                          |
 
 **Shadow:** All variants have an outer shadow on the inner rectangle (`blur: 1.75`, `#1b1c1d1f`, offset y: 2).
 
@@ -497,6 +504,7 @@ All icons use **Lucide** (`iconFontFamily: "lucide"`).
 **Select Dropdown IDs:** `XdHWn` (Default light), `mkXD2` (Default dark), `LNYKC` (EmptyState light), `aNPkt` (EmptyState dark).
 
 **Checkbox state mapping:**
+
 - **Default** (unchecked): No filter active — showing "All" conversations
 - **Checked**: A specific filter is active (e.g., Read or Unread selected)
 - **Indeterminate**: Mixed selection state (e.g., some conversations manually selected)
@@ -505,26 +513,29 @@ All icons use **Lucide** (`iconFontFamily: "lucide"`).
 
 ### Header
 
-| | |
-|---|---|
-| **ID** | `d9xqA` |
-| **Location** | Inside Main Content of chat screens (absolute positioned at y=0) |
-| **Fill** | `$surface-primary` (with background blur) |
-| **Border** | None (no bottom border on standard screens) |
-| **Layout** | `justifyContent: space_between`, `alignItems: center`, padding `[8, 16]` |
+|               |                                                                                                    |
+| ------------- | -------------------------------------------------------------------------------------------------- |
+| **ID**        | `d9xqA`                                                                                            |
+| **Location**  | Inside Main Content of chat screens (absolute positioned at y=0)                                   |
+| **Fill**      | `$surface-primary` (with background blur)                                                          |
+| **Border**    | None (no bottom border on standard screens)                                                        |
+| **Layout**    | `justifyContent: space_between`, `alignItems: center`, padding `[8, 16]`                           |
 | **Structure** | Clock icon button (left) + Conversation title (center) + New chat (square-pen) icon button (right) |
 
 **Conversation title** (center):
+
 - `fill_container` width, `textAlign: center`, Inter 14px medium, `$text-primary`
 - Only shown on conversation screens; on new chat screens, the title is absent and the header uses `gap: 0` between the two icon buttons
 
 **Icon buttons** (clock + square-pen):
+
 - 32x32, corner radius 8px
 - Icon: Lucide, 20x20, fill `#4B5563`
 - Hover: `#F3F4F6` background fill (disabled by default)
 - Tooltip appears below on hover (see [Keyboard Shortcuts](#keyboard-shortcuts))
 
 **History sidebar variant:** When the history sidebar is open, the header is promoted to the **screen level** (outside Main Content), spanning above the history sidebar and main content:
+
 - Position: x=48, y=0 (right of nav sidebar)
 - Width: 1232px (full width minus nav sidebar)
 - Fill: `$surface-primary` (solid, no semi-transparent tint)
@@ -538,12 +549,12 @@ All icons use **Lucide** (`iconFontFamily: "lucide"`).
 
 Used in AI chat responses for section hierarchy within rich text output.
 
-| Level | ID | Font Size | Font Weight | Letter Spacing | Line Height |
-|-------|-----|-----------|-------------|----------------|-------------|
-| H1 | `LQsXk` | 24px | 600 (semibold) | -0.48 | 1.3 |
-| H2 | `3ewA4` | 20px | 600 (semibold) | -0.4 | 1.35 |
-| H3 | `YYYwz` | 16px | 600 (semibold) | -0.16 | 1.4 |
-| H4 | `vkOOm` | 14px | 600 (semibold) | -0.084 | 1.45 |
+| Level | ID      | Font Size | Font Weight    | Letter Spacing | Line Height |
+| ----- | ------- | --------- | -------------- | -------------- | ----------- |
+| H1    | `LQsXk` | 24px      | 600 (semibold) | -0.48          | 1.3         |
+| H2    | `3ewA4` | 20px      | 600 (semibold) | -0.4           | 1.35        |
+| H3    | `YYYwz` | 16px      | 600 (semibold) | -0.16          | 1.4         |
+| H4    | `vkOOm` | 14px      | 600 (semibold) | -0.084         | 1.45        |
 
 - Font: Inter
 - Fill: `#111827` (light) / `$text-primary` in instances for theming
@@ -553,13 +564,13 @@ Used in AI chat responses for section hierarchy within rich text output.
 
 ### Italic Text
 
-| | |
-|---|---|
-| **ID** | `HhC3a` |
-| **Font** | Inter 14px, `fontStyle: italic`, `fontWeight: normal` |
-| **Fill** | `#111827` (light) / `$text-primary` in instances |
-| **Letter Spacing** | -0.084 |
-| **Line Height** | 1.6 |
+|                    |                                                       |
+| ------------------ | ----------------------------------------------------- |
+| **ID**             | `HhC3a`                                               |
+| **Font**           | Inter 14px, `fontStyle: italic`, `fontWeight: normal` |
+| **Fill**           | `#111827` (light) / `$text-primary` in instances      |
+| **Letter Spacing** | -0.084                                                |
+| **Line Height**    | 1.6                                                   |
 
 **Usage:** Inline emphasis, notes, or disclaimers within AI chat responses.
 
@@ -567,22 +578,24 @@ Used in AI chat responses for section hierarchy within rich text output.
 
 ### Table
 
-| | |
-|---|---|
-| **ID** | `9Smp4` |
-| **Width** | 720px |
-| **Corner Radius** | 8px |
-| **Border** | `#E5E7EB` 1px |
-| **Layout** | Vertical |
-| **Structure** | Scrollable body (`ZzG2r`, height 216px, clipped) containing header row + data rows |
+|                   |                                                                                    |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| **ID**            | `9Smp4`                                                                            |
+| **Width**         | 720px                                                                              |
+| **Corner Radius** | 8px                                                                                |
+| **Border**        | `#E5E7EB` 1px                                                                      |
+| **Layout**        | Vertical                                                                           |
+| **Structure**     | Scrollable body (`ZzG2r`, height 216px, clipped) containing header row + data rows |
 
 **Header row** (`18plP`):
+
 - Horizontal layout, `#F3F4F6` cell fill
 - Text: Inter 14px, `fontWeight: 500`, `#6B7280`
 - Cell padding: `[10, 12]`
 - Bottom border: 1px stroke on each cell
 
 **Data rows** (e.g. `MB9it`, `O7yZf`, `Gluiv`):
+
 - Horizontal layout, alternating `#FFFFFF` / `#F9FAFB` fill
 - Text: Inter 14px, `fontWeight: normal`, `#4B5563`
 - Cell padding: 12px
@@ -590,6 +603,7 @@ Used in AI chat responses for section hierarchy within rich text output.
 - Long text cells use `textGrowth: "fixed-width"` with `width: "fill_container"`
 
 **Column sizing:**
+
 - First column: fixed width (140px)
 - Remaining columns: `fill_container`
 
@@ -599,14 +613,15 @@ Used in AI chat responses for section hierarchy within rich text output.
 
 ### Ordered List
 
-| | |
-|---|---|
-| **ID** | `s01gw` |
-| **Width** | 720px |
-| **Layout** | Vertical, gap 4px |
+|               |                                                                              |
+| ------------- | ---------------------------------------------------------------------------- |
+| **ID**        | `s01gw`                                                                      |
+| **Width**     | 720px                                                                        |
+| **Layout**    | Vertical, gap 4px                                                            |
 | **Structure** | List items (horizontal frames), each containing a number text + content text |
 
 **List item row:**
+
 - Horizontal layout, `gap: 8`, `alignItems: start`
 - Number (`number`): Inter 14px, `#4B5563`, `width: 20`, `textAlign: right`, `textGrowth: fixed-width`
 - Text (`text`): Inter 14px, `#111827`, `lineHeight: 1.6`, `letterSpacing: -0.084`, `textGrowth: fixed-width`, `width: fill_container`
@@ -617,14 +632,15 @@ Used in AI chat responses for section hierarchy within rich text output.
 
 ### Unordered List
 
-| | |
-|---|---|
-| **ID** | `LkC8o` |
-| **Width** | 720px |
-| **Layout** | Vertical, gap 4px |
+|               |                                                                              |
+| ------------- | ---------------------------------------------------------------------------- |
+| **ID**        | `LkC8o`                                                                      |
+| **Width**     | 720px                                                                        |
+| **Layout**    | Vertical, gap 4px                                                            |
 | **Structure** | List items (horizontal frames), each containing a bullet text + content text |
 
 **List item row:**
+
 - Horizontal layout, `gap: 8`, `alignItems: start`
 - Bullet (`bullet`): Inter 14px, `#4B5563`, content `•`, `width: 20`, `textAlign: right`, `textGrowth: fixed-width`
 - Text (`text`): Inter 14px, `#111827`, `lineHeight: 1.6`, `letterSpacing: -0.084`, `textGrowth: fixed-width`, `width: fill_container`
@@ -635,17 +651,19 @@ Used in AI chat responses for section hierarchy within rich text output.
 
 ### Blockquote
 
-| | |
-|---|---|
-| **ID** | `yJpgm` |
-| **Width** | 720px |
-| **Layout** | Horizontal |
+|               |                                                      |
+| ------------- | ---------------------------------------------------- |
+| **ID**        | `yJpgm`                                              |
+| **Width**     | 720px                                                |
+| **Layout**    | Horizontal                                           |
 | **Structure** | Left bar (rectangle) + content frame with quote text |
 
 **Left bar** (`A4LFg`):
+
 - Rectangle, 3px wide, `fill_container` height, `#D1D5DB`, pill-shaped (`cornerRadius: 9999`)
 
 **Content** (`1BNCX`):
+
 - Vertical layout, `padding: [0, 0, 0, 12]` (12px left gap from bar)
 - Quote text (`Co1Dc`): Inter 14px italic, `#4B5563`, `lineHeight: 1.6`, `textGrowth: fixed-width`, `width: fill_container`
 
@@ -655,27 +673,30 @@ Used in AI chat responses for section hierarchy within rich text output.
 
 ### Code Block
 
-| | |
-|---|---|
-| **ID** | `3sRcg` |
-| **Width** | 720px |
-| **Corner Radius** | 8px |
-| **Fill** | `#FFFFFF` (white) |
-| **Border** | `#E5E7EB` 1px |
-| **Layout** | Vertical |
-| **Structure** | Header bar + code body |
+|                   |                        |
+| ----------------- | ---------------------- |
+| **ID**            | `3sRcg`                |
+| **Width**         | 720px                  |
+| **Corner Radius** | 8px                    |
+| **Fill**          | `#FFFFFF` (white)      |
+| **Border**        | `#E5E7EB` 1px          |
+| **Layout**        | Vertical               |
+| **Structure**     | Header bar + code body |
 
 **Header** (`ThqoJ`):
+
 - Horizontal layout, `padding: [10, 16]`, `justifyContent: space_between`, `alignItems: center`
 - Bottom border: `#E5E7EB` 1px
 - Language label (`a6GjR`): Inter 12px, `#6B7280`
 - Copy button (`4VnzR`): Lucide `copy` icon (14x14) + "Copy" label, both `#6B7280`, `cornerRadius: 6`, `padding: [4, 8]`
 
 **Code body** (`ny4z0`):
+
 - Vertical layout, `padding: 16`, `gap: 2`, fill `#F9FAFB`
 - Code lines: JetBrains Mono 13px, `#111827`, `lineHeight: 1.6`
 
 **Dark mode overrides:**
+
 - Root fill: `#1F2937`, border: `#374151`
 - Header bottom border: `#374151`
 - Language label + copy button: `#9CA3AF`
@@ -683,6 +704,7 @@ Used in AI chat responses for section hierarchy within rich text output.
 - Code lines: `#E5E7EB`
 
 **Behavior:**
+
 - Copy button click: copies code content to clipboard
 - On click, icon swaps from `copy` → `check` and label changes from "Copy" → "Copied!", same color
 - Reverts back to default state after **~2 seconds**
@@ -695,24 +717,27 @@ Used in AI chat responses for section hierarchy within rich text output.
 
 Thumbnail preview shown inside the chat input when a user attaches/uploads an image before sending.
 
-| Variant | ID | Description |
-|---------|-----|-------------|
-| Loading | `7IOPs` | Gray skeleton (`#F3F4F6`) with Lucide `loader` icon (16x16, `#9CA3AF`). Shown while image is uploading. |
-| Default | `LgmQW` | Image fill (mode: fill), `#E5E7EB` 1px border. Shown when image is loaded. |
-| Hover | `QAFKA` | Image + dark overlay (`#00000066`) + dark X remove button (16x16 circle `#030712`, white `x` icon 12x12, top-right at x:26 y:2). Shown on hover. |
+| Variant | ID      | Description                                                                                                                                      |
+| ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Loading | `7IOPs` | Gray skeleton (`#F3F4F6`) with Lucide `loader` icon (16x16, `#9CA3AF`). Shown while image is uploading.                                          |
+| Default | `LgmQW` | Image fill (mode: fill), `#E5E7EB` 1px border. Shown when image is loaded.                                                                       |
+| Hover   | `QAFKA` | Image + dark overlay (`#00000066`) + dark X remove button (16x16 circle `#030712`, white `x` icon 12x12, top-right at x:26 y:2). Shown on hover. |
 
 **Common properties (all variants):**
+
 - Size: 44x44
 - Corner radius: 8px
 - Border: `#E5E7EB` 1px (light) / `#374151` (dark)
 - Clip: true
 
 **Dark mode overrides:**
+
 - Loading: fill `#1F2937`, border `#374151`, spinner fill `#6B7280`
 - Default: border `#374151`
 - Hover: same overlay + X button (works on both themes)
 
 **Behavior:**
+
 - Previews appear in a horizontal row (gap 8px) above the text area inside the chat input
 - Multiple images can be attached (row wraps or scrolls)
 - Hover reveals X button to remove/delete the attached image
@@ -725,13 +750,14 @@ Thumbnail preview shown inside the chat input when a user attaches/uploads an im
 
 Chip preview shown inside the chat input when a user attaches/uploads a document (PDF, DOCX, etc.) before sending.
 
-| Variant | ID | Description |
-|---------|-----|-------------|
-| Loading | `x5BU4` | Muted file type badge (gray `#9CA3AF`, 60% opacity label), "Uploading..." text, file size — all muted. |
-| Default | `AjBnX` | Colored file type badge + filename (Inter 12px medium, `#111827`) + file size (Inter 11px, `#6B7280`). |
-| Hover | `6kiwc` | Same as default with darker fill (`#E5E7EB`) + dark X remove button (16x16 circle `#030712`, white `x` icon 12x12) inline. |
+| Variant | ID      | Description                                                                                                                |
+| ------- | ------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Loading | `x5BU4` | Muted file type badge (gray `#9CA3AF`, 60% opacity label), "Uploading..." text, file size — all muted.                     |
+| Default | `AjBnX` | Colored file type badge + filename (Inter 12px medium, `#111827`) + file size (Inter 11px, `#6B7280`).                     |
+| Hover   | `6kiwc` | Same as default with darker fill (`#E5E7EB`) + dark X remove button (16x16 circle `#030712`, white `x` icon 12x12) inline. |
 
 **Common properties (all variants):**
+
 - Layout: horizontal, gap 8px, alignItems center
 - Padding: `[6, 10, 6, 8]`
 - Corner radius: 8px
@@ -739,6 +765,7 @@ Chip preview shown inside the chat input when a user attaches/uploads a document
 - Border: `#E5E7EB` 1px (default/loading), `#D1D5DB` 1px (hover)
 
 **File type badge:**
+
 - Small rounded rectangle (cornerRadius 3, padding `[4, 3]`)
 - Inter 9px bold, white text, 0.36 letter spacing
 - Color by file type: PDF `#DC2626` (red), XLS `#16A34A` (green), DOC `#2563EB` (blue), PPT `#EA580C` (orange), CSV `#059669` (emerald), TXT `#6B7280` (gray)
@@ -746,11 +773,13 @@ Chip preview shown inside the chat input when a user attaches/uploads a document
 - Loading state: badge uses muted `#9CA3AF` fill with 60% opacity label
 
 **Dark mode overrides:**
+
 - Chip fill: `#1F2937`, border: `#374151`
 - Filename: `#FFFFFF`, file size: `#9CA3AF`
 - Badge color: unchanged (keeps brand color)
 
 **Behavior:**
+
 - Previews appear in a horizontal row (gap 8px) above the text area inside the chat input
 - Hover reveals inline X button to remove/delete the attached document
 - Clicking X removes the document from the attachment list
@@ -759,23 +788,25 @@ Chip preview shown inside the chat input when a user attaches/uploads a document
 
 ### Scroll Button
 
-| | |
-|---|---|
-| **ID** | `kAJHZ` |
-| **Size** | 32x32 (auto from 8px padding + 16x16 icon) |
-| **Corner Radius** | 100 (pill/circle) |
-| **Fill** | `#F9FAFB` (gray-50) |
-| **Border** | `#E5E7EB` 1px |
-| **Shadow** | Outer shadow (`blur: 1.75`, `#0000000D`, offset y: 1) |
-| **Icon** | Lucide `chevron-down`, 16x16, stroke `#4B5563` 1.5px |
+|                   |                                                       |
+| ----------------- | ----------------------------------------------------- |
+| **ID**            | `kAJHZ`                                               |
+| **Size**          | 32x32 (auto from 8px padding + 16x16 icon)            |
+| **Corner Radius** | 100 (pill/circle)                                     |
+| **Fill**          | `#F9FAFB` (gray-50)                                   |
+| **Border**        | `#E5E7EB` 1px                                         |
+| **Shadow**        | Outer shadow (`blur: 1.75`, `#0000000D`, offset y: 1) |
+| **Icon**          | Lucide `chevron-down`, 16x16, stroke `#4B5563` 1.5px  |
 
 **Dark mode overrides:**
+
 - Fill: `#1F2937` (gray-800)
 - Border: `#374151` (gray-700)
 - Shadow: `#0000001A`, blur 3
 - Icon stroke: `#D1D5DB` (gray-300)
 
 **Behavior:**
+
 - Appears when user scrolls up in a long chat conversation
 - Positioned **centered horizontally** in the chat area, **16px above** the chat input
 - On click: smooth-scrolls to the most recent / last message in the conversation
@@ -785,15 +816,15 @@ Chip preview shown inside the chat input when a user attaches/uploads a document
 
 ### History Sidebar
 
-| | |
-|---|---|
-| **ID** | `ZLG2w` (light screen instance), `4J8fz` (dark screen instance) |
-| **Width** | 280px |
-| **Height** | 672px (below header, which sits at screen level) |
-| **Fill** | `$surface-primary` |
-| **Border** | `$border-primary` 1px right side only |
-| **Layout** | Vertical |
-| **Clip** | true |
+|            |                                                                 |
+| ---------- | --------------------------------------------------------------- |
+| **ID**     | `ZLG2w` (light screen instance), `4J8fz` (dark screen instance) |
+| **Width**  | 280px                                                           |
+| **Height** | 672px (below header, which sits at screen level)                |
+| **Fill**   | `$surface-primary`                                              |
+| **Border** | `$border-primary` 1px right side only                           |
+| **Layout** | Vertical                                                        |
+| **Clip**   | true                                                            |
 
 **Structure:**
 
@@ -814,12 +845,14 @@ Chip preview shown inside the chat input when a user attaches/uploads a document
      - Default rows: fill disabled (hover fill `#F3F4F6` light / `#1F2937` dark)
 
 **Dark mode overrides:**
+
 - Close icon: `#9CA3AF` instead of `#6B7280`
 - Close button hover fill: `#374151` instead of `#F3F4F6`
 - Active row fill: `#1F2937` instead of `#F3F4F6`
 - Row hover fill: `#1F2937` instead of `#F3F4F6`
 
 **Behavior:**
+
 - Opens when clock icon in header is clicked (`⌘H` shortcut)
 - Clock icon shows active state (`#F3F4F6` light / `#374151` dark fill) while sidebar is open
 - **Header is promoted to screen level** (above history sidebar and main content), spanning 1232px (x=48, right of nav sidebar) with a bottom border. Nav sidebar remains full height (720px). History sidebar and main content start at y=48 below the header.
@@ -834,23 +867,24 @@ Chip preview shown inside the chat input when a user attaches/uploads a document
 
 ### ChatInput
 
-| | |
-|---|---|
-| **ID** | `s5iOG` |
-| **Width** | 558px |
-| **Corner Radius** | 16px |
-| **Fill** | `$surface-primary` |
-| **Border** | `$border-hover` 1px |
-| **Shadow** | Soft shadow |
-| **Structure** | Text area (`C0bv7`, height: 72px) with placeholder (`7XBIC`) + Bottom bar (`wDrqv`) with add button (`qtBfo`) and agent selector (`jG25L`) |
+|                   |                                                                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **ID**            | `s5iOG`                                                                                                                                    |
+| **Width**         | 558px                                                                                                                                      |
+| **Corner Radius** | 16px                                                                                                                                       |
+| **Fill**          | `$surface-primary`                                                                                                                         |
+| **Border**        | `$border-hover` 1px                                                                                                                        |
+| **Shadow**        | Soft shadow                                                                                                                                |
+| **Structure**     | Text area (`C0bv7`, height: 72px) with placeholder (`7XBIC`) + Bottom bar (`wDrqv`) with add button (`qtBfo`) and agent selector (`jG25L`) |
 
-| Variant | ID | Notes |
-|---------|-----|-------|
-| Default | `s5iOG` | Placeholder text, no send button |
-| Filled | `oqJBt` | Typed text, send button appears next to agent selector |
+| Variant    | ID      | Notes                                                                                         |
+| ---------- | ------- | --------------------------------------------------------------------------------------------- |
+| Default    | `s5iOG` | Placeholder text, no send button                                                              |
+| Filled     | `oqJBt` | Typed text, send button appears next to agent selector                                        |
 | Max Height | `yaI9t` | Text area clipped at **200px max height**, content scrollable internally, send button visible |
 
 **Behavior:**
+
 - Text area auto-grows as user types
 - **Max height: 200px** (~8 lines) — after this, content scrolls internally
 - Send button (dark circle, `send-horizontal` Lucide icon) appears when text is entered
@@ -861,16 +895,17 @@ Chip preview shown inside the chat input when a user attaches/uploads a document
 
 ### AgentSelector
 
-| | |
-|---|---|
-| **ID** | `wvpKh` |
-| **Width** | 260px |
-| **Corner Radius** | 12px |
-| **Fill** | `$surface-primary` |
-| **Border** | `$border-primary` 1px |
-| **Structure** | Search bar (`thz2A`) with search icon + input + Agent rows (`M1nIR` Assistant, `DjS3g` Assistant - Opus-4-6, `Dvws7` fast rag test, `dRKDe` QA Tester Agent) + Separator line (`BCuBJ`) + Add agent row (`tuX6D`) with plus icon and "Add agent" text |
+|                   |                                                                                                                                                                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ID**            | `wvpKh`                                                                                                                                                                                                                                               |
+| **Width**         | 260px                                                                                                                                                                                                                                                 |
+| **Corner Radius** | 12px                                                                                                                                                                                                                                                  |
+| **Fill**          | `$surface-primary`                                                                                                                                                                                                                                    |
+| **Border**        | `$border-primary` 1px                                                                                                                                                                                                                                 |
+| **Structure**     | Search bar (`thz2A`) with search icon + input + Agent rows (`M1nIR` Assistant, `DjS3g` Assistant - Opus-4-6, `Dvws7` fast rag test, `dRKDe` QA Tester Agent) + Separator line (`BCuBJ`) + Add agent row (`tuX6D`) with plus icon and "Add agent" text |
 
 **Behavior:**
+
 - Opens when agent selector button in ChatInput is clicked
 - Agent selector button shows `#F3F4F6` hover/active fill when dropdown is open
 - Search bar filters available agents
@@ -886,15 +921,15 @@ Chip preview shown inside the chat input when a user attaches/uploads a document
 
 A popover modal that displays customer/contact details for the person who sent the current email. Triggered via the "Customer info" option in the ellipsis context menu in the conversation detail header.
 
-| | |
-|---|---|
-| **Width** | 320px |
-| **Corner Radius** | 12px |
-| **Fill** | `#FFFFFF` (light) / `#1F2937` (dark) |
-| **Border** | `#E5E7EB` 1px (light) / `#374151` 1px (dark) |
-| **Shadow** | Double shadow (`blur: 24, spread: -4, #0000001A` + `blur: 8, #0000000D`) light; (`blur: 24, spread: -4, #0000004D` + `blur: 8, #00000033`) dark |
-| **Position** | Absolutely positioned in Main Content at x:420, y:192 (below sender row in detail header) |
-| **Clip** | true |
+|                   |                                                                                                                                                 |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Width**         | 320px                                                                                                                                           |
+| **Corner Radius** | 12px                                                                                                                                            |
+| **Fill**          | `#FFFFFF` (light) / `#1F2937` (dark)                                                                                                            |
+| **Border**        | `#E5E7EB` 1px (light) / `#374151` 1px (dark)                                                                                                    |
+| **Shadow**        | Double shadow (`blur: 24, spread: -4, #0000001A` + `blur: 8, #0000000D`) light; (`blur: 24, spread: -4, #0000004D` + `blur: 8, #00000033`) dark |
+| **Position**      | Absolutely positioned in Main Content at x:420, y:192 (below sender row in detail header)                                                       |
+| **Clip**          | true                                                                                                                                            |
 
 **Structure (top to bottom):**
 
@@ -927,10 +962,12 @@ A popover modal that displays customer/contact details for the person who sent t
 **Source badge values:** "Manual Import", "API", "Signup", "CSV Import"
 
 **Screen IDs:**
+
 - Light: `dXJoQ` (modal `ZmTjj`)
 - Dark: `xlzs9` (modal `jKGoe`)
 
 **Behavior:**
+
 - Triggered via "Customer info" option in the ellipsis context menu
 - Closes on click outside, close (X) button, or pressing Escape
 - Close button hover: `#F3F4F6` (light) / `#1F2937` (dark) fill
@@ -939,17 +976,18 @@ A popover modal that displays customer/contact details for the person who sent t
 
 ### Info Popover
 
-| | |
-|---|---|
-| **ID** | `QBa24` |
-| **Width** | 300px |
-| **Corner Radius** | 12px |
-| **Fill** | `$surface-primary` |
-| **Border** | `$border-primary` 1px |
-| **Shadow** | Double shadow (`blur: 5.25, spread: -1` + `blur: 3.5, spread: -2`) |
-| **Structure** | Header (`6bMMR`) with "Sources used" title left-aligned + count number right-aligned (`$text-secondary`, Inter 14px regular) + Source pills list (`cJgfC`) |
+|                   |                                                                                                                                                            |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ID**            | `QBa24`                                                                                                                                                    |
+| **Width**         | 300px                                                                                                                                                      |
+| **Corner Radius** | 12px                                                                                                                                                       |
+| **Fill**          | `$surface-primary`                                                                                                                                         |
+| **Border**        | `$border-primary` 1px                                                                                                                                      |
+| **Shadow**        | Double shadow (`blur: 5.25, spread: -1` + `blur: 3.5, spread: -2`)                                                                                         |
+| **Structure**     | Header (`6bMMR`) with "Sources used" title left-aligned + count number right-aligned (`$text-secondary`, Inter 14px regular) + Source pills list (`cJgfC`) |
 
 **Source pills:**
+
 - Full-width, pill-shaped (`cornerRadius: 100`), `clip: true`
 - Each pill has: favicon (20x20 circle) + domain text (`$text-primary`, Inter 14px bold) + source title (`$text-secondary`, Inter 14px, truncated with "...")
 - Favicon-to-domain gap: **8px**
@@ -960,6 +998,7 @@ A popover modal that displays customer/contact details for the person who sent t
 - Dark hover fill: `#1F2937` (gray-800)
 
 **Behavior:**
+
 - Opens on info icon click, absolutely positioned below the icon
 - Info icon shows active state (`#F3F4F6` light / `#1F2937` dark) while popover is open
 - Closes on click outside or clicking info icon again
@@ -968,15 +1007,15 @@ A popover modal that displays customer/contact details for the person who sent t
 
 ### User Profile Popup
 
-| | |
-|---|---|
-| **ID** | `HWed7` (base component inside Default screens) |
-| **Width** | 220px |
-| **Corner Radius** | 12px |
-| **Fill** | `$surface-primary` |
-| **Border** | `$border-primary` 1px |
-| **Shadow** | Double shadow |
-| **Position** | Absolutely positioned above user avatar in sidebar, y: 435 |
+|                   |                                                            |
+| ----------------- | ---------------------------------------------------------- |
+| **ID**            | `HWed7` (base component inside Default screens)            |
+| **Width**         | 220px                                                      |
+| **Corner Radius** | 12px                                                       |
+| **Fill**          | `$surface-primary`                                         |
+| **Border**        | `$border-primary` 1px                                      |
+| **Shadow**        | Double shadow                                              |
+| **Position**      | Absolutely positioned above user avatar in sidebar, y: 435 |
 
 **Structure (top to bottom):**
 
@@ -1003,16 +1042,19 @@ A popover modal that displays customer/contact details for the person who sent t
    - Hover fill: `#F3F4F6` (disabled by default)
 
 **Dark mode overrides:**
+
 - Theme switcher active button: `$surface-secondary` instead of `$surface-disabled`
 - All hover fills remain `#F3F4F6` (consistent pattern, works on dark `$surface-primary` backgrounds)
 
 **Behavior:**
+
 - Opens on user avatar click in sidebar bottom
 - Avatar icon shows `$surface-hover` fill while popup is open
 - Closes on click outside or clicking avatar again
 - Theme switcher toggles between System/Light/Dark modes
 
 **Screen IDs:**
+
 - Light: `u4KP2` (popup `PnZGo`)
 - Dark: `Lg00W` (popup `w4vMS`)
 
@@ -1022,148 +1064,149 @@ A popover modal that displays customer/contact details for the person who sent t
 
 ### Authentication
 
-| Screen | ID | Theme | Size |
-|--------|-----|-------|------|
-| Sign Up | `J56ve` | Light | 1280x720 |
-| Sign Up - Dark | `xCokx` | Dark | 1280x720 |
-| Sign In | `ZYtbF` | Light | 1280x720 |
-| Sign In - Dark | `TWgGZ` | Dark | 1280x720 |
-| Sign In - Error Toast | `bHrxy` | Light | 1280x720 |
-| Sign In - Error Toast - Dark | `Pu152` | Dark | 1280x720 |
-| Update Password | `77S9t` | Light | 1280x720 |
-| Update Password - Dark | `ARZV1` | Dark | 1280x720 |
+| Screen                       | ID      | Theme | Size     |
+| ---------------------------- | ------- | ----- | -------- |
+| Sign Up                      | `J56ve` | Light | 1280x720 |
+| Sign Up - Dark               | `xCokx` | Dark  | 1280x720 |
+| Sign In                      | `ZYtbF` | Light | 1280x720 |
+| Sign In - Dark               | `TWgGZ` | Dark  | 1280x720 |
+| Sign In - Error Toast        | `bHrxy` | Light | 1280x720 |
+| Sign In - Error Toast - Dark | `Pu152` | Dark  | 1280x720 |
+| Update Password              | `77S9t` | Light | 1280x720 |
+| Update Password - Dark       | `ARZV1` | Dark  | 1280x720 |
 
 ### Chat
 
-| Screen | ID | Theme | Description |
-|--------|-----|-------|-------------|
-| Chat (default) | `SPqR7` | Light | New chat state — "What are you working on?" + input (558px) + suggestions |
-| Chat - Agent Selector Open | `EnpoM` | Light | Dropdown open, active typing state |
-| Chat - Conversation | `ePl6z` | Light | Active conversation — user message (right), AI response with actions, wider input (768px) |
-| Chat (default) - Dark | `uy1QI` | Dark | Dark mode variant of default chat |
-| Chat - Agent Selector Open - Dark | `11byn` | Dark | Dark mode variant of agent selector open |
-| Chat - Conversation - Dark | `Dy337` | Dark | Dark mode variant of conversation view |
-| Chat - Conversation - Info Popover | `cx8SP` | Light | Info popover open, showing sources used |
-| Chat - Conversation - Info Popover - Dark | `jHX8s` | Dark | Dark mode variant of info popover open |
-| Chat - Conversation - Rich Text | `mvehf` | Light | AI response with rich text: headings (H2–H4), ordered list, code block, blockquote, unordered list, italic text, table (1280x1400) |
-| Chat - Conversation - Rich Text - Dark | `RHfbi` | Dark | Dark mode variant of rich text conversation (1280x1400) |
-| Chat - Conversation - Image Upload | `YEqg2` | Light | User uploads an image — preview above message bubble (1280x790) |
-| Chat - Conversation - Image Upload - Dark | `uOWx9` | Dark | Dark mode variant of image upload conversation (1280x790) |
-| Chat - Conversation - Scroll Button | `JNfyW` | Light | Long conversation scrolled up — scroll-to-bottom button visible centered 16px above input (1280x790) |
-| Chat - Conversation - Scroll Button - Dark | `jyH52` | Dark | Dark mode variant of scroll button conversation (1280x790) |
-| Chat - Conversation - Image Drag | `8U8oc` | Light | Drag-and-drop overlay when user drags an image into the chat (1280x790) |
-| Chat - Conversation - Image Drag - Dark | `a1C8O` | Dark | Dark mode variant of image drag overlay (1280x790) |
-| Chat - Conversation - Image Attached | `1kmjw` | Light | Image previews inside chat input before sending — shows default + loading state (1280x720) |
-| Chat - Conversation - Image Attached - Dark | `v6z1s` | Dark | Dark mode variant of image attached state (1280x720) |
-| Chat - Conversation - Doc Attached | `3cv10` | Light | Document preview chip inside chat input before sending (1280x720) |
-| Chat - Conversation - Doc Attached - Dark | `5bsEl` | Dark | Dark mode variant of document attached state (1280x720) |
-| Chat - Conversation - History Sidebar | `nF2hW` | Light | History sidebar open — clock icon active, sidebar with search + grouped conversation list, main content narrowed to 952px (1280x720) |
-| Chat - Conversation - History Sidebar - Dark | `F0Jc0` | Dark | Dark mode variant of history sidebar open (1280x720) |
-| Chat - History Sidebar - Empty State | `SS8bc` | Light | Empty history sidebar — no conversations, centered message-square-dashed icon + "No conversations yet" + "Start a new chat to begin" (1280x720) |
-| Chat - History Sidebar - Empty State - Dark | `ek3XK` | Dark | Dark mode variant of empty history sidebar (1280x720) |
-| Chat - History Sidebar - No Results | `9qxP3` | Light | Search active ("migration plans") with no matching results — centered search-x icon + "No results found" + "Try a different search term" (1280x720) |
-| Chat - History Sidebar - No Results - Dark | `G5L4F` | Dark | Dark mode variant of no results search (1280x720) |
-| Chat - Conversation - Failed Response | `RsCA5` | Light | AI response failed — red triangle-alert icon + "Something went wrong" + description + "Try again" button with rotate-ccw icon (1280x720) |
-| Chat - Conversation - Failed Response - Dark | `XD45m` | Dark | Dark mode variant of failed response (1280x720) |
-| Chat - Conversation - Message Hover Actions | `MxDIl` | Light | Hover states on messages — edit (pencil) action row below user message (right-aligned), regenerate (refresh-ccw) icon in AI response actions row (1280x720) |
-| Chat - Conversation - Message Hover Actions - Dark | `c87GX` | Dark | Dark mode variant of message hover actions (1280x720) |
-| Chat - Conversation - Edit Message | `sEHZ4` | Light | Edit-active state — user message becomes editable text area with blue focus border + Cancel / Save & Submit buttons (1280x720) |
-| Chat - Conversation - Edit Message - Dark | `JXcE7` | Dark | Dark mode variant of edit message state (1280x720) |
-| Chat - Conversation - Copy Feedback | `FDZpW` | Light | Copy icon swapped to check icon after user clicks copy on AI response — reverts after ~2s (1280x720) |
-| Chat - Conversation - Copy Feedback - Dark | `TwKbn` | Dark | Dark mode variant of copy feedback (1280x720) |
-| Chat - Conversation - Streaming Response | `pM5Q9` | Light | AI response mid-stream — partial text with blinking cursor, no action icons yet (1280x720) |
-| Chat - Conversation - Streaming Response - Dark | `PNRzO` | Dark | Dark mode variant of streaming response (1280x720) |
-| Chat - History Sidebar - Row Hover Actions | `M6ixb` | Light | History row hover — pencil (rename) and trash (delete) icons appear on hovered row (1280x720) |
-| Chat - History Sidebar - Row Hover Actions - Dark | `Lw8yW` | Dark | Dark mode variant of row hover actions (1280x720) |
-| Chat - History Sidebar - Delete Confirmation | `9c1Sr` | Light | Delete confirmation modal over history sidebar — "Delete conversation" dialog with Cancel / Delete buttons (1280x720) |
-| Chat - History Sidebar - Delete Confirmation - Dark | `HaSAB` | Dark | Dark mode variant of delete confirmation (1280x720) |
-| Chat - Conversation - Generated Document | `JoLPF` | Light | AI generates a document — full rich text content rendered inline (headings, lists, paragraphs) + download card at bottom (1280x1100) |
-| Chat - Conversation - Generated Document - Dark | `6GAJ3` | Dark | Dark mode variant of generated document (1280x1100) |
-| Chat - Default - Hover Suggestion Card | `Y6Ek9` | Light | Hover state on middle suggestion card — `$surface-hover` fill + `$border-hover` 1px stroke on hovered card. Other cards unchanged. (1280x720) |
-| Chat - Default - Hover Suggestion Card - Dark | `EAxtY` | Dark | Dark mode variant of suggestion card hover (1280x720) |
-| Chat - Default - Typing | `2RhuL` | Light | User typing state — placeholder replaced with typed text (`$text-primary`), chat input border becomes `$border-focus` 1.5px, send button appears in bottom-bar (arrow-up icon, `$button-primary-bg`, cornerRadius 8, padding 6). (1280x720) |
-| Chat - Default - Typing - Dark | `vqMdj` | Dark | Dark mode variant of typing state (1280x720) |
-| Chat - Default - Sidebar Tooltip Visible | `u71kk` | Light | Sidebar tooltip visible state — "Conversations" tooltip (`p6YFG` ref) enabled next to inbox icon, inbox menu item has `$surface-hover` background. Shows tooltip-on-hover pattern for sidebar navigation. (1280x720) |
-| Chat - Default - Sidebar Tooltip Visible - Dark | `yyEXE` | Dark | Dark mode variant of sidebar tooltip visible (1280x720) |
-| Chat - Default - User Profile Open | `u4KP2` | Light | User profile popup visible — popup appears above user avatar in sidebar bottom, showing Thelma Nader name/email, Settings, theme switcher (System/Light/Dark), Help & feedback, Log out. Avatar icon has `$surface-hover` background. (1280x720) |
-| Chat - Default - User Profile Open - Dark | `Lg00W` | Dark | Dark mode variant of user profile open (1280x720) |
+| Screen                                              | ID      | Theme | Description                                                                                                                                                                                                                                      |
+| --------------------------------------------------- | ------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Chat (default)                                      | `SPqR7` | Light | New chat state — "What are you working on?" + input (558px) + suggestions                                                                                                                                                                        |
+| Chat - Agent Selector Open                          | `EnpoM` | Light | Dropdown open, active typing state                                                                                                                                                                                                               |
+| Chat - Conversation                                 | `ePl6z` | Light | Active conversation — user message (right), AI response with actions, wider input (768px)                                                                                                                                                        |
+| Chat (default) - Dark                               | `uy1QI` | Dark  | Dark mode variant of default chat                                                                                                                                                                                                                |
+| Chat - Agent Selector Open - Dark                   | `11byn` | Dark  | Dark mode variant of agent selector open                                                                                                                                                                                                         |
+| Chat - Conversation - Dark                          | `Dy337` | Dark  | Dark mode variant of conversation view                                                                                                                                                                                                           |
+| Chat - Conversation - Info Popover                  | `cx8SP` | Light | Info popover open, showing sources used                                                                                                                                                                                                          |
+| Chat - Conversation - Info Popover - Dark           | `jHX8s` | Dark  | Dark mode variant of info popover open                                                                                                                                                                                                           |
+| Chat - Conversation - Rich Text                     | `mvehf` | Light | AI response with rich text: headings (H2–H4), ordered list, code block, blockquote, unordered list, italic text, table (1280x1400)                                                                                                               |
+| Chat - Conversation - Rich Text - Dark              | `RHfbi` | Dark  | Dark mode variant of rich text conversation (1280x1400)                                                                                                                                                                                          |
+| Chat - Conversation - Image Upload                  | `YEqg2` | Light | User uploads an image — preview above message bubble (1280x790)                                                                                                                                                                                  |
+| Chat - Conversation - Image Upload - Dark           | `uOWx9` | Dark  | Dark mode variant of image upload conversation (1280x790)                                                                                                                                                                                        |
+| Chat - Conversation - Scroll Button                 | `JNfyW` | Light | Long conversation scrolled up — scroll-to-bottom button visible centered 16px above input (1280x790)                                                                                                                                             |
+| Chat - Conversation - Scroll Button - Dark          | `jyH52` | Dark  | Dark mode variant of scroll button conversation (1280x790)                                                                                                                                                                                       |
+| Chat - Conversation - Image Drag                    | `8U8oc` | Light | Drag-and-drop overlay when user drags an image into the chat (1280x790)                                                                                                                                                                          |
+| Chat - Conversation - Image Drag - Dark             | `a1C8O` | Dark  | Dark mode variant of image drag overlay (1280x790)                                                                                                                                                                                               |
+| Chat - Conversation - Image Attached                | `1kmjw` | Light | Image previews inside chat input before sending — shows default + loading state (1280x720)                                                                                                                                                       |
+| Chat - Conversation - Image Attached - Dark         | `v6z1s` | Dark  | Dark mode variant of image attached state (1280x720)                                                                                                                                                                                             |
+| Chat - Conversation - Doc Attached                  | `3cv10` | Light | Document preview chip inside chat input before sending (1280x720)                                                                                                                                                                                |
+| Chat - Conversation - Doc Attached - Dark           | `5bsEl` | Dark  | Dark mode variant of document attached state (1280x720)                                                                                                                                                                                          |
+| Chat - Conversation - History Sidebar               | `nF2hW` | Light | History sidebar open — clock icon active, sidebar with search + grouped conversation list, main content narrowed to 952px (1280x720)                                                                                                             |
+| Chat - Conversation - History Sidebar - Dark        | `F0Jc0` | Dark  | Dark mode variant of history sidebar open (1280x720)                                                                                                                                                                                             |
+| Chat - History Sidebar - Empty State                | `SS8bc` | Light | Empty history sidebar — no conversations, centered message-square-dashed icon + "No conversations yet" + "Start a new chat to begin" (1280x720)                                                                                                  |
+| Chat - History Sidebar - Empty State - Dark         | `ek3XK` | Dark  | Dark mode variant of empty history sidebar (1280x720)                                                                                                                                                                                            |
+| Chat - History Sidebar - No Results                 | `9qxP3` | Light | Search active ("migration plans") with no matching results — centered search-x icon + "No results found" + "Try a different search term" (1280x720)                                                                                              |
+| Chat - History Sidebar - No Results - Dark          | `G5L4F` | Dark  | Dark mode variant of no results search (1280x720)                                                                                                                                                                                                |
+| Chat - Conversation - Failed Response               | `RsCA5` | Light | AI response failed — red triangle-alert icon + "Something went wrong" + description + "Try again" button with rotate-ccw icon (1280x720)                                                                                                         |
+| Chat - Conversation - Failed Response - Dark        | `XD45m` | Dark  | Dark mode variant of failed response (1280x720)                                                                                                                                                                                                  |
+| Chat - Conversation - Message Hover Actions         | `MxDIl` | Light | Hover states on messages — edit (pencil) action row below user message (right-aligned), regenerate (refresh-ccw) icon in AI response actions row (1280x720)                                                                                      |
+| Chat - Conversation - Message Hover Actions - Dark  | `c87GX` | Dark  | Dark mode variant of message hover actions (1280x720)                                                                                                                                                                                            |
+| Chat - Conversation - Edit Message                  | `sEHZ4` | Light | Edit-active state — user message becomes editable text area with blue focus border + Cancel / Save & Submit buttons (1280x720)                                                                                                                   |
+| Chat - Conversation - Edit Message - Dark           | `JXcE7` | Dark  | Dark mode variant of edit message state (1280x720)                                                                                                                                                                                               |
+| Chat - Conversation - Copy Feedback                 | `FDZpW` | Light | Copy icon swapped to check icon after user clicks copy on AI response — reverts after ~2s (1280x720)                                                                                                                                             |
+| Chat - Conversation - Copy Feedback - Dark          | `TwKbn` | Dark  | Dark mode variant of copy feedback (1280x720)                                                                                                                                                                                                    |
+| Chat - Conversation - Streaming Response            | `pM5Q9` | Light | AI response mid-stream — partial text with blinking cursor, no action icons yet (1280x720)                                                                                                                                                       |
+| Chat - Conversation - Streaming Response - Dark     | `PNRzO` | Dark  | Dark mode variant of streaming response (1280x720)                                                                                                                                                                                               |
+| Chat - History Sidebar - Row Hover Actions          | `M6ixb` | Light | History row hover — pencil (rename) and trash (delete) icons appear on hovered row (1280x720)                                                                                                                                                    |
+| Chat - History Sidebar - Row Hover Actions - Dark   | `Lw8yW` | Dark  | Dark mode variant of row hover actions (1280x720)                                                                                                                                                                                                |
+| Chat - History Sidebar - Delete Confirmation        | `9c1Sr` | Light | Delete confirmation modal over history sidebar — "Delete conversation" dialog with Cancel / Delete buttons (1280x720)                                                                                                                            |
+| Chat - History Sidebar - Delete Confirmation - Dark | `HaSAB` | Dark  | Dark mode variant of delete confirmation (1280x720)                                                                                                                                                                                              |
+| Chat - Conversation - Generated Document            | `JoLPF` | Light | AI generates a document — full rich text content rendered inline (headings, lists, paragraphs) + download card at bottom (1280x1100)                                                                                                             |
+| Chat - Conversation - Generated Document - Dark     | `6GAJ3` | Dark  | Dark mode variant of generated document (1280x1100)                                                                                                                                                                                              |
+| Chat - Default - Hover Suggestion Card              | `Y6Ek9` | Light | Hover state on middle suggestion card — `$surface-hover` fill + `$border-hover` 1px stroke on hovered card. Other cards unchanged. (1280x720)                                                                                                    |
+| Chat - Default - Hover Suggestion Card - Dark       | `EAxtY` | Dark  | Dark mode variant of suggestion card hover (1280x720)                                                                                                                                                                                            |
+| Chat - Default - Typing                             | `2RhuL` | Light | User typing state — placeholder replaced with typed text (`$text-primary`), chat input border becomes `$border-focus` 1.5px, send button appears in bottom-bar (arrow-up icon, `$button-primary-bg`, cornerRadius 8, padding 6). (1280x720)      |
+| Chat - Default - Typing - Dark                      | `vqMdj` | Dark  | Dark mode variant of typing state (1280x720)                                                                                                                                                                                                     |
+| Chat - Default - Sidebar Tooltip Visible            | `u71kk` | Light | Sidebar tooltip visible state — "Conversations" tooltip (`p6YFG` ref) enabled next to inbox icon, inbox menu item has `$surface-hover` background. Shows tooltip-on-hover pattern for sidebar navigation. (1280x720)                             |
+| Chat - Default - Sidebar Tooltip Visible - Dark     | `yyEXE` | Dark  | Dark mode variant of sidebar tooltip visible (1280x720)                                                                                                                                                                                          |
+| Chat - Default - User Profile Open                  | `u4KP2` | Light | User profile popup visible — popup appears above user avatar in sidebar bottom, showing Thelma Nader name/email, Settings, theme switcher (System/Light/Dark), Help & feedback, Log out. Avatar icon has `$surface-hover` background. (1280x720) |
+| Chat - Default - User Profile Open - Dark           | `Lg00W` | Dark  | Dark mode variant of user profile open (1280x720)                                                                                                                                                                                                |
 
 ### Conversations
 
-| Screen | ID | Theme | Description |
-|--------|-----|-------|-------------|
-| Conversations - Setup | `xMyM9` | Light | Setup/onboarding state — full-page centered "Activate conversations" + "Connect your email..." + Connect email button. Shown before email integration is connected. (1280x720) |
-| Conversations - Setup - Dark | `vsDCj` | Dark | Dark mode variant of setup state (1280x720) |
-| Conversations - Empty State | `8Z7J9` | Light | Split-panel empty state — empty conversation list on left, "No conversations yet" on right. Shown after email is connected but no messages exist. (1280x720) |
-| Conversations - Empty State - Dark | `NSnHr` | Dark | Dark mode variant of empty state (1280x720) |
-| Conversations - Default | `z3sBN` | Light | Split-panel with conversation list (4 sample rows) on left, "No conversation selected" on right. Default state with conversations but none selected. (1280x720) |
-| Conversations - Default - Dark | `shcl7` | Dark | Dark mode variant of default state (1280x720) |
-| Conversations - Default - Active | `6feiI` | Light | Selected conversation (Sarah Johnson) — right panel shows email body (flat text), detail header, and reply bar. First row highlighted. (1280x720) |
-| Conversations - Default - Active - Dark | `EMxqg` | Dark | Dark mode variant of active conversation state (1280x720) |
-| Conversations - Default - Active - Context Menu | `d24C7` | Light | Ellipsis context menu open — Customer info, Close conversation, Mark as spam options. (1280x720) |
-| Conversations - Default - Active - Context Menu - Dark | `kt8U3` | Dark | Dark mode variant of context menu state (1280x720) |
-| Conversations - Default - Active - AI Rewrite | `MNOkS` | Light | AI rewrite active — shimmer gradient "Improving your reply..." text, faded draft preview, blue focus border, wand button highlighted with "Improving..." label, stop button visible. (1280x720) |
-| Conversations - Default - Active - AI Rewrite - Dark | `ts8n9` | Dark | Dark mode variant of AI rewrite state (1280x720) |
-| Conversations - Default - Active - Formatting | `YAOcU` | Light | Formatting toolbar active state — bold toggled on (blue highlight), typed reply with bold text, blue focus border, send button visible. Full conversation thread: Sarah's email (flat text) → user's outgoing reply (chat bubble) → Sarah's response with **bullet points + bold keywords** (flat text) → active compose. Shows Gmail-style formatting UX + rich text in email responses. (1280x720) |
-| Conversations - Default - Active - Formatting - Dark | `LUkcM` | Dark | Dark mode variant of formatting toolbar active state (1280x720) |
-| Conversations - Default - Active - Row Hover | `qKBq8` | Light | Row hover state — Michael Chen's row (second) shows hover fill (`#F3F4F6`), Sarah Johnson's row is selected (no unread dot — cleared on open). Shows hover feedback on non-selected rows. (1280x720) |
-| Conversations - Default - Active - Row Hover - Dark | `2YfDl` | Dark | Dark mode variant of row hover state — Michael Chen's row shows `#1F2937` hover fill (1280x720) |
-| Conversations - Default - Empty Search | `G8fbX` | Light | Empty search results — search input active with "budget allocation" query (blue focus border), conversation list shows search-x icon + "No results found" + "Try a different search term". Right panel shows "No conversation selected" empty state. (1280x720) |
-| Conversations - Default - Empty Search - Dark | `V9EpW` | Dark | Dark mode variant of empty search results (1280x720) |
-| Conversations - Default - MultiSelect | `ip3Mu` | Light | Multi-select / bulk action mode — 2 of 4 rows checked (Sarah Johnson + Emily Rodriguez), bulk action bar replaces search bar with indeterminate checkbox + "2 selected" count + Send, Close, Spam, Archive action buttons. Right panel shows "No conversation selected". (1280x720) |
-| Conversations - Default - MultiSelect - Dark | `eMr3E` | Dark | Dark mode variant of multi-select bulk action mode (1280x720) |
-| Conversations - Default - Active - Customer Info | `dXJoQ` | Light | Customer info popover open — name, status (Active), subscription (Pro Plan), date added, locale, source, conversation count, last active. (1280x720) |
-| Conversations - Default - Active - Customer Info - Dark | `xlzs9` | Dark | Dark mode variant of customer info popover (1280x720) |
-| Conversations - Default - Active - AI Rewrite Complete | `6sFk9` | Light | AI rewrite finished — improved text in reply box, green border flash, wand button shows check + "Done" in green, stop button removed. Transient state (~2s) before reverting to normal. (1280x720) |
-| Conversations - Default - Active - AI Rewrite Complete - Dark | `jJDHi` | Dark | Dark mode variant of AI rewrite complete state (1280x720) |
-| Conversations - Default - Active - AI Rewrite Toast | `ZLkjI` | Light | User navigated to a different conversation while AI rewrite was processing. Success toast appears top-right: "Reply improved" + conversation subject + "View" button to navigate back. (1280x720) |
-| Conversations - Default - Active - AI Rewrite Toast - Dark | `F6JpM` | Dark | Dark mode variant of AI rewrite toast state (1280x720) |
-| Conversations - Default - Select Dropdown Open | `U5E0N` | Light | Select dropdown menu open — shows All/Read/Unread filter options, "Read" row hovered, checkbox shows indeterminate state, chevron flipped. (1280x720) |
-| Conversations - Default - Select Dropdown Open - Dark | `VyGiJ` | Dark | Dark mode variant of select dropdown open state (1280x720) |
-| Conversations - Closed - Active | `UcGkT` | Light | Closed tab active — selected conversation shows "Conversation closed" banner at bottom with green circle-check icon + "Reopen" button (`$surface-primary` fill, `$border-hover` stroke). Banner: `$surface-disabled` fill, `$border-primary` top border, padding `[12, 12, 16, 12]`. No status badges in conversation rows (tab already indicates section). (1280x720) |
-| Conversations - Closed - Active - Dark | `dejXt` | Dark | Dark mode variant of closed active state (1280x720) |
-| Conversations - Spam - Active | `EmG8w` | Light | Spam tab active — selected conversation shows "Marked as spam" banner at bottom with red shield-alert icon + "Not spam" button (`$surface-primary` fill) + red "Delete" button. Banner: `$surface-disabled` fill, `$border-primary` top border (consistent with Closed/Archived). No status badges in conversation rows. (1280x720) |
-| Conversations - Spam - Active - Dark | `13V6m` | Dark | Dark mode variant of spam active state (1280x720) |
-| Conversations - Archived - Active | `5S95C` | Light | Archived tab active — selected conversation shows "Conversation archived" banner at bottom with gray archive icon + "Unarchive" button (`$surface-primary` fill, `$border-hover` stroke). Banner: `$surface-disabled` fill, `$border-primary` top border, padding `[12, 12, 16, 12]`. No status badges in conversation rows. (1280x720) |
-| Conversations - Archived - Active - Dark | `RWjBM` | Dark | Dark mode variant of archived active state (1280x720) |
-| Conversations - Default - Active - Replying | `YPnMX` | Light | Reply compose active — text area expanded with typed reply content, Send button visible in bottom bar. Blue focus border on reply box. (1280x720) |
-| Conversations - Default - Active - Replying - Dark | `y2ctQ` | Dark | Dark mode variant of replying state (1280x720) |
-| Conversations - Default - Active - Attachments | `OtdIK` | Light | Reply with attachments — image previews (Loading + Hover states) and doc preview chip shown in an attachment row above text area. (1280x720) |
-| Conversations - Default - Active - Attachments - Dark | `EsHHZ` | Dark | Dark mode variant of attachments state (1280x720) |
-| Conversations - Default - Active - SendingReply | `Nl56f` | Light | Reply sending — Send button shows loading spinner, reply text dimmed at 50% opacity. Non-interactive state during send. (1280x720) |
-| Conversations - Default - Active - SendingReply - Dark | `CHkrh` | Dark | Dark mode variant of sending reply state (1280x720) |
-| Conversations - Default - Active - ReplySent | `XxXum` | Light | Reply sent confirmation — success toast top-right with green circle-check icon, "Reply sent" title, conversation subject description. Auto-dismisses 5s. (1280x720) |
-| Conversations - Default - Active - ReplySent - Dark | `Wk5Vz` | Dark | Dark mode variant of reply sent toast state (1280x720) |
-| Conversations - Default - Active - SearchFocused | `JfCc2` | Light | Search input focused — blue focus ring, typed query "budget", conversation list filtered to matching results. (1280x720) |
-| Conversations - Default - Active - SearchFocused - Dark | `5iRXs` | Dark | Dark mode variant of search focused state — search input uses `$border-focus` border (2px) for visibility on dark background. (1280x720) |
-| Conversations - Closed - Empty | `7byDa` | Light | Closed tab with no conversations — centered check-circle icon + "No closed conversations" + description. (1280x720) |
-| Conversations - Closed - Empty - Dark | `haxxj` | Dark | Dark mode variant of closed empty state (1280x720) |
-| Conversations - Spam - Empty | `6I9vb` | Light | Spam tab with no conversations — centered shield-check icon + "No spam conversations" + description. (1280x720) |
-| Conversations - Spam - Empty - Dark | `VKzxp` | Dark | Dark mode variant of spam empty state (1280x720) |
-| Conversations - Archived - Empty | `Y256A` | Light | Archived tab with no conversations — centered archive icon + "No archived conversations" + description. (1280x720) |
-| Conversations - Archived - Empty - Dark | `HU4Cv` | Dark | Dark mode variant of archived empty state (1280x720) |
-| Conversations - Default - Active - ConfirmClose | `cgt5R` | Light | Confirm close dialog — uses `Components/ModalOverlay` ref (`TNz4n`) with `$overlay-bg` + background blur. Dialog: "Close conversation?" + Cancel/Close buttons (`$button-primary-bg`). (1280x720) |
-| Conversations - Default - Active - ConfirmClose - Dark | `ReQgV` | Dark | Dark mode variant of confirm close dialog (1280x720) |
-| Conversations - Default - Active - ConfirmSpam | `zrNh6` | Light | Confirm spam dialog — uses `Components/ModalOverlay` ref (`TNz4n`) with `$overlay-bg` + background blur. Dialog: "Mark as spam?" + Cancel/"Mark as spam" (`#DC2626` red) buttons. (1280x720) |
-| Conversations - Default - Active - ConfirmSpam - Dark | `oEIFZ` | Dark | Dark mode variant of confirm spam dialog (1280x720) |
-| Conversations - Default - MultiSelect - Actions | `oj3N1` | Light | Multi-select with tooltip — Close action button hovered, "Close conversation" tooltip visible. Shows tooltip behavior on bulk action buttons. (1280x720) |
-| Conversations - Default - MultiSelect - Actions - Dark | `d8GQK` | Dark | Dark mode variant of multi-select actions tooltip (1280x720) |
-| Conversations - Default - Active - LongThread | `gpELz` | Light | Long email thread — collapsed "Show 3 earlier messages" indicator + visible replies from Alex Johnson and Sarah Mitchell with avatars, timestamps, and indented body text. (1280x720) |
-| Conversations - Default - Active - LongThread - Dark | `mNqYK` | Dark | Dark mode variant of long thread state — "Show 3 earlier messages" text uses `$text-tertiary` for dark mode visibility. (1280x720) |
-| Conversations - Default - Active - ImagePreview | `zaxa7` | Light | Email with inline images — two image thumbnails (180x120, cornerRadius 8) between email paragraphs showing dashboard and mobile mockups. (1280x720) |
-| Conversations - Default - Active - ImagePreview - Dark | `RF3tM` | Dark | Dark mode variant of image preview state (1280x720) |
-| Conversations - Default - Active - DocPreview | `kBCTA` | Light | Email with document attachments — two DocPreview component refs (PDF red badge + DOCX blue badge) between email paragraphs. (1280x720) |
-| Conversations - Default - Active - DocPreview - Dark | `xGbuQ` | Dark | Dark mode variant of doc preview state (1280x720) |
-| Conversations - Default - Loading | `o0NVD` | Light | Full skeleton loading — conversation list shows 4 skeleton rows (avatar circles + text bars), detail panel shows skeleton header + body lines. All using `$surface-disabled` fill. (1280x720) |
-| Conversations - Default - Loading - Dark | `ENzg0` | Dark | Dark mode variant of skeleton loading state (1280x720) |
-| Conversations - Default - Active - DetailLoading | `y84IB` | Light | Detail panel loading — conversation list shows real data, detail panel shows centered loader-circle icon + "Loading conversation..." text. (1280x720) |
-| Conversations - Default - Active - DetailLoading - Dark | `ECNNA` | Dark | Dark mode variant of detail loading state (1280x720) |
-| Conversations - Default - Active - ErrorState | `9dMSy` | Light | Detail panel error — conversation list shows real data, detail panel shows triangle-alert icon in `$surface-disabled` container + "Failed to load conversation" title + "Something went wrong" description + "Try again" button (`$button-primary-bg` fill) with refresh-cw icon. (1280x720) |
-| Conversations - Default - Active - ErrorState - Dark | `8h9Ux` | Dark | Dark mode variant of error state — icon container uses `$surface-disabled`, retry button uses `$button-primary-bg`/`$button-primary-text` for proper theme switching. (1280x720) |
-| Conversations - Default - Active - Forward | `Qra4b` | Light | Forward compose — reply area replaced with forward box: "To:" recipient field + forwarded message metadata + paperclip attach button + "Forward" button (`$button-primary-bg`/`$button-primary-text`) with forward icon. Box styled to match Default-Active reply box: `$border-hover` 1px border, cornerRadius 12, `$surface-primary` fill. (1280x720) |
-| Conversations - Default - Active - Forward - Dark | `WYKMt` | Dark | Dark mode variant of forward compose state — Forward button uses `$button-primary-bg` (white in dark) for proper theme switching. (1280x720) |
+| Screen                                                        | ID      | Theme | Description                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------- | ------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Conversations - Setup                                         | `xMyM9` | Light | Setup/onboarding state — full-page centered "Activate conversations" + "Connect your email..." + Connect email button. Shown before email integration is connected. (1280x720)                                                                                                                                                                                                                       |
+| Conversations - Setup - Dark                                  | `vsDCj` | Dark  | Dark mode variant of setup state (1280x720)                                                                                                                                                                                                                                                                                                                                                          |
+| Conversations - Empty State                                   | `8Z7J9` | Light | Split-panel empty state — empty conversation list on left, "No conversations yet" on right. Shown after email is connected but no messages exist. (1280x720)                                                                                                                                                                                                                                         |
+| Conversations - Empty State - Dark                            | `NSnHr` | Dark  | Dark mode variant of empty state (1280x720)                                                                                                                                                                                                                                                                                                                                                          |
+| Conversations - Default                                       | `z3sBN` | Light | Split-panel with conversation list (4 sample rows) on left, "No conversation selected" on right. Default state with conversations but none selected. (1280x720)                                                                                                                                                                                                                                      |
+| Conversations - Default - Dark                                | `shcl7` | Dark  | Dark mode variant of default state (1280x720)                                                                                                                                                                                                                                                                                                                                                        |
+| Conversations - Default - Active                              | `6feiI` | Light | Selected conversation (Sarah Johnson) — right panel shows email body (flat text), detail header, and reply bar. First row highlighted. (1280x720)                                                                                                                                                                                                                                                    |
+| Conversations - Default - Active - Dark                       | `EMxqg` | Dark  | Dark mode variant of active conversation state (1280x720)                                                                                                                                                                                                                                                                                                                                            |
+| Conversations - Default - Active - Context Menu               | `d24C7` | Light | Ellipsis context menu open — Customer info, Close conversation, Mark as spam options. (1280x720)                                                                                                                                                                                                                                                                                                     |
+| Conversations - Default - Active - Context Menu - Dark        | `kt8U3` | Dark  | Dark mode variant of context menu state (1280x720)                                                                                                                                                                                                                                                                                                                                                   |
+| Conversations - Default - Active - AI Rewrite                 | `MNOkS` | Light | AI rewrite active — shimmer gradient "Improving your reply..." text, faded draft preview, blue focus border, wand button highlighted with "Improving..." label, stop button visible. (1280x720)                                                                                                                                                                                                      |
+| Conversations - Default - Active - AI Rewrite - Dark          | `ts8n9` | Dark  | Dark mode variant of AI rewrite state (1280x720)                                                                                                                                                                                                                                                                                                                                                     |
+| Conversations - Default - Active - Formatting                 | `YAOcU` | Light | Formatting toolbar active state — bold toggled on (blue highlight), typed reply with bold text, blue focus border, send button visible. Full conversation thread: Sarah's email (flat text) → user's outgoing reply (chat bubble) → Sarah's response with **bullet points + bold keywords** (flat text) → active compose. Shows Gmail-style formatting UX + rich text in email responses. (1280x720) |
+| Conversations - Default - Active - Formatting - Dark          | `LUkcM` | Dark  | Dark mode variant of formatting toolbar active state (1280x720)                                                                                                                                                                                                                                                                                                                                      |
+| Conversations - Default - Active - Row Hover                  | `qKBq8` | Light | Row hover state — Michael Chen's row (second) shows hover fill (`#F3F4F6`), Sarah Johnson's row is selected (no unread dot — cleared on open). Shows hover feedback on non-selected rows. (1280x720)                                                                                                                                                                                                 |
+| Conversations - Default - Active - Row Hover - Dark           | `2YfDl` | Dark  | Dark mode variant of row hover state — Michael Chen's row shows `#1F2937` hover fill (1280x720)                                                                                                                                                                                                                                                                                                      |
+| Conversations - Default - Empty Search                        | `G8fbX` | Light | Empty search results — search input active with "budget allocation" query (blue focus border), conversation list shows search-x icon + "No results found" + "Try a different search term". Right panel shows "No conversation selected" empty state. (1280x720)                                                                                                                                      |
+| Conversations - Default - Empty Search - Dark                 | `V9EpW` | Dark  | Dark mode variant of empty search results (1280x720)                                                                                                                                                                                                                                                                                                                                                 |
+| Conversations - Default - MultiSelect                         | `ip3Mu` | Light | Multi-select / bulk action mode — 2 of 4 rows checked (Sarah Johnson + Emily Rodriguez), bulk action bar replaces search bar with indeterminate checkbox + "2 selected" count + Send, Close, Spam, Archive action buttons. Right panel shows "No conversation selected". (1280x720)                                                                                                                  |
+| Conversations - Default - MultiSelect - Dark                  | `eMr3E` | Dark  | Dark mode variant of multi-select bulk action mode (1280x720)                                                                                                                                                                                                                                                                                                                                        |
+| Conversations - Default - Active - Customer Info              | `dXJoQ` | Light | Customer info popover open — name, status (Active), subscription (Pro Plan), date added, locale, source, conversation count, last active. (1280x720)                                                                                                                                                                                                                                                 |
+| Conversations - Default - Active - Customer Info - Dark       | `xlzs9` | Dark  | Dark mode variant of customer info popover (1280x720)                                                                                                                                                                                                                                                                                                                                                |
+| Conversations - Default - Active - AI Rewrite Complete        | `6sFk9` | Light | AI rewrite finished — improved text in reply box, green border flash, wand button shows check + "Done" in green, stop button removed. Transient state (~2s) before reverting to normal. (1280x720)                                                                                                                                                                                                   |
+| Conversations - Default - Active - AI Rewrite Complete - Dark | `jJDHi` | Dark  | Dark mode variant of AI rewrite complete state (1280x720)                                                                                                                                                                                                                                                                                                                                            |
+| Conversations - Default - Active - AI Rewrite Toast           | `ZLkjI` | Light | User navigated to a different conversation while AI rewrite was processing. Success toast appears top-right: "Reply improved" + conversation subject + "View" button to navigate back. (1280x720)                                                                                                                                                                                                    |
+| Conversations - Default - Active - AI Rewrite Toast - Dark    | `F6JpM` | Dark  | Dark mode variant of AI rewrite toast state (1280x720)                                                                                                                                                                                                                                                                                                                                               |
+| Conversations - Default - Select Dropdown Open                | `U5E0N` | Light | Select dropdown menu open — shows All/Read/Unread filter options, "Read" row hovered, checkbox shows indeterminate state, chevron flipped. (1280x720)                                                                                                                                                                                                                                                |
+| Conversations - Default - Select Dropdown Open - Dark         | `VyGiJ` | Dark  | Dark mode variant of select dropdown open state (1280x720)                                                                                                                                                                                                                                                                                                                                           |
+| Conversations - Closed - Active                               | `UcGkT` | Light | Closed tab active — selected conversation shows "Conversation closed" banner at bottom with green circle-check icon + "Reopen" button (`$surface-primary` fill, `$border-hover` stroke). Banner: `$surface-disabled` fill, `$border-primary` top border, padding `[12, 12, 16, 12]`. No status badges in conversation rows (tab already indicates section). (1280x720)                               |
+| Conversations - Closed - Active - Dark                        | `dejXt` | Dark  | Dark mode variant of closed active state (1280x720)                                                                                                                                                                                                                                                                                                                                                  |
+| Conversations - Spam - Active                                 | `EmG8w` | Light | Spam tab active — selected conversation shows "Marked as spam" banner at bottom with red shield-alert icon + "Not spam" button (`$surface-primary` fill) + red "Delete" button. Banner: `$surface-disabled` fill, `$border-primary` top border (consistent with Closed/Archived). No status badges in conversation rows. (1280x720)                                                                  |
+| Conversations - Spam - Active - Dark                          | `13V6m` | Dark  | Dark mode variant of spam active state (1280x720)                                                                                                                                                                                                                                                                                                                                                    |
+| Conversations - Archived - Active                             | `5S95C` | Light | Archived tab active — selected conversation shows "Conversation archived" banner at bottom with gray archive icon + "Unarchive" button (`$surface-primary` fill, `$border-hover` stroke). Banner: `$surface-disabled` fill, `$border-primary` top border, padding `[12, 12, 16, 12]`. No status badges in conversation rows. (1280x720)                                                              |
+| Conversations - Archived - Active - Dark                      | `RWjBM` | Dark  | Dark mode variant of archived active state (1280x720)                                                                                                                                                                                                                                                                                                                                                |
+| Conversations - Default - Active - Replying                   | `YPnMX` | Light | Reply compose active — text area expanded with typed reply content, Send button visible in bottom bar. Blue focus border on reply box. (1280x720)                                                                                                                                                                                                                                                    |
+| Conversations - Default - Active - Replying - Dark            | `y2ctQ` | Dark  | Dark mode variant of replying state (1280x720)                                                                                                                                                                                                                                                                                                                                                       |
+| Conversations - Default - Active - Attachments                | `OtdIK` | Light | Reply with attachments — image previews (Loading + Hover states) and doc preview chip shown in an attachment row above text area. (1280x720)                                                                                                                                                                                                                                                         |
+| Conversations - Default - Active - Attachments - Dark         | `EsHHZ` | Dark  | Dark mode variant of attachments state (1280x720)                                                                                                                                                                                                                                                                                                                                                    |
+| Conversations - Default - Active - SendingReply               | `Nl56f` | Light | Reply sending — Send button shows loading spinner, reply text dimmed at 50% opacity. Non-interactive state during send. (1280x720)                                                                                                                                                                                                                                                                   |
+| Conversations - Default - Active - SendingReply - Dark        | `CHkrh` | Dark  | Dark mode variant of sending reply state (1280x720)                                                                                                                                                                                                                                                                                                                                                  |
+| Conversations - Default - Active - ReplySent                  | `XxXum` | Light | Reply sent confirmation — success toast top-right with green circle-check icon, "Reply sent" title, conversation subject description. Auto-dismisses 5s. (1280x720)                                                                                                                                                                                                                                  |
+| Conversations - Default - Active - ReplySent - Dark           | `Wk5Vz` | Dark  | Dark mode variant of reply sent toast state (1280x720)                                                                                                                                                                                                                                                                                                                                               |
+| Conversations - Default - Active - SearchFocused              | `JfCc2` | Light | Search input focused — blue focus ring, typed query "budget", conversation list filtered to matching results. (1280x720)                                                                                                                                                                                                                                                                             |
+| Conversations - Default - Active - SearchFocused - Dark       | `5iRXs` | Dark  | Dark mode variant of search focused state — search input uses `$border-focus` border (2px) for visibility on dark background. (1280x720)                                                                                                                                                                                                                                                             |
+| Conversations - Closed - Empty                                | `7byDa` | Light | Closed tab with no conversations — centered check-circle icon + "No closed conversations" + description. (1280x720)                                                                                                                                                                                                                                                                                  |
+| Conversations - Closed - Empty - Dark                         | `haxxj` | Dark  | Dark mode variant of closed empty state (1280x720)                                                                                                                                                                                                                                                                                                                                                   |
+| Conversations - Spam - Empty                                  | `6I9vb` | Light | Spam tab with no conversations — centered shield-check icon + "No spam conversations" + description. (1280x720)                                                                                                                                                                                                                                                                                      |
+| Conversations - Spam - Empty - Dark                           | `VKzxp` | Dark  | Dark mode variant of spam empty state (1280x720)                                                                                                                                                                                                                                                                                                                                                     |
+| Conversations - Archived - Empty                              | `Y256A` | Light | Archived tab with no conversations — centered archive icon + "No archived conversations" + description. (1280x720)                                                                                                                                                                                                                                                                                   |
+| Conversations - Archived - Empty - Dark                       | `HU4Cv` | Dark  | Dark mode variant of archived empty state (1280x720)                                                                                                                                                                                                                                                                                                                                                 |
+| Conversations - Default - Active - ConfirmClose               | `cgt5R` | Light | Confirm close dialog — uses `Components/ModalOverlay` ref (`TNz4n`) with `$overlay-bg` + background blur. Dialog: "Close conversation?" + Cancel/Close buttons (`$button-primary-bg`). (1280x720)                                                                                                                                                                                                    |
+| Conversations - Default - Active - ConfirmClose - Dark        | `ReQgV` | Dark  | Dark mode variant of confirm close dialog (1280x720)                                                                                                                                                                                                                                                                                                                                                 |
+| Conversations - Default - Active - ConfirmSpam                | `zrNh6` | Light | Confirm spam dialog — uses `Components/ModalOverlay` ref (`TNz4n`) with `$overlay-bg` + background blur. Dialog: "Mark as spam?" + Cancel/"Mark as spam" (`#DC2626` red) buttons. (1280x720)                                                                                                                                                                                                         |
+| Conversations - Default - Active - ConfirmSpam - Dark         | `oEIFZ` | Dark  | Dark mode variant of confirm spam dialog (1280x720)                                                                                                                                                                                                                                                                                                                                                  |
+| Conversations - Default - MultiSelect - Actions               | `oj3N1` | Light | Multi-select with tooltip — Close action button hovered, "Close conversation" tooltip visible. Shows tooltip behavior on bulk action buttons. (1280x720)                                                                                                                                                                                                                                             |
+| Conversations - Default - MultiSelect - Actions - Dark        | `d8GQK` | Dark  | Dark mode variant of multi-select actions tooltip (1280x720)                                                                                                                                                                                                                                                                                                                                         |
+| Conversations - Default - Active - LongThread                 | `gpELz` | Light | Long email thread — collapsed "Show 3 earlier messages" indicator + visible replies from Alex Johnson and Sarah Mitchell with avatars, timestamps, and indented body text. (1280x720)                                                                                                                                                                                                                |
+| Conversations - Default - Active - LongThread - Dark          | `mNqYK` | Dark  | Dark mode variant of long thread state — "Show 3 earlier messages" text uses `$text-tertiary` for dark mode visibility. (1280x720)                                                                                                                                                                                                                                                                   |
+| Conversations - Default - Active - ImagePreview               | `zaxa7` | Light | Email with inline images — two image thumbnails (180x120, cornerRadius 8) between email paragraphs showing dashboard and mobile mockups. (1280x720)                                                                                                                                                                                                                                                  |
+| Conversations - Default - Active - ImagePreview - Dark        | `RF3tM` | Dark  | Dark mode variant of image preview state (1280x720)                                                                                                                                                                                                                                                                                                                                                  |
+| Conversations - Default - Active - DocPreview                 | `kBCTA` | Light | Email with document attachments — two DocPreview component refs (PDF red badge + DOCX blue badge) between email paragraphs. (1280x720)                                                                                                                                                                                                                                                               |
+| Conversations - Default - Active - DocPreview - Dark          | `xGbuQ` | Dark  | Dark mode variant of doc preview state (1280x720)                                                                                                                                                                                                                                                                                                                                                    |
+| Conversations - Default - Loading                             | `o0NVD` | Light | Full skeleton loading — conversation list shows 4 skeleton rows (avatar circles + text bars), detail panel shows skeleton header + body lines. All using `$surface-disabled` fill. (1280x720)                                                                                                                                                                                                        |
+| Conversations - Default - Loading - Dark                      | `ENzg0` | Dark  | Dark mode variant of skeleton loading state (1280x720)                                                                                                                                                                                                                                                                                                                                               |
+| Conversations - Default - Active - DetailLoading              | `y84IB` | Light | Detail panel loading — conversation list shows real data, detail panel shows centered loader-circle icon + "Loading conversation..." text. (1280x720)                                                                                                                                                                                                                                                |
+| Conversations - Default - Active - DetailLoading - Dark       | `ECNNA` | Dark  | Dark mode variant of detail loading state (1280x720)                                                                                                                                                                                                                                                                                                                                                 |
+| Conversations - Default - Active - ErrorState                 | `9dMSy` | Light | Detail panel error — conversation list shows real data, detail panel shows triangle-alert icon in `$surface-disabled` container + "Failed to load conversation" title + "Something went wrong" description + "Try again" button (`$button-primary-bg` fill) with refresh-cw icon. (1280x720)                                                                                                         |
+| Conversations - Default - Active - ErrorState - Dark          | `8h9Ux` | Dark  | Dark mode variant of error state — icon container uses `$surface-disabled`, retry button uses `$button-primary-bg`/`$button-primary-text` for proper theme switching. (1280x720)                                                                                                                                                                                                                     |
+| Conversations - Default - Active - Forward                    | `Qra4b` | Light | Forward compose — reply area replaced with forward box: "To:" recipient field + forwarded message metadata + paperclip attach button + "Forward" button (`$button-primary-bg`/`$button-primary-text`) with forward icon. Box styled to match Default-Active reply box: `$border-hover` 1px border, cornerRadius 12, `$surface-primary` fill. (1280x720)                                              |
+| Conversations - Default - Active - Forward - Dark             | `WYKMt` | Dark  | Dark mode variant of forward compose state — Forward button uses `$button-primary-bg` (white in dark) for proper theme switching. (1280x720)                                                                                                                                                                                                                                                         |
 
 **Conversations layout notes:**
+
 - Same 48px sidebar as Chat screens, with `inbox` icon active instead of `message-circle`
 - Header: "Conversations" title, `$text-primary`, Inter 16px semibold (600), **no bottom border** (tab bar divider serves as the separator)
 - Tab bar: Open | Closed | Spam | Archived — uses `Components/Tab/Active` and `Components/Tab/Inactive` refs, horizontal layout, gap 16px, `alignItems: "stretch"`, `$border-primary` 1px bottom border. Active tab's 2px underline rectangle sits flush on the divider line.
@@ -1247,6 +1290,7 @@ A popover modal that displays customer/contact details for the person who sent t
   - On stop: cancels the rewrite, restores the original draft text
 
 **Chat layout notes:**
+
 - **New chat** (default): Chat input is **558px** wide, centered, with heading + suggestions
 - **Conversation view**: Chat input expands to **768px** wide, centered at bottom. Messages constrained to same 768px column.
 - User messages: right-aligned, `$gray-100` bubble, 20px corner radius, line-height 1.5
@@ -1261,6 +1305,7 @@ A popover modal that displays customer/contact details for the person who sent t
 - Suggestion chip text should be varied and realistic (e.g., "Draft a project proposal for Q4", "Analyze last month's revenue trends", "Write a follow-up email to the client") -- avoid generic/identical text across all chips
 
 **Dark mode overrides:**
+
 - Header fill: `$surface-primary` (not `#ffffff66` semi-transparent)
 - Header icon fills: `$icon-primary` (not hardcoded `#4B5563`)
 - Icon button hover fill: `#1F2937` (gray-800) instead of `#F3F4F6` (gray-100)
@@ -1279,91 +1324,93 @@ A popover modal that displays customer/contact details for the person who sent t
 
 ### Hover Patterns
 
-| Element | Hover Effect |
-|---------|-------------|
-| Header icon buttons | `#F3F4F6` background fill + tooltip with shortcut |
-| Sidebar nav items | Tooltip (no arrow) appears to the right |
-| User profile popup rows | `#F3F4F6` background (except name section) |
-| Agent selector rows | `#F3F4F6` background |
-| Agent selector button | `#F3F4F6` background (also active state when dropdown open) |
-| Search modal result rows | `#F3F4F6` background, 8px corner radius |
-| Info popover source pills | `#E5E7EB` (gray-200) background — **exception**: default is `$gray-100`, hover is gray-200 |
-| Microsoft button | `$surface-hover` fill, `$border-hover` border |
-| Primary button | Fill changes from `#030712` to `#111827` |
-| User message bubble | Edit (pencil) action row appears below (right-aligned), same pattern as AI response actions |
-| AI response actions row | Regenerate (refresh-ccw) icon appears alongside copy/info |
-| History sidebar conversation row | Rename (pencil) and delete (trash-2) icons appear right-aligned, row gets hover fill |
-| Document card download button | `#F3F4F6` background fill |
-| Conversation detail action buttons (reply/forward/more) | `#F3F4F6` background fill, cornerRadius 6 |
-| Conversation reply bar buttons (attach/AI rewrite) | `#F3F4F6` background fill, cornerRadius 100 (pill) |
-| Context menu rows (conversations) | `#F3F4F6` background on hovered option |
-| Select dropdown (conversations) | `#F3F4F6` background fill, cornerRadius 4, padding `[2, 4]` |
-| Select dropdown menu rows | `#F3F4F6` background on hovered option |
-| Conversation list rows | `#F3F4F6` background fill on hovered row (same as selected row fill). Selected row: persistent `#F3F4F6` fill. Hover + selected: same fill, no additional effect. |
-| Bulk action bar buttons (Close/Spam/Archive) | `#F3F4F6` background fill, cornerRadius 6. Icon-only 28x28 buttons; tooltip on hover |
-| Bulk action Send button | Already has `#EFF6FF` primary tint (light) / `#1E3A5F` (dark) as primary CTA. Hover: slightly darker tint. Tooltip: "Send reply" |
-| Formatting toolbar buttons (reply bar) | `#F3F4F6` background fill, cornerRadius 6. Active/toggled: `#EFF6FF` fill + `#056CFF` icon (light) / `#1E3A5F` fill + `#5098FF` icon (dark) |
+| Element                                                 | Hover Effect                                                                                                                                                      |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Header icon buttons                                     | `#F3F4F6` background fill + tooltip with shortcut                                                                                                                 |
+| Sidebar nav items                                       | Tooltip (no arrow) appears to the right                                                                                                                           |
+| User profile popup rows                                 | `#F3F4F6` background (except name section)                                                                                                                        |
+| Agent selector rows                                     | `#F3F4F6` background                                                                                                                                              |
+| Agent selector button                                   | `#F3F4F6` background (also active state when dropdown open)                                                                                                       |
+| Search modal result rows                                | `#F3F4F6` background, 8px corner radius                                                                                                                           |
+| Info popover source pills                               | `#E5E7EB` (gray-200) background — **exception**: default is `$gray-100`, hover is gray-200                                                                        |
+| Microsoft button                                        | `$surface-hover` fill, `$border-hover` border                                                                                                                     |
+| Primary button                                          | Fill changes from `#030712` to `#111827`                                                                                                                          |
+| User message bubble                                     | Edit (pencil) action row appears below (right-aligned), same pattern as AI response actions                                                                       |
+| AI response actions row                                 | Regenerate (refresh-ccw) icon appears alongside copy/info                                                                                                         |
+| History sidebar conversation row                        | Rename (pencil) and delete (trash-2) icons appear right-aligned, row gets hover fill                                                                              |
+| Document card download button                           | `#F3F4F6` background fill                                                                                                                                         |
+| Conversation detail action buttons (reply/forward/more) | `#F3F4F6` background fill, cornerRadius 6                                                                                                                         |
+| Conversation reply bar buttons (attach/AI rewrite)      | `#F3F4F6` background fill, cornerRadius 100 (pill)                                                                                                                |
+| Context menu rows (conversations)                       | `#F3F4F6` background on hovered option                                                                                                                            |
+| Select dropdown (conversations)                         | `#F3F4F6` background fill, cornerRadius 4, padding `[2, 4]`                                                                                                       |
+| Select dropdown menu rows                               | `#F3F4F6` background on hovered option                                                                                                                            |
+| Conversation list rows                                  | `#F3F4F6` background fill on hovered row (same as selected row fill). Selected row: persistent `#F3F4F6` fill. Hover + selected: same fill, no additional effect. |
+| Bulk action bar buttons (Close/Spam/Archive)            | `#F3F4F6` background fill, cornerRadius 6. Icon-only 28x28 buttons; tooltip on hover                                                                              |
+| Bulk action Send button                                 | Already has `#EFF6FF` primary tint (light) / `#1E3A5F` (dark) as primary CTA. Hover: slightly darker tint. Tooltip: "Send reply"                                  |
+| Formatting toolbar buttons (reply bar)                  | `#F3F4F6` background fill, cornerRadius 6. Active/toggled: `#EFF6FF` fill + `#056CFF` icon (light) / `#1E3A5F` fill + `#5098FF` icon (dark)                       |
 
 **Dark mode hover fill:** Use `#1F2937` (gray-800) instead of `#F3F4F6` (gray-100) for all interactive element hover backgrounds.
 
 ### Click/Toggle Interactions
 
-| Trigger | Action |
-|---------|--------|
-| User profile icon click | Toggle user profile popup |
-| Agent selector button click | Opens agent dropdown |
-| New chat icon / square-pen (header) | Creates new chat |
-| Plus icon (chat input) | Opens file attachment |
-| Sidebar nav icons | Navigate to respective section |
-| Scroll-to-bottom button | Smooth-scrolls to the latest message in the conversation |
-| Clock icon (header) | Opens/closes history sidebar; main content resizes accordingly |
-| History sidebar close button | Closes sidebar, restores main content to full width |
-| History conversation row click | Navigates to that conversation |
-| Select dropdown click (conversations) | Opens dropdown menu with All/Read/Unread options; chevron rotates 180°; checkbox changes to indeterminate. Selecting an option filters the conversation list and closes the dropdown. |
-| Ellipsis click (conversation detail) | Opens context menu with Customer info, Close conversation, Mark as spam. Ellipsis button shows active fill. Closes on click outside or selecting an option. |
-| "Customer info" context menu option | Opens Customer Info Modal — shows customer status, subscription, date added, locale, source, stats. Closes on X, click outside, or Escape. |
-| AI Rewrite button click (reply bar) | Triggers AI rewrite — reply box gets blue focus border, shimmer "Improving your reply..." text + faded draft preview, wand button shows active blue pill with "Improving..." label, stop button appears. On completion: green border flash + "Done" pill (~2s), then reverts to normal. If user navigated away, a success toast with "View" button appears instead. |
-| AI Rewrite toast "View" button click | Navigates to the conversation where the AI rewrite completed, showing the improved reply in the reply box. |
-| Conversation row checkbox click | Toggles row selection. When 1+ rows are checked, the search bar transforms into the bulk action bar with "N selected" count + Send/Close/Spam/Archive buttons. Indeterminate checkbox in the action bar deselects all and returns to search bar. |
-| Bulk action Send button click | Opens a bulk reply compose — sends the same reply to all selected conversations |
-| Bulk action Close/Spam/Archive click | Performs the action on all selected conversations. Rows are removed from the list and a success toast confirms (e.g., "2 conversations archived"). |
-| Edit icon (user message hover) | Message bubble transforms into editable text area with blue focus border (`$border-focus`), Cancel and "Save & Submit" buttons appear below. Cancel reverts; Save & Submit re-sends the edited message. |
-| Regenerate icon (AI response hover) | Re-generates the AI response for this message |
-| Try again button (failed response) | Retries the failed AI response generation |
-| Copy icon (AI response actions) | Icon swaps from `copy` → `check`, same `#4B5563` color; reverts after ~2s |
-| Rename icon (history row hover) | Opens inline rename — conversation title becomes editable |
-| Delete icon (history row hover) | Opens delete confirmation modal with Cancel / Delete (red) buttons |
+| Trigger                               | Action                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User profile icon click               | Toggle user profile popup                                                                                                                                                                                                                                                                                                                                           |
+| Agent selector button click           | Opens agent dropdown                                                                                                                                                                                                                                                                                                                                                |
+| New chat icon / square-pen (header)   | Creates new chat                                                                                                                                                                                                                                                                                                                                                    |
+| Plus icon (chat input)                | Opens file attachment                                                                                                                                                                                                                                                                                                                                               |
+| Sidebar nav icons                     | Navigate to respective section                                                                                                                                                                                                                                                                                                                                      |
+| Scroll-to-bottom button               | Smooth-scrolls to the latest message in the conversation                                                                                                                                                                                                                                                                                                            |
+| Clock icon (header)                   | Opens/closes history sidebar; main content resizes accordingly                                                                                                                                                                                                                                                                                                      |
+| History sidebar close button          | Closes sidebar, restores main content to full width                                                                                                                                                                                                                                                                                                                 |
+| History conversation row click        | Navigates to that conversation                                                                                                                                                                                                                                                                                                                                      |
+| Select dropdown click (conversations) | Opens dropdown menu with All/Read/Unread options; chevron rotates 180°; checkbox changes to indeterminate. Selecting an option filters the conversation list and closes the dropdown.                                                                                                                                                                               |
+| Ellipsis click (conversation detail)  | Opens context menu with Customer info, Close conversation, Mark as spam. Ellipsis button shows active fill. Closes on click outside or selecting an option.                                                                                                                                                                                                         |
+| "Customer info" context menu option   | Opens Customer Info Modal — shows customer status, subscription, date added, locale, source, stats. Closes on X, click outside, or Escape.                                                                                                                                                                                                                          |
+| AI Rewrite button click (reply bar)   | Triggers AI rewrite — reply box gets blue focus border, shimmer "Improving your reply..." text + faded draft preview, wand button shows active blue pill with "Improving..." label, stop button appears. On completion: green border flash + "Done" pill (~2s), then reverts to normal. If user navigated away, a success toast with "View" button appears instead. |
+| AI Rewrite toast "View" button click  | Navigates to the conversation where the AI rewrite completed, showing the improved reply in the reply box.                                                                                                                                                                                                                                                          |
+| Conversation row checkbox click       | Toggles row selection. When 1+ rows are checked, the search bar transforms into the bulk action bar with "N selected" count + Send/Close/Spam/Archive buttons. Indeterminate checkbox in the action bar deselects all and returns to search bar.                                                                                                                    |
+| Bulk action Send button click         | Opens a bulk reply compose — sends the same reply to all selected conversations                                                                                                                                                                                                                                                                                     |
+| Bulk action Close/Spam/Archive click  | Performs the action on all selected conversations. Rows are removed from the list and a success toast confirms (e.g., "2 conversations archived").                                                                                                                                                                                                                  |
+| Edit icon (user message hover)        | Message bubble transforms into editable text area with blue focus border (`$border-focus`), Cancel and "Save & Submit" buttons appear below. Cancel reverts; Save & Submit re-sends the edited message.                                                                                                                                                             |
+| Regenerate icon (AI response hover)   | Re-generates the AI response for this message                                                                                                                                                                                                                                                                                                                       |
+| Try again button (failed response)    | Retries the failed AI response generation                                                                                                                                                                                                                                                                                                                           |
+| Copy icon (AI response actions)       | Icon swaps from `copy` → `check`, same `#4B5563` color; reverts after ~2s                                                                                                                                                                                                                                                                                           |
+| Rename icon (history row hover)       | Opens inline rename — conversation title becomes editable                                                                                                                                                                                                                                                                                                           |
+| Delete icon (history row hover)       | Opens delete confirmation modal with Cancel / Delete (red) buttons                                                                                                                                                                                                                                                                                                  |
 
 ### Popups & Modals (hidden by default)
 
-| Element | ID | Trigger |
-|---------|-----|---------|
-| User profile popup | `HWed7` | Click on user avatar in sidebar |
-| Agent selector dropdown | `wvpKh` | Click on agent selector in chat input |
-| Delete confirmation modal | `FHstM` (light overlay) / `5v7ER` (dark overlay), frosted glass blur | Click delete icon on history row hover |
-| Customer Info Modal | `ZmTjj` (light), `jKGoe` (dark) | Click sender name/avatar or "Customer info" context menu option |
-| All tooltips | Various | Hover on respective element |
+| Element                   | ID                                                                   | Trigger                                                         |
+| ------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------- |
+| User profile popup        | `HWed7`                                                              | Click on user avatar in sidebar                                 |
+| Agent selector dropdown   | `wvpKh`                                                              | Click on agent selector in chat input                           |
+| Delete confirmation modal | `FHstM` (light overlay) / `5v7ER` (dark overlay), frosted glass blur | Click delete icon on history row hover                          |
+| Customer Info Modal       | `ZmTjj` (light), `jKGoe` (dark)                                      | Click sender name/avatar or "Customer info" context menu option |
+| All tooltips              | Various                                                              | Hover on respective element                                     |
 
 ---
 
 ## Keyboard Shortcuts
 
-| Action | Shortcut | Tooltip Location |
-|--------|----------|-----------------|
-| History | `⌘H` | Below clock icon in header |
-| New Chat | `⌥⌘N` | Below square-pen icon in header |
+| Action   | Shortcut | Tooltip Location                |
+| -------- | -------- | ------------------------------- |
+| History  | `⌘H`     | Below clock icon in header      |
+| New Chat | `⌥⌘N`    | Below square-pen icon in header |
 
 ---
 
 ## Dev Notes
 
 ### General
+
 - **Font**: Inter throughout the entire app
 - **Icons**: Lucide icon font exclusively — no custom SVGs
 - **Theming**: All semantic tokens support light/dark via `mode` theme axis. Use CSS variables mapped to the token names.
 - **Hover fill pattern**: Consistently `#F3F4F6` (gray-100) across all interactive list items, icon buttons, and selectors. Applied as a disabled fill in design — enable on `:hover` in CSS.
 
 ### Chat Input
+
 - Text area starts at **72px** height
 - Auto-grows with content up to **200px max height**
 - Beyond 200px, the text area becomes **scrollable** (overflow-y: auto)
@@ -1372,12 +1419,14 @@ A popover modal that displays customer/contact details for the person who sent t
 - **New chat**: input width **558px** | **Conversation**: input width **768px**
 
 ### AI Thinking Shimmer
+
 - Use `ShimmeringText` component with `AnimatePresence` from `motion/react`
 - Gradient text: linear gradient `#9CA3AF` → `#6B7280` → `#9CA3AF`, animated sweep
 - Phrases cycle every **3 seconds**: "Agent is thinking...", "Processing your request...", "Analyzing the data...", "Generating response...", "Almost there..."
 - Transition: fade + slide (opacity 0→1, y 10→0 on enter; opacity 1→0, y 0→-10 on exit), 300ms duration
 
 ### Toast Notifications
+
 - Position: **top-right** of the viewport
 - Default auto-dismiss: **5 seconds**
 - Error toasts: **no auto-dismiss**, require user action (X button)
@@ -1461,12 +1510,14 @@ When the AI is actively generating a response (after the thinking/shimmer phase)
 When the AI generates a document, it renders the **full document content as rich text** directly in the chat (headings, paragraphs, lists — same styling as any other rich text response). This lets users read, review, and give feedback without leaving the conversation. A compact **download card** sits at the bottom for exporting.
 
 **Response structure** (top to bottom):
+
 1. Short intro line (e.g., "Here's the project proposal for the Q4 product launch:")
 2. Document content as rich text (H2 title, paragraphs, H3 sections, ordered lists — using standard rich text components)
 3. Action icons (copy, info)
 4. Download card
 
 **Download card:**
+
 - Horizontal layout, `fill_container` width, 12px corner radius, gap 12, padding `[12, 16]`, `alignItems: center`
   - Fill: `$surface-primary`, border: `$border-primary` 1px
   - Shadow: outer, `#0000000A` (light) / `#0000001A` (dark), offset y:2, blur 4
@@ -1483,6 +1534,7 @@ When the AI generates a document, it renders the **full document content as rich
 **Screen size:** 1280x1100 (taller than standard 720 to accommodate document content)
 
 **Behavior:**
+
 - Users can read the full document inline and give iterative feedback ("change the budget section", "add a risk assessment")
 - Download button exports the document as a file
 - Card supports various file types (PDF, DOCX, etc.) — icon and metadata adapt accordingly
@@ -1490,6 +1542,7 @@ When the AI generates a document, it renders the **full document content as rich
 ---
 
 ### Tooltips
+
 - Show on hover with **~200ms delay**
 - Hide on mouse leave with **~100ms delay**
 - Never show on click — hover only
@@ -1505,8 +1558,8 @@ The Knowledge section manages a user's uploaded documents and crawled websites t
 
 ### Canvas Organization
 
-| Container Frame | ID | Contents |
-|----------------|-----|----------|
+| Container Frame           | ID      | Contents                                                             |
+| ------------------------- | ------- | -------------------------------------------------------------------- |
 | `--- Pages/Knowledge ---` | `DCNid` | All Knowledge screens — light on top row, dark on bottom row (y+820) |
 
 ### Components
@@ -1515,16 +1568,17 @@ The Knowledge section manages a user's uploaded documents and crawled websites t
 
 Reusable filter panel that appears below the toolbar when the "Filter" button is clicked. Three state variants:
 
-| Variant | ID | Description |
-|---------|-----|-------------|
-| Collapsed | `su0rz` | Default open state — "Filters" title, collapsible "Status" and "Interval" rows with chevron-right |
-| Expanded | `42fFR` | One section open — section header shows neutral "N selected" badge + chevron-down, checkbox options visible. "Clear all" action in header. |
-| Selected | `VKlSB` | All sections collapsed with neutral "N selected" badges on each row. "Clear all" action in header. |
-| Products/Collapsed | `kkBNZ` | Ref instance of Collapsed with single "Status" row, explicit height 91px (Interval row + divider hidden) |
-| Products/Expanded | `Vxo2d` | Ref instance of Expanded with Status options: Active, Inactive, Draft, Archived (Active + Inactive checked). Height 247px, Interval row hidden. |
-| Products/Selected | `ku1XK` | Ref instance of Selected with Status "2 selected" badge. Height 93px, Interval row hidden. |
+| Variant            | ID      | Description                                                                                                                                     |
+| ------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Collapsed          | `su0rz` | Default open state — "Filters" title, collapsible "Status" and "Interval" rows with chevron-right                                               |
+| Expanded           | `42fFR` | One section open — section header shows neutral "N selected" badge + chevron-down, checkbox options visible. "Clear all" action in header.      |
+| Selected           | `VKlSB` | All sections collapsed with neutral "N selected" badges on each row. "Clear all" action in header.                                              |
+| Products/Collapsed | `kkBNZ` | Ref instance of Collapsed with single "Status" row, explicit height 91px (Interval row + divider hidden)                                        |
+| Products/Expanded  | `Vxo2d` | Ref instance of Expanded with Status options: Active, Inactive, Draft, Archived (Active + Inactive checked). Height 247px, Interval row hidden. |
+| Products/Selected  | `ku1XK` | Ref instance of Selected with Status "2 selected" badge. Height 93px, Interval row hidden.                                                      |
 
 **Structure:**
+
 - Width: 260px, cornerRadius: 10, `$surface-primary` fill, `$border-primary` 1px border
 - Shadow: double outer (`#0000001A` blur 12 + `#0000000D` blur 4). Dark mode: `#00000066` blur 12 + `#00000033` blur 4
 - Header: padding `[16, 16]`, `justifyContent: space_between`
@@ -1541,43 +1595,45 @@ Reusable filter panel that appears below the toolbar when the "Filter" button is
   - Label: Inter 13px normal, `$text-primary`
 
 **Filter button (in toolbar):**
+
 - Default: `$surface-primary` fill, `$border-hover` 1px stroke, cornerRadius 8, shadow, Lucide `list-filter` 16x16 `$text-tertiary` + "Filter" Inter 14px `$text-secondary`
 - Active (dropdown open): `$surface-active` fill, `$border-primary` stroke
 - Filters applied: blue dot indicator (8x8 `$badge-text` ellipse) at top-right corner
 
 **Design decisions:**
+
 - Badges use neutral style (`$surface-active` / `$text-secondary`) not blue — the count is metadata, not an action. Blue is reserved for "Clear all" interactive text.
 - Labels use sentence case ("Status", "Interval") not uppercase — softer, more readable in a compact dropdown.
 - Badge + chevron are always right-aligned together as a unit; label is always left-aligned. Consistent across collapsed and expanded states.
 
 ### Documents Screens
 
-| Screen | ID | Theme | Description |
-|--------|-----|-------|-------------|
-| Documents (empty) | `emGIH` | Light | Empty state — centered file icon + "No documents yet" + "Upload documents to train your AI assistant" + "Upload documents" CTA button |
-| Documents (empty) - Dark | `EW3no` | Dark | Dark variant |
-| Documents-Default | `uot1F` | Light | Table with 4 sample docs — columns: Document, Size, Source, RAG status, Teams, Uploaded by, Modified. Search bar + "Upload document" button in toolbar |
-| Documents-Default - Dark | `UjeeZ` | Dark | Dark variant |
-| Documents-ContextMenu | `6dGyl` | Light | Right-click context menu on row — View (eye), Reindex, Manage teams, Delete (red) |
-| Documents-ContextMenu - Dark | `9iJuS` | Dark | Dark variant |
-| Documents-View | `bvyHE` | Light | Document preview modal — split layout: left pane shows rendered document page (white page on `#F8F8F8` bg) with page navigation (prev/next + "Page 1 of 12"), right sidebar shows metadata (Document, Size, Source, RAG status badge, Teams, Uploaded by, Modified) with divider separations. Header: "Document preview" + Download button + Close X. No Edit button — documents are uploaded files, not editable. Dialog 780x640, cornerRadius 16 |
-| Documents-View - Dark | `SylgH` | Dark | Dark variant |
-| Documents-Delete | `ENebl` | Light | Delete confirmation modal — "Delete document" / "Are you sure you want to delete this document? This action cannot be undone." / Cancel + red Delete button |
-| Documents-Delete - Dark | `8PifU` | Dark | Dark variant |
-| Documents-ManageTeams | `vlJKT` | Light | Manage teams modal — "Manage teams" / subtitle showing doc name / team list with checkboxes / "Save changes" button |
-| Documents-ManageTeams - Dark | `lVKif` | Dark | Dark variant |
-| Documents-ManageTeams-Empty | `FsFRg` | Light | Manage teams modal with no teams — empty state with people icon + "No teams yet" + "Create teams in Settings..." + "Go to Settings" link |
-| Documents-ManageTeams-Empty - Dark | `nKFcU` | Dark | Dark variant |
-| Documents-Loading | `X5jBQ` | Light | Skeleton loading state — table header visible, row content replaced with rounded skeleton bars (`$surface-disabled` fill, cornerRadius 4, height 12, varying widths per column) |
-| Documents-Loading - Dark | `jGvTZ` | Dark | Dark variant |
-| Documents-EmptySearch | `e4KAC` | Light | Empty search results — search input shows "xyz123", table has header + centered empty state: search-x icon (32x32, `$text-disabled`) + "No results found" (14px medium, `$text-secondary`) + "Try adjusting your search or filters" (13px, `$text-tertiary`) |
-| Documents-EmptySearch - Dark | `tnRkv` | Dark | Dark variant |
-| Documents-FilterCollapsed | `TyTAZ` | Light | Filter dropdown open — collapsed state. Uses `FilterDropdown/Documents/Collapsed` component ref |
-| Documents-FilterCollapsed - Dark | `XzV5V` | Dark | Dark variant |
-| Documents-FilterExpanded | `CoQnq` | Light | Filter dropdown — RAG status section expanded with checkboxes (Indexed + Failed checked). Uses `FilterDropdown/Documents/Expanded` component ref |
-| Documents-FilterExpanded - Dark | `kt3jE` | Dark | Dark variant |
-| Documents-FilterSelected | `n5PzR` | Light | Filter dropdown — all sections collapsed with selection count badges. Blue dot on filter button. Uses `FilterDropdown/Documents/Selected` component ref |
-| Documents-FilterSelected - Dark | `JCf7T` | Dark | Dark variant |
+| Screen                             | ID      | Theme | Description                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------- | ------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Documents (empty)                  | `emGIH` | Light | Empty state — centered file icon + "No documents yet" + "Upload documents to train your AI assistant" + "Upload documents" CTA button                                                                                                                                                                                                                                                                                                              |
+| Documents (empty) - Dark           | `EW3no` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Documents-Default                  | `uot1F` | Light | Table with 4 sample docs — columns: Document, Size, Source, RAG status, Teams, Uploaded by, Modified. Search bar + "Upload document" button in toolbar                                                                                                                                                                                                                                                                                             |
+| Documents-Default - Dark           | `UjeeZ` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Documents-ContextMenu              | `6dGyl` | Light | Right-click context menu on row — View (eye), Reindex, Manage teams, Delete (red)                                                                                                                                                                                                                                                                                                                                                                  |
+| Documents-ContextMenu - Dark       | `9iJuS` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Documents-View                     | `bvyHE` | Light | Document preview modal — split layout: left pane shows rendered document page (white page on `#F8F8F8` bg) with page navigation (prev/next + "Page 1 of 12"), right sidebar shows metadata (Document, Size, Source, RAG status badge, Teams, Uploaded by, Modified) with divider separations. Header: "Document preview" + Download button + Close X. No Edit button — documents are uploaded files, not editable. Dialog 780x640, cornerRadius 16 |
+| Documents-View - Dark              | `SylgH` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Documents-Delete                   | `ENebl` | Light | Delete confirmation modal — "Delete document" / "Are you sure you want to delete this document? This action cannot be undone." / Cancel + red Delete button                                                                                                                                                                                                                                                                                        |
+| Documents-Delete - Dark            | `8PifU` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Documents-ManageTeams              | `vlJKT` | Light | Manage teams modal — "Manage teams" / subtitle showing doc name / team list with checkboxes / "Save changes" button                                                                                                                                                                                                                                                                                                                                |
+| Documents-ManageTeams - Dark       | `lVKif` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Documents-ManageTeams-Empty        | `FsFRg` | Light | Manage teams modal with no teams — empty state with people icon + "No teams yet" + "Create teams in Settings..." + "Go to Settings" link                                                                                                                                                                                                                                                                                                           |
+| Documents-ManageTeams-Empty - Dark | `nKFcU` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Documents-Loading                  | `X5jBQ` | Light | Skeleton loading state — table header visible, row content replaced with rounded skeleton bars (`$surface-disabled` fill, cornerRadius 4, height 12, varying widths per column)                                                                                                                                                                                                                                                                    |
+| Documents-Loading - Dark           | `jGvTZ` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Documents-EmptySearch              | `e4KAC` | Light | Empty search results — search input shows "xyz123", table has header + centered empty state: search-x icon (32x32, `$text-disabled`) + "No results found" (14px medium, `$text-secondary`) + "Try adjusting your search or filters" (13px, `$text-tertiary`)                                                                                                                                                                                       |
+| Documents-EmptySearch - Dark       | `tnRkv` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Documents-FilterCollapsed          | `TyTAZ` | Light | Filter dropdown open — collapsed state. Uses `FilterDropdown/Documents/Collapsed` component ref                                                                                                                                                                                                                                                                                                                                                    |
+| Documents-FilterCollapsed - Dark   | `XzV5V` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Documents-FilterExpanded           | `CoQnq` | Light | Filter dropdown — RAG status section expanded with checkboxes (Indexed + Failed checked). Uses `FilterDropdown/Documents/Expanded` component ref                                                                                                                                                                                                                                                                                                   |
+| Documents-FilterExpanded - Dark    | `kt3jE` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Documents-FilterSelected           | `n5PzR` | Light | Filter dropdown — all sections collapsed with selection count badges. Blue dot on filter button. Uses `FilterDropdown/Documents/Selected` component ref                                                                                                                                                                                                                                                                                            |
+| Documents-FilterSelected - Dark    | `JCf7T` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 **Table columns:** Document (file-text icon + name), Size, Source (Upload/API), RAG status (badge: Indexed/Processing/Reindexing/Failed), Teams, Uploaded by, Modified (chevron-down sort indicator)
 
@@ -1585,32 +1641,32 @@ Reusable filter panel that appears below the toolbar when the "Filter" button is
 
 ### Websites Screens
 
-| Screen | ID | Theme | Description |
-|--------|-----|-------|-------------|
-| Websites (empty) | `Dg9Li` | Light | Empty state — centered globe icon + "Add websites" + "Add website URLs to crawl and index for your AI assistant" + "Add website" CTA button |
-| Websites (empty) - Dark | `QFoXH` | Dark | Dark variant |
-| Websites-Default | `veby2` | Light | Table with 4 sample websites — columns: Website, Status, Title, Description, Indexed, Scanned, Interval. Search + Filter button + "Add website" in toolbar |
-| Websites-Default - Dark | `wb7RD` | Dark | Dark variant |
-| Websites-ContextMenu | `N3ibn` | Light | Right-click context menu on row 1 — View (eye), Edit (pencil), Delete (trash-2, red). Row 1 highlighted with `$surface-active` |
-| Websites-ContextMenu - Dark | `Li1Um` | Dark | Dark variant |
-| Websites-View | `5nLLK` | Light | View modal — "Website details" / read-only fields: URL, Status (badge), Title, Indexed pages, Last scanned, Scan interval, Description (full-width paragraph at bottom) |
-| Websites-View - Dark | `A57JR` | Dark | Dark variant |
-| Websites-Delete | `wGncz` | Light | Delete confirmation — "Delete website" / mentions URL + "All indexed pages will be removed" / Cancel + red Delete |
-| Websites-Delete - Dark | `G0D1Y` | Dark | Dark variant |
-| Websites-Edit | `wNpvl` | Light | Edit modal — "Edit website" / Domain input (pre-filled) + Scan interval dropdown (expanded, showing 7 options from "Every 1 hour" to "Every 30 days") / Cancel + "Save changes" |
-| Websites-Edit - Dark | `AQ5in` | Dark | Dark variant |
-| Websites-Add | `hgRGt` | Light | Add modal — "Add website" / Domain input (placeholder "Enter domain") + Scan interval dropdown (placeholder "Select interval") / Cancel + "Add website" button |
-| Websites-Add - Dark | `PcFyb` | Dark | Dark variant |
-| Websites-FilterCollapsed | `daywW` | Light | Filter dropdown open — collapsed state, no selections. Uses `FilterDropdown/Collapsed` component ref |
-| Websites-FilterCollapsed - Dark | `KGSax` | Dark | Dark variant |
-| Websites-FilterExpanded | `1NZua` | Light | Filter dropdown — Status section expanded with checkboxes (Active + Scanning checked). Uses `FilterDropdown/Expanded` component ref |
-| Websites-FilterExpanded - Dark | `wtuJg` | Dark | Dark variant |
-| Websites-FilterSelected | `HVdrz` | Light | Filter dropdown — all sections collapsed with selection count badges. Uses `FilterDropdown/Selected` component ref |
-| Websites-FilterSelected - Dark | `QLS9V` | Dark | Dark variant |
-| Websites-Loading | `E5btD` | Light | Skeleton loading state — table header visible, row content replaced with skeleton bars |
-| Websites-Loading - Dark | `jFSZS` | Dark | Dark variant |
-| Websites-EmptySearch | `38L6s` | Light | Empty search results — same pattern as Documents-EmptySearch |
-| Websites-EmptySearch - Dark | `sQ81P` | Dark | Dark variant |
+| Screen                          | ID      | Theme | Description                                                                                                                                                                     |
+| ------------------------------- | ------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Websites (empty)                | `Dg9Li` | Light | Empty state — centered globe icon + "Add websites" + "Add website URLs to crawl and index for your AI assistant" + "Add website" CTA button                                     |
+| Websites (empty) - Dark         | `QFoXH` | Dark  | Dark variant                                                                                                                                                                    |
+| Websites-Default                | `veby2` | Light | Table with 4 sample websites — columns: Website, Status, Title, Description, Indexed, Scanned, Interval. Search + Filter button + "Add website" in toolbar                      |
+| Websites-Default - Dark         | `wb7RD` | Dark  | Dark variant                                                                                                                                                                    |
+| Websites-ContextMenu            | `N3ibn` | Light | Right-click context menu on row 1 — View (eye), Edit (pencil), Delete (trash-2, red). Row 1 highlighted with `$surface-active`                                                  |
+| Websites-ContextMenu - Dark     | `Li1Um` | Dark  | Dark variant                                                                                                                                                                    |
+| Websites-View                   | `5nLLK` | Light | View modal — "Website details" / read-only fields: URL, Status (badge), Title, Indexed pages, Last scanned, Scan interval, Description (full-width paragraph at bottom)         |
+| Websites-View - Dark            | `A57JR` | Dark  | Dark variant                                                                                                                                                                    |
+| Websites-Delete                 | `wGncz` | Light | Delete confirmation — "Delete website" / mentions URL + "All indexed pages will be removed" / Cancel + red Delete                                                               |
+| Websites-Delete - Dark          | `G0D1Y` | Dark  | Dark variant                                                                                                                                                                    |
+| Websites-Edit                   | `wNpvl` | Light | Edit modal — "Edit website" / Domain input (pre-filled) + Scan interval dropdown (expanded, showing 7 options from "Every 1 hour" to "Every 30 days") / Cancel + "Save changes" |
+| Websites-Edit - Dark            | `AQ5in` | Dark  | Dark variant                                                                                                                                                                    |
+| Websites-Add                    | `hgRGt` | Light | Add modal — "Add website" / Domain input (placeholder "Enter domain") + Scan interval dropdown (placeholder "Select interval") / Cancel + "Add website" button                  |
+| Websites-Add - Dark             | `PcFyb` | Dark  | Dark variant                                                                                                                                                                    |
+| Websites-FilterCollapsed        | `daywW` | Light | Filter dropdown open — collapsed state, no selections. Uses `FilterDropdown/Collapsed` component ref                                                                            |
+| Websites-FilterCollapsed - Dark | `KGSax` | Dark  | Dark variant                                                                                                                                                                    |
+| Websites-FilterExpanded         | `1NZua` | Light | Filter dropdown — Status section expanded with checkboxes (Active + Scanning checked). Uses `FilterDropdown/Expanded` component ref                                             |
+| Websites-FilterExpanded - Dark  | `wtuJg` | Dark  | Dark variant                                                                                                                                                                    |
+| Websites-FilterSelected         | `HVdrz` | Light | Filter dropdown — all sections collapsed with selection count badges. Uses `FilterDropdown/Selected` component ref                                                              |
+| Websites-FilterSelected - Dark  | `QLS9V` | Dark  | Dark variant                                                                                                                                                                    |
+| Websites-Loading                | `E5btD` | Light | Skeleton loading state — table header visible, row content replaced with skeleton bars                                                                                          |
+| Websites-Loading - Dark         | `jFSZS` | Dark  | Dark variant                                                                                                                                                                    |
+| Websites-EmptySearch            | `38L6s` | Light | Empty search results — same pattern as Documents-EmptySearch                                                                                                                    |
+| Websites-EmptySearch - Dark     | `sQ81P` | Dark  | Dark variant                                                                                                                                                                    |
 
 **Table columns:** Website (globe icon + URL), Status (badge: Active/Scanning/Paused/Error), Title, Description, Indexed (count), Scanned (date, chevron-down sort indicator), Interval (short: 7d, 1d, 30d)
 
@@ -1624,39 +1680,40 @@ Reusable filter panel that appears below the toolbar when the "Filter" button is
 
 ### Design Tokens (Knowledge-specific)
 
-| Variable | Light | Dark | Usage |
-|----------|-------|------|-------|
-| `$badge-bg` | `#EFF6FF` | `#0C2D5E` | Blue badge background (send-action style) |
-| `$badge-text` | `#056CFF` | `#5098FF` | Blue badge/action text |
+| Variable            | Light     | Dark      | Usage                                                   |
+| ------------------- | --------- | --------- | ------------------------------------------------------- |
+| `$badge-bg`         | `#EFF6FF` | `#0C2D5E` | Blue badge background (send-action style)               |
+| `$badge-text`       | `#056CFF` | `#5098FF` | Blue badge/action text                                  |
 | `$surface-disabled` | `#F9FAFB` | `#111827` | Table header background (3-tier: rows < header < hover) |
 
 **Dark mode table contrast tiers:**
+
 - Table rows: `$surface-primary` (`#030712`)
 - Table header: `$surface-disabled` (`#111827`)
 - Hover/active row: `$surface-active` (`#1F2937`)
 
 ### Products Screens
 
-| Screen | ID | Theme | Description |
-|--------|-----|-------|-------------|
-| Products (empty) | `LZYs5` | Light | Empty state — centered package icon + "Add products" + "Import your product catalog to help your AI assistant" + "Import products" CTA button |
-| Products (empty) - Dark | `d1KlZ` | Dark | Dark variant |
-| Products-Default | `WnswJ` | Light | Table with 4 sample products — columns: Product, Description, Stock, Updated. Search + Filter + "Import products" in toolbar |
-| Products-Default - Dark | `xaxrn` | Dark | Dark variant |
-| Products-ContextMenu | `iiWD6` | Light | Ellipsis context menu on row — View (eye), Edit (pencil), Delete (trash-2, red). No divider — red text is sufficient to distinguish destructive action |
-| Products-ContextMenu - Dark | `iUWmQ` | Dark | Dark variant |
-| Products-View | `iJGZ2` | Light | View modal — "Product details" with Edit button + close X. Fields: Image (64x64 thumbnail), Product, Product ID, Status (Active/Inactive badge), Category, Price, Stock, Updated. Description shown as full-width paragraph section (label on top, text below) for better readability of long text |
-| Products-View - Dark | `Z3ttz` | Dark | Dark variant |
-| Products-Edit | `1oENo` | Light | Edit modal — "Edit product" with Cancel + "Save changes" buttons. Form fields: Product name (text input), Description (textarea), Image URL (text input), Price + Currency side by side (text input + dropdown), Stock (text input), Category (dropdown) |
-| Products-Edit - Dark | `UuTs9` | Dark | Dark variant |
-| Products-Delete | `ucIzM` | Light | Delete confirmation — "Delete product" / "Are you sure you want to delete this product? This action cannot be undone." / Cancel + red Delete |
-| Products-Delete - Dark | `mUt1G` | Dark | Dark variant |
-| Products-FilterCollapsed | `swZSu` | Light | Filter dropdown open — collapsed state with single "Status" row. Uses `FilterDropdown/Products/Collapsed` component ref |
-| Products-FilterCollapsed - Dark | `TMK98` | Dark | Dark variant |
-| Products-FilterExpanded | `1q3ZD` | Light | Filter dropdown — Status section expanded with checkboxes (Active + Inactive checked, Draft + Archived unchecked). Uses `FilterDropdown/Products/Expanded` component ref |
-| Products-FilterExpanded - Dark | `vCcHQ` | Dark | Dark variant |
-| Products-FilterSelected | `SbkJ1` | Light | Filter dropdown — Status row collapsed with "2 selected" badge. Uses `FilterDropdown/Products/Selected` component ref |
-| Products-FilterSelected - Dark | `0xG4o` | Dark | Dark variant |
+| Screen                          | ID      | Theme | Description                                                                                                                                                                                                                                                                                        |
+| ------------------------------- | ------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Products (empty)                | `LZYs5` | Light | Empty state — centered package icon + "Add products" + "Import your product catalog to help your AI assistant" + "Import products" CTA button                                                                                                                                                      |
+| Products (empty) - Dark         | `d1KlZ` | Dark  | Dark variant                                                                                                                                                                                                                                                                                       |
+| Products-Default                | `WnswJ` | Light | Table with 4 sample products — columns: Product, Description, Stock, Updated. Search + Filter + "Import products" in toolbar                                                                                                                                                                       |
+| Products-Default - Dark         | `xaxrn` | Dark  | Dark variant                                                                                                                                                                                                                                                                                       |
+| Products-ContextMenu            | `iiWD6` | Light | Ellipsis context menu on row — View (eye), Edit (pencil), Delete (trash-2, red). No divider — red text is sufficient to distinguish destructive action                                                                                                                                             |
+| Products-ContextMenu - Dark     | `iUWmQ` | Dark  | Dark variant                                                                                                                                                                                                                                                                                       |
+| Products-View                   | `iJGZ2` | Light | View modal — "Product details" with Edit button + close X. Fields: Image (64x64 thumbnail), Product, Product ID, Status (Active/Inactive badge), Category, Price, Stock, Updated. Description shown as full-width paragraph section (label on top, text below) for better readability of long text |
+| Products-View - Dark            | `Z3ttz` | Dark  | Dark variant                                                                                                                                                                                                                                                                                       |
+| Products-Edit                   | `1oENo` | Light | Edit modal — "Edit product" with Cancel + "Save changes" buttons. Form fields: Product name (text input), Description (textarea), Image URL (text input), Price + Currency side by side (text input + dropdown), Stock (text input), Category (dropdown)                                           |
+| Products-Edit - Dark            | `UuTs9` | Dark  | Dark variant                                                                                                                                                                                                                                                                                       |
+| Products-Delete                 | `ucIzM` | Light | Delete confirmation — "Delete product" / "Are you sure you want to delete this product? This action cannot be undone." / Cancel + red Delete                                                                                                                                                       |
+| Products-Delete - Dark          | `mUt1G` | Dark  | Dark variant                                                                                                                                                                                                                                                                                       |
+| Products-FilterCollapsed        | `swZSu` | Light | Filter dropdown open — collapsed state with single "Status" row. Uses `FilterDropdown/Products/Collapsed` component ref                                                                                                                                                                            |
+| Products-FilterCollapsed - Dark | `TMK98` | Dark  | Dark variant                                                                                                                                                                                                                                                                                       |
+| Products-FilterExpanded         | `1q3ZD` | Light | Filter dropdown — Status section expanded with checkboxes (Active + Inactive checked, Draft + Archived unchecked). Uses `FilterDropdown/Products/Expanded` component ref                                                                                                                           |
+| Products-FilterExpanded - Dark  | `vCcHQ` | Dark  | Dark variant                                                                                                                                                                                                                                                                                       |
+| Products-FilterSelected         | `SbkJ1` | Light | Filter dropdown — Status row collapsed with "2 selected" badge. Uses `FilterDropdown/Products/Selected` component ref                                                                                                                                                                              |
+| Products-FilterSelected - Dark  | `0xG4o` | Dark  | Dark variant                                                                                                                                                                                                                                                                                       |
 
 **Table columns:** Product (product image thumbnail 36x36 cornerRadius 6 + name), Description (300px, wrapping text), Stock (80px, right-aligned numbers), Updated (120px, chevron-down sort indicator), Actions (ellipsis)
 
@@ -1676,20 +1733,20 @@ Reusable filter panel that appears below the toolbar when the "Filter" button is
 
 ### Customers Screens
 
-| Screen | ID | Theme | Description |
-|--------|-----|-------|-------------|
-| Customers (empty) | `M26Cl` | Light | Empty state — centered users icon + "No customers yet" + "Import your customer data to help your AI assistant" + "Import customers" CTA button |
-| Customers (empty) - Dark | `tNSPr` | Dark | Dark variant |
-| Customers-Default | `WkpvN` | Light | Table with 4 sample customers — columns: Name (200px), Status (100px), Source (fill_container), Created (220px), Actions (44px). Search + "Import customers" in toolbar. Built from Websites template with 3 blank spacer columns |
-| Customers-Default - Dark | `5yAjf` | Dark | Dark variant |
-| Customers-ContextMenu | `Rfrbj` | Light | Ellipsis context menu on row — View (eye), Edit (pencil), Delete (trash-2, red). Context menu positioned at x:1026, y:260 |
-| Customers-ContextMenu - Dark | `WYnJL` | Dark | Dark variant |
-| Customers-View | `OzjZP` | Light | View modal — "Customer details" with Edit button + close X. Fields: Avatar (48x48 circle, #E0E7FF fill, #4F46E5 initials "SJ"), Name, Email, Status (Active badge), Source, Created, Phone, Last active, Notes (full-width paragraph section) |
-| Customers-View - Dark | `8HltV` | Dark | Dark variant |
-| Customers-Edit | `yqNdt` | Light | Edit modal — "Edit customer" with Cancel + "Save changes" buttons. Form fields: Name (text input, required *), Notes (textarea), Email (text input), Phone (text input), Source (text input), Status (dropdown with "Active") |
-| Customers-Edit - Dark | `IjSHy` | Dark | Dark variant |
-| Customers-Delete | `ujXWt` | Light | Delete confirmation — "Delete customer" / "Are you sure you want to delete this customer? This action cannot be undone and all associated data will be permanently removed." / Cancel + red Delete |
-| Customers-Delete - Dark | `zkm0u` | Dark | Dark variant |
+| Screen                       | ID      | Theme | Description                                                                                                                                                                                                                                   |
+| ---------------------------- | ------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Customers (empty)            | `M26Cl` | Light | Empty state — centered users icon + "No customers yet" + "Import your customer data to help your AI assistant" + "Import customers" CTA button                                                                                                |
+| Customers (empty) - Dark     | `tNSPr` | Dark  | Dark variant                                                                                                                                                                                                                                  |
+| Customers-Default            | `WkpvN` | Light | Table with 4 sample customers — columns: Name (200px), Status (100px), Source (fill_container), Created (220px), Actions (44px). Search + "Import customers" in toolbar. Built from Websites template with 3 blank spacer columns             |
+| Customers-Default - Dark     | `5yAjf` | Dark  | Dark variant                                                                                                                                                                                                                                  |
+| Customers-ContextMenu        | `Rfrbj` | Light | Ellipsis context menu on row — View (eye), Edit (pencil), Delete (trash-2, red). Context menu positioned at x:1026, y:260                                                                                                                     |
+| Customers-ContextMenu - Dark | `WYnJL` | Dark  | Dark variant                                                                                                                                                                                                                                  |
+| Customers-View               | `OzjZP` | Light | View modal — "Customer details" with Edit button + close X. Fields: Avatar (48x48 circle, #E0E7FF fill, #4F46E5 initials "SJ"), Name, Email, Status (Active badge), Source, Created, Phone, Last active, Notes (full-width paragraph section) |
+| Customers-View - Dark        | `8HltV` | Dark  | Dark variant                                                                                                                                                                                                                                  |
+| Customers-Edit               | `yqNdt` | Light | Edit modal — "Edit customer" with Cancel + "Save changes" buttons. Form fields: Name (text input, required \*), Notes (textarea), Email (text input), Phone (text input), Source (text input), Status (dropdown with "Active")                |
+| Customers-Edit - Dark        | `IjSHy` | Dark  | Dark variant                                                                                                                                                                                                                                  |
+| Customers-Delete             | `ujXWt` | Light | Delete confirmation — "Delete customer" / "Are you sure you want to delete this customer? This action cannot be undone and all associated data will be permanently removed." / Cancel + red Delete                                            |
+| Customers-Delete - Dark      | `zkm0u` | Dark  | Dark variant                                                                                                                                                                                                                                  |
 
 **Table columns:** Name (200px, user icon + name), Status (100px, Active/Inactive badge), Source (fill_container, Import/API/Manual), Created (220px), + 3 blank spacer columns (100px, 120px, 100px inherited from Websites template), Actions (44px, ellipsis)
 
@@ -1705,14 +1762,15 @@ Reusable filter panel that appears below the toolbar when the "Filter" button is
 
 ### Vendors Screens
 
-| Screen | ID | Theme | Description |
-|--------|-----|-------|-------------|
-| Vendors | `LB0UF` | Light | Vendors tab content |
-| Vendors - Dark | `JjfJN` | Dark | Dark variant |
+| Screen         | ID      | Theme | Description         |
+| -------------- | ------- | ----- | ------------------- |
+| Vendors        | `LB0UF` | Light | Vendors tab content |
+| Vendors - Dark | `JjfJN` | Dark  | Dark variant        |
 
 ### Interaction Behaviors (Knowledge)
 
 **Filter workflow:**
+
 1. User clicks "Filter" button in toolbar → dropdown opens (Collapsed state)
 2. User clicks a section row → section expands showing checkbox options (Expanded state)
 3. User checks/unchecks options → badge count updates, "Clear all" appears in header
@@ -1727,6 +1785,7 @@ Reusable filter panel that appears below the toolbar when the "Filter" button is
 **Sort indicators:** Active sort column shows a chevron-down icon (Lucide `chevron-down`, 14x14, `$text-tertiary`) next to the column header text. Chevron-down is the standard convention used by modern table UIs (Shadcn, Notion, GitHub). Currently applied to: Documents "Modified", Websites "Scanned", Products "Updated".
 
 **Modal patterns:**
+
 - All modals use `$overlay-bg` backdrop with background blur
 - Standard DialogSlot width: **384px** (centered at x:448). Exceptions: Products-View 420px, Products-Edit 440px (side-by-side fields), Documents-View 780px (split preview layout)
 - Close: X button (top-right) — present on all modals via the `ModalOverlay` base component
@@ -1738,6 +1797,7 @@ Reusable filter panel that appears below the toolbar when the "Filter" button is
 - No row highlight needed when modal is open — the overlay dims the background sufficiently
 
 **Context menu design decisions:**
+
 - No divider line before Delete option — the red text (`#DC2626`) already clearly distinguishes the destructive action. Adding a divider would be redundant.
 - Products context menu: View, Edit, Delete (160px width)
 - Documents context menu: View, Reindex, Manage teams, Delete (180px width)

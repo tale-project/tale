@@ -11,15 +11,9 @@
     "order": 10
   },
   "authMethod": "api_key",
-  "supportedAuthMethods": [
-    "api_key"
-  ],
-  "secretBindings": [
-    "apiKey"
-  ],
-  "allowedHosts": [
-    "api.tavily.com"
-  ],
+  "supportedAuthMethods": ["api_key"],
+  "secretBindings": ["apiKey"],
+  "allowedHosts": ["api.tavily.com"],
   "operations": [
     {
       "name": "search",
@@ -28,9 +22,7 @@
       "operationType": "read",
       "parametersSchema": {
         "type": "object",
-        "required": [
-          "query"
-        ],
+        "required": ["query"],
         "properties": {
           "query": {
             "type": "string",
@@ -39,10 +31,7 @@
           "search_depth": {
             "type": "string",
             "description": "'basic' (cheap, broad) or 'advanced' (deeper, more expensive). Default 'basic'.",
-            "enum": [
-              "basic",
-              "advanced"
-            ]
+            "enum": ["basic", "advanced"]
           },
           "max_results": {
             "type": "number",
@@ -63,10 +52,7 @@
           "topic": {
             "type": "string",
             "description": "'general' or 'news'. Use 'news' with 'days' for recency-sensitive queries.",
-            "enum": [
-              "general",
-              "news"
-            ]
+            "enum": ["general", "news"]
           },
           "days": {
             "type": "number",
@@ -82,9 +68,7 @@
       "operationType": "read",
       "parametersSchema": {
         "type": "object",
-        "required": [
-          "urls"
-        ],
+        "required": ["urls"],
         "properties": {
           "urls": {
             "type": "array",
@@ -93,10 +77,7 @@
           "extract_depth": {
             "type": "string",
             "description": "'basic' or 'advanced'.",
-            "enum": [
-              "basic",
-              "advanced"
-            ]
+            "enum": ["basic", "advanced"]
           }
         }
       }

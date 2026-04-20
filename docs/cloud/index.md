@@ -9,13 +9,13 @@ Choose Cloud when you want Tale's capabilities without operating the stack yours
 
 ## Cloud vs Self-hosted at a glance
 
-| Dimension            | Cloud                                          | Self-hosted                                                                |
-| -------------------- | ---------------------------------------------- | -------------------------------------------------------------------------- |
-| Operator             | Tale (us)                                      | Your team                                                                  |
-| Hosting              | Switzerland or EU (pinned per tenant)          | Your infrastructure, anywhere                                              |
-| Upgrades             | Automatic, zero-downtime                       | You run `tale deploy`                                                      |
-| Feature parity       | Identical to Self-hosted                       | Identical to Cloud                                                         |
-| Best for             | Teams who want Tale without the ops overhead   | Teams with data-sovereignty, air-gap, or custom-build requirements         |
+| Dimension      | Cloud                                        | Self-hosted                                                        |
+| -------------- | -------------------------------------------- | ------------------------------------------------------------------ |
+| Operator       | Tale (us)                                    | Your team                                                          |
+| Hosting        | Switzerland or EU (pinned per tenant)        | Your infrastructure, anywhere                                      |
+| Upgrades       | Automatic, zero-downtime                     | You run `tale deploy`                                              |
+| Feature parity | Identical to Self-hosted                     | Identical to Cloud                                                 |
+| Best for       | Teams who want Tale without the ops overhead | Teams with data-sovereignty, air-gap, or custom-build requirements |
 
 ## In this section
 

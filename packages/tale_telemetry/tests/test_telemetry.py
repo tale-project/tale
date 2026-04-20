@@ -177,8 +177,7 @@ class TestCardinalityProtection:
         assert 'path_template="UNMATCHED"' in body
         # None of the random paths should appear as labels
         assert (
-            "random-path-"
-            not in body.split('path_template="UNMATCHED"')[0].rsplit("\n", 1)[-1]
+            "random-path-" not in body.split('path_template="UNMATCHED"')[0].rsplit("\n", 1)[-1]
             if 'path_template="UNMATCHED"' in body
             else True
         )

@@ -33,7 +33,7 @@ These hold across every workspace and language. They are not style preferences.
 - **Filenames:** dash-case everywhere except Convex and Python, which use snake_case.
 - **No status comments.** `// REFACTORED`, `// ✅ removed`, `// TODO: see #123` are noise. Write self-documenting code; put context in the commit message or PR.
 - **No comments explaining what was removed.** Removed code is gone; git log is the record.
-- **Comments explain *why*, rarely *what*.** If a well-named identifier already tells the reader what, you are writing redundant prose.
+- **Comments explain _why_, rarely _what_.** If a well-named identifier already tells the reader what, you are writing redundant prose.
 - **No empty catch blocks.** Log with `console.warn` / `console.error` or re-throw. Silent catches hide real bugs and have before.
 - **No locale-aware date methods.** `toLocaleDateString`, `toLocaleTimeString`, `toLocaleString` are banned. Use `useFormatDate()` in React or `formatDate()` from `lib/utils/date/format`.
 - **Imperative mood in commits.** `add X`, not `added X` or `adds X`.
@@ -48,7 +48,7 @@ Security is a first pass, not a clean-up step. During every change, check the OW
 - **Header ≤72 characters.** The header becomes the PR title; longer truncates on GitHub.
 - **Lowercase description, no trailing period.** `feat(platform): add arena mode` — not `feat(Platform): Add Arena Mode.`.
 - **Atomic commits.** One logical change per commit. If the message needs "and", it should probably be two commits.
-- **Body for context, header for what.** Separate with a blank line. Use the body to explain *why* a change was made and any non-obvious trade-offs.
+- **Body for context, header for what.** Separate with a blank line. Use the body to explain _why_ a change was made and any non-obvious trade-offs.
 
 ## Testing
 
@@ -184,9 +184,8 @@ Docs are not a follow-up task. Every change that a user would notice updates the
 Before opening a PR that touches `docs/`, all three of these must pass:
 
 ```bash
-bun run --filter @tale/docs format:tables  # normalize Markdown tables
-bun run --filter @tale/docs lint           # frontmatter across all locales
-cd docs && bun run broken-links            # Mintlify link checker
+bun run --filter @tale/docs format         # oxfmt: normalize Markdown and JSON
+bun run --filter @tale/docs lint            # frontmatter + terminology + Mintlify broken-link check
 ```
 
 ## Accessibility

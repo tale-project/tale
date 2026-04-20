@@ -74,10 +74,10 @@ Wenn leer, liefern alle `/metrics/*`-Endpoints `401`. Siehe [Operations](/de/sel
 
 In Docker Compose automatisch gesetzt, lassen sich aber für eigene Setups überschreiben:
 
-| Variable       | Standard                 | Beschreibung                                      |
-| -------------- | ------------------------ | ------------------------------------------------- |
-| `CRAWLER_URL`  | `http://crawler:8002`    | Crawler-Dienst für Website-Crawling.              |
-| `RAG_URL`      | `http://rag:8001`        | RAG-Dienst für Dokumenten-Indizierung und -Suche. |
+| Variable      | Standard              | Beschreibung                                      |
+| ------------- | --------------------- | ------------------------------------------------- |
+| `CRAWLER_URL` | `http://crawler:8002` | Crawler-Dienst für Website-Crawling.              |
+| `RAG_URL`     | `http://rag:8001`     | RAG-Dienst für Dokumenten-Indizierung und -Suche. |
 
 ## Docker-Deployment
 

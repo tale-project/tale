@@ -9,13 +9,13 @@ Cette page couvre la gestion quotidienne dans l'admin UI. Pour connecter des mod
 
 ## Gérer les fournisseurs
 
-Les fournisseurs se gèrent dans **Paramètres > Fournisseurs** de la management UI. Les admins peuvent :
+Les fournisseurs se gèrent dans **Paramètres > Fournisseurs IA** de la management UI. Les admins peuvent :
 
-- **Ajouter un fournisseur** avec nom, display name, base URL, clé API et un ou plusieurs modèles.
-- **Éditer un fournisseur** pour modifier display name, description, base URL et modèles par défaut. La description aide les utilisateurs à comprendre l'usage. Les modèles par défaut pré-sélectionnent celui utilisé pour chat, vision et embedding.
+- **Ajouter un fournisseur** avec nom, nom d'affichage, base URL, clé API et un ou plusieurs modèles.
+- **Éditer un fournisseur** pour modifier nom d'affichage, description, base URL et modèles par défaut. La description aide les utilisateurs à comprendre l'usage. Les modèles par défaut pré-sélectionnent celui utilisé pour chat, vision et embedding.
 - **Supprimer un fournisseur** pour le retirer complètement.
 
-Chaque définition de modèle inclut un ID (doit matcher le nom attendu par l'API), un display name et un ou plusieurs tags (`chat`, `vision`, `embedding`) qui contrôlent où le modèle apparaît dans la plateforme.
+Chaque définition de modèle inclut un ID (doit matcher le nom attendu par l'API), un nom d'affichage et un ou plusieurs tags (`chat`, `vision`, `embedding`) qui contrôlent où le modèle apparaît dans la plateforme.
 
 ### Fichiers provider
 
@@ -39,20 +39,20 @@ cp examples/providers/openrouter.secrets.json $TALE_CONFIG_DIR/providers/
 
 2. Définis ta clé API OpenRouter. Tu en obtiens une sur [openrouter.ai/keys](https://openrouter.ai/keys).
 
-3. Chiffre le fichier secrets avec SOPS ou mets à jour la clé API via l'UI dans **Paramètres > Fournisseurs > OpenRouter**.
+3. Chiffre le fichier secrets avec SOPS ou mets à jour la clé API via l'UI dans **Paramètres > Fournisseurs IA > OpenRouter**.
 
 Le fournisseur exemple inclut des modèles de plusieurs constructeurs :
 
-| Constructeur | Modèles                                    | Tags           |
-| ------------ | ------------------------------------------ | -------------- |
-| Anthropic    | Claude Opus 4.6, Sonnet 4.6, Haiku 4.5     | chat, vision   |
-| OpenAI       | GPT-5.2, GPT-5.2 Instant, GPT-5.2 Pro      | chat, vision   |
-| Google       | Gemini 3 Pro, Gemini 3 Flash               | chat, vision   |
-| Mistral      | Mistral Large 3, Mistral Medium 3          | chat           |
-| Meta         | LLaMA 4 Maverick, LLaMA 4 Scout            | chat           |
-| DeepSeek     | DeepSeek V3.2                              | chat           |
-| Moonshot     | Kimi K2.5                                  | chat           |
-| Qwen         | Qwen3 Next 80B, Qwen3.5 35B, Qwen3 VL 32B  | chat, vision   |
+| Constructeur | Modèles                                   | Tags         |
+| ------------ | ----------------------------------------- | ------------ |
+| Anthropic    | Claude Opus 4.6, Sonnet 4.6, Haiku 4.5    | chat, vision |
+| OpenAI       | GPT-5.2, GPT-5.2 Instant, GPT-5.2 Pro     | chat, vision |
+| Google       | Gemini 3 Pro, Gemini 3 Flash              | chat, vision |
+| Mistral      | Mistral Large 3, Mistral Medium 3         | chat         |
+| Meta         | LLaMA 4 Maverick, LLaMA 4 Scout           | chat         |
+| DeepSeek     | DeepSeek V3.2                             | chat         |
+| Moonshot     | Kimi K2.5                                 | chat         |
+| Qwen         | Qwen3 Next 80B, Qwen3.5 35B, Qwen3 VL 32B | chat, vision |
 
 ## Rendre les modèles disponibles dans le chat
 
@@ -60,10 +60,7 @@ Après avoir ajouté un fournisseur avec des modèles, il faut aussi ajouter les
 
 ```json
 {
-  "supportedModels": [
-    "llama3.3",
-    "anthropic/claude-opus-4.6"
-  ]
+  "supportedModels": ["llama3.3", "anthropic/claude-opus-4.6"]
 }
 ```
 

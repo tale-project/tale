@@ -22,7 +22,7 @@ curl -X POST https://tale.example.com/api/webhooks/workflow/abc123 \
   -d '{"customerId": "c-42", "priority": "high"}'
 ```
 
-La réponse arrive immédiatement avec un ID d'execution. Consulte l'onglet Executions du workflow (ou l'API REST) pour voir statut et sortie.
+La réponse arrive immédiatement avec un ID d'exécution. Consulte l'onglet **Exécutions** du workflow (ou l'API REST) pour voir statut et sortie.
 
 ## Webhooks d'agent
 

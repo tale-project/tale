@@ -70,9 +70,7 @@ def _extract_page_text_sync(page_bytes: bytes) -> dict:
             if block_type == 0:
                 lines_text = []
                 for line in block.get("lines", []):
-                    spans_text = "".join(
-                        span.get("text", "") for span in line.get("spans", [])
-                    )
+                    spans_text = "".join(span.get("text", "") for span in line.get("spans", []))
                     lines_text.append(spans_text)
                 text = "\n".join(lines_text).strip()
                 if text:
@@ -84,9 +82,7 @@ def _extract_page_text_sync(page_bytes: bytes) -> dict:
                 image_bytes = block.get("image", b"")
                 if width * height >= MIN_IMAGE_SIZE and image_bytes:
                     visible_rect = fitz.Rect(bbox) & page_rect
-                    area_ratio = (
-                        visible_rect.get_area() / page_area if page_area > 0 else 0
-                    )
+                    area_ratio = visible_rect.get_area() / page_area if page_area > 0 else 0
                     images.append((y0, bytes(image_bytes), area_ratio))
 
         return {
@@ -125,9 +121,7 @@ async def _extract_page_with_layout(
     """
     loop = asyncio.get_running_loop()
 
-    text_data = await loop.run_in_executor(
-        None, partial(_extract_page_text_sync, page_bytes)
-    )
+    text_data = await loop.run_in_executor(None, partial(_extract_page_text_sync, page_bytes))
     elements: list[tuple[float, str]] = text_data["elements"]
     images: list[tuple[float, bytes, float]] = text_data["images"]
     total_text_len: int = text_data["total_text_len"]
@@ -147,9 +141,7 @@ async def _extract_page_with_layout(
             try:
                 async with vision_semaphore:
                     if area_ratio > LARGE_IMAGE_RATIO:
-                        logger.debug(
-                            f"Page {page_num + 1}: Large image ({area_ratio:.0%} of page), using OCR"
-                        )
+                        logger.debug(f"Page {page_num + 1}: Large image ({area_ratio:.0%} of page), using OCR")
                         text = await vision_client.ocr_image(img_bytes)
                         if text:
                             elements.append((y0, text))
@@ -198,9 +190,7 @@ async def extract_text_from_pdf_bytes(
 
     loop = asyncio.get_running_loop()
 
-    doc = await loop.run_in_executor(
-        None, partial(fitz.open, stream=pdf_bytes, filetype="pdf")
-    )
+    doc = await loop.run_in_executor(None, partial(fitz.open, stream=pdf_bytes, filetype="pdf"))
     try:
         total_pages = len(doc)
         pages_to_process = min(total_pages, max_pages)
@@ -213,18 +203,14 @@ async def extract_text_from_pdf_bytes(
 
         page_data: list[tuple[int, bytes]] = []
         for i in range(pages_to_process):
-            page_bytes = await loop.run_in_executor(
-                None, partial(_serialize_page, doc, i)
-            )
+            page_bytes = await loop.run_in_executor(None, partial(_serialize_page, doc, i))
             page_data.append((i, page_bytes))
     finally:
         doc.close()
 
     pages_done = 0
 
-    async def process_page(
-        page_num: int, page_bytes: bytes
-    ) -> tuple[int, str, bool, bool]:
+    async def process_page(page_num: int, page_bytes: bytes) -> tuple[int, str, bool, bool]:
         nonlocal pages_done
         async with page_semaphore:
             content, vis_used, is_scanned = await _extract_page_with_layout(

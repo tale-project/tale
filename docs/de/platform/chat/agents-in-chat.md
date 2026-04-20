@@ -13,9 +13,9 @@ Ein Agent ist eine auf einen bestimmten Zweck zugeschnittene Version der KI — 
 
 Jede Konversation merkt sich ihren ausgewählten Agent. Ein neuer Chat setzt auf den Standard zurück.
 
-## Conversation Starter
+## Gesprächseinstiege
 
-Wenn du mit einem Agent eine neue Konversation startest, der **Conversation Starters** konfiguriert hat, erscheint eine Reihe klickbarer Vorschläge. Klicke einen an, um ihn als erste Nachricht zu senden — das ist schneller als Tippen und ein guter Weg, zu entdecken, wofür der Agent gebaut wurde.
+Wenn du mit einem Agent eine neue Konversation startest, der **Gesprächseinstiege** konfiguriert hat, erscheint eine Reihe klickbarer Vorschläge. Klicke einen an, um ihn als erste Nachricht zu senden — das ist schneller als Tippen und ein guter Weg, zu entdecken, wofür der Agent gebaut wurde.
 
 ## Warum Agents wechseln?
 
