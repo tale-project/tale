@@ -71,13 +71,16 @@ describe('deleteChatThread', () => {
     );
 
     const mockPatch = vi.fn();
+    const mockDelete = vi.fn();
     const dbQueryChain = {
       withIndex: () => dbQueryChain,
       first: vi.fn().mockResolvedValue(null),
+      collect: vi.fn().mockResolvedValue([]),
     };
     const mockDb = {
       query: () => dbQueryChain,
       patch: mockPatch,
+      delete: mockDelete,
     };
 
     const ctx = {
@@ -93,6 +96,7 @@ describe('deleteChatThread', () => {
       mockRunMutation,
       mockRunAfter,
       mockPatch,
+      mockDelete,
       dbQueryChain,
       scheduledJobs,
     };
@@ -171,5 +175,24 @@ describe('deleteChatThread', () => {
 
     expect(mockRunMutation).not.toHaveBeenCalled();
     expect(mockRunAfter).not.toHaveBeenCalled();
+  });
+
+  it('should cascade-delete agentWebhookUserThreads mapping rows that point at this thread', async () => {
+    const { ctx, mockDelete, dbQueryChain } = createMockCtx(
+      JSON.stringify({ chatType: 'general' }),
+    );
+    // First `query().withIndex().first()` → threadMetadata (returns null so the
+    // patch path is skipped). Second chain terminates in `.collect()` for
+    // the webhook mappings; return two rows so we can assert the cascade.
+    dbQueryChain.collect.mockResolvedValueOnce([
+      { _id: 'mapping_a' },
+      { _id: 'mapping_b' },
+    ]);
+
+    await deleteChatThread(ctx, 'parent_1');
+
+    expect(mockDelete).toHaveBeenCalledTimes(2);
+    expect(mockDelete).toHaveBeenNthCalledWith(1, 'mapping_a');
+    expect(mockDelete).toHaveBeenNthCalledWith(2, 'mapping_b');
   });
 });

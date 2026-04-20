@@ -277,6 +277,16 @@ export function AgentWebhookSection({
         label: t('agents.webhook.exampleFileUploadStream'),
         code: `curl -N -X POST ${usageUrl} \\\n  -F 'message=Analyze this image' \\\n  -F 'file=@/path/to/image.png' \\\n  -F 'stream=true'`,
       },
+      {
+        key: 'openAICompat',
+        label: t('agents.webhook.exampleOpenAICompat'),
+        code: `curl -X POST ${usageUrl}/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "model": "ignored",\n    "messages": [\n      {"role": "system", "content": "Summarize the following."},\n      {"role": "user", "content": "Hello"}\n    ]\n  }'`,
+      },
+      {
+        key: 'openAIMeetilyConfig',
+        label: t('agents.webhook.exampleOpenAIMeetilyConfig'),
+        code: `Base URL:  ${usageUrl}\nAPI key:   (any non-empty value)\nModel:     (any value — agent config wins)\n\n# The client appends /chat/completions automatically.\n# Note: attachments/multipart uploads are only supported on the\n# base webhook URL, NOT on the /chat/completions sub-path.`,
+      },
     ];
   }, [usageUrl, t]);
 

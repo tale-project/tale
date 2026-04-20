@@ -38,6 +38,7 @@ export const createWebhook = mutation({
       isActive: true,
       createdAt: Date.now(),
       createdBy: authUser.email ?? String(authUser._id),
+      createdByUserId: String(authUser._id),
     });
 
     return { webhookId, token };
@@ -83,6 +84,18 @@ export const deleteWebhook = mutation({
       email: authUser.email,
       name: authUser.name,
     });
+
+    // Cascade: remove any user→thread mapping rows for this webhook so the
+    // table doesn't accumulate orphans referencing a deleted webhookId.
+    const mappings = await ctx.db
+      .query('agentWebhookUserThreads')
+      .withIndex('by_webhookId_userHash', (q) =>
+        q.eq('webhookId', args.webhookId),
+      )
+      .collect();
+    for (const row of mappings) {
+      await ctx.db.delete(row._id);
+    }
 
     await ctx.db.delete(args.webhookId);
     return null;

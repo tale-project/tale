@@ -135,6 +135,19 @@ export const AGENT_CONTEXT_CONFIGS = {
     enableSummarization: true,
     timeoutMs: 420_000,
   },
+  /**
+   * Agent invoked via the OpenAI-compatible webhook sub-path
+   * (`POST /api/agents/wh/<TOKEN>/chat/completions`). Same runtime budgets
+   * as `custom`; the distinct tag lets audit / analytics separate the two
+   * wire formats without breaking per-agent dashboards.
+   */
+  openai_webhook: {
+    modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
+    maxHistoryTokens: DEFAULT_MAX_HISTORY_TOKENS,
+    outputReserve: 2048,
+    enableSummarization: true,
+    timeoutMs: 420_000,
+  },
 } as const;
 
 export type AgentType = keyof typeof AGENT_CONTEXT_CONFIGS;
