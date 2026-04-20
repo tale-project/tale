@@ -5,6 +5,7 @@
  * and the existing agent pipeline.
  */
 
+import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
 import type { ToolName } from '../agent_tools/tool_names';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { getAgentTeamIds } from './access';
@@ -75,7 +76,11 @@ export function applyModelOverride(
   modelId: string,
   supportedModels: string[],
 ): boolean {
-  if (supportedModels.includes(modelId)) {
+  const target = stripModelRefQualifier(modelId);
+  const matched = supportedModels.some(
+    (ref) => stripModelRefQualifier(ref) === target,
+  );
+  if (matched) {
     config.model = modelId;
     config.fallbackModels = undefined;
     return true;

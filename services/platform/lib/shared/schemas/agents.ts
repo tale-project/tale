@@ -1,5 +1,7 @@
 import { z } from 'zod/v4';
 
+import { isValidModelRef } from '../utils/model-ref';
+
 const retrievalModeLiterals = ['off', 'tool', 'context', 'both'] as const;
 type RetrievalMode = (typeof retrievalModeLiterals)[number];
 
@@ -38,7 +40,13 @@ export const agentJsonSchema = z.object({
   integrationBindings: z.array(z.string()).optional(),
   delegates: z.array(z.string()).optional(),
   workflows: z.array(z.string()).optional(),
-  supportedModels: z.array(z.string().min(1)).min(1),
+  supportedModels: z
+    .array(
+      z.string().min(1).refine(isValidModelRef, {
+        message: 'Invalid model ref (expected "[provider:]model-id")',
+      }),
+    )
+    .min(1),
   provider: z
     .string()
     .min(1)

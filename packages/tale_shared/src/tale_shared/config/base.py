@@ -10,7 +10,11 @@ from pydantic_settings import BaseSettings
 
 from tale_shared.config.providers import (
     get_chat_model as _provider_chat_model,
+)
+from tale_shared.config.providers import (
     get_embedding_model as _provider_embedding_model,
+)
+from tale_shared.config.providers import (
     get_vision_model as _provider_vision_model,
 )
 

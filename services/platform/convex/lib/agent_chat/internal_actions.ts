@@ -9,6 +9,7 @@ import {
 import type { FunctionHandle } from 'convex/server';
 import { v } from 'convex/values';
 
+import { parseModelRef } from '../../../lib/shared/utils/model-ref';
 import {
   isRecord,
   getString,
@@ -301,10 +302,15 @@ export const runAgentGeneration = internalAction({
           // Pass orgSlug so multi-org deployments read each org's own
           // provider/API-key files, not the global default.
           const orgSlug = await resolveOrgSlug(ctx, organizationId);
-          const { languageModel, modelData } = currentModelId
+          // Parse provider qualifier from the ref (e.g. "openrouter:foo" → {providerName:"openrouter", modelId:"foo"}).
+          // Per-entry qualifier takes precedence over the agent's top-level provider.
+          const parsed = currentModelId
+            ? parseModelRef(currentModelId)
+            : undefined;
+          const { languageModel, modelData } = parsed
             ? await resolveLanguageModelById(ctx, {
-                modelId: currentModelId,
-                providerName: agentConfig.provider,
+                modelId: parsed.modelId,
+                providerName: parsed.providerName ?? agentConfig.provider,
                 orgSlug,
               })
             : await resolveLanguageModelWithFallback(ctx, {

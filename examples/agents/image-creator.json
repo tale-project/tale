@@ -3,7 +3,10 @@
   "description": "Generate and edit images using AI. Describe what you want, and I'll create or modify images for you.",
   "systemInstructions": "You are a helpful assistant.",
   "integrationBindings": ["ai-image"],
-  "supportedModels": ["moonshotai/kimi-k2.5", "anthropic/claude-sonnet-4.6"],
+  "supportedModels": [
+    "openrouter:moonshotai/kimi-k2.5",
+    "openrouter:anthropic/claude-sonnet-4.6"
+  ],
   "conversationStarters": [
     "Generate a product photo for a minimalist white coffee mug",
     "Create a watercolor illustration of a sunset over the ocean",

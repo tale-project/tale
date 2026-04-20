@@ -15,6 +15,7 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { stripModelRefQualifier } from '@/lib/shared/utils/model-ref';
 
 import { useSaveAgent } from '../hooks/mutations';
 
@@ -45,7 +46,11 @@ export function CreateAgentDialog({
   const [modelSelectOpen, setModelSelectOpen] = useState(false);
 
   const modelOptions = useMemo(() => {
-    const allModels: { id: string; displayName: string }[] = [];
+    const allModels: {
+      id: string;
+      displayName: string;
+      providerName: string;
+    }[] = [];
     for (const provider of providers) {
       if (
         !provider ||
@@ -54,11 +59,23 @@ export function CreateAgentDialog({
       )
         continue;
       for (const model of provider.models) {
-        allModels.push({ id: model.id, displayName: model.displayName });
+        allModels.push({
+          id: model.id,
+          displayName: model.displayName,
+          providerName: provider.name,
+        });
       }
     }
-    return allModels.map((m) => ({ value: m.id, label: m.displayName }));
-  }, [providers]);
+    return allModels.map((m) => ({
+      // Qualified form pins routing to this exact provider.
+      value: `${m.providerName}:${m.id}`,
+      label: m.displayName,
+      description: t('agents.form.viaProvider', {
+        provider: m.providerName,
+        defaultValue: `via ${m.providerName}`,
+      }),
+    }));
+  }, [providers, t]);
 
   // Auto-select first model when providers load and no selection exists
   useEffect(() => {
@@ -67,13 +84,14 @@ export function CreateAgentDialog({
     }
   }, [selectedModelId, modelOptions]);
 
-  const selectedModelLabel = useMemo(
-    () =>
-      modelOptions.find((o) => o.value === selectedModelId)?.label ??
-      selectedModelId?.split('/').pop() ??
-      t('agents.createDialog.modelPlaceholder'),
-    [modelOptions, selectedModelId, t],
-  );
+  const selectedModelLabel = useMemo(() => {
+    const label = modelOptions.find((o) => o.value === selectedModelId)?.label;
+    if (label) return label;
+    const plain = selectedModelId
+      ? stripModelRefQualifier(selectedModelId)
+      : undefined;
+    return plain?.split('/').pop() ?? t('agents.createDialog.modelPlaceholder');
+  }, [modelOptions, selectedModelId, t]);
 
   const handleModelChange = useCallback((value: string) => {
     setSelectedModelId(value);
@@ -150,12 +168,30 @@ export function CreateAgentDialog({
         params: { id: organizationId, agentId: data.name },
       });
     } catch (error) {
-      if (
-        error instanceof ConvexError &&
-        error.data?.code === 'DUPLICATE_NAME'
-      ) {
-        setError('name', { message: t('agents.agentAlreadyExists') });
-        return;
+      if (error instanceof ConvexError) {
+        const code = error.data?.code;
+        if (code === 'DUPLICATE_NAME') {
+          setError('name', { message: t('agents.agentAlreadyExists') });
+          return;
+        }
+        if (code === 'UNKNOWN_PROVIDER' || code === 'UNKNOWN_MODEL') {
+          toast({
+            title: error.data?.message ?? t('agents.agentCreateFailed'),
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (code === 'VALIDATION_ERROR') {
+          toast({
+            title:
+              error.data?.message ??
+              t('agents.validationError', {
+                defaultValue: 'Invalid agent configuration',
+              }),
+            variant: 'destructive',
+          });
+          return;
+        }
       }
       console.error(error);
       toast({

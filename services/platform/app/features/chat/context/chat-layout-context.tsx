@@ -119,7 +119,9 @@ export function ChatLayoutProvider({
     const result: Record<string, string> = {};
     for (const [key, value] of Object.entries(rawModelOverrides)) {
       if (typeof value === 'string') {
-        // Legacy format (no expiry) — treat as expired
+        // Legacy format (no expiry) — preserve; still resolves via the
+        // first-match provider path. Re-saves will upgrade to TTL format.
+        result[key] = value;
         continue;
       }
       if (value.expiresAt > now) {

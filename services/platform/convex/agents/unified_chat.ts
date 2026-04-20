@@ -15,6 +15,7 @@
 
 import { v } from 'convex/values';
 
+import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
 import { internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
 import { scrubPii, type PiiConfig } from '../governance/pii';
@@ -176,14 +177,16 @@ export const chatWithAgent = action({
       }
     }
 
-    // Model access RBAC: check if the user is allowed to use the requested model
+    // Model access RBAC: check if the user is allowed to use the requested model.
+    // Strip any provider qualifier so governance policies (which store plain
+    // model ids) match regardless of routing.
     if (args.modelId) {
       const accessCheck = await ctx.runQuery(
         internal.governance.internal_queries.checkModelAccessInternal,
         {
           organizationId: args.organizationId,
           userId: authUserId,
-          modelId: args.modelId,
+          modelId: stripModelRefQualifier(args.modelId),
         },
       );
       if (!accessCheck.allowed) {

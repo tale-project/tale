@@ -78,7 +78,7 @@ class EmbeddingService:
         if not valid:
             return [self._zero_vector() for _ in batch]
 
-        valid_indices, valid_texts = zip(*valid)
+        valid_indices, valid_texts = zip(*valid, strict=True)
 
         async with self._semaphore:
             for attempt in range(MAX_RETRIES):
@@ -121,7 +121,7 @@ class EmbeddingService:
                     return [self._zero_vector() for _ in batch]
 
         results: list[list[float]] = [self._zero_vector() for _ in batch]
-        for idx, emb in zip(valid_indices, embeddings):
+        for idx, emb in zip(valid_indices, embeddings, strict=True):
             results[idx] = emb
         return results
 

@@ -39,10 +39,7 @@ def _has_page_break(element) -> bool:
             val = pb.get(f"{_WP_NS}val")
             if val is None or val not in ("0", "false"):
                 return True
-    for br in element.iter(f"{_WP_NS}br"):
-        if br.get(f"{_WP_NS}type") == "page":
-            return True
-    return False
+    return any(br.get(f"{_WP_NS}type") == "page" for br in element.iter(f"{_WP_NS}br"))
 
 
 async def extract_text_from_docx_bytes(
@@ -74,8 +71,8 @@ async def extract_text_from_docx_bytes(
             total = sum(info.file_size for info in zf.infolist())
             if total > MAX_UNCOMPRESSED_SIZE:
                 raise ValueError(f"File exceeds maximum decompressed size ({total} bytes)")
-    except zipfile.BadZipFile:
-        raise ValueError("Invalid or corrupt file")
+    except zipfile.BadZipFile as err:
+        raise ValueError("Invalid or corrupt file") from err
 
     doc = Document(BytesIO(docx_bytes))
     elements: list[tuple[int, str]] = []

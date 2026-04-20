@@ -747,6 +747,7 @@
       "agentCreated": "Agent erstellt",
       "agentCreateFailed": "Agent konnte nicht erstellt werden",
       "agentAlreadyExists": "Ein Agent mit dieser Kennung existiert bereits",
+      "validationError": "Ungültige Agent-Konfiguration",
       "agentUpdated": "Agent aktualisiert",
       "agentUpdateFailed": "Agent konnte nicht aktualisiert werden",
       "agentDeleted": "Agent gelöscht",
@@ -918,6 +919,7 @@
         "noModelsFound": "Keine Modelle gefunden",
         "removeModel": "Entfernen",
         "embeddingModelWarning": "Nur Embedding-Modell — nicht für Chat nutzbar",
+        "viaProvider": "über {provider}",
         "modelSelector": {
           "moveUp": "Modell nach oben verschieben",
           "moveDown": "Modell nach unten verschieben",

@@ -79,7 +79,6 @@ jobs:
         uses: ./.github/actions/setup-turbo
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          install-python: 'false'
 
       - name: Run lint
         run: bunx turbo run lint
@@ -102,7 +101,6 @@ jobs:
         uses: ./.github/actions/setup-turbo
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          install-python: 'false'
 
       - name: Run format check
         run: bun run format:check

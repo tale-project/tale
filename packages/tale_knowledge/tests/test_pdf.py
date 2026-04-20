@@ -87,7 +87,7 @@ class TestExtractPageTextSync:
 
         assert any("Caption text" in el[1] for el in result["elements"])
         assert len(result["images"]) > 0
-        y0, img_bytes, area_ratio = result["images"][0]
+        _y0, img_bytes, area_ratio = result["images"][0]
         assert isinstance(img_bytes, bytes)
         assert len(img_bytes) > 0
         assert 0 < area_ratio < LARGE_IMAGE_RATIO

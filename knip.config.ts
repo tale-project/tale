@@ -1,5 +1,5 @@
 export default {
-  ignoreBinaries: ['uv'],
+  ignoreBinaries: ['uv', 'uvx'],
   ignore: ['examples/**'],
   workspaces: {
     'services/platform': {

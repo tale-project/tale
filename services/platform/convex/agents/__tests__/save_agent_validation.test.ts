@@ -85,6 +85,39 @@ describe('agentJsonSchema validation', () => {
       expect('modelPreset' in result.data).toBe(false);
     }
   });
+
+  it('accepts qualified model refs in supportedModels', () => {
+    const config = {
+      ...BASE_CONFIG,
+      supportedModels: [
+        'openrouter:anthropic/claude-opus-4.6',
+        'anthropic/claude-sonnet-4.6',
+      ],
+    };
+    const result = agentJsonSchema.safeParse(config);
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects trailing-colon model ref', () => {
+    const config = { ...BASE_CONFIG, supportedModels: ['openrouter:'] };
+    const result = agentJsonSchema.safeParse(config);
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects leading-colon model ref', () => {
+    const config = {
+      ...BASE_CONFIG,
+      supportedModels: [':anthropic/claude-opus-4.6'],
+    };
+    const result = agentJsonSchema.safeParse(config);
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects empty string in supportedModels', () => {
+    const config = { ...BASE_CONFIG, supportedModels: [''] };
+    const result = agentJsonSchema.safeParse(config);
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('stripNulls', () => {

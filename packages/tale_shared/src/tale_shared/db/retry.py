@@ -1,8 +1,8 @@
 """asyncpg connection acquisition and transaction retry with stamina."""
 
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, TypeVar
+from typing import TypeVar
 
 import asyncpg
 import stamina

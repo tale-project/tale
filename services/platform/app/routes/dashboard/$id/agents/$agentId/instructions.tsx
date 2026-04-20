@@ -17,6 +17,10 @@ import { useListProviders } from '@/app/features/settings/providers/hooks/querie
 import { SUPPORTED_TEMPLATE_VARIABLES } from '@/convex/lib/agent_response/resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from '@/convex/lib/agent_response/structured_response_instructions';
 import { useT } from '@/lib/i18n/client';
+import {
+  parseModelRef,
+  stripModelRefQualifier,
+} from '@/lib/shared/utils/model-ref';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 import { seo } from '@/lib/utils/seo';
 
@@ -78,8 +82,32 @@ function InstructionsTab() {
     return map;
   }, [providers]);
 
+  // For unqualified refs, record every provider that defines each model id so
+  // we can resolve (and hint about ambiguity) on display.
+  const modelProvidersMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const provider of providers) {
+      if (
+        !provider ||
+        !('models' in provider) ||
+        !Array.isArray(provider.models)
+      )
+        continue;
+      for (const model of provider.models) {
+        const list = map.get(model.id);
+        if (list) list.push(provider.name);
+        else map.set(model.id, [provider.name]);
+      }
+    }
+    return map;
+  }, [providers]);
+
   const availableOptions = useMemo(() => {
-    const allModels: { id: string; displayName: string }[] = [];
+    const allModels: {
+      id: string;
+      displayName: string;
+      providerName: string;
+    }[] = [];
     for (const provider of providers) {
       if (
         !provider ||
@@ -89,30 +117,56 @@ function InstructionsTab() {
         continue;
       if (config.provider && provider.name !== config.provider) continue;
       for (const model of provider.models) {
-        allModels.push({ id: model.id, displayName: model.displayName });
+        allModels.push({
+          id: model.id,
+          displayName: model.displayName,
+          providerName: provider.name,
+        });
       }
     }
-    const selected = new Set(selectedModels);
+    const selected = new Set(selectedModels.map(stripModelRefQualifier));
     return allModels
       .filter((m) => !selected.has(m.id))
       .map((m) => {
         const tags = modelTagsMap.get(m.id) ?? [];
         const isEmbeddingOnly =
           tags.includes('embedding') && !tags.includes('chat');
+        const viaProvider = t('agents.form.viaProvider', {
+          provider: m.providerName,
+          defaultValue: `via ${m.providerName}`,
+        });
+        const description = isEmbeddingOnly
+          ? `${viaProvider} — ${t('agents.form.embeddingModelWarning')}`
+          : viaProvider;
         return {
-          value: m.id,
+          // Save in qualified form so routing is explicit even if multiple
+          // providers later define the same model id.
+          value: `${m.providerName}:${m.id}`,
           label: m.displayName,
-          description: isEmbeddingOnly
-            ? t('agents.form.embeddingModelWarning')
-            : undefined,
+          description,
         };
       });
   }, [providers, selectedModels, config.provider, modelTagsMap, t]);
 
   const getDisplayName = useCallback(
-    (modelId: string) =>
-      modelDisplayNames.get(modelId) ?? modelId.split('/').pop() ?? modelId,
+    (ref: string) => {
+      const plain = stripModelRefQualifier(ref);
+      return modelDisplayNames.get(plain) ?? plain.split('/').pop() ?? plain;
+    },
     [modelDisplayNames],
+  );
+
+  const getProviderName = useCallback(
+    (ref: string): string | undefined => {
+      const { providerName, modelId } = parseModelRef(ref);
+      if (providerName) return providerName;
+      const matches = modelProvidersMap.get(modelId);
+      if (!matches || matches.length === 0) return undefined;
+      if (matches.length === 1) return matches[0];
+      // Unqualified but resolvable from multiple providers — surface ambiguity.
+      return `${matches[0]} (+${matches.length - 1})`;
+    },
+    [modelProvidersMap],
   );
 
   const handleModelsChange = useCallback(
@@ -185,6 +239,7 @@ function InstructionsTab() {
           onChange={handleModelsChange}
           availableOptions={availableOptions}
           getDisplayName={getDisplayName}
+          getProviderName={getProviderName}
         />
       </PageSection>
 

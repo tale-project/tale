@@ -16,6 +16,7 @@ import {
 import { useAccessibleModels } from '@/app/features/settings/governance/hooks/queries';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { useT } from '@/lib/i18n/client';
+import { stripModelRefQualifier } from '@/lib/shared/utils/model-ref';
 
 import { useChatAgents } from '../../hooks/queries';
 import { useEffectiveAgent } from '../../hooks/use-effective-agent';
@@ -72,7 +73,7 @@ export function ArenaModelSelector({
 
   const renderTagIcons = useCallback(
     (option: SearchableSelectOption): ReactNode => {
-      const info = modelInfoMap.get(option.value);
+      const info = modelInfoMap.get(stripModelRefQualifier(option.value));
       if (!info?.tags.length) return null;
       return <ModelTagIcons tags={info.tags} t={t} />;
     },
@@ -80,27 +81,37 @@ export function ArenaModelSelector({
   );
 
   const getDisplayName = useCallback(
-    (modelId: string) =>
-      modelInfoMap.get(modelId)?.displayName ?? getModelShortName(modelId),
+    (ref: string) => {
+      const plain = stripModelRefQualifier(ref);
+      return modelInfoMap.get(plain)?.displayName ?? getModelShortName(plain);
+    },
     [modelInfoMap],
   );
 
+  // Governance policies match on plain model ids; strip qualifiers before asking.
+  const plainModelIds = useMemo(
+    () => supportedModels.map(stripModelRefQualifier),
+    [supportedModels],
+  );
   const { data: accessibleModelIds } = useAccessibleModels(
     organizationId,
-    supportedModels,
+    plainModelIds,
   );
 
   const filteredModels = useMemo(() => {
     if (!accessibleModelIds) return supportedModels;
-    return supportedModels.filter((id) => accessibleModelIds.includes(id));
+    const accessible = new Set(accessibleModelIds);
+    return supportedModels.filter((ref) =>
+      accessible.has(stripModelRefQualifier(ref)),
+    );
   }, [supportedModels, accessibleModelIds]);
 
   const options = useMemo(
     () =>
-      filteredModels.map((modelId) => ({
-        value: modelId,
-        label: getDisplayName(modelId),
-        description: modelInfoMap.get(modelId)?.description,
+      filteredModels.map((ref) => ({
+        value: ref,
+        label: getDisplayName(ref),
+        description: modelInfoMap.get(stripModelRefQualifier(ref))?.description,
       })),
     [filteredModels, getDisplayName, modelInfoMap],
   );

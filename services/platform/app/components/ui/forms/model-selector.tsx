@@ -24,6 +24,8 @@ export interface ModelSelectorProps {
   availableOptions: ReadonlyArray<SearchableSelectOption>;
   /** Resolve display name for a model ID */
   getDisplayName: (modelId: string) => string;
+  /** Resolve the provider name that will serve this model (optional). */
+  getProviderName?: (modelId: string) => string | undefined;
   /** Minimum number of models required (default 1) */
   minModels?: number;
   /** When true, hides drag/reorder controls */
@@ -35,6 +37,7 @@ export function ModelSelector({
   onChange,
   availableOptions,
   getDisplayName,
+  getProviderName,
   minModels = 1,
   readonlyOrder = false,
 }: ModelSelectorProps) {
@@ -102,11 +105,21 @@ export function ModelSelector({
         moveDownLabel={t('agents.form.modelSelector.moveDown')}
         dragHandleLabel={t('agents.form.modelSelector.dragHandle')}
         removeLabel={t('agents.form.removeModel')}
-        renderItem={({ item }) => (
-          <code className="truncate text-sm">
-            {getDisplayName(item.modelId)}
-          </code>
-        )}
+        renderItem={({ item }) => {
+          const providerName = getProviderName?.(item.modelId);
+          return (
+            <div className="flex min-w-0 items-baseline gap-2">
+              <code className="truncate text-sm">
+                {getDisplayName(item.modelId)}
+              </code>
+              {providerName ? (
+                <span className="text-muted-foreground flex-shrink-0 text-xs">
+                  {providerName}
+                </span>
+              ) : null}
+            </div>
+          );
+        }}
       />
 
       <SearchableSelect

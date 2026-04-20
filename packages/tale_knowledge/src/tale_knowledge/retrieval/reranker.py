@@ -110,7 +110,7 @@ class Reranker:
         loop = asyncio.get_running_loop()
         scores = await loop.run_in_executor(None, lambda: cross_encoder.predict(pairs).tolist())
 
-        for result, score in zip(results, scores):
+        for result, score in zip(results, scores, strict=True):
             result["reranking_score"] = float(score)
 
         results.sort(key=lambda r: r.get("reranking_score", 0), reverse=True)
