@@ -29,6 +29,22 @@
         "@tailwindcss/oxide-linux-x64-gnu": "4.2.2",
       },
     },
+    "docs": {
+      "name": "@tale/docs",
+      "version": "0.0.0",
+    },
+    "packages/tale_knowledge": {
+      "name": "@tale/knowledge",
+      "version": "0.1.0",
+    },
+    "packages/tale_shared": {
+      "name": "@tale/shared",
+      "version": "0.1.0",
+    },
+    "packages/tale_telemetry": {
+      "name": "@tale/telemetry",
+      "version": "0.1.0",
+    },
     "services/crawler": {
       "name": "@tale/crawler",
       "version": "0.1.0",
@@ -1369,11 +1385,19 @@
 
     "@tale/db": ["@tale/db@workspace:services/db"],
 
+    "@tale/docs": ["@tale/docs@workspace:docs"],
+
+    "@tale/knowledge": ["@tale/knowledge@workspace:packages/tale_knowledge"],
+
     "@tale/platform": ["@tale/platform@workspace:services/platform"],
 
     "@tale/proxy": ["@tale/proxy@workspace:services/proxy"],
 
     "@tale/rag": ["@tale/rag@workspace:services/rag"],
+
+    "@tale/shared": ["@tale/shared@workspace:packages/tale_shared"],
+
+    "@tale/telemetry": ["@tale/telemetry@workspace:packages/tale_telemetry"],
 
     "@tanstack/history": ["@tanstack/history@1.161.6", "", {}, "sha512-NaOGLRrddszbQj9upGat6HG/4TKvXLvu+osAIgfxPYA+eIvYKv8GKDJOrY2D3/U9MRnKfMWD7bU4jeD4xmqyIg=="],
 
