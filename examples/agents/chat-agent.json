@@ -33,8 +33,7 @@
     "openrouter:meta-llama/llama-4-maverick",
     "openrouter:meta-llama/llama-4-scout",
     "openrouter:qwen/qwen3.5-35b-a3b",
-    "openrouter:qwen/qwen3-next-80b-a3b-instruct",
-    "openrouter:qwen/qwen3-vl-32b-instruct"
+    "openrouter:qwen/qwen3-next-80b-a3b-instruct"
   ],
   "knowledgeMode": "tool",
   "includeOrgKnowledge": true,

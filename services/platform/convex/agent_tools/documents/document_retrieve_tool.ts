@@ -18,7 +18,7 @@ export const documentRetrieveArgs = z
       .string()
       .min(1)
       .describe(
-        'The file ID (the "fileId" field from document_find). This is the storage file identifier.',
+        'The file ID — either the "fileId" returned by document_find for a knowledge-base document, or the file ID of a chat attachment the user uploaded in this conversation. Always the underlying storage file identifier.',
       ),
     chunkStart: z
       .number()
@@ -57,17 +57,18 @@ export const documentRetrieveArgs = z
 export const documentRetrieveTool = {
   name: 'document_retrieve' as const,
   tool: createTool({
-    description: `Retrieve document content from the knowledge base by file ID.
+    description: `Retrieve document content by file ID. Works for both knowledge-base documents (found via document_find) and files the user uploaded directly in this chat — both are indexed and readable through this tool.
 
 USE THIS TOOL TO:
 • Read the full or partial content of a specific document
 • Paginate through large documents using chunk ranges
-• Follow up after document_find to read a document's content
+• Follow up after document_find to read a knowledge-base document's content
+• Read the full text of a chat attachment in original order (preferred over pdf/docx/text extractors when you need the complete document, not just an excerpt)
 
 DO NOT USE THIS TOOL FOR:
 • Searching across documents — use rag_search instead
-• Listing or browsing documents — use document_find instead
-• Extracting data from uploaded files — use pdf, docx, text, excel, image, or pptx tools
+• Listing or browsing knowledge-base documents — use document_find instead
+• Extracting structured data or images from a file — use pdf, docx, text, excel, image, or pptx tools
 
 RESPONSE FIELDS:
 • fileId: The file ID
@@ -84,10 +85,13 @@ PAGINATION (for large documents):
 3. If you need more, call again with chunkStart set to chunkRange.end + 1
 4. Max 100 chunks per call
 
+INDEXING STATE:
+• If the tool errors with "still being indexed", the chat attachment hasn't finished RAG indexing yet — wait briefly and retry once before reporting to the user
+• If the tool errors with "RAG indexing failed", the file cannot be retrieved; tell the user and stop, do not retry
+
 TIPS:
-• Get file IDs from document_find first
-• For semantic search across documents, use rag_search instead
-• Documents must be indexed (ragInfo.status = "completed") to be retrievable`,
+• Get file IDs from document_find (knowledge base) or the user's chat attachment (the ID surfaced alongside the upload)
+• For semantic search across documents, use rag_search instead`,
     inputSchema: documentRetrieveArgs,
     execute: async (ctx, args): Promise<DocumentRetrieveResult> => {
       return retrieveDocument(ctx, args);

@@ -87,60 +87,73 @@ export function UploadPolicyEditor({
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
-  const buildConfig = useCallback((): UploadPolicyConfig => {
-    const config: UploadPolicyConfig = { enabled };
+  const buildConfig = useCallback(
+    (enabledValue: boolean): UploadPolicyConfig => {
+      const config: UploadPolicyConfig = { enabled: enabledValue };
 
-    const allowed = stringToExtensions(allowedExtensions);
-    if (allowed) config.allowedExtensions = allowed;
+      const allowed = stringToExtensions(allowedExtensions);
+      if (allowed) config.allowedExtensions = allowed;
 
-    const blocked = stringToExtensions(blockedExtensions);
-    if (blocked) config.blockedExtensions = blocked;
+      const blocked = stringToExtensions(blockedExtensions);
+      if (blocked) config.blockedExtensions = blocked;
 
-    const mimes = allowedMimeTypes
-      .split(/[,\s]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (mimes.length > 0) config.allowedMimeTypes = mimes;
+      const mimes = allowedMimeTypes
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (mimes.length > 0) config.allowedMimeTypes = mimes;
 
-    const sizeMB = Number(maxFileSizeMB);
-    if (maxFileSizeMB && !Number.isNaN(sizeMB) && sizeMB > 0) {
-      config.maxFileSizeBytes = sizeMB * 1024 * 1024;
-    }
+      const sizeMB = Number(maxFileSizeMB);
+      if (maxFileSizeMB && !Number.isNaN(sizeMB) && sizeMB > 0) {
+        config.maxFileSizeBytes = sizeMB * 1024 * 1024;
+      }
 
-    const volGB = Number(maxVolumeGB);
-    if (maxVolumeGB && !Number.isNaN(volGB) && volGB > 0) {
-      config.maxTotalVolumeBytesPerUser = volGB * 1024 * 1024 * 1024;
-    }
+      const volGB = Number(maxVolumeGB);
+      if (maxVolumeGB && !Number.isNaN(volGB) && volGB > 0) {
+        config.maxTotalVolumeBytesPerUser = volGB * 1024 * 1024 * 1024;
+      }
 
-    return config;
-  }, [
-    enabled,
-    allowedExtensions,
-    blockedExtensions,
-    allowedMimeTypes,
-    maxFileSizeMB,
-    maxVolumeGB,
-  ]);
+      return config;
+    },
+    [
+      allowedExtensions,
+      blockedExtensions,
+      allowedMimeTypes,
+      maxFileSizeMB,
+      maxVolumeGB,
+    ],
+  );
+
+  const saveConfig = useCallback(
+    async (config: UploadPolicyConfig) => {
+      try {
+        await upsertMutation.mutateAsync({
+          organizationId,
+          policyType: 'upload_policy',
+          config,
+        });
+        toast({ title: t('uploadPolicy.saved'), variant: 'success' });
+      } catch {
+        toast({
+          title: t('uploadPolicy.saveFailed'),
+          variant: 'destructive',
+        });
+      }
+    },
+    [organizationId, upsertMutation, toast, t],
+  );
 
   const handleSave = useCallback(async () => {
-    try {
-      await upsertMutation.mutateAsync({
-        organizationId,
-        policyType: 'upload_policy',
-        config: buildConfig(),
-      });
-      toast({ title: t('uploadPolicy.saved'), variant: 'success' });
-    } catch {
-      toast({
-        title: t('uploadPolicy.saveFailed'),
-        variant: 'destructive',
-      });
-    }
-  }, [organizationId, buildConfig, upsertMutation, toast, t]);
+    await saveConfig(buildConfig(enabled));
+  }, [saveConfig, buildConfig, enabled]);
 
-  const handleToggleEnabled = useCallback((checked: boolean) => {
-    setEnabled(checked);
-  }, []);
+  const handleToggleEnabled = useCallback(
+    (checked: boolean) => {
+      setEnabled(checked);
+      void saveConfig(buildConfig(checked));
+    },
+    [saveConfig, buildConfig],
+  );
 
   if (isLoading) {
     return (

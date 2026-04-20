@@ -2806,6 +2806,7 @@
       "noResults": "Keine Modelle gefunden",
       "auto": "Auto",
       "autoDescription": "Wählt automatisch das beste verfügbare Modell mit Fallback",
+      "noModelsAvailable": "Keine Modelle verfügbar",
       "tags": {
         "chat": "Chat",
         "vision": "Vision",
