@@ -8,7 +8,7 @@ if [ -z "$FILE_PATH" ]; then
   exit 0
 fi
 
-if [[ "$FILE_PATH" =~ \.(ts|tsx|js|jsx|mjs)$ ]]; then
+if [[ "$FILE_PATH" =~ \.(ts|tsx|js|jsx|mjs|cjs|mts|cts|json|jsonc|md|mdx|css|scss|yaml|yml|html)$ ]]; then
   bunx oxfmt -c "$CLAUDE_PROJECT_DIR/.oxfmtrc.json" "$FILE_PATH" 2>/dev/null
 fi
 
