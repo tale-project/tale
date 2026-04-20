@@ -34,6 +34,7 @@ import { ComposerModeMenu } from './composer-mode-menu';
 import { DictationButton } from './dictation-button';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
+import { SavePromptMenu } from './save-prompt-menu';
 
 const LOCALE_TO_BCP47: Record<string, string> = {
   en: 'en-US',
@@ -67,6 +68,7 @@ interface ChatInputProps extends Omit<
     { status?: string; error?: string; progress?: string }
   >;
   onSavePrompt?: (content: string) => void;
+  onOpenPromptLibrary?: () => void;
   /**
    * When true, the send button is disabled. Unlike `disabled`, the input
    * itself stays editable so the user can still revise their message — they
@@ -98,6 +100,7 @@ export function ChatInput({
   isIndexing = false,
   indexingStatuses,
   onSavePrompt,
+  onOpenPromptLibrary,
   sendBlocked = false,
   sendBlockedReason,
   ...restProps
@@ -419,12 +422,16 @@ export function ChatInput({
                 organizationId={organizationId}
                 onAttachFile={() => fileInputRef.current?.click()}
                 fileUploadDisabled={fileUploadDisabled}
-                onSavePrompt={
-                  onSavePrompt ? () => onSavePrompt(value) : undefined
-                }
-                canSavePrompt={!inputDisabled && value.trim().length > 0}
                 disabled={inputDisabled}
               />
+              {onSavePrompt && onOpenPromptLibrary && (
+                <SavePromptMenu
+                  onSavePromptDraft={() => onSavePrompt(value)}
+                  onOpenPromptLibrary={onOpenPromptLibrary}
+                  canSavePromptDraft={!inputDisabled && value.trim().length > 0}
+                  disabled={inputDisabled}
+                />
+              )}
               {isArenaMode ? (
                 <ArenaModelSelector organizationId={organizationId} />
               ) : (

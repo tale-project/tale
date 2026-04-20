@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  Bookmark,
   Bot,
   Check,
   Circle,
@@ -35,8 +34,6 @@ interface ComposerModeMenuProps {
   organizationId: string;
   onAttachFile?: () => void;
   fileUploadDisabled?: boolean;
-  onSavePrompt?: () => void;
-  canSavePrompt?: boolean;
   disabled?: boolean;
 }
 
@@ -78,8 +75,6 @@ export function ComposerModeMenu({
   organizationId,
   onAttachFile,
   fileUploadDisabled = false,
-  onSavePrompt,
-  canSavePrompt = false,
   disabled = false,
 }: ComposerModeMenuProps) {
   const { t } = useT('composer');
@@ -234,18 +229,6 @@ export function ComposerModeMenu({
       groups.push(capabilityGroup);
     }
 
-    if (onSavePrompt) {
-      groups.push([
-        {
-          type: 'item',
-          label: tChat('savePrompt'),
-          icon: Bookmark,
-          onClick: onSavePrompt,
-          disabled: !canSavePrompt,
-        },
-      ]);
-    }
-
     return groups;
   }, [
     fileUploadDisabled,
@@ -258,8 +241,6 @@ export function ComposerModeMenu({
     setCapabilityEnabled,
     switchTo,
     arenaContext,
-    onSavePrompt,
-    canSavePrompt,
     t,
     tChat,
   ]);

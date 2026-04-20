@@ -2819,8 +2819,6 @@
     "hideSearch": "Masquer la recherche",
     "showHistory": "Afficher l'historique",
     "hideHistory": "Masquer l'historique",
-    "openSidebar": "Ouvrir la barre latérale",
-    "closeSidebar": "Fermer la barre latérale",
     "chatHistory": "Historique",
     "searchPlaceholder": "Rechercher dans les chats",
     "messagePlaceholder": "Saisis un message...",
@@ -3080,6 +3078,8 @@
     },
     "promptLibrary": "Bibliothèque de prompts",
     "savePrompt": "Enregistrer le prompt",
+    "savePromptDraft": "Enregistrer le brouillon de prompt",
+    "savePromptMenu": "Options d'enregistrement",
     "unsavePrompt": "Retirer le prompt",
     "unsavePromptConfirm": "Le prompt enregistré sera supprimé. Tu pourras toujours le sauvegarder à nouveau plus tard.",
     "unsavePromptAction": "Retirer"

@@ -174,7 +174,7 @@ function ThreadGate({
 }
 
 function ChatLayoutContent({ organizationId }: { organizationId: string }) {
-  const { isHistoryOpen, clearChatState, setInsertedPrompt } = useChatLayout();
+  const { isHistoryOpen, clearChatState } = useChatLayout();
 
   // Read threadId from URL — ChatInterface stays mounted across route changes.
   const threadMatch = useMatch({
@@ -234,11 +234,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
   return (
     <PageLayout className="bg-background h-full overflow-hidden">
       <LayoutErrorBoundary organizationId={organizationId}>
-        <ChatHeader
-          organizationId={organizationId}
-          threadId={threadId}
-          onSelectPrompt={setInsertedPrompt}
-        />
+        <ChatHeader organizationId={organizationId} threadId={threadId} />
       </LayoutErrorBoundary>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -253,10 +249,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
             >
               <div className="border-border bg-background flex h-full flex-col overflow-hidden border-r">
                 <LayoutErrorBoundary organizationId={organizationId}>
-                  <ChatHistorySidebar
-                    organizationId={organizationId}
-                    onSelectPrompt={setInsertedPrompt}
-                  />
+                  <ChatHistorySidebar organizationId={organizationId} />
                 </LayoutErrorBoundary>
               </div>
             </m.div>

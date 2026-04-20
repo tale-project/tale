@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
+import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { LinkButton } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
@@ -192,15 +193,12 @@ export function AutomationsTable({
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="flex items-center justify-between gap-4">
-        <input
-          type="text"
-          className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-9 w-full max-w-sm rounded-md border px-3 py-1 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+        <SearchInput
+          wrapperClassName="w-full max-w-sm"
           placeholder={tAutomations('search.placeholder')}
           aria-label={tAutomations('search.placeholder')}
           value={searchQuery}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            setSearchQuery(e.target.value)
-          }
+          onChange={(e) => setSearchQuery(e.target.value)}
         />
         <div className="flex items-center gap-2">
           <LinkButton

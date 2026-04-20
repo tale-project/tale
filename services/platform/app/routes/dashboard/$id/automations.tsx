@@ -38,6 +38,16 @@ function AutomationsLayout() {
   });
   const currentFolder = indexMatch?.search?.folder;
 
+  const isMetrics = useMatch({
+    from: '/dashboard/$id/automations/metrics',
+    shouldThrow: false,
+  });
+  const breadcrumbLeaf = currentFolder
+    ? currentFolder
+    : isMetrics
+      ? t('metrics.title')
+      : null;
+
   return (
     <PageLayout
       organizationId={organizationId}
@@ -46,7 +56,7 @@ function AutomationsLayout() {
           <>
             <AdaptiveHeaderRoot standalone={false}>
               <AdaptiveHeaderTitle>
-                {currentFolder ? (
+                {breadcrumbLeaf ? (
                   <span className="flex items-center gap-1">
                     <button
                       type="button"
@@ -61,7 +71,7 @@ function AutomationsLayout() {
                       {t('title')}
                     </button>
                     <ChevronRight className="text-muted-foreground size-4 shrink-0" />
-                    <span>{currentFolder}</span>
+                    <span>{breadcrumbLeaf}</span>
                   </span>
                 ) : (
                   t('title')

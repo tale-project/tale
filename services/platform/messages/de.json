@@ -2823,8 +2823,6 @@
     "hideSearch": "Suche ausblenden",
     "showHistory": "Verlauf anzeigen",
     "hideHistory": "Verlauf ausblenden",
-    "openSidebar": "Seitenleiste öffnen",
-    "closeSidebar": "Seitenleiste schließen",
     "chatHistory": "Chatverlauf",
     "searchPlaceholder": "Chats suchen",
     "messagePlaceholder": "Nachricht eingeben...",
@@ -3084,6 +3082,8 @@
     },
     "promptLibrary": "Prompt-Bibliothek",
     "savePrompt": "Prompt speichern",
+    "savePromptDraft": "Prompt-Entwurf speichern",
+    "savePromptMenu": "Speicheroptionen",
     "unsavePrompt": "Prompt entfernen",
     "unsavePromptConfirm": "Der gespeicherte Prompt wird entfernt. Du kannst ihn jederzeit erneut speichern.",
     "unsavePromptAction": "Entfernen"
