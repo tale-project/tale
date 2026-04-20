@@ -2,10 +2,9 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import {
+  Clock,
   Download,
   Ellipsis,
-  PanelLeftClose,
-  PanelLeftOpen,
   Search,
   Share,
   Plus,
@@ -32,14 +31,9 @@ import { ShareChatDialog } from './share-chat-dialog';
 interface ChatHeaderProps {
   organizationId: string;
   threadId?: string;
-  onSelectPrompt?: (content: string) => void;
 }
 
-export function ChatHeader({
-  organizationId,
-  threadId,
-  onSelectPrompt,
-}: ChatHeaderProps) {
+export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
   const navigate = useNavigate();
   const { isHistoryOpen, setIsHistoryOpen, clearChatState } = useChatLayout();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -143,7 +137,6 @@ export function ChatHeader({
         <ChatHistorySidebar
           organizationId={organizationId}
           onChatSelect={handleChatSelect}
-          onSelectPrompt={onSelectPrompt}
           className="h-full"
         />
       </Sheet>
@@ -152,7 +145,7 @@ export function ChatHeader({
         <Tooltip
           content={
             <>
-              {isHistoryOpen ? tChat('closeSidebar') : tChat('openSidebar')}
+              {isHistoryOpen ? tChat('hideHistory') : tChat('showHistory')}
               <span className="text-muted bg-muted-foreground/60 ml-3 rounded-sm px-1 py-0.5 text-xs">
                 {historyShortcut}
               </span>
@@ -166,17 +159,16 @@ export function ChatHeader({
             variant="ghost"
             onClick={handleToggleHistory}
             aria-label={
-              isHistoryOpen ? tChat('closeSidebar') : tChat('openSidebar')
+              isHistoryOpen ? tChat('hideHistory') : tChat('showHistory')
             }
             className={cn(isHistoryOpen && 'bg-accent text-accent-foreground')}
           >
-            {isHistoryOpen ? (
-              <PanelLeftClose
-                className={cn(baseIconClasses, 'text-accent-foreground')}
-              />
-            ) : (
-              <PanelLeftOpen className={baseIconClasses} />
-            )}
+            <Clock
+              className={cn(
+                baseIconClasses,
+                isHistoryOpen && 'text-accent-foreground',
+              )}
+            />
           </Button>
         </Tooltip>
 
@@ -261,14 +253,15 @@ export function ChatHeader({
             variant="ghost"
             onClick={handleToggleHistory}
             aria-label={
-              isMobileHistoryOpen ? tChat('closeSidebar') : tChat('openSidebar')
+              isMobileHistoryOpen ? tChat('hideHistory') : tChat('showHistory')
             }
           >
-            {isMobileHistoryOpen ? (
-              <PanelLeftClose className={baseIconClasses} />
-            ) : (
-              <PanelLeftOpen className={baseIconClasses} />
-            )}
+            <Clock
+              className={cn(
+                baseIconClasses,
+                isMobileHistoryOpen && 'text-accent-foreground',
+              )}
+            />
           </Button>
           <Button
             size="icon"

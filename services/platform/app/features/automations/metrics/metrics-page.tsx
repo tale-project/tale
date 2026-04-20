@@ -49,13 +49,8 @@ export function WorkflowMetricsPage({
 
   return (
     <Stack gap={4} className="p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-1">
-          <Text as="h3" variant="label" className="text-lg font-semibold">
-            {t('metrics.title')}
-          </Text>
-          <Text variant="caption">{t('metrics.description')}</Text>
-        </div>
+      <div className="flex items-center justify-between gap-4">
+        <Text variant="caption">{t('metrics.description')}</Text>
         <div className="w-44">
           <Select
             options={periodOptions}

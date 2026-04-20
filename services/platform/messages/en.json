@@ -1812,8 +1812,8 @@
       "openLoop": "Open loop"
     },
     "metrics": {
-      "link": "View metrics",
-      "title": "Workflow metrics",
+      "link": "Metrics",
+      "title": "Automation metrics",
       "description": "Usage and performance KPIs across your automations.",
       "cappedNotice": "Showing the most recent 5,000 runs in this window. Older runs in this period are not included in these totals.",
       "period": {
@@ -2823,8 +2823,6 @@
     "hideSearch": "Hide search",
     "showHistory": "Show history",
     "hideHistory": "Hide history",
-    "openSidebar": "Open sidebar",
-    "closeSidebar": "Close sidebar",
     "chatHistory": "History",
     "searchPlaceholder": "Search chats",
     "messagePlaceholder": "Type a message...",
@@ -3084,6 +3082,8 @@
     },
     "promptLibrary": "Prompt library",
     "savePrompt": "Save prompt",
+    "savePromptDraft": "Save prompt draft",
+    "savePromptMenu": "Save options",
     "unsavePrompt": "Unsave prompt",
     "unsavePromptConfirm": "This will remove the saved prompt. You can always save it again later.",
     "unsavePromptAction": "Unsave"

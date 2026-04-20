@@ -79,6 +79,14 @@ const SavePromptDialog = lazyComponent<
   ),
 );
 
+const PromptLibraryDialog = lazyComponent<
+  import('@/app/features/prompts/components/prompt-library-dialog').PromptLibraryDialogProps
+>(() =>
+  import('@/app/features/prompts/components/prompt-library-dialog').then(
+    (mod) => ({ default: mod.PromptLibraryDialog }),
+  ),
+);
+
 function chatDraftKey(
   userId: string | undefined,
   organizationId: string,
@@ -205,6 +213,7 @@ export function ChatInterface({
     messageId: string;
     content: string;
   } | null>(null);
+  const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
 
   // Build a lookup of messageId → promptId for saved prompts
   const { prompts } = usePrompts(organizationId);
@@ -1029,6 +1038,7 @@ export function ChatInterface({
               onSavePrompt={(content) =>
                 setSavePromptData({ messageId: '', content })
               }
+              onOpenPromptLibrary={() => setPromptLibraryOpen(true)}
             />
           </FileUpload.Root>
         )}
@@ -1041,6 +1051,14 @@ export function ChatInterface({
         }}
         initialContent={savePromptData?.content ?? ''}
         sourceMessageId={savePromptData?.messageId}
+      />
+
+      <PromptLibraryDialog
+        open={promptLibraryOpen}
+        onOpenChange={setPromptLibraryOpen}
+        onSelectPrompt={(content) => {
+          setInsertedPrompt(content);
+        }}
       />
     </div>
   );

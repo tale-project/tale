@@ -4,7 +4,7 @@ import { useParams, useNavigate } from '@tanstack/react-router';
 import {
   CircleDotIcon,
   Share2Icon,
-  BookOpen,
+  ChevronDown,
   MessageSquareDashedIcon,
 } from 'lucide-react';
 import {
@@ -17,15 +17,12 @@ import {
 } from 'react';
 
 import { Stack } from '@/app/components/ui/layout/layout';
-import { Tabs } from '@/app/components/ui/navigation/tabs';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import { useUpdateThread } from '../hooks/mutations';
 import {
@@ -34,14 +31,6 @@ import {
   useThreads,
 } from '../hooks/queries';
 import { ChatActions } from './chat-actions';
-
-const PromptLibraryDialog = lazyComponent<
-  import('@/app/features/prompts/components/prompt-library-dialog').PromptLibraryDialogProps
->(() =>
-  import('@/app/features/prompts/components/prompt-library-dialog').then(
-    (m) => ({ default: m.PromptLibraryDialog }),
-  ),
-);
 
 const emptySubscribe = () => () => {};
 
@@ -58,7 +47,6 @@ interface ChatHistorySidebarProps extends ComponentPropsWithoutRef<'div'> {
   onSearchOpen?: () => void;
   onNewChat?: () => void;
   onChatSelect?: () => void;
-  onSelectPrompt?: (content: string) => void;
 }
 
 export function ChatHistorySidebar({
@@ -66,7 +54,6 @@ export function ChatHistorySidebar({
   onSearchOpen,
   onNewChat,
   onChatSelect,
-  onSelectPrompt,
   className,
   ...restProps
 }: ChatHistorySidebarProps) {
@@ -78,8 +65,10 @@ export function ChatHistorySidebar({
   const [isMac, setIsMac] = useState(false);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
-  const [activeTab, setActiveTab] = useState<'history' | 'archived'>('history');
-  const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
+  const [archivedExpanded, setArchivedExpanded] = usePersistedState(
+    'chat-sidebar-archived-expanded',
+    false,
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMounted = useIsMounted();
@@ -277,259 +266,220 @@ export function ChatHistorySidebar({
       )}
       {...restProps}
     >
-      <Tabs
-        value={activeTab}
-        onValueChange={(v) => {
-          if (v === 'history' || v === 'archived') setActiveTab(v);
-        }}
-        triggerClassName="flex-1"
-        className="flex min-h-0 flex-1 flex-col"
-        listClassName="w-full"
-        items={[
-          {
-            value: 'history',
-            label: t('chatHistory'),
-            content: (
-              <Stack gap={1} className="min-h-0 flex-1 overflow-y-auto pb-2">
-                {!isMounted || !chats ? (
-                  <Text as="div" variant="muted" className="px-2 text-nowrap">
-                    {t('history.loading')}
-                  </Text>
-                ) : chats.length === 0 ? (
-                  <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 pt-40 text-center">
-                    <MessageSquareDashedIcon
-                      className="text-muted-foreground/60 mb-1 size-8"
-                      aria-hidden
-                    />
-                    <Text
-                      as="div"
-                      variant="muted"
-                      className="text-foreground font-medium"
-                    >
-                      {t('history.empty')}
-                    </Text>
-                    <Text as="div" variant="caption">
-                      {t('history.emptySubtitle')}
-                    </Text>
-                  </div>
-                ) : (
-                  <>
-                    {chats.map((chat) => {
-                      const isEditing = editingChatId === chat._id;
-                      const isGenerating =
-                        !pendingThreadIds.has(chat._id) &&
-                        (chat.generationStatus === 'generating' ||
-                          executingThreadIds.has(chat._id));
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <section className="flex flex-col">
+          <Text
+            as="div"
+            variant="caption"
+            className="text-muted-foreground px-2 pt-1 pb-2 text-xs font-medium tracking-wide uppercase"
+          >
+            {t('chatHistory')}
+          </Text>
+          <Stack gap={1} className="pb-2">
+            {!isMounted || !chats ? (
+              <Text as="div" variant="muted" className="px-2 text-nowrap">
+                {t('history.loading')}
+              </Text>
+            ) : chats.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-1 px-6 py-10 text-center">
+                <MessageSquareDashedIcon
+                  className="text-muted-foreground/60 mb-1 size-8"
+                  aria-hidden
+                />
+                <Text
+                  as="div"
+                  variant="muted"
+                  className="text-foreground font-medium"
+                >
+                  {t('history.empty')}
+                </Text>
+                <Text as="div" variant="caption">
+                  {t('history.emptySubtitle')}
+                </Text>
+              </div>
+            ) : (
+              <>
+                {chats.map((chat) => {
+                  const isEditing = editingChatId === chat._id;
+                  const isGenerating =
+                    !pendingThreadIds.has(chat._id) &&
+                    (chat.generationStatus === 'generating' ||
+                      executingThreadIds.has(chat._id));
 
-                      return (
-                        <div
-                          key={chat._id}
-                          className={cn(
-                            'group relative flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
-                            !isEditing &&
-                              'cursor-pointer hover:bg-accent hover:text-accent-foreground',
-                            currentThreadId === chat._id &&
-                              !isEditing &&
-                              'bg-accent text-accent-foreground',
-                            isGenerating && 'animate-pulse',
-                          )}
-                        >
-                          {isEditing ? (
-                            <input
-                              ref={inputRef}
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  void handleSaveRename(chat._id);
-                                } else if (e.key === 'Escape') {
-                                  e.preventDefault();
-                                  handleCancelRename();
-                                }
-                              }}
-                              onBlur={() => handleInputBlur(chat._id)}
-                              aria-label={t('history.renameChat')}
-                              className="ring-primary focus-visible:ring-primary min-h-[1.5rem] min-w-0 flex-1 rounded-sm bg-transparent px-1 text-sm leading-snug ring-1 outline-none focus-visible:ring-2"
-                            />
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                aria-label={chat.title}
-                                onClick={() => {
-                                  if (clickTimeoutRef.current) {
-                                    clearTimeout(clickTimeoutRef.current);
-                                    clickTimeoutRef.current = null;
-                                    handleStartRename(chat._id, chat.title);
-                                  } else {
-                                    clickTimeoutRef.current = setTimeout(() => {
-                                      clickTimeoutRef.current = null;
-                                      handleChatClick(chat._id);
-                                    }, 250);
-                                  }
-                                }}
-                                className="absolute inset-0 cursor-pointer rounded-md"
-                              />
-                              <span className="pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center gap-1.5 truncate text-left text-sm leading-snug">
-                                {pendingThreadIds.has(chat._id) && (
-                                  <CircleDotIcon
-                                    className="text-warning size-3.5 shrink-0"
-                                    aria-label={t('history.awaitingInput')}
-                                  />
-                                )}
-                                <span
-                                  className="truncate"
-                                  aria-label={
-                                    isGenerating
-                                      ? t('history.generating')
-                                      : undefined
-                                  }
-                                >
-                                  {chat.title}
-                                </span>
-                              </span>
-                              {chat.isShared && (
-                                <Share2Icon
-                                  className="text-muted-foreground pointer-events-none relative z-10 size-3 shrink-0"
-                                  aria-label={t('share.sharedIndicator')}
-                                />
-                              )}
-                              <div className="relative z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
-                                <ChatActions
-                                  chat={{ id: chat._id, title: chat.title }}
-                                  currentChatId={currentThreadId}
-                                  organizationId={organizationId}
-                                  onRename={() =>
-                                    handleStartRename(chat._id, chat.title)
-                                  }
-                                />
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {canLoadMore && (
-                      <button
-                        type="button"
-                        onClick={loadMore}
-                        disabled={isLoadingMore}
-                        className="text-muted-foreground hover:text-foreground px-2 py-1.5 text-sm transition-colors disabled:opacity-50"
-                      >
-                        {isLoadingMore
-                          ? t('history.loadingMore')
-                          : t('history.loadMore')}
-                      </button>
-                    )}
-                  </>
-                )}
-              </Stack>
-            ),
-          },
-          {
-            value: 'archived',
-            label: (
-              <span className="flex items-center gap-1.5">
-                {t('archived.title')}
-                {archivedChats && archivedChats.length > 0 && (
-                  <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs leading-none font-medium">
-                    {archivedChats.length}
-                  </span>
-                )}
-              </span>
-            ),
-            content: (
-              <Stack gap={1} className="min-h-0 flex-1 overflow-y-auto pb-2">
-                {!archivedChats ? (
-                  <Text as="div" variant="muted" className="px-2 text-nowrap">
-                    {t('history.loading')}
-                  </Text>
-                ) : archivedChats.length === 0 ? (
-                  <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 pt-40 text-center">
-                    <MessageSquareDashedIcon
-                      className="text-muted-foreground/60 mb-1 size-8"
-                      aria-hidden
-                    />
-                    <Text
-                      as="div"
-                      variant="muted"
-                      className="text-foreground font-medium"
+                  return (
+                    <div
+                      key={chat._id}
+                      className={cn(
+                        'group relative flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
+                        !isEditing &&
+                          'cursor-pointer hover:bg-accent hover:text-accent-foreground',
+                        currentThreadId === chat._id &&
+                          !isEditing &&
+                          'bg-accent text-accent-foreground',
+                        isGenerating && 'animate-pulse',
+                      )}
                     >
-                      {t('archived.empty')}
-                    </Text>
-                  </div>
-                ) : (
-                  <>
-                    {archivedChats.map((chat) => (
-                      <div
-                        key={chat._id}
-                        className="group hover:bg-accent hover:text-accent-foreground relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors"
-                      >
-                        <button
-                          type="button"
-                          aria-label={chat.title}
-                          onClick={() => handleChatClick(chat._id)}
-                          className="absolute inset-0 cursor-pointer rounded-md"
+                      {isEditing ? (
+                        <input
+                          ref={inputRef}
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              void handleSaveRename(chat._id);
+                            } else if (e.key === 'Escape') {
+                              e.preventDefault();
+                              handleCancelRename();
+                            }
+                          }}
+                          onBlur={() => handleInputBlur(chat._id)}
+                          aria-label={t('history.renameChat')}
+                          className="ring-primary focus-visible:ring-primary min-h-[1.5rem] min-w-0 flex-1 rounded-sm bg-transparent px-1 text-sm leading-snug ring-1 outline-none focus-visible:ring-2"
                         />
-                        <span className="text-muted-foreground pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center truncate text-left text-sm leading-snug">
-                          <span className="truncate">{chat.title}</span>
-                        </span>
-                        <div className="relative z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
-                          <ChatActions
-                            chat={{ id: chat._id, title: chat.title }}
-                            currentChatId={currentThreadId}
-                            organizationId={organizationId}
-                            isArchived
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            aria-label={chat.title}
+                            onClick={() => {
+                              if (clickTimeoutRef.current) {
+                                clearTimeout(clickTimeoutRef.current);
+                                clickTimeoutRef.current = null;
+                                handleStartRename(chat._id, chat.title);
+                              } else {
+                                clickTimeoutRef.current = setTimeout(() => {
+                                  clickTimeoutRef.current = null;
+                                  handleChatClick(chat._id);
+                                }, 250);
+                              }
+                            }}
+                            className="absolute inset-0 cursor-pointer rounded-md"
                           />
-                        </div>
-                      </div>
-                    ))}
-                    {canLoadMoreArchived && (
-                      <button
-                        type="button"
-                        onClick={loadMoreArchived}
-                        disabled={isLoadingMoreArchived}
-                        className="text-muted-foreground hover:text-foreground px-2 py-1.5 text-sm transition-colors disabled:opacity-50"
-                      >
-                        {isLoadingMoreArchived
-                          ? t('history.loadingMore')
-                          : t('history.loadMore')}
-                      </button>
-                    )}
-                  </>
+                          <span className="pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center gap-1.5 truncate text-left text-sm leading-snug">
+                            {pendingThreadIds.has(chat._id) && (
+                              <CircleDotIcon
+                                className="text-warning size-3.5 shrink-0"
+                                aria-label={t('history.awaitingInput')}
+                              />
+                            )}
+                            <span
+                              className="truncate"
+                              aria-label={
+                                isGenerating
+                                  ? t('history.generating')
+                                  : undefined
+                              }
+                            >
+                              {chat.title}
+                            </span>
+                          </span>
+                          {chat.isShared && (
+                            <Share2Icon
+                              className="text-muted-foreground pointer-events-none relative z-10 size-3 shrink-0"
+                              aria-label={t('share.sharedIndicator')}
+                            />
+                          )}
+                          <div className="relative z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                            <ChatActions
+                              chat={{ id: chat._id, title: chat.title }}
+                              currentChatId={currentThreadId}
+                              organizationId={organizationId}
+                              onRename={() =>
+                                handleStartRename(chat._id, chat.title)
+                              }
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+                {canLoadMore && (
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    disabled={isLoadingMore}
+                    className="text-muted-foreground hover:text-foreground px-2 py-1.5 text-left text-sm transition-colors disabled:opacity-50"
+                  >
+                    {isLoadingMore
+                      ? t('history.loadingMore')
+                      : t('history.loadMore')}
+                  </button>
                 )}
-              </Stack>
-            ),
-          },
-        ]}
-      />
-
-      {/* Footer — pinned to bottom */}
-      <div className="border-border mt-4 shrink-0 space-y-2 pt-2">
-        {onSelectPrompt && (
-          <Tooltip content={t('promptLibrary')} side="right">
-            <Button
-              variant="secondary"
-              onClick={() => setPromptLibraryOpen(true)}
-              className="text-muted-foreground hover:text-foreground w-full justify-start gap-2"
-            >
-              <BookOpen className="size-4" />
-              {t('promptLibrary')}
-            </Button>
-          </Tooltip>
-        )}
+              </>
+            )}
+          </Stack>
+        </section>
       </div>
 
-      {onSelectPrompt && (
-        <PromptLibraryDialog
-          open={promptLibraryOpen}
-          onOpenChange={setPromptLibraryOpen}
-          onSelectPrompt={(content) => {
-            onSelectPrompt(content);
-            onChatSelect?.();
-          }}
-        />
+      {archivedChats && archivedChats.length > 0 && (
+        <section className="border-border mt-2 shrink-0 border-t pt-2">
+          <button
+            type="button"
+            onClick={() => setArchivedExpanded(!archivedExpanded)}
+            aria-expanded={archivedExpanded}
+            className="hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors"
+          >
+            <ChevronDown
+              className={cn(
+                'size-3.5 shrink-0 transition-transform',
+                !archivedExpanded && '-rotate-90',
+              )}
+              aria-hidden
+            />
+            <Text
+              as="span"
+              variant="caption"
+              className="text-muted-foreground flex flex-1 items-center gap-1.5 text-xs font-medium tracking-wide uppercase"
+            >
+              {t('archived.title')}
+              <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs leading-none font-medium normal-case">
+                {archivedChats.length}
+              </span>
+            </Text>
+          </button>
+          {archivedExpanded && (
+            <Stack gap={1} className="max-h-64 overflow-y-auto pt-1 pb-2">
+              {archivedChats.map((chat) => (
+                <div
+                  key={chat._id}
+                  className="group hover:bg-accent hover:text-accent-foreground relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors"
+                >
+                  <button
+                    type="button"
+                    aria-label={chat.title}
+                    onClick={() => handleChatClick(chat._id)}
+                    className="absolute inset-0 cursor-pointer rounded-md"
+                  />
+                  <span className="text-muted-foreground pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center truncate text-left text-sm leading-snug">
+                    <span className="truncate">{chat.title}</span>
+                  </span>
+                  <div className="relative z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                    <ChatActions
+                      chat={{ id: chat._id, title: chat.title }}
+                      currentChatId={currentThreadId}
+                      organizationId={organizationId}
+                      isArchived
+                    />
+                  </div>
+                </div>
+              ))}
+              {canLoadMoreArchived && (
+                <button
+                  type="button"
+                  onClick={loadMoreArchived}
+                  disabled={isLoadingMoreArchived}
+                  className="text-muted-foreground hover:text-foreground px-2 py-1.5 text-left text-sm transition-colors disabled:opacity-50"
+                >
+                  {isLoadingMoreArchived
+                    ? t('history.loadingMore')
+                    : t('history.loadMore')}
+                </button>
+              )}
+            </Stack>
+          )}
+        </section>
       )}
     </div>
   );
