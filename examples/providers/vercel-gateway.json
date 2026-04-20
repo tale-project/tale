@@ -1,0 +1,67 @@
+{
+  "displayName": "Vercel AI Gateway",
+  "description": "OpenAI-compatible gateway for image generation (FLUX, Imagen, Nano Banana).",
+  "baseUrl": "https://ai-gateway.vercel.sh/v1",
+  "defaults": {
+    "image-generation": "bfl/flux-2-pro"
+  },
+  "models": [
+    {
+      "id": "bfl/flux-2-pro",
+      "displayName": "FLUX 2 [pro]",
+      "description": "Latest general-purpose text-to-image model from Black Forest Labs.",
+      "tags": ["image-generation"],
+      "cost": { "imageCentsPerImage": 6 }
+    },
+    {
+      "id": "bfl/flux-pro-1.1-ultra",
+      "displayName": "FLUX 1.1 [pro] Ultra",
+      "description": "Ultra-high-resolution (4MP) text-to-image, varied aspect ratios.",
+      "tags": ["image-generation"],
+      "cost": { "imageCentsPerImage": 6 }
+    },
+    {
+      "id": "bfl/flux-kontext-pro",
+      "displayName": "FLUX.1 Kontext Pro",
+      "description": "Editing-capable text-to-image. Note: Vercel AI Gateway does not expose /v1/images/edits, so reference-image editing is unavailable here — use a gateway that supports /v1/images/edits (LocalAI / LiteLLM / direct BFL) or switch to Nano Banana for edits on Vercel.",
+      "tags": ["image-generation"],
+      "cost": { "imageCentsPerImage": 4 }
+    },
+    {
+      "id": "bfl/flux-kontext-max",
+      "displayName": "FLUX.1 Kontext Max",
+      "description": "Editing-capable text-to-image, highest-fidelity variant. Same edit-capability caveat as Kontext Pro — Vercel Gateway can only text-to-image here.",
+      "tags": ["image-generation"],
+      "cost": { "imageCentsPerImage": 8 }
+    },
+    {
+      "id": "google/imagen-4.0-generate-001",
+      "displayName": "Imagen 4",
+      "description": "Google Imagen 4 text-to-image; strong typography and clean illustration.",
+      "tags": ["image-generation"],
+      "cost": { "imageCentsPerImage": 4 }
+    },
+    {
+      "id": "google/imagen-4.0-fast-generate-001",
+      "displayName": "Imagen 4 Fast",
+      "description": "Faster, lower-cost Imagen 4 variant for quick iteration.",
+      "tags": ["image-generation"],
+      "cost": { "imageCentsPerImage": 2 }
+    },
+    {
+      "id": "google/imagen-4.0-ultra-generate-001",
+      "displayName": "Imagen 4 Ultra",
+      "description": "Highest-detail Imagen 4 variant (up to 2K). Slower; use when quality beats speed.",
+      "tags": ["image-generation"],
+      "cost": { "imageCentsPerImage": 6 }
+    },
+    {
+      "id": "google/gemini-2.5-flash-image",
+      "displayName": "Nano Banana (Gemini 2.5 Flash Image)",
+      "description": "Gemini 2.5 multimodal image generation + editing via chat/completions. Supports reference images.",
+      "tags": ["image-generation", "image-edit"],
+      "imageGenerationMode": "chat-multimodal",
+      "cost": { "imageCentsPerImage": 4 }
+    }
+  ]
+}

@@ -105,9 +105,6 @@ trivy-reports/
 # Examples — seed configs are tracked; runtime additions are ignored
 # ---------------------------------------------------------------------------
 examples/**/.history/
-examples/providers/*
-!examples/providers/openrouter.json
-!examples/providers/openrouter.secrets.json
 
 # ---------------------------------------------------------------------------
 # Misc generated reports
