@@ -5,7 +5,10 @@ import { internalQuery } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
 import { checkBudget } from './budget_enforcement';
-import { checkModelAccess } from './model_access_enforcement';
+import {
+  checkModelAccess,
+  getAccessibleModels,
+} from './model_access_enforcement';
 import { resolveBudgetContext } from './resolve_budget_context';
 import { resolveDefaultModel } from './resolve_default_model';
 
@@ -357,6 +360,30 @@ export const checkModelAccessInternal = internalQuery({
       teamIds,
       member.role,
       args.modelId,
+    );
+  },
+});
+
+export const getAccessibleModelsInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    modelIds: v.array(v.string()),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: args.userId,
+    });
+    const teamIds = await getUserTeamIds(ctx, args.userId);
+
+    return getAccessibleModels(
+      ctx,
+      args.organizationId,
+      args.userId,
+      teamIds,
+      member.role,
+      args.modelIds,
     );
   },
 });

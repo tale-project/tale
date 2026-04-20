@@ -1,7 +1,7 @@
 'use client';
 
 import startCase from 'lodash/startCase';
-import { ChevronDown, Cpu } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Cpu } from 'lucide-react';
 import {
   type ReactNode,
   useCallback,
@@ -170,18 +170,28 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
     filteredModels,
   ]);
 
-  // Clear stale override when agent changes
+  // Keep override in sync with filteredModels:
+  // - Clear an override that's no longer permitted (e.g. agent changed or
+  //   governance policy tightened).
+  // - Auto-pin to the single permitted model so the backend uses the same
+  //   model the UI displays — otherwise the backend would fall back to
+  //   `supportedModels[0]`, which may bypass the model_access allowlist.
   useEffect(() => {
     if (!effectiveAgent?.name) return;
     const override = selectedModelOverrides[effectiveAgent.name];
     if (override && !filteredModels.includes(override)) {
       setSelectedModelOverride(effectiveAgent.name, null);
+      return;
+    }
+    if (!override && !isImageGenAgent && filteredModels.length === 1) {
+      setSelectedModelOverride(effectiveAgent.name, filteredModels[0]);
     }
   }, [
     effectiveAgent?.name,
     filteredModels,
     selectedModelOverrides,
     setSelectedModelOverride,
+    isImageGenAgent,
   ]);
 
   const handleSelect = useCallback(
@@ -196,22 +206,33 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
     [effectiveAgent?.name, setSelectedModelOverride],
   );
 
-  if (!filteredModels.length) return null;
+  if (!filteredModels.length) {
+    return (
+      <span
+        className="text-destructive flex items-center gap-1.5 text-xs"
+        role="status"
+      >
+        <AlertTriangle className="size-3.5" aria-hidden="true" />
+        <span>{t('modelSelector.noModelsAvailable')}</span>
+      </span>
+    );
+  }
+
+  // Single model — show its name as read-only text (not "Auto", since there's
+  // nothing to auto-select between).
+  if (filteredModels.length === 1) {
+    return (
+      <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
+        <Cpu className="size-3.5" aria-hidden="true" />
+        <span>{getDisplayName(filteredModels[0])}</span>
+      </span>
+    );
+  }
 
   const currentLabel =
     currentModelId === AUTO_MODEL
       ? t('modelSelector.auto')
       : getDisplayName(currentModelId);
-
-  // Single model — show as read-only text
-  if (filteredModels.length <= 1) {
-    return (
-      <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
-        <Cpu className="size-3.5" aria-hidden="true" />
-        <span>{currentLabel}</span>
-      </span>
-    );
-  }
 
   const modelOptions = filteredModels.map((ref) => {
     const info = modelInfoMap.get(stripModelRefQualifier(ref));

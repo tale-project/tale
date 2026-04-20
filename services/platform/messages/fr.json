@@ -2802,6 +2802,7 @@
       "noResults": "Aucun modèle trouvé",
       "auto": "Auto",
       "autoDescription": "Sélectionne automatiquement le meilleur modèle disponible avec repli",
+      "noModelsAvailable": "Aucun modèle disponible",
       "tags": {
         "chat": "Chat",
         "vision": "Vision",

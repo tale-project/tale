@@ -133,6 +133,49 @@ export const chatWithAgent = action({
       );
     }
 
+    // Enforce the model_access policy on the resolved default model AND on
+    // the fallback chain. The explicit-modelId path is already checked below;
+    // the implicit paths (governance default, supportedModels[0]) would
+    // otherwise bypass the allowlist, letting users invoke blocked models as
+    // long as they didn't pick one in the UI. Also filters fallbackModels so
+    // SDK retry can't silently hit a blocked model.
+    if (!args.modelId) {
+      const accessiblePlain = await ctx.runQuery(
+        internal.governance.internal_queries.getAccessibleModelsInternal,
+        {
+          organizationId: args.organizationId,
+          userId: authUserId,
+          modelIds: configResult.supportedModels.map(stripModelRefQualifier),
+        },
+      );
+      const accessibleSet = new Set(accessiblePlain);
+      const accessibleRefs = configResult.supportedModels.filter((ref) =>
+        accessibleSet.has(stripModelRefQualifier(ref)),
+      );
+      if (accessibleRefs.length === 0) {
+        await ctx.runMutation(
+          internal.threads.internal_mutations.clearGenerationStatus,
+          { threadId: args.threadId, streamId: preAllocatedStreamId },
+        );
+        throw new Error(
+          "No model in this agent is permitted by your organization's model access policy.",
+        );
+      }
+      const currentPlain = agentConfig.model
+        ? stripModelRefQualifier(agentConfig.model)
+        : null;
+      const chosenRef =
+        currentPlain && accessibleSet.has(currentPlain) && agentConfig.model
+          ? agentConfig.model
+          : accessibleRefs[0];
+      agentConfig.model = chosenRef;
+      const chosenPlain = stripModelRefQualifier(chosenRef);
+      const fallbacks = accessibleRefs.filter(
+        (ref) => stripModelRefQualifier(ref) !== chosenPlain,
+      );
+      agentConfig.fallbackModels = fallbacks.length > 0 ? fallbacks : undefined;
+    }
+
     // Helper to roll back generationStatus if we need to abort before startChat
     const rollbackGenerating = () =>
       ctx.runMutation(
