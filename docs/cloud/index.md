@@ -17,6 +17,10 @@ Choose Cloud when you want Tale's capabilities without operating the stack yours
 | Feature parity | Identical to Self-hosted                     | Identical to Cloud                                                 |
 | Best for       | Teams who want Tale without the ops overhead | Teams with data-sovereignty, air-gap, or custom-build requirements |
 
+## Infrastructure
+
+Tale Cloud runs on [Exoscale](https://www.exoscale.com/), a Swiss cloud provider. Tenants are pinned to one of Exoscale's [European data centres](https://www.exoscale.com/datacenters/) (Switzerland or EU), and Exoscale holds a [BSI C5 Type 2 attestation](https://www.exoscale.com/compliance/bsi-c5/) covering the compute, storage, and network infrastructure Tale runs on.
+
 ## In this section
 
 The Cloud chapters cover what is different when Tale is managed for you — onboarding, billing, regional data residency, trust and compliance posture, and the subset of admin actions that only exist on Cloud (hosted SSO, custom domains, audit-log export).

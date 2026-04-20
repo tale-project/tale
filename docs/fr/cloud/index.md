@@ -17,6 +17,10 @@ Choisis Cloud si tu veux profiter de Tale sans exploiter toi-même la stack, ou 
 | Parité fonctionnelle | Identique à Self-hosted                            | Identique à Cloud                                                             |
 | Adapté à             | Équipes qui veulent Tale sans la charge d'exploit. | Équipes ayant des exigences de souveraineté, d'air-gap ou de build sur mesure |
 
+## Infrastructure
+
+Tale Cloud tourne chez [Exoscale](https://www.exoscale.com/), un fournisseur cloud suisse. Chaque tenant est rattaché à un [centre de données européen](https://www.exoscale.com/datacenters/) d'Exoscale (Suisse ou UE), et Exoscale détient une [attestation BSI C5 de type 2](https://www.exoscale.com/compliance/bsi-c5/) couvrant les briques de calcul, de stockage et de réseau sur lesquelles Tale s'appuie.
+
 ## Dans cette section
 
 Les chapitres Cloud couvrent ce qui change quand Tale est exploité pour toi — onboarding, facturation, résidence régionale des données, posture de conformité et les actions d'administration qui n'existent qu'en Cloud (SSO hébergé, domaines personnalisés, export des journaux d'audit).

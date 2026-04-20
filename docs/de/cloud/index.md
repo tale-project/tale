@@ -17,6 +17,10 @@ Wähle Cloud, wenn du den vollen Funktionsumfang von Tale nutzen willst, ohne de
 | Funktionsumfang | Identisch zu Self-hosted                    | Identisch zu Cloud                                                       |
 | Passend für     | Teams, die Tale ohne Betriebsaufwand nutzen | Teams mit Anforderungen an Datensouveränität, Air-Gap oder eigenen Build |
 
+## Infrastruktur
+
+Tale Cloud läuft bei [Exoscale](https://www.exoscale.com/), einem Schweizer Cloud-Anbieter. Tenants sind fest einem [europäischen Rechenzentrum](https://www.exoscale.com/datacenters/) von Exoscale zugeordnet (Schweiz oder EU), und Exoscale verfügt über ein [BSI-C5-Typ-2-Testat](https://www.exoscale.com/compliance/bsi-c5/), das die Compute-, Storage- und Netzwerkinfrastruktur abdeckt, auf der Tale läuft.
+
 ## In diesem Bereich
 
 Die Cloud-Kapitel beschreiben, was bei einem gemanagten Betrieb anders läuft — Onboarding, Abrechnung, regionale Datenhaltung, Compliance-Nachweise und die Admin-Funktionen, die es nur in Cloud gibt (gehostetes SSO, eigene Domains, Audit-Log-Export).
