@@ -36,7 +36,7 @@ _request_count: Counter | None = None
 _request_duration: Histogram | None = None
 _active_registry: CollectorRegistry | None = None
 
-# Custom buckets optimised for HTTP request latencies (10 ms – 10 s).
+# Custom buckets optimised for HTTP request latencies (10 ms - 10 s).
 _HTTP_DURATION_BUCKETS = (
     0.01,
     0.025,

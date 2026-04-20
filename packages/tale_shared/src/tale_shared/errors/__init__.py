@@ -2,4 +2,4 @@
 
 from .base import ConfigError, ExtractionError, TaleError
 
-__all__ = ["TaleError", "ConfigError", "ExtractionError"]
+__all__ = ["ConfigError", "ExtractionError", "TaleError"]
