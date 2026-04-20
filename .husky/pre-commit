@@ -1,0 +1,15 @@
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$STAGED" ] && exit 0
+
+JS_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|json|jsonc|md|mdx|css|scss|yaml|yml|html)$' || true)
+PY_FILES=$(echo "$STAGED" | grep -E '\.py$' || true)
+
+if [ -n "$JS_FILES" ]; then
+  echo "$JS_FILES" | xargs bunx oxfmt -c .oxfmtrc.json
+  echo "$JS_FILES" | xargs git add
+fi
+
+if [ -n "$PY_FILES" ]; then
+  echo "$PY_FILES" | xargs uv run ruff format
+  echo "$PY_FILES" | xargs git add
+fi
