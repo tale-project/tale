@@ -3,9 +3,11 @@ title: Meeting-Transkription
 description: Meeting-Audio lokal mit Meetily aufzeichnen und über einen Tale-Agent zusammenfassen.
 ---
 
-Tale transkribiert Audio nicht serverseitig — das Diktat im Chat läuft komplett im Browser, und die Plattform hat keinen Whisper-Endpoint. Für einen vollständigen Meeting-Capture-Workflow (System-Audio aufnehmen, transkribieren, zusammenfassen, speichern) koppelst du Tale mit einem lokalen Tool, das den Audio-Pfad übernimmt. [Meetily](https://github.com/Zackriya-Solutions/meetily) ist ein MIT-lizenzierter, 100 % lokaler Meeting-Recorder, der mit Whisper.cpp auf dem Gerät transkribiert und nur das Transkript an ein LLM zum Zusammenfassen schickt.
+Tale unterstützt Audio-Transkription auf zwei Wegen, und dieses Tutorial beschreibt den **vollständig lokalen** Weg. Wenn du nur gelegentliche Aufnahmen zusammenfassen willst, ist der einfachere Pfad eine Audio- oder Video-Datei in den Chat zu ziehen — die serverseitige Transkriptions-Pipeline der Plattform übernimmt das (siehe [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription)). Für einen vollständigen Meeting-Capture-Workflow, bei dem die Roh-Audiodaten das Laptop der vortragenden Person nie verlassen, koppelst du Tale mit einem lokalen Tool, das den Audio-Pfad übernimmt. [Meetily](https://github.com/Zackriya-Solutions/meetily) ist ein MIT-lizenzierter, 100 % lokaler Meeting-Recorder, der mit Whisper.cpp auf dem Gerät transkribiert und nur das Transkript an ein LLM zum Zusammenfassen schickt.
 
 Diese Trennung ist wichtig: Roh-Audio verlässt das Gerät nicht, Whisper läuft auf dem Laptop der vortragenden Person, und Tale sieht immer nur Text. Deine bestehenden Row-Level-Security-, Audit- und Governance-Regeln decken den kompletten sensiblen Pfad ab, weil alles, was Tale erreicht, bereits ein echter Agent-Konversations-Thread ist.
+
+Wähle den serverseitigen Pfad, wenn Komfort zählt und du deinem konfigurierten Transkriptions-Anbieter das Audio anvertraust; wähle diesen Meetily-Pfad, wenn Compliance oder Netzwerkrichtlinien verlangen, dass Audio-Bytes die Gerätegrenze nie überschreiten.
 
 ## Was du baust
 

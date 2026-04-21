@@ -65,7 +65,7 @@ Si deux fournisseurs définissent le même ID de modèle, préfixe avec le slug 
 }
 ```
 
-Voir [Fournisseurs IA](/fr/platform/admin/providers) pour l'ensemble des règles.
+Voir [Fournisseurs IA — Rendre les modèles disponibles aux agents](/fr/self-hosted/configuration/providers#rendre-les-modèles-disponibles-aux-agents) pour l'ensemble des règles.
 
 ## Étape 4 — Tester depuis le chat
 
@@ -85,4 +85,4 @@ Les deux must-haves Admin profitent d'un fournisseur local :
 - **Tale ne joint pas Ollama depuis Docker** — `localhost` dans le conteneur Tale n'est pas l'hôte. Utilise `host.docker.internal` (Docker Desktop), l'IP LAN de l'hôte, ou mets Ollama et Tale sur le même réseau Docker.
 - **404 sur modèle** — l'ID du modèle est sensible à la casse et doit correspondre à ce que `ollama list` affiche.
 - **Réponses vides ou très courtes** — la fenêtre de contexte Ollama par défaut est petite. Tire une variante avec plus de contexte, ou override `num_ctx` dans le `Modelfile` du modèle.
-- **Clé API chiffrée requise** — si tu édites les fichiers de fournisseurs directement, le fichier de clé API doit être chiffré avec SOPS. Définir la clé via l'UI gère le chiffrement ; voir [Fournisseurs IA](/fr/platform/admin/providers).
+- **Clé API chiffrée requise** — si tu édites les fichiers de fournisseurs directement, le fichier de clé API doit être chiffré avec SOPS. Définir la clé via l'UI gère le chiffrement ; voir [Fournisseurs IA — Secrets chiffrés par SOPS](/fr/self-hosted/configuration/providers#secrets-chiffrés-par-sops).

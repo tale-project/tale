@@ -3,9 +3,11 @@ title: Meeting transcription
 description: Capture meeting audio locally with Meetily and summarise through a Tale agent.
 ---
 
-Tale does not transcribe audio server-side — the dictation in chat runs entirely in the browser, and the platform has no Whisper endpoint. For a full meeting-capture workflow (record system audio, transcribe, summarise, store) you pair Tale with a local tool that handles the audio path. [Meetily](https://github.com/Zackriya-Solutions/meetily) is an MIT-licensed, 100% local meeting recorder that transcribes with Whisper.cpp on-device and sends only the transcript to an LLM for summarisation.
+Tale supports audio transcription two ways, and this tutorial walks through the **fully local** option. If you only need to summarise ad-hoc recordings, dropping an audio or video file into chat is the simplest path — the platform's transcription pipeline handles it server-side (see [Chat attachments](/platform/chat/attachments#audio-and-video-transcription)). But for a full meeting-capture workflow where the raw audio never leaves the presenter's laptop, you pair Tale with a local tool that handles the audio path. [Meetily](https://github.com/Zackriya-Solutions/meetily) is an MIT-licensed, 100% local meeting recorder that transcribes with Whisper.cpp on-device and sends only the transcript to an LLM for summarisation.
 
 That split matters: raw audio never leaves the endpoint, Whisper runs on the presenter's laptop, and Tale only ever sees text. Your existing row-level security, audit logging, and governance policies cover the full sensitive path because everything that reaches Tale is a real agent conversation thread.
+
+Pick the server-side flow when convenience matters and you trust your configured transcription provider with the audio; pick this Meetily flow when compliance or network policy requires that audio bytes never cross the endpoint boundary.
 
 ## What you will build
 

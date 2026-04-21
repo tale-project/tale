@@ -25,9 +25,9 @@ Contrôle quels modèles sont disponibles à des équipes ou utilisateurs préci
 
 Définis des limites de dépenses par utilisateur, par équipe ou pour l'organisation. Configure la période (quotidien, hebdo, mensuel) et l'action en cas de dépassement — avertir, bloquer les nouvelles requêtes ou désactiver le chat.
 
-### Politique d'upload
+### Politique d'upload {#upload-policy}
 
-Restreins les téléversements par type, taille ou nombre. Utile pour empêcher de gros uploads binaires ou bloquer des types exécutables.
+Restreins les téléversements par type, taille ou nombre. Utile pour empêcher de gros uploads binaires ou bloquer des types exécutables. Des plafonds de taille par type MIME permettent d'appliquer une limite plus stricte à certains contenus — par exemple `audio/*` à 25 Mo tout en laissant la limite globale à 100 Mo.
 
 ### Rétention
 

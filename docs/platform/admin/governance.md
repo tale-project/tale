@@ -25,9 +25,9 @@ Control which models are available to specific teams or users. Restrict expensiv
 
 Set spending limits per user, per team, or for the whole organisation. Configure the period (daily, weekly, monthly) and the action to take when the limit is hit — warn, block new requests, or disable chat entirely.
 
-### Upload policy
+### Upload policy {#upload-policy}
 
-Restrict file uploads by type, size, or count. Useful when you want to prevent large binary uploads or block executable file types.
+Restrict file uploads by type, size, or count. Useful when you want to prevent large binary uploads or block executable file types. Per-MIME-type size caps let you apply a tighter limit to specific kinds of content — for example, `audio/*` at 25 MB while leaving the global limit at 100 MB.
 
 ### Retention
 

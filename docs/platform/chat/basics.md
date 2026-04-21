@@ -22,8 +22,10 @@ You can attach files to any message by clicking the paperclip icon or dragging f
 - Images: PNG, JPEG, GIF, WebP. The agent analyzes the visual content.
 - Documents: PDF, DOCX, XLSX, PPTX, TXT, Markdown. The agent reads the content.
 - Code files: JS, TS, Python, and most common source file formats.
+- Audio: MP3, M4A, WAV, OGG, WebM. The audio is transcribed server-side and the transcript is passed to the agent.
+- Video: MP4, MOV, MKV, WebM, AVI, MPEG, 3GP, M4V. The audio track is extracted, transcribed, and passed to the agent — visual content is not sent.
 
-Files are uploaded before the message is sent. A loading spinner shows for each file while it uploads.
+Files are uploaded before the message is sent. A loading spinner shows for each file while it uploads; audio and video attachments also show a transcription status until they finish processing. See [Chat attachments](/platform/chat/attachments) for the full pipeline.
 
 ## Selecting an agent
 
@@ -43,12 +45,13 @@ Click the clock icon in the top toolbar to open the history sidebar. You can:
 
 The default chat agent can handle:
 
-| Tool category         | What you can ask                                                       |
-| --------------------- | ---------------------------------------------------------------------- |
-| Knowledge base search | Ask questions answered by your uploaded documents and crawled websites |
-| Web search            | Search the internet for current information                            |
-| Document handling     | Parse and analyze PDF, Word, PowerPoint, Excel, and text files         |
-| Image analysis        | Describe, analyze, or extract information from images                  |
+| Tool category         | What you can ask                                                         |
+| --------------------- | ------------------------------------------------------------------------ |
+| Knowledge base search | Ask questions answered by your uploaded documents and crawled websites   |
+| Web search            | Search the internet for current information                              |
+| Document handling     | Parse and analyze PDF, Word, PowerPoint, Excel, and text files           |
+| Image analysis        | Describe, analyze, or extract information from images                    |
+| Audio transcription   | Transcribe attached audio or video files so the agent can summarise them |
 
 ## Arena mode
 

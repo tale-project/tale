@@ -89,6 +89,7 @@
                 "group": "Configuration",
                 "pages": [
                   "self-hosted/configuration/environment-reference",
+                  "self-hosted/configuration/providers",
                   "self-hosted/configuration/retention"
                 ]
               },
@@ -172,10 +173,7 @@
               },
               {
                 "group": "Integrations",
-                "pages": [
-                  "platform/integrations/overview",
-                  "platform/integrations/providers"
-                ]
+                "pages": ["platform/integrations/overview"]
               },
               {
                 "group": "Member",
@@ -292,6 +290,7 @@
                 "group": "Konfiguration",
                 "pages": [
                   "de/self-hosted/configuration/environment-reference",
+                  "de/self-hosted/configuration/providers",
                   "de/self-hosted/configuration/retention"
                 ]
               },
@@ -375,10 +374,7 @@
               },
               {
                 "group": "Integrationen",
-                "pages": [
-                  "de/platform/integrations/overview",
-                  "de/platform/integrations/providers"
-                ]
+                "pages": ["de/platform/integrations/overview"]
               },
               {
                 "group": "Member",
@@ -495,6 +491,7 @@
                 "group": "Configuration",
                 "pages": [
                   "fr/self-hosted/configuration/environment-reference",
+                  "fr/self-hosted/configuration/providers",
                   "fr/self-hosted/configuration/retention"
                 ]
               },
@@ -578,10 +575,7 @@
               },
               {
                 "group": "Intégrations",
-                "pages": [
-                  "fr/platform/integrations/overview",
-                  "fr/platform/integrations/providers"
-                ]
+                "pages": ["fr/platform/integrations/overview"]
               },
               {
                 "group": "Member",

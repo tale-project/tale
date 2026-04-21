@@ -65,7 +65,7 @@ If two providers define the same model ID, prefix with the provider slug to pin 
 }
 ```
 
-See [Providers — Making models available in chat](/platform/admin/providers#making-models-available-in-chat) for the full rules.
+See [Providers — Making models available to agents](/self-hosted/configuration/providers#making-models-available-to-agents) for the full rules.
 
 ## Step 4 — Test from chat
 
@@ -85,4 +85,4 @@ Both admin must-haves benefit from a local provider:
 - **Tale cannot reach Ollama from Docker** — `localhost` inside the Tale container is not the host. Use `host.docker.internal` (Docker Desktop), the host LAN IP, or put Ollama and Tale on the same Docker network.
 - **404 on model** — model ID is case-sensitive and must match the name `ollama list` prints.
 - **Empty or very short answers** — default Ollama context window is small. Pull a larger-context variant or override `num_ctx` in the model's `Modelfile`.
-- **Encrypted API key required** — if you edit provider files directly, the API-key file must be SOPS-encrypted. Setting the key via the UI handles encryption for you; see [Providers — Provider files](/platform/admin/providers#provider-files).
+- **Encrypted API key required** — if you edit provider files directly, the API-key file must be SOPS-encrypted. Setting the key via the UI handles encryption for you; see [Providers — SOPS-encrypted secrets](/self-hosted/configuration/providers#sops-encrypted-secrets).

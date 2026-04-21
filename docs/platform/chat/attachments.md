@@ -14,15 +14,30 @@ You can attach multiple files at once. Each file shows a progress spinner while 
 
 ## Supported file types
 
-| Category      | Extensions                                     | What the AI does                                                         |
-| ------------- | ---------------------------------------------- | ------------------------------------------------------------------------ |
-| **Images**    | PNG, JPEG, GIF, WebP                           | Looks at visual content — layout, charts, photos, text inside the image. |
-| **Documents** | PDF, DOCX, XLSX, PPTX, TXT, Markdown           | Reads the text content, including tables and headings.                   |
-| **Code**      | JS, TS, Python, and most common source formats | Reads the source as plain text with syntax awareness.                    |
+| Category      | Extensions                                     | What the AI does                                                                                           |
+| ------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Images**    | PNG, JPEG, GIF, WebP                           | Looks at visual content — layout, charts, photos, text inside the image.                                   |
+| **Documents** | PDF, DOCX, XLSX, PPTX, TXT, Markdown           | Reads the text content, including tables and headings.                                                     |
+| **Code**      | JS, TS, Python, and most common source formats | Reads the source as plain text with syntax awareness.                                                      |
+| **Audio**     | MP3, M4A, WAV, OGG, WebM audio                 | Transcribes the audio track and hands the text to the agent. The raw bytes never reach the chat model.     |
+| **Video**     | MP4, MOV, MKV, WebM, AVI, MPEG, 3GP, M4V       | Extracts the audio track, transcribes it, and hands the text to the agent. Visual content is **not** sent. |
+
+### Audio and video transcription
+
+When you attach an audio or video file, the platform runs a server-side transcription pipeline before the message is sent:
+
+1. The file is compressed to Opus (and chunked if large) so it fits the transcription model's input limit.
+2. Each chunk is sent to the organisation's configured **transcription** provider model (e.g. OpenAI Whisper or a self-hosted Whisper-compatible server such as faster-whisper-server, vLLM, or LocalAI).
+3. The returned transcript is attached to the message as text.
+
+A status pill on the attachment shows progress — _Transcribing…_, _Transcribed_, or _Could not be transcribed_. You can skip transcription per attachment, or retry a failed one. A message with pending audio cannot be sent until every attachment is either transcribed, skipped, or failed.
+
+Admins must configure a provider model tagged `transcription` for this to work — see [AI providers](/platform/admin/providers). Transcription calls are billed per minute of audio and recorded in the usage ledger alongside chat tokens.
 
 ## Size and count limits
 
-- **Maximum file size:** 100 MB per file.
+- **Maximum file size:** 100 MB per file by default. Admins can set a lower per-MIME-type cap (e.g. 25 MB for audio) in the [Upload policy](/platform/admin/governance#upload-policy).
+- **Audio duration:** audio and video uploads are capped at 4 hours of audio. Longer files are rejected on upload — split the recording into shorter segments.
 - **Maximum files per message:** 10. For bulk ingestion use the [knowledge base](/platform/workspace/knowledge-base) instead.
 
 ## Where attachments live

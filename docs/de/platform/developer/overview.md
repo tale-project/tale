@@ -29,7 +29,7 @@ Siehe [Strukturierte Daten](/de/platform/knowledge/structured-data) und [Website
 
 Integrationen verbinden Tale mit den Systemen, in denen eure echten Daten liegen — REST-APIs, SQL-Datenbanken, E-Mail, Microsoft 365. Einmal konfiguriert, stehen Integrationen Agents als Tools und Automatisierungen als Action-Steps zur Verfügung.
 
-Siehe [Integrationen – Überblick](/de/platform/integrations/overview) und [Bring your own model](/de/platform/integrations/providers).
+Siehe [Integrationen – Überblick](/de/platform/integrations/overview) und [KI-Anbieter](/de/platform/admin/providers).
 
 ## Berechtigungen
 

@@ -1,69 +1,45 @@
 ---
 title: KI-Anbieter
-description: KI-Modell-Anbieter für deine Organisation konfigurieren und verwalten.
+description: Tale über Anbieter mit KI-Modellen verbinden — OpenAI-kompatible Endpunkte, verwaltet über die Einstellungen-UI.
 ---
 
-Tale verbindet sich mit KI-Modellen über **Anbieter** — OpenAI-kompatible API-Endpunkte. Jeder Anbieter hat eine Base-URL, einen API-Schlüssel und eine oder mehrere Modell-Definitionen. Ab Werk liefert Tale einen [OpenRouter](https://openrouter.ai)-Beispiel-Anbieter mit, der über einen einzigen API-Schlüssel Zugriff auf Modelle von OpenAI, Anthropic, Google, Mistral, Meta und anderen gibt.
+Tale spricht mit KI-Modellen über **Anbieter** — jeder Anbieter ist ein OpenAI-kompatibler API-Endpunkt (OpenAI, OpenRouter, Anthropic über OpenRouter, Google, selbst gehostetes Ollama, vLLM usw.) samt Katalog an Modell-Definitionen. Ein Anbieter legt fest, _welche_ Modelle es gibt und _wie_ sie genutzt werden können (Chat, Vision, Embedding, Bild-Generierung, Transkription). Admins verwalten Anbieter unter **Einstellungen > KI-Anbieter** im laufenden Betrieb; Nutzer sehen die resultierenden Modelle im Chat-Modell-Picker und in der Agent-Konfiguration.
 
-Diese Seite beschreibt das tägliche Anbieter-Management im Admin-UI. Für das Anbinden selbst gehosteter Modelle (Ollama, vLLM, LocalAI, etc.) siehe [Eigene Modelle anbinden](/de/platform/integrations/providers).
+Tale liefert einen [OpenRouter](https://openrouter.ai)-Beispiel-Anbieter mit, der über einen einzigen API-Schlüssel Zugriff auf Modelle von OpenAI, Anthropic, Google, Mistral, Meta und anderen gibt — der schnellste Weg, einen Chat-Arbeitsbereich durchgehend lauffähig zu machen.
 
-## Anbieter verwalten
+## Anbieter in den Einstellungen verwalten
 
-Anbieter werden unter **Einstellungen > Anbieter** in der Management-UI verwaltet. Admins können:
+Öffne **Einstellungen > KI-Anbieter**. Admins können:
 
-- **Einen Anbieter hinzufügen** mit Namen, Display-Namen, Base-URL, API-Schlüssel und einem oder mehreren Modellen.
-- **Einen Anbieter bearbeiten**, um Display-Namen, Beschreibung, Base-URL und Default-Modelle zu ändern. Die Beschreibung erscheint in der Anbieter-Liste und hilft Nutzern zu verstehen, wofür der Anbieter gedacht ist. Default-Modelle legen fest, welches Modell für Chat, Vision und Embedding vorausgewählt ist.
-- **Einen Anbieter löschen**, um ihn vollständig zu entfernen.
+- **Einen Anbieter hinzufügen** mit Namen, Display-Namen, Base-URL, API-Schlüssel und einem oder mehreren Modellen. Jeder Modell-Eintrag trägt eine ID (muss dem vom Endpunkt akzeptierten Namen entsprechen), einen Display-Namen, eine optionale Beschreibung und ein oder mehrere Tags.
+- **Einen Anbieter bearbeiten**, um Display-Namen, Beschreibung, Base-URL, API-Schlüssel, Default-Modelle pro Capability und den Modell-Katalog zu aktualisieren.
+- **Einen Anbieter löschen**, um ihn vollständig zu entfernen. Agents, die noch auf die Modelle des Anbieters verweisen, zeigen eine Warnung, bis du einen Ersatz auswählst.
 
-Jede Modell-Definition enthält eine ID (muss dem vom API erwarteten Modellnamen entsprechen), einen Display-Namen und ein oder mehrere Tags (`chat`, `vision`, `embedding`), die bestimmen, wo das Modell in der Plattform erscheint.
+Die in der Anbieter-Liste angezeigte **Beschreibung** hilft Nutzern, den Einsatzzweck zu verstehen (z. B. "OpenAI — Whisper für Speech-to-Text"). Mit **Default-Modellen** pro Capability legst du vorab fest, welches Modell für Chat, Vision, Embedding, Bild-Generierung und Transkription greift, wenn Nutzer keines explizit wählen.
 
-### Anbieter-Dateien
+## Modell-Tags
 
-Die Anbieter-Konfiguration liegt als JSON-Dateien im Verzeichnis `providers/` unter `TALE_CONFIG_DIR`:
+Jedes Modell gehört zu einem oder mehreren Tags. Tags steuern, wo das Modell im Produkt auftaucht:
 
-- `providers/<name>.json` — öffentliche Konfiguration (Base-URL, Modelle, Tags).
-- `providers/<name>.secrets.json` — SOPS-verschlüsselter API-Schlüssel.
+| Tag                | Wo das Modell erscheint                                                                                                             |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `chat`             | Erscheint im Chat-Modell-Selector und kann in `supportedModels` von Agents referenziert werden.                                     |
+| `vision`           | Qualifiziert für Nachrichten mit Bild-Anhängen.                                                                                     |
+| `embedding`        | Wird von der [Wissensdatenbank](/de/platform/workspace/knowledge-base) für Dokument-Retrieval genutzt.                              |
+| `image-generation` | Wird von Bild-Generierungs-Agents genutzt.                                                                                          |
+| `image-edit`       | Wird von Bild-Bearbeitungs-Agents genutzt.                                                                                          |
+| `transcription`    | Transkribiert Audio- und Video-Uploads im Chat — siehe [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription). |
 
-Du kannst die Dateien auch direkt bearbeiten, statt die UI zu nutzen. Siehe [Environment-Referenz](/de/self-hosted/configuration/environment-reference) für den Ort von `TALE_CONFIG_DIR`.
-
-## Den Beispiel-Anbieter nutzen
-
-Das Repository enthält einen einsatzbereiten OpenRouter-Config in `examples/providers/`. So nutzt du ihn:
-
-1. Kopiere die Beispieldateien in dein Config-Verzeichnis:
-
-```bash
-cp examples/providers/openrouter.json $TALE_CONFIG_DIR/providers/
-cp examples/providers/openrouter.secrets.json $TALE_CONFIG_DIR/providers/
-```
-
-2. Setze deinen OpenRouter-API-Schlüssel. Einen kannst du unter [openrouter.ai/keys](https://openrouter.ai/keys) anlegen.
-
-3. Verschlüssle die Secrets-Datei mit SOPS oder aktualisiere den API-Schlüssel via UI unter **Einstellungen > Anbieter > OpenRouter**.
-
-Der Beispiel-Anbieter umfasst Modelle mehrerer Hersteller:
-
-| Hersteller | Modelle                                   | Tags         |
-| ---------- | ----------------------------------------- | ------------ |
-| Anthropic  | Claude Opus 4.6, Sonnet 4.6, Haiku 4.5    | chat, vision |
-| OpenAI     | GPT-5.2, GPT-5.2 Instant, GPT-5.2 Pro     | chat, vision |
-| Google     | Gemini 3 Pro, Gemini 3 Flash              | chat, vision |
-| Mistral    | Mistral Large 3, Mistral Medium 3         | chat         |
-| Meta       | LLaMA 4 Maverick, LLaMA 4 Scout           | chat         |
-| DeepSeek   | DeepSeek V3.2                             | chat         |
-| Moonshot   | Kimi K2.5                                 | chat         |
-| Qwen       | Qwen3 Next 80B, Qwen3.5 35B, Qwen3 VL 32B | chat, vision |
+Ein einzelner Anbieter kann Tags mischen — ein OpenAI-Anbieter kann `chat`-, `vision`- und `transcription`-Modelle nebeneinander bereitstellen.
 
 ## Modelle im Chat verfügbar machen
 
-Nach dem Anlegen eines Anbieters mit Modellen musst du die Model-IDs zusätzlich in die `supportedModels`-Liste des Agents eintragen. Agent-Konfigurationen liegen unter `TALE_CONFIG_DIR/agents/`. Bearbeite die passende Agent-JSON-Datei und ergänze die exakten Model-IDs aus deinem Anbieter-Config (`models[*].id`):
+Anbieter legen fest, welche Modelle es _gibt_. Agents legen fest, auf welchen davon sie _laufen dürfen_. Öffne den Agent unter **Agents > (Agent-Name)** und ergänze Modell-IDs in der Modell-Liste; nur Modelle, die in mindestens einem Anbieter vorhanden und am Agent gelistet sind, erscheinen im Chat-Modell-Selector.
 
-```json
-{
-  "supportedModels": ["llama3.3", "anthropic/claude-opus-4.6"]
-}
-```
+Der Standard-Chat-Agent ist mit den OpenRouter-Beispiel-Modellen vorkonfiguriert. Eigene Agents starten leer — wähle die Modelle aus, die der Agent unterstützen soll. Wie sich der Selector verhält, wenn zwei Anbieter dieselbe Modell-ID definieren (und wie Pinning funktioniert), steht in der unten verlinkten Anbieter-Referenz.
 
-Die IDs müssen exakt mit dem Feld `id` in der Modell-Definition des Anbieters übereinstimmen.
+## Self-hosted-Instanzen: Konfiguration als Dateien
 
-Nur Modelle aus `supportedModels` mit dem Tag `chat` erscheinen im Modell-Selector.
+Self-hosted-Betreiber können Anbieter zusätzlich zur UI über JSON-Konfigurationsdateien verwalten — nützlich für Infrastructure-as-Code-Workflows, Bulk-Änderungen oder Deployments, in denen die UI nicht erreichbar ist. UI und Dateien bleiben synchron; das Speichern aus **Einstellungen > KI-Anbieter** schreibt dasselbe JSON.
+
+Für das Datei-Schema, mitgelieferte Beispiel-Anbieter, SOPS-verschlüsselte Secrets, selbst gehostete Inferenz-Backends (Ollama, vLLM, LocalAI, faster-whisper-server), Docker-Host-Networking und die Syntax zum Anbieter-Pinning siehe [KI-Anbieter — Konfigurationsreferenz](/de/self-hosted/configuration/providers).

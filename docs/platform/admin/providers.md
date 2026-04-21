@@ -1,84 +1,45 @@
 ---
 title: AI providers
-description: Configure and manage AI model providers for your organisation.
+description: Connect Tale to AI models through providers — OpenAI-compatible endpoints managed from the Settings UI.
 ---
 
-Tale connects to AI models through **providers** — OpenAI-compatible API endpoints. Each provider has a base URL, an API key, and one or more model definitions. Out of the box, Tale ships with an [OpenRouter](https://openrouter.ai) example provider that gives access to models from OpenAI, Anthropic, Google, Mistral, Meta, and others through a single API key.
+Tale talks to AI models through **providers** — each provider is an OpenAI-compatible API endpoint (OpenAI, OpenRouter, Anthropic via OpenRouter, Google, self-hosted Ollama, vLLM, etc.) together with a catalogue of model definitions. A provider exposes _what_ models exist and _how_ they can be used (chat, vision, embedding, image generation, transcription). Admins manage providers from **Settings > Providers** in the running app; users see the resulting models in the chat model picker and in agent configuration.
 
-This page covers day-to-day provider management in the admin UI. For connecting self-hosted models (Ollama, vLLM, LocalAI, etc.), see [Bring your own model](/platform/integrations/providers).
+Tale ships with an [OpenRouter](https://openrouter.ai) example provider that gives access to models from OpenAI, Anthropic, Google, Mistral, Meta, and others through a single API key — the fastest way to get a chat workspace running end to end.
 
-## Managing providers
+## Managing providers in Settings
 
-Providers are managed in **Settings > Providers** in the management UI. Admins can:
+Open **Settings > Providers**. Admins can:
 
-- **Add a provider** with a name, display name, base URL, API key, and one or more models.
-- **Edit a provider** to update its display name, description, base URL, and default models. The description is shown in the provider list to help users understand what the provider is for. Default models let you pre-select which model is used for chat, vision, and embedding when users pick this provider.
-- **Delete a provider** to remove it entirely.
+- **Add a provider** with a name, display name, base URL, API key, and one or more models. Each model entry carries an ID (must match what the endpoint accepts), a display name, an optional description, and one or more tags.
+- **Edit a provider** to update its display name, description, base URL, API key, default models per capability, and its model catalogue.
+- **Delete a provider** to remove it entirely. Agents that still reference the provider's models show a warning until you pick a replacement.
 
-Each model definition includes an ID (must match the model name expected by the API), a display name, and one or more tags (`chat`, `vision`, `embedding`) that control where the model appears in the platform.
+The **description** shown in the provider list helps users understand what the provider is for (e.g. "OpenAI — Whisper for speech-to-text"). **Default models** per capability let you pre-select which model is used for chat, vision, embedding, image generation, and transcription when a user doesn't pick one explicitly.
 
-### Provider files
+## Model tags
 
-Provider configuration is stored as JSON files in the `providers/` directory inside `TALE_CONFIG_DIR`:
+Every model belongs to one or more tags. Tags control where the model shows up in the product:
 
-- `providers/<name>.json` — public config (base URL, models, tags).
-- `providers/<name>.secrets.json` — SOPS-encrypted API key.
+| Tag                | Where the model shows up                                                                                                     |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `chat`             | Appears in the chat model selector and can be referenced by agents' `supportedModels`.                                       |
+| `vision`           | Eligible for messages that include image attachments.                                                                        |
+| `embedding`        | Used by the [knowledge base](/platform/workspace/knowledge-base) for document retrieval.                                     |
+| `image-generation` | Used by image-generation agents.                                                                                             |
+| `image-edit`       | Used by image-edit agents.                                                                                                   |
+| `transcription`    | Transcribes audio and video chat uploads — see [Chat attachments](/platform/chat/attachments#audio-and-video-transcription). |
 
-You can also edit these files directly instead of using the UI. See [environment reference](/self-hosted/configuration/environment-reference) for the `TALE_CONFIG_DIR` location.
-
-## Using the example provider
-
-The repository includes a ready-to-use OpenRouter provider config in `examples/providers/`. To use it:
-
-1. Copy the example files to your config directory:
-
-```bash
-cp examples/providers/openrouter.json $TALE_CONFIG_DIR/providers/
-cp examples/providers/openrouter.secrets.json $TALE_CONFIG_DIR/providers/
-```
-
-2. Set your OpenRouter API key. You can get one at [openrouter.ai/keys](https://openrouter.ai/keys).
-
-3. Encrypt the secrets file with SOPS or update the API key via the UI in **Settings > Providers > OpenRouter**.
-
-The example provider includes models across multiple vendors:
-
-| Vendor    | Models                                    | Tags         |
-| --------- | ----------------------------------------- | ------------ |
-| Anthropic | Claude Opus 4.6, Sonnet 4.6, Haiku 4.5    | chat, vision |
-| OpenAI    | GPT-5.2, GPT-5.2 Instant, GPT-5.2 Pro     | chat, vision |
-| Google    | Gemini 3 Pro, Gemini 3 Flash              | chat, vision |
-| Mistral   | Mistral Large 3, Mistral Medium 3         | chat         |
-| Meta      | LLaMA 4 Maverick, LLaMA 4 Scout           | chat         |
-| DeepSeek  | DeepSeek V3.2                             | chat         |
-| Moonshot  | Kimi K2.5                                 | chat         |
-| Qwen      | Qwen3 Next 80B, Qwen3.5 35B, Qwen3 VL 32B | chat, vision |
+A single provider can mix tags — one OpenAI provider can expose `chat`, `vision`, and `transcription` models side by side.
 
 ## Making models available in chat
 
-After adding a provider with models, you also need to add the model IDs to the agent's `supportedModels` list. Agent configurations are stored in `TALE_CONFIG_DIR/agents/`. Edit the relevant agent JSON file and add the exact model IDs as defined in your provider config (`models[*].id`):
+Providers define what models _exist_. Agents define which of those models they _can run on_. Open the agent in **Agents > (agent name)** and add model IDs to its model list; only models present in at least one provider and listed on the agent appear in the chat model selector.
 
-```json
-{
-  "supportedModels": ["llama3.3", "anthropic/claude-opus-4.6"]
-}
-```
+The default chat agent is pre-configured with the OpenRouter example models. Custom agents start empty — pick the models you want the agent to support. For how the selector behaves when two providers define the same model ID (and how pinning works), see the on-disk provider reference below.
 
-The IDs must match the `id` field in the provider's model definition exactly.
+## Self-hosted instances: configuration as files
 
-Only models listed in `supportedModels` with the `chat` tag appear in the model selector dropdown.
+Self-hosted operators can manage providers through JSON config files in addition to the UI — useful for infrastructure-as-code workflows, bulk edits, or deployments where the UI is not reachable. The UI and the files stay in sync; saving from **Settings > Providers** writes the same JSON.
 
-### Pinning an entry to a specific provider
-
-When the same model id is defined in more than one provider file (e.g., `anthropic/claude-opus-4.6` in both `openrouter.json` and a direct `anthropic.json`), prefix the entry with `<provider>:` to pin routing explicitly:
-
-```json
-{
-  "supportedModels": [
-    "openrouter:anthropic/claude-opus-4.6",
-    "anthropic:claude-opus-4.6"
-  ]
-}
-```
-
-Plain entries (no colon) continue to work and resolve to the first provider that defines the id; the agent save path emits a warning whenever an unqualified entry matches more than one provider so you can disambiguate. Direct filesystem edits to agent JSON bypass this save-time validation — the runtime resolver will still surface warnings, but pinning explicitly in the file is safer for multi-provider setups.
+For the file schema, bundled example providers, SOPS-encrypted secrets, self-hosted inference backends (Ollama, vLLM, LocalAI, faster-whisper-server), Docker host networking, and provider pinning syntax, see [Providers — configuration reference](/self-hosted/configuration/providers).

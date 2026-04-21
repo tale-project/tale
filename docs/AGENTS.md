@@ -55,11 +55,27 @@ Operators and end users share the tab. They live in different subdirectories so 
 - **Feature reference goes under `platform/`.** One canonical page per feature. Cloud and role pages link in; they do not re-document.
 - **Deployment-only content goes under its flavour tab.** Install docs only apply to Self-hosted; billing only applies to Cloud.
 - **Role pages own the task, platform pages own the concept.** An Editor's how-to on uploading a document lives at `self-hosted/editor/knowledge-base.md`; the full walkthrough lives at `platform/workspace/knowledge-base.md`. Never copy the walkthrough into a role page — link to it.
+- **`platform/` is the UI. System access lives under `self-hosted/`.** Anything a user — including admins — does inside the running app (click a button, fill in a form, toggle a setting in **Settings > …**) goes under `platform/`. Anything that requires filesystem access, config files (`TALE_CONFIG_DIR/**`), environment variables, CLI commands, SOPS (the encrypted-secrets tool used for `*.secrets.json` files), Docker, or server-side deployment goes under `self-hosted/configuration/` or `self-hosted/operate/`. When the same feature has both a UI path and a config-file path, `platform/` describes **only** the UI path and links to the self-hosted reference for the file form. Never paste a JSON config snippet, a `cp examples/... $TALE_CONFIG_DIR/...` command, or an env-var table into a `platform/` page — those contradict the Cloud reader's reality and belong one tab over.
 - **Owner has no directory.** Owner is Admin plus a small set of org-lifecycle actions, which live in one page: `self-hosted/admin/organization-lifecycle.md`.
 - **Disabled has no docs.** A Disabled account cannot access the product.
 - **Cloud has no role split.** Cloud readers consume `platform/` directly; role permissions are covered by the shared canonical matrix at `self-hosted/admin/members-and-roles.md` (linked from Cloud admin pages).
 
 Never mix audiences in one page. If a concept genuinely spans audiences, write two short pages that cross-link, not one hybrid page.
+
+#### Worked example — UI vs system content
+
+A provider has two surfaces. Both are legitimate, but they belong in different tabs:
+
+| Aspect                                                                       | Belongs in                                                                 |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| What **Settings > Providers** shows, how to add/edit/delete a provider there | `platform/admin/providers.md`                                              |
+| What model tags mean (`chat`, `vision`, `transcription`) — a product concept | `platform/admin/providers.md`                                              |
+| The JSON file layout, `defaults.*` keys, `cost.centsPerAudioMinute`          | `self-hosted/configuration/providers.md` (or wherever the file form lives) |
+| `cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/`              | `self-hosted/configuration/providers.md`                                   |
+| `TALE_CONFIG_DIR` value per deployment flavour                               | `self-hosted/configuration/environment-reference.md`                       |
+| SOPS encryption of `*.secrets.json`                                          | `self-hosted/configuration/providers.md`                                   |
+
+A Cloud reader lands on `platform/admin/providers.md`, sees a `cp` command, and is confused — they have no shell on the instance. Keep the platform page pure: describe the UI, link out for the file form.
 
 ## Writing style
 

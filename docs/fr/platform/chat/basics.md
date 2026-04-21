@@ -22,8 +22,10 @@ Tu peux joindre des fichiers à chaque message en cliquant sur l'icône trombone
 - Images : PNG, JPEG, GIF, WebP. L'agent analyse le contenu visuel.
 - Documents : PDF, DOCX, XLSX, PPTX, TXT, Markdown. L'agent lit le contenu.
 - Fichiers code : JS, TS, Python et la plupart des formats source courants.
+- Audio : MP3, M4A, WAV, OGG, WebM. La piste audio est transcrite côté serveur et le texte est transmis à l'agent.
+- Vidéo : MP4, MOV, MKV, WebM, AVI, MPEG, 3GP, M4V. La piste audio est extraite, transcrite et transmise à l'agent — le contenu visuel n'est pas envoyé.
 
-Les fichiers sont téléversés avant l'envoi du message. Un spinner indique chaque fichier pendant son téléversement.
+Les fichiers sont téléversés avant l'envoi du message. Un spinner indique chaque fichier pendant son téléversement ; les pièces jointes audio et vidéo affichent en plus un statut de transcription jusqu'à la fin du traitement. Voir [Pièces jointes du chat](/fr/platform/chat/attachments) pour la pipeline complète.
 
 ## Choisir un agent
 
@@ -43,12 +45,13 @@ Clique sur l'icône horloge de la barre d'outils pour ouvrir la barre latérale 
 
 L'agent par défaut gère :
 
-| Catégorie d'outil                | Ce que tu peux demander                                                 |
-| -------------------------------- | ----------------------------------------------------------------------- |
-| Recherche dans les connaissances | poser des questions étayées par tes documents envoyés et sites crawlés. |
-| Recherche web                    | chercher des informations d'actualité sur internet.                     |
-| Traitement de documents          | analyser PDF, Word, PowerPoint, Excel et fichiers texte.                |
-| Analyse d'image                  | décrire, analyser ou extraire des infos d'images.                       |
+| Catégorie d'outil                | Ce que tu peux demander                                                    |
+| -------------------------------- | -------------------------------------------------------------------------- |
+| Recherche dans les connaissances | poser des questions étayées par tes documents envoyés et sites crawlés.    |
+| Recherche web                    | chercher des informations d'actualité sur internet.                        |
+| Traitement de documents          | analyser PDF, Word, PowerPoint, Excel et fichiers texte.                   |
+| Analyse d'image                  | décrire, analyser ou extraire des infos d'images.                          |
+| Transcription audio              | transcrire les fichiers audio ou vidéo joints pour que l'agent les résume. |
 
 ## Mode Arène
 

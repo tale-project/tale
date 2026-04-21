@@ -22,8 +22,10 @@ Du kannst an jede Nachricht Dateien anhängen — per Klick auf das Büroklammer
 - Bilder: PNG, JPEG, GIF, WebP. Der Agent analysiert den Bildinhalt.
 - Dokumente: PDF, DOCX, XLSX, PPTX, TXT, Markdown. Der Agent liest den Inhalt.
 - Code-Dateien: JS, TS, Python und die meisten gängigen Quellcode-Formate.
+- Audio: MP3, M4A, WAV, OGG, WebM. Die Audiospur wird serverseitig transkribiert und der Text an den Agent übergeben.
+- Video: MP4, MOV, MKV, WebM, AVI, MPEG, 3GP, M4V. Die Audiospur wird extrahiert, transkribiert und an den Agent übergeben — visueller Inhalt wird nicht gesendet.
 
-Dateien werden vor dem Senden der Nachricht hochgeladen. Während des Uploads zeigt jede Datei einen Lade-Spinner.
+Dateien werden vor dem Senden der Nachricht hochgeladen. Während des Uploads zeigt jede Datei einen Lade-Spinner; Audio- und Video-Anhänge zeigen zusätzlich einen Transkriptions-Status, bis die Verarbeitung abgeschlossen ist. Siehe [Chat-Anhänge](/de/platform/chat/attachments) für die vollständige Pipeline.
 
 ## Einen Agent auswählen
 
@@ -49,6 +51,7 @@ Der Standard-Chat-Agent kann Folgendes:
 | Web-Suche             | im Internet nach aktuellen Informationen suchen                                                     |
 | Dokument-Verarbeitung | PDF, Word, PowerPoint, Excel und Text-Dateien parsen und analysieren                                |
 | Bild-Analyse          | Bilder beschreiben, analysieren oder Informationen daraus extrahieren                               |
+| Audio-Transkription   | angehängte Audio- oder Video-Dateien transkribieren, damit der Agent sie zusammenfassen kann        |
 
 ## Arena-Modus
 

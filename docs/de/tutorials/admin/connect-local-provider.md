@@ -65,7 +65,7 @@ Wenn zwei Anbieter dieselbe Modell-ID definieren, stelle den Anbieter-Slug voran
 }
 ```
 
-Siehe [KI-Anbieter — Modelle im Chat verfügbar machen](/de/platform/admin/providers#modelle-im-chat-verfügbar-machen) für die vollen Regeln.
+Siehe [KI-Anbieter — Modelle für Agents verfügbar machen](/de/self-hosted/configuration/providers#modelle-für-agents-verfügbar-machen) für die vollen Regeln.
 
 ## Schritt 4 — Aus dem Chat testen
 
@@ -85,4 +85,4 @@ Beide Admin-Muss-Tutorials profitieren von einem lokalen Anbieter:
 - **Tale erreicht Ollama aus Docker nicht** — `localhost` im Tale-Container ist nicht der Host. Nutze `host.docker.internal` (Docker Desktop), die Host-LAN-IP oder hänge Ollama und Tale ins selbe Docker-Netzwerk.
 - **404 auf Modell** — Modell-ID ist case-sensitive und muss dem entsprechen, was `ollama list` ausgibt.
 - **Leere oder sehr kurze Antworten** — das Default-Kontextfenster von Ollama ist klein. Ziehe eine Variante mit größerem Kontext oder überschreibe `num_ctx` im `Modelfile` des Modells.
-- **Verschlüsselter API-Schlüssel verlangt** — wenn du Anbieter-Dateien direkt editierst, muss die API-Schlüssel-Datei SOPS-verschlüsselt sein. Den Schlüssel über die UI zu setzen übernimmt die Verschlüsselung; siehe [KI-Anbieter — Anbieter-Dateien](/de/platform/admin/providers#anbieter-dateien).
+- **Verschlüsselter API-Schlüssel verlangt** — wenn du Anbieter-Dateien direkt editierst, muss die API-Schlüssel-Datei SOPS-verschlüsselt sein. Den Schlüssel über die UI zu setzen übernimmt die Verschlüsselung; siehe [KI-Anbieter — SOPS-verschlüsselte Secrets](/de/self-hosted/configuration/providers#sops-verschlüsselte-secrets).

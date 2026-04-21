@@ -3,9 +3,11 @@ title: Transcription de réunions
 description: Capturer l'audio d'une réunion en local avec Meetily et la résumer via un agent Tale.
 ---
 
-Tale ne transcrit pas l'audio côté serveur — la dictée du chat tourne entièrement dans le navigateur, et la plateforme n'a pas d'endpoint Whisper. Pour un workflow complet de capture de réunion (enregistrer l'audio système, transcrire, résumer, archiver), tu associes Tale à un outil local qui prend en charge l'audio. [Meetily](https://github.com/Zackriya-Solutions/meetily) est un enregistreur de réunions sous licence MIT, 100 % local, qui transcrit via Whisper.cpp sur l'appareil et n'envoie que la transcription à un LLM pour le résumé.
+Tale prend en charge la transcription audio de deux façons, et ce tutoriel couvre l'option **entièrement locale**. Si tu veux juste résumer des enregistrements ponctuels, déposer un fichier audio ou vidéo dans le chat est le chemin le plus simple — la pipeline de transcription côté serveur de la plateforme s'en charge (voir [Pièces jointes du chat](/fr/platform/chat/attachments#transcription-audio-et-vidéo)). Mais pour un workflow complet de capture de réunion où l'audio brut ne quitte jamais le laptop de la personne, tu associes Tale à un outil local qui prend en charge l'audio. [Meetily](https://github.com/Zackriya-Solutions/meetily) est un enregistreur de réunions sous licence MIT, 100 % local, qui transcrit via Whisper.cpp sur l'appareil et n'envoie que la transcription à un LLM pour le résumé.
 
 Ce découpage est important : l'audio brut ne quitte jamais le poste, Whisper tourne sur le laptop de la personne, et Tale ne voit que du texte. Tes règles de sécurité au niveau ligne, ta journalisation d'audit et ta gouvernance couvrent tout le chemin sensible, car tout ce qui atteint Tale est déjà un vrai thread de conversation d'agent.
+
+Choisis le flux côté serveur quand la simplicité prime et que tu fais confiance à ton fournisseur de transcription avec l'audio ; choisis ce flux Meetily quand la conformité ou la politique réseau exige que les octets audio ne franchissent jamais la frontière du poste.
 
 ## Ce que tu vas construire
 
