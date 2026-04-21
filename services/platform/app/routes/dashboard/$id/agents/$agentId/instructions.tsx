@@ -47,7 +47,7 @@ function InstructionsTab() {
   const { providers } = useListProviders('default');
   const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
 
-  const structuredResponsesEnabled = config.structuredResponsesEnabled ?? true;
+  const structuredResponsesEnabled = config.structuredResponsesEnabled ?? false;
   const selectedModels = config.supportedModels;
 
   const modelDisplayNames = useMemo(() => {

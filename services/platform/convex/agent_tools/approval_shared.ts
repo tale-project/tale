@@ -18,7 +18,7 @@ export const DEFAULT_AGENT_CONFIG: SerializableAgentConfig = {
   includeTeamKnowledge: false,
   includeOrgKnowledge: false,
   knowledgeFileIds: [],
-  structuredResponsesEnabled: true,
+  structuredResponsesEnabled: false,
   timeoutMs: 1_200_000,
 };
 

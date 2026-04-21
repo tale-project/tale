@@ -52,7 +52,7 @@ export interface SerializableAgentConfig {
   knowledgeFileIds?: string[];
   /** Agent slugs of delegate agents (file-based agent names) */
   delegateSlugs?: string[];
-  /** Whether to inject structured response markers into the system prompt (default true) */
+  /** Whether to inject structured response markers into the system prompt (default false) */
   structuredResponsesEnabled?: boolean;
   /** Per-agent timeout in milliseconds */
   timeoutMs?: number;

@@ -638,7 +638,7 @@ export async function generateAgentResponse(
     agentInstructions =
       enableStreaming &&
       resolvedInstructions &&
-      structuredResponsesEnabled !== false
+      structuredResponsesEnabled === true
         ? `${resolvedInstructions}\n\n${STRUCTURED_RESPONSE_INSTRUCTIONS}`
         : resolvedInstructions;
     const systemPrompt = agentInstructions

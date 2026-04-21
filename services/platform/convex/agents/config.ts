@@ -52,7 +52,7 @@ export function toSerializableConfig(
       .filter((f) => f.ragStatus === 'completed')
       .map((f) => String(f.fileId)),
     delegateSlugs: config.delegates,
-    structuredResponsesEnabled: config.structuredResponsesEnabled ?? true,
+    structuredResponsesEnabled: config.structuredResponsesEnabled ?? false,
     timeoutMs: config.timeoutMs,
     outputReserve: config.outputReserve,
     responseCacheEnabled: config.responseCacheEnabled,
