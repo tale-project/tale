@@ -275,21 +275,70 @@ export const installIntegration = action({
       credentialId = existing._id;
     }
 
-    if (result.config.installed) {
-      return { hash: result.hash, credentialId };
+    const { hash } = await writeInstalledFlag(args.orgSlug, args.slug, result);
+    return { hash, credentialId };
+  },
+});
+
+async function writeInstalledFlag(
+  orgSlug: string,
+  slug: string,
+  result: Extract<IntegrationReadResult, { ok: true }>,
+): Promise<{ hash: string; changed: boolean }> {
+  if (result.config.installed) {
+    return { hash: result.hash, changed: false };
+  }
+  const updatedConfig: IntegrationJsonConfig = {
+    ...result.config,
+    installed: true,
+  };
+  const newContent = serializeIntegrationJson(updatedConfig);
+  const filePath = resolveConfigPath(orgSlug, slug);
+  await atomicWrite(filePath, newContent);
+  return { hash: sha256(newContent), changed: true };
+}
+
+/**
+ * Internal: flip `installed: true` on the config file if needed.
+ * Idempotent — a no-op when the file is already marked installed or missing.
+ * Used to self-heal when a credential becomes active but the on-disk config
+ * was reverted (e.g. by a git checkout of a tracked seed file).
+ */
+export const ensureInstalledInternal = internalAction({
+  args: {
+    orgSlug: v.string(),
+    slug: v.string(),
+  },
+  returns: v.object({ changed: v.boolean() }),
+  handler: async (_ctx, args): Promise<{ changed: boolean }> => {
+    console.log(
+      `[Integrations] ensureInstalledInternal: orgSlug=${args.orgSlug} slug=${args.slug} configPath=${resolveConfigPath(args.orgSlug, args.slug)}`,
+    );
+    if (!validateIntegrationSlug(args.slug)) {
+      console.warn(
+        `[Integrations] ensureInstalledInternal: invalid slug, skipping (slug=${args.slug})`,
+      );
+      return { changed: false };
     }
-
-    // Set installed: true in config.json
-    const updatedConfig: IntegrationJsonConfig = {
-      ...result.config,
-      installed: true,
-    };
-
-    const newContent = serializeIntegrationJson(updatedConfig);
-    const filePath = resolveConfigPath(args.orgSlug, args.slug);
-    await atomicWrite(filePath, newContent);
-
-    return { hash: sha256(newContent), credentialId };
+    const result = await readIntegrationConfigFile(args.orgSlug, args.slug);
+    if (!result.ok) {
+      console.warn(
+        `[Integrations] ensureInstalledInternal: cannot read config, skipping (slug=${args.slug} error=${result.error} message=${result.message})`,
+      );
+      return { changed: false };
+    }
+    console.log(
+      `[Integrations] ensureInstalledInternal: read ok (slug=${args.slug} installed=${result.config.installed ?? false})`,
+    );
+    const { changed } = await writeInstalledFlag(
+      args.orgSlug,
+      args.slug,
+      result,
+    );
+    console.log(
+      `[Integrations] ensureInstalledInternal: done (slug=${args.slug} changed=${changed})`,
+    );
+    return { changed };
   },
 });
 

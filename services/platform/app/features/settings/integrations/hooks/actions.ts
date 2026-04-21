@@ -30,7 +30,24 @@ export function useInstallIntegration() {
 }
 
 export function useTestIntegration() {
-  return useConvexAction(api.integrations.actions.testConnection);
+  const base = useConvexAction(api.integrations.actions.testConnection);
+  const queryClient = useQueryClient();
+
+  const mutateAsync: typeof base.mutateAsync = useCallback(
+    async (...args) => {
+      const result = await base.mutateAsync(...args);
+      // A successful test flips the credential to isActive and self-heals
+      // config.installed on disk, so the cached file-based integrations list
+      // must be refetched to pick up the new `installed` value.
+      void queryClient.invalidateQueries({
+        queryKey: ['config', 'integrations'],
+      });
+      return result;
+    },
+    [base, queryClient],
+  );
+
+  return { ...base, mutateAsync };
 }
 
 export function useTestSsoConfig() {
