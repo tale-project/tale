@@ -31,6 +31,7 @@ import type { FileAttachment } from '../hooks/use-convex-file-upload';
 import { AgentSelector } from './agent-selector';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaModelSelector } from './arena/arena-model-selector';
+import { ComposerCapabilityPills } from './composer-capability-pills';
 import { ComposerModeMenu } from './composer-mode-menu';
 import { DictationButton } from './dictation-button';
 import { ImagePreviewDialog } from './message-bubble';
@@ -582,6 +583,7 @@ export function ChatInput({
                   <ModelSelector organizationId={organizationId} />
                 </HStack>
               )}
+              <ComposerCapabilityPills />
             </HStack>
             <HStack gap={1} align="center">
               <DictationButton

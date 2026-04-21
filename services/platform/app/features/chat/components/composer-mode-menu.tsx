@@ -1,18 +1,6 @@
 'use client';
 
-import {
-  Bot,
-  Check,
-  Circle,
-  Globe,
-  ImagePlus,
-  Paperclip,
-  Plus,
-  Swords,
-  Telescope,
-  Wrench,
-  type LucideIcon,
-} from 'lucide-react';
+import { Check, Paperclip, Plus, Swords } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 import {
@@ -21,12 +9,14 @@ import {
   type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
-import { useIntegrations } from '@/app/features/settings/integrations/hooks/queries';
 import { useT } from '@/lib/i18n/client';
-import { isRecord } from '@/lib/utils/type-guards';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
+import {
+  resolveCapabilityIcon,
+  useComposerCapabilities,
+} from '../hooks/use-composer-capabilities';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 
@@ -35,40 +25,6 @@ interface ComposerModeMenuProps {
   onAttachFile?: () => void;
   fileUploadDisabled?: boolean;
   disabled?: boolean;
-}
-
-const ICON_MAP: Record<string, LucideIcon> = {
-  telescope: Telescope,
-  globe: Globe,
-  bot: Bot,
-  wrench: Wrench,
-  image: ImagePlus,
-  circle: Circle,
-};
-
-function resolveIcon(name: string | undefined): LucideIcon {
-  if (!name) return Circle;
-  return ICON_MAP[name] ?? Circle;
-}
-
-interface CapabilityEntry {
-  slug: string;
-  label: string;
-  tooltip?: string;
-  icon: LucideIcon;
-  order: number;
-  installed: boolean;
-}
-
-function hasExposeAsCapability(value: unknown): value is {
-  label: string;
-  icon?: string;
-  tooltip?: string;
-  order?: number;
-} {
-  if (!isRecord(value)) return false;
-  const label = value.label;
-  return typeof label === 'string' && label.length > 0;
 }
 
 export function ComposerModeMenu({
@@ -83,7 +39,7 @@ export function ComposerModeMenu({
     useChatLayout();
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
   const { agents } = useChatAgents(organizationId);
-  const { integrations } = useIntegrations('default');
+  const capabilities = useComposerCapabilities();
   const arenaContext = useArenaModeOptional();
 
   const modeAgents = useMemo(() => {
@@ -102,34 +58,6 @@ export function ComposerModeMenu({
     () => agents?.find((a) => a.name === 'chat-agent') ?? null,
     [agents],
   );
-
-  const capabilities = useMemo<CapabilityEntry[]>(() => {
-    if (!integrations) return [];
-    const entries: CapabilityEntry[] = [];
-    for (const integration of integrations) {
-      if (!isRecord(integration)) continue;
-      const slug =
-        typeof integration.slug === 'string' ? integration.slug : undefined;
-      if (!slug) continue;
-      const exposure = hasExposeAsCapability(integration.exposeAsCapability)
-        ? integration.exposeAsCapability
-        : null;
-      if (!exposure) continue;
-      entries.push({
-        slug,
-        label: exposure.label,
-        tooltip: exposure.tooltip,
-        icon: resolveIcon(exposure.icon),
-        order: typeof exposure.order === 'number' ? exposure.order : 100,
-        installed: integration.installed === true,
-      });
-    }
-    entries.sort((a, b) => {
-      if (a.order !== b.order) return a.order - b.order;
-      return a.label.localeCompare(b.label);
-    });
-    return entries;
-  }, [integrations]);
 
   const switchTo = useCallback(
     (agentName: string) => {
@@ -169,7 +97,7 @@ export function ComposerModeMenu({
         const item: DropdownMenuItem = {
           type: 'item',
           label: isActive ? `${modeLabel} ✓` : modeLabel,
-          icon: resolveIcon(agent.composerMode?.icon),
+          icon: resolveCapabilityIcon(agent.composerMode?.icon),
           onClick: () => {
             if (isActive) {
               if (chatAgent) switchTo(chatAgent.name);

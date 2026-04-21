@@ -2518,6 +2518,7 @@
     "standardMode": "Standard",
     "capabilityHeader": "Fähigkeiten",
     "capabilityUninstalled": "Nicht installiert",
+    "capabilityDisable": "{name} deaktivieren",
     "connectInSettings": "In Einstellungen → Integrationen verbinden"
   },
   "todoList": {
