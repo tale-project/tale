@@ -175,7 +175,9 @@ export function ProviderEditPanel({
                 {t('providers.defaultModels')}
               </Text>
               <Stack gap={4}>
-                {(['chat', 'vision', 'embedding'] as const).map((tag) => {
+                {(
+                  ['chat', 'vision', 'embedding', 'transcription'] as const
+                ).map((tag) => {
                   const modelsWithTag = models.filter((m) =>
                     (m.tags as readonly string[]).includes(tag),
                   );

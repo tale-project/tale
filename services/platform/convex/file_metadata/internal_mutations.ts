@@ -43,27 +43,49 @@ export const saveFileMetadata = internalMutation({
       return existing._id;
     }
 
+    // Audio AND video files go through the transcription pipeline (ffmpeg
+    // strips video via `-vn`, transcribes the audio track).
+    const isAudio =
+      args.contentType.startsWith('audio/') ||
+      args.contentType.startsWith('video/');
+
     const id = await ctx.db.insert('fileMetadata', {
       organizationId: args.organizationId,
       storageId: args.storageId,
       fileName: args.fileName,
       contentType: args.contentType,
       size: args.size,
-      ragStatus: 'queued',
+      ragStatus: isAudio ? undefined : 'queued',
+      transcriptionStatus: isAudio ? 'queued' : undefined,
       ...(args.documentId !== undefined && { documentId: args.documentId }),
       ...(args.source !== undefined && { source: args.source }),
       ...(args.uploadedBy !== undefined && { uploadedBy: args.uploadedBy }),
     });
 
-    await ctx.scheduler.runAfter(
-      0,
-      internal.file_metadata.internal_actions.uploadFileToRag,
-      {
-        storageId: args.storageId,
-        fileName: args.fileName,
-        contentType: args.contentType,
-      },
-    );
+    if (!isAudio) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.file_metadata.internal_actions.uploadFileToRag,
+        {
+          storageId: args.storageId,
+          fileName: args.fileName,
+          contentType: args.contentType,
+        },
+      );
+    }
+
+    if (isAudio) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.file_metadata.transcribe_audio.transcribeAudio,
+        {
+          storageId: args.storageId,
+          fileName: args.fileName,
+          contentType: args.contentType,
+          organizationId: args.organizationId,
+        },
+      );
+    }
 
     await ctx.scheduler.runAfter(
       0,
@@ -138,6 +160,74 @@ export const updateFileRagStatus = internalMutation({
   },
 });
 
+/**
+ * Patch the transcription-related fields on a fileMetadata row. Mirrors the
+ * shape of `updateFileRagStatus` — partial updates, no-op when the row is
+ * missing (the scheduled action may race with row deletion).
+ */
+export const updateFileTranscription = internalMutation({
+  args: {
+    storageId: v.id('_storage'),
+    transcriptionStatus: v.optional(
+      v.union(
+        v.literal('queued'),
+        v.literal('running'),
+        v.literal('completed'),
+        v.literal('failed'),
+        v.literal('skipped'),
+      ),
+    ),
+    transcript: v.optional(v.string()),
+    transcriptionError: v.optional(v.string()),
+    transcriptionDurationSec: v.optional(v.number()),
+    transcriptionProgress: v.optional(v.string()),
+    contentHash: v.optional(v.string()),
+    transcriptRagStatus: v.optional(
+      v.union(
+        v.literal('queued'),
+        v.literal('running'),
+        v.literal('completed'),
+        v.literal('failed'),
+      ),
+    ),
+    transcriptRagError: v.optional(v.string()),
+  },
+  async handler(ctx, args) {
+    const metadata = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (!metadata) return;
+
+    const patch: Record<string, unknown> = {};
+    if (args.transcriptionStatus !== undefined) {
+      patch.transcriptionStatus = args.transcriptionStatus;
+    }
+    if (args.transcript !== undefined) {
+      patch.transcript = args.transcript;
+    }
+    if (args.transcriptionError !== undefined) {
+      patch.transcriptionError = args.transcriptionError;
+    }
+    if (args.transcriptionDurationSec !== undefined) {
+      patch.transcriptionDurationSec = args.transcriptionDurationSec;
+    }
+    if (args.transcriptionProgress !== undefined) {
+      patch.transcriptionProgress = args.transcriptionProgress;
+    }
+    if (args.contentHash !== undefined) {
+      patch.contentHash = args.contentHash;
+    }
+    if (args.transcriptRagStatus !== undefined) {
+      patch.transcriptRagStatus = args.transcriptRagStatus;
+    }
+    if (args.transcriptRagError !== undefined) {
+      patch.transcriptRagError = args.transcriptRagError;
+    }
+    await ctx.db.patch(metadata._id, patch);
+  },
+});
+
 export const updateFileVisionMetadata = internalMutation({
   args: {
     storageId: v.id('_storage'),
@@ -161,6 +251,29 @@ export const updateFileVisionMetadata = internalMutation({
     if (Object.keys(patch).length > 0) {
       await ctx.db.patch(metadata._id, patch);
     }
+  },
+});
+
+/**
+ * Watchdog: sweep fileMetadata rows stuck in `transcriptionStatus: 'running'`
+ * for >35 minutes. Convex hard-kills actions at the 30-min timeout without
+ * running their catch blocks, so without this sweep the send-gate would stay
+ * locked forever for the affected uploads. Scheduled from crons.ts.
+ */
+export const recoverStuckTranscriptions = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const cutoff = Date.now() - 35 * 60 * 1000;
+    for await (const row of ctx.db.query('fileMetadata')) {
+      if (row.transcriptionStatus === 'running' && row._creationTime < cutoff) {
+        await ctx.db.patch(row._id, {
+          transcriptionStatus: 'failed',
+          transcriptionError: 'Transcription timed out (watchdog)',
+        });
+      }
+    }
+    return null;
   },
 });
 

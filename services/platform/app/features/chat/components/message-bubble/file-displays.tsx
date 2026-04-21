@@ -1,8 +1,12 @@
 'use client';
 
+import { useQuery } from 'convex/react';
 import {
+  AudioLines,
   Code2,
   Download,
+  Eye,
+  Film,
   FileSpreadsheet,
   FileText,
   Image,
@@ -13,11 +17,14 @@ import {
 } from 'lucide-react';
 import { memo, useState } from 'react';
 
+import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { VStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { isAudioOrVideo } from '@/lib/shared/file-types';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 import {
   isTextBasedFile,
@@ -55,6 +62,8 @@ export function getFileTypeLabel(
     return mediaType === 'text/csv' ? t('fileTypes.csv') : t('fileTypes.xlsx');
   }
   if (mediaType === 'text/plain') return t('fileTypes.txt');
+  if (mediaType.startsWith('audio/')) return t('fileTypes.audio');
+  if (mediaType.startsWith('video/')) return t('fileTypes.video');
   if (isTextBasedFile(fileName, mediaType))
     return getFileExtensionLower(fileName).toUpperCase() || t('fileTypes.txt');
   return t('fileTypes.file');
@@ -104,6 +113,18 @@ function getFileIconInfo(fileType: string, fileName: string) {
       Icon: FileText,
       bgColor: 'bg-gray-50',
       iconColor: 'text-gray-500',
+    };
+  if (fileType.startsWith('audio/'))
+    return {
+      Icon: AudioLines,
+      bgColor: 'bg-purple-50',
+      iconColor: 'text-purple-600',
+    };
+  if (fileType.startsWith('video/'))
+    return {
+      Icon: Film,
+      bgColor: 'bg-indigo-50',
+      iconColor: 'text-indigo-600',
     };
   if (isTextBasedFile(fileName, fileType)) {
     const category = getTextFileCategory(fileName);
@@ -170,6 +191,20 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   );
   const displayUrl = attachment.previewUrl || serverFileUrl || undefined;
   const isImage = attachment.fileType.startsWith('image/');
+  const isMedia = isAudioOrVideo(attachment.fileType);
+
+  // For audio/video attachments in sent messages, fetch the transcript via
+  // the existing plural query (skip when not media to avoid subscriptions).
+  const audioMetadataList = useQuery(
+    api.file_metadata.queries.getByStorageIds,
+    isMedia ? { storageIds: [attachment.fileId] } : 'skip',
+  );
+  const audioMetadata = audioMetadataList?.[0];
+  const canPreviewTranscript =
+    isMedia &&
+    audioMetadata?.transcriptionStatus === 'completed' &&
+    !!audioMetadata.transcript;
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
 
   if (isImage && !displayUrl) {
     return <Skeleton className="size-9 rounded-lg" />;
@@ -195,45 +230,96 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   const displayName = middleEllipsis(attachment.fileName, 28);
   const sizeLabel = formatFileSize(attachment.fileSize);
 
+  const viewTranscriptButton = canPreviewTranscript ? (
+    <button
+      type="button"
+      aria-label={t('transcription.viewTranscript')}
+      title={t('transcription.viewTranscript')}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setTranscriptOpen(true);
+      }}
+      className="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-full transition-colors"
+    >
+      <Eye className="size-3.5" />
+    </button>
+  ) : null;
+
+  const transcriptDialog =
+    canPreviewTranscript && audioMetadata ? (
+      <ViewDialog
+        open={transcriptOpen}
+        onOpenChange={setTranscriptOpen}
+        title={attachment.fileName}
+        description={
+          audioMetadata.transcriptionDurationSec
+            ? t('transcription.previewSubtitle', {
+                seconds: Math.round(audioMetadata.transcriptionDurationSec),
+              })
+            : undefined
+        }
+        size="lg"
+      >
+        <Text
+          as="div"
+          variant="body"
+          className="max-h-[60vh] overflow-y-auto leading-relaxed whitespace-pre-wrap"
+        >
+          {audioMetadata.transcript}
+        </Text>
+      </ViewDialog>
+    ) : null;
+
   if (!displayUrl) {
     return (
-      <div className="bg-muted flex max-w-[280px] gap-3 rounded-lg px-3 py-2">
-        <FileTypeIcon
-          fileType={attachment.fileType}
-          fileName={attachment.fileName}
-        />
-        <VStack className="min-w-0 flex-1">
-          <Text as="div" variant="label" title={attachment.fileName}>
-            {displayName}
-          </Text>
-          <Text as="div" variant="caption">
-            {sizeLabel}
-          </Text>
-        </VStack>
-      </div>
+      <>
+        <div className="bg-muted flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2">
+          <FileTypeIcon
+            fileType={attachment.fileType}
+            fileName={attachment.fileName}
+          />
+          <VStack className="min-w-0 flex-1">
+            <Text as="div" variant="label" title={attachment.fileName}>
+              {displayName}
+            </Text>
+            <Text as="div" variant="caption">
+              {sizeLabel}
+            </Text>
+          </VStack>
+          {viewTranscriptButton}
+        </div>
+        {transcriptDialog}
+      </>
     );
   }
 
   return (
-    <a
-      href={displayUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="bg-muted hover:bg-muted/80 flex max-w-[280px] gap-3 rounded-lg px-3 py-2 transition-colors"
-    >
-      <FileTypeIcon
-        fileType={attachment.fileType}
-        fileName={attachment.fileName}
-      />
-      <VStack className="min-w-0 flex-1">
-        <Text as="div" variant="label" title={attachment.fileName}>
-          {displayName}
-        </Text>
-        <Text as="div" variant="caption">
-          {sizeLabel}
-        </Text>
-      </VStack>
-    </a>
+    <>
+      <div className="bg-muted hover:bg-muted/80 flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2 transition-colors">
+        <a
+          href={displayUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex min-w-0 flex-1 items-center gap-3"
+        >
+          <FileTypeIcon
+            fileType={attachment.fileType}
+            fileName={attachment.fileName}
+          />
+          <VStack className="min-w-0 flex-1">
+            <Text as="div" variant="label" title={attachment.fileName}>
+              {displayName}
+            </Text>
+            <Text as="div" variant="caption">
+              {sizeLabel}
+            </Text>
+          </VStack>
+        </a>
+        {viewTranscriptButton}
+      </div>
+      {transcriptDialog}
+    </>
   );
 });
 

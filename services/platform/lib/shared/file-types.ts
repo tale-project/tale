@@ -34,6 +34,26 @@ const MIME_TYPES = {
 
   // Text
   PLAIN: 'text/plain',
+
+  // Audio
+  MP3: 'audio/mpeg',
+  WAV: 'audio/wav',
+  M4A: 'audio/mp4',
+  WEBM_AUDIO: 'audio/webm',
+  OGG: 'audio/ogg',
+
+  // Video (only the audio track is transcribed; ffmpeg -vn strips video).
+  // Covers the common meeting-recording formats across platforms.
+  VIDEO_MP4: 'video/mp4',
+  VIDEO_WEBM: 'video/webm',
+  VIDEO_QUICKTIME: 'video/quicktime',
+  VIDEO_MATROSKA: 'video/x-matroska',
+  VIDEO_AVI: 'video/x-msvideo',
+  VIDEO_M4V: 'video/x-m4v',
+  VIDEO_MPEG: 'video/mpeg',
+  VIDEO_OGG: 'video/ogg',
+  VIDEO_3GP: 'video/3gpp',
+  VIDEO_MP2T: 'video/mp2t',
 } as const;
 
 type MimeType = (typeof MIME_TYPES)[keyof typeof MIME_TYPES];
@@ -68,12 +88,49 @@ const SPREADSHEET_MIME_TYPES: ReadonlySet<string> = new Set([
 
 const TEXT_MIME_TYPES: ReadonlySet<string> = new Set([MIME_TYPES.PLAIN]);
 
+const AUDIO_MIME_TYPES: ReadonlySet<string> = new Set([
+  MIME_TYPES.MP3,
+  MIME_TYPES.WAV,
+  MIME_TYPES.M4A,
+  MIME_TYPES.WEBM_AUDIO,
+  MIME_TYPES.OGG,
+]);
+
+const VIDEO_MIME_TYPES: ReadonlySet<string> = new Set([
+  MIME_TYPES.VIDEO_MP4,
+  MIME_TYPES.VIDEO_WEBM,
+  MIME_TYPES.VIDEO_QUICKTIME,
+  MIME_TYPES.VIDEO_MATROSKA,
+  MIME_TYPES.VIDEO_AVI,
+  MIME_TYPES.VIDEO_M4V,
+  MIME_TYPES.VIDEO_MPEG,
+  MIME_TYPES.VIDEO_OGG,
+  MIME_TYPES.VIDEO_3GP,
+  MIME_TYPES.VIDEO_MP2T,
+]);
+
 // ---------------------------------------------------------------------------
 // File classification
 // ---------------------------------------------------------------------------
 
 export function isImage(mimeType: string): boolean {
   return mimeType.startsWith('image/');
+}
+
+export function isAudio(mimeType: string): boolean {
+  return mimeType.startsWith('audio/');
+}
+
+function isVideo(mimeType: string): boolean {
+  return mimeType.startsWith('video/');
+}
+
+/**
+ * Audio or video — files that flow through the transcription pipeline
+ * (ffmpeg extracts the audio track for video inputs, then transcribes).
+ */
+export function isAudioOrVideo(mimeType: string): boolean {
+  return isAudio(mimeType) || isVideo(mimeType);
 }
 
 export function isTextFile(mimeType: string, fileName?: string): boolean {
@@ -107,6 +164,30 @@ const EXTENSION_TO_MIME: Readonly<Record<string, MimeType>> = {
   xlsx: MIME_TYPES.XLSX,
   csv: MIME_TYPES.CSV,
   txt: MIME_TYPES.PLAIN,
+  // Audio
+  mp3: MIME_TYPES.MP3,
+  mpga: MIME_TYPES.MP3,
+  m4a: MIME_TYPES.M4A,
+  wav: MIME_TYPES.WAV,
+  ogg: MIME_TYPES.OGG,
+  oga: MIME_TYPES.OGG,
+  // Video — default .mp4/.webm/.mpeg to video since meeting recordings are
+  // overwhelmingly video; browsers override via MIME when the actual content
+  // is audio-only (e.g. .webm Opus audio → audio/webm is reported directly).
+  mp4: MIME_TYPES.VIDEO_MP4,
+  m4v: MIME_TYPES.VIDEO_M4V,
+  mov: MIME_TYPES.VIDEO_QUICKTIME,
+  qt: MIME_TYPES.VIDEO_QUICKTIME,
+  webm: MIME_TYPES.VIDEO_WEBM,
+  mkv: MIME_TYPES.VIDEO_MATROSKA,
+  avi: MIME_TYPES.VIDEO_AVI,
+  mpeg: MIME_TYPES.VIDEO_MPEG,
+  mpg: MIME_TYPES.VIDEO_MPEG,
+  ogv: MIME_TYPES.VIDEO_OGG,
+  '3gp': MIME_TYPES.VIDEO_3GP,
+  '3g2': MIME_TYPES.VIDEO_3GP,
+  ts: MIME_TYPES.VIDEO_MP2T,
+  m2ts: MIME_TYPES.VIDEO_MP2T,
 };
 
 const MIME_TO_EXTENSION: Readonly<Record<string, string>> = {
@@ -123,6 +204,21 @@ const MIME_TO_EXTENSION: Readonly<Record<string, string>> = {
   [MIME_TYPES.XLSX]: 'xlsx',
   [MIME_TYPES.CSV]: 'csv',
   [MIME_TYPES.PLAIN]: 'txt',
+  [MIME_TYPES.MP3]: 'mp3',
+  [MIME_TYPES.WAV]: 'wav',
+  [MIME_TYPES.M4A]: 'm4a',
+  [MIME_TYPES.WEBM_AUDIO]: 'webm',
+  [MIME_TYPES.OGG]: 'ogg',
+  [MIME_TYPES.VIDEO_MP4]: 'mp4',
+  [MIME_TYPES.VIDEO_M4V]: 'm4v',
+  [MIME_TYPES.VIDEO_QUICKTIME]: 'mov',
+  [MIME_TYPES.VIDEO_WEBM]: 'webm',
+  [MIME_TYPES.VIDEO_MATROSKA]: 'mkv',
+  [MIME_TYPES.VIDEO_AVI]: 'avi',
+  [MIME_TYPES.VIDEO_MPEG]: 'mpeg',
+  [MIME_TYPES.VIDEO_OGG]: 'ogv',
+  [MIME_TYPES.VIDEO_3GP]: '3gp',
+  [MIME_TYPES.VIDEO_MP2T]: 'ts',
 };
 
 const KNOWN_MIME_TYPES: ReadonlySet<string> = new Set(
@@ -205,8 +301,38 @@ export function getDisplayExtension(filename: string): string {
 // Accept strings (for <input accept="..."> and drop zones)
 // ---------------------------------------------------------------------------
 
-/** Chat attachment input: images + documents + text-based files */
-export const CHAT_UPLOAD_ACCEPT = TEXT_FILE_ACCEPT;
+/** Chat attachment input: images + documents + text-based files + audio + video.
+ * `audio/*` and `video/*` cover most browsers but some file pickers filter
+ * strictly by extension, so we append the explicit list too. */
+export const CHAT_UPLOAD_ACCEPT = [
+  TEXT_FILE_ACCEPT,
+  'audio/*',
+  'video/*',
+  // Audio
+  '.mp3',
+  '.m4a',
+  '.wav',
+  '.ogg',
+  '.oga',
+  '.mpga',
+  // Video / mixed containers (.mp4/.webm may be audio or video — browser
+  // MIME wins when present; otherwise we assume video since that's what
+  // meeting recordings are)
+  '.mp4',
+  '.m4v',
+  '.mov',
+  '.qt',
+  '.webm',
+  '.mkv',
+  '.avi',
+  '.mpeg',
+  '.mpg',
+  '.ogv',
+  '.3gp',
+  '.3g2',
+  '.ts',
+  '.m2ts',
+].join(',');
 
 /** Chat upload MIME validation list */
 export const CHAT_UPLOAD_ALLOWED_TYPES: readonly string[] = [
@@ -223,6 +349,21 @@ export const CHAT_UPLOAD_ALLOWED_TYPES: readonly string[] = [
   MIME_TYPES.XLS,
   MIME_TYPES.XLSX,
   MIME_TYPES.CSV,
+  MIME_TYPES.MP3,
+  MIME_TYPES.WAV,
+  MIME_TYPES.M4A,
+  MIME_TYPES.WEBM_AUDIO,
+  MIME_TYPES.OGG,
+  MIME_TYPES.VIDEO_MP4,
+  MIME_TYPES.VIDEO_WEBM,
+  MIME_TYPES.VIDEO_QUICKTIME,
+  MIME_TYPES.VIDEO_MATROSKA,
+  MIME_TYPES.VIDEO_AVI,
+  MIME_TYPES.VIDEO_M4V,
+  MIME_TYPES.VIDEO_MPEG,
+  MIME_TYPES.VIDEO_OGG,
+  MIME_TYPES.VIDEO_3GP,
+  MIME_TYPES.VIDEO_MP2T,
 ];
 
 /** Allowed MIME types for document uploads (used for client + server validation) */
@@ -287,6 +428,33 @@ export const SPREADSHEET_IMPORT_ACCEPT = '.xlsx,.xls,.csv';
 
 /** Chat attachment max (100 MB) */
 export const CHAT_MAX_FILE_SIZE = 100 * 1024 * 1024;
+
+/**
+ * Chat audio/video attachment max size (2 GB). Large media files go through
+ * server-side ffmpeg (video is stripped via -vn, audio silence-removed and
+ * re-encoded to 32 kbps Opus) before transcription, so the raw upload can
+ * be far larger than OpenAI's 25 MB cap. Duration is the real gate —
+ * see `CHAT_AUDIO_MAX_DURATION_SEC`.
+ */
+const CHAT_AUDIO_MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024;
+
+/**
+ * Chat audio/video attachment max duration (4 hours). Covers board meetings,
+ * workshops, and all-day sessions. Enforced client-side via the file's
+ * metadata `duration` before upload. Anything longer is rejected with a
+ * clear error rather than silently truncated.
+ */
+export const CHAT_AUDIO_MAX_DURATION_SEC = 4 * 60 * 60;
+
+/**
+ * Resolve the per-type size ceiling for a chat upload. Audio and video share
+ * the 2 GB cap (both go through the transcription pipeline); everything
+ * else uses the generic 100 MB cap.
+ */
+export function getMaxFileSizeForType(mimeType: string): number {
+  if (isAudioOrVideo(mimeType)) return CHAT_AUDIO_MAX_FILE_SIZE;
+  return CHAT_MAX_FILE_SIZE;
+}
 
 /** Max attachments per chat message */
 export const CHAT_MAX_FILE_COUNT = 10;
@@ -452,6 +620,8 @@ function getFileTypeLabelKey(mimeType: string): string {
     return 'pptx';
   if (mimeType === MIME_TYPES.PLAIN) return 'txt';
   if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (mimeType.startsWith('video/')) return 'video';
   if (mimeType === MIME_TYPES.XLS || mimeType === MIME_TYPES.XLSX)
     return 'xlsx';
   if (mimeType === MIME_TYPES.CSV) return 'csv';

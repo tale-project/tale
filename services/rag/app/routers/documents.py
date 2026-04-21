@@ -238,6 +238,7 @@ def _validate_file_extension(filename: str) -> str:
     """Validate file extension. Returns the extension or raises HTTPException."""
     file_ext = Path(filename).suffix.lower()
     if not file_ext:
+        logger.warning("Upload rejected (400): missing extension | filename={}", filename)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"File must have an extension. Supported formats: {', '.join(sorted(SUPPORTED_EXTENSIONS))}",
@@ -245,6 +246,11 @@ def _validate_file_extension(filename: str) -> str:
 
     if file_ext not in SUPPORTED_EXTENSIONS:
         supported = ", ".join(sorted(SUPPORTED_EXTENSIONS))
+        logger.warning(
+            "Upload rejected (400): unsupported extension | filename={} ext={}",
+            filename,
+            file_ext,
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unsupported file type: {file_ext}. Supported formats: {supported}",
@@ -261,6 +267,11 @@ async def _read_upload_with_size_check(file: UploadFile, max_size_mb: int) -> by
     while chunk := await file.read(64 * 1024):
         total_size += len(chunk)
         if total_size > max_size_bytes:
+            logger.warning(
+                "Upload rejected (413): size over limit | filename={} max_mb={}",
+                file.filename,
+                max_size_mb,
+            )
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail=f"File size exceeds maximum allowed size of {max_size_mb}MB",
@@ -276,13 +287,22 @@ def _parse_metadata(metadata_str: str | None) -> dict[str, Any]:
 
     try:
         parsed_value = json.loads(metadata_str)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        logger.warning(
+            "Upload rejected (400): invalid metadata JSON | error={} preview={!r}",
+            exc,
+            metadata_str[:200],
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid metadata format. Must be valid JSON string.",
         ) from None
 
     if not isinstance(parsed_value, dict):
+        logger.warning(
+            "Upload rejected (400): metadata not a JSON object | type={}",
+            type(parsed_value).__name__,
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid metadata format. Must be a JSON object.",
@@ -317,6 +337,11 @@ async def upload_document(
     """
     try:
         if not file.filename:
+            logger.warning(
+                "Upload rejected (400): missing filename | file_id={} content_type={}",
+                file_id,
+                file.content_type,
+            )
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required")
 
         _validate_file_extension(file.filename)

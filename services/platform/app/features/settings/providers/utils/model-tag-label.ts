@@ -8,6 +8,7 @@ const TAG_KEYS: Record<ModelTag, string> = {
   embedding: 'providers.tagEmbedding',
   'image-generation': 'providers.tagImageGeneration',
   'image-edit': 'providers.tagImageEdit',
+  transcription: 'providers.tagTranscription',
 };
 
 export function modelTagLabel(tag: string, t: TFunction): string {

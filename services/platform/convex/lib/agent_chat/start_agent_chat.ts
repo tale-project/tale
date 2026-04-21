@@ -13,7 +13,7 @@
 
 import { listMessages, saveMessage } from '@convex-dev/agent';
 
-import { isSpreadsheet } from '../../../lib/shared/file-types';
+import { isAudioOrVideo, isSpreadsheet } from '../../../lib/shared/file-types';
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
@@ -441,23 +441,32 @@ async function buildMessageWithAttachments(
   message: string,
   attachments: FileAttachment[],
 ): Promise<string> {
-  // Separate images, text files, spreadsheets, and other documents
+  // Separate images, text files, spreadsheets, audio, and other documents.
+  // Audio is handled specially: the transcript (produced by transcribeAudio)
+  // is inlined as text rather than attached as a link — bytes never reach
+  // the chat model.
   const imageAttachments = attachments.filter((a) =>
     a.fileType.startsWith('image/'),
   );
   const spreadsheetAttachments = attachments.filter(
     (a) => !a.fileType.startsWith('image/') && isSpreadsheet(a.fileName),
   );
+  // Audio AND video attachments flow through the same transcription path.
+  const audioAttachments = attachments.filter((a) =>
+    isAudioOrVideo(a.fileType),
+  );
   const textFileAttachments = attachments.filter(
     (a) =>
       !a.fileType.startsWith('image/') &&
       !isSpreadsheet(a.fileName) &&
+      !isAudioOrVideo(a.fileType) &&
       isTextFile(a),
   );
   const documentAttachments = attachments.filter(
     (a) =>
       !a.fileType.startsWith('image/') &&
       !isSpreadsheet(a.fileName) &&
+      !isAudioOrVideo(a.fileType) &&
       !isTextFile(a),
   );
 
@@ -538,6 +547,52 @@ async function buildMessageWithAttachments(
       textContent = textContent
         ? `${textContent}\n\n${textFileMarkdown.join('\n\n')}`
         : textFileMarkdown.join('\n\n');
+    }
+  }
+
+  // Inline audio transcripts as text. Transcription is guaranteed to have
+  // reached `completed`/`failed`/`skipped` by the time we get here thanks
+  // to the client-side send-gate (`isTranscribing`) — see chat-input.tsx.
+  if (audioAttachments.length > 0) {
+    const audioMetadata = await Promise.all(
+      audioAttachments.map(async (attachment) => {
+        const meta = await ctx.db
+          .query('fileMetadata')
+          .withIndex('by_storageId', (q) =>
+            q.eq('storageId', attachment.fileId),
+          )
+          .first();
+        return { attachment, meta };
+      }),
+    );
+    // One-line reference per audio/video attachment — same compact pattern
+    // as documents/spreadsheets. The transcript itself is NOT inlined (would
+    // make user bubbles into walls of text for long meetings); it lives in
+    // RAG where the agent can retrieve it via document_retrieve(fileId).
+    const audioMarkdown: string[] = [];
+    for (const { attachment, meta } of audioMetadata) {
+      const icon = attachment.fileType.startsWith('video/') ? '🎥' : '🎙️';
+      if (meta?.transcriptionStatus === 'completed' && meta.transcript) {
+        const durationNote = meta.transcriptionDurationSec
+          ? `, ${Math.round(meta.transcriptionDurationSec)}s transcribed`
+          : '';
+        audioMarkdown.push(
+          `${icon} [${attachment.fileName}] (${attachment.fileType}${durationNote}) — transcript is stored as a document; call document_retrieve with fileId=${attachment.fileId} to read the full text\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
+        );
+      } else {
+        const reason =
+          meta?.transcriptionStatus === 'skipped'
+            ? 'user skipped'
+            : (meta?.transcriptionError ?? 'transcription incomplete');
+        audioMarkdown.push(
+          `${icon} [${attachment.fileName}] — could not be transcribed (${reason})\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
+        );
+      }
+    }
+    if (audioMarkdown.length > 0) {
+      textContent = textContent
+        ? `${textContent}\n\n${audioMarkdown.join('\n\n')}`
+        : audioMarkdown.join('\n\n');
     }
   }
 

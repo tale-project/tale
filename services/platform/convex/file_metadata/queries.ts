@@ -88,6 +88,29 @@ export const getByStorageIds = query({
       pageCount: v.optional(v.number()),
       scannedPagesDetected: v.optional(v.number()),
       visionRequired: v.optional(v.boolean()),
+      transcript: v.optional(v.string()),
+      transcriptionStatus: v.optional(
+        v.union(
+          v.literal('queued'),
+          v.literal('running'),
+          v.literal('completed'),
+          v.literal('failed'),
+          v.literal('skipped'),
+        ),
+      ),
+      transcriptionError: v.optional(v.string()),
+      transcriptionDurationSec: v.optional(v.number()),
+      transcriptionProgress: v.optional(v.string()),
+      transcriptRagStatus: v.optional(
+        v.union(
+          v.literal('queued'),
+          v.literal('running'),
+          v.literal('completed'),
+          v.literal('failed'),
+        ),
+      ),
+      transcriptRagError: v.optional(v.string()),
+      _creationTime: v.number(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -113,6 +136,14 @@ export const getByStorageIds = query({
           pageCount: meta.pageCount,
           scannedPagesDetected: meta.scannedPagesDetected,
           visionRequired: meta.visionRequired,
+          transcript: meta.transcript,
+          transcriptionStatus: meta.transcriptionStatus,
+          transcriptionError: meta.transcriptionError,
+          transcriptionDurationSec: meta.transcriptionDurationSec,
+          transcriptionProgress: meta.transcriptionProgress,
+          transcriptRagStatus: meta.transcriptRagStatus,
+          transcriptRagError: meta.transcriptRagError,
+          _creationTime: meta._creationTime,
         };
       }),
     );

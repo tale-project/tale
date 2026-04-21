@@ -38,6 +38,7 @@ vi.mock('../register_files', () => ({
 
 vi.mock('../../../../lib/shared/file-types', () => ({
   isImage: (type: string) => type.startsWith('image/'),
+  isAudio: (type: string) => type.startsWith('audio/'),
   isSpreadsheet: (name: string) =>
     name.endsWith('.xlsx') || name.endsWith('.xls'),
   isTextFile: (type: string, name: string) =>

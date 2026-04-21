@@ -6,6 +6,7 @@
  */
 
 import {
+  isAudio,
   isImage,
   isSpreadsheet,
   isTextFile,
@@ -126,18 +127,25 @@ export async function processAttachments(
     files: attachments.map((a) => ({ name: a.fileName, type: a.fileType })),
   });
 
-  // Separate images, spreadsheets, and other files (documents + text)
+  // Separate images, spreadsheets, audio, and other files (documents + text).
+  // Audio is inlined as text transcript; the raw bytes never go to the chat
+  // model, so it must be excluded from fileAttachments/documentAttachments.
   const imageAttachments = attachments.filter((a) => isImage(a.fileType));
   const spreadsheetAttachments = attachments.filter(
     (a) => !isImage(a.fileType) && isSpreadsheet(a.fileName),
   );
+  const audioAttachments = attachments.filter((a) => isAudio(a.fileType));
   const fileAttachments = attachments.filter(
-    (a) => !isImage(a.fileType) && !isSpreadsheet(a.fileName),
+    (a) =>
+      !isImage(a.fileType) &&
+      !isSpreadsheet(a.fileName) &&
+      !isAudio(a.fileType),
   );
   const documentAttachments = attachments.filter(
     (a) =>
       !isImage(a.fileType) &&
       !isSpreadsheet(a.fileName) &&
+      !isAudio(a.fileType) &&
       !isTextFile(a.fileType, a.fileName),
   );
 
@@ -260,6 +268,26 @@ export async function processAttachments(
     (r): r is { fileName: string; analysis: string } => r !== null,
   );
 
+  // Look up transcripts for audio attachments. Audio is never sent as bytes —
+  // the send-gate ensures transcription is `completed` / `failed` / `skipped`
+  // by the time we get here, so a single DB read per attachment suffices.
+  const audioTranscripts = await Promise.all(
+    audioAttachments.map(async (attachment) => {
+      const metadata = await ctx.runQuery(
+        internal.file_metadata.internal_queries.getByStorageId,
+        { storageId: toId<'_storage'>(attachment.fileId) },
+      );
+      return {
+        fileName: attachment.fileName,
+        fileId: attachment.fileId,
+        status: metadata?.transcriptionStatus,
+        transcript: metadata?.transcript,
+        durationSec: metadata?.transcriptionDurationSec,
+        error: metadata?.transcriptionError,
+      };
+    }),
+  );
+
   // Register files with the agent component for tracking
   await registerFilesWithAgent(ctx, [
     ...fileAttachments,
@@ -273,7 +301,8 @@ export async function processAttachments(
   const hasAnalyzedContent =
     parsedDocuments.length > 0 ||
     parsedSpreadsheets.length > 0 ||
-    analyzedImages.length > 0;
+    analyzedImages.length > 0 ||
+    audioTranscripts.length > 0;
 
   if (hasAnalyzedContent) {
     contentParts.push({
@@ -319,6 +348,27 @@ export async function processAttachments(
         type: 'text',
         text: `\n\n---\n**Image: ${img.fileName}**\n\n${img.analysis}\n---\n`,
       });
+    }
+
+    for (const audio of audioTranscripts) {
+      if (audio.status === 'completed' && audio.transcript) {
+        const durationNote = audio.durationSec
+          ? ` (${audio.durationSec.toFixed(1)}s)`
+          : '';
+        contentParts.push({
+          type: 'text',
+          text: `\n\n---\n**Audio transcript: ${audio.fileName}**${durationNote}\n\n${audio.transcript}\n---\n`,
+        });
+      } else {
+        const reason =
+          audio.status === 'skipped'
+            ? 'user skipped'
+            : (audio.error ?? 'transcription incomplete');
+        contentParts.push({
+          type: 'text',
+          text: `\n\n[Audio file "${audio.fileName}" could not be transcribed: ${reason}]\n`,
+        });
+      }
     }
   }
 

@@ -31,6 +31,7 @@ ARG SOPS_VERSION=3.9.4
 # and LLVM/docs stripping (~155 MB savings on the base image).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl tini gosu postgresql-client ca-certificates \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
     && mkdir -p /usr/local/share/ca-certificates \

@@ -1,6 +1,6 @@
 'use client';
 
-import { X, ArrowUp, CircleStop, Loader } from 'lucide-react';
+import { X, ArrowUp, CircleStop, Eye, Loader } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
   useCallback,
@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
+import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
@@ -22,7 +23,7 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/use-upload-policy';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
+import { CHAT_UPLOAD_ACCEPT, isAudioOrVideo } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 
@@ -67,6 +68,22 @@ interface ChatInputProps extends Omit<
     Id<'_storage'>,
     { status?: string; error?: string; progress?: string }
   >;
+  /** True while any audio attachment is still `queued` or `running`, or the
+   * transcription-status query is still resolving. Blocks send so the LLM
+   * never sees a "pending" transcript. */
+  isTranscribing?: boolean;
+  transcriptionStatuses?: Map<
+    Id<'_storage'>,
+    {
+      status?: 'queued' | 'running' | 'completed' | 'failed' | 'skipped';
+      error?: string;
+      progress?: string;
+      transcript?: string;
+      durationSec?: number;
+      ragStatus?: 'queued' | 'running' | 'completed' | 'failed';
+      ragError?: string;
+    }
+  >;
   onSavePrompt?: (content: string) => void;
   onOpenPromptLibrary?: () => void;
   /**
@@ -99,6 +116,8 @@ export function ChatInput({
   fileUploadDisabled = false,
   isIndexing = false,
   indexingStatuses,
+  isTranscribing = false,
+  transcriptionStatuses,
   onSavePrompt,
   onOpenPromptLibrary,
   sendBlocked = false,
@@ -131,6 +150,11 @@ export function ChatInput({
     src: string;
     alt: string;
   } | null>(null);
+  const [previewTranscript, setPreviewTranscript] = useState<{
+    fileName: string;
+    transcript: string;
+    durationSec?: number;
+  } | null>(null);
   const defaultPlaceholder = placeholder || tChat('typeMessageHere');
 
   const isUploading = uploadingFiles.length > 0;
@@ -143,6 +167,7 @@ export function ChatInput({
       disabled ||
       isUploading ||
       isIndexing ||
+      isTranscribing ||
       sendBlocked
     )
       return;
@@ -281,79 +306,196 @@ export function ChatInput({
                 </div>
               ))}
 
-              {fileAttachments.map((attachment) => (
-                <div
-                  key={attachment.fileId}
-                  className="bg-muted group relative flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2"
-                >
-                  <DocumentIcon fileName={attachment.fileName} />
-                  <VStack className="min-w-0 flex-1 gap-1">
-                    <Text as="div" variant="label" title={attachment.fileName}>
-                      {middleEllipsis(attachment.fileName, 28)}
-                    </Text>
-                    {(() => {
-                      const info = indexingStatuses?.get(attachment.fileId);
-                      const ragStatus = info?.status;
-                      if (ragStatus === 'queued' || ragStatus === 'running') {
-                        const raw = info?.progress;
-                        // Convert "extracting 42/108" → "39%"
-                        let progressLabel = tChat('indexing');
-                        if (raw) {
-                          const match = /(\d+)\/(\d+)/.exec(raw);
-                          if (match) {
-                            const pct = Math.round(
-                              (Number(match[1]) / Number(match[2])) * 100,
+              {fileAttachments.map((attachment) => {
+                const audioInfo = isAudioOrVideo(attachment.fileType)
+                  ? transcriptionStatuses?.get(attachment.fileId)
+                  : undefined;
+                const canPreviewTranscript =
+                  audioInfo?.status === 'completed' && !!audioInfo.transcript;
+
+                return (
+                  <div
+                    key={attachment.fileId}
+                    className="bg-muted group relative flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2"
+                  >
+                    <DocumentIcon fileName={attachment.fileName} />
+                    <VStack className="min-w-0 flex-1 gap-1">
+                      <Text
+                        as="div"
+                        variant="label"
+                        title={attachment.fileName}
+                      >
+                        {middleEllipsis(attachment.fileName, 28)}
+                      </Text>
+                      {(() => {
+                        // Audio + video attachments: show two-phase status
+                        // (transcribing → indexing → indexed) instead of the
+                        // RAG-indexing status we show for other uploads.
+                        if (isAudioOrVideo(attachment.fileType)) {
+                          const info = transcriptionStatuses?.get(
+                            attachment.fileId,
+                          );
+                          const status = info?.status;
+                          const ragStatus = info?.ragStatus;
+                          if (status === 'queued' || status === 'running') {
+                            return (
+                              <HStack gap={1} align="center">
+                                <Loader className="text-muted-foreground/50 size-3 animate-spin" />
+                                <Text
+                                  as="span"
+                                  variant="caption"
+                                  className="text-muted-foreground/50"
+                                >
+                                  {info?.progress ||
+                                    tChat('transcription.transcribing')}
+                                </Text>
+                              </HStack>
                             );
-                            progressLabel = `${pct}%`;
-                          } else {
-                            progressLabel = raw;
                           }
-                        }
-                        return (
-                          <HStack gap={1} align="center">
-                            <Loader className="text-muted-foreground/50 size-3 animate-spin" />
+                          if (
+                            status === 'completed' &&
+                            (ragStatus === 'queued' || ragStatus === 'running')
+                          ) {
+                            return (
+                              <HStack gap={1} align="center">
+                                <Loader className="text-muted-foreground/50 size-3 animate-spin" />
+                                <Text
+                                  as="span"
+                                  variant="caption"
+                                  className="text-muted-foreground/50"
+                                >
+                                  {tChat('transcription.indexing')}
+                                </Text>
+                              </HStack>
+                            );
+                          }
+                          if (status === 'completed') {
+                            // `ragStatus` completed → "Indexed" (agent can
+                            // retrieve). `ragStatus === 'failed'` → show
+                            // "Transcribed" but warn the agent retrieval
+                            // will be unavailable.
+                            const label =
+                              ragStatus === 'completed'
+                                ? tChat('transcription.indexed')
+                                : ragStatus === 'failed'
+                                  ? tChat('transcription.indexingFailed')
+                                  : tChat('transcription.transcribed');
+                            return (
+                              <Text
+                                as="span"
+                                variant="caption"
+                                className={
+                                  ragStatus === 'failed'
+                                    ? 'text-destructive'
+                                    : 'text-muted-foreground/70'
+                                }
+                              >
+                                {label}
+                              </Text>
+                            );
+                          }
+                          if (status === 'failed' || status === 'skipped') {
+                            return (
+                              <Text
+                                as="span"
+                                variant="caption"
+                                className="text-destructive"
+                              >
+                                {tChat('transcription.couldNotTranscribe')}
+                              </Text>
+                            );
+                          }
+                          return (
                             <Text
-                              as="span"
+                              as="div"
                               variant="caption"
                               className="text-muted-foreground/50"
                             >
-                              {progressLabel}
+                              {formatFileSize(attachment.fileSize)}
                             </Text>
-                          </HStack>
-                        );
-                      }
-                      if (ragStatus === 'failed') {
+                          );
+                        }
+
+                        const info = indexingStatuses?.get(attachment.fileId);
+                        const ragStatus = info?.status;
+                        if (ragStatus === 'queued' || ragStatus === 'running') {
+                          const raw = info?.progress;
+                          // Convert "extracting 42/108" → "39%"
+                          let progressLabel = tChat('indexing');
+                          if (raw) {
+                            const match = /(\d+)\/(\d+)/.exec(raw);
+                            if (match) {
+                              const pct = Math.round(
+                                (Number(match[1]) / Number(match[2])) * 100,
+                              );
+                              progressLabel = `${pct}%`;
+                            } else {
+                              progressLabel = raw;
+                            }
+                          }
+                          return (
+                            <HStack gap={1} align="center">
+                              <Loader className="text-muted-foreground/50 size-3 animate-spin" />
+                              <Text
+                                as="span"
+                                variant="caption"
+                                className="text-muted-foreground/50"
+                              >
+                                {progressLabel}
+                              </Text>
+                            </HStack>
+                          );
+                        }
+                        if (ragStatus === 'failed') {
+                          return (
+                            <Text
+                              as="span"
+                              variant="caption"
+                              className="text-destructive"
+                            >
+                              {tChat('indexingFailed')}
+                            </Text>
+                          );
+                        }
                         return (
                           <Text
-                            as="span"
+                            as="div"
                             variant="caption"
-                            className="text-destructive"
+                            className="text-muted-foreground/50"
                           >
-                            {tChat('indexingFailed')}
+                            {formatFileSize(attachment.fileSize)}
                           </Text>
                         );
-                      }
-                      return (
-                        <Text
-                          as="div"
-                          variant="caption"
-                          className="text-muted-foreground/50"
-                        >
-                          {formatFileSize(attachment.fileSize)}
-                        </Text>
-                      );
-                    })()}
-                  </VStack>
-                  <button
-                    type="button"
-                    aria-label={tChat('removeAttachment')}
-                    onClick={() => removeAttachment(attachment.fileId)}
-                    className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                  >
-                    <X className="text-muted-foreground size-3" />
-                  </button>
-                </div>
-              ))}
+                      })()}
+                    </VStack>
+                    <button
+                      type="button"
+                      aria-label={tChat('removeAttachment')}
+                      onClick={() => removeAttachment(attachment.fileId)}
+                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                    >
+                      <X className="text-muted-foreground size-3" />
+                    </button>
+                    {canPreviewTranscript && (
+                      <button
+                        type="button"
+                        aria-label={tChat('transcription.viewTranscript')}
+                        title={tChat('transcription.viewTranscript')}
+                        onClick={() =>
+                          setPreviewTranscript({
+                            fileName: attachment.fileName,
+                            transcript: audioInfo?.transcript ?? '',
+                            durationSec: audioInfo?.durationSec,
+                          })
+                        }
+                        className="bg-background text-muted-foreground hover:text-foreground absolute right-0.5 bottom-0.5 flex size-5 items-center justify-center rounded-full transition-colors"
+                      >
+                        <Eye className="size-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
 
               {uploadingFiles.map((fileId) => (
                 <div
@@ -449,9 +591,11 @@ export function ChatInput({
               />
               <Tooltip
                 content={
-                  sendBlocked && sendBlockedReason && !isLoading
-                    ? sendBlockedReason
-                    : ''
+                  isTranscribing && !isLoading
+                    ? tChat('transcription.inProgressTooltip')
+                    : sendBlocked && sendBlockedReason && !isLoading
+                      ? sendBlockedReason
+                      : ''
                 }
                 side="top"
               >
@@ -465,6 +609,7 @@ export function ChatInput({
                         inputDisabled ||
                         isUploading ||
                         isIndexing ||
+                        isTranscribing ||
                         sendBlocked
                   }
                   size="icon"
@@ -492,6 +637,30 @@ export function ChatInput({
           src={previewImage.src}
           alt={previewImage.alt}
         />
+      )}
+
+      {previewTranscript && (
+        <ViewDialog
+          open={!!previewTranscript}
+          onOpenChange={(open) => !open && setPreviewTranscript(null)}
+          title={previewTranscript.fileName}
+          description={
+            previewTranscript.durationSec
+              ? tChat('transcription.previewSubtitle', {
+                  seconds: Math.round(previewTranscript.durationSec),
+                })
+              : undefined
+          }
+          size="lg"
+        >
+          <Text
+            as="div"
+            variant="body"
+            className="max-h-[60vh] overflow-y-auto leading-relaxed whitespace-pre-wrap"
+          >
+            {previewTranscript.transcript}
+          </Text>
+        </ViewDialog>
       )}
     </div>
   );

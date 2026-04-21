@@ -53,6 +53,7 @@ import {
 import { useConvexFileUpload } from '../hooks/use-convex-file-upload';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';
+import { useFileTranscriptionStatus } from '../hooks/use-file-transcription-status';
 import { useMergedChatItems } from '../hooks/use-merged-chat-items';
 import { useMessageProcessing } from '../hooks/use-message-processing';
 import { usePendingMessages } from '../hooks/use-pending-messages';
@@ -257,6 +258,12 @@ export function ChatInterface({
 
   const { isIndexing, statusMap: indexingStatuses } =
     useFileIndexingStatus(attachments);
+
+  const {
+    isTranscribing,
+    isQueryLoading: isTranscriptionQueryLoading,
+    statusMap: transcriptionStatuses,
+  } = useFileTranscriptionStatus(attachments);
 
   const { data: featureFlags } = useMyFeatureFlags(organizationId);
   const fileUploadDisabled = featureFlags?.fileUpload === false;
@@ -1023,6 +1030,8 @@ export function ChatInterface({
               fileUploadDisabled={fileUploadDisabled}
               isIndexing={isIndexing}
               indexingStatuses={indexingStatuses}
+              isTranscribing={isTranscribing || isTranscriptionQueryLoading}
+              transcriptionStatuses={transcriptionStatuses}
               sendBlocked={
                 isImageGenAgent &&
                 !!activeEditingImage &&

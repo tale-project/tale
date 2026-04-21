@@ -1,10 +1,15 @@
 'use client';
 
+import { useQuery } from 'convex/react';
 import { FileText, Globe, ChevronDown, ChevronUp } from 'lucide-react';
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useMemo } from 'react';
 
+import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { Text } from '@/app/components/ui/typography/text';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
+import { api } from '@/convex/_generated/api';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import type { CitationInfo } from '../hooks/use-citations';
@@ -84,16 +89,75 @@ function SourceCardsComponent({ citations, organizationId }: SourceCardsProps) {
   const [selectedSource, setSelectedSource] = useState<SourceGroup | null>(
     null,
   );
+  const [transcriptPreview, setTranscriptPreview] = useState<{
+    fileName: string;
+    transcript: string;
+    durationSec?: number;
+  } | null>(null);
 
   const sourceList = getUniqueSources(citations);
 
-  const handleCardClick = useCallback((source: SourceGroup) => {
-    if (source.type === 'web' && source.url) {
-      window.open(source.url, '_blank', 'noopener,noreferrer');
-    } else {
-      setSelectedSource(source);
+  // Batch-load metadata for RAG sources so we can detect audio citations and
+  // route their clicks to the transcript preview rather than the generic
+  // DocumentPreviewDialog (which would try to render mp3 bytes as a file).
+  const uniqueRagFileIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const s of sourceList) {
+      if (s.type === 'rag' && s.fileId) ids.push(s.fileId);
     }
-  }, []);
+    return [...new Set(ids)].map((id) => toId<'_storage'>(id));
+  }, [sourceList]);
+  const fileMetas = useQuery(
+    api.file_metadata.queries.getByStorageIds,
+    uniqueRagFileIds.length > 0 ? { storageIds: uniqueRagFileIds } : 'skip',
+  );
+  const metaByFileId = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        fileName: string;
+        contentType: string;
+        transcript?: string;
+        transcriptionStatus?: string;
+        transcriptionDurationSec?: number;
+      }
+    >();
+    if (!fileMetas) return map;
+    for (const m of fileMetas) {
+      map.set(m.storageId, m);
+    }
+    return map;
+  }, [fileMetas]);
+
+  const handleCardClick = useCallback(
+    (source: SourceGroup) => {
+      if (source.type === 'web' && source.url) {
+        window.open(source.url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      // Audio + video citations: transcript lives in fileMetadata.transcript;
+      // the storageId points at the original media bytes, not a text file.
+      // Route to the transcript dialog instead of DocumentPreviewDialog.
+      if (source.fileId) {
+        const meta = metaByFileId.get(source.fileId);
+        const ct = meta?.contentType;
+        if (
+          (ct?.startsWith('audio/') || ct?.startsWith('video/')) &&
+          meta?.transcriptionStatus === 'completed' &&
+          meta.transcript
+        ) {
+          setTranscriptPreview({
+            fileName: meta.fileName || source.filename || 'Media',
+            transcript: meta.transcript,
+            durationSec: meta.transcriptionDurationSec,
+          });
+          return;
+        }
+      }
+      setSelectedSource(source);
+    },
+    [metaByFileId],
+  );
 
   if (sourceList.length === 0) return null;
 
@@ -146,6 +210,32 @@ function SourceCardsComponent({ citations, organizationId }: SourceCardsProps) {
           fileId={selectedSource.fileId}
           fileName={selectedSource.filename}
         />
+      )}
+
+      {transcriptPreview && (
+        <ViewDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setTranscriptPreview(null);
+          }}
+          title={transcriptPreview.fileName}
+          description={
+            transcriptPreview.durationSec
+              ? t('transcription.previewSubtitle', {
+                  seconds: Math.round(transcriptPreview.durationSec),
+                })
+              : undefined
+          }
+          size="lg"
+        >
+          <Text
+            as="div"
+            variant="body"
+            className="max-h-[60vh] overflow-y-auto leading-relaxed whitespace-pre-wrap"
+          >
+            {transcriptPreview.transcript}
+          </Text>
+        </ViewDialog>
       )}
     </div>
   );

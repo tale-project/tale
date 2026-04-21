@@ -33,6 +33,8 @@ export interface ResolvedModelData {
   /** For per-image pricing (image-generation models). Complements the token
    * fields above, which remain the cost source for chat/embedding models. */
   imageCentsPerImage?: number;
+  /** For per-minute pricing (transcription models, e.g. OpenAI whisper-1). */
+  centsPerAudioMinute?: number;
 }
 
 interface ResolvedLanguageModel {
@@ -213,6 +215,32 @@ function createLanguageModel(modelData: ResolvedModelData): LanguageModelV3 {
     model: provider.chatModel(modelData.modelId),
     middleware: toolSchemaFixMiddleware,
   });
+}
+
+/**
+ * Resolve the org's transcription model (e.g. whisper-1). Returns bare
+ * `ResolvedModelData` — the caller uses `fetch` against
+ * `{baseUrl}/audio/transcriptions` directly because `@ai-sdk/openai-compatible`
+ * has no transcription primitive.
+ *
+ * `orgSlug` is REQUIRED (not optional) to avoid silently falling back to the
+ * `'default'` org when called from a scheduled action — multi-org isolation
+ * depends on this.
+ */
+export async function resolveTranscriptionModel(
+  ctx: ActionCtx,
+  opts: { orgSlug: string; providerName?: string },
+): Promise<ResolvedModelData> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by file_actions contract
+  const modelData = (await ctx.runAction(
+    internal.providers.file_actions.resolveModelByTag,
+    {
+      tag: 'transcription',
+      providerName: opts.providerName,
+      orgSlug: opts.orgSlug,
+    },
+  )) as ResolvedModelData;
+  return modelData;
 }
 
 /**

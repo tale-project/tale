@@ -52,6 +52,18 @@ export const uploadPolicyConfigSchema = z.object({
   blockedExtensions: z.array(z.string()).optional(),
   allowedMimeTypes: z.array(z.string()).optional(),
   maxFileSizeBytes: z.number().nonnegative().optional(),
+  // Optional per-MIME-prefix overrides. When the upload's MIME type matches
+  // any `mimeTypePrefix` entry, that `maxBytes` wins over `maxFileSizeBytes`.
+  // Example: `[{ mimeTypePrefix: 'audio/', maxBytes: 25 * 1024 * 1024 }]`
+  // caps audio at 25 MB while leaving other types at the global limit.
+  maxFileSizeLimits: z
+    .array(
+      z.object({
+        mimeTypePrefix: z.string().min(1),
+        maxBytes: z.number().nonnegative(),
+      }),
+    )
+    .optional(),
   maxTotalVolumeBytesPerUser: z.number().nonnegative().optional(),
 });
 export type UploadPolicyConfig = z.infer<typeof uploadPolicyConfigSchema>;

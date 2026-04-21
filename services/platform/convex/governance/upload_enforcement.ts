@@ -71,9 +71,19 @@ export async function checkUploadPolicy(
     }
   }
 
-  if (fileSize != null && config.maxFileSizeBytes != null) {
-    if (fileSize > config.maxFileSizeBytes) {
-      const maxMB = Math.round(config.maxFileSizeBytes / (1024 * 1024));
+  if (fileSize != null) {
+    // Per-MIME override wins over the global `maxFileSizeBytes` when set.
+    // Longest-prefix match — e.g. `audio/mpeg` matches `audio/` override
+    // before falling back to the generic limit.
+    let limit: number | undefined = config.maxFileSizeBytes ?? undefined;
+    if (mimeType && config.maxFileSizeLimits?.length) {
+      const match = [...config.maxFileSizeLimits]
+        .filter((l) => mimeType.startsWith(l.mimeTypePrefix))
+        .sort((a, b) => b.mimeTypePrefix.length - a.mimeTypePrefix.length)[0];
+      if (match) limit = match.maxBytes;
+    }
+    if (limit != null && fileSize > limit) {
+      const maxMB = Math.round(limit / (1024 * 1024));
       return {
         allowed: false,
         reason: `File size exceeds the ${maxMB} MB limit`,
