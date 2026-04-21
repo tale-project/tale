@@ -23,12 +23,25 @@ import {
 } from '@convex-dev/agent';
 import type { StreamMessage } from '@convex-dev/agent/validators';
 import type { ModelMessage } from 'ai';
+import { ConvexError } from 'convex/values';
 
 import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
 import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
 import { queryWebContext } from '../../agent_tools/web/helpers/query_web_context';
 import { estimateCostCents } from '../../governance/cost_estimation';
+import {
+  finalizeSanitize,
+  loadGuardrailsSnapshot,
+  type GuardrailsSnapshot,
+} from '../../governance/sanitize';
+import {
+  createGuardrailsTransform,
+  makeInitialState,
+  type BlockedReason,
+  type GuardrailsTransformState,
+} from '../../governance/stream_transform';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { recordFailure, recordSuccess } from '../../providers/circuit_breaker';
 import {
   ProviderUnavailableError,
@@ -43,6 +56,121 @@ import {
 } from '../context_management';
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
+
+const OUTPUT_BLOCKED_SENTINEL = '[blocked by content policy]';
+
+function convexErrorToBlockedReason(err: unknown): BlockedReason | null {
+  if (!(err instanceof ConvexError)) return null;
+  const data = err.data;
+  if (
+    typeof data !== 'object' ||
+    data === null ||
+    !('code' in data) ||
+    !('direction' in data) ||
+    !('categoryIds' in data) ||
+    !('sanitizationRunId' in data)
+  ) {
+    return null;
+  }
+  const code = (data as { code: unknown }).code;
+  if (
+    code !== 'pii.blocked' &&
+    code !== 'chat_filter.blocked' &&
+    code !== 'moderation_provider.blocked'
+  ) {
+    return null;
+  }
+  const direction = (data as { direction: unknown }).direction;
+  if (direction !== 'input' && direction !== 'output') return null;
+  const categoryIds = (data as { categoryIds: unknown }).categoryIds;
+  if (!Array.isArray(categoryIds)) return null;
+  const runId = (data as { sanitizationRunId: unknown }).sanitizationRunId;
+  if (typeof runId !== 'string') return null;
+  return {
+    code,
+    direction,
+    categoryIds: categoryIds.filter((c): c is string => typeof c === 'string'),
+    sanitizationRunId: runId,
+  };
+}
+
+async function applyGuardrailsBlockTombstone(
+  ctx: GenerateResponseArgs['ctx'],
+  savedMessageId: string | undefined,
+  streamId: string | undefined,
+  threadId: string,
+  reason: BlockedReason,
+): Promise<void> {
+  if (savedMessageId) {
+    try {
+      await ctx.runMutation(components.agent.messages.updateMessage, {
+        messageId: savedMessageId,
+        patch: {
+          message: {
+            role: 'assistant',
+            content: OUTPUT_BLOCKED_SENTINEL,
+          },
+        },
+      });
+    } catch (err) {
+      console.warn(
+        `[guardrails] tombstone updateMessage failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+    try {
+      await ctx.runMutation(
+        internal.message_metadata.internal_mutations.setBlockedReason,
+        {
+          messageId: savedMessageId,
+          threadId,
+          code: reason.code,
+          direction: reason.direction,
+          categoryIds: reason.categoryIds,
+          sanitizationRunId: reason.sanitizationRunId,
+        },
+      );
+    } catch (err) {
+      console.warn(
+        `[guardrails] setBlockedReason failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+  if (streamId) {
+    try {
+      await ctx.runMutation(components.agent.streams.abort, {
+        streamId,
+        reason: 'blocked_by_content_policy',
+      });
+    } catch (err) {
+      console.warn(
+        `[guardrails] streams.abort failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+}
+
+function buildBlockedReturn(
+  threadId: string,
+  savedMessageId: string | undefined,
+  usage: GenerateResponseResult['usage'] | undefined,
+  finishReason: string | undefined,
+  startTime: number,
+): GenerateResponseResult {
+  return {
+    threadId,
+    text: OUTPUT_BLOCKED_SENTINEL,
+    savedMessageId,
+    usage,
+    finishReason: finishReason ?? 'content-filter',
+    durationMs: Date.now() - startTime,
+  };
+}
 import { computeCacheKey } from '../response_cache/cache_key';
 import { areAllToolsCacheable } from '../response_cache/tool_cacheability';
 import { resolveTemplateVariables } from './resolve_template_variables';
@@ -232,6 +360,14 @@ export async function generateAgentResponse(
   let retrySystemMessageId: string | undefined;
   let firstTokenTime: number | null = null;
   let savedMessageId: string | undefined;
+  // Guardrails output-filter state. Populated whether streaming or not;
+  // the streaming transform writes into `guardrailsState` on block, and
+  // `persistAssistantMessage` below uses that + the snapshot to tombstone
+  // the saved assistant message with `blockedReason`.
+  let guardrailsSnapshot: GuardrailsSnapshot | null = null;
+  let guardrailsState: GuardrailsTransformState = makeInitialState();
+  let guardrailsSanitizationRunId: string | null = null;
+  let resolvedOrgSlug: string | null = null;
   let result: {
     text?: string;
     steps?: unknown[];
@@ -770,11 +906,45 @@ export async function generateAgentResponse(
       timestamp: new Date().toISOString(),
     });
 
+    // Snapshot guardrails configs once before LLM call; used by both the
+    // streaming transform (if enabled) and by `finalizeSanitize` on the
+    // full text at the end. Also resolves orgSlug which moderation needs
+    // to locate the per-org SOPS secrets file.
+    if (organizationId) {
+      try {
+        [guardrailsSnapshot, resolvedOrgSlug] = await Promise.all([
+          loadGuardrailsSnapshot(ctx, organizationId),
+          resolveOrgSlug(ctx, organizationId),
+        ]);
+      } catch (err) {
+        console.warn(
+          `[guardrails] failed to load snapshot for org ${organizationId}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+
+    const guardrailsOutputEnabled =
+      guardrailsSnapshot !== null &&
+      resolvedOrgSlug !== null &&
+      ((guardrailsSnapshot.chatFilter?.enabled &&
+        guardrailsSnapshot.chatFilter.config.appliesTo.includes('output')) ||
+        guardrailsSnapshot.pii?.enabled ||
+        (guardrailsSnapshot.moderation?.enabled &&
+          guardrailsSnapshot.moderation.config.appliesTo.includes('output')));
+
     try {
       if (enableStreaming) {
         // Streaming mode (chat agent)
         // - system: thread context (history, RAG, web search)
         // - prompt: current user message (passed separately to avoid duplication)
+        const transformRunId =
+          guardrailsOutputEnabled && streamId
+            ? `guardrails_${streamId}_${Date.now()}`
+            : null;
+        if (transformRunId) guardrailsSanitizationRunId = transformRunId;
+
         const streamResult = await agent.streamText(
           contextWithOrg,
           { threadId, userId },
@@ -783,6 +953,47 @@ export async function generateAgentResponse(
             system: systemPrompt,
             prompt: promptToSend,
             abortSignal: abortController.signal,
+            ...(guardrailsOutputEnabled &&
+              guardrailsSnapshot !== null &&
+              resolvedOrgSlug !== null &&
+              transformRunId !== null &&
+              streamId !== undefined && {
+                experimental_transform: ({ stopStream }) =>
+                  createGuardrailsTransform({
+                    configs: guardrailsSnapshot!,
+                    direction: 'output',
+                    sanitizationRunId: transformRunId,
+                    streamId,
+                    orgSlug: resolvedOrgSlug!,
+                    organizationId,
+                    state: guardrailsState,
+                    stopStream,
+                    defaultMaskReplacement:
+                      guardrailsSnapshot!.chatFilter?.config.maskReplacement ??
+                      '[BLOCKED]',
+                    runModerationForChunk: guardrailsSnapshot!.moderation
+                      ? async (text) => {
+                          const modConfig =
+                            guardrailsSnapshot!.moderation!.config;
+                          return await ctx.runAction(
+                            internal.governance.moderation_provider
+                              .internal_actions.runModerationProviderAction,
+                            {
+                              organizationId,
+                              orgSlug: resolvedOrgSlug!,
+                              direction: 'output',
+                              text,
+                              endpoint: modConfig.endpoint,
+                              responseShape: modConfig.responseShape,
+                              categoryMappings: modConfig.categoryMappings,
+                              failBehavior: modConfig.failBehavior,
+                              secretFile: modConfig.secretFile,
+                            },
+                          );
+                        }
+                      : undefined,
+                  }),
+              }),
             ...(generationParams?.temperature != null && {
               temperature: generationParams.temperature,
             }),
@@ -851,6 +1062,31 @@ export async function generateAgentResponse(
           response: streamResponse,
         };
 
+        // Guardrails mid-stream block: transform flipped state.blocked and
+        // called stopStream(). That stops the LLM, but deltas already
+        // persisted via saveStreamDeltas remain on disk. Tombstone the
+        // saved message so reload / history-builder see the sentinel, not
+        // the partial violating text.
+        if (guardrailsState.blocked && guardrailsState.blockedReason) {
+          await applyGuardrailsBlockTombstone(
+            ctx,
+            savedMessageId,
+            streamId,
+            threadId,
+            guardrailsState.blockedReason,
+          );
+          result.text = OUTPUT_BLOCKED_SENTINEL;
+          // Skip the empty-output-provider-error heuristic below: empty
+          // text is now expected.
+          return buildBlockedReturn(
+            threadId,
+            savedMessageId,
+            streamUsage,
+            streamFinishReason,
+            startTime,
+          );
+        }
+
         // Detect stream-level provider errors: the stream completed "successfully"
         // at the transport level but produced no output and no steps — the error
         // is only recorded in the stream deltas. Throw so the catch block can
@@ -863,6 +1099,85 @@ export async function generateAgentResponse(
           throw new Error(
             `Generation produced no output (finishReason: ${streamFinishReason ?? 'undefined'})`,
           );
+        }
+
+        // Finalize sweep: run chat_filter + PII on the full accumulated
+        // text to catch cross-chunk matches the per-delta pass missed.
+        // Moderation is NOT re-run here — it already scanned its byte-
+        // capped buffers during the stream. If the sweep blocks, tombstone
+        // just like a mid-stream block. If it rewrites (mask), overwrite
+        // the saved message text so reload shows the clean version.
+        if (
+          guardrailsOutputEnabled &&
+          guardrailsSnapshot &&
+          resolvedOrgSlug &&
+          streamText &&
+          streamText.trim().length > 0
+        ) {
+          try {
+            const finalized = await finalizeSanitize(
+              ctx,
+              streamText,
+              guardrailsSnapshot,
+              {
+                organizationId,
+                orgSlug: resolvedOrgSlug,
+                threadId,
+                messageId: savedMessageId,
+                agentSlug,
+                actorType: 'assistant',
+              },
+            );
+            if (finalized.text !== streamText) {
+              result.text = finalized.text;
+              if (savedMessageId) {
+                try {
+                  await ctx.runMutation(
+                    components.agent.messages.updateMessage,
+                    {
+                      messageId: savedMessageId,
+                      patch: {
+                        message: {
+                          role: 'assistant',
+                          content: finalized.text,
+                        },
+                      },
+                    },
+                  );
+                } catch (updateErr) {
+                  console.warn(
+                    `[guardrails] finalize-mask update failed: ${
+                      updateErr instanceof Error
+                        ? updateErr.message
+                        : String(updateErr)
+                    }`,
+                  );
+                }
+              }
+            }
+          } catch (err) {
+            // finalizeSanitize throws ConvexError on block — translate to
+            // the tombstone flow.
+            const blockedReason = convexErrorToBlockedReason(err);
+            if (blockedReason) {
+              await applyGuardrailsBlockTombstone(
+                ctx,
+                savedMessageId,
+                streamId,
+                threadId,
+                blockedReason,
+              );
+              result.text = OUTPUT_BLOCKED_SENTINEL;
+              return buildBlockedReturn(
+                threadId,
+                savedMessageId,
+                streamUsage,
+                streamFinishReason,
+                startTime,
+              );
+            }
+            throw err;
+          }
         }
 
         // Post-success abort check: direct DB query closes the polling

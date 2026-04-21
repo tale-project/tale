@@ -1,3 +1,4 @@
+import { blocked, modified, pass, type FilterOutcome } from '../filter_outcome';
 import { detectPii } from './pii_detector';
 import { maskPii } from './pii_masker';
 import {
@@ -17,51 +18,38 @@ export interface PiiConfig {
   }>;
 }
 
-export interface ScrubResult {
-  text: string;
-  detectedTypes: string[];
-  matchCount: number;
-}
-
 function buildPatterns(config: PiiConfig): PiiPattern[] {
   const builtIn = getEnabledPatterns(config.enabledPatterns);
-
   const custom: PiiPattern[] = (config.customPatterns ?? []).map((cp) => ({
     name: cp.name,
     regex: new RegExp(cp.regex, 'g'),
     replacement: cp.replacement,
   }));
-
   return [...builtIn, ...custom];
 }
 
-export function scrubPii(text: string, config: PiiConfig): ScrubResult {
-  if (!config.enabled) {
-    return { text, detectedTypes: [], matchCount: 0 };
-  }
+/**
+ * Pure PII scrubber. Returns a FilterOutcome (never throws). The `sanitize.ts`
+ * dispatcher converts `blocked` into a ConvexError with legacy substring so
+ * old clients continue to match via `.includes('Message blocked: PII')`.
+ *
+ * Browser-safe: pure regex + string ops, no Node-only APIs.
+ */
+export function scrubPii(text: string, config: PiiConfig): FilterOutcome {
+  if (!config.enabled) return pass();
 
   const patterns = buildPatterns(config);
   const matches = detectPii(text, patterns);
-
-  if (matches.length === 0) {
-    return { text, detectedTypes: [], matchCount: 0 };
-  }
+  if (matches.length === 0) return pass();
 
   const detectedTypes = [...new Set(matches.map((m) => m.patternName))];
 
   if (config.mode === 'block') {
-    const typeLabels = detectedTypes.join(', ');
-    throw new Error(
-      `Message blocked: PII detected (${typeLabels}). Please remove personal data before sending.`,
-    );
+    return blocked(detectedTypes, matches.length);
   }
 
   const maskedText = maskPii(text, matches);
-  return {
-    text: maskedText,
-    detectedTypes,
-    matchCount: matches.length,
-  };
+  return modified(maskedText, detectedTypes, matches.length);
 }
 
 export { BUILT_IN_PII_PATTERNS } from './pii_patterns';

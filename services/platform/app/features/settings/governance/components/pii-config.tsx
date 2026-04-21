@@ -22,8 +22,8 @@ import {
 } from '@/convex/governance/pii/pii_patterns';
 import { useT } from '@/lib/i18n/client';
 
-import { useUpsertPiiConfig } from '../hooks/mutations';
-import { usePiiConfig } from '../hooks/queries';
+import { useUpsertGovernancePolicy } from '../hooks/mutations';
+import { useGovernancePolicy } from '../hooks/queries';
 
 const PATTERN_NAMES = BUILT_IN_PII_PATTERNS.map((p) => p.name);
 
@@ -43,8 +43,11 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   const { toast } = useToast();
   const ability = useAbility();
 
-  const { data: policy, isLoading } = usePiiConfig(organizationId);
-  const upsertMutation = useUpsertPiiConfig();
+  const { data: policy, isLoading } = useGovernancePolicy(
+    organizationId,
+    'pii_config',
+  );
+  const upsertMutation = useUpsertGovernancePolicy();
 
   const [enabled, setEnabled] = useState(false);
   const [mode, setMode] = useState<'mask' | 'block'>('mask');
@@ -85,12 +88,15 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
     }) => {
       const resolved = {
         organizationId,
-        enabled: overrides.enabled ?? enabled,
-        mode: overrides.mode ?? mode,
-        enabledPatterns: overrides.enabledPatterns ?? [...enabledPatterns],
-        customPatterns: (overrides.customPatterns ?? customPatterns).filter(
-          (p) => p.name && p.regex && p.replacement,
-        ),
+        policyType: 'pii_config' as const,
+        config: {
+          enabled: overrides.enabled ?? enabled,
+          mode: overrides.mode ?? mode,
+          enabledPatterns: overrides.enabledPatterns ?? [...enabledPatterns],
+          customPatterns: (overrides.customPatterns ?? customPatterns).filter(
+            (p) => p.name && p.regex && p.replacement,
+          ),
+        },
       };
       try {
         await upsertMutation.mutateAsync(resolved);

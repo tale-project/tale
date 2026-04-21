@@ -1,4 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
+import { ConvexError } from 'convex/values';
 import { useCallback, useRef, startTransition } from 'react';
 
 import { useConvexClient } from '@/app/hooks/use-convex-client';
@@ -7,6 +8,30 @@ import { api } from '@/convex/_generated/api';
 import { scrubPii } from '@/convex/governance/pii';
 import { useT } from '@/lib/i18n/client';
 import { piiConfigSchema } from '@/lib/shared/schemas/governance';
+
+type GuardrailsBlockedCode =
+  | 'pii.blocked'
+  | 'chat_filter.blocked'
+  | 'moderation_provider.blocked';
+
+function extractGuardrailsBlockedCode(
+  error: unknown,
+): GuardrailsBlockedCode | null {
+  if (!(error instanceof ConvexError)) return null;
+  const data = error.data;
+  if (typeof data !== 'object' || data === null || !('code' in data)) {
+    return null;
+  }
+  const code = (data as { code: unknown }).code;
+  if (
+    code === 'pii.blocked' ||
+    code === 'chat_filter.blocked' ||
+    code === 'moderation_provider.blocked'
+  ) {
+    return code;
+  }
+  return null;
+}
 
 import type {
   PendingMessage,
@@ -154,7 +179,9 @@ export function useSendMessage({
         });
       }
 
-      // Pre-check PII policy before creating thread
+      // Pre-flight PII check: avoid a server roundtrip when block mode
+      // would deny the message anyway. Server-side sanitize.ts is the
+      // authoritative gate; this is purely a UX optimization.
       try {
         const piiPolicy = await convexClient.query(
           api.governance.queries.getPolicy,
@@ -166,21 +193,26 @@ export function useSendMessage({
             enabled: piiPolicy.enabled,
           });
           if (parsed.success && parsed.data.mode === 'block') {
-            scrubPii(message, parsed.data);
+            const outcome = scrubPii(message, parsed.data);
+            if (outcome.kind === 'blocked') {
+              clearChatState();
+              toast({
+                title: t('toast.piiBlocked'),
+                description: `PII detected: ${outcome.categoryIds.join(', ')}`,
+                variant: 'destructive',
+              });
+              return;
+            }
           }
         }
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        if (errorMessage.includes('Message blocked: PII')) {
-          clearChatState();
-          toast({
-            title: t('toast.piiBlocked'),
-            description: errorMessage,
-            variant: 'destructive',
-          });
-          return;
-        }
+        // Log and fall through — server-side sanitize will block again if
+        // the message truly violates policy.
+        console.warn(
+          `[use-send-message] client-side PII pre-flight failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
       }
 
       try {
@@ -359,9 +391,23 @@ export function useSendMessage({
         const errorMessage = rawMessage.split('\n')[0] ?? rawMessage;
         const lower = errorMessage.toLowerCase();
 
+        // Guardrails block detection: prefer structured ConvexError data,
+        // fall back to the legacy substring for old server bundles.
+        const blockedCode = extractGuardrailsBlockedCode(error);
+
         let title = t('toast.sendFailed');
-        if (errorMessage.includes('Message blocked: PII')) {
+        if (
+          blockedCode === 'pii.blocked' ||
+          errorMessage.includes('Message blocked: PII')
+        ) {
           title = t('toast.piiBlocked');
+        } else if (
+          blockedCode === 'chat_filter.blocked' ||
+          blockedCode === 'moderation_provider.blocked' ||
+          errorMessage.includes('Message blocked: chat filter') ||
+          errorMessage.includes('Message blocked: content policy')
+        ) {
+          title = t('toast.policyViolation');
         } else if (
           lower.includes('not available for your account') ||
           lower.includes('model access policy') ||

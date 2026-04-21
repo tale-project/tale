@@ -2740,8 +2740,12 @@
       "generateFailed": "Antwort konnte nicht generiert werden",
       "sendFailed": "Nachricht konnte nicht gesendet werden",
       "piiBlocked": "Nachricht durch PII-Richtlinie blockiert",
+      "policyViolation": "Nachricht durch Inhaltsrichtlinie blockiert",
       "modelAccessDenied": "Modell nicht verfügbar",
       "budgetExceeded": "Nutzungslimit erreicht"
+    },
+    "blockedNotice": {
+      "body": "Diese Antwort wurde durch die Inhaltsrichtlinie deiner Organisation blockiert."
     },
     "thinking": {
       "default": "Denkt nach",
@@ -4272,11 +4276,15 @@
       "contentAndModels": "Inhalte & Modelle",
       "policiesAndLimits": "Richtlinien & Limits",
       "securityAndMonitoring": "Sicherheit & Überwachung",
+      "guardrails": "Guardrails",
       "subtabs": {
         "login": "Anmeldung & Authentifizierung",
         "password": "Passwort-Richtlinie",
         "twoFactor": "Zwei-Faktor-Authentifizierung",
         "pii": "PII-Schutz",
+        "contentSafety": "Inhaltssicherheit",
+        "moderation": "Moderations-Anbieter",
+        "guardrailsOverview": "Guardrails-Übersicht",
         "usage": "Nutzung",
         "systemPrompt": "System-Prompt",
         "defaultModels": "Standardmodelle",

@@ -18,7 +18,10 @@ import { v } from 'convex/values';
 import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
 import { internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
-import { scrubPii, type PiiConfig } from '../governance/pii';
+import {
+  loadGuardrailsSnapshot,
+  sanitizeMessage,
+} from '../governance/sanitize';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { readJsonFile } from '../lib/file_io';
 import { applyModelOverride, toSerializableConfig } from './config';
@@ -97,10 +100,8 @@ export const chatWithAgent = action({
     // resolution are independent — run them in parallel to reduce TTFT.
     // Agent config is read directly from the filesystem (inlined) instead of
     // dispatching a separate resolveAgentConfig action, saving ~100-300ms.
-    const [piiPolicy, governanceDefault, configResult] = await Promise.all([
-      ctx.runQuery(internal.governance.internal_queries.getPiiConfigInternal, {
-        organizationId: args.organizationId,
-      }),
+    const [guardrails, governanceDefault, configResult] = await Promise.all([
+      loadGuardrailsSnapshot(ctx, args.organizationId),
       !args.modelId
         ? ctx.runQuery(
             internal.governance.internal_queries.resolveDefaultModelInternal,
@@ -190,42 +191,25 @@ export const chatWithAgent = action({
         { threadId: args.threadId, streamId: preAllocatedStreamId },
       );
 
-    // PII scrubbing must still happen before startChat (modifies message)
-    let message = args.message;
-    if (piiPolicy?.enabled && piiPolicy.config) {
-      const piiConfig: PiiConfig = {
-        enabled: true,
-        mode: piiPolicy.config.mode,
-        enabledPatterns: piiPolicy.config.enabledPatterns,
-        customPatterns: piiPolicy.config.customPatterns,
-      };
-
-      const result = scrubPii(message, piiConfig);
-      message = result.text;
-
-      if (result.matchCount > 0) {
-        await ctx.runMutation(
-          internal.audit_logs.internal_mutations.createAuditLog,
-          {
-            organizationId: args.organizationId,
-            actorId: authUserId,
-            actorEmail: authUserEmail,
-            actorType: 'user',
-            action: 'pii.detected_in_chat',
-            category: 'security',
-            resourceType: 'chat_message',
-            resourceId: args.threadId,
-            status: 'success',
-            metadata: {
-              detectedTypes: result.detectedTypes,
-              matchCount: result.matchCount,
-              mode: piiConfig.mode,
-              agentSlug: args.agentSlug,
-            },
-          },
-        );
-      }
-    }
+    // Guardrails: chat_filter → PII → moderation_provider (see sanitize.ts).
+    // Blocked outcomes throw ConvexError with structured `data` for the UI
+    // and a legacy substring in `.message` for older client bundles.
+    const sanitized = await sanitizeMessage(
+      ctx,
+      args.message,
+      'input',
+      guardrails,
+      {
+        organizationId: args.organizationId,
+        orgSlug: args.orgSlug,
+        threadId: args.threadId,
+        agentSlug: args.agentSlug,
+        actorId: authUserId,
+        actorEmail: authUserEmail,
+        actorType: 'user',
+      },
+    );
+    let message = sanitized.text;
 
     // Model access RBAC: check if the user is allowed to use the requested model.
     // Strip any provider qualifier so governance policies (which store plain

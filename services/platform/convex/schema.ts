@@ -15,6 +15,7 @@ import {
   brandingBindingsTable,
   brandingSettingsLegacyTable,
 } from './branding/schema';
+import { chatFilterEventsTable } from './chat_filter_events/schema';
 import {
   conversationsTable,
   conversationMessagesTable,
@@ -68,6 +69,7 @@ export default defineSchema({
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
   governancePolicies: governancePoliciesTable,
+  chatFilterEvents: chatFilterEventsTable,
   usageLedger: usageLedgerTable,
   promptTemplates: promptTemplatesTable,
   messageFeedback: messageFeedbackTable,

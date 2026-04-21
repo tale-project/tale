@@ -1,3 +1,4 @@
+import { execWithBudget } from '../regex_safety';
 import type { PiiPattern } from './pii_patterns';
 
 export interface PiiMatch {
@@ -13,14 +14,13 @@ export function detectPii(text: string, patterns: PiiPattern[]): PiiMatch[] {
 
   for (const pattern of patterns) {
     const regex = new RegExp(pattern.regex.source, pattern.regex.flags);
-
-    let match: RegExpExecArray | null;
-    while ((match = regex.exec(text)) !== null) {
+    const budgeted = execWithBudget(regex, text);
+    for (const m of budgeted) {
       matches.push({
         patternName: pattern.name,
-        start: match.index,
-        end: match.index + match[0].length,
-        matchedText: match[0],
+        start: m.index,
+        end: m.index + m.length,
+        matchedText: m.matchedText,
         replacement: pattern.replacement,
       });
     }

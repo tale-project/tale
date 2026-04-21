@@ -76,6 +76,23 @@ export const messageMetadataTable = defineTable({
     }),
   ),
   error: v.optional(v.string()),
+  // Set when the guardrails pipeline (pii / chat_filter / moderation_provider)
+  // blocks this assistant message either mid-stream or at finalize. The UI
+  // checks this field BEFORE rendering text/reasoning/tools so blocked
+  // content is never displayed. `auditLogs` + `chatFilterEvents` carry the
+  // full forensic record; this field only carries what the UI needs.
+  blockedReason: v.optional(
+    v.object({
+      code: v.union(
+        v.literal('pii.blocked'),
+        v.literal('chat_filter.blocked'),
+        v.literal('moderation_provider.blocked'),
+      ),
+      direction: v.union(v.literal('input'), v.literal('output')),
+      categoryIds: v.array(v.string()),
+      sanitizationRunId: v.string(),
+    }),
+  ),
   costEstimateCents: v.optional(v.number()),
 })
   .index('by_messageId', ['messageId'])

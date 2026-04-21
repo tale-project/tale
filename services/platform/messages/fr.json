@@ -2736,8 +2736,12 @@
       "generateFailed": "Échec de la génération de la réponse",
       "sendFailed": "Échec de l'envoi du message",
       "piiBlocked": "Message bloqué par la politique de protection des données personnelles",
+      "policyViolation": "Message bloqué par la politique de contenu",
       "modelAccessDenied": "Modèle non disponible",
       "budgetExceeded": "Limite d'utilisation atteinte"
+    },
+    "blockedNotice": {
+      "body": "Cette réponse a été bloquée par la politique de contenu de ton organisation."
     },
     "thinking": {
       "default": "Réflexion",
@@ -4177,10 +4181,14 @@
       "contentAndModels": "Contenu et modèles",
       "policiesAndLimits": "Politiques et limites",
       "securityAndMonitoring": "Sécurité et surveillance",
+      "guardrails": "Guardrails",
       "subtabs": {
         "login": "Connexion et authentification",
         "password": "Politique de mot de passe",
         "pii": "Protection des DCP",
+        "contentSafety": "Sécurité du contenu",
+        "moderation": "Fournisseur de modération",
+        "guardrailsOverview": "Aperçu des garde-fous",
         "usage": "Utilisation",
         "systemPrompt": "Prompt système",
         "defaultModels": "Modèles par défaut",

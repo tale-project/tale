@@ -119,10 +119,13 @@ export const chatViaWebhook = internalAction({
       };
     }
 
-    // Thread owner: prefer the webhook creator's Better Auth user ID so
-    // the created thread shows up in that user's chat history. Fallback is
-    // the synthetic `webhook:<id>` tag (legacy webhooks without the field).
-    const chatOwnerId = args.chatOwnerId ?? `webhook:${args.webhookId}`;
+    // Thread owner: prefer the webhook creator's Better Auth user ID so the
+    // created thread surfaces in that user's chat history. Fallback is
+    // `'system'` for legacy webhooks without the field — matches the openai-
+    // compat direct-model path. The synthetic `webhook:<id>` form used
+    // before was 40 chars (8 prefix + 32 _id) and crashed the Better Auth
+    // adapter's `db.get(userId)` path in usage analytics.
+    const chatOwnerId = args.chatOwnerId ?? 'system';
 
     // Resolve the client-supplied `user` hash (if any) to a stable thread
     // before entering `startWebhookChat`, so that repeated POSTs land in

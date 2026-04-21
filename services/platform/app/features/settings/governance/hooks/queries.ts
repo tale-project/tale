@@ -11,13 +11,6 @@ import {
 
 type PolicyType = (typeof GOVERNANCE_POLICY_TYPES)[number];
 
-export function usePiiConfig(organizationId: string) {
-  return useConvexQuery(api.governance.queries.getPolicy, {
-    organizationId,
-    policyType: 'pii_config' as const,
-  });
-}
-
 export function useGovernancePolicy(
   organizationId: string,
   policyType: PolicyType,

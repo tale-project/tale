@@ -2740,8 +2740,12 @@
       "generateFailed": "Failed to generate response",
       "sendFailed": "Failed to send message",
       "piiBlocked": "Message blocked by PII policy",
+      "policyViolation": "Message blocked by content policy",
       "modelAccessDenied": "Model not available",
       "budgetExceeded": "Usage limit reached"
+    },
+    "blockedNotice": {
+      "body": "This response was blocked by your organization's content policy."
     },
     "thinking": {
       "default": "Thinking",
@@ -4279,11 +4283,15 @@
       "contentAndModels": "Content & Models",
       "policiesAndLimits": "Policies & Limits",
       "securityAndMonitoring": "Security & Monitoring",
+      "guardrails": "Guardrails",
       "subtabs": {
         "login": "Login & authentication",
         "password": "Password policy",
         "twoFactor": "Two-factor authentication",
         "pii": "PII protection",
+        "contentSafety": "Content safety",
+        "moderation": "Moderation provider",
+        "guardrailsOverview": "Guardrails overview",
         "usage": "Usage",
         "systemPrompt": "System prompt",
         "defaultModels": "Default models",
