@@ -10,7 +10,6 @@
     "openrouter:openai/gpt-5.2-pro",
     "openrouter:google/gemini-3.1-pro-preview"
   ],
-  "structuredResponsesEnabled": true,
   "maxSteps": 40,
   "timeoutMs": 1500000,
   "outputReserve": 4096,

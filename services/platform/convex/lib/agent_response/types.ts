@@ -37,7 +37,7 @@ export interface GenerateResponseConfig {
   agentTeamIds?: string[];
   /** Pre-resolved completed file IDs from agent-specific knowledge files */
   knowledgeFileIds?: string[];
-  /** Whether to inject structured response markers into the system prompt (default true) */
+  /** Whether to inject structured response markers into the system prompt (default false) */
   structuredResponsesEnabled?: boolean;
   /** Agent instructions for context window display (not sent to LLM, already in agent config) */
   instructions?: string;
