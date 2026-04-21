@@ -15,9 +15,10 @@ import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
-import type {
-  ChatFilterCategory,
-  ChatFilterConfig,
+import {
+  chatFilterConfigSchema,
+  type ChatFilterCategory,
+  type ChatFilterConfig,
 } from '@/lib/shared/schemas/governance';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
@@ -66,8 +67,9 @@ export function ChatFilterConfigView({
 
   if (!isLoading && !initializedRef.current && policy) {
     initializedRef.current = true;
-    const config = policy.config as ChatFilterConfig | undefined;
-    if (config) {
+    const parsed = chatFilterConfigSchema.safeParse(policy.config);
+    if (parsed.success) {
+      const config = parsed.data;
       setEnabled(policy.enabled ?? config.enabled ?? false);
       setMaskReplacement(config.maskReplacement ?? '[BLOCKED]');
       setAppliesToInput(config.appliesTo?.includes('input') ?? true);
@@ -144,11 +146,11 @@ export function ChatFilterConfigView({
   );
 
   const handleToggleCategoryEnabled = useCallback(
-    (index: number, enabled: boolean) => {
+    (index: number, nextEnabled: boolean) => {
       const target = categories[index];
       if (!target) return;
       const next = categories.map((c, i) =>
-        i === index ? { ...c, enabled } : c,
+        i === index ? { ...c, enabled: nextEnabled } : c,
       );
       setCategories(next);
       void saveWith(buildConfig({ categories: next }));

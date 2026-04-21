@@ -1,5 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 
+import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
@@ -95,23 +96,27 @@ export const precheckInput = action({
       return { blocked: false };
     } catch (err) {
       if (err instanceof ConvexError) {
-        const data = err.data as
-          | {
-              code?: string;
-              categoryIds?: string[];
-              categoryLabels?: string[];
-            }
-          | undefined;
-        if (
-          data?.code === 'pii.blocked' ||
-          data?.code === 'chat_filter.blocked'
-        ) {
-          return {
-            blocked: true,
-            code: data.code,
-            categoryIds: data.categoryIds,
-            categoryLabels: data.categoryLabels,
-          };
+        const rawData: unknown = err.data;
+        if (isRecord(rawData)) {
+          const code = rawData['code'];
+          if (code === 'pii.blocked' || code === 'chat_filter.blocked') {
+            const rawCategoryIds = rawData['categoryIds'];
+            const rawCategoryLabels = rawData['categoryLabels'];
+            const categoryIds = Array.isArray(rawCategoryIds)
+              ? rawCategoryIds.filter((c): c is string => typeof c === 'string')
+              : undefined;
+            const categoryLabels = Array.isArray(rawCategoryLabels)
+              ? rawCategoryLabels.filter(
+                  (c): c is string => typeof c === 'string',
+                )
+              : undefined;
+            return {
+              blocked: true,
+              code,
+              categoryIds,
+              categoryLabels,
+            };
+          }
         }
       }
       throw err;

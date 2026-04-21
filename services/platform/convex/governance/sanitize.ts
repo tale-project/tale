@@ -1,5 +1,4 @@
 import { ConvexError } from 'convex/values';
-import { nanoid } from 'nanoid';
 
 import {
   chatFilterConfigSchema,
@@ -200,7 +199,7 @@ function normalizeChatFilter(
     return null;
   }
   return {
-    policyDocId: String(row['_id'] ?? ''),
+    policyDocId: typeof row['_id'] === 'string' ? row['_id'] : '',
     updatedAt: typeof row['updatedAt'] === 'number' ? row['updatedAt'] : 0,
     enabled: row['enabled'] !== false && parsed.data.enabled,
     config: parsed.data,
@@ -230,7 +229,7 @@ function normalizePii(row: unknown): NormalizedConfig<PiiConfig> | null {
     return null;
   }
   return {
-    policyDocId: String(row['_id'] ?? ''),
+    policyDocId: typeof row['_id'] === 'string' ? row['_id'] : '',
     updatedAt: typeof row['updatedAt'] === 'number' ? row['updatedAt'] : 0,
     enabled: row['enabled'] !== false && parsed.data.enabled,
     config: parsed.data,
@@ -249,7 +248,7 @@ function normalizeModeration(
     return null;
   }
   return {
-    policyDocId: String(row['_id'] ?? ''),
+    policyDocId: typeof row['_id'] === 'string' ? row['_id'] : '',
     updatedAt: typeof row['updatedAt'] === 'number' ? row['updatedAt'] : 0,
     enabled: row['enabled'] !== false && parsed.data.enabled,
     config: parsed.data,
@@ -296,7 +295,7 @@ export async function sanitizeMessage(
   snapshot: GuardrailsSnapshot,
   meta: SanitizeMeta,
 ): Promise<SanitizeResult> {
-  const runId = nanoid();
+  const runId = globalThis.crypto.randomUUID();
 
   if (process.env.GUARDRAILS_DISABLED === '1') {
     return { text: rawText, sanitizationRunId: runId };
@@ -365,8 +364,13 @@ export async function sanitizeMessage(
     }
   }
 
-  // ---------------- PII ----------------
-  if (snapshot.pii?.enabled) {
+  // ---------------- PII (input-only) ----------------
+  // PII scrubbing guards user-submitted text from leaking to external LLM
+  // providers. It does NOT run on output — assistant responses go through
+  // chat_filter + moderation_provider instead. Output-side PII would need
+  // its own per-direction config (different mode, different patterns) and
+  // is deferred until there's a concrete use case.
+  if (direction === 'input' && snapshot.pii?.enabled) {
     const acc: AuditAccumulator = {
       categoryIds: [],
       matchCount: 0,
@@ -486,10 +490,10 @@ export async function sanitizeMessage(
 }
 
 /**
- * Finalize sweep for streaming output. Runs only chat_filter + PII over
- * the full accumulated text — NOT moderation_provider, which has already
- * been invoked chunk-by-chunk during the stream. This prevents double
- * provider cost and duplicate audit entries.
+ * Finalize sweep for streaming output. Runs only chat_filter over the
+ * full accumulated text — NOT moderation_provider (already invoked
+ * chunk-by-chunk, avoiding double provider cost + duplicate audit
+ * entries), and NOT PII (input-only, see `sanitizeMessage`).
  *
  * Cross-chunk matches (word split across two deltas) are caught here.
  */
@@ -499,7 +503,7 @@ export async function finalizeSanitize(
   snapshot: GuardrailsSnapshot,
   meta: SanitizeMeta,
 ): Promise<SanitizeResult> {
-  const runId = nanoid();
+  const runId = globalThis.crypto.randomUUID();
 
   if (process.env.GUARDRAILS_DISABLED === '1') {
     return { text: rawText, sanitizationRunId: runId };
@@ -565,31 +569,6 @@ export async function finalizeSanitize(
         meta,
         acc,
       );
-    }
-  }
-
-  if (snapshot.pii?.enabled) {
-    const acc: AuditAccumulator = {
-      categoryIds: [],
-      matchCount: 0,
-      truncated: false,
-    };
-    const outcome = scrubPii(current, snapshot.pii.config);
-    if (outcome.kind === 'blocked') {
-      accumulate(acc, outcome);
-      await flushAudit(ctx, 'pii', 'blocked', direction, runId, meta, acc);
-      throw blockError(
-        'pii.blocked',
-        runId,
-        direction,
-        outcome.categoryIds,
-        outcome.categoryIds,
-      );
-    }
-    if (outcome.kind === 'modified') {
-      current = outcome.text;
-      accumulate(acc, outcome);
-      await flushAudit(ctx, 'pii', 'detected', direction, runId, meta, acc);
     }
   }
 

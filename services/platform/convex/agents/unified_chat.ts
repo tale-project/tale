@@ -209,7 +209,7 @@ export const chatWithAgent = action({
         actorType: 'user',
       },
     );
-    let message = sanitized.text;
+    const message = sanitized.text;
 
     // Model access RBAC: check if the user is allowed to use the requested model.
     // Strip any provider qualifier so governance policies (which store plain

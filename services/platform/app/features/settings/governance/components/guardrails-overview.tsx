@@ -13,9 +13,10 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
-import type {
-  ChatFilterConfig,
-  ModerationProviderConfig,
+import {
+  chatFilterConfigSchema,
+  moderationProviderConfigSchema,
+  piiConfigSchema,
 } from '@/lib/shared/schemas/governance';
 
 import { useGovernancePolicy } from '../hooks/queries';
@@ -105,9 +106,12 @@ export function GuardrailsOverview({
     useGovernancePolicy(organizationId, 'moderation_provider');
 
   const chatFilterEnabled = !!chatFilterPolicy?.enabled;
-  const chatFilterConfig = chatFilterPolicy?.config as
-    | ChatFilterConfig
-    | undefined;
+  const chatFilterParsed = chatFilterPolicy
+    ? chatFilterConfigSchema.safeParse(chatFilterPolicy.config)
+    : null;
+  const chatFilterConfig = chatFilterParsed?.success
+    ? chatFilterParsed.data
+    : undefined;
 
   // Resolve event `categoryIds` (immutable slugs) to current admin-edited
   // labels for display. Falls back to the raw id if a category was renamed
@@ -137,21 +141,26 @@ export function GuardrailsOverview({
     : ['Disabled — add a category and enable to start filtering.'];
 
   const piiEnabled = !!piiPolicy?.enabled;
+  const piiParsed = piiPolicy
+    ? piiConfigSchema.safeParse(piiPolicy.config)
+    : null;
+  const piiConfig = piiParsed?.success ? piiParsed.data : undefined;
   const piiDetails: string[] = piiEnabled
     ? [
-        `Mode: ${(piiPolicy.config?.mode as string) ?? 'mask'}`,
-        `Patterns: ${
-          (piiPolicy.config?.enabledPatterns?.length as number) ?? 0
-        } built-in + ${
-          (piiPolicy.config?.customPatterns?.length as number) ?? 0
+        `Mode: ${piiConfig?.mode ?? 'mask'}`,
+        `Patterns: ${piiConfig?.enabledPatterns?.length ?? 0} built-in + ${
+          piiConfig?.customPatterns?.length ?? 0
         } custom`,
       ]
     : ['Disabled — PII detection is off for this organization.'];
 
   const moderationEnabled = !!moderationPolicy?.enabled;
-  const moderationConfig = moderationPolicy?.config as
-    | ModerationProviderConfig
-    | undefined;
+  const moderationParsed = moderationPolicy
+    ? moderationProviderConfigSchema.safeParse(moderationPolicy.config)
+    : null;
+  const moderationConfig = moderationParsed?.success
+    ? moderationParsed.data
+    : undefined;
   const moderationDetails: string[] = moderationEnabled
     ? [
         `Provider: ${moderationConfig?.responseShape?.type ?? 'custom_jsonpath'}`,
@@ -318,7 +327,6 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
                     key={typedEvent._id}
                     className="border-border hover:bg-muted/30 cursor-pointer border-t transition-colors"
                     tabIndex={0}
-                    role="button"
                     aria-label={`View event ${typedEvent._id}`}
                     onClick={() => setSelectedEvent(typedEvent)}
                     onKeyDown={(e) => {

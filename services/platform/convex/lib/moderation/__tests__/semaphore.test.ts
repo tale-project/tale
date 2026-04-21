@@ -34,13 +34,13 @@ describe('lib/moderation/semaphore', () => {
     expect(queueDepth('s2')).toBe(2);
 
     // Release one slot — first waiter should now hold it.
-    releases[0]!();
-    const first = await waiters[0]!;
+    releases[0]();
+    const first = await waiters[0];
     expect(inFlightCount('s2')).toBe(2);
     expect(queueDepth('s2')).toBe(1);
 
-    releases[1]!();
-    const second = await waiters[1]!;
+    releases[1]();
+    const second = await waiters[1];
     expect(inFlightCount('s2')).toBe(2);
     expect(queueDepth('s2')).toBe(0);
 

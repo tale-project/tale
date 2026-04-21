@@ -237,7 +237,6 @@ const chatFilterPatternSchema = z.object({
       }
     }, 'Invalid regex pattern'),
 });
-export type ChatFilterPattern = z.infer<typeof chatFilterPatternSchema>;
 
 export const chatFilterCategorySchema = z.object({
   id: z.string().regex(chatFilterCategoryIdRegex),
@@ -298,9 +297,6 @@ const MODERATION_BUFFER_POLICY_DEFAULT =
 const moderationBufferPolicySchema = moderationBufferPolicyInnerSchema.default(
   MODERATION_BUFFER_POLICY_DEFAULT,
 );
-export type ModerationBufferPolicy = z.infer<
-  typeof moderationBufferPolicySchema
->;
 
 const moderationEndpointSchema = z.object({
   // Accept http:// and https://. HTTPS is strongly recommended for public

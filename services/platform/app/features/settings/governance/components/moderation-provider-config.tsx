@@ -15,10 +15,11 @@ import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
-import type {
-  ModerationCategoryMapping,
-  ModerationProviderConfig,
-  ModerationResponseShape,
+import {
+  moderationProviderConfigSchema,
+  type ModerationCategoryMapping,
+  type ModerationProviderConfig,
+  type ModerationResponseShape,
 } from '@/lib/shared/schemas/governance';
 
 import {
@@ -236,8 +237,9 @@ export function ModerationProviderConfigView({
 
   if (!isLoading && !initializedRef.current && policy) {
     initializedRef.current = true;
-    const config = policy.config as ModerationProviderConfig | undefined;
-    if (config) {
+    const parsed = moderationProviderConfigSchema.safeParse(policy.config);
+    if (parsed.success) {
+      const config = parsed.data;
       setEnabled(policy.enabled ?? config.enabled ?? false);
       setAppliesToInput(config.appliesTo?.includes('input') ?? true);
       setAppliesToOutput(config.appliesTo?.includes('output') ?? false);
@@ -1077,7 +1079,7 @@ function EndpointEditDialog({
   onCancel,
   onSave,
 }: EndpointEditDialogProps) {
-  const [draft, setDraft] = useState<EndpointDraft>(initial);
+  const [draft, setDraft] = useState(initial);
 
   // Reset when dialog reopens with a different initial value.
   useEffect(() => {
@@ -1254,9 +1256,7 @@ function CustomJsonPathSection({
     >
       <div className="flex flex-col gap-4">
         <div>
-          <label className="text-sm font-medium">
-            1. Pick the response shape
-          </label>
+          <p className="text-sm font-medium">1. Pick the response shape</p>
           <p className="text-muted-foreground mt-1 text-xs">
             Which format does the provider use for its category flags?
           </p>

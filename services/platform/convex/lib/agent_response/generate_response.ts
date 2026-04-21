@@ -61,30 +61,20 @@ const OUTPUT_BLOCKED_SENTINEL = '[blocked by content policy]';
 
 function convexErrorToBlockedReason(err: unknown): BlockedReason | null {
   if (!(err instanceof ConvexError)) return null;
-  const data = err.data;
+  const data: unknown = err.data;
+  if (!isRecord(data)) return null;
+  const code = data['code'];
   if (
-    typeof data !== 'object' ||
-    data === null ||
-    !('code' in data) ||
-    !('direction' in data) ||
-    !('categoryIds' in data) ||
-    !('sanitizationRunId' in data)
-  ) {
-    return null;
-  }
-  const code = (data as { code: unknown }).code;
-  if (
-    code !== 'pii.blocked' &&
     code !== 'chat_filter.blocked' &&
     code !== 'moderation_provider.blocked'
   ) {
     return null;
   }
-  const direction = (data as { direction: unknown }).direction;
+  const direction = data['direction'];
   if (direction !== 'input' && direction !== 'output') return null;
-  const categoryIds = (data as { categoryIds: unknown }).categoryIds;
+  const categoryIds = data['categoryIds'];
   if (!Array.isArray(categoryIds)) return null;
-  const runId = (data as { sanitizationRunId: unknown }).sanitizationRunId;
+  const runId = data['sanitizationRunId'];
   if (typeof runId !== 'string') return null;
   return {
     code,
@@ -365,8 +355,7 @@ export async function generateAgentResponse(
   // `persistAssistantMessage` below uses that + the snapshot to tombstone
   // the saved assistant message with `blockedReason`.
   let guardrailsSnapshot: GuardrailsSnapshot | null = null;
-  let guardrailsState: GuardrailsTransformState = makeInitialState();
-  let guardrailsSanitizationRunId: string | null = null;
+  const guardrailsState: GuardrailsTransformState = makeInitialState();
   let resolvedOrgSlug: string | null = null;
   let result: {
     text?: string;
@@ -943,44 +932,40 @@ export async function generateAgentResponse(
           guardrailsOutputEnabled && streamId
             ? `guardrails_${streamId}_${Date.now()}`
             : null;
-        if (transformRunId) guardrailsSanitizationRunId = transformRunId;
-
-        const streamResult = await agent.streamText(
-          contextWithOrg,
-          { threadId, userId },
-          {
-            promptMessageId,
-            system: systemPrompt,
-            prompt: promptToSend,
-            abortSignal: abortController.signal,
-            ...(guardrailsOutputEnabled &&
-              guardrailsSnapshot !== null &&
-              resolvedOrgSlug !== null &&
-              transformRunId !== null &&
-              streamId !== undefined && {
-                experimental_transform: ({ stopStream }) =>
+        const outputTransform =
+          guardrailsOutputEnabled &&
+          guardrailsSnapshot !== null &&
+          resolvedOrgSlug !== null &&
+          transformRunId !== null &&
+          streamId !== undefined
+            ? (() => {
+                const snapshot = guardrailsSnapshot;
+                const orgSlug = resolvedOrgSlug;
+                const sid = streamId;
+                const runId = transformRunId;
+                return ({ stopStream }: { stopStream: () => void }) =>
                   createGuardrailsTransform({
-                    configs: guardrailsSnapshot!,
+                    configs: snapshot,
                     direction: 'output',
-                    sanitizationRunId: transformRunId,
-                    streamId,
-                    orgSlug: resolvedOrgSlug!,
+                    sanitizationRunId: runId,
+                    streamId: sid,
+                    orgSlug,
                     organizationId,
                     state: guardrailsState,
                     stopStream,
                     defaultMaskReplacement:
-                      guardrailsSnapshot!.chatFilter?.config.maskReplacement ??
+                      snapshot.chatFilter?.config.maskReplacement ??
                       '[BLOCKED]',
-                    runModerationForChunk: guardrailsSnapshot!.moderation
+                    runModerationForChunk: snapshot.moderation
                       ? async (text) => {
-                          const modConfig =
-                            guardrailsSnapshot!.moderation!.config;
+                          const modConfig = snapshot.moderation?.config;
+                          if (!modConfig) return null;
                           return await ctx.runAction(
                             internal.governance.moderation_provider
                               .internal_actions.runModerationProviderAction,
                             {
                               organizationId,
-                              orgSlug: resolvedOrgSlug!,
+                              orgSlug,
                               direction: 'output',
                               text,
                               endpoint: modConfig.endpoint,
@@ -991,8 +976,21 @@ export async function generateAgentResponse(
                           );
                         }
                       : undefined,
-                  }),
-              }),
+                  });
+              })()
+            : null;
+
+        const streamResult = await agent.streamText(
+          contextWithOrg,
+          { threadId, userId },
+          {
+            promptMessageId,
+            system: systemPrompt,
+            prompt: promptToSend,
+            abortSignal: abortController.signal,
+            ...(outputTransform !== null && {
+              experimental_transform: outputTransform,
+            }),
             ...(generationParams?.temperature != null && {
               temperature: generationParams.temperature,
             }),

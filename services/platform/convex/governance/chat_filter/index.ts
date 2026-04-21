@@ -62,6 +62,8 @@ export function runChatFilter(input: RunChatFilterInput): FilterOutcome {
         enforced.matchCount,
         detection.truncated,
       );
+    default:
+      return pass();
   }
 }
 

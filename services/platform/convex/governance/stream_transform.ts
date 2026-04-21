@@ -3,7 +3,6 @@ import type { TextStreamPart, ToolSet } from 'ai';
 import { acquire } from '../lib/moderation/semaphore';
 import { runChatFilter } from './chat_filter';
 import type { FilterOutcome, GuardrailsDirection } from './filter_outcome';
-import { scrubPii } from './pii';
 import type { GuardrailsSnapshot } from './sanitize';
 
 /**
@@ -27,11 +26,12 @@ export type RunModerationForChunk = (text: string) => Promise<{
  * Output streaming integration for the guardrails pipeline.
  *
  * The Vercel AI SDK calls `experimental_transform` to wrap `streamText`'s
- * event stream. We intercept `text-delta` events, run the local filters
- * (chat_filter + PII) synchronously against a sliding 256-byte lookback
- * buffer (catches matches split across delta boundaries), and fire the
- * external moderation provider asynchronously against a debounced
- * byte-cap buffer (minFlushChars / maxBufferChars / idleFlushMs).
+ * event stream. We intercept `text-delta` events, run the local filter
+ * (chat_filter) synchronously against a sliding 256-byte lookback buffer
+ * (catches matches split across delta boundaries), and fire the external
+ * moderation provider asynchronously against a debounced byte-cap buffer
+ * (minFlushChars / maxBufferChars / idleFlushMs). PII scrubbing is
+ * input-only and does not run here.
  *
  * Non-text parts (tool-call / tool-result / reasoning / source / etc.)
  * pass through unchanged. Tool-call and tool-result boundaries flush
@@ -55,7 +55,7 @@ export type RunModerationForChunk = (text: string) => Promise<{
 const LOCAL_LOOKBACK_BYTES = 256;
 
 export interface BlockedReason {
-  code: 'chat_filter.blocked' | 'pii.blocked' | 'moderation_provider.blocked';
+  code: 'chat_filter.blocked' | 'moderation_provider.blocked';
   direction: GuardrailsDirection;
   categoryIds: string[];
   sanitizationRunId: string;
@@ -96,10 +96,8 @@ export interface CreateGuardrailsTransformOptions {
   state: GuardrailsTransformState;
   stopStream: () => void;
   /**
-   * Mask replacement for local filters. The chat_filter config carries its
-   * own `maskReplacement`; we fall back to this when chat_filter is off
-   * but PII is masking. PII preserves its own per-pattern replacement
-   * tokens via `scrubPii` internally.
+   * Mask replacement fallback. The chat_filter config carries its own
+   * `maskReplacement`; this value is used when chat_filter is off.
    */
   defaultMaskReplacement: string;
   /**
@@ -131,27 +129,14 @@ function localFiltersSync(
     if (cf.kind !== 'pass') return cf;
   }
 
-  if (configs.pii?.enabled) {
-    const pii = scrubPii(combined, configs.pii.config);
-    if (pii.kind !== 'pass') return pii;
-  }
-
   return { kind: 'pass' };
 }
 
 export function createGuardrailsTransform<TOOLS extends ToolSet>(
   opts: CreateGuardrailsTransformOptions,
 ): TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>> {
-  const {
-    configs,
-    direction,
-    sanitizationRunId,
-    streamId,
-    orgSlug,
-    organizationId,
-    state,
-    stopStream,
-  } = opts;
+  const { configs, direction, sanitizationRunId, streamId, state, stopStream } =
+    opts;
 
   const bufferPolicy = configs.moderation?.config.endpoint.bufferPolicy ?? {
     minFlushChars: 120,
@@ -162,7 +147,7 @@ export function createGuardrailsTransform<TOOLS extends ToolSet>(
 
   // Per-delta sliding lookback for local filters (catches matches that
   // span a chunk boundary). Kept small — we only need enough to cover
-  // the longest reasonable banned word / PII pattern (~256 bytes).
+  // the longest reasonable banned word (~256 bytes).
   let lookback = '';
   // Moderation accumulator.
   let modBuffer = '';
@@ -273,13 +258,8 @@ export function createGuardrailsTransform<TOOLS extends ToolSet>(
       let safeDelta = originalDelta;
 
       if (outcome.kind === 'blocked') {
-        const code =
-          configs.chatFilter?.enabled &&
-          configs.chatFilter.config.appliesTo.includes(direction)
-            ? 'chat_filter.blocked'
-            : 'pii.blocked';
         recordBlock({
-          code,
+          code: 'chat_filter.blocked',
           direction,
           categoryIds: outcome.categoryIds,
           sanitizationRunId,

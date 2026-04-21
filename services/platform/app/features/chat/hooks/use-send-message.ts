@@ -16,11 +16,11 @@ function extractGuardrailsBlockedCode(
   error: unknown,
 ): GuardrailsBlockedCode | null {
   if (!(error instanceof ConvexError)) return null;
-  const data = error.data;
+  const data: unknown = error.data;
   if (typeof data !== 'object' || data === null || !('code' in data)) {
     return null;
   }
-  const code = (data as { code: unknown }).code;
+  const code = (data as Record<string, unknown>)['code'];
   if (
     code === 'pii.blocked' ||
     code === 'chat_filter.blocked' ||

@@ -202,5 +202,7 @@ export function parseResponse(
       return parsePerspective(raw);
     case 'custom_jsonpath':
       return parseCustomJsonPath(raw, shape);
+    default:
+      return { flagged: false, categories: {} };
   }
 }
