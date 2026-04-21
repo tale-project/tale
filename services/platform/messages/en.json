@@ -2902,7 +2902,10 @@
     "transcription": {
       "inProgressTooltip": "Transcribing audio…",
       "transcribing": "Transcribing…",
+      "indexing": "Indexing…",
+      "indexed": "Indexed",
       "transcribed": "Transcribed",
+      "indexingFailed": "Indexing failed",
       "couldNotTranscribe": "Could not be transcribed",
       "skip": "Skip transcription",
       "retry": "Retry transcription",

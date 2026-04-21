@@ -2898,7 +2898,10 @@
     "transcription": {
       "inProgressTooltip": "Transcription de l'audio en cours…",
       "transcribing": "Transcription en cours…",
+      "indexing": "Indexation en cours…",
+      "indexed": "Indexé",
       "transcribed": "Transcrit",
+      "indexingFailed": "Échec de l'indexation",
       "couldNotTranscribe": "N'a pas pu être transcrit",
       "skip": "Ignorer la transcription",
       "retry": "Réessayer la transcription",

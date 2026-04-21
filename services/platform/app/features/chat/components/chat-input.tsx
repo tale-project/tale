@@ -80,6 +80,8 @@ interface ChatInputProps extends Omit<
       progress?: string;
       transcript?: string;
       durationSec?: number;
+      ragStatus?: 'queued' | 'running' | 'completed' | 'failed';
+      ragError?: string;
     }
   >;
   onSavePrompt?: (content: string) => void;
@@ -326,13 +328,15 @@ export function ChatInput({
                         {middleEllipsis(attachment.fileName, 28)}
                       </Text>
                       {(() => {
-                        // Audio attachments show transcription status instead of
-                        // RAG indexing status.
+                        // Audio attachments: show two-phase status
+                        // (transcribing → indexing → indexed) instead of the
+                        // RAG-indexing status we show for other uploads.
                         if (attachment.fileType.startsWith('audio/')) {
                           const info = transcriptionStatuses?.get(
                             attachment.fileId,
                           );
                           const status = info?.status;
+                          const ragStatus = info?.ragStatus;
                           if (status === 'queued' || status === 'running') {
                             return (
                               <HStack gap={1} align="center">
@@ -348,14 +352,45 @@ export function ChatInput({
                               </HStack>
                             );
                           }
+                          if (
+                            status === 'completed' &&
+                            (ragStatus === 'queued' || ragStatus === 'running')
+                          ) {
+                            return (
+                              <HStack gap={1} align="center">
+                                <Loader className="text-muted-foreground/50 size-3 animate-spin" />
+                                <Text
+                                  as="span"
+                                  variant="caption"
+                                  className="text-muted-foreground/50"
+                                >
+                                  {tChat('transcription.indexing')}
+                                </Text>
+                              </HStack>
+                            );
+                          }
                           if (status === 'completed') {
+                            // `ragStatus` completed → "Indexed" (agent can
+                            // retrieve). `ragStatus === 'failed'` → show
+                            // "Transcribed" but warn the agent retrieval
+                            // will be unavailable.
+                            const label =
+                              ragStatus === 'completed'
+                                ? tChat('transcription.indexed')
+                                : ragStatus === 'failed'
+                                  ? tChat('transcription.indexingFailed')
+                                  : tChat('transcription.transcribed');
                             return (
                               <Text
                                 as="span"
                                 variant="caption"
-                                className="text-muted-foreground/70"
+                                className={
+                                  ragStatus === 'failed'
+                                    ? 'text-destructive'
+                                    : 'text-muted-foreground/70'
+                                }
                               >
-                                {tChat('transcription.transcribed')}
+                                {label}
                               </Text>
                             );
                           }

@@ -101,6 +101,15 @@ export const getByStorageIds = query({
       transcriptionError: v.optional(v.string()),
       transcriptionDurationSec: v.optional(v.number()),
       transcriptionProgress: v.optional(v.string()),
+      transcriptRagStatus: v.optional(
+        v.union(
+          v.literal('queued'),
+          v.literal('running'),
+          v.literal('completed'),
+          v.literal('failed'),
+        ),
+      ),
+      transcriptRagError: v.optional(v.string()),
       _creationTime: v.number(),
     }),
   ),
@@ -132,6 +141,8 @@ export const getByStorageIds = query({
           transcriptionError: meta.transcriptionError,
           transcriptionDurationSec: meta.transcriptionDurationSec,
           transcriptionProgress: meta.transcriptionProgress,
+          transcriptRagStatus: meta.transcriptRagStatus,
+          transcriptRagError: meta.transcriptRagError,
           _creationTime: meta._creationTime,
         };
       }),

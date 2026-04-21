@@ -16,6 +16,8 @@ type TranscriptionStatus =
   | 'failed'
   | 'skipped';
 
+type RagStatus = 'queued' | 'running' | 'completed' | 'failed';
+
 export interface FileTranscriptionInfo {
   status?: TranscriptionStatus;
   error?: string;
@@ -23,6 +25,10 @@ export interface FileTranscriptionInfo {
   durationSec?: number;
   progress?: string;
   startedAt?: number;
+  /** RAG indexing status for the transcript text. `document_retrieve`
+   * requires this to be `completed` before the agent can read the content. */
+  ragStatus?: RagStatus;
+  ragError?: string;
 }
 
 /**
@@ -58,18 +64,25 @@ export function useFileTranscriptionStatus(attachments: FileAttachment[]) {
         transcript: m.transcript,
         durationSec: m.transcriptionDurationSec,
         progress: m.transcriptionProgress,
+        ragStatus: m.transcriptRagStatus,
+        ragError: m.transcriptRagError,
         startedAt: m._creationTime,
       });
     }
     return map;
   }, [metadata]);
 
+  // Block send while any audio is still transcribing OR still indexing into
+  // RAG. Both must reach a terminal state (completed/failed/skipped) before
+  // the LLM can reliably call `document_retrieve` to read the transcript.
   const isTranscribing = useMemo(() => {
     if (!metadata || audioFileIds.length === 0) return false;
     return metadata.some(
       (m) =>
         m.transcriptionStatus === 'queued' ||
-        m.transcriptionStatus === 'running',
+        m.transcriptionStatus === 'running' ||
+        m.transcriptRagStatus === 'queued' ||
+        m.transcriptRagStatus === 'running',
     );
   }, [metadata, audioFileIds.length]);
 

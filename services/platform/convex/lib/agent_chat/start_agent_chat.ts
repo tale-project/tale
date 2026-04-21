@@ -573,7 +573,7 @@ async function buildMessageWithAttachments(
           ? `, ${Math.round(meta.transcriptionDurationSec)}s transcribed`
           : '';
         audioMarkdown.push(
-          `🎙️ [${attachment.fileName}] (${attachment.fileType}${durationNote}) — transcript indexed in knowledge base; call rag_search with fileId=${attachment.fileId} to retrieve\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
+          `🎙️ [${attachment.fileName}] (${attachment.fileType}${durationNote}) — transcript is stored as a document; call document_retrieve with fileId=${attachment.fileId} to read the full text\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
         );
       } else {
         const reason =

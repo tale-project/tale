@@ -170,6 +170,119 @@ async function patchProgress(
 }
 
 /**
+ * Index a completed transcript into RAG under the caller's storageId.
+ * Called from both the fresh-transcription path and the dedup-hit path so
+ * every uploaded audio gets its own RAG entry — citations resolve to the
+ * actual file the user attached, not the prior upload the transcript was
+ * cached from. Best-effort: RAG failures are recorded in
+ * `transcriptRagStatus` but do not demote `transcriptionStatus`.
+ */
+async function indexTranscriptToRag(
+  ctx: ActionCtx,
+  args: {
+    storageId: string;
+    fileName: string;
+    audioContentType: string;
+    transcript: string;
+    chunkCount: number;
+    requestId: string;
+  },
+): Promise<void> {
+  if (args.transcript.length === 0) return;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storageId is Id<'_storage'> threaded from action args
+  const storageId = args.storageId as never;
+  try {
+    // Mirror to both fields: `transcriptRagStatus` is the audio-specific
+    // label we show in UI, while `ragStatus` is what generic consumers like
+    // `document_retrieve` inspect. For audio uploads the RAG fileId is the
+    // audio's storageId (the transcript text is indexed under it), so the
+    // two stay in lockstep.
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.updateFileTranscription,
+      { storageId, transcriptRagStatus: 'running' },
+    );
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.updateFileRagStatus,
+      { storageId, ragStatus: 'running' },
+    );
+    const ragConfig = getRagConfig();
+    if (!ragConfig.serviceUrl) return;
+
+    const transcriptBlob = new Blob([args.transcript], { type: 'text/plain' });
+    // RAG validates by extension (SUPPORTED_EXTENSIONS in documents.py). The
+    // original audio extension (.mp3/.wav/etc.) is not in that set, so append
+    // `.txt` — content is already text/plain and this keeps the original
+    // audio name visible in citations (e.g. `meeting.mp3.txt`). The frontend
+    // source-cards handler detects audio via fileMetadata.contentType and
+    // routes clicks to the transcript preview, so the cosmetic `.txt` suffix
+    // doesn't confuse users.
+    const ragFilename = `${args.fileName}.txt`;
+    await uploadFile({
+      ragServiceUrl: ragConfig.serviceUrl,
+      file: transcriptBlob,
+      filename: ragFilename,
+      contentType: 'text/plain',
+      fileId: args.storageId,
+      metadata: {
+        source: 'audio_transcript',
+        originalFileName: args.fileName,
+        originalAudioContentType: args.audioContentType,
+        chunkCount: args.chunkCount,
+      },
+    });
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.updateFileTranscription,
+      { storageId, transcriptRagStatus: 'completed' },
+    );
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.updateFileRagStatus,
+      { storageId, ragStatus: 'completed' },
+    );
+  } catch (ragError) {
+    // Log full unsanitized-length error so RAG 4xx bodies (which carry the
+    // actual reason the upload was rejected) are visible in operator logs.
+    // We still redact bearer tokens / keys; we just don't truncate to 500
+    // chars like the user-facing `transcriptRagError` field.
+    const rawMessage =
+      ragError instanceof Error ? ragError.message : String(ragError);
+    const rawStack = ragError instanceof Error ? ragError.stack : undefined;
+    const redact = (s: string | undefined): string | undefined =>
+      s
+        ?.replace(/Bearer\s+[A-Za-z0-9._-]+/g, 'Bearer [REDACTED]')
+        .replace(/sk-[A-Za-z0-9_-]{10,}/g, 'sk-[REDACTED]')
+        .replace(/Authorization:\s*\S+/gi, 'Authorization: [REDACTED]');
+
+    console.error(
+      JSON.stringify({
+        event: 'transcription.rag_index_failed',
+        requestId: args.requestId,
+        storageId: args.storageId,
+        fileName: args.fileName,
+        transcriptLength: args.transcript.length,
+        errorMessage: redact(rawMessage),
+        errorStack: redact(rawStack),
+      }),
+    );
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.updateFileTranscription,
+      {
+        storageId,
+        transcriptRagStatus: 'failed',
+        transcriptRagError: sanitizeTranscriptionError(ragError),
+      },
+    );
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.updateFileRagStatus,
+      {
+        storageId,
+        ragStatus: 'failed',
+        ragError: sanitizeTranscriptionError(ragError),
+      },
+    );
+  }
+}
+
+/**
  * Transcribe an uploaded audio file via the org's configured transcription
  * provider. Server-side pipeline:
  *
@@ -279,11 +392,21 @@ export const transcribeAudio = internalAction({
               transcript: cached.transcript,
               transcriptionDurationSec: cached.transcriptionDurationSec,
               transcriptionProgress: '',
-              // RAG already has this transcript indexed under the prior upload;
-              // marking completed keeps UI parity without re-indexing.
-              transcriptRagStatus: 'completed',
             },
           );
+          // Re-index to RAG under the NEW storageId so citations in future
+          // chats resolve to the current upload (not the prior one the
+          // transcript was cached from). Duplicates content in RAG but
+          // keeps per-upload citation identity correct; embeddings cost
+          // is tiny compared to the Whisper call we just skipped.
+          await indexTranscriptToRag(ctx, {
+            storageId: args.storageId,
+            fileName: args.fileName,
+            audioContentType: args.contentType,
+            transcript: cached.transcript ?? '',
+            chunkCount: 0,
+            requestId,
+          });
           return null;
         }
       }
@@ -404,51 +527,14 @@ export const transcribeAudio = internalAction({
         );
       }
 
-      // Index transcript into RAG (best-effort — RAG failure does not demote
-      // the transcription itself, which is already `completed`).
-      if (fullTranscript.length > 0) {
-        try {
-          await ctx.runMutation(
-            internal.file_metadata.internal_mutations.updateFileTranscription,
-            { storageId: args.storageId, transcriptRagStatus: 'running' },
-          );
-          const ragConfig = getRagConfig();
-          if (ragConfig.serviceUrl) {
-            const transcriptBlob = new Blob([fullTranscript], {
-              type: 'text/plain',
-            });
-            await uploadFile({
-              ragServiceUrl: ragConfig.serviceUrl,
-              file: transcriptBlob,
-              filename: `${args.fileName}.transcript.txt`,
-              contentType: 'text/plain',
-              fileId: args.storageId,
-              metadata: {
-                source: 'audio_transcript',
-                originalFileName: args.fileName,
-                originalContentType: args.contentType,
-                chunkCount: chunks.length,
-              },
-            });
-            await ctx.runMutation(
-              internal.file_metadata.internal_mutations.updateFileTranscription,
-              { storageId: args.storageId, transcriptRagStatus: 'completed' },
-            );
-          }
-        } catch (ragError) {
-          console.error(
-            `[transcribeAudio:rag] requestId=${requestId} ${sanitizeTranscriptionError(ragError)}`,
-          );
-          await ctx.runMutation(
-            internal.file_metadata.internal_mutations.updateFileTranscription,
-            {
-              storageId: args.storageId,
-              transcriptRagStatus: 'failed',
-              transcriptRagError: sanitizeTranscriptionError(ragError),
-            },
-          );
-        }
-      }
+      await indexTranscriptToRag(ctx, {
+        storageId: args.storageId,
+        fileName: args.fileName,
+        audioContentType: args.contentType,
+        transcript: fullTranscript,
+        chunkCount: chunks.length,
+        requestId,
+      });
 
       return null;
     } catch (error) {
