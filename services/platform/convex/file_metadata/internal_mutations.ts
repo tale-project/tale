@@ -43,7 +43,11 @@ export const saveFileMetadata = internalMutation({
       return existing._id;
     }
 
-    const isAudio = args.contentType.startsWith('audio/');
+    // Audio AND video files go through the transcription pipeline (ffmpeg
+    // strips video via `-vn`, transcribes the audio track).
+    const isAudio =
+      args.contentType.startsWith('audio/') ||
+      args.contentType.startsWith('video/');
 
     const id = await ctx.db.insert('fileMetadata', {
       organizationId: args.organizationId,

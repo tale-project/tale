@@ -135,18 +135,19 @@ function SourceCardsComponent({ citations, organizationId }: SourceCardsProps) {
         window.open(source.url, '_blank', 'noopener,noreferrer');
         return;
       }
-      // Audio citations: transcript lives in fileMetadata.transcript; the
-      // storageId points at the mp3 bytes, not a text file. Route to the
-      // transcript dialog instead of DocumentPreviewDialog.
+      // Audio + video citations: transcript lives in fileMetadata.transcript;
+      // the storageId points at the original media bytes, not a text file.
+      // Route to the transcript dialog instead of DocumentPreviewDialog.
       if (source.fileId) {
         const meta = metaByFileId.get(source.fileId);
+        const ct = meta?.contentType;
         if (
-          meta?.contentType?.startsWith('audio/') &&
-          meta.transcriptionStatus === 'completed' &&
+          (ct?.startsWith('audio/') || ct?.startsWith('video/')) &&
+          meta?.transcriptionStatus === 'completed' &&
           meta.transcript
         ) {
           setTranscriptPreview({
-            fileName: meta.fileName || source.filename || 'Audio',
+            fileName: meta.fileName || source.filename || 'Media',
             transcript: meta.transcript,
             durationSec: meta.transcriptionDurationSec,
           });

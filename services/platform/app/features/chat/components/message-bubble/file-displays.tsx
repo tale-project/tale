@@ -6,6 +6,7 @@ import {
   Code2,
   Download,
   Eye,
+  Film,
   FileSpreadsheet,
   FileText,
   Image,
@@ -23,6 +24,7 @@ import { Text } from '@/app/components/ui/typography/text';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { isAudioOrVideo } from '@/lib/shared/file-types';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 import {
   isTextBasedFile,
@@ -61,6 +63,7 @@ export function getFileTypeLabel(
   }
   if (mediaType === 'text/plain') return t('fileTypes.txt');
   if (mediaType.startsWith('audio/')) return t('fileTypes.audio');
+  if (mediaType.startsWith('video/')) return t('fileTypes.video');
   if (isTextBasedFile(fileName, mediaType))
     return getFileExtensionLower(fileName).toUpperCase() || t('fileTypes.txt');
   return t('fileTypes.file');
@@ -116,6 +119,12 @@ function getFileIconInfo(fileType: string, fileName: string) {
       Icon: AudioLines,
       bgColor: 'bg-purple-50',
       iconColor: 'text-purple-600',
+    };
+  if (fileType.startsWith('video/'))
+    return {
+      Icon: Film,
+      bgColor: 'bg-indigo-50',
+      iconColor: 'text-indigo-600',
     };
   if (isTextBasedFile(fileName, fileType)) {
     const category = getTextFileCategory(fileName);
@@ -182,17 +191,17 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   );
   const displayUrl = attachment.previewUrl || serverFileUrl || undefined;
   const isImage = attachment.fileType.startsWith('image/');
-  const isAudio = attachment.fileType.startsWith('audio/');
+  const isMedia = isAudioOrVideo(attachment.fileType);
 
-  // For audio attachments in sent messages, fetch the transcript via the
-  // existing plural query (skip when not audio to avoid subscriptions).
+  // For audio/video attachments in sent messages, fetch the transcript via
+  // the existing plural query (skip when not media to avoid subscriptions).
   const audioMetadataList = useQuery(
     api.file_metadata.queries.getByStorageIds,
-    isAudio ? { storageIds: [attachment.fileId] } : 'skip',
+    isMedia ? { storageIds: [attachment.fileId] } : 'skip',
   );
   const audioMetadata = audioMetadataList?.[0];
   const canPreviewTranscript =
-    isAudio &&
+    isMedia &&
     audioMetadata?.transcriptionStatus === 'completed' &&
     !!audioMetadata.transcript;
   const [transcriptOpen, setTranscriptOpen] = useState(false);

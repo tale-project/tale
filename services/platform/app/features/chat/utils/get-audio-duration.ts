@@ -1,8 +1,11 @@
 /**
- * Read an audio file's duration in seconds without decoding it.
+ * Read a media file's duration in seconds without decoding it.
  *
- * Uses `<audio>` element metadata loading — fast (milliseconds), zero
- * dependencies, works in all modern browsers for mp3/m4a/mp4/wav/ogg/webm.
+ * Uses a `<video>` element (HTMLMediaElement) for metadata-only loading.
+ * Works for both audio and video containers across all modern browsers
+ * (mp3/m4a/wav/ogg/webm/mp4/mov/mkv/avi/...) — for audio-only inputs the
+ * video element just doesn't render any visual, but duration is still
+ * populated.
  *
  * Resolves with the duration, or `null` if the browser couldn't read
  * metadata (corrupt file, unsupported codec). Callers should treat `null`
@@ -13,14 +16,14 @@ export async function getAudioDuration(file: File): Promise<number | null> {
   const url = URL.createObjectURL(file);
   try {
     return await new Promise<number | null>((resolve) => {
-      const audio = document.createElement('audio');
-      audio.preload = 'metadata';
-      audio.src = url;
-      audio.addEventListener('loadedmetadata', () => {
-        const d = audio.duration;
+      const media = document.createElement('video');
+      media.preload = 'metadata';
+      media.src = url;
+      media.addEventListener('loadedmetadata', () => {
+        const d = media.duration;
         resolve(Number.isFinite(d) && d > 0 ? d : null);
       });
-      audio.addEventListener('error', () => resolve(null));
+      media.addEventListener('error', () => resolve(null));
     });
   } finally {
     URL.revokeObjectURL(url);

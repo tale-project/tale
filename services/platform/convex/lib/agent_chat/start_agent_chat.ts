@@ -13,7 +13,7 @@
 
 import { listMessages, saveMessage } from '@convex-dev/agent';
 
-import { isAudio, isSpreadsheet } from '../../../lib/shared/file-types';
+import { isAudioOrVideo, isSpreadsheet } from '../../../lib/shared/file-types';
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
@@ -451,19 +451,22 @@ async function buildMessageWithAttachments(
   const spreadsheetAttachments = attachments.filter(
     (a) => !a.fileType.startsWith('image/') && isSpreadsheet(a.fileName),
   );
-  const audioAttachments = attachments.filter((a) => isAudio(a.fileType));
+  // Audio AND video attachments flow through the same transcription path.
+  const audioAttachments = attachments.filter((a) =>
+    isAudioOrVideo(a.fileType),
+  );
   const textFileAttachments = attachments.filter(
     (a) =>
       !a.fileType.startsWith('image/') &&
       !isSpreadsheet(a.fileName) &&
-      !isAudio(a.fileType) &&
+      !isAudioOrVideo(a.fileType) &&
       isTextFile(a),
   );
   const documentAttachments = attachments.filter(
     (a) =>
       !a.fileType.startsWith('image/') &&
       !isSpreadsheet(a.fileName) &&
-      !isAudio(a.fileType) &&
+      !isAudioOrVideo(a.fileType) &&
       !isTextFile(a),
   );
 
@@ -562,18 +565,19 @@ async function buildMessageWithAttachments(
         return { attachment, meta };
       }),
     );
-    // One-line reference per audio attachment — same compact pattern as
-    // documents/spreadsheets. The transcript itself is NOT inlined (would
+    // One-line reference per audio/video attachment — same compact pattern
+    // as documents/spreadsheets. The transcript itself is NOT inlined (would
     // make user bubbles into walls of text for long meetings); it lives in
-    // RAG where the agent can retrieve it via rag_search with the fileId.
+    // RAG where the agent can retrieve it via document_retrieve(fileId).
     const audioMarkdown: string[] = [];
     for (const { attachment, meta } of audioMetadata) {
+      const icon = attachment.fileType.startsWith('video/') ? '🎥' : '🎙️';
       if (meta?.transcriptionStatus === 'completed' && meta.transcript) {
         const durationNote = meta.transcriptionDurationSec
           ? `, ${Math.round(meta.transcriptionDurationSec)}s transcribed`
           : '';
         audioMarkdown.push(
-          `🎙️ [${attachment.fileName}] (${attachment.fileType}${durationNote}) — transcript is stored as a document; call document_retrieve with fileId=${attachment.fileId} to read the full text\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
+          `${icon} [${attachment.fileName}] (${attachment.fileType}${durationNote}) — transcript is stored as a document; call document_retrieve with fileId=${attachment.fileId} to read the full text\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
         );
       } else {
         const reason =
@@ -581,7 +585,7 @@ async function buildMessageWithAttachments(
             ? 'user skipped'
             : (meta?.transcriptionError ?? 'transcription incomplete');
         audioMarkdown.push(
-          `🎙️ [${attachment.fileName}] — could not be transcribed (${reason})\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
+          `${icon} [${attachment.fileName}] — could not be transcribed (${reason})\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
         );
       }
     }

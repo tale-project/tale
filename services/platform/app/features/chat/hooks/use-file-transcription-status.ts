@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 
-import { isAudio } from '../../../../lib/shared/file-types';
+import { isAudioOrVideo } from '../../../../lib/shared/file-types';
 import type { FileAttachment } from './use-convex-file-upload';
 
 type TranscriptionStatus =
@@ -43,7 +43,10 @@ export interface FileTranscriptionInfo {
  */
 export function useFileTranscriptionStatus(attachments: FileAttachment[]) {
   const audioFileIds = useMemo(
-    () => attachments.filter((a) => isAudio(a.fileType)).map((a) => a.fileId),
+    () =>
+      attachments
+        .filter((a) => isAudioOrVideo(a.fileType))
+        .map((a) => a.fileId),
     [attachments],
   );
 

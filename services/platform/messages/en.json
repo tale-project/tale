@@ -2897,6 +2897,7 @@
       "xlsx": "XLSX",
       "csv": "CSV",
       "audio": "AUDIO",
+      "video": "VIDEO",
       "file": "FILE"
     },
     "transcription": {

@@ -15,7 +15,7 @@ import {
   CHAT_MAX_FILE_COUNT,
   CHAT_MAX_TOTAL_SIZE,
   getMaxFileSizeForType,
-  isAudio,
+  isAudioOrVideo,
   resolveFileType,
 } from '@/lib/shared/file-types';
 import { compressImage } from '@/lib/utils/compress-image';
@@ -117,13 +117,13 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
         }
       }
 
-      // Audio duration check — 4-hour cap to keep server-side ffmpeg work
-      // bounded and transcription latency reasonable. Runs in parallel across
-      // all pending audio files.
-      if (validFiles.some((v) => isAudio(v.resolvedType))) {
+      // Audio/video duration check — 4-hour cap to keep server-side ffmpeg
+      // work bounded and transcription latency reasonable. Runs in parallel
+      // across all pending media files.
+      if (validFiles.some((v) => isAudioOrVideo(v.resolvedType))) {
         await Promise.all(
           validFiles.map(async (entry) => {
-            if (!isAudio(entry.resolvedType)) return;
+            if (!isAudioOrVideo(entry.resolvedType)) return;
             const duration = await getAudioDuration(entry.file);
             if (duration !== null && duration > CHAT_AUDIO_MAX_DURATION_SEC) {
               rejectedAudioDuration.push(entry.file);
@@ -350,10 +350,10 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
           URL.revokeObjectURL(attachment.previewUrl);
         }
         // Tell the server to cancel any pending/retrying transcription when
-        // the user removes an audio attachment from the composer. The action
-        // checks status at start and before each retry; seeing `skipped`
-        // short-circuits all remaining work.
-        if (isAudio(attachment.fileType)) {
+        // the user removes an audio/video attachment from the composer. The
+        // action checks status at start and before each retry; seeing
+        // `skipped` short-circuits all remaining work.
+        if (isAudioOrVideo(attachment.fileType)) {
           skipTranscription({
             storageId: fileId,
             organizationId: config.organizationId,

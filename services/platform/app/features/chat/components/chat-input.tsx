@@ -23,7 +23,7 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/use-upload-policy';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
+import { CHAT_UPLOAD_ACCEPT, isAudioOrVideo } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 
@@ -307,7 +307,7 @@ export function ChatInput({
               ))}
 
               {fileAttachments.map((attachment) => {
-                const audioInfo = attachment.fileType.startsWith('audio/')
+                const audioInfo = isAudioOrVideo(attachment.fileType)
                   ? transcriptionStatuses?.get(attachment.fileId)
                   : undefined;
                 const canPreviewTranscript =
@@ -328,10 +328,10 @@ export function ChatInput({
                         {middleEllipsis(attachment.fileName, 28)}
                       </Text>
                       {(() => {
-                        // Audio attachments: show two-phase status
+                        // Audio + video attachments: show two-phase status
                         // (transcribing → indexing → indexed) instead of the
                         // RAG-indexing status we show for other uploads.
-                        if (attachment.fileType.startsWith('audio/')) {
+                        if (isAudioOrVideo(attachment.fileType)) {
                           const info = transcriptionStatuses?.get(
                             attachment.fileId,
                           );
