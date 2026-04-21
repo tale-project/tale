@@ -2,10 +2,12 @@ import { v } from 'convex/values';
 
 import {
   budgetConfigSchema,
+  chatFilterConfigSchema,
   defaultModelsConfigSchema,
   featureFlagsConfigSchema,
   loginPolicyConfigSchema,
   modelAccessConfigSchema,
+  moderationProviderConfigSchema,
   passwordPolicyConfigSchema,
   piiConfigSchema,
   retentionPolicyConfigSchema,
@@ -161,6 +163,24 @@ export const upsertPolicy = mutation({
       }
     }
 
+    if (args.policyType === 'chat_filter') {
+      const parsed = chatFilterConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid chat filter configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'moderation_provider') {
+      const parsed = moderationProviderConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid moderation provider configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
     const existing = await ctx.db
       .query('governancePolicies')
       .withIndex('by_org_policyType', (q) =>
@@ -179,6 +199,17 @@ export const upsertPolicy = mutation({
       existing?.config,
     );
 
+    // Mirror `config.enabled` (when present) to the top-level `enabled`
+    // column so reads from either side agree. The bespoke mutations this
+    // replaced (e.g. `upsertPiiConfig`) took `enabled` as a separate arg
+    // and wrote it at the top level; the UI still reads
+    // `policy.enabled ?? config.enabled`, so without this mirror the
+    // admin toggle silently fails to persist across reloads.
+    const configEnabled =
+      isRecord(args.config) && typeof args.config.enabled === 'boolean'
+        ? args.config.enabled
+        : undefined;
+
     let policyId;
 
     if (existing) {
@@ -186,6 +217,7 @@ export const upsertPolicy = mutation({
         config: args.config,
         updatedAt: Date.now(),
         updatedBy: String(authUser._id),
+        ...(configEnabled !== undefined ? { enabled: configEnabled } : {}),
         ...(nextEffectiveAt !== undefined
           ? { effectiveAt: nextEffectiveAt }
           : {}),
@@ -195,7 +227,7 @@ export const upsertPolicy = mutation({
       policyId = await ctx.db.insert('governancePolicies', {
         organizationId: args.organizationId,
         policyType: args.policyType,
-        enabled: true,
+        enabled: configEnabled ?? true,
         config: args.config,
         updatedAt: Date.now(),
         updatedBy: String(authUser._id),
@@ -218,103 +250,6 @@ export const upsertPolicy = mutation({
       newState: { policyType: args.policyType, config: args.config },
       previousState: existing
         ? { policyType: existing.policyType, config: existing.config }
-        : undefined,
-      status: 'success',
-    });
-
-    return policyId;
-  },
-});
-
-export const upsertPiiConfig = mutation({
-  args: {
-    organizationId: v.string(),
-    enabled: v.boolean(),
-    mode: v.union(v.literal('mask'), v.literal('block')),
-    enabledPatterns: v.array(v.string()),
-    customPatterns: v.optional(
-      v.array(
-        v.object({
-          name: v.string(),
-          regex: v.string(),
-          replacement: v.string(),
-        }),
-      ),
-    ),
-  },
-  returns: v.id('governancePolicies'),
-  handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
-
-    const member = await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
-    if (!isAdmin(member.role)) {
-      throw new Error('Only admins can modify PII configuration');
-    }
-
-    const parsed = piiConfigSchema.safeParse({
-      enabled: args.enabled,
-      mode: args.mode,
-      enabledPatterns: args.enabledPatterns,
-      customPatterns: args.customPatterns,
-    });
-    if (!parsed.success) {
-      throw new Error(`Invalid PII configuration: ${parsed.error.message}`);
-    }
-
-    const existing = await ctx.db
-      .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('policyType', 'pii_config'),
-      )
-      .first();
-
-    const config = {
-      mode: args.mode,
-      enabledPatterns: args.enabledPatterns,
-      customPatterns: args.customPatterns,
-    };
-
-    let policyId;
-
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        enabled: args.enabled,
-        config,
-        updatedAt: Date.now(),
-        updatedBy: String(authUser._id),
-      });
-      policyId = existing._id;
-    } else {
-      policyId = await ctx.db.insert('governancePolicies', {
-        organizationId: args.organizationId,
-        policyType: 'pii_config',
-        enabled: args.enabled,
-        config,
-        updatedAt: Date.now(),
-        updatedBy: String(authUser._id),
-      });
-    }
-
-    await createAuditLog(ctx, {
-      organizationId: args.organizationId,
-      actorId: String(authUser._id),
-      actorEmail: authUser.email,
-      actorType: 'user',
-      action: existing ? 'pii_config.updated' : 'pii_config.created',
-      category: 'security',
-      resourceType: 'governance_policy',
-      resourceId: String(policyId),
-      resourceName: 'PII configuration',
-      newState: { enabled: args.enabled, ...config },
-      previousState: existing
-        ? { enabled: existing.enabled, ...existing.config }
         : undefined,
       status: 'success',
     });

@@ -7,8 +7,11 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { UsageMetricsPage } from '@/app/features/analytics/usage/usage-metrics-page';
 import { BudgetEditor } from '@/app/features/settings/governance/components/budget-editor';
+import { ChatFilterConfigView } from '@/app/features/settings/governance/components/chat-filter-config';
 import { FeatureFlagsEditor } from '@/app/features/settings/governance/components/feature-flags-editor';
+import { GuardrailsOverview } from '@/app/features/settings/governance/components/guardrails-overview';
 import { ModelAccessEditor } from '@/app/features/settings/governance/components/model-access-editor';
+import { ModerationProviderConfigView } from '@/app/features/settings/governance/components/moderation-provider-config';
 import { PiiConfig } from '@/app/features/settings/governance/components/pii-config';
 import { RetentionEditor } from '@/app/features/settings/governance/components/retention-editor';
 import { SystemPromptEditor } from '@/app/features/settings/governance/components/system-prompt-editor';
@@ -52,6 +55,7 @@ const GROUPS = [
   'content-models',
   'policies-limits',
   'security-monitoring',
+  'guardrails',
 ] as const;
 type GroupKey = (typeof GROUPS)[number];
 
@@ -172,14 +176,47 @@ function GovernanceSettingsPage() {
                 ),
               },
               {
+                value: 'usage',
+                label: t('groups.subtabs.usage'),
+                content: <UsageMetricsPage organizationId={organizationId} />,
+              },
+            ]}
+          />,
+        ],
+      },
+      {
+        key: 'guardrails',
+        label: t('groups.guardrails'),
+        sections: [
+          <Tabs
+            key="guardrails-tabs"
+            defaultValue="overview"
+            items={[
+              {
+                value: 'overview',
+                label: t('groups.subtabs.guardrailsOverview'),
+                content: <GuardrailsOverview organizationId={organizationId} />,
+              },
+              {
+                value: 'content-safety',
+                label: t('groups.subtabs.contentSafety'),
+                content: (
+                  <ChatFilterConfigView organizationId={organizationId} />
+                ),
+              },
+              {
                 value: 'pii',
                 label: t('groups.subtabs.pii'),
                 content: <PiiConfig organizationId={organizationId} />,
               },
               {
-                value: 'usage',
-                label: t('groups.subtabs.usage'),
-                content: <UsageMetricsPage organizationId={organizationId} />,
+                value: 'moderation',
+                label: t('groups.subtabs.moderation'),
+                content: (
+                  <ModerationProviderConfigView
+                    organizationId={organizationId}
+                  />
+                ),
               },
             ]}
           />,

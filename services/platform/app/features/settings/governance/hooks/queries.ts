@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 
+import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { GOVERNANCE_POLICY_TYPES } from '@/convex/governance/schema';
@@ -10,13 +11,6 @@ import {
 } from '@/lib/shared/schemas/governance';
 
 type PolicyType = (typeof GOVERNANCE_POLICY_TYPES)[number];
-
-export function usePiiConfig(organizationId: string) {
-  return useConvexQuery(api.governance.queries.getPolicy, {
-    organizationId,
-    policyType: 'pii_config' as const,
-  });
-}
 
 export function useGovernancePolicy(
   organizationId: string,
@@ -78,4 +72,19 @@ export function usePasswordPolicy(
     const parsed = passwordPolicyConfigSchema.safeParse(row.config);
     return parsed.success ? parsed.data : DEFAULT_PASSWORD_POLICY;
   }, [result.data]);
+}
+
+/**
+ * Masked status of the org's moderation auth header. Returns a masked
+ * string like "Bearer••••••xyz" when configured, the sentinel
+ * "•••• (key rotated — re-save)" when ciphertext exists but can't be
+ * decrypted with the current `GUARDRAILS_SECRET_KEY`, or `null` when
+ * nothing is stored.
+ */
+export function useModerationSecretStatus(organizationId: string) {
+  return useActionQuery(
+    ['moderation-secret-status', organizationId],
+    api.governance.moderation_provider.secrets.hasModerationSecret,
+    { organizationId },
+  );
 }

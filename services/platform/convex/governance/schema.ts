@@ -15,6 +15,8 @@ export const GOVERNANCE_POLICY_TYPES = [
   'login_policy',
   'password_policy',
   'two_factor_policy',
+  'chat_filter',
+  'moderation_provider',
 ] as const;
 
 const policyTypeValidator = v.union(
@@ -37,6 +39,30 @@ export const governancePoliciesTable = defineTable({
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_org_policyType', ['organizationId', 'policyType']);
+
+/**
+ * Per-org encrypted secrets used by the guardrails pipeline. Deliberately a
+ * separate table from `governancePolicies` so `upsertPolicy`'s audit log
+ * (which snapshots the whole `config` into `previousState`/`newState`)
+ * never touches these rows. The only currently-defined `name` is
+ * `moderation_auth_header`; v2 may add more as the feature grows.
+ *
+ * `ciphertext`, `nonce`, and `authTag` are Base64 strings produced by
+ * `lib/secret_box.ts`. `keyFingerprint` is the first 12 hex chars of
+ * SHA-256(env key) — it lets us detect when the encryption key has been
+ * rotated without trying to decrypt (old rows with mismatched fingerprint
+ * return `null` to the caller rather than throwing).
+ */
+export const governanceSecretsTable = defineTable({
+  organizationId: v.string(),
+  name: v.string(),
+  ciphertext: v.string(),
+  nonce: v.string(),
+  authTag: v.string(),
+  keyFingerprint: v.string(),
+  updatedAt: v.number(),
+  updatedBy: v.string(),
+}).index('by_org_name', ['organizationId', 'name']);
 
 export const usageLedgerTable = defineTable({
   organizationId: v.string(),

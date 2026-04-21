@@ -14,7 +14,13 @@ import { cn } from '@/lib/utils/cn';
 // =============================================================================
 
 const dialogContentVariants = cva(
-  'fixed left-[50%] top-[50%] z-50 grid w-full border-none translate-x-[-50%] translate-y-[-50%] gap-4 ring-1 ring-border bg-card p-4 sm:p-6 pt-5 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-2xl',
+  // `flex flex-col` + explicit `max-h-[90vh]` keeps the dialog from escaping
+  // the viewport even when its body is tall (e.g. the endpoint editor in
+  // governance). Header and footer are rendered outside the overflow wrapper
+  // below so they stay pinned while the middle section scrolls — without
+  // this, Radix centers a tall dialog by translate-y-[-50%] and clips both
+  // ends of it, hiding the footer buttons.
+  'fixed left-[50%] top-[50%] z-50 flex flex-col w-full border-none translate-x-[-50%] translate-y-[-50%] gap-4 ring-1 ring-border bg-card p-4 sm:p-6 pt-5 shadow-lg max-h-[90vh] duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-2xl',
   {
     variants: {
       size: {
@@ -210,11 +216,13 @@ export function Dialog({
               )}
             </div>
           )}
-          {children}
+          <div className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
+            {children}
+          </div>
           {footer && (
             <div
               className={cn(
-                'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2',
+                'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2 shrink-0',
                 footerClassName,
               )}
             >

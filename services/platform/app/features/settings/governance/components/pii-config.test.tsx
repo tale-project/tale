@@ -10,11 +10,14 @@ vi.mock('@/app/hooks/use-toast', () => ({
 }));
 
 vi.mock('../hooks/mutations', () => ({
-  useUpsertPiiConfig: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpsertGovernancePolicy: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 vi.mock('../hooks/queries', () => ({
-  usePiiConfig: () => ({
+  useGovernancePolicy: () => ({
     data: {
       enabled: false,
       config: {

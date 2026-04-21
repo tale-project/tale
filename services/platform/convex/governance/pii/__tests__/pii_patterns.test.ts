@@ -136,35 +136,43 @@ describe('scrubPii with new patterns', () => {
 
   it('masks IBAN in text', () => {
     const result = scrubPii('Transfer to DE89 3704 0044 0532 0130 00', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
     expect(result.text).toContain('[IBAN]');
-    expect(result.detectedTypes).toContain('iban');
+    expect(result.categoryIds).toContain('iban');
     expect(result.matchCount).toBeGreaterThan(0);
   });
 
   it('masks German ID in text', () => {
     const result = scrubPii('My Personalausweis is T22000129', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
     expect(result.text).toContain('[GERMAN_ID]');
-    expect(result.detectedTypes).toContain('germanId');
+    expect(result.categoryIds).toContain('germanId');
   });
 
-  it('throws in block mode when IBAN detected', () => {
+  it('returns blocked in block mode when IBAN detected', () => {
     const blockConfig = { ...config, mode: 'block' } satisfies PiiConfig;
-    expect(() =>
-      scrubPii('Transfer to DE89 3704 0044 0532 0130 00', blockConfig),
-    ).toThrow('Message blocked');
-  });
-
-  it('throws in block mode when German ID detected', () => {
-    const blockConfig = { ...config, mode: 'block' } satisfies PiiConfig;
-    expect(() => scrubPii('ID: T22000129', blockConfig)).toThrow(
-      'Message blocked',
+    const result = scrubPii(
+      'Transfer to DE89 3704 0044 0532 0130 00',
+      blockConfig,
     );
+    expect(result.kind).toBe('blocked');
+    if (result.kind !== 'blocked') return;
+    expect(result.categoryIds).toContain('iban');
+  });
+
+  it('returns blocked in block mode when German ID detected', () => {
+    const blockConfig = { ...config, mode: 'block' } satisfies PiiConfig;
+    const result = scrubPii('ID: T22000129', blockConfig);
+    expect(result.kind).toBe('blocked');
+    if (result.kind !== 'blocked') return;
+    expect(result.categoryIds).toContain('germanId');
   });
 
   it('passes through when disabled', () => {
     const disabledConfig = { ...config, enabled: false };
     const result = scrubPii('DE89 3704 0044 0532 0130 00', disabledConfig);
-    expect(result.text).toContain('DE89');
-    expect(result.matchCount).toBe(0);
+    expect(result.kind).toBe('pass');
   });
 });

@@ -33,24 +33,41 @@ export async function getUserNamesBatch(
   // Fetch all users in parallel batches
   // Better Auth adapter findMany doesn't support IN queries, so we need to batch individual lookups
   // But we can parallelize them for efficiency
-  // Note: Better Auth uses _id as the primary key, not id
+  // Note: Better Auth uses _id as the primary key, not id. The adapter routes
+  // `{field: '_id'}` lookups through `ctx.db.get(id)`, which throws on any
+  // non-Convex-ID string. A single legacy row in usageLedger with a malformed
+  // userId would take down the whole usage page — catch per-id and skip.
   const userPromises = uniqueIds.map(async (userId) => {
-    const userRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'user',
-      paginationOpts: { cursor: null, numItems: 1 },
-      where: [{ field: '_id', value: userId, operator: 'eq' }],
-    });
+    try {
+      const userRes = await ctx.runQuery(
+        components.betterAuth.adapter.findMany,
+        {
+          model: 'user',
+          paginationOpts: { cursor: null, numItems: 1 },
+          where: [{ field: '_id', value: userId, operator: 'eq' }],
+        },
+      );
 
-    const userRaw = userRes?.page?.[0];
-    const user = isRecord(userRaw) ? userRaw : undefined;
+      const userRaw = userRes?.page?.[0];
+      const user = isRecord(userRaw) ? userRaw : undefined;
 
-    if (user) {
-      const displayName = getString(user, 'name') || getString(user, 'email');
-      if (displayName) {
-        return { userId, displayName };
+      if (user) {
+        const displayName = getString(user, 'name') || getString(user, 'email');
+        if (displayName) {
+          return { userId, displayName };
+        }
       }
+      return null;
+    } catch (err) {
+      // Invalid / malformed userId (length mismatch, non-ID string, etc).
+      // Fall back to showing the raw id in the UI rather than crashing.
+      console.warn(
+        `[getUserNamesBatch] lookup failed for userId='${userId}': ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return null;
     }
-    return null;
   });
 
   const users = await Promise.all(userPromises);

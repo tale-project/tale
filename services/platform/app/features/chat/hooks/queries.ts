@@ -656,6 +656,11 @@ export function useMessageMetadata(
           contextStats: metadata.contextStats,
           costEstimateCents: metadata.costEstimateCents,
           citations: metadata.citations,
+          // Guardrails pipeline flags: set when chat_filter / PII /
+          // moderation_provider blocked the message. `message-bubble`
+          // swaps to <BlockedNotice/> before rendering any content
+          // block (text, reasoning, tools) when this is present.
+          blockedReason: metadata.blockedReason,
         }
       : undefined,
     isLoading,

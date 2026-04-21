@@ -40,6 +40,7 @@ import { useCitations } from '../hooks/use-citations';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { injectCitationTags } from '../utils/inject-citation-tags';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
+import { BlockedNotice } from './blocked-notice';
 import {
   FileAttachmentDisplay,
   FilePartDisplay,
@@ -175,6 +176,12 @@ function MessageBubbleComponent({
 
   const { metadata } = useMessageMetadata(message.id, message.threadId);
   const { citations, hasCitations } = useCitations(metadata?.citations);
+  // Guardrails block: when the pipeline tombstoned this message we replace
+  // the entire content area with <BlockedNotice/> so reasoning, tool calls,
+  // citations, and attachments are all hidden regardless of what the SDK
+  // streamed before stopStream() fired.
+  const blockedReason = metadata?.blockedReason;
+  const isBlocked = !!blockedReason && message.role === 'assistant';
 
   // Image-generation agents show a ↻ Edit button on assistant image parts.
   const { agent: effectiveAgentForEdit } = useEffectiveAgent(
@@ -313,10 +320,16 @@ function MessageBubbleComponent({
           isUser
             ? 'bg-muted text-foreground max-w-xs lg:max-w-md'
             : 'text-foreground bg-background min-w-0',
-          (displayContent || message.isAborted) && 'px-4 py-3',
+          (displayContent || message.isAborted || isBlocked) && 'px-4 py-3',
         )}
       >
-        {displayContent ? (
+        {isBlocked && blockedReason ? (
+          <BlockedNotice
+            code={blockedReason.code}
+            direction={blockedReason.direction}
+            categoryIds={blockedReason.categoryIds}
+          />
+        ) : displayContent ? (
           <div className="text-sm leading-5">
             <div
               ref={isUser ? contentRef : undefined}

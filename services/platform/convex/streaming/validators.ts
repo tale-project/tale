@@ -60,5 +60,17 @@ export const messageMetadataValidator = v.object({
   contextWindow: v.optional(v.string()),
   contextStats: v.optional(contextStatsValidator),
   error: v.optional(v.string()),
+  blockedReason: v.optional(
+    v.object({
+      code: v.union(
+        v.literal('pii.blocked'),
+        v.literal('chat_filter.blocked'),
+        v.literal('moderation_provider.blocked'),
+      ),
+      direction: v.union(v.literal('input'), v.literal('output')),
+      categoryIds: v.array(v.string()),
+      sanitizationRunId: v.string(),
+    }),
+  ),
   costEstimateCents: v.optional(v.number()),
 });
