@@ -121,7 +121,7 @@ export function isAudio(mimeType: string): boolean {
   return mimeType.startsWith('audio/');
 }
 
-export function isVideo(mimeType: string): boolean {
+function isVideo(mimeType: string): boolean {
   return mimeType.startsWith('video/');
 }
 
@@ -436,7 +436,7 @@ export const CHAT_MAX_FILE_SIZE = 100 * 1024 * 1024;
  * be far larger than OpenAI's 25 MB cap. Duration is the real gate —
  * see `CHAT_AUDIO_MAX_DURATION_SEC`.
  */
-export const CHAT_AUDIO_MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024;
+const CHAT_AUDIO_MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024;
 
 /**
  * Chat audio/video attachment max duration (4 hours). Covers board meetings,

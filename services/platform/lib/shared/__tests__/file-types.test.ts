@@ -195,7 +195,7 @@ describe('mimeToExtension', () => {
 
   it('returns undefined for unknown MIME types', () => {
     expect(mimeToExtension('application/x-custom')).toBeUndefined();
-    expect(mimeToExtension('video/mp4')).toBeUndefined();
+    expect(mimeToExtension('application/vnd.unknown')).toBeUndefined();
   });
 
   it('returns undefined for empty string', () => {
