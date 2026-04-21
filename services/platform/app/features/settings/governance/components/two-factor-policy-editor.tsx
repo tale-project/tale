@@ -7,7 +7,6 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
@@ -63,45 +62,81 @@ export function TwoFactorPolicyEditor({
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
-  const isDirty = useMemo(() => {
-    if (enforced !== savedConfig.enforced) return true;
-    if (exemptSsoUsers !== savedConfig.exemptSsoUsers) return true;
-    if (gracePeriodDays !== String(savedConfig.gracePeriodDays)) return true;
-    return false;
-  }, [enforced, gracePeriodDays, exemptSsoUsers, savedConfig]);
+  const persist = useCallback(
+    async (config: TwoFactorPolicyConfig) => {
+      try {
+        await upsertMutation.mutateAsync({
+          organizationId,
+          policyType: 'two_factor_policy',
+          config,
+        });
+        toast({ title: t('twoFactorPolicy.saved'), variant: 'success' });
+        return true;
+      } catch {
+        toast({
+          title: t('twoFactorPolicy.saveFailed'),
+          variant: 'destructive',
+        });
+        return false;
+      }
+    },
+    [organizationId, upsertMutation, toast, t],
+  );
 
-  const handleSave = useCallback(async () => {
+  const handleEnforcedChange = useCallback(
+    async (next: boolean) => {
+      setEnforced(next);
+      const ok = await persist({
+        enforced: next,
+        gracePeriodDays: savedConfig.gracePeriodDays,
+        exemptSsoUsers: savedConfig.exemptSsoUsers,
+      });
+      if (!ok) setEnforced(!next);
+    },
+    [persist, savedConfig.gracePeriodDays, savedConfig.exemptSsoUsers],
+  );
+
+  const handleExemptSsoChange = useCallback(
+    async (next: boolean) => {
+      setExemptSsoUsers(next);
+      const days = Number(gracePeriodDays);
+      const gracePeriodToPersist =
+        Number.isInteger(days) && days >= 0 && days <= 30
+          ? days
+          : savedConfig.gracePeriodDays;
+      const ok = await persist({
+        enforced,
+        gracePeriodDays: gracePeriodToPersist,
+        exemptSsoUsers: next,
+      });
+      if (!ok) setExemptSsoUsers(!next);
+    },
+    [persist, enforced, gracePeriodDays, savedConfig.gracePeriodDays],
+  );
+
+  const handleGraceBlur = useCallback(async () => {
+    if (gracePeriodDays === String(savedConfig.gracePeriodDays)) return;
     const days = Number(gracePeriodDays);
     if (!Number.isInteger(days) || days < 0 || days > 30) {
+      setGracePeriodDays(String(savedConfig.gracePeriodDays));
       toast({
         title: t('twoFactorPolicy.invalidGrace'),
         variant: 'destructive',
       });
       return;
     }
-    try {
-      await upsertMutation.mutateAsync({
-        organizationId,
-        policyType: 'two_factor_policy',
-        config: {
-          enforced,
-          gracePeriodDays: days,
-          exemptSsoUsers,
-        } satisfies TwoFactorPolicyConfig,
-      });
-      toast({ title: t('twoFactorPolicy.saved'), variant: 'success' });
-    } catch {
-      toast({
-        title: t('twoFactorPolicy.saveFailed'),
-        variant: 'destructive',
-      });
-    }
+    const ok = await persist({
+      enforced,
+      gracePeriodDays: days,
+      exemptSsoUsers,
+    });
+    if (!ok) setGracePeriodDays(String(savedConfig.gracePeriodDays));
   }, [
+    persist,
     enforced,
     gracePeriodDays,
     exemptSsoUsers,
-    organizationId,
-    upsertMutation,
+    savedConfig.gracePeriodDays,
     toast,
     t,
   ]);
@@ -124,7 +159,7 @@ export function TwoFactorPolicyEditor({
         <Switch
           label={t('twoFactorPolicy.enforced')}
           checked={enforced}
-          onCheckedChange={setEnforced}
+          onCheckedChange={handleEnforcedChange}
           disabled={cannotManage || upsertMutation.isPending}
         />
       }
@@ -148,7 +183,11 @@ export function TwoFactorPolicyEditor({
               type="number"
               value={gracePeriodDays}
               onChange={(e) => setGracePeriodDays(e.target.value)}
-              disabled={cannotManage || !enforced}
+              onBlur={handleGraceBlur}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur();
+              }}
+              disabled={cannotManage || !enforced || upsertMutation.isPending}
               size="sm"
               min={0}
               max={30}
@@ -162,23 +201,10 @@ export function TwoFactorPolicyEditor({
               label={t('twoFactorPolicy.exemptSsoUsers')}
               description={t('twoFactorPolicy.exemptSsoUsersHint')}
               checked={exemptSsoUsers}
-              onCheckedChange={setExemptSsoUsers}
-              disabled={cannotManage || !enforced}
+              onCheckedChange={handleExemptSsoChange}
+              disabled={cannotManage || !enforced || upsertMutation.isPending}
             />
           </Stack>
-
-          {isDirty && (
-            <Button
-              onClick={handleSave}
-              disabled={cannotManage || upsertMutation.isPending}
-              size="sm"
-              className="self-start"
-            >
-              {upsertMutation.isPending
-                ? t('systemPrompt.saving')
-                : t('systemPrompt.save')}
-            </Button>
-          )}
         </div>
       </Stack>
     </PageSection>
