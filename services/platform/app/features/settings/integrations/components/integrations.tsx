@@ -1,7 +1,7 @@
 'use client';
 
 import { Search, Unplug } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { EmptyState } from '@/app/components/ui/feedback/empty-state';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
@@ -37,6 +37,10 @@ interface IntegrationsProps {
   ssoProvider: SsoProvider | null;
   tab?: string;
   onTabChange: (tab: string) => void;
+  /** Deep-link target — opens the matching integration's detail panel once. */
+  initialSlug?: string;
+  /** Called after `initialSlug` has been handled so the caller can clear the URL. */
+  onInitialSlugConsumed?: () => void;
 }
 
 export function Integrations({
@@ -45,6 +49,8 @@ export function Integrations({
   ssoProvider,
   tab = 'all',
   onTabChange,
+  initialSlug,
+  onInitialSlugConsumed,
 }: IntegrationsProps) {
   const { t } = useT('settings');
 
@@ -107,6 +113,16 @@ export function Integrations({
   const handleCardClick = useCallback((integration: IntegrationListItem) => {
     setManagingIntegration(integration);
   }, []);
+
+  const consumedSlugRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialSlug || consumedSlugRef.current === initialSlug) return;
+    const match = integrations.find((i) => i.slug === initialSlug);
+    if (!match) return;
+    consumedSlugRef.current = initialSlug;
+    setManagingIntegration(match);
+    onInitialSlugConsumed?.();
+  }, [initialSlug, integrations, onInitialSlugConsumed]);
 
   return (
     <Stack gap={0} className="pb-8">

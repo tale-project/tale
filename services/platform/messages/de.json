@@ -2517,8 +2517,8 @@
     "modeHeader": "Modi",
     "standardMode": "Standard",
     "capabilityHeader": "Fähigkeiten",
-    "capabilityUninstalled": "Nicht installiert",
     "capabilityDisable": "{name} deaktivieren",
+    "requiresIntegration": "Benötigt {name}",
     "connectInSettings": "In Einstellungen → Integrationen verbinden"
   },
   "todoList": {

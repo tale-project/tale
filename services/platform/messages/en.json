@@ -2517,8 +2517,8 @@
     "modeHeader": "Modes",
     "standardMode": "Standard",
     "capabilityHeader": "Capabilities",
-    "capabilityUninstalled": "Not installed",
     "capabilityDisable": "Disable {name}",
+    "requiresIntegration": "Requires {name}",
     "connectInSettings": "Connect in Settings → Integrations"
   },
   "todoList": {

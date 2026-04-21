@@ -1,7 +1,8 @@
 'use client';
 
+import { useNavigate } from '@tanstack/react-router';
 import { Check, Paperclip, Plus, Swords } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { type ReactNode, useCallback, useMemo } from 'react';
 
 import {
   DropdownMenu,
@@ -14,8 +15,10 @@ import { useT } from '@/lib/i18n/client';
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
 import {
+  getAgentMissingIntegrations,
   resolveCapabilityIcon,
   useComposerCapabilities,
+  useIntegrationReadiness,
 } from '../hooks/use-composer-capabilities';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useArenaModeOptional } from './arena/arena-mode-context';
@@ -27,6 +30,15 @@ interface ComposerModeMenuProps {
   disabled?: boolean;
 }
 
+function labelWithHint(label: string, hint: string): ReactNode {
+  return (
+    <span className="flex flex-1 items-center justify-between gap-3">
+      <span className="truncate">{label}</span>
+      <span className="text-muted-foreground shrink-0 text-xs">{hint}</span>
+    </span>
+  );
+}
+
 export function ComposerModeMenu({
   organizationId,
   onAttachFile,
@@ -35,11 +47,13 @@ export function ComposerModeMenu({
 }: ComposerModeMenuProps) {
   const { t } = useT('composer');
   const { t: tChat } = useT('chat');
+  const navigate = useNavigate();
   const { setSelectedAgent, enabledCapabilities, setCapabilityEnabled } =
     useChatLayout();
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
   const { agents } = useChatAgents(organizationId);
-  const capabilities = useComposerCapabilities();
+  const capabilities = useComposerCapabilities(organizationId);
+  const readiness = useIntegrationReadiness(organizationId);
   const arenaContext = useArenaModeOptional();
 
   const modeAgents = useMemo(() => {
@@ -71,6 +85,17 @@ export function ComposerModeMenu({
     [agents, setSelectedAgent],
   );
 
+  const openIntegrations = useCallback(
+    (slug?: string) => {
+      void navigate({
+        to: '/dashboard/$id/settings/integrations',
+        params: { id: organizationId },
+        search: { tab: 'all', slug },
+      });
+    },
+    [navigate, organizationId],
+  );
+
   const items = useMemo<DropdownMenuGroup[]>(() => {
     const groups: DropdownMenuGroup[] = [];
 
@@ -94,20 +119,33 @@ export function ComposerModeMenu({
       for (const agent of modeAgents) {
         const isActive = effectiveAgent?.name === agent.name && !isArenaActive;
         const modeLabel = agent.composerMode?.label ?? agent.displayName;
-        const item: DropdownMenuItem = {
-          type: 'item',
-          label: isActive ? `${modeLabel} ✓` : modeLabel,
-          icon: resolveCapabilityIcon(agent.composerMode?.icon),
-          onClick: () => {
-            if (isActive) {
-              if (chatAgent) switchTo(chatAgent.name);
-              return;
+        const missing = getAgentMissingIntegrations(agent, readiness);
+        const modeReady = missing.length === 0;
+        const item: DropdownMenuItem = modeReady
+          ? {
+              type: 'item',
+              label: isActive ? `${modeLabel} ✓` : modeLabel,
+              icon: resolveCapabilityIcon(agent.composerMode?.icon),
+              onClick: () => {
+                if (isActive) {
+                  if (chatAgent) switchTo(chatAgent.name);
+                  return;
+                }
+                if (isArenaActive) arenaContext.exitArenaMode();
+                switchTo(agent.name);
+              },
             }
-            // Mutually exclusive with Arena — exit it before switching agent.
-            if (isArenaActive) arenaContext.exitArenaMode();
-            switchTo(agent.name);
-          },
-        };
+          : {
+              type: 'item',
+              label: labelWithHint(
+                modeLabel,
+                t('requiresIntegration', {
+                  name: readiness.titleBySlug.get(missing[0]) ?? missing[0],
+                }),
+              ),
+              icon: resolveCapabilityIcon(agent.composerMode?.icon),
+              onClick: () => openIntegrations(missing[0]),
+            };
         modeGroup.push(item);
       }
       if (hasArena) {
@@ -122,7 +160,6 @@ export function ComposerModeMenu({
               arenaContext.exitArenaMode();
               return;
             }
-            // Mutually exclusive with composer modes — revert to default agent.
             const isInComposerMode = modeAgents.some(
               (a) => a.name === effectiveAgent?.name,
             );
@@ -142,15 +179,25 @@ export function ComposerModeMenu({
       ];
       for (const capability of capabilities) {
         const isOn =
-          enabledCapabilities.includes(capability.slug) && capability.installed;
-        const baseLabel = capability.installed
-          ? capability.label
-          : `${capability.label} — ${t('capabilityUninstalled')}`;
+          enabledCapabilities.includes(capability.slug) && capability.ready;
+        if (!capability.ready) {
+          const title =
+            readiness.titleBySlug.get(capability.slug) ?? capability.slug;
+          capabilityGroup.push({
+            type: 'item',
+            label: labelWithHint(
+              capability.label,
+              t('requiresIntegration', { name: title }),
+            ),
+            icon: capability.icon,
+            onClick: () => openIntegrations(capability.slug),
+          });
+          continue;
+        }
         capabilityGroup.push({
           type: 'item',
-          label: isOn ? `${baseLabel} ✓` : baseLabel,
+          label: capability.label,
           icon: isOn ? Check : capability.icon,
-          disabled: !capability.installed,
           onClick: () => setCapabilityEnabled(capability.slug, !isOn),
         });
       }
@@ -165,9 +212,11 @@ export function ComposerModeMenu({
     chatAgent,
     effectiveAgent?.name,
     capabilities,
+    readiness,
     enabledCapabilities,
     setCapabilityEnabled,
     switchTo,
+    openIntegrations,
     arenaContext,
     t,
     tChat,

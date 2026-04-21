@@ -111,6 +111,7 @@ export const listAgents = action({
             primaryBehavior: result.config.primaryBehavior,
             supportedModels: result.config.supportedModels,
             toolNames: result.config.toolNames,
+            integrationBindings: result.config.integrationBindings,
             roleRestriction: result.config.roleRestriction,
             conversationStarters: result.config.conversationStarters,
             composerMode: result.config.composerMode,

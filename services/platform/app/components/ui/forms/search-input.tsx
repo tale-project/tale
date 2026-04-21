@@ -6,6 +6,7 @@ import {
   useId,
   useState,
   useEffect,
+  type FocusEvent,
   type InputHTMLAttributes,
   type ChangeEvent,
   type ReactNode,
@@ -43,6 +44,8 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
       errorMessage,
       required,
       id: providedId,
+      onFocus,
+      onBlur,
       ...props
     },
     ref,
@@ -57,6 +60,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
         .filter(Boolean)
         .join(' ') || undefined;
     const [showShake, setShowShake] = useState(false);
+    const [isReadOnly, setIsReadOnly] = useState(true);
 
     useEffect(() => {
       if (hasError) {
@@ -66,6 +70,17 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
       }
       return undefined;
     }, [hasError, errorMessage]);
+
+    const handleFocus = (e: FocusEvent<HTMLInputElement>) => {
+      e.currentTarget.removeAttribute('readonly');
+      setIsReadOnly(false);
+      onFocus?.(e);
+    };
+
+    const handleBlur = (e: FocusEvent<HTMLInputElement>) => {
+      setIsReadOnly(true);
+      onBlur?.(e);
+    };
 
     return (
       <div className={cn('flex flex-col gap-1.5', wrapperClassName)}>
@@ -83,6 +98,11 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             ref={ref}
             id={id}
             type="text"
+            autoComplete="new-password"
+            data-1p-ignore
+            data-lpignore="true"
+            data-form-type="other"
+            readOnly={isReadOnly}
             className={cn(
               'pl-10',
               hasError && 'border-destructive focus-visible:ring-destructive',
@@ -94,6 +114,8 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             aria-describedby={describedBy}
             aria-errormessage={hasError ? errorId : undefined}
             {...props}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
           />
         </div>
         {errorMessage && (

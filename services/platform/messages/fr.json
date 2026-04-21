@@ -2513,8 +2513,8 @@
     "modeHeader": "Modes",
     "standardMode": "Standard",
     "capabilityHeader": "Capacités",
-    "capabilityUninstalled": "Non installé",
     "capabilityDisable": "Désactiver {name}",
+    "requiresIntegration": "Nécessite {name}",
     "connectInSettings": "Connecte dans Paramètres → Intégrations"
   },
   "todoList": {

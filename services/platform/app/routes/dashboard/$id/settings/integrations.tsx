@@ -28,6 +28,7 @@ import { isRecord } from '@/lib/utils/type-guards';
 
 const searchSchema = z.object({
   tab: z.string().optional(),
+  slug: z.string().optional(),
   integration_oauth2: z.string().optional(),
   integration_oauth2_error: z.string().optional(),
   description: z.string().optional(),
@@ -233,6 +234,14 @@ function IntegrationsPage() {
     });
   };
 
+  const clearSlugParam = () => {
+    void navigate({
+      from: Route.fullPath,
+      search: { ...search, slug: undefined },
+      replace: true,
+    });
+  };
+
   return (
     <Integrations
       organizationId={organizationId}
@@ -240,6 +249,8 @@ function IntegrationsPage() {
       ssoProvider={ssoProvider ?? null}
       tab={search.tab ?? 'connected'}
       onTabChange={handleTabChange}
+      initialSlug={search.slug}
+      onInitialSlugConsumed={clearSlugParam}
     />
   );
 }

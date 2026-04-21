@@ -105,6 +105,9 @@ trivy-reports/
 # Examples — seed configs are tracked; runtime additions are ignored
 # ---------------------------------------------------------------------------
 examples/**/.history/
+# SOPS-encrypted secrets are per-developer (encrypted with each user's local age
+# key) — generated on demand by `tale init` / provider UI, not useful to share
+examples/**/*.secrets.json
 
 # ---------------------------------------------------------------------------
 # Misc generated reports

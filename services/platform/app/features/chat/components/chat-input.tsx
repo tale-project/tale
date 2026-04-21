@@ -583,7 +583,7 @@ export function ChatInput({
                   <ModelSelector organizationId={organizationId} />
                 </HStack>
               )}
-              <ComposerCapabilityPills />
+              <ComposerCapabilityPills organizationId={organizationId} />
             </HStack>
             <HStack gap={1} align="center">
               <DictationButton

@@ -8,13 +8,19 @@ import { useT } from '@/lib/i18n/client';
 import { useChatLayout } from '../context/chat-layout-context';
 import { useComposerCapabilities } from '../hooks/use-composer-capabilities';
 
-export function ComposerCapabilityPills() {
+interface ComposerCapabilityPillsProps {
+  organizationId: string;
+}
+
+export function ComposerCapabilityPills({
+  organizationId,
+}: ComposerCapabilityPillsProps) {
   const { t } = useT('composer');
   const { enabledCapabilities, setCapabilityEnabled } = useChatLayout();
-  const capabilities = useComposerCapabilities();
+  const capabilities = useComposerCapabilities(organizationId);
 
   const active = capabilities.filter(
-    (cap) => cap.installed && enabledCapabilities.includes(cap.slug),
+    (cap) => cap.ready && enabledCapabilities.includes(cap.slug),
   );
 
   if (active.length === 0) return null;
