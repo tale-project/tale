@@ -1575,6 +1575,7 @@
       "tagEmbedding": "Embedding",
       "tagImageGeneration": "Bildgenerierung",
       "tagImageEdit": "Bildbearbeitung",
+      "tagTranscription": "Transkription",
       "imageGenerationMode": "Bildgenerierungs-Modus",
       "imageGenerationModeHelp": "Wie dieses Bildmodell aufgerufen wird. `images-api` nutzt den Standard-Endpunkt /v1/images/generations (FLUX, Imagen; Bearbeitung via /v1/images/edits). `chat-multimodal` nutzt /v1/chat/completions mit Bild-Inhaltsteilen (Nano Banana, GPT-Image; Bearbeitung via Bild-Teile in der Nutzernachricht).",
       "default": "Standard",
@@ -2816,7 +2817,8 @@
         "vision": "Vision",
         "embedding": "Embedding",
         "imageGeneration": "Bildgenerierung",
-        "imageEdit": "Bildbearbeitung"
+        "imageEdit": "Bildbearbeitung",
+        "transcription": "Transkription"
       }
     },
     "searchChat": "Chat durchsuchen",
@@ -2864,6 +2866,7 @@
     "invalidFiles": "Ungültige Dateien",
     "filesNotSupported": "Einige Dateien sind zu groß (>100 MB) oder werden nicht unterstützt. Unterstützt: Bilder, PDF, Word-Dokumente, Textdateien.",
     "fileSizeExceededMultiple": "{names} überschreitet das Dateigrößenlimit von {maxSize} MB.",
+    "audioDurationExceeded": "{names}: Audio länger als das Limit von {maxHours} Stunden. Bitte in kürzere Segmente aufteilen.",
     "fileTypeNotAllowed": "{names}: Dateityp nicht erlaubt laut Upload-Richtlinie.",
     "fileUploaded": "Datei hochgeladen",
     "uploadedSuccessfully": "{filename} erfolgreich hochgeladen",
@@ -2893,7 +2896,16 @@
       "markup": "MARKUP",
       "xlsx": "XLSX",
       "csv": "CSV",
+      "audio": "AUDIO",
       "file": "FILE"
+    },
+    "transcription": {
+      "inProgressTooltip": "Audio wird transkribiert…",
+      "transcribing": "Transkribiere…",
+      "transcribed": "Transkribiert",
+      "couldNotTranscribe": "Konnte nicht transkribiert werden",
+      "skip": "Transkription überspringen",
+      "retry": "Transkription wiederholen"
     },
     "fallback": {
       "image": "Bild",

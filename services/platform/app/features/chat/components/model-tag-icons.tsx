@@ -1,4 +1,5 @@
 import {
+  AudioLines,
   Brain,
   Image,
   ImagePlus,
@@ -20,6 +21,10 @@ const TAG_CONFIG: Record<string, { icon: LucideIcon; labelKey: string }> = {
   'image-edit': {
     icon: Pencil,
     labelKey: 'modelSelector.tags.imageEdit',
+  },
+  transcription: {
+    icon: AudioLines,
+    labelKey: 'modelSelector.tags.transcription',
   },
 };
 

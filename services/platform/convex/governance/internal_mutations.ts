@@ -210,3 +210,68 @@ export const recordIntegrationUsage = internalMutation({
     return null;
   },
 });
+
+/**
+ * Record a transcription (speech-to-text) call to the usage ledger. Billed per
+ * minute of audio rather than per token — `inputTokens`/`outputTokens` are left
+ * at 0 and `audioDurationSec` carries the billable unit.
+ */
+export const recordTranscriptionUsage = internalMutation({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    teamId: v.optional(v.string()),
+    agentSlug: v.optional(v.string()),
+    model: v.string(),
+    provider: v.string(),
+    audioDurationSec: v.number(),
+    costEstimateCents: v.number(),
+    timestamp: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const ALL_PERIODS = ['daily', 'weekly', 'monthly'] as const;
+    for (const period of ALL_PERIODS) {
+      const periodKey = buildPeriodKeyFromTimestamp(period, args.timestamp);
+      const existingQuery = ctx.db
+        .query('usageLedger')
+        .withIndex('by_org_user_period_team_agent_model', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('userId', args.userId)
+            .eq('periodKey', periodKey)
+            .eq('teamId', args.teamId)
+            .eq('agentSlug', args.agentSlug)
+            .eq('model', args.model),
+        );
+      const match = await existingQuery.first();
+
+      if (match) {
+        await ctx.db.patch(match._id, {
+          audioDurationSec:
+            (match.audioDurationSec ?? 0) + args.audioDurationSec,
+          costEstimate: match.costEstimate + args.costEstimateCents,
+          requestCount: match.requestCount + 1,
+        });
+      } else {
+        await ctx.db.insert('usageLedger', {
+          organizationId: args.organizationId,
+          userId: args.userId,
+          teamId: args.teamId,
+          periodKey,
+          granularity: period,
+          agentSlug: args.agentSlug,
+          model: args.model,
+          provider: args.provider,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          costEstimate: args.costEstimateCents,
+          requestCount: 1,
+          audioDurationSec: args.audioDurationSec,
+        });
+      }
+    }
+    return null;
+  },
+});

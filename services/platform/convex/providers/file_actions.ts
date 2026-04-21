@@ -354,6 +354,7 @@ export const resolveModelData = internalAction({
     inputCentsPerMillion: v.optional(v.number()),
     outputCentsPerMillion: v.optional(v.number()),
     imageCentsPerImage: v.optional(v.number()),
+    centsPerAudioMinute: v.optional(v.number()),
   }),
   handler: async (_ctx, args) => {
     const orgSlug = args.orgSlug ?? 'default';
@@ -417,6 +418,7 @@ export const resolveModelData = internalAction({
         inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
         outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
         imageCentsPerImage: definition.cost?.imageCentsPerImage,
+        centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
       };
     }
 
@@ -454,6 +456,7 @@ export const resolveModelByTag = internalAction({
     inputCentsPerMillion: v.optional(v.number()),
     outputCentsPerMillion: v.optional(v.number()),
     imageCentsPerImage: v.optional(v.number()),
+    centsPerAudioMinute: v.optional(v.number()),
   }),
   handler: async (_ctx, args) => {
     const orgSlug = args.orgSlug ?? 'default';
@@ -500,6 +503,7 @@ export const resolveModelByTag = internalAction({
             inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
             outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
             imageCentsPerImage: definition.cost?.imageCentsPerImage,
+            centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
           };
         }
       }
@@ -529,6 +533,7 @@ export const resolveModelByTag = internalAction({
           inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
           outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
           imageCentsPerImage: definition.cost?.imageCentsPerImage,
+          centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
         };
       }
     }

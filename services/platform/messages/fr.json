@@ -1571,6 +1571,7 @@
       "tagEmbedding": "Embedding",
       "tagImageGeneration": "Génération d'images",
       "tagImageEdit": "Édition d'images",
+      "tagTranscription": "Transcription",
       "imageGenerationMode": "Mode de génération d'images",
       "imageGenerationModeHelp": "Comment ce modèle d'image est invoqué. `images-api` utilise le point de terminaison standard /v1/images/generations (FLUX, Imagen ; édition via /v1/images/edits). `chat-multimodal` utilise /v1/chat/completions avec des parties d'image dans le contenu (Nano Banana, GPT-Image ; édition via les parties image dans le message utilisateur).",
       "default": "défaut",
@@ -2812,7 +2813,8 @@
         "vision": "Vision",
         "embedding": "Embedding",
         "imageGeneration": "Génération d'images",
-        "imageEdit": "Édition d'images"
+        "imageEdit": "Édition d'images",
+        "transcription": "Transcription"
       }
     },
     "searchChat": "Rechercher dans le chat",
@@ -2860,6 +2862,7 @@
     "invalidFiles": "Fichiers invalides",
     "filesNotSupported": "Certains fichiers sont trop volumineux (>100 Mo) ou non pris en charge. Formats acceptés : images, PDF, documents Word, fichiers texte.",
     "fileSizeExceededMultiple": "{names} dépasse(nt) la limite de taille de fichier de {maxSize} Mo.",
+    "audioDurationExceeded": "{names} : l'audio dépasse la limite de {maxHours} heures. Veuillez le découper en segments plus courts.",
     "fileTypeNotAllowed": "{names} : type de fichier non autorisé par la politique de téléversement.",
     "fileUploaded": "Fichier téléversé",
     "uploadedSuccessfully": "{filename} téléversé avec succès",
@@ -2889,7 +2892,16 @@
       "markup": "MARKUP",
       "xlsx": "XLSX",
       "csv": "CSV",
+      "audio": "AUDIO",
       "file": "FICHIER"
+    },
+    "transcription": {
+      "inProgressTooltip": "Transcription de l'audio en cours…",
+      "transcribing": "Transcription en cours…",
+      "transcribed": "Transcrit",
+      "couldNotTranscribe": "N'a pas pu être transcrit",
+      "skip": "Ignorer la transcription",
+      "retry": "Réessayer la transcription"
     },
     "fallback": {
       "image": "Image",

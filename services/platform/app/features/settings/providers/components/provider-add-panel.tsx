@@ -20,6 +20,7 @@ import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { modelTagLiterals } from '@/lib/shared/schemas/providers';
 
 import {
   useFetchProviderModels,
@@ -27,8 +28,6 @@ import {
   useSaveProviderSecret,
 } from '../hooks/mutations';
 import { modelTagLabel } from '../utils/model-tag-label';
-
-const modelTagLiterals = ['chat', 'vision', 'embedding'] as const;
 
 type ModelEntry = {
   id: string;

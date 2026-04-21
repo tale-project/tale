@@ -34,6 +34,13 @@ const MIME_TYPES = {
 
   // Text
   PLAIN: 'text/plain',
+
+  // Audio
+  MP3: 'audio/mpeg',
+  WAV: 'audio/wav',
+  M4A: 'audio/mp4',
+  WEBM_AUDIO: 'audio/webm',
+  OGG: 'audio/ogg',
 } as const;
 
 type MimeType = (typeof MIME_TYPES)[keyof typeof MIME_TYPES];
@@ -68,12 +75,24 @@ const SPREADSHEET_MIME_TYPES: ReadonlySet<string> = new Set([
 
 const TEXT_MIME_TYPES: ReadonlySet<string> = new Set([MIME_TYPES.PLAIN]);
 
+const AUDIO_MIME_TYPES: ReadonlySet<string> = new Set([
+  MIME_TYPES.MP3,
+  MIME_TYPES.WAV,
+  MIME_TYPES.M4A,
+  MIME_TYPES.WEBM_AUDIO,
+  MIME_TYPES.OGG,
+]);
+
 // ---------------------------------------------------------------------------
 // File classification
 // ---------------------------------------------------------------------------
 
 export function isImage(mimeType: string): boolean {
   return mimeType.startsWith('image/');
+}
+
+export function isAudio(mimeType: string): boolean {
+  return mimeType.startsWith('audio/');
 }
 
 export function isTextFile(mimeType: string, fileName?: string): boolean {
@@ -107,6 +126,16 @@ const EXTENSION_TO_MIME: Readonly<Record<string, MimeType>> = {
   xlsx: MIME_TYPES.XLSX,
   csv: MIME_TYPES.CSV,
   txt: MIME_TYPES.PLAIN,
+  // Audio (mp4/m4a both resolve to audio/mp4; mp3/mpga both to audio/mpeg)
+  mp3: MIME_TYPES.MP3,
+  mpeg: MIME_TYPES.MP3,
+  mpga: MIME_TYPES.MP3,
+  mp4: MIME_TYPES.M4A,
+  m4a: MIME_TYPES.M4A,
+  wav: MIME_TYPES.WAV,
+  webm: MIME_TYPES.WEBM_AUDIO,
+  ogg: MIME_TYPES.OGG,
+  oga: MIME_TYPES.OGG,
 };
 
 const MIME_TO_EXTENSION: Readonly<Record<string, string>> = {
@@ -123,6 +152,11 @@ const MIME_TO_EXTENSION: Readonly<Record<string, string>> = {
   [MIME_TYPES.XLSX]: 'xlsx',
   [MIME_TYPES.CSV]: 'csv',
   [MIME_TYPES.PLAIN]: 'txt',
+  [MIME_TYPES.MP3]: 'mp3',
+  [MIME_TYPES.WAV]: 'wav',
+  [MIME_TYPES.M4A]: 'm4a',
+  [MIME_TYPES.WEBM_AUDIO]: 'webm',
+  [MIME_TYPES.OGG]: 'ogg',
 };
 
 const KNOWN_MIME_TYPES: ReadonlySet<string> = new Set(
@@ -223,6 +257,11 @@ export const CHAT_UPLOAD_ALLOWED_TYPES: readonly string[] = [
   MIME_TYPES.XLS,
   MIME_TYPES.XLSX,
   MIME_TYPES.CSV,
+  MIME_TYPES.MP3,
+  MIME_TYPES.WAV,
+  MIME_TYPES.M4A,
+  MIME_TYPES.WEBM_AUDIO,
+  MIME_TYPES.OGG,
 ];
 
 /** Allowed MIME types for document uploads (used for client + server validation) */
@@ -287,6 +326,31 @@ export const SPREADSHEET_IMPORT_ACCEPT = '.xlsx,.xls,.csv';
 
 /** Chat attachment max (100 MB) */
 export const CHAT_MAX_FILE_SIZE = 100 * 1024 * 1024;
+
+/**
+ * Chat audio attachment max size (1 GB). Large audio files go through
+ * server-side ffmpeg compression (silence removal + 32 kbps Opus mono) before
+ * transcription, so the raw upload can be much larger than OpenAI's 25 MB cap.
+ * Duration is the real gate — see `CHAT_AUDIO_MAX_DURATION_SEC`.
+ */
+export const CHAT_AUDIO_MAX_FILE_SIZE = 1024 * 1024 * 1024;
+
+/**
+ * Chat audio attachment max duration (4 hours). Covers board meetings,
+ * workshops, and all-day sessions. Enforced client-side via the file's
+ * metadata `duration` before upload. Anything longer is rejected with a
+ * clear error rather than silently truncated.
+ */
+export const CHAT_AUDIO_MAX_DURATION_SEC = 4 * 60 * 60;
+
+/**
+ * Resolve the per-type size ceiling for a chat upload. Audio is capped at 1 GB
+ * (duration is the real gate); everything else uses the generic 100 MB cap.
+ */
+export function getMaxFileSizeForType(mimeType: string): number {
+  if (isAudio(mimeType)) return CHAT_AUDIO_MAX_FILE_SIZE;
+  return CHAT_MAX_FILE_SIZE;
+}
 
 /** Max attachments per chat message */
 export const CHAT_MAX_FILE_COUNT = 10;
@@ -452,6 +516,7 @@ function getFileTypeLabelKey(mimeType: string): string {
     return 'pptx';
   if (mimeType === MIME_TYPES.PLAIN) return 'txt';
   if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('audio/')) return 'audio';
   if (mimeType === MIME_TYPES.XLS || mimeType === MIME_TYPES.XLSX)
     return 'xlsx';
   if (mimeType === MIME_TYPES.CSV) return 'csv';

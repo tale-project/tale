@@ -1575,6 +1575,7 @@
       "tagEmbedding": "Embedding",
       "tagImageGeneration": "Image generation",
       "tagImageEdit": "Image edit",
+      "tagTranscription": "Transcription",
       "imageGenerationMode": "Image generation mode",
       "imageGenerationModeHelp": "How this image model is invoked. `images-api` uses the standard /v1/images/generations endpoint (FLUX, Imagen; edit mode via /v1/images/edits). `chat-multimodal` uses /v1/chat/completions with image content parts (Nano Banana, GPT-Image; edit mode via image parts in the user message).",
       "default": "default",
@@ -2816,7 +2817,8 @@
         "vision": "Vision",
         "embedding": "Embedding",
         "imageGeneration": "Image generation",
-        "imageEdit": "Image editing"
+        "imageEdit": "Image editing",
+        "transcription": "Transcription"
       }
     },
     "searchChat": "Search chat",
@@ -2864,6 +2866,7 @@
     "invalidFiles": "Invalid files",
     "filesNotSupported": "Some files are too large (>100MB) or not supported. Supported: images, PDF, Word docs, text files.",
     "fileSizeExceededMultiple": "{names} exceeded the {maxSize}MB file size limit.",
+    "audioDurationExceeded": "{names}: audio is longer than the {maxHours}-hour limit. Please split it into shorter segments.",
     "fileTypeNotAllowed": "{names}: file type not allowed by upload policy.",
     "fileUploaded": "File uploaded",
     "uploadedSuccessfully": "{filename} uploaded successfully",
@@ -2893,7 +2896,16 @@
       "markup": "MARKUP",
       "xlsx": "XLSX",
       "csv": "CSV",
+      "audio": "AUDIO",
       "file": "FILE"
+    },
+    "transcription": {
+      "inProgressTooltip": "Transcribing audio…",
+      "transcribing": "Transcribing…",
+      "transcribed": "Transcribed",
+      "couldNotTranscribe": "Could not be transcribed",
+      "skip": "Skip transcription",
+      "retry": "Retry transcription"
     },
     "fallback": {
       "image": "Image",

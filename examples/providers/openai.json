@@ -1,0 +1,15 @@
+{
+  "displayName": "OpenAI",
+  "description": "OpenAI API (Whisper for speech-to-text; add chat/vision models here if you want to call them directly rather than via OpenRouter).",
+  "baseUrl": "https://api.openai.com/v1",
+  "defaults": { "transcription": "whisper-1" },
+  "models": [
+    {
+      "id": "whisper-1",
+      "displayName": "Whisper v1",
+      "description": "Speech-to-text transcription. Billed per minute of audio; 25 MB file ceiling.",
+      "tags": ["transcription"],
+      "cost": { "centsPerAudioMinute": 0.6 }
+    }
+  ]
+}

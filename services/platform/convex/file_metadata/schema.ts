@@ -23,6 +23,33 @@ export const fileMetadataTable = defineTable({
   ),
   ragError: v.optional(v.string()),
   ragProgress: v.optional(v.string()),
+  // Audio transcription (populated when contentType starts with 'audio/').
+  transcript: v.optional(v.string()),
+  transcriptionStatus: v.optional(
+    v.union(
+      v.literal('queued'),
+      v.literal('running'),
+      v.literal('completed'),
+      v.literal('failed'),
+      v.literal('skipped'),
+    ),
+  ),
+  transcriptionError: v.optional(v.string()),
+  transcriptionDurationSec: v.optional(v.number()),
+  // Human-readable progress hint while transcriptionStatus is 'running'
+  // (e.g. "compressing", "transcribing chunk 2 of 4"). Cleared on completion.
+  transcriptionProgress: v.optional(v.string()),
+  // RAG indexing of the transcript (separate from ragStatus above, which is
+  // gated out at scheduling time for audio uploads — see mutations).
+  transcriptRagStatus: v.optional(
+    v.union(
+      v.literal('queued'),
+      v.literal('running'),
+      v.literal('completed'),
+      v.literal('failed'),
+    ),
+  ),
+  transcriptRagError: v.optional(v.string()),
   uploadedBy: v.optional(v.string()),
 })
   .index('by_organizationId', ['organizationId'])

@@ -67,6 +67,18 @@ interface ChatInputProps extends Omit<
     Id<'_storage'>,
     { status?: string; error?: string; progress?: string }
   >;
+  /** True while any audio attachment is still `queued` or `running`, or the
+   * transcription-status query is still resolving. Blocks send so the LLM
+   * never sees a "pending" transcript. */
+  isTranscribing?: boolean;
+  transcriptionStatuses?: Map<
+    Id<'_storage'>,
+    {
+      status?: 'queued' | 'running' | 'completed' | 'failed' | 'skipped';
+      error?: string;
+      progress?: string;
+    }
+  >;
   onSavePrompt?: (content: string) => void;
   onOpenPromptLibrary?: () => void;
   /**
@@ -99,6 +111,8 @@ export function ChatInput({
   fileUploadDisabled = false,
   isIndexing = false,
   indexingStatuses,
+  isTranscribing = false,
+  transcriptionStatuses,
   onSavePrompt,
   onOpenPromptLibrary,
   sendBlocked = false,
@@ -143,6 +157,7 @@ export function ChatInput({
       disabled ||
       isUploading ||
       isIndexing ||
+      isTranscribing ||
       sendBlocked
     )
       return;
@@ -292,6 +307,61 @@ export function ChatInput({
                       {middleEllipsis(attachment.fileName, 28)}
                     </Text>
                     {(() => {
+                      // Audio attachments show transcription status instead of
+                      // RAG indexing status.
+                      if (attachment.fileType.startsWith('audio/')) {
+                        const info = transcriptionStatuses?.get(
+                          attachment.fileId,
+                        );
+                        const status = info?.status;
+                        if (status === 'queued' || status === 'running') {
+                          return (
+                            <HStack gap={1} align="center">
+                              <Loader className="text-muted-foreground/50 size-3 animate-spin" />
+                              <Text
+                                as="span"
+                                variant="caption"
+                                className="text-muted-foreground/50"
+                              >
+                                {info?.progress ||
+                                  tChat('transcription.transcribing')}
+                              </Text>
+                            </HStack>
+                          );
+                        }
+                        if (status === 'completed') {
+                          return (
+                            <Text
+                              as="span"
+                              variant="caption"
+                              className="text-muted-foreground/70"
+                            >
+                              {tChat('transcription.transcribed')}
+                            </Text>
+                          );
+                        }
+                        if (status === 'failed' || status === 'skipped') {
+                          return (
+                            <Text
+                              as="span"
+                              variant="caption"
+                              className="text-destructive"
+                            >
+                              {tChat('transcription.couldNotTranscribe')}
+                            </Text>
+                          );
+                        }
+                        return (
+                          <Text
+                            as="div"
+                            variant="caption"
+                            className="text-muted-foreground/50"
+                          >
+                            {formatFileSize(attachment.fileSize)}
+                          </Text>
+                        );
+                      }
+
                       const info = indexingStatuses?.get(attachment.fileId);
                       const ragStatus = info?.status;
                       if (ragStatus === 'queued' || ragStatus === 'running') {
@@ -449,9 +519,11 @@ export function ChatInput({
               />
               <Tooltip
                 content={
-                  sendBlocked && sendBlockedReason && !isLoading
-                    ? sendBlockedReason
-                    : ''
+                  isTranscribing && !isLoading
+                    ? tChat('transcription.inProgressTooltip')
+                    : sendBlocked && sendBlockedReason && !isLoading
+                      ? sendBlockedReason
+                      : ''
                 }
                 side="top"
               >
@@ -465,6 +537,7 @@ export function ChatInput({
                         inputDisabled ||
                         isUploading ||
                         isIndexing ||
+                        isTranscribing ||
                         sendBlocked
                   }
                   size="icon"

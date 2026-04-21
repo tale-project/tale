@@ -79,3 +79,18 @@ export function estimateCostCents(
   const outputCost = (outputTokens / 1_000_000) * cost.outputCentsPerMillion;
   return Math.round((inputCost + outputCost) * 10000) / 10000;
 }
+
+/**
+ * Estimate cost in cents for a transcription call billed per minute of audio.
+ * OpenAI whisper-1 = $0.006/min = 0.6 cents/min (pass via `centsPerAudioMinute`
+ * from the provider JSON). Returns 0 when the provider declares no price —
+ * useful for self-hosted Whisper where spend is operational, not per-call.
+ */
+export function estimateTranscriptionCostCents(
+  audioDurationSec: number,
+  centsPerAudioMinute: number | undefined,
+): number {
+  if (!centsPerAudioMinute || audioDurationSec <= 0) return 0;
+  const cost = (audioDurationSec / 60) * centsPerAudioMinute;
+  return Math.round(cost * 10000) / 10000;
+}

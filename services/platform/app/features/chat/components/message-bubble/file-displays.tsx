@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  AudioLines,
   Code2,
   Download,
   FileSpreadsheet,
@@ -55,6 +56,7 @@ export function getFileTypeLabel(
     return mediaType === 'text/csv' ? t('fileTypes.csv') : t('fileTypes.xlsx');
   }
   if (mediaType === 'text/plain') return t('fileTypes.txt');
+  if (mediaType.startsWith('audio/')) return t('fileTypes.audio');
   if (isTextBasedFile(fileName, mediaType))
     return getFileExtensionLower(fileName).toUpperCase() || t('fileTypes.txt');
   return t('fileTypes.file');
@@ -104,6 +106,12 @@ function getFileIconInfo(fileType: string, fileName: string) {
       Icon: FileText,
       bgColor: 'bg-gray-50',
       iconColor: 'text-gray-500',
+    };
+  if (fileType.startsWith('audio/'))
+    return {
+      Icon: AudioLines,
+      bgColor: 'bg-purple-50',
+      iconColor: 'text-purple-600',
     };
   if (isTextBasedFile(fileName, fileType)) {
     const category = getTextFileCategory(fileName);

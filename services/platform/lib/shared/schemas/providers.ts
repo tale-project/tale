@@ -1,11 +1,12 @@
 import { z } from 'zod/v4';
 
-const modelTagLiterals = [
+export const modelTagLiterals = [
   'chat',
   'vision',
   'embedding',
   'image-generation',
   'image-edit',
+  'transcription',
 ] as const;
 const modelTagSchema = z.enum(modelTagLiterals);
 export type ModelTag = z.infer<typeof modelTagSchema>;
@@ -34,6 +35,12 @@ const modelDefinitionSchema = z.object({
        * `imageCount * imageCentsPerImage` directly, bypassing token math.
        */
       imageCentsPerImage: z.number().optional(),
+      /**
+       * For transcription models billed per minute of audio (e.g. OpenAI
+       * whisper-1 at $0.006/min = 0.6). Used by
+       * `estimateTranscriptionCostCents` to compute ledger entries.
+       */
+      centsPerAudioMinute: z.number().optional(),
     })
     .optional(),
 });
@@ -45,6 +52,7 @@ const providerDefaultsSchema = z.object({
   vision: z.string().min(1).max(200).optional(),
   embedding: z.string().min(1).max(200).optional(),
   'image-generation': z.string().min(1).max(200).optional(),
+  transcription: z.string().min(1).max(200).optional(),
   fallbackProviderName: z.string().min(1).max(200).optional(),
   fallbackModelId: z.string().min(1).max(200).optional(),
 });

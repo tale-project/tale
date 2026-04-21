@@ -68,6 +68,10 @@ export const usageLedgerTable = defineTable({
   integrationName: v.optional(v.string()),
   integrationOperation: v.optional(v.string()),
   integrationCallCount: v.optional(v.number()),
+  // Transcription accounting — populated for speech-to-text rows. Billed per
+  // minute of audio rather than per token, so inputTokens/outputTokens are
+  // always 0 and costEstimate is derived from audioDurationSec directly.
+  audioDurationSec: v.optional(v.number()),
 })
   .index('by_org_user_period', ['organizationId', 'userId', 'periodKey'])
   .index('by_org_user_period_team', [

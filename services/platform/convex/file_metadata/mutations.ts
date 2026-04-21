@@ -62,27 +62,47 @@ export const saveFileMetadata = mutation({
       return existing._id;
     }
 
+    const isAudio = args.contentType.startsWith('audio/');
+
     const id = await ctx.db.insert('fileMetadata', {
       organizationId: args.organizationId,
       storageId: args.storageId,
       fileName: args.fileName,
       contentType: args.contentType,
       size: args.size,
-      ragStatus: 'queued',
+      // RAG runs on the primary upload for non-audio; audio's transcript
+      // is indexed to RAG separately after transcription succeeds.
+      ragStatus: isAudio ? undefined : 'queued',
+      transcriptionStatus: isAudio ? 'queued' : undefined,
       uploadedBy: userId,
       ...(args.documentId !== undefined && { documentId: args.documentId }),
       ...(args.source !== undefined && { source: args.source }),
     });
 
-    await ctx.scheduler.runAfter(
-      0,
-      internal.file_metadata.internal_actions.uploadFileToRag,
-      {
-        storageId: args.storageId,
-        fileName: args.fileName,
-        contentType: args.contentType,
-      },
-    );
+    if (!isAudio) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.file_metadata.internal_actions.uploadFileToRag,
+        {
+          storageId: args.storageId,
+          fileName: args.fileName,
+          contentType: args.contentType,
+        },
+      );
+    }
+
+    if (isAudio) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.file_metadata.transcribe_audio.transcribeAudio,
+        {
+          storageId: args.storageId,
+          fileName: args.fileName,
+          contentType: args.contentType,
+          organizationId: args.organizationId,
+        },
+      );
+    }
 
     await ctx.scheduler.runAfter(
       0,
@@ -112,5 +132,81 @@ export const saveFileMetadata = mutation({
     }
 
     return id;
+  },
+});
+
+/**
+ * Mark a stuck transcription as user-skipped. Unblocks the chat send-gate when
+ * the audio is taking too long (client shows a Skip button after 60s of
+ * `running`). Same downstream effect as `failed` — the message sends with a
+ * "could not be transcribed" marker.
+ */
+export const skipTranscription = mutation({
+  args: {
+    storageId: v.id('_storage'),
+    organizationId: v.string(),
+  },
+  async handler(ctx, args) {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    const metadata = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (!metadata) throw new Error('File not found');
+    if (metadata.organizationId !== args.organizationId) {
+      throw new Error('Not authorized');
+    }
+
+    await ctx.db.patch(metadata._id, {
+      transcriptionStatus: 'skipped',
+      transcriptionError: 'User skipped transcription',
+    });
+  },
+});
+
+/**
+ * Retry a failed transcription. Resets status to `queued` and re-schedules
+ * the `transcribeAudio` action. The action itself classifies errors as
+ * retryable vs permanent — this endpoint just resets the counter.
+ */
+export const retryTranscription = mutation({
+  args: {
+    storageId: v.id('_storage'),
+    organizationId: v.string(),
+  },
+  async handler(ctx, args) {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    const metadata = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (!metadata) throw new Error('File not found');
+    if (metadata.organizationId !== args.organizationId) {
+      throw new Error('Not authorized');
+    }
+
+    await ctx.db.patch(metadata._id, {
+      transcriptionStatus: 'queued',
+      transcriptionError: undefined,
+    });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.file_metadata.transcribe_audio.transcribeAudio,
+      {
+        storageId: args.storageId,
+        fileName: metadata.fileName,
+        contentType: metadata.contentType,
+        organizationId: args.organizationId,
+      },
+    );
   },
 });
