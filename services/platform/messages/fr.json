@@ -2901,7 +2901,9 @@
       "transcribed": "Transcrit",
       "couldNotTranscribe": "N'a pas pu être transcrit",
       "skip": "Ignorer la transcription",
-      "retry": "Réessayer la transcription"
+      "retry": "Réessayer la transcription",
+      "viewTranscript": "Voir la transcription",
+      "previewSubtitle": "{seconds}s transcrites"
     },
     "fallback": {
       "image": "Image",

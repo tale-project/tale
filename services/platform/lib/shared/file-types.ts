@@ -239,8 +239,22 @@ export function getDisplayExtension(filename: string): string {
 // Accept strings (for <input accept="..."> and drop zones)
 // ---------------------------------------------------------------------------
 
-/** Chat attachment input: images + documents + text-based files */
-export const CHAT_UPLOAD_ACCEPT = TEXT_FILE_ACCEPT;
+/** Chat attachment input: images + documents + text-based files + audio.
+ * `audio/*` covers most browsers but some file pickers filter strictly by
+ * extension, so we append the explicit list too. */
+export const CHAT_UPLOAD_ACCEPT = [
+  TEXT_FILE_ACCEPT,
+  'audio/*',
+  '.mp3',
+  '.m4a',
+  '.mp4',
+  '.wav',
+  '.webm',
+  '.ogg',
+  '.oga',
+  '.mpeg',
+  '.mpga',
+].join(',');
 
 /** Chat upload MIME validation list */
 export const CHAT_UPLOAD_ALLOWED_TYPES: readonly string[] = [

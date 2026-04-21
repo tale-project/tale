@@ -1,6 +1,6 @@
 'use client';
 
-import { X, ArrowUp, CircleStop, Loader } from 'lucide-react';
+import { X, ArrowUp, CircleStop, Eye, Loader } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
   useCallback,
@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
+import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
@@ -77,6 +78,8 @@ interface ChatInputProps extends Omit<
       status?: 'queued' | 'running' | 'completed' | 'failed' | 'skipped';
       error?: string;
       progress?: string;
+      transcript?: string;
+      durationSec?: number;
     }
   >;
   onSavePrompt?: (content: string) => void;
@@ -144,6 +147,11 @@ export function ChatInput({
   const [previewImage, setPreviewImage] = useState<{
     src: string;
     alt: string;
+  } | null>(null);
+  const [previewTranscript, setPreviewTranscript] = useState<{
+    fileName: string;
+    transcript: string;
+    durationSec?: number;
   } | null>(null);
   const defaultPlaceholder = placeholder || tChat('typeMessageHere');
 
@@ -296,25 +304,100 @@ export function ChatInput({
                 </div>
               ))}
 
-              {fileAttachments.map((attachment) => (
-                <div
-                  key={attachment.fileId}
-                  className="bg-muted group relative flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2"
-                >
-                  <DocumentIcon fileName={attachment.fileName} />
-                  <VStack className="min-w-0 flex-1 gap-1">
-                    <Text as="div" variant="label" title={attachment.fileName}>
-                      {middleEllipsis(attachment.fileName, 28)}
-                    </Text>
-                    {(() => {
-                      // Audio attachments show transcription status instead of
-                      // RAG indexing status.
-                      if (attachment.fileType.startsWith('audio/')) {
-                        const info = transcriptionStatuses?.get(
-                          attachment.fileId,
-                        );
-                        const status = info?.status;
-                        if (status === 'queued' || status === 'running') {
+              {fileAttachments.map((attachment) => {
+                const audioInfo = attachment.fileType.startsWith('audio/')
+                  ? transcriptionStatuses?.get(attachment.fileId)
+                  : undefined;
+                const canPreviewTranscript =
+                  audioInfo?.status === 'completed' && !!audioInfo.transcript;
+
+                return (
+                  <div
+                    key={attachment.fileId}
+                    className="bg-muted group relative flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2"
+                  >
+                    <DocumentIcon fileName={attachment.fileName} />
+                    <VStack className="min-w-0 flex-1 gap-1">
+                      <Text
+                        as="div"
+                        variant="label"
+                        title={attachment.fileName}
+                      >
+                        {middleEllipsis(attachment.fileName, 28)}
+                      </Text>
+                      {(() => {
+                        // Audio attachments show transcription status instead of
+                        // RAG indexing status.
+                        if (attachment.fileType.startsWith('audio/')) {
+                          const info = transcriptionStatuses?.get(
+                            attachment.fileId,
+                          );
+                          const status = info?.status;
+                          if (status === 'queued' || status === 'running') {
+                            return (
+                              <HStack gap={1} align="center">
+                                <Loader className="text-muted-foreground/50 size-3 animate-spin" />
+                                <Text
+                                  as="span"
+                                  variant="caption"
+                                  className="text-muted-foreground/50"
+                                >
+                                  {info?.progress ||
+                                    tChat('transcription.transcribing')}
+                                </Text>
+                              </HStack>
+                            );
+                          }
+                          if (status === 'completed') {
+                            return (
+                              <Text
+                                as="span"
+                                variant="caption"
+                                className="text-muted-foreground/70"
+                              >
+                                {tChat('transcription.transcribed')}
+                              </Text>
+                            );
+                          }
+                          if (status === 'failed' || status === 'skipped') {
+                            return (
+                              <Text
+                                as="span"
+                                variant="caption"
+                                className="text-destructive"
+                              >
+                                {tChat('transcription.couldNotTranscribe')}
+                              </Text>
+                            );
+                          }
+                          return (
+                            <Text
+                              as="div"
+                              variant="caption"
+                              className="text-muted-foreground/50"
+                            >
+                              {formatFileSize(attachment.fileSize)}
+                            </Text>
+                          );
+                        }
+
+                        const info = indexingStatuses?.get(attachment.fileId);
+                        const ragStatus = info?.status;
+                        if (ragStatus === 'queued' || ragStatus === 'running') {
+                          const raw = info?.progress;
+                          // Convert "extracting 42/108" → "39%"
+                          let progressLabel = tChat('indexing');
+                          if (raw) {
+                            const match = /(\d+)\/(\d+)/.exec(raw);
+                            if (match) {
+                              const pct = Math.round(
+                                (Number(match[1]) / Number(match[2])) * 100,
+                              );
+                              progressLabel = `${pct}%`;
+                            } else {
+                              progressLabel = raw;
+                            }
+                          }
                           return (
                             <HStack gap={1} align="center">
                               <Loader className="text-muted-foreground/50 size-3 animate-spin" />
@@ -323,31 +406,19 @@ export function ChatInput({
                                 variant="caption"
                                 className="text-muted-foreground/50"
                               >
-                                {info?.progress ||
-                                  tChat('transcription.transcribing')}
+                                {progressLabel}
                               </Text>
                             </HStack>
                           );
                         }
-                        if (status === 'completed') {
-                          return (
-                            <Text
-                              as="span"
-                              variant="caption"
-                              className="text-muted-foreground/70"
-                            >
-                              {tChat('transcription.transcribed')}
-                            </Text>
-                          );
-                        }
-                        if (status === 'failed' || status === 'skipped') {
+                        if (ragStatus === 'failed') {
                           return (
                             <Text
                               as="span"
                               variant="caption"
                               className="text-destructive"
                             >
-                              {tChat('transcription.couldNotTranscribe')}
+                              {tChat('indexingFailed')}
                             </Text>
                           );
                         }
@@ -360,70 +431,36 @@ export function ChatInput({
                             {formatFileSize(attachment.fileSize)}
                           </Text>
                         );
-                      }
-
-                      const info = indexingStatuses?.get(attachment.fileId);
-                      const ragStatus = info?.status;
-                      if (ragStatus === 'queued' || ragStatus === 'running') {
-                        const raw = info?.progress;
-                        // Convert "extracting 42/108" → "39%"
-                        let progressLabel = tChat('indexing');
-                        if (raw) {
-                          const match = /(\d+)\/(\d+)/.exec(raw);
-                          if (match) {
-                            const pct = Math.round(
-                              (Number(match[1]) / Number(match[2])) * 100,
-                            );
-                            progressLabel = `${pct}%`;
-                          } else {
-                            progressLabel = raw;
-                          }
+                      })()}
+                    </VStack>
+                    <button
+                      type="button"
+                      aria-label={tChat('removeAttachment')}
+                      onClick={() => removeAttachment(attachment.fileId)}
+                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                    >
+                      <X className="text-muted-foreground size-3" />
+                    </button>
+                    {canPreviewTranscript && (
+                      <button
+                        type="button"
+                        aria-label={tChat('transcription.viewTranscript')}
+                        title={tChat('transcription.viewTranscript')}
+                        onClick={() =>
+                          setPreviewTranscript({
+                            fileName: attachment.fileName,
+                            transcript: audioInfo?.transcript ?? '',
+                            durationSec: audioInfo?.durationSec,
+                          })
                         }
-                        return (
-                          <HStack gap={1} align="center">
-                            <Loader className="text-muted-foreground/50 size-3 animate-spin" />
-                            <Text
-                              as="span"
-                              variant="caption"
-                              className="text-muted-foreground/50"
-                            >
-                              {progressLabel}
-                            </Text>
-                          </HStack>
-                        );
-                      }
-                      if (ragStatus === 'failed') {
-                        return (
-                          <Text
-                            as="span"
-                            variant="caption"
-                            className="text-destructive"
-                          >
-                            {tChat('indexingFailed')}
-                          </Text>
-                        );
-                      }
-                      return (
-                        <Text
-                          as="div"
-                          variant="caption"
-                          className="text-muted-foreground/50"
-                        >
-                          {formatFileSize(attachment.fileSize)}
-                        </Text>
-                      );
-                    })()}
-                  </VStack>
-                  <button
-                    type="button"
-                    aria-label={tChat('removeAttachment')}
-                    onClick={() => removeAttachment(attachment.fileId)}
-                    className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                  >
-                    <X className="text-muted-foreground size-3" />
-                  </button>
-                </div>
-              ))}
+                        className="bg-background text-muted-foreground hover:text-foreground absolute right-0.5 bottom-0.5 flex size-5 items-center justify-center rounded-full transition-colors"
+                      >
+                        <Eye className="size-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
 
               {uploadingFiles.map((fileId) => (
                 <div
@@ -565,6 +602,30 @@ export function ChatInput({
           src={previewImage.src}
           alt={previewImage.alt}
         />
+      )}
+
+      {previewTranscript && (
+        <ViewDialog
+          open={!!previewTranscript}
+          onOpenChange={(open) => !open && setPreviewTranscript(null)}
+          title={previewTranscript.fileName}
+          description={
+            previewTranscript.durationSec
+              ? tChat('transcription.previewSubtitle', {
+                  seconds: Math.round(previewTranscript.durationSec),
+                })
+              : undefined
+          }
+          size="lg"
+        >
+          <Text
+            as="div"
+            variant="body"
+            className="max-h-[60vh] overflow-y-auto leading-relaxed whitespace-pre-wrap"
+          >
+            {previewTranscript.transcript}
+          </Text>
+        </ViewDialog>
       )}
     </div>
   );
