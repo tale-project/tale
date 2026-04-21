@@ -1,7 +1,7 @@
 'use client';
 
 import { Download, Pencil, Plus, Trash2, Upload } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { Alert } from '@/app/components/ui/feedback/alert';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -302,6 +302,220 @@ export function ChatFilterConfigView({
 }
 
 // ---------------------------------------------------------------------------
+// Category edit form (inner, unmounts on sheet close)
+// ---------------------------------------------------------------------------
+
+interface CategoryEditFormProps {
+  isNew: boolean;
+  initial?: ChatFilterCategory;
+  onCancel: () => void;
+  onSave: (draft: ChatFilterCategory) => void;
+}
+
+function CategoryEditForm({
+  isNew,
+  initial,
+  onCancel,
+  onSave,
+}: CategoryEditFormProps) {
+  // Initialized from `initial` on mount. Because this component unmounts on
+  // sheet close (key on the parent), a reopen re-mounts with a fresh
+  // snapshot of `initial` — so an earlier abandoned draft can never leak
+  // into a later edit session, and the previous useEffect-based reset
+  // (which was the source of a mode-revert bug) is no longer needed.
+  const [label, setLabel] = useState(initial?.label ?? 'New category');
+  const [enabled, setEnabled] = useState(initial?.enabled ?? true);
+  const [mode, setMode] = useState<'block' | 'mask' | 'flag'>(
+    initial?.mode ?? 'flag',
+  );
+  const [wordsText, setWordsText] = useState(
+    initial ? initial.words.join('\n') : '',
+  );
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const canSave = label.trim().length > 0;
+
+  const wordLines = wordsText
+    .split(/\r?\n/)
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0);
+
+  const initialLabel = initial?.label ?? '';
+  const initialEnabled = initial?.enabled ?? true;
+  const initialMode = initial?.mode ?? 'flag';
+  const initialWordsJoined = initial ? initial.words.join('\n') : '';
+  const hasChanges =
+    isNew ||
+    label.trim() !== initialLabel ||
+    enabled !== initialEnabled ||
+    mode !== initialMode ||
+    wordLines.join('\n') !== initialWordsJoined;
+
+  const handleSave = () => {
+    onSave({
+      id: initial?.id ?? randomCategoryId(),
+      label: label.trim(),
+      enabled,
+      mode,
+      words: wordLines,
+      patterns: initial?.patterns ?? [],
+    });
+  };
+
+  const handleExport = () => {
+    const text = wordLines.join('\n') + (wordLines.length > 0 ? '\n' : '');
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${sanitizeFilename(label)}-words.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportFile = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const text = await file.text();
+    const incoming = text
+      .split(/\r?\n/)
+      .map((w) => w.trim())
+      .filter((w) => w.length > 0);
+
+    if (incoming.length === 0) {
+      return;
+    }
+
+    const hadExisting = wordLines.length > 0;
+    if (
+      hadExisting &&
+      typeof window !== 'undefined' &&
+      !window.confirm(
+        `Replace ${wordLines.length} existing words with ${incoming.length} words from "${file.name}"?`,
+      )
+    ) {
+      return;
+    }
+
+    setWordsText(incoming.join('\n'));
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="shrink-0 pr-10">
+        <h2 className="text-lg font-semibold tracking-tight">
+          {isNew ? 'Add category' : 'Edit category'}
+        </h2>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Block wins over mask wins over flag when multiple categories match the
+          same message.
+        </p>
+      </div>
+
+      <div className="-mx-6 min-h-0 flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex flex-col gap-4">
+          <FormSection label="Label">
+            <Input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="e.g. Hate speech"
+            />
+          </FormSection>
+
+          <FormSection label="Enabled">
+            <Switch checked={enabled} onCheckedChange={setEnabled} />
+          </FormSection>
+
+          <FormSection
+            label="Mode"
+            description="Block refuses the message. Mask replaces matches with the configured placeholder. Flag records the detection but lets the message pass."
+          >
+            <Select
+              value={mode}
+              onValueChange={(v) => {
+                if (v === 'block' || v === 'mask' || v === 'flag') setMode(v);
+              }}
+              options={[
+                { value: 'block', label: 'Block' },
+                { value: 'mask', label: 'Mask' },
+                { value: 'flag', label: 'Flag' },
+              ]}
+            />
+          </FormSection>
+
+          <FormSection
+            label={`Words (${wordLines.length})`}
+            description="One word or phrase per line. Case-insensitive. For CJK/Thai/Lao text, substring matching is used automatically; other scripts use Unicode-aware word boundaries."
+          >
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={Upload}
+                  onClick={handleImportClick}
+                >
+                  Import .txt
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={Download}
+                  disabled={wordLines.length === 0}
+                  onClick={handleExport}
+                >
+                  Export .txt
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt,text/plain"
+                  className="sr-only"
+                  onChange={(e) => {
+                    void handleImportFile(e);
+                  }}
+                />
+              </div>
+              <Textarea
+                value={wordsText}
+                rows={14}
+                className="font-mono text-xs"
+                onChange={(e) => setWordsText(e.target.value)}
+                placeholder={`forbidden\nanother word\n傻逼`}
+              />
+            </div>
+          </FormSection>
+        </div>
+      </div>
+
+      <div className="flex shrink-0 justify-end gap-2 border-t pt-4">
+        <Button variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          disabled={!canSave || !hasChanges}
+          onClick={handleSave}
+        >
+          Save
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Category list
 // ---------------------------------------------------------------------------
 
@@ -418,107 +632,6 @@ function CategoryEditSheet({
 }: CategoryEditSheetProps) {
   const isNew = index === 'new';
 
-  const [label, setLabel] = useState('New category');
-  // New categories default to enabled=true. Admin wouldn't go to the
-  // trouble of adding one only to leave it off — forcing the extra
-  // toggle-click was a source of confusion.
-  const [enabled, setEnabled] = useState(true);
-  const [mode, setMode] = useState<'block' | 'mask' | 'flag'>('flag');
-  const [wordsText, setWordsText] = useState('');
-
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Reset on open + prop change. Guard on `open` so switching to a different
-  // category while the sheet is closed doesn't churn state.
-  useEffect(() => {
-    if (!open) return;
-    setLabel(initial?.label ?? 'New category');
-    setEnabled(initial?.enabled ?? true);
-    setMode(initial?.mode ?? 'flag');
-    setWordsText(initial ? initial.words.join('\n') : '');
-  }, [open, initial]);
-
-  const canSave = label.trim().length > 0;
-
-  const wordLines = wordsText
-    .split(/\r?\n/)
-    .map((w) => w.trim())
-    .filter((w) => w.length > 0);
-
-  // Save only activates when the draft actually differs from the initial
-  // state (or for a new category, once the required fields are filled).
-  // Comparing `wordsText` against the joined baseline lets idle whitespace
-  // edits that don't change meaningful words still count as "no change".
-  const initialLabel = initial?.label ?? '';
-  const initialEnabled = initial?.enabled ?? true;
-  const initialMode = initial?.mode ?? 'flag';
-  const initialWordsJoined = initial ? initial.words.join('\n') : '';
-  const hasChanges =
-    isNew ||
-    label.trim() !== initialLabel ||
-    enabled !== initialEnabled ||
-    mode !== initialMode ||
-    wordLines.join('\n') !== initialWordsJoined;
-
-  const handleSave = () => {
-    onSave({
-      id: initial?.id ?? randomCategoryId(),
-      label: label.trim(),
-      enabled,
-      mode,
-      words: wordLines,
-      patterns: initial?.patterns ?? [],
-    });
-  };
-
-  const handleExport = () => {
-    const text = wordLines.join('\n') + (wordLines.length > 0 ? '\n' : '');
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${sanitizeFilename(label)}-words.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleImportFile = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-
-    const text = await file.text();
-    const incoming = text
-      .split(/\r?\n/)
-      .map((w) => w.trim())
-      .filter((w) => w.length > 0);
-
-    if (incoming.length === 0) {
-      return;
-    }
-
-    const hadExisting = wordLines.length > 0;
-    if (
-      hadExisting &&
-      typeof window !== 'undefined' &&
-      !window.confirm(
-        `Replace ${wordLines.length} existing words with ${incoming.length} words from "${file.name}"?`,
-      )
-    ) {
-      return;
-    }
-
-    setWordsText(incoming.join('\n'));
-  };
-
   return (
     <Sheet
       open={open}
@@ -529,106 +642,20 @@ function CategoryEditSheet({
       description="Configure a content safety category, its enforcement mode, and its word list."
       className="sm:!max-w-2xl"
     >
-      <div className="flex h-full flex-col">
-        <div className="shrink-0 pr-10">
-          <h2 className="text-lg font-semibold tracking-tight">
-            {isNew ? 'Add category' : 'Edit category'}
-          </h2>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Block wins over mask wins over flag when multiple categories match
-            the same message.
-          </p>
-        </div>
-
-        <div className="-mx-6 min-h-0 flex-1 overflow-y-auto px-6 py-4">
-          <div className="flex flex-col gap-4">
-            <FormSection label="Label">
-              <Input
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder="e.g. Hate speech"
-              />
-            </FormSection>
-
-            <FormSection label="Enabled">
-              <Switch checked={enabled} onCheckedChange={setEnabled} />
-            </FormSection>
-
-            <FormSection
-              label="Mode"
-              description="Block refuses the message. Mask replaces matches with the configured placeholder. Flag records the detection but lets the message pass."
-            >
-              <Select
-                value={mode}
-                onValueChange={(v) => {
-                  if (v === 'block' || v === 'mask' || v === 'flag') setMode(v);
-                }}
-                options={[
-                  { value: 'block', label: 'Block' },
-                  { value: 'mask', label: 'Mask' },
-                  { value: 'flag', label: 'Flag' },
-                ]}
-              />
-            </FormSection>
-
-            <FormSection
-              label={`Words (${wordLines.length})`}
-              description="One word or phrase per line. Case-insensitive. For CJK/Thai/Lao text, substring matching is used automatically; other scripts use Unicode-aware word boundaries."
-            >
-              <div className="flex flex-col gap-2">
-                <div className="flex gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={Upload}
-                    onClick={handleImportClick}
-                  >
-                    Import .txt
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={Download}
-                    disabled={wordLines.length === 0}
-                    onClick={handleExport}
-                  >
-                    Export .txt
-                  </Button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".txt,text/plain"
-                    className="sr-only"
-                    onChange={(e) => {
-                      void handleImportFile(e);
-                    }}
-                  />
-                </div>
-                <Textarea
-                  value={wordsText}
-                  rows={14}
-                  className="font-mono text-xs"
-                  onChange={(e) => setWordsText(e.target.value)}
-                  placeholder={`forbidden\nanother word\n傻逼`}
-                />
-              </div>
-            </FormSection>
-          </div>
-        </div>
-
-        <div className="flex shrink-0 justify-end gap-2 border-t pt-4">
-          <Button variant="ghost" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            disabled={!canSave || !hasChanges}
-            onClick={handleSave}
-          >
-            Save
-          </Button>
-        </div>
-      </div>
+      {/* Keyed so each open re-mounts the form with fresh state derived from
+          `initial`. Previously the form was a single useState/useEffect
+          instance that survived open→close cycles, and the effect's reset
+          could race with the Save button's closure — the symptom was a
+          saved "Mask" change silently reverting to the prior "Flag" value. */}
+      {open && index !== null && (
+        <CategoryEditForm
+          key={isNew ? 'new' : (initial?.id ?? `index-${index}`)}
+          isNew={isNew}
+          initial={initial}
+          onCancel={onCancel}
+          onSave={onSave}
+        />
+      )}
     </Sheet>
   );
 }

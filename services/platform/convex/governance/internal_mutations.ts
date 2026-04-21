@@ -1,7 +1,128 @@
 import { v } from 'convex/values';
 
-import { internalMutation } from '../_generated/server';
+import { internalMutation, internalQuery } from '../_generated/server';
+import { getOrganizationMember } from '../lib/rls';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { buildPeriodKeyFromTimestamp } from './helpers';
+
+/**
+ * Upsert a single guardrails secret row. Called from `saveModerationSecret`
+ * (Node action) after the plaintext has been AES-GCM-encrypted; the V8
+ * DB layer only ever sees ciphertext. `name` scopes different secret
+ * kinds per org — today only `moderation_auth_header` is defined.
+ */
+export const upsertGuardrailsSecret = internalMutation({
+  args: {
+    organizationId: v.string(),
+    name: v.string(),
+    ciphertext: v.string(),
+    nonce: v.string(),
+    authTag: v.string(),
+    keyFingerprint: v.string(),
+    updatedBy: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('governanceSecrets')
+      .withIndex('by_org_name', (q) =>
+        q.eq('organizationId', args.organizationId).eq('name', args.name),
+      )
+      .first();
+    const patch = {
+      ciphertext: args.ciphertext,
+      nonce: args.nonce,
+      authTag: args.authTag,
+      keyFingerprint: args.keyFingerprint,
+      updatedAt: Date.now(),
+      updatedBy: args.updatedBy,
+    };
+    if (existing) {
+      await ctx.db.patch(existing._id, patch);
+    } else {
+      await ctx.db.insert('governanceSecrets', {
+        organizationId: args.organizationId,
+        name: args.name,
+        ...patch,
+      });
+    }
+    return null;
+  },
+});
+
+export const requireOrganizationMemberInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    email: v.optional(v.string()),
+    name: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: args.userId,
+      email: args.email,
+      name: args.name,
+    });
+    return null;
+  },
+});
+
+export const requireGovernanceAdminInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    email: v.optional(v.string()),
+    name: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: args.userId,
+      email: args.email,
+      name: args.name,
+    });
+    if (!isAdmin(member.role)) {
+      throw new Error(
+        'Only admins can manage guardrails secrets for this organization',
+      );
+    }
+    return null;
+  },
+});
+
+export const getGuardrailsSecretInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    name: v.string(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      ciphertext: v.string(),
+      nonce: v.string(),
+      authTag: v.string(),
+      keyFingerprint: v.string(),
+      updatedAt: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('governanceSecrets')
+      .withIndex('by_org_name', (q) =>
+        q.eq('organizationId', args.organizationId).eq('name', args.name),
+      )
+      .first();
+    if (!row) return null;
+    return {
+      ciphertext: row.ciphertext,
+      nonce: row.nonce,
+      authTag: row.authTag,
+      keyFingerprint: row.keyFingerprint,
+      updatedAt: row.updatedAt,
+    };
+  },
+});
 
 export const incrementUsageLedger = internalMutation({
   args: {

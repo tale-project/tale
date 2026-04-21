@@ -5,9 +5,7 @@ import { useCallback, useRef, startTransition } from 'react';
 import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
-import { scrubPii } from '@/convex/governance/pii';
 import { useT } from '@/lib/i18n/client';
-import { piiConfigSchema } from '@/lib/shared/schemas/governance';
 
 type GuardrailsBlockedCode =
   | 'pii.blocked'
@@ -142,14 +140,58 @@ export function useSendMessage({
       setPendingThreadId(threadId ?? null);
       onBeforeSend?.();
 
-      // Show optimistic message SYNCHRONOUSLY before any network calls
-      // (PII check, thread creation) so the UI updates instantly.
+      // Pre-send guardrails check. We await this BEFORE rendering the
+      // optimistic bubble so block-mode violations show a toast (and no
+      // message ever appears), and so mask-mode rewrites are reflected in
+      // the first frame the user sees — otherwise they'd watch their raw
+      // input flash for a moment and then get replaced by `[BLOCKED]`.
+      // On any error we fall through with the raw text; the server will
+      // still re-sanitize authoritatively.
+      let messageToSend = message;
+      try {
+        const precheck = await convexClient.action(
+          api.governance.precheck.precheckInput,
+          { organizationId, text: message },
+        );
+        if (precheck.blocked) {
+          clearChatState();
+          const title =
+            precheck.code === 'pii.blocked'
+              ? t('toast.piiBlocked')
+              : t('toast.policyViolation');
+          // Prefer admin-edited labels resolved server-side; fall back to
+          // internal slugs only when the policy was mid-edit and a category
+          // got removed between detection and render.
+          const labels =
+            precheck.categoryLabels && precheck.categoryLabels.length > 0
+              ? precheck.categoryLabels
+              : precheck.categoryIds;
+          const description =
+            labels && labels.length > 0 ? labels.join(', ') : undefined;
+          toast({ title, description, variant: 'destructive' });
+          return;
+        }
+        if (precheck.maskedText !== undefined) {
+          messageToSend = precheck.maskedText;
+        }
+      } catch (error) {
+        console.warn(
+          `[use-send-message] guardrails precheck failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+
+      // Show optimistic message AFTER precheck so it reflects any mask
+      // rewrite from the server. For orgs without guardrails this is a
+      // single cheap query (<50ms typically) — the previous "instant"
+      // render was only winning a round-trip anyway.
       const lastMessageKey = messages[messages.length - 1]?.key;
       const pendingTimestamp = new Date();
       if (isArena) {
         if (currentArena.arenaThreadIdA && currentArena.arenaThreadIdB) {
           setPendingMessage({
-            content: message,
+            content: messageToSend,
             threadId: currentArena.arenaThreadIdA,
             arenaThreadIdB: currentArena.arenaThreadIdB,
             attachments: mutationAttachments,
@@ -161,7 +203,7 @@ export function useSendMessage({
           // or neither exists yet (new chat). Use the known A ID so
           // ArenaColumn A can match and display the optimistic message.
           setPendingMessage({
-            content: message,
+            content: messageToSend,
             threadId: currentArena.arenaThreadIdA ?? 'pending',
             attachments: mutationAttachments,
             timestamp: pendingTimestamp,
@@ -169,9 +211,8 @@ export function useSendMessage({
           });
         }
       } else {
-        // Standard mode: show optimistic message SYNCHRONOUSLY before PII check
         setPendingMessage({
-          content: message,
+          content: messageToSend,
           threadId: threadId ?? 'pending',
           attachments: mutationAttachments,
           timestamp: pendingTimestamp,
@@ -179,47 +220,13 @@ export function useSendMessage({
         });
       }
 
-      // Pre-flight PII check: avoid a server roundtrip when block mode
-      // would deny the message anyway. Server-side sanitize.ts is the
-      // authoritative gate; this is purely a UX optimization.
-      try {
-        const piiPolicy = await convexClient.query(
-          api.governance.queries.getPolicy,
-          { organizationId, policyType: 'pii_config' as const },
-        );
-        if (piiPolicy?.enabled && piiPolicy.config) {
-          const parsed = piiConfigSchema.safeParse({
-            ...piiPolicy.config,
-            enabled: piiPolicy.enabled,
-          });
-          if (parsed.success && parsed.data.mode === 'block') {
-            const outcome = scrubPii(message, parsed.data);
-            if (outcome.kind === 'blocked') {
-              clearChatState();
-              toast({
-                title: t('toast.piiBlocked'),
-                description: `PII detected: ${outcome.categoryIds.join(', ')}`,
-                variant: 'destructive',
-              });
-              return;
-            }
-          }
-        }
-      } catch (error) {
-        // Log and fall through — server-side sanitize will block again if
-        // the message truly violates policy.
-        console.warn(
-          `[use-send-message] client-side PII pre-flight failed: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-
       try {
         if (isArena) {
           // --- Arena mode: Thread A = root, Thread B = branch ---
           const title =
-            message.length > 50 ? message.slice(0, 50) + '...' : message;
+            messageToSend.length > 50
+              ? messageToSend.slice(0, 50) + '...'
+              : messageToSend;
           const arenaGroupId = crypto.randomUUID();
 
           let tIdA: string;
@@ -260,7 +267,7 @@ export function useSendMessage({
             currentArena.setArenaThreadIdB(newB);
             setPendingThreadId(tIdA);
             setPendingMessage({
-              content: message,
+              content: messageToSend,
               threadId: tIdA,
               arenaThreadIdB: tIdB,
               attachments: mutationAttachments,
@@ -293,7 +300,7 @@ export function useSendMessage({
             threadIdA: tIdA,
             threadIdB: tIdB,
             organizationId,
-            message,
+            message: messageToSend,
             modelIdA: modelA,
             modelIdB: modelB,
             attachments: mutationAttachments,
@@ -313,7 +320,7 @@ export function useSendMessage({
 
           if (!currentThreadId) {
             setPendingMessage({
-              content: message,
+              content: messageToSend,
               threadId: 'pending',
               attachments: mutationAttachments,
               timestamp: pendingTimestamp,
@@ -321,7 +328,9 @@ export function useSendMessage({
             });
 
             const title =
-              message.length > 50 ? message.slice(0, 50) + '...' : message;
+              messageToSend.length > 50
+                ? messageToSend.slice(0, 50) + '...'
+                : messageToSend;
             const newThreadId = await createThread({
               organizationId,
               title,
@@ -337,7 +346,7 @@ export function useSendMessage({
             // fallback path even while URL is still /chat.
             // Only navigation is deferred via startTransition.
             setPendingMessage({
-              content: message,
+              content: messageToSend,
               threadId: newThreadId,
               attachments: mutationAttachments,
               timestamp: pendingTimestamp,
@@ -357,7 +366,9 @@ export function useSendMessage({
 
           if (isFirstMessage && currentThreadId) {
             const title =
-              message.length > 50 ? message.slice(0, 50) + '...' : message;
+              messageToSend.length > 50
+                ? messageToSend.slice(0, 50) + '...'
+                : messageToSend;
             await updateThread({ threadId: currentThreadId, title });
           }
 
@@ -366,7 +377,7 @@ export function useSendMessage({
             orgSlug: 'default',
             threadId: currentThreadId,
             organizationId,
-            message,
+            message: messageToSend,
             modelId: modelId || undefined,
             capabilityBindings:
               enabledCapabilities.length > 0 ? enabledCapabilities : undefined,

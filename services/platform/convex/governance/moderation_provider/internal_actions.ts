@@ -11,7 +11,7 @@ import {
   recordCircuitSuccess,
 } from './http_client';
 import { parseResponse, ParseError } from './response_parser';
-import { resolveModerationSecrets } from './secrets';
+import { resolveModerationAuthHeader } from './secrets';
 
 /**
  * Node-runtime boundary for the external moderation HTTP call.
@@ -142,7 +142,6 @@ export const runModerationProviderAction = internalAction({
       input: v.union(v.literal('open'), v.literal('closed')),
       output: v.union(v.literal('open'), v.literal('closed')),
     }),
-    secretFile: v.string(),
   },
   returns: v.object({
     outcome: v.object({
@@ -160,7 +159,7 @@ export const runModerationProviderAction = internalAction({
       circuitOpened: v.optional(v.boolean()),
     }),
   }),
-  handler: async (_ctx, args) => {
+  handler: async (ctx, args) => {
     const failMode = args.failBehavior[args.direction];
 
     const stepError = (extras: {
@@ -202,30 +201,26 @@ export const runModerationProviderAction = internalAction({
 
     let authHeader: string | null = null;
     try {
-      const secrets = await resolveModerationSecrets(
-        args.orgSlug,
-        args.secretFile,
-      );
-      authHeader = secrets.authHeader;
+      authHeader = await resolveModerationAuthHeader(ctx, args.organizationId);
     } catch (err) {
-      const requiresSecret = Object.values(args.endpoint.headers).some((v2) =>
-        v2.includes('{{secret}}'),
+      console.warn(
+        `[moderation_provider] failed to resolve secret for org ${args.organizationId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
       );
-      if (requiresSecret) {
-        const justOpened = recordCircuitFailure(
-          args.organizationId,
-          args.direction,
-        ).justOpened;
-        console.warn(
-          `[moderation_provider] failed to resolve secrets for org ${args.orgSlug}: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-        return stepError({
-          errorClass: 'config',
-          circuitOpened: justOpened,
-        });
-      }
+    }
+    const requiresSecret = Object.values(args.endpoint.headers).some((v2) =>
+      v2.includes('{{secret}}'),
+    );
+    if (requiresSecret && !authHeader) {
+      const justOpened = recordCircuitFailure(
+        args.organizationId,
+        args.direction,
+      ).justOpened;
+      return stepError({
+        errorClass: 'config',
+        circuitOpened: justOpened,
+      });
     }
 
     let callResult;

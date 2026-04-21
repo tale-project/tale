@@ -21,18 +21,163 @@ import type {
   ModerationResponseShape,
 } from '@/lib/shared/schemas/governance';
 
-import { useUpsertGovernancePolicy } from '../hooks/mutations';
-import { useGovernancePolicy } from '../hooks/queries';
+import {
+  useSaveModerationSecret,
+  useTestModerationProvider,
+  useUpsertGovernancePolicy,
+} from '../hooks/mutations';
+import {
+  useGovernancePolicy,
+  useModerationSecretStatus,
+} from '../hooks/queries';
 
-const OPENAI_MODERATION_EXAMPLE = {
-  url: 'https://api.openai.com/v1/moderations',
-  headers: [
-    { key: 'Authorization', value: 'Bearer {{secret}}' },
-    { key: 'Content-Type', value: 'application/json' },
-  ],
-  requestTemplate: '{"input": {{text}}, "model": "omni-moderation-latest"}',
-  allowedHosts: ['api.openai.com'],
-};
+// Each preset pre-fills URL / headers / request template for a known
+// provider and flips the response shape to the matching built-in adapter.
+// The API key itself is entered in the "API key" section below — it's
+// AES-encrypted server-side and stored in the `governanceSecrets` table;
+// `{{secret}}` in header values is replaced with the decrypted value at
+// request time, so the plaintext key never sits in the policy config.
+interface ModerationPreset {
+  id: 'openai_moderation' | 'azure_content_safety' | 'perspective';
+  label: string;
+  note?: string;
+  url: string;
+  headers: HeaderRow[];
+  requestTemplate: string;
+  allowedHosts: string[];
+  // A minimal set of category→label mappings so enabling the provider
+  // actually does something without further configuration. Admins can
+  // tune modes / thresholds / delete entries after applying.
+  defaultMappings: ModerationCategoryMapping[];
+}
+
+// All defaults are `flag` mode — detection only, nothing blocked. Admins
+// can escalate to mask/block once they've watched Recent Events and are
+// confident about false-positive rates on their traffic.
+const MODERATION_PRESETS: ModerationPreset[] = [
+  {
+    id: 'openai_moderation',
+    label: 'Use OpenAI Moderation',
+    url: 'https://api.openai.com/v1/moderations',
+    headers: [
+      { key: 'Authorization', value: 'Bearer {{secret}}' },
+      { key: 'Content-Type', value: 'application/json' },
+    ],
+    requestTemplate: '{"input": {{text}}, "model": "omni-moderation-latest"}',
+    allowedHosts: ['api.openai.com'],
+    defaultMappings: [
+      {
+        providerCategory: 'harassment',
+        internalLabel: 'Harassment',
+        enabled: true,
+        mode: 'flag',
+      },
+      {
+        providerCategory: 'hate',
+        internalLabel: 'Hate',
+        enabled: true,
+        mode: 'flag',
+      },
+      {
+        providerCategory: 'violence',
+        internalLabel: 'Violence',
+        enabled: true,
+        mode: 'flag',
+      },
+      {
+        providerCategory: 'sexual',
+        internalLabel: 'Sexual',
+        enabled: true,
+        mode: 'flag',
+      },
+      {
+        providerCategory: 'self-harm',
+        internalLabel: 'Self-harm',
+        enabled: true,
+        mode: 'flag',
+      },
+    ],
+  },
+  {
+    id: 'azure_content_safety',
+    label: 'Use Azure Content Safety',
+    note: 'Replace the subdomain with your own Azure resource name.',
+    url: 'https://YOUR-RESOURCE.cognitiveservices.azure.com/contentsafety/text:analyze?api-version=2024-09-01',
+    headers: [
+      { key: 'Ocp-Apim-Subscription-Key', value: '{{secret}}' },
+      { key: 'Content-Type', value: 'application/json' },
+    ],
+    requestTemplate:
+      '{"text": {{text}}, "categories": ["Hate","Violence","Sexual","SelfHarm"], "outputType": "FourSeverityLevels"}',
+    allowedHosts: ['YOUR-RESOURCE.cognitiveservices.azure.com'],
+    defaultMappings: [
+      {
+        providerCategory: 'Hate',
+        internalLabel: 'Hate',
+        enabled: true,
+        mode: 'flag',
+      },
+      {
+        providerCategory: 'Violence',
+        internalLabel: 'Violence',
+        enabled: true,
+        mode: 'flag',
+      },
+      {
+        providerCategory: 'Sexual',
+        internalLabel: 'Sexual',
+        enabled: true,
+        mode: 'flag',
+      },
+      {
+        providerCategory: 'SelfHarm',
+        internalLabel: 'Self-harm',
+        enabled: true,
+        mode: 'flag',
+      },
+    ],
+  },
+  {
+    id: 'perspective',
+    label: 'Use Perspective API',
+    note: 'Perspective authenticates via a URL query parameter, not a header. After applying the preset, open Endpoint and append ?key=YOUR_PERSPECTIVE_KEY to the URL. (The encrypted API-key field below is not used by Perspective.)',
+    url: 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze',
+    headers: [{ key: 'Content-Type', value: 'application/json' }],
+    requestTemplate:
+      '{"comment": {"text": {{text}}}, "languages": ["en"], "requestedAttributes": {"TOXICITY": {}, "INSULT": {}, "THREAT": {}, "IDENTITY_ATTACK": {}, "PROFANITY": {}, "SEVERE_TOXICITY": {}}}',
+    allowedHosts: ['commentanalyzer.googleapis.com'],
+    defaultMappings: [
+      {
+        providerCategory: 'TOXICITY',
+        internalLabel: 'Toxicity',
+        enabled: true,
+        mode: 'flag',
+        scoreThreshold: 0.7,
+      },
+      {
+        providerCategory: 'SEVERE_TOXICITY',
+        internalLabel: 'Severe toxicity',
+        enabled: true,
+        mode: 'flag',
+        scoreThreshold: 0.7,
+      },
+      {
+        providerCategory: 'THREAT',
+        internalLabel: 'Threat',
+        enabled: true,
+        mode: 'flag',
+        scoreThreshold: 0.7,
+      },
+      {
+        providerCategory: 'IDENTITY_ATTACK',
+        internalLabel: 'Identity attack',
+        enabled: true,
+        mode: 'flag',
+        scoreThreshold: 0.7,
+      },
+    ],
+  },
+];
 
 interface HeaderRow {
   key: string;
@@ -207,7 +352,6 @@ export function ModerationProviderConfigView({
           input: overrides.failInput ?? failInput,
           output: overrides.failOutput ?? failOutput,
         },
-        secretFile: 'moderation.secrets.json',
         configVersion: 1,
       };
     },
@@ -274,9 +418,18 @@ export function ModerationProviderConfigView({
   const handleResponseShapeChange = useCallback(
     (value: ModerationResponseShape['type']) => {
       setResponseShape(value);
+      // Switching TO custom_jsonpath from a built-in preset typically
+      // leaves `categoriesPath` empty, which fails server-side Zod
+      // validation (`>=1 characters`) with a cryptic error toast. Defer
+      // the save until the user supplies a non-empty path via the
+      // Endpoint dialog. Built-in presets have no required fields, so
+      // auto-saving those remains safe.
+      if (value === 'custom_jsonpath' && !customCategoriesPath.trim()) {
+        return;
+      }
       void saveWith(buildConfig({ responseShape: value }));
     },
-    [buildConfig, saveWith],
+    [buildConfig, saveWith, customCategoriesPath],
   );
 
   const handleFailInputChange = useCallback(
@@ -295,22 +448,52 @@ export function ModerationProviderConfigView({
     [buildConfig, saveWith],
   );
 
-  const handleApplyOpenAiExample = useCallback(() => {
-    setUrl(OPENAI_MODERATION_EXAMPLE.url);
-    setHeaders(OPENAI_MODERATION_EXAMPLE.headers);
-    setRequestTemplate(OPENAI_MODERATION_EXAMPLE.requestTemplate);
-    setAllowedHostsText(OPENAI_MODERATION_EXAMPLE.allowedHosts.join('\n'));
-    setResponseShape('openai_moderation');
-    void saveWith(
-      buildConfig({
-        url: OPENAI_MODERATION_EXAMPLE.url,
-        headers: OPENAI_MODERATION_EXAMPLE.headers,
-        requestTemplate: OPENAI_MODERATION_EXAMPLE.requestTemplate,
-        allowedHostsText: OPENAI_MODERATION_EXAMPLE.allowedHosts.join('\n'),
-        responseShape: 'openai_moderation',
-      }),
-    );
-  }, [buildConfig, saveWith]);
+  const handleApplyPreset = useCallback(
+    (preset: ModerationPreset) => {
+      setUrl(preset.url);
+      setHeaders(preset.headers);
+      setRequestTemplate(preset.requestTemplate);
+      setAllowedHostsText(preset.allowedHosts.join('\n'));
+      setResponseShape(preset.id);
+
+      // Seed default category mappings ONLY when the admin has none
+      // configured yet — otherwise re-applying the preset to tweak URL
+      // or headers would silently blow away their custom mapping list.
+      // This is what makes the provider actually do something on first
+      // enable; without mappings the HTTP call still runs but no
+      // detection ever surfaces.
+      const seededMappings =
+        mappings.length === 0
+          ? preset.defaultMappings.map((m) => ({ ...m }))
+          : mappings;
+      if (seededMappings !== mappings) {
+        setMappings(seededMappings);
+      }
+
+      if (preset.note) {
+        toast({
+          title: 'Preset applied',
+          description: preset.note,
+        });
+      } else if (seededMappings !== mappings) {
+        toast({
+          title: 'Preset applied',
+          description: `Added ${preset.defaultMappings.length} default category mappings (all in flag mode — tune them below).`,
+        });
+      }
+      void saveWith(
+        buildConfig({
+          url: preset.url,
+          headers: preset.headers,
+          requestTemplate: preset.requestTemplate,
+          allowedHostsText: preset.allowedHosts.join('\n'),
+          responseShape: preset.id,
+          mappings: seededMappings,
+        }),
+      );
+    },
+    [buildConfig, mappings, saveWith, toast],
+  );
 
   const handleSaveEndpoint = useCallback(
     (draft: EndpointDraft) => {
@@ -383,7 +566,7 @@ export function ModerationProviderConfigView({
   return (
     <PageSection
       title="Moderation provider"
-      description="Send chat messages to an external classifier (OpenAI Moderation, Azure Content Safety, Perspective, or any custom HTTPS endpoint). The `authHeader` secret lives in moderation.secrets.json (SOPS-encrypted) — reference it in any header value as `{{secret}}`."
+      description="Send chat messages to an external classifier (OpenAI Moderation, Azure Content Safety, Perspective, or any custom HTTPS endpoint). Paste the API key in the 'API key' section below — it's AES-encrypted server-side — and reference it in any header value as `{{secret}}`."
     >
       {cannotManage && (
         <Alert
@@ -423,29 +606,6 @@ export function ModerationProviderConfigView({
         </div>
       </FormSection>
 
-      <FormSection label="Response shape">
-        <Select
-          value={responseShape}
-          disabled={cannotManage}
-          onValueChange={(v) => {
-            if (
-              v === 'openai_moderation' ||
-              v === 'azure_content_safety' ||
-              v === 'perspective' ||
-              v === 'custom_jsonpath'
-            ) {
-              handleResponseShapeChange(v);
-            }
-          }}
-          options={[
-            { value: 'openai_moderation', label: 'OpenAI Moderation' },
-            { value: 'azure_content_safety', label: 'Azure Content Safety' },
-            { value: 'perspective', label: 'Perspective API' },
-            { value: 'custom_jsonpath', label: 'Custom JSONPath' },
-          ]}
-        />
-      </FormSection>
-
       <FormSection
         label="Fail behavior"
         description="What to do when the provider times out, errors, or the circuit breaker is open. Input default is fail-open (let the message through); output default is fail-closed (block the response) since unreviewed model output has higher liability."
@@ -483,18 +643,51 @@ export function ModerationProviderConfigView({
       </FormSection>
 
       <FormSection
-        label="Preset"
-        description="Pre-fills URL, headers, and request template for a known provider. You can still edit individual fields after applying."
+        label="Provider"
+        description="Pick a built-in preset — the URL, headers, request template, and response parser are filled in for you. The API key itself is entered (and encrypted) in the API key section below, never in the policy config. Pick Custom JSONPath for any other HTTPS moderation API you want to plug in."
       >
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={cannotManage}
-          onClick={handleApplyOpenAiExample}
-        >
-          Use OpenAI Moderation
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {MODERATION_PRESETS.map((preset) => {
+            const active = responseShape === preset.id;
+            return (
+              <Button
+                key={preset.id}
+                variant={active ? 'primary' : 'secondary'}
+                size="sm"
+                disabled={cannotManage}
+                onClick={() => handleApplyPreset(preset)}
+              >
+                {active
+                  ? `✓ ${preset.label.replace(/^Use /, '')}`
+                  : preset.label}
+              </Button>
+            );
+          })}
+          <Button
+            variant={
+              responseShape === 'custom_jsonpath' ? 'primary' : 'secondary'
+            }
+            size="sm"
+            disabled={cannotManage}
+            onClick={() => handleResponseShapeChange('custom_jsonpath')}
+          >
+            {responseShape === 'custom_jsonpath'
+              ? '✓ Custom JSONPath'
+              : 'Custom JSONPath'}
+          </Button>
+        </div>
+        {responseShape === 'custom_jsonpath' &&
+          !customCategoriesPath.trim() && (
+            <p className="mt-2 text-xs text-amber-600">
+              Open <span className="font-medium">Endpoint</span> below, fill in
+              your HTTPS URL, request body template, and the JSONPath for
+              categories. The switch won&rsquo;t persist until those fields are
+              set.
+            </p>
+          )}
       </FormSection>
+
+      <ApiKeyPanel organizationId={organizationId} disabled={cannotManage} />
 
       <FormSection
         label="Endpoint"
@@ -516,6 +709,12 @@ export function ModerationProviderConfigView({
         label="Category mappings"
         description="Map provider categories (e.g. OpenAI's `hate/threatening`) to an internal label, enforcement mode, and optional score threshold. Block wins over mask wins over flag."
       >
+        {enabled && mappings.length === 0 && (
+          <Alert
+            variant="warning"
+            description="No category mappings configured. The provider is being called on every message but nothing will ever be flagged, masked, or blocked — only mapped categories produce events. Add at least one mapping below, or re-apply a preset to seed defaults."
+          />
+        )}
         <MappingList
           mappings={mappings}
           disabled={cannotManage}
@@ -523,6 +722,11 @@ export function ModerationProviderConfigView({
           onEdit={(index) => setMappingEditorIndex(index)}
         />
       </FormSection>
+
+      <TestConnectionPanel
+        organizationId={organizationId}
+        disabled={cannotManage || !enabled}
+      />
 
       {endpointDialogOpen && (
         <EndpointEditDialog
@@ -556,6 +760,255 @@ export function ModerationProviderConfigView({
         />
       )}
     </PageSection>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// API key panel
+// ---------------------------------------------------------------------------
+
+interface ApiKeyPanelProps {
+  organizationId: string;
+  disabled: boolean;
+}
+
+function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
+  const { toast } = useToast();
+  const { data: currentMask, isLoading } =
+    useModerationSecretStatus(organizationId);
+  const saveSecret = useSaveModerationSecret();
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const handleSave = async () => {
+    const value = draft.trim();
+    if (value.length === 0) return;
+    try {
+      await saveSecret.mutateAsync({ organizationId, authHeader: value });
+      toast({ title: 'API key saved', variant: 'success' });
+      setEditing(false);
+      setDraft('');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Save failed';
+      toast({ title: msg, variant: 'destructive' });
+    }
+  };
+
+  return (
+    <FormSection
+      label="API key"
+      description="Pasted here, encrypted with AES-256-GCM on the server, and stored in governanceSecrets. The plaintext value replaces {{secret}} in your endpoint headers at request time. Use the full header value for Authorization-style headers (e.g. 'Bearer sk-…'); raw key for Azure's Ocp-Apim-Subscription-Key."
+    >
+      {editing ? (
+        <div className="flex flex-col gap-2">
+          <Input
+            type="password"
+            value={draft}
+            disabled={disabled || saveSecret.isPending}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Bearer sk-... or raw API key"
+            autoFocus
+          />
+          <div className="flex gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={
+                disabled || saveSecret.isPending || draft.trim().length === 0
+              }
+              onClick={() => void handleSave()}
+            >
+              Save
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={saveSecret.isPending}
+              onClick={() => {
+                setEditing(false);
+                setDraft('');
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <code className="text-muted-foreground bg-muted rounded px-2 py-1 text-xs">
+            {isLoading
+              ? 'Loading…'
+              : currentMask
+                ? currentMask
+                : 'Not configured'}
+          </code>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={disabled}
+            onClick={() => setEditing(true)}
+          >
+            {currentMask ? 'Replace' : 'Set key'}
+          </Button>
+        </div>
+      )}
+    </FormSection>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Test connection panel
+// ---------------------------------------------------------------------------
+
+interface TestConnectionPanelProps {
+  organizationId: string;
+  disabled: boolean;
+}
+
+interface TestResult {
+  ok: boolean;
+  kind:
+    | 'pass'
+    | 'modified'
+    | 'flagged'
+    | 'blocked'
+    | 'step_error'
+    | 'not_configured';
+  categoryIds?: string[];
+  matchCount?: number;
+  httpStatus?: number;
+  durationMs?: number;
+  errorClass?:
+    | 'timeout'
+    | 'network'
+    | 'parse'
+    | 'http_4xx'
+    | 'http_5xx'
+    | 'config'
+    | 'unknown';
+  circuitOpened?: boolean;
+  hint?: string;
+}
+
+function TestConnectionPanel({
+  organizationId,
+  disabled,
+}: TestConnectionPanelProps) {
+  const testMutation = useTestModerationProvider();
+  const [text, setText] = useState('I want to kill everyone in this building');
+  const [result, setResult] = useState<TestResult | null>(null);
+
+  const runTest = async () => {
+    setResult(null);
+    try {
+      const r = await testMutation.mutateAsync({
+        organizationId,
+        orgSlug: 'default',
+        text,
+      });
+      setResult(r);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setResult({
+        ok: false,
+        kind: 'step_error',
+        errorClass: 'unknown',
+        hint: message,
+      });
+    }
+  };
+
+  return (
+    <FormSection
+      label="Test connection"
+      description="Send a sample message through the real provider path. Verifies the API key, endpoint URL, request template, response parser, and category mappings in one round-trip. No chat message is saved — this call bypasses the thread and audit pipeline."
+    >
+      <div className="flex flex-col gap-3">
+        <Textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Type a sample message to send through the provider…"
+          rows={3}
+          disabled={disabled || testMutation.isPending}
+        />
+        <div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void runTest()}
+            disabled={
+              disabled || testMutation.isPending || text.trim().length === 0
+            }
+          >
+            {testMutation.isPending ? 'Testing…' : 'Run test'}
+          </Button>
+        </div>
+        {result && <TestResultView result={result} />}
+      </div>
+    </FormSection>
+  );
+}
+
+function TestResultView({ result }: { result: TestResult }) {
+  // `Alert` supports: 'default' | 'warning' | 'destructive'. A passing test
+  // (no category hits) renders as 'default' — neutral, not green.
+  const variant: 'default' | 'warning' | 'destructive' =
+    result.kind === 'step_error' || result.kind === 'not_configured'
+      ? 'destructive'
+      : result.kind === 'blocked' ||
+          result.kind === 'flagged' ||
+          result.kind === 'modified'
+        ? 'warning'
+        : 'default';
+  const title =
+    result.kind === 'pass'
+      ? 'Call succeeded — no categories matched'
+      : result.kind === 'flagged'
+        ? 'Call succeeded — flagged'
+        : result.kind === 'blocked'
+          ? 'Call succeeded — would block'
+          : result.kind === 'modified'
+            ? 'Call succeeded — would mask'
+            : result.kind === 'not_configured'
+              ? 'Not configured'
+              : `Step error (${result.errorClass ?? 'unknown'})`;
+  return (
+    <Alert variant={variant} title={title}>
+      <dl className="mt-2 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-1 text-xs">
+        {result.httpStatus !== undefined && (
+          <>
+            <dt className="text-muted-foreground">HTTP status</dt>
+            <dd className="tabular-nums">{result.httpStatus}</dd>
+          </>
+        )}
+        {result.durationMs !== undefined && (
+          <>
+            <dt className="text-muted-foreground">Duration</dt>
+            <dd className="tabular-nums">{result.durationMs} ms</dd>
+          </>
+        )}
+        {result.categoryIds && result.categoryIds.length > 0 && (
+          <>
+            <dt className="text-muted-foreground">Matched</dt>
+            <dd>{result.categoryIds.join(', ')}</dd>
+          </>
+        )}
+        {result.matchCount !== undefined && result.matchCount > 0 && (
+          <>
+            <dt className="text-muted-foreground">Match count</dt>
+            <dd className="tabular-nums">{result.matchCount}</dd>
+          </>
+        )}
+        {result.circuitOpened && (
+          <>
+            <dt className="text-muted-foreground">Circuit</dt>
+            <dd className="text-amber-700">Opened by this failure</dd>
+          </>
+        )}
+      </dl>
+      {result.hint && <p className="mt-2 text-xs">{result.hint}</p>}
+    </Alert>
   );
 }
 
@@ -787,55 +1240,205 @@ function EndpointEditDialog({
         </FormSection>
 
         {responseShape === 'custom_jsonpath' && (
-          <FormSection
-            label="Custom JSONPath"
-            description="Used when Response shape is set to Custom JSONPath. Adjust the Response shape selector on the main page to toggle this section."
-          >
-            <div className="flex flex-col gap-2">
-              <Input
-                value={draft.customFlaggedPath}
-                onChange={(e) =>
-                  setDraft({ ...draft, customFlaggedPath: e.target.value })
-                }
-                placeholder="$.flagged  (optional)"
-              />
-              <Input
-                value={draft.customCategoriesPath}
-                onChange={(e) =>
-                  setDraft({ ...draft, customCategoriesPath: e.target.value })
-                }
-                placeholder="$.categories  (required)"
-              />
-              <Select
-                value={draft.customCategoryShape}
-                onValueChange={(v) => {
-                  if (
-                    v === 'array' ||
-                    v === 'record_of_bool' ||
-                    v === 'record_of_score'
-                  ) {
-                    setDraft({ ...draft, customCategoryShape: v });
-                  }
-                }}
-                options={[
-                  { value: 'array', label: 'Array of category strings' },
-                  {
-                    value: 'record_of_bool',
-                    label: 'Record<category, boolean>',
-                  },
-                  {
-                    value: 'record_of_score',
-                    label: 'Record<category, number>',
-                  },
-                ]}
-              />
-            </div>
-          </FormSection>
+          <CustomJsonPathSection
+            draft={draft}
+            onChange={(patch) => setDraft({ ...draft, ...patch })}
+          />
         )}
+        {/* Bottom padding so the last field isn't flush with the dialog
+            footer — the scrollbar already takes the overflow, this is
+            just visual breathing room. */}
+        <div className="pb-2" />
       </div>
     </Dialog>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Custom JSONPath section
+// ---------------------------------------------------------------------------
+//
+// Two-question flow instead of three separate inputs:
+//   1. "What shape does the provider return categories in?" (pick from
+//      examples — the JSON format itself is the answer)
+//   2. Paste the path to the categories, with the correct JSONPath for
+//      THAT shape pre-filled as a placeholder.
+//
+// "Overall flagged path" is a seldom-needed optional that used to take
+// the same visual weight as the required fields. Now it's collapsed
+// behind "Show advanced" — providers that don't return a top-level
+// boolean (most of them) never have to see it.
+
+function CustomJsonPathSection({
+  draft,
+  onChange,
+}: {
+  draft: EndpointDraft;
+  onChange: (patch: Partial<EndpointDraft>) => void;
+}) {
+  const [showAdvanced, setShowAdvanced] = useState(
+    draft.customFlaggedPath.trim().length > 0,
+  );
+  const sample = SHAPE_SAMPLES[draft.customCategoryShape];
+  return (
+    <FormSection
+      label="Parse provider response"
+      description={
+        <>
+          Tell us how the provider&rsquo;s JSON response looks so we can pull
+          out the flagged categories. If you&rsquo;re not sure, run the provider
+          once in a terminal (curl) and paste the response shape into your picks
+          below.
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <div>
+          <label className="text-sm font-medium">
+            1. Pick the response shape
+          </label>
+          <p className="text-muted-foreground mt-1 text-xs">
+            Which format does the provider use for its category flags?
+          </p>
+          <Select
+            className="mt-1.5"
+            value={draft.customCategoryShape}
+            onValueChange={(v) => {
+              if (
+                v === 'array' ||
+                v === 'record_of_bool' ||
+                v === 'record_of_score'
+              ) {
+                onChange({ customCategoryShape: v });
+              }
+            }}
+            options={[
+              {
+                value: 'record_of_bool',
+                label:
+                  'Object of booleans — { "hate": true, "violence": false }',
+              },
+              {
+                value: 'record_of_score',
+                label: 'Object of scores — { "hate": 0.02, "violence": 0.87 }',
+              },
+              {
+                value: 'array',
+                label: 'Array of names — ["hate", "violence"]',
+              },
+            ]}
+          />
+        </div>
+
+        <div>
+          <label className="text-sm font-medium">
+            2. Path to the categories{' '}
+            <span className="text-destructive">*required</span>
+          </label>
+          <p className="text-muted-foreground mt-1 text-xs">
+            Where the shape above lives inside the response. A dollar sign is
+            the root; dots traverse objects; numbers in brackets index arrays.
+          </p>
+          <Input
+            className="mt-1.5 font-mono text-sm"
+            value={draft.customCategoriesPath}
+            onChange={(e) => onChange({ customCategoriesPath: e.target.value })}
+            placeholder={sample.categoriesPath}
+          />
+          <div className="border-border bg-muted/40 mt-2 rounded-md border p-3">
+            <div className="text-muted-foreground mb-1 text-xs">
+              Example response body this path matches:
+            </div>
+            <pre className="bg-background overflow-x-auto rounded border p-2 font-mono text-xs">
+              {sample.json}
+            </pre>
+            <div className="text-muted-foreground mt-2 text-xs">
+              The path{' '}
+              <code className="text-foreground bg-background rounded px-1 font-mono">
+                {sample.categoriesPath}
+              </code>{' '}
+              picks out the bold part.
+            </div>
+          </div>
+        </div>
+
+        {!showAdvanced ? (
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground self-start text-xs underline underline-offset-2"
+            onClick={() => setShowAdvanced(true)}
+          >
+            Show advanced (overall flagged path)
+          </button>
+        ) : (
+          <div>
+            <label className="text-sm font-medium">
+              Overall flagged path{' '}
+              <span className="text-muted-foreground">(optional)</span>
+            </label>
+            <p className="text-muted-foreground mt-1 text-xs">
+              Some providers also return a single top-level boolean — e.g.
+              OpenAI&rsquo;s{' '}
+              <code className="text-foreground font-mono">
+                $.results[0].flagged
+              </code>
+              . If set, <code className="font-mono">false</code> here
+              short-circuits the category check and the message passes. Leave
+              empty for providers that don&rsquo;t have this field.
+            </p>
+            <Input
+              className="mt-1.5 font-mono text-sm"
+              value={draft.customFlaggedPath}
+              onChange={(e) => onChange({ customFlaggedPath: e.target.value })}
+              placeholder="$.results[0].flagged"
+            />
+          </div>
+        )}
+      </div>
+    </FormSection>
+  );
+}
+
+interface ShapeSample {
+  json: string;
+  categoriesPath: string;
+}
+
+const SHAPE_SAMPLES: Record<
+  'array' | 'record_of_bool' | 'record_of_score',
+  ShapeSample
+> = {
+  record_of_bool: {
+    json: `{
+  "results": [
+    {
+      "flagged": true,
+      "categories": {
+        "hate": false,
+        "violence": true,
+        "sexual": false
+      }
+    }
+  ]
+}`,
+    categoriesPath: '$.results[0].categories',
+  },
+  record_of_score: {
+    json: `{
+  "attributeScores": {
+    "TOXICITY":   { "summaryScore": { "value": 0.87 } },
+    "INSULT":     { "summaryScore": { "value": 0.12 } }
+  }
+}`,
+    categoriesPath: '$.attributeScores.*.summaryScore.value',
+  },
+  array: {
+    json: `{
+  "flaggedCategories": ["hate", "violence"]
+}`,
+    categoriesPath: '$.flaggedCategories',
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Category mappings list + edit dialog

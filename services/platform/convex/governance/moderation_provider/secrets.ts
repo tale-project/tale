@@ -1,61 +1,143 @@
 'use node';
 
-import path from 'node:path';
+import { v } from 'convex/values';
 
-import { z } from 'zod/v4';
-
-import { decryptSecretsFile } from '../../lib/sops';
-import { resolveProvidersDir } from '../../providers/file_utils';
+import { internal } from '../../_generated/api';
+import { action } from '../../_generated/server';
+import type { ActionCtx } from '../../_generated/server';
+import { authComponent } from '../../auth';
+import {
+  decryptSecret,
+  encryptSecret,
+  KeyRotatedError,
+} from '../../lib/secret_box';
 
 /**
- * Separate SOPS-encrypted file from LLM provider secrets — the provider
- * secrets schema is closed (`apiKey`, `modelKeys`), so we can't piggyback on
- * it. v1 supports a single `authHeader` value (the full header value, e.g.
- * `Bearer sk-...`); v2 may expand to a flat `Record<string, string>` if
- * admins need multiple secrets.
+ * Per-org moderation auth header, encrypted with AES-256-GCM and stored
+ * in the `governanceSecrets` DB table (not in `governancePolicies` —
+ * that table's audit log would leak the ciphertext into every policy
+ * edit's `previousState`/`newState`). v1 holds a single value; v2 may
+ * expand to a flat `Record<string, string>` if admins need multiple
+ * secrets per provider.
+ *
+ * Runtime-side: `resolveModerationAuthHeader` is invoked from the Node
+ * moderation action; it hits `getGuardrailsSecretInternal` via
+ * `ctx.runQuery` and decrypts in-process so plaintext never leaves this
+ * module.
  */
 
-export const MODERATION_SECRETS_FILENAME = 'moderation.secrets.json';
+export const MODERATION_SECRET_NAME = 'moderation_auth_header';
 
-const moderationSecretsSchema = z
-  .object({
-    authHeader: z.string().min(1),
-  })
-  .strict();
-
-export type ModerationSecrets = z.infer<typeof moderationSecretsSchema>;
-
-function resolveSecretsPath(orgSlug: string, fileName: string): string {
-  const dir = resolveProvidersDir(orgSlug);
-  const resolved = path.resolve(dir, fileName);
-  const expectedPrefix = path.resolve(dir);
-  if (
-    !resolved.startsWith(expectedPrefix + path.sep) &&
-    resolved !== expectedPrefix
-  ) {
-    throw new Error(
-      `Refusing to read secrets path outside org dir: ${fileName}`,
-    );
-  }
-  return resolved;
+function maskHeader(value: string): string {
+  if (value.length <= 9) return '••••••••••';
+  return value.slice(0, 6) + '••••••' + value.slice(-3);
 }
 
 /**
- * Decrypt and validate the moderation secrets file for an org. Errors here
- * are surfaced as `step_error` by the caller; we never log the decrypted
- * value and never include it in audit metadata.
+ * Read and decrypt the per-org moderation auth header. Returns `null` if
+ * no secret is configured OR the stored row was encrypted with a
+ * different key (post-rotation) — callers treat both as "not configured"
+ * so the UI prompts the admin to re-save.
  */
-export async function resolveModerationSecrets(
-  orgSlug: string,
-  fileName: string = MODERATION_SECRETS_FILENAME,
-): Promise<ModerationSecrets> {
-  const filePath = resolveSecretsPath(orgSlug, fileName);
-  const raw = await decryptSecretsFile(filePath);
-  const parsed = moderationSecretsSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new Error(
-      `Invalid moderation secrets at ${fileName}: ${parsed.error.message}`,
-    );
+export async function resolveModerationAuthHeader(
+  ctx: ActionCtx,
+  organizationId: string,
+): Promise<string | null> {
+  const row = await ctx.runQuery(
+    internal.governance.internal_mutations.getGuardrailsSecretInternal,
+    { organizationId, name: MODERATION_SECRET_NAME },
+  );
+  if (!row) return null;
+  try {
+    return decryptSecret(row);
+  } catch (err) {
+    if (err instanceof KeyRotatedError) {
+      console.warn(
+        `[guardrails] moderation secret for org ${organizationId} was ` +
+          `encrypted with a different key; treating as unconfigured.`,
+      );
+      return null;
+    }
+    throw err;
   }
-  return parsed.data;
 }
+
+export const saveModerationSecret = action({
+  args: {
+    organizationId: v.string(),
+    authHeader: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    await ctx.runQuery(
+      internal.governance.internal_mutations.requireGovernanceAdminInternal,
+      {
+        organizationId: args.organizationId,
+        userId: String(authUser._id),
+        email: authUser.email,
+        name: authUser.name,
+      },
+    );
+
+    const authHeader = args.authHeader.trim();
+    if (authHeader.length === 0) {
+      throw new Error('Auth header value cannot be empty.');
+    }
+
+    const encrypted = encryptSecret(authHeader);
+    await ctx.runMutation(
+      internal.governance.internal_mutations.upsertGuardrailsSecret,
+      {
+        organizationId: args.organizationId,
+        name: MODERATION_SECRET_NAME,
+        ciphertext: encrypted.ciphertext,
+        nonce: encrypted.nonce,
+        authTag: encrypted.authTag,
+        keyFingerprint: encrypted.keyFingerprint,
+        updatedBy: String(authUser._id),
+      },
+    );
+    return null;
+  },
+});
+
+export const hasModerationSecret = action({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args): Promise<string | null> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    await ctx.runQuery(
+      internal.governance.internal_mutations.requireGovernanceAdminInternal,
+      {
+        organizationId: args.organizationId,
+        userId: String(authUser._id),
+        email: authUser.email,
+        name: authUser.name,
+      },
+    );
+
+    const row = await ctx.runQuery(
+      internal.governance.internal_mutations.getGuardrailsSecretInternal,
+      { organizationId: args.organizationId, name: MODERATION_SECRET_NAME },
+    );
+    if (!row) return null;
+    try {
+      const plaintext = decryptSecret(row);
+      return maskHeader(plaintext);
+    } catch (err) {
+      if (err instanceof KeyRotatedError) {
+        // Row exists but is undecryptable with the current key. Signal
+        // "configured but stale" so the admin knows to re-enter.
+        return '•••• (key rotated — re-save)';
+      }
+      return '••••••••••';
+    }
+  },
+});

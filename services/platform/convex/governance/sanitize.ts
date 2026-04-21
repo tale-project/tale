@@ -140,12 +140,14 @@ function blockError(
   runId: string,
   direction: GuardrailsDirection,
   categoryIds: string[],
+  categoryLabels: string[],
 ): ConvexError<{
   message: string;
   code: typeof code;
   sanitizationRunId: string;
   direction: GuardrailsDirection;
   categoryIds: string[];
+  categoryLabels: string[];
 }> {
   const legacyPrefix =
     code === 'pii.blocked'
@@ -153,14 +155,33 @@ function blockError(
       : code === 'chat_filter.blocked'
         ? 'Message blocked: chat filter'
         : 'Message blocked: content policy';
-  const message = `${legacyPrefix} (${categoryIds.join(', ')}).`;
+  // Surface admin-edited labels in the user-visible message (e.g. "脏话"
+  // instead of "custom_mgskmh") while keeping the raw slugs in `.data` for
+  // dashboards / correlation.
+  const message = `${legacyPrefix} (${categoryLabels.join(', ')}).`;
   return new ConvexError({
     message,
     code,
     sanitizationRunId: runId,
     direction,
     categoryIds,
+    categoryLabels,
   });
+}
+
+// Resolve immutable chat_filter slugs to current admin-edited labels. PII
+// pattern names and moderation provider internalLabels are already
+// human-readable so we return them as-is.
+function resolveLabels(
+  filter: 'pii' | 'chat_filter' | 'moderation_provider',
+  categoryIds: string[],
+  snapshot: GuardrailsSnapshot,
+): string[] {
+  if (filter !== 'chat_filter') return categoryIds;
+  const chat = snapshot.chatFilter;
+  if (!chat) return categoryIds;
+  const labelById = new Map(chat.config.categories.map((c) => [c.id, c.label]));
+  return categoryIds.map((id) => labelById.get(id) ?? id);
 }
 
 /**
@@ -188,8 +209,26 @@ function normalizeChatFilter(
 
 function normalizePii(row: unknown): NormalizedConfig<PiiConfig> | null {
   if (!isRecord(row)) return null;
-  const parsed = piiConfigSchema.safeParse(row['config']);
-  if (!parsed.success) return null;
+  // Legacy rows written by the bespoke `upsertPiiConfig` mutation stored
+  // `enabled` as the top-level column only and never inside `config`. The
+  // current schema requires `enabled` inside `config`, so without this
+  // injection `safeParse` rejects legacy rows and PII silently stops
+  // filtering. Top-level column is authoritative either way.
+  const rawConfig = isRecord(row['config']) ? row['config'] : {};
+  const configWithEnabled = {
+    ...rawConfig,
+    enabled:
+      typeof rawConfig['enabled'] === 'boolean'
+        ? rawConfig['enabled']
+        : row['enabled'] !== false,
+  };
+  const parsed = piiConfigSchema.safeParse(configWithEnabled);
+  if (!parsed.success) {
+    console.warn(
+      `[guardrails] invalid pii_config in DB: ${parsed.error.message}`,
+    );
+    return null;
+  }
   return {
     policyDocId: String(row['_id'] ?? ''),
     updatedAt: typeof row['updatedAt'] === 'number' ? row['updatedAt'] : 0,
@@ -297,6 +336,7 @@ export async function sanitizeMessage(
         runId,
         direction,
         outcome.categoryIds,
+        resolveLabels('chat_filter', outcome.categoryIds, snapshot),
       );
     }
     if (outcome.kind === 'modified') {
@@ -336,7 +376,13 @@ export async function sanitizeMessage(
     if (outcome.kind === 'blocked') {
       accumulate(acc, outcome);
       await flushAudit(ctx, 'pii', 'blocked', direction, runId, meta, acc);
-      throw blockError('pii.blocked', runId, direction, outcome.categoryIds);
+      throw blockError(
+        'pii.blocked',
+        runId,
+        direction,
+        outcome.categoryIds,
+        outcome.categoryIds,
+      );
     }
     if (outcome.kind === 'modified') {
       current = outcome.text;
@@ -367,7 +413,6 @@ export async function sanitizeMessage(
         responseShape: snapshot.moderation.config.responseShape,
         categoryMappings: snapshot.moderation.config.categoryMappings,
         failBehavior: snapshot.moderation.config.failBehavior,
-        secretFile: snapshot.moderation.config.secretFile,
       },
     );
     if (outcome.kind === 'step_error') {
@@ -417,6 +462,7 @@ export async function sanitizeMessage(
         'moderation_provider.blocked',
         runId,
         direction,
+        categoryIds,
         categoryIds,
       );
     } else if (outcome.kind === 'flagged') {
@@ -493,6 +539,7 @@ export async function finalizeSanitize(
         runId,
         direction,
         outcome.categoryIds,
+        resolveLabels('chat_filter', outcome.categoryIds, snapshot),
       );
     }
     if (outcome.kind === 'modified') {
@@ -531,7 +578,13 @@ export async function finalizeSanitize(
     if (outcome.kind === 'blocked') {
       accumulate(acc, outcome);
       await flushAudit(ctx, 'pii', 'blocked', direction, runId, meta, acc);
-      throw blockError('pii.blocked', runId, direction, outcome.categoryIds);
+      throw blockError(
+        'pii.blocked',
+        runId,
+        direction,
+        outcome.categoryIds,
+        outcome.categoryIds,
+      );
     }
     if (outcome.kind === 'modified') {
       current = outcome.text;

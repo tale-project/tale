@@ -987,7 +987,6 @@ export async function generateAgentResponse(
                               responseShape: modConfig.responseShape,
                               categoryMappings: modConfig.categoryMappings,
                               failBehavior: modConfig.failBehavior,
-                              secretFile: modConfig.secretFile,
                             },
                           );
                         }

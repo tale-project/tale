@@ -370,7 +370,6 @@ export const moderationProviderConfigSchema = z.object({
   responseShape: responseShapeSchema,
   categoryMappings: z.array(moderationCategoryMappingSchema).max(30),
   failBehavior: moderationFailBehaviorSchema,
-  secretFile: z.string().default('moderation.secrets.json'),
   configVersion: z.number().int().default(1),
 });
 export type ModerationProviderConfig = z.infer<

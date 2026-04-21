@@ -104,14 +104,6 @@ export function GuardrailsOverview({
   const { data: moderationPolicy, isLoading: moderationLoading } =
     useGovernancePolicy(organizationId, 'moderation_provider');
 
-  if (piiLoading || chatFilterLoading || moderationLoading) {
-    return (
-      <PageSection title="Guardrails overview">
-        <Skeleton className="h-48 w-full" />
-      </PageSection>
-    );
-  }
-
   const chatFilterEnabled = !!chatFilterPolicy?.enabled;
   const chatFilterConfig = chatFilterPolicy?.config as
     | ChatFilterConfig
@@ -119,7 +111,8 @@ export function GuardrailsOverview({
 
   // Resolve event `categoryIds` (immutable slugs) to current admin-edited
   // labels for display. Falls back to the raw id if a category was renamed
-  // / deleted since the event fired.
+  // / deleted since the event fired. Must stay above any early return to
+  // keep hook order stable across loading transitions.
   const chatFilterLabels = useMemo(() => {
     const map = new Map<string, string>();
     for (const c of chatFilterConfig?.categories ?? []) {
@@ -127,6 +120,14 @@ export function GuardrailsOverview({
     }
     return map;
   }, [chatFilterConfig]);
+
+  if (piiLoading || chatFilterLoading || moderationLoading) {
+    return (
+      <PageSection title="Guardrails overview">
+        <Skeleton className="h-48 w-full" />
+      </PageSection>
+    );
+  }
   const chatFilterDetails: string[] = chatFilterEnabled
     ? [
         `Applies to: ${(chatFilterConfig?.appliesTo ?? ['input']).join(', ')}`,
@@ -584,6 +585,22 @@ function filterNameLabel(name: string): string {
   if (name === 'chat_filter') return 'Content safety';
   if (name === 'moderation_provider') return 'Moderation';
   return name;
+}
+
+/**
+ * Resolve category IDs to display labels. `chat_filter` stores immutable
+ * slugs like `custom_mgskmh` that need to be looked up against the current
+ * admin-edited labels. `pii` stores pattern names (`email`, `phone`) that
+ * are already human-readable. `moderation_provider` stores `internalLabel`
+ * from the category mapping config, also already human-readable.
+ */
+function resolveCategoryLabels(
+  filterName: string,
+  ids: readonly string[],
+  chatFilterLabels: Map<string, string>,
+): string[] {
+  if (filterName !== 'chat_filter') return [...ids];
+  return ids.map((id) => chatFilterLabels.get(id) ?? id);
 }
 
 function KindBadge({ kind }: { kind: string }) {
