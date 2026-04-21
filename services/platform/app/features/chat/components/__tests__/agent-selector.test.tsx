@@ -100,9 +100,19 @@ vi.mock('@/app/features/agents/components/agent-create-dialog', () => ({
     ) : null,
 }));
 
+const mockNavigate = vi.fn();
 vi.mock('@tanstack/react-router', () => ({
   useSearch: () => ({}),
   useLocation: () => ({ pathname: '/dashboard/org-1/chat' }),
+  useNavigate: () => mockNavigate,
+}));
+
+vi.mock('../../hooks/use-composer-capabilities', () => ({
+  useIntegrationReadiness: () => ({
+    readyBySlug: new Map<string, boolean>(),
+    titleBySlug: new Map<string, string>(),
+  }),
+  getAgentMissingIntegrations: () => [],
 }));
 
 afterEach(cleanup);

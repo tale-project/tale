@@ -1,5 +1,6 @@
 'use client';
 
+import { useNavigate } from '@tanstack/react-router';
 import { Bot, ChevronDown, Plus } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -12,6 +13,10 @@ import { useT } from '@/lib/i18n/client';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
+import {
+  getAgentMissingIntegrations,
+  useIntegrationReadiness,
+} from '../hooks/use-composer-capabilities';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 
 interface AgentSelectorProps {
@@ -20,10 +25,13 @@ interface AgentSelectorProps {
 
 export function AgentSelector({ organizationId }: AgentSelectorProps) {
   const { t } = useT('chat');
+  const { t: tComposer } = useT('composer');
+  const navigate = useNavigate();
   const ability = useAbility();
   const { setSelectedAgent } = useChatLayout();
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
   const { agents: allAgents } = useChatAgents(organizationId);
+  const readiness = useIntegrationReadiness(organizationId);
   const canManageAgents = ability.can('write', 'agents');
   const [open, setOpen] = useState(false);
   const createAgentDialog = useDialogSearchParam({
@@ -34,18 +42,30 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
     if (!allAgents) return [];
 
     return [...allAgents]
-      .map((agent) => ({
-        value: agent.name,
-        label: agent.displayName,
-        description: agent.description || '',
-        isDefaultChat: agent.name === 'chat-agent',
-      }))
+      .map((agent) => {
+        const missing = getAgentMissingIntegrations(agent, readiness);
+        const missingTitle = missing[0]
+          ? (readiness.titleBySlug.get(missing[0]) ?? missing[0])
+          : undefined;
+        return {
+          value: agent.name,
+          label: agent.displayName,
+          description: agent.description || '',
+          isDefaultChat: agent.name === 'chat-agent',
+          labelBadge: missingTitle ? (
+            <span className="text-muted-foreground text-xs">
+              {tComposer('requiresIntegration', { name: missingTitle })}
+            </span>
+          ) : undefined,
+          ready: missing.length === 0,
+        };
+      })
       .sort((a, b) => {
         if (a.isDefaultChat) return -1;
         if (b.isDefaultChat) return 1;
         return a.label.localeCompare(b.label);
       });
-  }, [allAgents]);
+  }, [allAgents, readiness, tComposer]);
 
   const currentValue = effectiveAgent?.name ?? null;
 
@@ -55,14 +75,22 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
   const handleSelect = useCallback(
     (value: string) => {
       const agent = allAgents?.find((a) => a.name === value);
-      if (agent) {
-        setSelectedAgent({
-          name: agent.name,
-          displayName: agent.displayName,
+      if (!agent) return;
+      const missing = getAgentMissingIntegrations(agent, readiness);
+      if (missing.length > 0) {
+        void navigate({
+          to: '/dashboard/$id/settings/integrations',
+          params: { id: organizationId },
+          search: { tab: 'all', slug: missing[0] },
         });
+        return;
       }
+      setSelectedAgent({
+        name: agent.name,
+        displayName: agent.displayName,
+      });
     },
-    [allAgents, setSelectedAgent],
+    [allAgents, readiness, navigate, organizationId, setSelectedAgent],
   );
 
   const handleAddAgentClick = useCallback(() => {

@@ -142,6 +142,7 @@ export interface ChatAgent {
   primaryBehavior?: 'chat' | 'image-generation';
   supportedModels?: string[];
   toolNames?: string[];
+  integrationBindings?: string[];
   roleRestriction?: string;
   conversationStarters?: string[];
   composerMode?: ComposerModeMeta;
@@ -186,6 +187,9 @@ export function useChatAgents(_organizationId: string) {
               ? a.primaryBehavior
               : undefined,
           supportedModels: a.supportedModels,
+          integrationBindings: Array.isArray(a.integrationBindings)
+            ? a.integrationBindings
+            : undefined,
           conversationStarters: a.conversationStarters,
           composerMode:
             'composerMode' in a && isComposerModeMeta(a.composerMode)
