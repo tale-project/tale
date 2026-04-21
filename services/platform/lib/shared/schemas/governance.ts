@@ -303,18 +303,23 @@ export type ModerationBufferPolicy = z.infer<
 >;
 
 const moderationEndpointSchema = z.object({
+  // Accept http:// and https://. HTTPS is strongly recommended for public
+  // endpoints (the request carries chat text in the clear) but HTTP is
+  // valid for internal / localhost mocks. The URL's own host is auto-
+  // allowlisted by `safeFetch`, so admins don't need to also configure an
+  // SSRF allowlist — redirects to a different host still get rejected.
   url: z
     .string()
     .url()
     .refine((u) => {
       try {
-        return new URL(u).protocol === 'https:';
+        const p = new URL(u).protocol;
+        return p === 'https:' || p === 'http:';
       } catch {
         return false;
       }
-    }, 'HTTPS required'),
+    }, 'URL must be http(s)://'),
   method: z.literal('POST').default('POST'),
-  allowedHosts: z.array(z.string().min(1)).min(1).max(10),
   headers: z.record(
     z.string().regex(headerNameRegex, 'Invalid header name'),
     z.string().refine((v) => !crlfNullRegex.test(v), 'CRLF not allowed'),

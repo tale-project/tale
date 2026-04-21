@@ -94,25 +94,26 @@ function validateUrl(rawUrl: string, allowedHosts: string[] | undefined): URL {
     );
   }
 
-  if (isPrivateIp(parsed.hostname)) {
+  const hostnameLower = parsed.hostname.toLowerCase();
+  const explicitlyAllowed =
+    allowedHosts !== undefined &&
+    allowedHosts.some((entry) => {
+      const e = entry.toLowerCase();
+      return hostnameLower === e || hostnameLower.endsWith(`.${e}`);
+    });
+
+  if (isPrivateIp(parsed.hostname) && !explicitlyAllowed) {
     throw new SafeFetchError(
       'private_ip',
       `Host resolves to private/loopback address: ${parsed.hostname}`,
     );
   }
 
-  if (allowedHosts && allowedHosts.length > 0) {
-    const host = parsed.hostname.toLowerCase();
-    const allowed = allowedHosts.some((entry) => {
-      const e = entry.toLowerCase();
-      return host === e || host.endsWith(`.${e}`);
-    });
-    if (!allowed) {
-      throw new SafeFetchError(
-        'private_ip',
-        `Host not in allowedHosts: ${parsed.hostname}`,
-      );
-    }
+  if (allowedHosts && allowedHosts.length > 0 && !explicitlyAllowed) {
+    throw new SafeFetchError(
+      'private_ip',
+      `Host not in allowedHosts: ${parsed.hostname}`,
+    );
   }
 
   return parsed;
@@ -175,8 +176,25 @@ export async function safeFetch(
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
     maxRedirects = DEFAULT_MAX_REDIRECTS,
-    allowedHosts,
+    allowedHosts: callerAllowedHosts,
   } = options;
+
+  // When the caller doesn't supply an allowlist, auto-derive it from the
+  // initial URL's host. Rationale: admins typically configure a single
+  // endpoint URL and the duplication of also typing the hostname into an
+  // `allowedHosts` list is pure ceremony. Redirects to a *different* host
+  // still get rejected because `validateUrl` re-checks with the same
+  // list. Callers that truly want to allow cross-host redirects (rare)
+  // pass a non-empty `allowedHosts` explicitly.
+  let allowedHosts = callerAllowedHosts;
+  if (allowedHosts === undefined) {
+    try {
+      const ownHost = new URL(rawUrl).hostname.toLowerCase();
+      if (ownHost) allowedHosts = [ownHost];
+    } catch {
+      // let validateUrl surface the invalid-URL error below
+    }
+  }
 
   validateUrl(rawUrl, allowedHosts);
 

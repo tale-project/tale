@@ -82,7 +82,6 @@ const bufferPolicyValidator = v.object({
 const endpointValidator = v.object({
   url: v.string(),
   method: v.literal('POST'),
-  allowedHosts: v.array(v.string()),
   headers: v.record(v.string(), v.string()),
   requestTemplate: v.string(),
   timeoutMs: v.number(),

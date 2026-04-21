@@ -44,7 +44,6 @@ interface ModerationPreset {
   url: string;
   headers: HeaderRow[];
   requestTemplate: string;
-  allowedHosts: string[];
   // A minimal set of category→label mappings so enabling the provider
   // actually does something without further configuration. Admins can
   // tune modes / thresholds / delete entries after applying.
@@ -64,7 +63,6 @@ const MODERATION_PRESETS: ModerationPreset[] = [
       { key: 'Content-Type', value: 'application/json' },
     ],
     requestTemplate: '{"input": {{text}}, "model": "omni-moderation-latest"}',
-    allowedHosts: ['api.openai.com'],
     defaultMappings: [
       {
         providerCategory: 'harassment',
@@ -109,7 +107,6 @@ const MODERATION_PRESETS: ModerationPreset[] = [
     ],
     requestTemplate:
       '{"text": {{text}}, "categories": ["Hate","Violence","Sexual","SelfHarm"], "outputType": "FourSeverityLevels"}',
-    allowedHosts: ['YOUR-RESOURCE.cognitiveservices.azure.com'],
     defaultMappings: [
       {
         providerCategory: 'Hate',
@@ -145,7 +142,6 @@ const MODERATION_PRESETS: ModerationPreset[] = [
     headers: [{ key: 'Content-Type', value: 'application/json' }],
     requestTemplate:
       '{"comment": {"text": {{text}}}, "languages": ["en"], "requestedAttributes": {"TOXICITY": {}, "INSULT": {}, "THREAT": {}, "IDENTITY_ATTACK": {}, "PROFANITY": {}, "SEVERE_TOXICITY": {}}}',
-    allowedHosts: ['commentanalyzer.googleapis.com'],
     defaultMappings: [
       {
         providerCategory: 'TOXICITY',
@@ -186,7 +182,6 @@ interface HeaderRow {
 
 type EndpointDraft = {
   url: string;
-  allowedHostsText: string;
   headers: HeaderRow[];
   requestTemplate: string;
   timeoutMs: string;
@@ -217,7 +212,6 @@ export function ModerationProviderConfigView({
   const [appliesToInput, setAppliesToInput] = useState(true);
   const [appliesToOutput, setAppliesToOutput] = useState(false);
   const [url, setUrl] = useState('');
-  const [allowedHostsText, setAllowedHostsText] = useState('');
   const [headers, setHeaders] = useState<HeaderRow[]>([]);
   const [requestTemplate, setRequestTemplate] = useState('');
   const [timeoutMs, setTimeoutMs] = useState('3000');
@@ -248,7 +242,6 @@ export function ModerationProviderConfigView({
       setAppliesToInput(config.appliesTo?.includes('input') ?? true);
       setAppliesToOutput(config.appliesTo?.includes('output') ?? false);
       setUrl(config.endpoint?.url ?? '');
-      setAllowedHostsText((config.endpoint?.allowedHosts ?? []).join('\n'));
       setHeaders(
         Object.entries(config.endpoint?.headers ?? {}).map(([key, value]) => ({
           key,
@@ -280,7 +273,6 @@ export function ModerationProviderConfigView({
       appliesToInput?: boolean;
       appliesToOutput?: boolean;
       url?: string;
-      allowedHostsText?: string;
       headers?: HeaderRow[];
       requestTemplate?: string;
       timeoutMs?: string;
@@ -307,11 +299,6 @@ export function ModerationProviderConfigView({
           headersRecord[row.key.trim()] = row.value;
       }
 
-      const allowedHosts = (overrides.allowedHostsText ?? allowedHostsText)
-        .split(/\r?\n/)
-        .map((h) => h.trim())
-        .filter((h) => h.length > 0);
-
       const nextShape = overrides.responseShape ?? responseShape;
       const shape: ModerationResponseShape =
         nextShape === 'custom_jsonpath'
@@ -334,7 +321,6 @@ export function ModerationProviderConfigView({
         endpoint: {
           url: resolvedUrl,
           method: 'POST',
-          allowedHosts: allowedHosts.length > 0 ? allowedHosts : [resolvedUrl],
           headers: headersRecord,
           requestTemplate: overrides.requestTemplate ?? requestTemplate,
           timeoutMs: Number(overrides.timeoutMs ?? timeoutMs) || 3000,
@@ -360,7 +346,6 @@ export function ModerationProviderConfigView({
       appliesToInput,
       appliesToOutput,
       url,
-      allowedHostsText,
       headers,
       requestTemplate,
       timeoutMs,
@@ -453,7 +438,6 @@ export function ModerationProviderConfigView({
       setUrl(preset.url);
       setHeaders(preset.headers);
       setRequestTemplate(preset.requestTemplate);
-      setAllowedHostsText(preset.allowedHosts.join('\n'));
       setResponseShape(preset.id);
 
       // Seed default category mappings ONLY when the admin has none
@@ -486,7 +470,6 @@ export function ModerationProviderConfigView({
           url: preset.url,
           headers: preset.headers,
           requestTemplate: preset.requestTemplate,
-          allowedHostsText: preset.allowedHosts.join('\n'),
           responseShape: preset.id,
           mappings: seededMappings,
         }),
@@ -498,7 +481,6 @@ export function ModerationProviderConfigView({
   const handleSaveEndpoint = useCallback(
     (draft: EndpointDraft) => {
       setUrl(draft.url);
-      setAllowedHostsText(draft.allowedHostsText);
       setHeaders(draft.headers);
       setRequestTemplate(draft.requestTemplate);
       setTimeoutMs(draft.timeoutMs);
@@ -509,7 +491,6 @@ export function ModerationProviderConfigView({
       void saveWith(
         buildConfig({
           url: draft.url,
-          allowedHostsText: draft.allowedHostsText,
           headers: draft.headers,
           requestTemplate: draft.requestTemplate,
           timeoutMs: draft.timeoutMs,
@@ -554,7 +535,6 @@ export function ModerationProviderConfigView({
 
   const endpointDraft: EndpointDraft = {
     url,
-    allowedHostsText,
     headers,
     requestTemplate,
     timeoutMs,
@@ -695,9 +675,6 @@ export function ModerationProviderConfigView({
       >
         <EndpointSummary
           url={url}
-          allowedHostsCount={
-            allowedHostsText.split(/\r?\n/).filter((h) => h.trim()).length
-          }
           headersCount={headers.filter((h) => h.key.trim().length > 0).length}
           timeoutMs={timeoutMs}
           onEdit={() => setEndpointDialogOpen(true)}
@@ -1018,7 +995,6 @@ function TestResultView({ result }: { result: TestResult }) {
 
 interface EndpointSummaryProps {
   url: string;
-  allowedHostsCount: number;
   headersCount: number;
   timeoutMs: string;
   onEdit: () => void;
@@ -1027,7 +1003,6 @@ interface EndpointSummaryProps {
 
 function EndpointSummary({
   url,
-  allowedHostsCount,
   headersCount,
   timeoutMs,
   onEdit,
@@ -1041,10 +1016,6 @@ function EndpointSummary({
           <dd className="font-mono text-xs break-all">
             {url || <span className="text-muted-foreground">Not set</span>}
           </dd>
-        </div>
-        <div className="flex gap-2">
-          <dt className="text-muted-foreground w-36 shrink-0">Allowed hosts</dt>
-          <dd>{allowedHostsCount}</dd>
         </div>
         <div className="flex gap-2">
           <dt className="text-muted-foreground w-36 shrink-0">Headers</dt>
@@ -1079,7 +1050,6 @@ interface EndpointEditDialogProps {
 function endpointDraftEquals(a: EndpointDraft, b: EndpointDraft): boolean {
   if (
     a.url !== b.url ||
-    a.allowedHostsText !== b.allowedHostsText ||
     a.requestTemplate !== b.requestTemplate ||
     a.timeoutMs !== b.timeoutMs ||
     a.customFlaggedPath !== b.customFlaggedPath ||
@@ -1157,24 +1127,14 @@ function EndpointEditDialog({
       }
     >
       <div className="flex flex-col gap-4">
-        <FormSection label="Endpoint URL (HTTPS required)">
+        <FormSection
+          label="Endpoint URL"
+          description="Full HTTPS URL of the moderation API (HTTP allowed for internal / localhost mocks). Only this host is contacted — redirects to other hosts are rejected for SSRF safety."
+        >
           <Input
             value={draft.url}
             onChange={(e) => setDraft({ ...draft, url: e.target.value })}
             placeholder="https://api.example.com/v1/moderate"
-          />
-        </FormSection>
-
-        <FormSection
-          label="Allowed hosts"
-          description="One hostname per line. SSRF defense — the request is rejected if the URL's host isn't listed."
-        >
-          <Textarea
-            value={draft.allowedHostsText}
-            rows={3}
-            onChange={(e) =>
-              setDraft({ ...draft, allowedHostsText: e.target.value })
-            }
           />
         </FormSection>
 
