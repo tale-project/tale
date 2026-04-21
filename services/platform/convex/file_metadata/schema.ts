@@ -50,6 +50,11 @@ export const fileMetadataTable = defineTable({
     ),
   ),
   transcriptRagError: v.optional(v.string()),
+  // SHA-256 of the raw uploaded audio bytes. Used for dedup across uploads
+  // of the same content (different storageIds, same hash) — transcribeAudio
+  // short-circuits to the cached transcript when a prior row in the same
+  // org has completed transcription of the same content.
+  contentHash: v.optional(v.string()),
   uploadedBy: v.optional(v.string()),
 })
   .index('by_organizationId', ['organizationId'])
@@ -60,4 +65,5 @@ export const fileMetadataTable = defineTable({
     'source',
     'documentId',
   ])
-  .index('by_org_user', ['organizationId', 'uploadedBy']);
+  .index('by_org_user', ['organizationId', 'uploadedBy'])
+  .index('by_org_contentHash', ['organizationId', 'contentHash']);

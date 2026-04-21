@@ -28,10 +28,65 @@ const TRANSCRIBE_RETRY_DELAYS_MS = [30_000, 60_000, 120_000];
  * (empirically 30–90s). */
 const TRANSCRIBE_API_TIMEOUT_MS = 5 * 60_000;
 
+interface TranscriptionSegment {
+  id: number;
+  start: number;
+  end: number;
+  text: string;
+}
+
 interface TranscriptionResponse {
   text: string;
   duration?: number;
   language?: string;
+  segments?: TranscriptionSegment[];
+}
+
+/** Break paragraphs at pauses ≥ this many seconds between segments. */
+const PARAGRAPH_PAUSE_SEC = 1.5;
+
+/** Force a paragraph break after this many seconds of continuous speech,
+ * even without a natural pause — avoids walls of text for monologue audio. */
+const PARAGRAPH_MAX_DURATION_SEC = 45;
+
+/**
+ * Join whisper `verbose_json` segments into paragraphs. Inserts `\n\n` between
+ * segments where either (a) the pause between them is ≥ PARAGRAPH_PAUSE_SEC,
+ * or (b) the accumulated paragraph exceeds PARAGRAPH_MAX_DURATION_SEC.
+ *
+ * Falls back to the raw `text` field when segments are missing.
+ */
+function joinSegmentsWithParagraphs(
+  segments: TranscriptionSegment[] | undefined,
+  fallbackText: string,
+): string {
+  if (!segments || segments.length === 0) return fallbackText.trim();
+
+  const paragraphs: string[] = [];
+  let current: string[] = [];
+  let paragraphStart = segments[0].start;
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const prev = i > 0 ? segments[i - 1] : null;
+    const gap = prev ? seg.start - prev.end : 0;
+    const paragraphDuration = seg.end - paragraphStart;
+
+    if (
+      current.length > 0 &&
+      (gap >= PARAGRAPH_PAUSE_SEC ||
+        paragraphDuration >= PARAGRAPH_MAX_DURATION_SEC)
+    ) {
+      paragraphs.push(current.join('').trim());
+      current = [];
+      paragraphStart = seg.start;
+    }
+    current.push(seg.text);
+  }
+  if (current.length > 0) {
+    paragraphs.push(current.join('').trim());
+  }
+  return paragraphs.filter((p) => p.length > 0).join('\n\n');
 }
 
 /**
@@ -178,9 +233,62 @@ export const transcribeAudio = internalAction({
         {
           storageId: args.storageId,
           transcriptionStatus: 'running',
-          transcriptionProgress: 'compressing',
+          transcriptionProgress: 'checking',
         },
       );
+
+      // Dedup: Convex stores a SHA-256 of every upload on `_storage`. If the
+      // same content was already transcribed in this org, short-circuit and
+      // copy the prior transcript rather than paying ffmpeg + OpenAI again.
+      const contentHash = await ctx.runQuery(
+        internal.file_metadata.internal_queries.getStorageSha256,
+        { storageId: args.storageId },
+      );
+
+      if (contentHash) {
+        // Stamp our own row so future uploads can dedup against it too.
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.updateFileTranscription,
+          { storageId: args.storageId, contentHash },
+        );
+
+        const cached = await ctx.runQuery(
+          internal.file_metadata.internal_queries.findCachedTranscript,
+          {
+            organizationId: args.organizationId,
+            contentHash,
+            excludeStorageId: args.storageId,
+          },
+        );
+        if (cached) {
+          console.log(
+            JSON.stringify({
+              event: 'transcription.dedup_hit',
+              requestId,
+              storageId: args.storageId,
+              sourceStorageId: cached.storageId,
+              contentHash,
+              durationSec: cached.transcriptionDurationSec,
+            }),
+          );
+          await ctx.runMutation(
+            internal.file_metadata.internal_mutations.updateFileTranscription,
+            {
+              storageId: args.storageId,
+              transcriptionStatus: 'completed',
+              transcript: cached.transcript,
+              transcriptionDurationSec: cached.transcriptionDurationSec,
+              transcriptionProgress: '',
+              // RAG already has this transcript indexed under the prior upload;
+              // marking completed keeps UI parity without re-indexing.
+              transcriptRagStatus: 'completed',
+            },
+          );
+          return null;
+        }
+      }
+
+      await patchProgress(ctx, args.storageId, 'compressing');
 
       const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
       const modelData = await resolveTranscriptionModel(ctx, { orgSlug });
@@ -212,8 +320,10 @@ export const transcribeAudio = internalAction({
         throw new Error('Compression produced no output audio');
       }
 
-      // Phase 3 — transcribe each chunk sequentially
-      const transcripts: string[] = [];
+      // Phase 3 — transcribe each chunk sequentially. Each chunk's segments
+      // get joined into paragraphs (pause-based breaks); chunks then join
+      // into the final transcript with blank-line separators.
+      const chunkParagraphs: string[] = [];
       let totalDurationSec = 0;
       for (const chunk of chunks) {
         const progressLabel =
@@ -227,14 +337,17 @@ export const transcribeAudio = internalAction({
           chunk,
           args.fileName,
         );
-        transcripts.push(result.text ?? '');
+        const paragraphs = joinSegmentsWithParagraphs(
+          result.segments,
+          result.text ?? '',
+        );
+        if (paragraphs.length > 0) {
+          chunkParagraphs.push(paragraphs);
+        }
         totalDurationSec += result.duration ?? chunk.durationSec;
       }
 
-      const fullTranscript = transcripts
-        .map((t) => t.trim())
-        .filter(Boolean)
-        .join('\n\n');
+      const fullTranscript = chunkParagraphs.join('\n\n');
 
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.updateFileTranscription,

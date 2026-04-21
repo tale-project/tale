@@ -13,7 +13,7 @@
 
 import { listMessages, saveMessage } from '@convex-dev/agent';
 
-import { isSpreadsheet } from '../../../lib/shared/file-types';
+import { isAudio, isSpreadsheet } from '../../../lib/shared/file-types';
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
@@ -441,23 +441,29 @@ async function buildMessageWithAttachments(
   message: string,
   attachments: FileAttachment[],
 ): Promise<string> {
-  // Separate images, text files, spreadsheets, and other documents
+  // Separate images, text files, spreadsheets, audio, and other documents.
+  // Audio is handled specially: the transcript (produced by transcribeAudio)
+  // is inlined as text rather than attached as a link — bytes never reach
+  // the chat model.
   const imageAttachments = attachments.filter((a) =>
     a.fileType.startsWith('image/'),
   );
   const spreadsheetAttachments = attachments.filter(
     (a) => !a.fileType.startsWith('image/') && isSpreadsheet(a.fileName),
   );
+  const audioAttachments = attachments.filter((a) => isAudio(a.fileType));
   const textFileAttachments = attachments.filter(
     (a) =>
       !a.fileType.startsWith('image/') &&
       !isSpreadsheet(a.fileName) &&
+      !isAudio(a.fileType) &&
       isTextFile(a),
   );
   const documentAttachments = attachments.filter(
     (a) =>
       !a.fileType.startsWith('image/') &&
       !isSpreadsheet(a.fileName) &&
+      !isAudio(a.fileType) &&
       !isTextFile(a),
   );
 
@@ -538,6 +544,51 @@ async function buildMessageWithAttachments(
       textContent = textContent
         ? `${textContent}\n\n${textFileMarkdown.join('\n\n')}`
         : textFileMarkdown.join('\n\n');
+    }
+  }
+
+  // Inline audio transcripts as text. Transcription is guaranteed to have
+  // reached `completed`/`failed`/`skipped` by the time we get here thanks
+  // to the client-side send-gate (`isTranscribing`) — see chat-input.tsx.
+  if (audioAttachments.length > 0) {
+    const audioMetadata = await Promise.all(
+      audioAttachments.map(async (attachment) => {
+        const meta = await ctx.db
+          .query('fileMetadata')
+          .withIndex('by_storageId', (q) =>
+            q.eq('storageId', attachment.fileId),
+          )
+          .first();
+        return { attachment, meta };
+      }),
+    );
+    // One-line reference per audio attachment — same compact pattern as
+    // documents/spreadsheets. The transcript itself is NOT inlined (would
+    // make user bubbles into walls of text for long meetings); it lives in
+    // RAG where the agent can retrieve it via rag_search with the fileId.
+    const audioMarkdown: string[] = [];
+    for (const { attachment, meta } of audioMetadata) {
+      if (meta?.transcriptionStatus === 'completed' && meta.transcript) {
+        const durationNote = meta.transcriptionDurationSec
+          ? `, ${Math.round(meta.transcriptionDurationSec)}s transcribed`
+          : '';
+        audioMarkdown.push(
+          `🎙️ [${attachment.fileName}] (${attachment.fileType}${durationNote}) — transcript indexed in knowledge base; call rag_search with fileId=${attachment.fileId} to retrieve\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
+        );
+      } else {
+        const reason =
+          meta?.transcriptionStatus === 'skipped'
+            ? 'user skipped'
+            : (meta?.transcriptionError ?? 'transcription incomplete');
+        audioMarkdown.push(
+          `🎙️ [${attachment.fileName}] — could not be transcribed (${reason})\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
+        );
+      }
+    }
+    if (audioMarkdown.length > 0) {
+      textContent = textContent
+        ? `${textContent}\n\n${audioMarkdown.join('\n\n')}`
+        : audioMarkdown.join('\n\n');
     }
   }
 

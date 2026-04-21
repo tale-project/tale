@@ -177,6 +177,7 @@ export const updateFileTranscription = internalMutation({
     transcriptionError: v.optional(v.string()),
     transcriptionDurationSec: v.optional(v.number()),
     transcriptionProgress: v.optional(v.string()),
+    contentHash: v.optional(v.string()),
     transcriptRagStatus: v.optional(
       v.union(
         v.literal('queued'),
@@ -209,6 +210,9 @@ export const updateFileTranscription = internalMutation({
     }
     if (args.transcriptionProgress !== undefined) {
       patch.transcriptionProgress = args.transcriptionProgress;
+    }
+    if (args.contentHash !== undefined) {
+      patch.contentHash = args.contentHash;
     }
     if (args.transcriptRagStatus !== undefined) {
       patch.transcriptRagStatus = args.transcriptRagStatus;

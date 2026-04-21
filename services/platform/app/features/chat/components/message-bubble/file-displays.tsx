@@ -1,9 +1,11 @@
 'use client';
 
+import { useQuery } from 'convex/react';
 import {
   AudioLines,
   Code2,
   Download,
+  Eye,
   FileSpreadsheet,
   FileText,
   Image,
@@ -14,10 +16,12 @@ import {
 } from 'lucide-react';
 import { memo, useState } from 'react';
 
+import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { VStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 import {
@@ -178,6 +182,20 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   );
   const displayUrl = attachment.previewUrl || serverFileUrl || undefined;
   const isImage = attachment.fileType.startsWith('image/');
+  const isAudio = attachment.fileType.startsWith('audio/');
+
+  // For audio attachments in sent messages, fetch the transcript via the
+  // existing plural query (skip when not audio to avoid subscriptions).
+  const audioMetadataList = useQuery(
+    api.file_metadata.queries.getByStorageIds,
+    isAudio ? { storageIds: [attachment.fileId] } : 'skip',
+  );
+  const audioMetadata = audioMetadataList?.[0];
+  const canPreviewTranscript =
+    isAudio &&
+    audioMetadata?.transcriptionStatus === 'completed' &&
+    !!audioMetadata.transcript;
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
 
   if (isImage && !displayUrl) {
     return <Skeleton className="size-9 rounded-lg" />;
@@ -203,45 +221,96 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   const displayName = middleEllipsis(attachment.fileName, 28);
   const sizeLabel = formatFileSize(attachment.fileSize);
 
+  const viewTranscriptButton = canPreviewTranscript ? (
+    <button
+      type="button"
+      aria-label={t('transcription.viewTranscript')}
+      title={t('transcription.viewTranscript')}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setTranscriptOpen(true);
+      }}
+      className="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-full transition-colors"
+    >
+      <Eye className="size-3.5" />
+    </button>
+  ) : null;
+
+  const transcriptDialog =
+    canPreviewTranscript && audioMetadata ? (
+      <ViewDialog
+        open={transcriptOpen}
+        onOpenChange={setTranscriptOpen}
+        title={attachment.fileName}
+        description={
+          audioMetadata.transcriptionDurationSec
+            ? t('transcription.previewSubtitle', {
+                seconds: Math.round(audioMetadata.transcriptionDurationSec),
+              })
+            : undefined
+        }
+        size="lg"
+      >
+        <Text
+          as="div"
+          variant="body"
+          className="max-h-[60vh] overflow-y-auto leading-relaxed whitespace-pre-wrap"
+        >
+          {audioMetadata.transcript}
+        </Text>
+      </ViewDialog>
+    ) : null;
+
   if (!displayUrl) {
     return (
-      <div className="bg-muted flex max-w-[280px] gap-3 rounded-lg px-3 py-2">
-        <FileTypeIcon
-          fileType={attachment.fileType}
-          fileName={attachment.fileName}
-        />
-        <VStack className="min-w-0 flex-1">
-          <Text as="div" variant="label" title={attachment.fileName}>
-            {displayName}
-          </Text>
-          <Text as="div" variant="caption">
-            {sizeLabel}
-          </Text>
-        </VStack>
-      </div>
+      <>
+        <div className="bg-muted flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2">
+          <FileTypeIcon
+            fileType={attachment.fileType}
+            fileName={attachment.fileName}
+          />
+          <VStack className="min-w-0 flex-1">
+            <Text as="div" variant="label" title={attachment.fileName}>
+              {displayName}
+            </Text>
+            <Text as="div" variant="caption">
+              {sizeLabel}
+            </Text>
+          </VStack>
+          {viewTranscriptButton}
+        </div>
+        {transcriptDialog}
+      </>
     );
   }
 
   return (
-    <a
-      href={displayUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="bg-muted hover:bg-muted/80 flex max-w-[280px] gap-3 rounded-lg px-3 py-2 transition-colors"
-    >
-      <FileTypeIcon
-        fileType={attachment.fileType}
-        fileName={attachment.fileName}
-      />
-      <VStack className="min-w-0 flex-1">
-        <Text as="div" variant="label" title={attachment.fileName}>
-          {displayName}
-        </Text>
-        <Text as="div" variant="caption">
-          {sizeLabel}
-        </Text>
-      </VStack>
-    </a>
+    <>
+      <div className="bg-muted hover:bg-muted/80 flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2 transition-colors">
+        <a
+          href={displayUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex min-w-0 flex-1 items-center gap-3"
+        >
+          <FileTypeIcon
+            fileType={attachment.fileType}
+            fileName={attachment.fileName}
+          />
+          <VStack className="min-w-0 flex-1">
+            <Text as="div" variant="label" title={attachment.fileName}>
+              {displayName}
+            </Text>
+            <Text as="div" variant="caption">
+              {sizeLabel}
+            </Text>
+          </VStack>
+        </a>
+        {viewTranscriptButton}
+      </div>
+      {transcriptDialog}
+    </>
   );
 });
 
