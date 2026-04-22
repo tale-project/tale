@@ -95,6 +95,7 @@ export const readIntegration = action({
 export const listIntegrations = action({
   args: {
     orgSlug: v.string(),
+    organizationId: v.optional(v.string()),
     filter: v.optional(
       v.union(v.literal('installed'), v.literal('templates'), v.literal('all')),
     ),
@@ -125,11 +126,25 @@ export const listIntegrations = action({
       (e) => !e.startsWith('.') && validateIntegrationSlug(e),
     );
 
+    // `installed` is derived from the DB: an integration is installed iff a
+    // credential row exists for its slug in this organization. Fetching the
+    // credential set once avoids N queries inside the dir.map loop.
+    const installedSlugs = new Set<string>();
+    if (args.organizationId) {
+      const credentials = await ctx.runQuery(
+        internal.integrations.credential_queries.listInternal,
+        { organizationId: args.organizationId },
+      );
+      for (const cred of credentials as Array<{ slug: string }>) {
+        installedSlugs.add(cred.slug);
+      }
+    }
+
     const results = await Promise.all(
       dirs.map(async (slug) => {
         const result = await readIntegrationConfigFile(args.orgSlug, slug);
         if (result.ok) {
-          const installed = result.config.installed ?? false;
+          const installed = installedSlugs.has(slug);
           if (filterMode === 'installed' && !installed) return null;
           if (filterMode === 'templates' && installed) return null;
 
@@ -147,7 +162,6 @@ export const listIntegrations = action({
             slug,
             title: result.config.title,
             description: result.config.description,
-            installed,
             type: result.config.type,
             authMethod: result.config.authMethod,
             supportedAuthMethods: result.config.supportedAuthMethods,
@@ -275,70 +289,7 @@ export const installIntegration = action({
       credentialId = existing._id;
     }
 
-    const { hash } = await writeInstalledFlag(args.orgSlug, args.slug, result);
-    return { hash, credentialId };
-  },
-});
-
-async function writeInstalledFlag(
-  orgSlug: string,
-  slug: string,
-  result: Extract<IntegrationReadResult, { ok: true }>,
-): Promise<{ hash: string; changed: boolean }> {
-  if (result.config.installed) {
-    return { hash: result.hash, changed: false };
-  }
-  const updatedConfig: IntegrationJsonConfig = {
-    ...result.config,
-    installed: true,
-  };
-  const newContent = serializeIntegrationJson(updatedConfig);
-  const filePath = resolveConfigPath(orgSlug, slug);
-  await atomicWrite(filePath, newContent);
-  return { hash: sha256(newContent), changed: true };
-}
-
-/**
- * Internal: flip `installed: true` on the config file if needed.
- * Idempotent — a no-op when the file is already marked installed or missing.
- * Used to self-heal when a credential becomes active but the on-disk config
- * was reverted (e.g. by a git checkout of a tracked seed file).
- */
-export const ensureInstalledInternal = internalAction({
-  args: {
-    orgSlug: v.string(),
-    slug: v.string(),
-  },
-  returns: v.object({ changed: v.boolean() }),
-  handler: async (_ctx, args): Promise<{ changed: boolean }> => {
-    console.log(
-      `[Integrations] ensureInstalledInternal: orgSlug=${args.orgSlug} slug=${args.slug} configPath=${resolveConfigPath(args.orgSlug, args.slug)}`,
-    );
-    if (!validateIntegrationSlug(args.slug)) {
-      console.warn(
-        `[Integrations] ensureInstalledInternal: invalid slug, skipping (slug=${args.slug})`,
-      );
-      return { changed: false };
-    }
-    const result = await readIntegrationConfigFile(args.orgSlug, args.slug);
-    if (!result.ok) {
-      console.warn(
-        `[Integrations] ensureInstalledInternal: cannot read config, skipping (slug=${args.slug} error=${result.error} message=${result.message})`,
-      );
-      return { changed: false };
-    }
-    console.log(
-      `[Integrations] ensureInstalledInternal: read ok (slug=${args.slug} installed=${result.config.installed ?? false})`,
-    );
-    const { changed } = await writeInstalledFlag(
-      args.orgSlug,
-      args.slug,
-      result,
-    );
-    console.log(
-      `[Integrations] ensureInstalledInternal: done (slug=${args.slug} changed=${changed})`,
-    );
-    return { changed };
+    return { hash: result.hash, credentialId };
   },
 });
 
@@ -346,9 +297,10 @@ export const uninstallIntegration = action({
   args: {
     orgSlug: v.string(),
     slug: v.string(),
+    organizationId: v.string(),
   },
-  returns: v.object({ hash: v.string() }),
-  handler: async (ctx, args): Promise<{ hash: string }> => {
+  returns: v.object({ deleted: v.boolean() }),
+  handler: async (ctx, args): Promise<{ deleted: boolean }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -356,25 +308,21 @@ export const uninstallIntegration = action({
       throw new Error(`Invalid integration slug: ${args.slug}`);
     }
 
-    const result = await readIntegrationConfigFile(args.orgSlug, args.slug);
-    if (!result.ok) {
-      throw new Error(`Cannot uninstall integration: ${result.message}`);
+    const existing = await ctx.runQuery(
+      internal.integrations.credential_queries.getBySlugInternal,
+      { organizationId: args.organizationId, slug: args.slug },
+    );
+
+    if (!existing) {
+      return { deleted: false };
     }
 
-    if (!result.config.installed) {
-      return { hash: result.hash };
-    }
+    await ctx.runMutation(
+      internal.integrations.credential_mutations.deleteCredentialsInternal,
+      { credentialId: existing._id },
+    );
 
-    const updatedConfig: IntegrationJsonConfig = {
-      ...result.config,
-      installed: false,
-    };
-
-    const newContent = serializeIntegrationJson(updatedConfig);
-    const filePath = resolveConfigPath(args.orgSlug, args.slug);
-    await atomicWrite(filePath, newContent);
-
-    return { hash: sha256(newContent) };
+    return { deleted: true };
   },
 });
 
@@ -448,43 +396,5 @@ export const readIntegrationForExecution = internalAction({
       connectorCode,
       hash: configResult.hash,
     };
-  },
-});
-
-export const listIntegrationsForAgent = internalAction({
-  args: {
-    orgSlug: v.string(),
-  },
-  returns: v.any(),
-  handler: async (_ctx, args) => {
-    const dir = resolveIntegrationsDir(args.orgSlug);
-    let entries: string[];
-    try {
-      entries = await readdir(dir);
-    } catch {
-      return [];
-    }
-
-    const dirs = entries.filter(
-      (e) => !e.startsWith('.') && validateIntegrationSlug(e),
-    );
-
-    const results = await Promise.all(
-      dirs.map(async (slug) => {
-        const result = await readIntegrationConfigFile(args.orgSlug, slug);
-        if (result.ok && result.config.installed) {
-          return {
-            slug,
-            title: result.config.title,
-            description: result.config.description,
-            type: result.config.type,
-            operationCount: result.config.operations?.length ?? 0,
-          };
-        }
-        return null;
-      }),
-    );
-
-    return results.filter(Boolean);
   },
 });

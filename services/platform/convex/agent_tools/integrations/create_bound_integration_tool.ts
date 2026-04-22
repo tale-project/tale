@@ -61,6 +61,12 @@ function jsonTypeToZod(
     case 'boolean':
       schema = z.boolean();
       break;
+    case 'array':
+      schema = z.array(z.unknown());
+      break;
+    case 'object':
+      schema = z.record(z.string(), z.unknown());
+      break;
     default:
       schema = z.string();
   }
@@ -192,11 +198,7 @@ export function createBoundIntegrationTool(
             organizationId,
             integrationName,
             operation: args.operation,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Zod-validated params is Record<string, unknown>; narrowing to primitive values for Convex serialization
-            params: (args.params || {}) as Record<
-              string,
-              string | number | boolean | null
-            >,
+            params: args.params || {},
             threadId,
             messageId,
           },

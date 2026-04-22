@@ -845,7 +845,11 @@ export function useIntegrationManage(
 
   const handleUninstall = useCallback(async () => {
     try {
-      await uninstallFn({ orgSlug: 'default', slug: integration.name ?? '' });
+      await uninstallFn({
+        orgSlug: 'default',
+        slug: integration.name ?? '',
+        organizationId: integration.organizationId ?? '',
+      });
       void queryClient.invalidateQueries({
         queryKey: ['config', 'integrations'],
       });

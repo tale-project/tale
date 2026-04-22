@@ -320,19 +320,6 @@ export async function testConnection(
           errorMessage: undefined,
         },
       );
-      // Self-heal: tracked seed configs can be reset to installed:false by
-      // git checkouts while the credential row stays active. Re-align the
-      // file so the composer/engine readiness gates agree with the DB.
-      console.log(
-        `[Integrations] test_connection: running ensureInstalled (orgSlug=${orgSlug} slug=${credential.slug})`,
-      );
-      const ensureResult = await ctx.runAction(
-        internal.integrations.file_actions.ensureInstalledInternal,
-        { orgSlug, slug: credential.slug },
-      );
-      console.log(
-        `[Integrations] test_connection: ensureInstalled result changed=${ensureResult.changed}`,
-      );
     }
 
     debugLog(
