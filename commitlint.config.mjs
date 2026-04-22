@@ -17,6 +17,7 @@ export default {
         'workflow',
         'ui',
         'storybook',
+        'design',
       ],
     ],
     'scope-empty': [0],
