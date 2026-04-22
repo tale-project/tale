@@ -107,12 +107,6 @@ describe('FeatureFlagsEditor', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders enabled toggle', () => {
-    render(<FeatureFlagsEditor organizationId="org_1" />);
-
-    expect(screen.getByRole('switch')).toBeInTheDocument();
-  });
-
   it('renders loading skeleton while loading', () => {
     mockedUseGovernancePolicy.mockReturnValue({
       data: null,

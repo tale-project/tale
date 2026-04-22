@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, Pencil, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, Database, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
@@ -8,11 +8,9 @@ import { Alert } from '@/app/components/ui/feedback/alert';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
-import { Switch } from '@/app/components/ui/forms/switch';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
-import { Text } from '@/app/components/ui/typography/text';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -25,12 +23,11 @@ import {
   type DefaultModelRule,
   type ModelAccessConfig,
 } from '@/lib/shared/schemas/governance';
-import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
-import { SelectTriggerButton } from './select-trigger-button';
+import { RulesTableEmptyState } from './rules-table-empty-state';
 
 function stripQualifier(s: string): string {
   const idx = s.indexOf(':');
@@ -260,81 +257,47 @@ function RuleDialog({
 
           {draft.scope === 'team' && (
             <div className="flex-1">
-              <Text className="mb-1 text-xs font-medium">
-                {t('defaultModels.target')}
-              </Text>
               <SearchableSelect
+                label={t('defaultModels.target')}
+                placeholder={t('defaultModels.selectTeam')}
+                size="sm"
+                disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
                 options={teamOptions}
                 searchPlaceholder={t('defaultModels.searchTeams')}
                 emptyText={t('defaultModels.noTeamsFound')}
                 aria-label={t('defaultModels.target')}
-                trigger={
-                  <SelectTriggerButton
-                    disabled={cannotManage}
-                    hasValue={!!draft.scopeId}
-                  >
-                    {draft.scopeId
-                      ? (teamOptions.find((o) => o.value === draft.scopeId)
-                          ?.label ?? draft.scopeId)
-                      : t('defaultModels.selectTeam')}
-                  </SelectTriggerButton>
-                }
               />
             </div>
           )}
         </HStack>
 
-        <div>
-          <Text className="mb-1 text-xs font-medium">
-            {t('defaultModels.provider')}
-          </Text>
-          <SearchableSelect
-            value={draft.providerName || null}
-            onValueChange={(value) => updateDraft({ providerName: value })}
-            options={providerOptions}
-            searchPlaceholder={t('defaultModels.searchProviders')}
-            emptyText={t('defaultModels.noProvidersFound')}
-            aria-label={t('defaultModels.provider')}
-            trigger={
-              <SelectTriggerButton
-                disabled={cannotManage}
-                hasValue={!!draft.providerName}
-              >
-                {draft.providerName
-                  ? (providerOptions.find((o) => o.value === draft.providerName)
-                      ?.label ?? draft.providerName)
-                  : t('defaultModels.selectProvider')}
-              </SelectTriggerButton>
-            }
-          />
-        </div>
+        <SearchableSelect
+          label={t('defaultModels.provider')}
+          placeholder={t('defaultModels.selectProvider')}
+          size="sm"
+          disabled={cannotManage}
+          value={draft.providerName || null}
+          onValueChange={(value) => updateDraft({ providerName: value })}
+          options={providerOptions}
+          searchPlaceholder={t('defaultModels.searchProviders')}
+          emptyText={t('defaultModels.noProvidersFound')}
+          aria-label={t('defaultModels.provider')}
+        />
 
-        <div>
-          <Text className="mb-1 text-xs font-medium">
-            {t('defaultModels.model')}
-          </Text>
-          <SearchableSelect
-            value={draft.modelId || null}
-            onValueChange={(value) => updateDraft({ modelId: value })}
-            options={modelOptions}
-            searchPlaceholder={t('defaultModels.searchModels')}
-            emptyText={t('defaultModels.noModelsFound')}
-            aria-label={t('defaultModels.model')}
-            trigger={
-              <SelectTriggerButton
-                disabled={cannotManage || !draft.providerName}
-                hasValue={!!draft.modelId}
-              >
-                {draft.modelId
-                  ? (modelOptions.find((o) => o.value === draft.modelId)
-                      ?.label ?? draft.modelId)
-                  : t('defaultModels.selectModel')}
-              </SelectTriggerButton>
-            }
-          />
-        </div>
+        <SearchableSelect
+          label={t('defaultModels.model')}
+          placeholder={t('defaultModels.selectModel')}
+          size="sm"
+          disabled={cannotManage || !draft.providerName}
+          value={draft.modelId || null}
+          onValueChange={(value) => updateDraft({ modelId: value })}
+          options={modelOptions}
+          searchPlaceholder={t('defaultModels.searchModels')}
+          emptyText={t('defaultModels.noModelsFound')}
+          aria-label={t('defaultModels.model')}
+        />
 
         {conflict && (
           <Alert
@@ -419,7 +382,6 @@ export function DefaultModelEditor({
     [policy],
   );
 
-  const [enabled, setEnabled] = useState(false);
   const [rules, setRules] = useState<DefaultModelRule[]>([]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -427,45 +389,46 @@ export function DefaultModelEditor({
   const [dialogRule, setDialogRule] = useState(emptyRule());
 
   useEffect(() => {
-    setEnabled(savedConfig.enabled);
     setRules(savedConfig.rules);
   }, [savedConfig]);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
   const saveConfig = useCallback(
-    async (configToSave: { enabled: boolean; rules: DefaultModelRule[] }) => {
+    async (nextRules: DefaultModelRule[]) => {
       try {
         await upsertMutation.mutateAsync({
           organizationId,
           policyType: 'default_models',
-          config: configToSave,
+          // `enabled` is always true from the UI — rules presence drives
+          // enforcement (server short-circuits on `!enabled || rules.length === 0`).
+          config: { enabled: true, rules: nextRules },
         });
-        toast({ title: t('defaultModels.saved'), variant: 'success' });
+        toast({
+          title: t('toastSavedTitle'),
+          description: t('defaultModels.saved'),
+          variant: 'success',
+        });
       } catch (error: unknown) {
         const message =
           error instanceof Error ? error.message : 'Failed to save';
-        toast({ title: message, variant: 'destructive' });
+        toast({
+          title: t('toastSaveFailedTitle'),
+          description: message,
+          variant: 'destructive',
+        });
       }
     },
     [organizationId, upsertMutation, toast, t],
-  );
-
-  const handleToggleEnabled = useCallback(
-    (checked: boolean) => {
-      setEnabled(checked);
-      void saveConfig({ enabled: checked, rules });
-    },
-    [saveConfig, rules],
   );
 
   const removeRule = useCallback(
     (index: number) => {
       const newRules = rules.filter((_, i) => i !== index);
       setRules(newRules);
-      void saveConfig({ enabled, rules: newRules });
+      void saveConfig(newRules);
     },
-    [rules, enabled, saveConfig],
+    [rules, saveConfig],
   );
 
   const openAddDialog = useCallback(() => {
@@ -500,9 +463,9 @@ export function DefaultModelEditor({
         newRules = rules.map((r, i) => (i === editingIndex ? rule : r));
       }
       setRules(newRules);
-      void saveConfig({ enabled, rules: newRules });
+      void saveConfig(newRules);
     },
-    [editingIndex, rules, enabled, saveConfig],
+    [editingIndex, rules, saveConfig],
   );
 
   const resolveTarget = useCallback(
@@ -550,14 +513,24 @@ export function DefaultModelEditor({
     [providerList],
   );
 
-  if (isLoading) {
-    return (
-      <div aria-busy="true" className="space-y-3 py-4">
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-4 w-72" />
-        <Skeleton className="h-10 w-full" />
+  const skeleton = (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-4 w-96 max-w-full" />
+        </div>
+        <Skeleton className="h-8 w-20 rounded-md" />
       </div>
-    );
+      <div className="border-border overflow-hidden rounded-lg border">
+        <Skeleton className="h-10 w-full rounded-none" />
+        <Skeleton className="h-36 w-full rounded-none" />
+      </div>
+    </div>
+  );
+
+  if (isLoading) {
+    return <div aria-busy="true">{skeleton}</div>;
   }
 
   return (
@@ -565,120 +538,108 @@ export function DefaultModelEditor({
       title={t('defaultModels.title')}
       description={t('defaultModels.description')}
       action={
-        <Switch
-          label={t('defaultModels.enabled')}
-          checked={enabled}
-          onCheckedChange={handleToggleEnabled}
-          disabled={cannotManage || upsertMutation.isPending}
-        />
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={openAddDialog}
+          disabled={cannotManage}
+        >
+          <Plus className="mr-1.5 size-4" />
+          {t('defaultModels.addRule')}
+        </Button>
       }
     >
-      <div
-        className={cn(
-          'transition-opacity duration-200',
-          !enabled && 'pointer-events-none opacity-50',
-        )}
-      >
-        <Stack gap={6}>
-          <Stack gap={3}>
-            {rules.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <caption className="sr-only">
-                    {t('defaultModels.title')}
-                  </caption>
-                  <thead>
-                    <tr className="border-border border-b">
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-left font-medium"
-                      >
-                        {t('defaultModels.scope')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-left font-medium"
-                      >
-                        {t('defaultModels.target')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-left font-medium"
-                      >
-                        {t('defaultModels.provider')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-left font-medium"
-                      >
-                        {t('defaultModels.model')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-right font-medium"
-                      >
-                        {t('defaultModels.actions')}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rules.map((rule, index) => (
-                      <tr key={index} className="border-border border-b">
-                        <td className="px-3 py-2 capitalize">{rule.scope}</td>
-                        <td className="px-3 py-2">{resolveTarget(rule)}</td>
-                        <td className="px-3 py-2">
-                          {resolveProviderName(rule)}
-                        </td>
-                        <td className="px-3 py-2">{resolveModelName(rule)}</td>
-                        <td className="px-3 py-2 text-right">
-                          <HStack gap={1} justify="end">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openEditDialog(index)}
-                              disabled={cannotManage}
-                              aria-label={t('defaultModels.editRule', {
-                                index: index + 1,
-                              })}
-                            >
-                              <Pencil className="size-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeRule(index)}
-                              disabled={cannotManage}
-                              aria-label={t('defaultModels.removeRule', {
-                                index: index + 1,
-                              })}
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </HStack>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <Text variant="muted" className="text-sm">
-                {t('defaultModels.noRules')}
-              </Text>
-            )}
-
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={openAddDialog}
-              disabled={cannotManage}
-              className="self-start"
-            >
-              <Plus className="mr-1.5 size-4" />
-              {t('defaultModels.addRule')}
-            </Button>
-          </Stack>
-        </Stack>
+      <div className="border-border overflow-hidden rounded-lg border">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <caption className="sr-only">{t('defaultModels.title')}</caption>
+            <thead className="bg-muted/50">
+              <tr className="border-border border-b">
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-left font-medium"
+                >
+                  {t('defaultModels.scope')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-left font-medium"
+                >
+                  {t('defaultModels.target')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-left font-medium"
+                >
+                  {t('defaultModels.provider')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-left font-medium"
+                >
+                  {t('defaultModels.model')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-right font-medium"
+                >
+                  {t('defaultModels.actions')}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules.length > 0 ? (
+                rules.map((rule, index) => (
+                  <tr
+                    key={index}
+                    className="border-border border-b last:border-b-0"
+                  >
+                    <td className="px-3 py-2 capitalize">{rule.scope}</td>
+                    <td className="px-3 py-2">{resolveTarget(rule)}</td>
+                    <td className="px-3 py-2">{resolveProviderName(rule)}</td>
+                    <td className="px-3 py-2">{resolveModelName(rule)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <HStack gap={1} justify="end">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditDialog(index)}
+                          disabled={cannotManage}
+                          aria-label={t('defaultModels.editRule', {
+                            index: index + 1,
+                          })}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeRule(index)}
+                          disabled={cannotManage}
+                          aria-label={t('defaultModels.removeRule', {
+                            index: index + 1,
+                          })}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </HStack>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="p-0">
+                    <RulesTableEmptyState
+                      icon={Database}
+                      title={t('defaultModels.noRulesTitle')}
+                      description={t('defaultModels.noRulesDescription')}
+                    />
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <RuleDialog

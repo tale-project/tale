@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
-import { useUploadPolicy } from '@/app/features/settings/governance/hooks/use-upload-policy';
+import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';

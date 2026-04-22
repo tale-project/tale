@@ -3929,6 +3929,8 @@
   "governance": {
     "title": "Gouvernance",
     "description": "Configure les politiques et contrôles à l'échelle de l'organisation.",
+    "toastSavedTitle": "Modifications enregistrées",
+    "toastSaveFailedTitle": "Échec de l'enregistrement des modifications",
     "systemPrompt": {
       "title": "Prompt système",
       "description": "Définis un prompt système obligatoire appliqué à tous les agents et qui ne peut pas être remplacé par les utilisateurs.",
@@ -3944,7 +3946,7 @@
       "charLimitExceeded": "Limite de caractères dépassée",
       "save": "Enregistrer",
       "saving": "Enregistrement...",
-      "saved": "Prompt système enregistré",
+      "saved": "Le prompt système a été mis à jour",
       "saveFailed": "Échec de l'enregistrement du prompt système"
     },
     "budgets": {
@@ -3970,6 +3972,8 @@
       "allUsers": "Tous les utilisateurs",
       "overrideHint": "Les portées plus spécifiques remplacent les plus larges : utilisateur > équipe > rôle > défaut. Les limites de l'organisation s'appliquent toujours comme plafond supplémentaire.",
       "noRules": "Aucune règle de budget configurée. Ajoute une règle pour commencer à appliquer les limites.",
+      "noRulesTitle": "Aucune règle de budget configurée",
+      "noRulesDescription": "Ajoute une règle pour commencer à appliquer les limites.",
       "editRuleAriaLabel": "Modifier la règle {index}",
       "removeRuleAriaLabel": "Supprimer la règle {index}",
       "actions": "Actions",
@@ -3989,13 +3993,13 @@
       "daily": "Quotidien",
       "weekly": "Hebdomadaire",
       "monthly": "Mensuel",
-      "saved": "Règles de budget enregistrées"
+      "saved": "Les règles de budget ont été mises à jour"
     },
     "defaultModels": {
       "title": "Modèles par défaut",
       "description": "Définis les modèles par défaut pour des groupes d'utilisateurs ou des rôles spécifiques.",
       "addMapping": "Ajouter un mappage de modèle",
-      "saved": "Configuration des modèles par défaut enregistrée",
+      "saved": "La configuration des modèles par défaut a été mise à jour",
       "addRule": "Ajouter une règle",
       "addRuleTitle": "Ajouter une règle de modèle par défaut",
       "editRuleTitle": "Modifier la règle de modèle par défaut",
@@ -4008,6 +4012,8 @@
       "role": "Rôle",
       "actions": "Actions",
       "noRules": "Aucune règle de modèle par défaut configurée. Ajoute une règle pour définir les modèles par défaut des équipes ou des rôles.",
+      "noRulesTitle": "Aucune règle configurée",
+      "noRulesDescription": "Ajoute une règle pour définir les modèles par défaut par périmètre.",
       "allUsers": "Tous les utilisateurs",
       "selectProvider": "Sélectionner un fournisseur...",
       "selectModel": "Sélectionner un modèle...",
@@ -4039,7 +4045,7 @@
       "mbUnit": "Mo",
       "gbUnit": "Go",
       "policyDisabledHint": "Active la politique pour appliquer les restrictions de téléversement.",
-      "saved": "Politique de téléversement enregistrée",
+      "saved": "La politique de téléversement a été mise à jour",
       "saveFailed": "Échec de l'enregistrement de la politique de téléversement"
     },
     "retentionPolicy": {
@@ -4050,7 +4056,7 @@
       "retentionDaysHint": "Les documents plus anciens que cette période seront définitivement supprimés. Cette action est irréversible.",
       "scope": "Appliquer à",
       "tempFileRetentionHours": "Rétention des fichiers temporaires (heures)",
-      "saved": "Politique de rétention enregistrée"
+      "saved": "La politique de rétention a été mise à jour"
     },
     "passwordPolicy": {
       "title": "Politique de mot de passe",
@@ -4066,7 +4072,7 @@
       "rotationDaysHint": "Les utilisateurs devront changer leur mot de passe après ce nombre de jours. La période de grâce commence lorsque la rotation est activée pour la première fois, les utilisateurs existants ne sont donc pas forcés de changer immédiatement.",
       "invalidMinLength": "La longueur minimale doit être un entier entre 6 et 128.",
       "invalidRotationDays": "La période de rotation doit être un entier entre 1 et 3650.",
-      "saved": "Politique de mot de passe enregistrée",
+      "saved": "La politique de mot de passe a été mise à jour",
       "saveFailed": "Échec de l'enregistrement de la politique de mot de passe"
     },
     "loginPolicy": {
@@ -4083,7 +4089,7 @@
       "invalidAttempts": "Le seuil d'échecs doit être un entier entre 1 et 50.",
       "invalidSchedule": "Le calendrier de temporisation doit être une liste de nombres non négatifs séparés par des virgules.",
       "invalidProxies": "Les proxys de confiance doivent être une liste séparée par des virgules d'adresses IP, CIDR ou mots-clés (max. 32).",
-      "saved": "Politique de connexion enregistrée",
+      "saved": "La politique de connexion a été mise à jour",
       "saveFailed": "Échec de l'enregistrement de la politique de connexion"
     },
     "tabs": {
@@ -4111,7 +4117,9 @@
       "editRule": "Modifier la règle",
       "deleteRule": "Supprimer la règle",
       "noRules": "Aucune règle de contrôle de fonctionnalités configurée. Ajoute une règle pour gérer les fonctionnalités par utilisateur, équipe ou rôle.",
-      "saved": "Contrôle des fonctionnalités enregistré",
+      "noRulesTitle": "Aucune règle de contrôle de fonctionnalités configurée",
+      "noRulesDescription": "Ajoute une règle pour gérer les fonctionnalités par utilisateur, équipe ou rôle.",
+      "saved": "Le contrôle des fonctionnalités a été mis à jour",
       "saveFailed": "Échec de l'enregistrement du contrôle des fonctionnalités",
       "actions": "Actions",
       "role": "Rôle",
@@ -4171,7 +4179,7 @@
       "testNoResults": "Aucune DCP détectée dans le texte de test.",
       "testButton": "Tester",
       "addCustomPattern": "Ajouter un modèle personnalisé",
-      "saved": "Configuration des DCP enregistrée",
+      "saved": "La configuration des DCP a été mise à jour",
       "saveFailed": "Échec de l'enregistrement de la configuration des DCP",
       "blocked": "Message bloqué : données personnelles détectées",
       "detectedTypes": "Détecté : {types}"
@@ -4442,6 +4450,7 @@
       "policiesAndLimits": "Politiques et limites",
       "securityAndMonitoring": "Sécurité et surveillance",
       "guardrails": "Guardrails",
+      "usage": "Utilisation",
       "subtabs": {
         "login": "Connexion et authentification",
         "password": "Politique de mot de passe",
@@ -4470,6 +4479,8 @@
       "editRule": "Modifier la règle",
       "deleteRule": "Supprimer la règle",
       "noRules": "Aucune règle d'accès configurée. Tous les modèles sont disponibles pour tous les utilisateurs.",
+      "noRulesTitle": "Aucune règle d'accès configurée",
+      "noRulesDescription": "Tous les modèles sont disponibles pour tous les utilisateurs.",
       "scope": "Portée",
       "target": "Cible",
       "actions": "Actions",
@@ -4490,7 +4501,7 @@
       "noTeamsFound": "Aucune équipe trouvée",
       "confirm": "Confirmer",
       "preview": "Aperçu",
-      "saved": "Politique d'accès aux modèles enregistrée",
+      "saved": "La politique d'accès aux modèles a été mise à jour",
       "saveFailed": "Échec de l'enregistrement de la politique d'accès aux modèles",
       "denied": "Modèle non disponible pour ton compte. Contacte ton administrateur pour demander l'accès.",
       "removeDefaultConfirmTitle": "Révoquer l'accès à un modèle par défaut actif ?",

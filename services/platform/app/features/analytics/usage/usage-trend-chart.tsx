@@ -82,13 +82,13 @@ export function UsageTrendChart({
 
   return (
     <div
-      className="border-border flex flex-col gap-3 rounded-lg border px-5 py-4"
+      className="border-border flex flex-col gap-4 rounded-lg border p-5"
       aria-label={ariaLabel}
     >
-      <Text variant="label" as="h3" className="text-sm">
+      <Text as="h3" className="text-foreground text-base font-semibold">
         {t(`usage.metric.${metric}`)}
       </Text>
-      <div className="h-60 w-full">
+      <div className="h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}

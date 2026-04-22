@@ -18,7 +18,6 @@ import {
   type PasswordPolicyConfig,
   passwordPolicyConfigSchema,
 } from '@/lib/shared/schemas/governance';
-import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
@@ -125,11 +124,16 @@ export function PasswordPolicyEditor({
           rotationDays: rotationEnabled ? Number(rotationDays) : 0,
         } satisfies PasswordPolicyConfig,
       });
-      toast({ title: t('passwordPolicy.saved'), variant: 'success' });
+      toast({
+        title: t('toastSavedTitle'),
+        description: t('passwordPolicy.saved'),
+        variant: 'success',
+      });
     } catch (e) {
       console.error(e);
       toast({
-        title: t('passwordPolicy.saveFailed'),
+        title: t('toastSaveFailedTitle'),
+        description: t('passwordPolicy.saveFailed'),
         variant: 'destructive',
       });
     }
@@ -147,14 +151,45 @@ export function PasswordPolicyEditor({
     t,
   ]);
 
-  if (isLoading || !initializedRef.current) {
-    return (
-      <div aria-busy="true" className="space-y-3 py-4">
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-4 w-72" />
-        <Skeleton className="h-10 w-full" />
+  const skeleton = (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <Skeleton className="h-6 w-32" />
+        <Skeleton className="h-4 w-80 max-w-full" />
       </div>
-    );
+      <div className="flex max-w-2xl flex-col gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Skeleton className="h-3.5 w-32" />
+          <Skeleton className="h-8 w-full rounded-md" />
+          <Skeleton className="mt-0.5 h-3 w-56 max-w-full" />
+        </div>
+
+        <div className="flex flex-col gap-5">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-3">
+              <Skeleton className="size-4 rounded-sm" />
+              <Skeleton className="h-3.5 w-48" />
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-3.5 w-40" />
+          <Skeleton className="h-[1.15rem] w-8 rounded-full" />
+        </div>
+        {rotationEnabled && (
+          <div className="flex flex-col gap-1.5">
+            <Skeleton className="h-3.5 w-32" />
+            <Skeleton className="h-8 w-full rounded-md" />
+            <Skeleton className="mt-0.5 h-3 w-56 max-w-full" />
+          </div>
+        )}
+        <Skeleton className="h-8 w-20 rounded-md" />
+      </div>
+    </div>
+  );
+
+  if (isLoading || !initializedRef.current) {
+    return <div aria-busy="true">{skeleton}</div>;
   }
 
   return (
@@ -164,20 +199,22 @@ export function PasswordPolicyEditor({
     >
       <Stack gap={6} className="max-w-2xl">
         <Stack gap={4}>
-          <Input
-            label={t('passwordPolicy.minLength')}
-            type="number"
-            value={minLength}
-            onChange={(e) => setMinLength(e.target.value)}
-            disabled={cannotManage}
-            size="sm"
-            min={6}
-            max={128}
-            step={1}
-          />
-          <Text variant="muted" className="text-xs">
-            {t('passwordPolicy.minLengthHint')}
-          </Text>
+          <div>
+            <Input
+              label={t('passwordPolicy.minLength')}
+              type="number"
+              value={minLength}
+              onChange={(e) => setMinLength(e.target.value)}
+              disabled={cannotManage}
+              size="sm"
+              min={6}
+              max={128}
+              step={1}
+            />
+            <Text variant="muted" className="mt-1 text-xs">
+              {t('passwordPolicy.minLengthHint')}
+            </Text>
+          </div>
 
           <Checkbox
             label={t('passwordPolicy.requireUpper')}
@@ -210,27 +247,24 @@ export function PasswordPolicyEditor({
             onCheckedChange={setRotationEnabled}
             disabled={cannotManage || upsertMutation.isPending}
           />
-          <div
-            className={cn(
-              'transition-opacity duration-200',
-              !rotationEnabled && 'pointer-events-none opacity-50',
-            )}
-          >
-            <Input
-              label={t('passwordPolicy.rotationDays')}
-              type="number"
-              value={rotationDays}
-              onChange={(e) => setRotationDays(e.target.value)}
-              disabled={cannotManage || !rotationEnabled}
-              size="sm"
-              min={1}
-              max={3650}
-              step={1}
-            />
-            <Text variant="muted" className="text-xs">
-              {t('passwordPolicy.rotationDaysHint')}
-            </Text>
-          </div>
+          {rotationEnabled && (
+            <div>
+              <Input
+                label={t('passwordPolicy.rotationDays')}
+                type="number"
+                value={rotationDays}
+                onChange={(e) => setRotationDays(e.target.value)}
+                disabled={cannotManage}
+                size="sm"
+                min={1}
+                max={3650}
+                step={1}
+              />
+              <Text variant="muted" className="mt-1 text-xs">
+                {t('passwordPolicy.rotationDaysHint')}
+              </Text>
+            </div>
+          )}
         </Stack>
 
         <Button

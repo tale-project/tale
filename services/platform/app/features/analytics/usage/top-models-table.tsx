@@ -102,8 +102,8 @@ export function TopModelsTable({
   );
 
   return (
-    <div className="border-border flex flex-col gap-3 rounded-lg border px-5 py-4">
-      <Text variant="label" as="h3" className="text-sm">
+    <div className="flex flex-col gap-3">
+      <Text as="h3" className="text-foreground text-base font-semibold">
         {t('usage.tables.topModels.title')}
       </Text>
       <DataTable

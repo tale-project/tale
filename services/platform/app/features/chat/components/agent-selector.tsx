@@ -114,15 +114,17 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
         emptyText={t('agentSelector.noResults')}
         aria-label={t('agentSelector.label')}
         trigger={
-          <button
+          <Button
             type="button"
-            className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-xs transition-colors"
+            className="gap-2"
+            size="icon"
+            variant="ghost"
             aria-label={t('agentSelector.label')}
           >
             <Bot className="size-3.5" aria-hidden="true" />
             <span>{currentLabel}</span>
             <ChevronDown className="size-3" aria-hidden="true" />
-          </button>
+          </Button>
         }
         footer={
           canManageAgents ? (
