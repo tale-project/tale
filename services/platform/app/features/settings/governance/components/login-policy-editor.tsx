@@ -19,7 +19,6 @@ import {
   loginPolicyConfigSchema,
   type LoginPolicyConfig,
 } from '@/lib/shared/schemas/governance';
-import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
@@ -161,10 +160,15 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
           trustedProxies: proxies,
         } satisfies LoginPolicyConfig,
       });
-      toast({ title: t('loginPolicy.saved'), variant: 'success' });
+      toast({
+        title: t('toastSavedTitle'),
+        description: t('loginPolicy.saved'),
+        variant: 'success',
+      });
     } catch {
       toast({
-        title: t('loginPolicy.saveFailed'),
+        title: t('toastSaveFailedTitle'),
+        description: t('loginPolicy.saveFailed'),
         variant: 'destructive',
       });
     }
@@ -179,14 +183,58 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
     t,
   ]);
 
-  if (isLoading || !initializedRef.current) {
-    return (
-      <div aria-busy="true" className="space-y-3 py-4">
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-4 w-72" />
-        <Skeleton className="h-10 w-full" />
+  const handleToggleEnabled = useCallback(
+    async (next: boolean) => {
+      setEnabled(next);
+      try {
+        await upsertMutation.mutateAsync({
+          organizationId,
+          policyType: 'login_policy',
+          config: {
+            ...savedConfig,
+            enabled: next,
+          } satisfies LoginPolicyConfig,
+        });
+      } catch {
+        setEnabled(!next);
+        toast({
+          title: t('toastSaveFailedTitle'),
+          description: t('loginPolicy.saveFailed'),
+          variant: 'destructive',
+        });
+      }
+    },
+    [organizationId, savedConfig, upsertMutation, toast, t],
+  );
+
+  const skeleton = (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-4 w-80 max-w-full" />
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <Skeleton className="h-3.5 w-14" />
+          <Skeleton className="h-[1.15rem] w-8 rounded-full" />
+        </div>
       </div>
-    );
+      {enabled && (
+        <div className="flex max-w-2xl flex-col gap-4">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex flex-col gap-1.5">
+              <Skeleton className="h-3.5 w-32" />
+              <Skeleton className="h-8 w-full rounded-md" />
+              <Skeleton className="mt-0.5 h-3 w-64 max-w-full" />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  if (isLoading || !initializedRef.current) {
+    return <div aria-busy="true">{skeleton}</div>;
   }
 
   return (
@@ -197,78 +245,73 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
         <Switch
           label={t('loginPolicy.enabled')}
           checked={enabled}
-          onCheckedChange={setEnabled}
+          onCheckedChange={handleToggleEnabled}
           disabled={cannotManage || upsertMutation.isPending}
         />
       }
     >
       <Stack gap={6} className="max-w-2xl">
-        {!enabled && (
-          <Text variant="muted" className="text-sm">
-            {t('loginPolicy.policyDisabledHint')}
-          </Text>
+        {enabled && (
+          <Stack gap={4}>
+            <div>
+              <Input
+                label={t('loginPolicy.maxAttempts')}
+                type="number"
+                value={maxAttempts}
+                onChange={(e) => setMaxAttempts(e.target.value)}
+                disabled={cannotManage}
+                size="sm"
+                min={1}
+                max={50}
+                step={1}
+              />
+              <Text variant="muted" className="mt-1 text-xs">
+                {t('loginPolicy.maxAttemptsHint')}
+              </Text>
+            </div>
+
+            <div>
+              <Input
+                label={t('loginPolicy.backoffSchedule')}
+                value={scheduleSeconds}
+                onChange={(e) => setScheduleSeconds(e.target.value)}
+                placeholder="1, 10, 60, 600"
+                disabled={cannotManage}
+                size="sm"
+              />
+              <Text variant="muted" className="mt-1 text-xs">
+                {t('loginPolicy.backoffScheduleHint')}
+              </Text>
+            </div>
+
+            <div>
+              <Input
+                label={t('loginPolicy.trustedProxies')}
+                value={trustedProxies}
+                onChange={(e) => setTrustedProxies(e.target.value)}
+                placeholder="loopback, uniquelocal, 10.0.0.0/8"
+                disabled={cannotManage}
+                size="sm"
+              />
+              <Text variant="muted" className="mt-1 text-xs">
+                {t('loginPolicy.trustedProxiesHint')}
+              </Text>
+            </div>
+          </Stack>
         )}
 
-        <div
-          className={cn(
-            'flex flex-col gap-6 transition-opacity duration-200',
-            !enabled && 'pointer-events-none opacity-50',
-          )}
-        >
-          <Stack gap={4}>
-            <Input
-              label={t('loginPolicy.maxAttempts')}
-              type="number"
-              value={maxAttempts}
-              onChange={(e) => setMaxAttempts(e.target.value)}
-              disabled={cannotManage || !enabled}
-              size="sm"
-              min={1}
-              max={50}
-              step={1}
-            />
-            <Text variant="muted" className="text-xs">
-              {t('loginPolicy.maxAttemptsHint')}
-            </Text>
-
-            <Input
-              label={t('loginPolicy.backoffSchedule')}
-              value={scheduleSeconds}
-              onChange={(e) => setScheduleSeconds(e.target.value)}
-              placeholder="1, 10, 60, 600"
-              disabled={cannotManage || !enabled}
-              size="sm"
-            />
-            <Text variant="muted" className="text-xs">
-              {t('loginPolicy.backoffScheduleHint')}
-            </Text>
-
-            <Input
-              label={t('loginPolicy.trustedProxies')}
-              value={trustedProxies}
-              onChange={(e) => setTrustedProxies(e.target.value)}
-              placeholder="loopback, uniquelocal, 10.0.0.0/8"
-              disabled={cannotManage || !enabled}
-              size="sm"
-            />
-            <Text variant="muted" className="text-xs">
-              {t('loginPolicy.trustedProxiesHint')}
-            </Text>
-          </Stack>
-
-          {isDirty && (
-            <Button
-              onClick={handleSave}
-              disabled={cannotManage || upsertMutation.isPending}
-              size="sm"
-              className="self-start"
-            >
-              {upsertMutation.isPending
-                ? t('systemPrompt.saving')
-                : t('systemPrompt.save')}
-            </Button>
-          )}
-        </div>
+        {isDirty && (
+          <Button
+            onClick={handleSave}
+            disabled={cannotManage || upsertMutation.isPending}
+            size="sm"
+            className="self-start"
+          >
+            {upsertMutation.isPending
+              ? t('systemPrompt.saving')
+              : t('systemPrompt.save')}
+          </Button>
+        )}
       </Stack>
     </PageSection>
   );

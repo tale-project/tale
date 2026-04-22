@@ -14,15 +14,15 @@ interface UsageSummaryCardsProps {
   activeUsers: number;
 }
 
-interface StatCardProps {
+interface StatCellProps {
   label: string;
   value: string;
   tooltip?: string;
 }
 
-function StatCard({ label, value, tooltip }: StatCardProps) {
+function StatCell({ label, value, tooltip }: StatCellProps) {
   const labelNode = (
-    <Text className="text-muted-foreground text-xs">
+    <Text className="text-muted-foreground text-sm">
       {label}
       {tooltip ? (
         <Info className="ml-1 inline-block size-3 align-text-bottom" />
@@ -31,7 +31,7 @@ function StatCard({ label, value, tooltip }: StatCardProps) {
   );
 
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-1 flex-col gap-1 p-5">
       {tooltip ? (
         <Tooltip content={tooltip}>
           <button type="button" className="text-left">
@@ -41,7 +41,9 @@ function StatCard({ label, value, tooltip }: StatCardProps) {
       ) : (
         labelNode
       )}
-      <Text className="font-mono text-lg font-semibold">{value}</Text>
+      <Text className="text-foreground font-mono text-2xl font-semibold">
+        {value}
+      </Text>
     </div>
   );
 }
@@ -55,20 +57,20 @@ export function UsageSummaryCards({
   const { t } = useT('analytics');
 
   return (
-    <div className="border-border grid grid-cols-2 gap-8 rounded-lg border px-5 py-3 md:grid-cols-4">
-      <StatCard
+    <div className="border-border divide-border grid grid-cols-2 divide-y rounded-lg border md:grid-cols-4 md:divide-x md:divide-y-0">
+      <StatCell
         label={t('usage.cards.totalRequests')}
         value={formatNumber(totalRequests)}
       />
-      <StatCard
+      <StatCell
         label={t('usage.cards.totalTokens')}
         value={formatNumber(totalTokens)}
       />
-      <StatCard
+      <StatCell
         label={t('usage.cards.totalCost')}
         value={formatCostCents(totalCostCents)}
       />
-      <StatCard
+      <StatCell
         label={t('usage.cards.activeUsers')}
         value={formatNumber(activeUsers)}
         tooltip={t('usage.activeUsersTooltip')}

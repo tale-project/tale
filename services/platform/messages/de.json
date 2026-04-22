@@ -4012,6 +4012,8 @@
   "governance": {
     "title": "Richtlinien",
     "description": "Konfigurieren Sie organisationsweite Richtlinien und Kontrollen.",
+    "toastSavedTitle": "Änderungen erfolgreich gespeichert",
+    "toastSaveFailedTitle": "Änderungen konnten nicht gespeichert werden",
     "systemPrompt": {
       "title": "System-Prompt",
       "description": "Legen Sie einen verbindlichen System-Prompt fest, der auf alle Agents angewendet wird und nicht von Benutzern überschrieben werden kann.",
@@ -4027,7 +4029,7 @@
       "charLimitExceeded": "Zeichenlimit überschritten",
       "save": "Speichern",
       "saving": "Wird gespeichert...",
-      "saved": "System-Prompt gespeichert",
+      "saved": "System-Prompt wurde aktualisiert",
       "saveFailed": "System-Prompt konnte nicht gespeichert werden"
     },
     "budgets": {
@@ -4053,6 +4055,8 @@
       "allUsers": "Alle Benutzer",
       "overrideHint": "Spezifischere Bereiche überschreiben allgemeinere: Benutzer > Team > Rolle > Standard. Org-Limits gelten immer zusätzlich.",
       "noRules": "Keine Budgetregeln konfiguriert. Füge eine Regel hinzu, um Limits durchzusetzen.",
+      "noRulesTitle": "Keine Budgetregeln konfiguriert",
+      "noRulesDescription": "Füge eine Regel hinzu, um Limits durchzusetzen.",
       "editRuleAriaLabel": "Regel {index} bearbeiten",
       "removeRuleAriaLabel": "Regel {index} entfernen",
       "actions": "Aktionen",
@@ -4072,13 +4076,13 @@
       "daily": "Täglich",
       "weekly": "Wöchentlich",
       "monthly": "Monatlich",
-      "saved": "Budgetregeln gespeichert"
+      "saved": "Budgetregeln wurden aktualisiert"
     },
     "defaultModels": {
       "title": "Standardmodelle",
       "description": "Standardmodelle für bestimmte Benutzergruppen oder Rollen festlegen.",
       "addMapping": "Modellzuordnung hinzufügen",
-      "saved": "Standardmodell-Konfiguration gespeichert",
+      "saved": "Standardmodell-Konfiguration wurde aktualisiert",
       "addRule": "Regel hinzufügen",
       "addRuleTitle": "Standardmodell-Regel hinzufügen",
       "editRuleTitle": "Standardmodell-Regel bearbeiten",
@@ -4091,6 +4095,8 @@
       "role": "Rolle",
       "actions": "Aktionen",
       "noRules": "Keine Standardmodell-Regeln konfiguriert. Füge eine Regel hinzu, um Team- oder Rollen-Standards festzulegen.",
+      "noRulesTitle": "Keine Regeln konfiguriert",
+      "noRulesDescription": "Füge eine Regel hinzu, um Standardmodelle pro Bereich festzulegen.",
       "allUsers": "Alle Benutzer",
       "selectProvider": "Anbieter auswählen...",
       "selectModel": "Modell auswählen...",
@@ -4122,7 +4128,7 @@
       "mbUnit": "MB",
       "gbUnit": "GB",
       "policyDisabledHint": "Aktiviere die Richtlinie, um Upload-Beschränkungen durchzusetzen.",
-      "saved": "Upload-Richtlinie gespeichert",
+      "saved": "Upload-Richtlinie wurde aktualisiert",
       "saveFailed": "Upload-Richtlinie konnte nicht gespeichert werden"
     },
     "retentionPolicy": {
@@ -4133,7 +4139,7 @@
       "retentionDaysHint": "Dokumente, die älter als dieser Zeitraum sind, werden unwiderruflich gelöscht. Dies kann nicht rückgängig gemacht werden.",
       "scope": "Anwenden auf",
       "tempFileRetentionHours": "Aufbewahrung temporärer Dateien (Stunden)",
-      "saved": "Aufbewahrungsrichtlinie gespeichert"
+      "saved": "Aufbewahrungsrichtlinie wurde aktualisiert"
     },
     "passwordPolicy": {
       "title": "Passwort-Richtlinie",
@@ -4149,7 +4155,7 @@
       "rotationDaysHint": "Benutzer müssen ihr Passwort nach dieser Anzahl von Tagen ändern. Das Kulanzfenster beginnt mit der erstmaligen Aktivierung der Rotation, bestehende Benutzer werden also nicht sofort zur Änderung gezwungen.",
       "invalidMinLength": "Mindestlänge muss eine ganze Zahl zwischen 6 und 128 sein.",
       "invalidRotationDays": "Rotationszeitraum muss eine ganze Zahl zwischen 1 und 3650 sein.",
-      "saved": "Passwort-Richtlinie gespeichert",
+      "saved": "Passwort-Richtlinie wurde aktualisiert",
       "saveFailed": "Speichern der Passwort-Richtlinie fehlgeschlagen"
     },
     "twoFactorPolicy": {
@@ -4162,7 +4168,7 @@
       "exemptSsoUsers": "Nur-SSO-Benutzer ausnehmen",
       "exemptSsoUsersHint": "Benutzer, deren einziges Konto eine föderierte Identität ist (z. B. Microsoft Entra ID), verlassen sich auf MFA im vorgelagerten IdP.",
       "invalidGrace": "Die Übergangsfrist muss eine ganze Zahl zwischen 0 und 30 sein.",
-      "saved": "Zwei-Faktor-Richtlinie gespeichert",
+      "saved": "Zwei-Faktor-Richtlinie wurde aktualisiert",
       "saveFailed": "Speichern der Zwei-Faktor-Richtlinie fehlgeschlagen"
     },
     "loginPolicy": {
@@ -4179,7 +4185,7 @@
       "invalidAttempts": "Schwellenwert muss eine ganze Zahl zwischen 1 und 50 sein.",
       "invalidSchedule": "Backoff-Zeitplan muss eine komma-getrennte Liste nicht-negativer Zahlen sein.",
       "invalidProxies": "Vertrauenswürdige Proxies müssen eine komma-getrennte Liste aus IPs, CIDRs oder Schlüsselwörtern sein (max. 32).",
-      "saved": "Anmelderichtlinie gespeichert",
+      "saved": "Anmelderichtlinie wurde aktualisiert",
       "saveFailed": "Anmelderichtlinie konnte nicht gespeichert werden"
     },
     "tabs": {
@@ -4207,7 +4213,9 @@
       "editRule": "Regel bearbeiten",
       "deleteRule": "Regel löschen",
       "noRules": "Keine Feature-Regeln konfiguriert. Füge eine Regel hinzu, um Funktionen pro Benutzer, Team oder Rolle zu steuern.",
-      "saved": "Feature-Steuerung gespeichert",
+      "noRulesTitle": "Keine Feature-Regeln konfiguriert",
+      "noRulesDescription": "Füge eine Regel hinzu, um Funktionen pro Benutzer, Team oder Rolle zu steuern.",
+      "saved": "Feature-Steuerung wurde aktualisiert",
       "saveFailed": "Feature-Steuerung konnte nicht gespeichert werden",
       "actions": "Aktionen",
       "role": "Rolle",
@@ -4267,7 +4275,7 @@
       "testNoResults": "Keine PII in der Testeingabe erkannt.",
       "testButton": "Testen",
       "addCustomPattern": "Benutzerdefiniertes Muster hinzufügen",
-      "saved": "PII-Konfiguration gespeichert",
+      "saved": "PII-Konfiguration wurde aktualisiert",
       "saveFailed": "PII-Konfiguration konnte nicht gespeichert werden",
       "blocked": "Nachricht blockiert: personenbezogene Daten erkannt",
       "detectedTypes": "Erkannt: {types}"
@@ -4538,6 +4546,7 @@
       "policiesAndLimits": "Richtlinien & Limits",
       "securityAndMonitoring": "Sicherheit & Überwachung",
       "guardrails": "Guardrails",
+      "usage": "Nutzung",
       "subtabs": {
         "login": "Anmeldung & Authentifizierung",
         "password": "Passwort-Richtlinie",
@@ -4567,6 +4576,8 @@
       "editRule": "Regel bearbeiten",
       "deleteRule": "Regel löschen",
       "noRules": "Keine Zugriffsregeln konfiguriert. Alle Modelle sind für alle Benutzer verfügbar.",
+      "noRulesTitle": "Keine Zugriffsregeln konfiguriert",
+      "noRulesDescription": "Alle Modelle sind für alle Benutzer verfügbar.",
       "scope": "Geltungsbereich",
       "target": "Ziel",
       "actions": "Aktionen",
@@ -4587,7 +4598,7 @@
       "noTeamsFound": "Keine Teams gefunden",
       "confirm": "Bestätigen",
       "preview": "Vorschau",
-      "saved": "Modellzugriffsrichtlinie gespeichert",
+      "saved": "Modellzugriffsrichtlinie wurde aktualisiert",
       "saveFailed": "Modellzugriffsrichtlinie konnte nicht gespeichert werden",
       "denied": "Modell für dein Konto nicht verfügbar. Wende dich an deinen Administrator, um Zugriff zu beantragen.",
       "removeDefaultConfirmTitle": "Berechtigung für aktives Standardmodell entfernen?",

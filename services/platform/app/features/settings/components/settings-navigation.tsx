@@ -79,6 +79,7 @@ export function SettingsNavigation({
       label: t('governance'),
       href: `/dashboard/${organizationId}/settings/governance`,
       can: ['read', 'orgSettings'],
+      matchMode: 'startsWith',
     },
     {
       labelKey: 'logs',

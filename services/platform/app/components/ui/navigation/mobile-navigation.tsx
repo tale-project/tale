@@ -138,7 +138,7 @@ export function MobileNavigation({ organizationId }: MobileNavigationProps) {
       >
         <NavigationMenu
           aria-label={t('aria.mainNavigation')}
-          className="bg-sidebar flex h-full w-full max-w-none flex-col"
+          className="bg-background flex h-full w-full max-w-none flex-col"
         >
           <div className="border-border flex h-(--nav-size) flex-shrink-0 items-center border-b px-4 py-2">
             <Link

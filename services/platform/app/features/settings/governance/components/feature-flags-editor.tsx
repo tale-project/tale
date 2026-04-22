@@ -1,6 +1,6 @@
 'use client';
 
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
@@ -23,13 +23,12 @@ import {
   type FeatureFlagsConfig,
   type FeatureFlagRule,
 } from '@/lib/shared/schemas/governance';
-import { cn } from '@/lib/utils/cn';
 import { formatNumber } from '@/lib/utils/format/number';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
-import { SelectTriggerButton } from './select-trigger-button';
+import { RulesTableEmptyState } from './rules-table-empty-state';
 
 interface FeatureFlagsEditorProps {
   organizationId: string;
@@ -151,89 +150,65 @@ function RuleDialog({
       isDirty={isDirty}
     >
       <Stack gap={4}>
-        <HStack gap={3} wrap>
-          <div className="w-40">
+        <div className="flex flex-wrap gap-3 *:min-w-[10rem] *:flex-1">
+          <Select
+            label={t('featureFlags.scope')}
+            options={scopeOptions}
+            value={draft.scope}
+            onValueChange={(value: string) => {
+              if (isScopeValue(value)) {
+                updateDraft({ scope: value });
+              }
+            }}
+            disabled={cannotManage}
+            size="sm"
+          />
+
+          {draft.scope === 'role' && (
             <Select
-              label={t('featureFlags.scope')}
-              options={scopeOptions}
-              value={draft.scope}
-              onValueChange={(value: string) => {
-                if (isScopeValue(value)) {
-                  updateDraft({ scope: value });
-                }
-              }}
+              label={t('featureFlags.role')}
+              options={roleOptions}
+              value={draft.scopeId ?? ''}
+              onValueChange={(value) => updateDraft({ scopeId: value })}
               disabled={cannotManage}
               size="sm"
             />
-          </div>
-
-          {draft.scope === 'role' && (
-            <div className="w-40">
-              <Select
-                label={t('featureFlags.role')}
-                options={roleOptions}
-                value={draft.scopeId ?? ''}
-                onValueChange={(value) => updateDraft({ scopeId: value })}
-                disabled={cannotManage}
-                size="sm"
-              />
-            </div>
           )}
 
           {draft.scope === 'user' && (
-            <div className="w-56">
-              <Text className="mb-1 text-xs font-medium">
-                {t('featureFlags.scopeLabels.user')}
-              </Text>
+            <div className="min-w-[14rem] flex-2">
               <SearchableSelect
+                label={t('featureFlags.scopeLabels.user')}
+                placeholder={t('featureFlags.selectUser')}
+                size="sm"
+                disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
                 options={memberOptions}
                 searchPlaceholder={t('featureFlags.searchUsers')}
                 emptyText={t('featureFlags.noUsersFound')}
                 aria-label={t('featureFlags.selectUser')}
-                trigger={
-                  <SelectTriggerButton
-                    disabled={cannotManage}
-                    hasValue={!!draft.scopeId}
-                  >
-                    {draft.scopeId
-                      ? (memberOptions.find((o) => o.value === draft.scopeId)
-                          ?.label ?? draft.scopeId)
-                      : t('featureFlags.selectUser')}
-                  </SelectTriggerButton>
-                }
               />
             </div>
           )}
 
           {draft.scope === 'team' && (
-            <div className="w-56">
-              <Text className="mb-1 text-xs font-medium">
-                {t('featureFlags.scopeLabels.team')}
-              </Text>
+            <div className="min-w-[14rem] flex-2">
               <SearchableSelect
+                label={t('featureFlags.scopeLabels.team')}
+                placeholder={t('featureFlags.selectTeam')}
+                size="sm"
+                disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
                 options={teamOptions}
                 searchPlaceholder={t('featureFlags.searchTeams')}
                 emptyText={t('featureFlags.noTeamsFound')}
                 aria-label={t('featureFlags.selectTeam')}
-                trigger={
-                  <SelectTriggerButton
-                    disabled={cannotManage}
-                    hasValue={!!draft.scopeId}
-                  >
-                    {draft.scopeId
-                      ? (teamOptions.find((o) => o.value === draft.scopeId)
-                          ?.label ?? draft.scopeId)
-                      : t('featureFlags.selectTeam')}
-                  </SelectTriggerButton>
-                }
               />
             </div>
           )}
-        </HStack>
+        </div>
 
         <Stack gap={3}>
           <Switch
@@ -344,7 +319,6 @@ export function FeatureFlagsEditor({
     [policy],
   );
 
-  const [enabled, setEnabled] = useState(false);
   const [rules, setRules] = useState<FeatureFlagRule[]>([]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -352,45 +326,46 @@ export function FeatureFlagsEditor({
   const [dialogRule, setDialogRule] = useState(emptyRule());
 
   useEffect(() => {
-    setEnabled(savedConfig.enabled);
     setRules(savedConfig.rules);
   }, [savedConfig]);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
   const saveConfig = useCallback(
-    async (configToSave: { enabled: boolean; rules: FeatureFlagRule[] }) => {
+    async (nextRules: FeatureFlagRule[]) => {
       try {
         await upsertMutation.mutateAsync({
           organizationId,
           policyType: 'feature_flags',
-          config: configToSave,
+          // `enabled` is always true from the UI — rules presence drives
+          // enforcement (server short-circuits on `!enabled || rules.length === 0`).
+          config: { enabled: true, rules: nextRules },
         });
-        toast({ title: t('featureFlags.saved'), variant: 'success' });
+        toast({
+          title: t('toastSavedTitle'),
+          description: t('featureFlags.saved'),
+          variant: 'success',
+        });
       } catch (error: unknown) {
-        const message =
+        const description =
           error instanceof Error ? error.message : t('featureFlags.saveFailed');
-        toast({ title: message, variant: 'destructive' });
+        toast({
+          title: t('toastSaveFailedTitle'),
+          description,
+          variant: 'destructive',
+        });
       }
     },
     [organizationId, upsertMutation, toast, t],
-  );
-
-  const handleToggleEnabled = useCallback(
-    (checked: boolean) => {
-      setEnabled(checked);
-      void saveConfig({ enabled: checked, rules });
-    },
-    [saveConfig, rules],
   );
 
   const removeRule = useCallback(
     (index: number) => {
       const newRules = rules.filter((_, i) => i !== index);
       setRules(newRules);
-      void saveConfig({ enabled, rules: newRules });
+      void saveConfig(newRules);
     },
-    [rules, enabled, saveConfig],
+    [rules, saveConfig],
   );
 
   const openAddDialog = useCallback(() => {
@@ -417,47 +392,56 @@ export function FeatureFlagsEditor({
         newRules = rules.map((r, i) => (i === editingIndex ? rule : r));
       }
       setRules(newRules);
-      void saveConfig({ enabled, rules: newRules });
+      void saveConfig(newRules);
     },
-    [editingIndex, rules, enabled, saveConfig],
+    [editingIndex, rules, saveConfig],
   );
 
   const resolveTarget = useCallback(
     (rule: FeatureFlagRule): string => {
       switch (rule.scope) {
         case 'user': {
-          if (!rule.scopeId) return '\u2014';
+          if (!rule.scopeId) return '—';
           return (
             memberOptions.find((o) => o.value === rule.scopeId)?.label ??
             rule.scopeId
           );
         }
         case 'team': {
-          if (!rule.scopeId) return '\u2014';
+          if (!rule.scopeId) return '—';
           return (
             teamOptions.find((o) => o.value === rule.scopeId)?.label ??
             rule.scopeId
           );
         }
         case 'role':
-          return rule.scopeId ?? '\u2014';
+          return rule.scopeId ?? '—';
         case 'default':
           return t('featureFlags.allUsers');
         default:
-          return '\u2014';
+          return '—';
       }
     },
     [memberOptions, teamOptions, t],
   );
 
-  if (isLoading) {
-    return (
-      <div aria-busy="true" className="space-y-3 py-4">
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-4 w-72" />
-        <Skeleton className="h-10 w-full" />
+  const skeleton = (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-4 w-96 max-w-full" />
+        </div>
+        <Skeleton className="h-8 w-20 shrink-0 rounded-md" />
       </div>
-    );
+      <div className="border-border overflow-hidden rounded-lg border">
+        <Skeleton className="h-60 w-full rounded-none" />
+      </div>
+    </div>
+  );
+
+  if (isLoading) {
+    return <div aria-busy="true">{skeleton}</div>;
   }
 
   return (
@@ -465,141 +449,131 @@ export function FeatureFlagsEditor({
       title={t('featureFlags.title')}
       description={t('featureFlags.description')}
       action={
-        <Switch
-          label={t('featureFlags.enabled')}
-          checked={enabled}
-          onCheckedChange={handleToggleEnabled}
-          disabled={cannotManage || upsertMutation.isPending}
-        />
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={openAddDialog}
+          disabled={cannotManage}
+        >
+          <Plus className="mr-1.5 size-4" />
+          {t('featureFlags.addRule')}
+        </Button>
       }
     >
-      <div
-        className={cn(
-          'transition-opacity duration-200',
-          !enabled && 'pointer-events-none opacity-50',
-        )}
-      >
-        <Stack gap={6}>
-          <Stack gap={3}>
-            {rules.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table
-                  className="w-full text-sm"
-                  aria-label={t('featureFlags.title')}
+      <div className="border-border overflow-hidden rounded-lg border">
+        <div className="overflow-x-auto">
+          <table
+            className="w-full text-sm"
+            aria-label={t('featureFlags.title')}
+          >
+            <caption className="sr-only">{t('featureFlags.title')}</caption>
+            <thead className="bg-muted/50">
+              <tr className="border-border border-b">
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-left font-medium"
                 >
-                  <caption className="sr-only">
-                    {t('featureFlags.title')}
-                  </caption>
-                  <thead>
-                    <tr className="border-border border-b">
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-left font-medium"
-                      >
-                        {t('featureFlags.scope')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-left font-medium"
-                      >
-                        {t('featureFlags.target')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-center font-medium"
-                      >
-                        {t('featureFlags.webSearch')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-center font-medium"
-                      >
-                        {t('featureFlags.codeExecution')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-center font-medium"
-                      >
-                        {t('featureFlags.fileUpload')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-right font-medium"
-                      >
-                        {t('featureFlags.maxContextTokens')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-right font-medium"
-                      >
-                        {t('featureFlags.actions')}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rules.map((rule, index) => (
-                      <tr key={index} className="border-border border-b">
-                        <td className="px-3 py-2 capitalize">{rule.scope}</td>
-                        <td className="px-3 py-2">{resolveTarget(rule)}</td>
-                        <td className="px-3 py-2 text-center">
-                          {rule.webSearch === false ? '\u2718' : '\u2714'}
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          {rule.codeExecution === false ? '\u2718' : '\u2714'}
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          {rule.fileUpload === false ? '\u2718' : '\u2714'}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {rule.maxContextTokens != null
-                            ? formatNumber(rule.maxContextTokens)
-                            : '\u2014'}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <HStack gap={1} justify="end">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openEditDialog(index)}
-                              disabled={cannotManage}
-                              aria-label={`${t('featureFlags.editRule')} ${index + 1}`}
-                            >
-                              <Pencil className="size-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeRule(index)}
-                              disabled={cannotManage}
-                              aria-label={`${t('featureFlags.deleteRule')} ${index + 1}`}
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </HStack>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <Text variant="muted" className="text-sm">
-                {t('featureFlags.noRules')}
-              </Text>
-            )}
-
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={openAddDialog}
-              disabled={cannotManage}
-              className="self-start"
-            >
-              <Plus className="mr-1.5 size-4" />
-              {t('featureFlags.addRule')}
-            </Button>
-          </Stack>
-        </Stack>
+                  {t('featureFlags.scope')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-left font-medium"
+                >
+                  {t('featureFlags.target')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-center font-medium"
+                >
+                  {t('featureFlags.webSearch')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-center font-medium"
+                >
+                  {t('featureFlags.codeExecution')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-center font-medium"
+                >
+                  {t('featureFlags.fileUpload')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-right font-medium"
+                >
+                  {t('featureFlags.maxContextTokens')}
+                </th>
+                <th
+                  scope="col"
+                  className="text-muted-foreground px-3 py-2 text-right font-medium"
+                >
+                  {t('featureFlags.actions')}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules.length > 0 ? (
+                rules.map((rule, index) => (
+                  <tr
+                    key={index}
+                    className="border-border border-b last:border-b-0"
+                  >
+                    <td className="px-3 py-2 capitalize">{rule.scope}</td>
+                    <td className="px-3 py-2">{resolveTarget(rule)}</td>
+                    <td className="px-3 py-2 text-center">
+                      {rule.webSearch === false ? '✘' : '✔'}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {rule.codeExecution === false ? '✘' : '✔'}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {rule.fileUpload === false ? '✘' : '✔'}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {rule.maxContextTokens != null
+                        ? formatNumber(rule.maxContextTokens)
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <HStack gap={1} justify="end">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditDialog(index)}
+                          disabled={cannotManage}
+                          aria-label={`${t('featureFlags.editRule')} ${index + 1}`}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeRule(index)}
+                          disabled={cannotManage}
+                          aria-label={`${t('featureFlags.deleteRule')} ${index + 1}`}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </HStack>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="p-0">
+                    <RulesTableEmptyState
+                      icon={SlidersHorizontal}
+                      title={t('featureFlags.noRulesTitle')}
+                      description={t('featureFlags.noRulesDescription')}
+                    />
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <RuleDialog

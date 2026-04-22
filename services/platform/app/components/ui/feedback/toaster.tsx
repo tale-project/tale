@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils/cn';
 import type { ToastVariant } from './toast';
 
 const toastVariants = cva(
-  'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-xl p-3 pr-6 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full border bg-background text-foreground',
+  'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-xl p-3 pr-6 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full border bg-background text-foreground',
   {
     variants: {
       variant: {
@@ -81,7 +81,7 @@ export function Toaster() {
           );
         },
       )}
-      <ToastPrimitives.Viewport className="fixed top-0 z-100 flex max-h-screen w-auto max-w-md min-w-[18.75rem] flex-col-reverse p-3 sm:top-auto sm:bottom-0 sm:left-1/2 sm:-translate-x-1/2 sm:flex-col" />
+      <ToastPrimitives.Viewport className="fixed top-0 right-0 z-100 flex max-h-screen w-auto max-w-md min-w-[18.75rem] flex-col p-3" />
     </ToastPrimitives.Provider>
   );
 }

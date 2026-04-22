@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Select } from '@/app/components/ui/forms/select';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -104,11 +105,55 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
   const hasFilters =
     agentSlug !== undefined || model !== undefined || provider !== undefined;
 
+  const tableSkeleton = (
+    <div className="flex flex-col gap-4">
+      <Skeleton className="h-4 w-24" />
+      <Skeleton className="h-66 w-full rounded-md" />
+    </div>
+  );
+
+  const skeleton = (
+    <Stack gap={6}>
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-3 w-80 max-w-full" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Skeleton className="h-8 w-36 rounded-md" />
+          <Skeleton className="h-8 w-36 rounded-md" />
+          <Skeleton className="h-8 w-36 rounded-md" />
+        </div>
+      </div>
+      <div className="border-border grid grid-cols-2 overflow-hidden rounded-lg border md:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="border-border flex flex-col gap-2 border-r px-5 py-6 last:border-r-0"
+          >
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-7 w-20" />
+          </div>
+        ))}
+      </div>
+      <Skeleton className="h-92 w-full rounded-md" />
+      <div className="flex flex-col gap-8">
+        {tableSkeleton}
+        {tableSkeleton}
+        {tableSkeleton}
+      </div>
+    </Stack>
+  );
+
+  if (isLoading) {
+    return <div aria-busy="true">{skeleton}</div>;
+  }
+
   return (
-    <Stack gap={4}>
+    <Stack gap={6}>
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="flex flex-col gap-1">
-          <Text as="h3" variant="label">
+          <Text as="h3" className="text-foreground text-base font-semibold">
             {t('usage.title')}
           </Text>
           <Text variant="caption">{t('usage.description')}</Text>

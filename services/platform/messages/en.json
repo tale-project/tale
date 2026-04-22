@@ -4012,6 +4012,8 @@
   "governance": {
     "title": "Governance",
     "description": "Configure organization-wide policies and controls.",
+    "toastSavedTitle": "Changes saved successfully",
+    "toastSaveFailedTitle": "Failed to save changes",
     "systemPrompt": {
       "title": "System Prompt",
       "description": "Set a mandatory system prompt that is applied to all agents and cannot be overridden by users.",
@@ -4027,7 +4029,7 @@
       "charLimitExceeded": "Character limit exceeded",
       "save": "Save",
       "saving": "Saving...",
-      "saved": "System prompt saved",
+      "saved": "System prompt has been updated",
       "saveFailed": "Failed to save system prompt"
     },
     "budgets": {
@@ -4053,6 +4055,8 @@
       "allUsers": "All users",
       "overrideHint": "More specific scopes override broader ones: user > team > role > default. Org limits always apply as an additional cap.",
       "noRules": "No budget rules configured. Add a rule to start enforcing limits.",
+      "noRulesTitle": "No budget rules configured",
+      "noRulesDescription": "Add a rule to start enforcing limits.",
       "editRuleAriaLabel": "Edit rule {index}",
       "removeRuleAriaLabel": "Remove rule {index}",
       "actions": "Actions",
@@ -4072,13 +4076,13 @@
       "daily": "Daily",
       "weekly": "Weekly",
       "monthly": "Monthly",
-      "saved": "Budget rules saved"
+      "saved": "Budget rules have been updated"
     },
     "defaultModels": {
       "title": "Default Models",
       "description": "Set default models for specific user groups or roles.",
       "addMapping": "Add model mapping",
-      "saved": "Default model configuration saved",
+      "saved": "Default model configuration has been updated",
       "addRule": "Add rule",
       "addRuleTitle": "Add default model rule",
       "editRuleTitle": "Edit default model rule",
@@ -4091,6 +4095,8 @@
       "role": "Role",
       "actions": "Actions",
       "noRules": "No default model rules configured. Add a rule to set team or role defaults.",
+      "noRulesTitle": "No rules configured",
+      "noRulesDescription": "Add a rule to set default models by scope.",
       "allUsers": "All users",
       "selectProvider": "Select provider...",
       "selectModel": "Select model...",
@@ -4122,7 +4128,7 @@
       "mbUnit": "MB",
       "gbUnit": "GB",
       "policyDisabledHint": "Enable the policy to enforce upload restrictions.",
-      "saved": "Upload policy saved",
+      "saved": "Upload policy has been updated",
       "saveFailed": "Failed to save upload policy"
     },
     "retentionPolicy": {
@@ -4133,7 +4139,7 @@
       "retentionDaysHint": "Documents older than this will be permanently deleted. This cannot be undone.",
       "scope": "Apply to",
       "tempFileRetentionHours": "Temporary file retention (hours)",
-      "saved": "Retention policy saved"
+      "saved": "Retention policy has been updated"
     },
     "passwordPolicy": {
       "title": "Password policy",
@@ -4149,7 +4155,7 @@
       "rotationDaysHint": "Users will be required to change their password after this many days. The grace window starts when rotation is first enabled, so existing users are not forced to change immediately.",
       "invalidMinLength": "Minimum length must be an integer between 6 and 128.",
       "invalidRotationDays": "Rotation period must be an integer between 1 and 3650.",
-      "saved": "Password policy saved",
+      "saved": "Password policy has been updated",
       "saveFailed": "Failed to save password policy"
     },
     "twoFactorPolicy": {
@@ -4162,7 +4168,7 @@
       "exemptSsoUsers": "Exempt SSO-only users",
       "exemptSsoUsersHint": "Users whose only account is a federated identity (e.g. Microsoft Entra ID) rely on the upstream IdP for MFA.",
       "invalidGrace": "Grace period must be an integer between 0 and 30.",
-      "saved": "Two-factor policy saved",
+      "saved": "Two-factor policy has been updated",
       "saveFailed": "Failed to save two-factor policy"
     },
     "loginPolicy": {
@@ -4179,7 +4185,7 @@
       "invalidAttempts": "Failure threshold must be an integer between 1 and 50.",
       "invalidSchedule": "Backoff schedule must be a comma-separated list of non-negative numbers.",
       "invalidProxies": "Trusted proxies must be a comma-separated list of IPs, CIDRs, or keywords (max 32).",
-      "saved": "Login policy saved",
+      "saved": "Login policy has been updated",
       "saveFailed": "Failed to save login policy"
     },
     "tabs": {
@@ -4207,7 +4213,9 @@
       "editRule": "Edit rule",
       "deleteRule": "Delete rule",
       "noRules": "No feature control rules configured. Add a rule to manage features per user, team, or role.",
-      "saved": "Feature controls saved",
+      "noRulesTitle": "No feature control rules configured",
+      "noRulesDescription": "Add a rule to manage features per user, team, or role.",
+      "saved": "Feature controls have been updated",
       "saveFailed": "Failed to save feature controls",
       "actions": "Actions",
       "role": "Role",
@@ -4267,7 +4275,7 @@
       "testNoResults": "No PII detected in the test input.",
       "testButton": "Test",
       "addCustomPattern": "Add custom pattern",
-      "saved": "PII configuration saved",
+      "saved": "PII configuration has been updated",
       "saveFailed": "Failed to save PII configuration",
       "blocked": "Message blocked: personal data detected",
       "detectedTypes": "Detected: {types}"
@@ -4538,6 +4546,7 @@
       "policiesAndLimits": "Policies & Limits",
       "securityAndMonitoring": "Security & Monitoring",
       "guardrails": "Guardrails",
+      "usage": "Usage",
       "subtabs": {
         "login": "Login & authentication",
         "password": "Password policy",
@@ -4567,6 +4576,8 @@
       "editRule": "Edit rule",
       "deleteRule": "Delete rule",
       "noRules": "No access rules configured. All models are available to all users.",
+      "noRulesTitle": "No access rules configured",
+      "noRulesDescription": "All models are available to all users.",
       "scope": "Scope",
       "target": "Target",
       "actions": "Actions",
@@ -4587,7 +4598,7 @@
       "noTeamsFound": "No teams found",
       "confirm": "Confirm",
       "preview": "Preview",
-      "saved": "Model access policy saved",
+      "saved": "Model access policy has been updated",
       "saveFailed": "Failed to save model access policy",
       "denied": "Model not available for your account. Contact your administrator to request access.",
       "removeDefaultConfirmTitle": "Remove permission for active default model?",
