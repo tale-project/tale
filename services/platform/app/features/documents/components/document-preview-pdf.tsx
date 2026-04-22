@@ -279,13 +279,13 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
     const toolbar = toolbarRef.current;
     if (!container || !toolbar) return { x, y };
     const c = container.getBoundingClientRect();
-    const t = toolbar.getBoundingClientRect();
+    const tb = toolbar.getBoundingClientRect();
     // Default position is centered horizontally with a 16px gap from the
     // bottom. Offsets are measured from that anchor, so positive y moves the
     // toolbar down and negative y moves it up.
-    const halfX = Math.max(0, (c.width - t.width) / 2);
+    const halfX = Math.max(0, (c.width - tb.width) / 2);
     const maxDown = 0;
-    const maxUp = -(c.height - t.height - 32);
+    const maxUp = -(c.height - tb.height - 32);
     return {
       x: Math.min(halfX, Math.max(-halfX, x)),
       y: Math.min(maxDown, Math.max(maxUp, y)),
