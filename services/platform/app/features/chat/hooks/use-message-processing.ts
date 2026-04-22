@@ -116,6 +116,17 @@ export function useMessageProcessing(
     threadId ? { threadId } : 'skip',
   );
 
+  // Thread-level generation status. Held true across an entire multi-step
+  // turn (set by markGenerating, cleared by clearGenerationStatus) including
+  // the gap between pre-tool message success and post-tool message creation
+  // — exactly when an orphan file-only message must stay hidden. Prefer this
+  // over scanning uiMessages for a streaming/pending status, which is
+  // undefined during that gap.
+  const isGenerating = useQuery(
+    api.threads.queries.isThreadGenerating,
+    threadId ? { threadId } : 'skip',
+  );
+
   const isLoadingMore = paginationStatus === 'LoadingMore';
 
   // Check if we've loaded the first message (order: 0)
@@ -189,17 +200,25 @@ export function useMessageProcessing(
     // When a tool writes a file-only assistant message (via appendFilePart)
     // mid-stream, its row lands before the post-tool text message does.
     // If we render it standalone in that window, the bubble unmounts and the
-    // post-tool message's TypewriterText mounts fresh once the merge catches up
-    // — visible as a flicker. Hide file-only messages while their turn still
-    // has an active streaming/pending assistant message; the forward merge
-    // will attach them once that message gains content. Read the order from
-    // the same uiMessages snapshot the merge iterates to keep the pass
-    // consistent.
-    const activeTurnOrder = uiMessages.find(
-      (m) =>
-        m.role === 'assistant' &&
-        (m.status === 'streaming' || m.status === 'pending'),
-    )?.order;
+    // post-tool message's TypewriterText mounts fresh once the merge catches
+    // up — visible as a flicker. Hide file-only messages while the turn is
+    // still generating; the forward merge attaches them once the post-tool
+    // message gains content. Use threadMetadata.generationStatus (via
+    // isThreadGenerating) rather than a streaming/pending status scan —
+    // those statuses are undefined during the gap between pre-tool `success`
+    // and post-tool creation, but generationStatus stays true across that
+    // gap. Scope to the current turn by taking the max assistant order in
+    // the same uiMessages snapshot the merge iterates, so a completed
+    // earlier turn's file-only (if any) is not hidden by a later turn's
+    // generation.
+    let activeTurnOrder: number | undefined;
+    if (isGenerating) {
+      let maxOrder = -Infinity;
+      for (const m of uiMessages) {
+        if (m.role === 'assistant' && m.order > maxOrder) maxOrder = m.order;
+      }
+      if (Number.isFinite(maxOrder)) activeTurnOrder = maxOrder;
+    }
 
     const currentKeys = new Set<string>();
 
@@ -390,7 +409,7 @@ export function useMessageProcessing(
           return { ...msg, fileParts: [...(msg.fileParts ?? []), ...extra] };
         })
     );
-  }, [uiMessages, messageErrors]);
+  }, [uiMessages, messageErrors, isGenerating]);
 
   // Find active assistant message (streaming or pending tool execution).
   // Unified lookup ensures ThinkingAnimation receives tool parts during both phases.
