@@ -15,6 +15,7 @@ import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
+import { useT } from '@/lib/i18n/client';
 import {
   moderationProviderConfigSchema,
   type ModerationCategoryMapping,
@@ -40,8 +41,6 @@ import {
 // request time, so the plaintext key never sits in the policy config.
 interface ModerationPreset {
   id: 'openai_moderation' | 'azure_content_safety' | 'perspective';
-  label: string;
-  note?: string;
   url: string;
   headers: HeaderRow[];
   requestTemplate: string;
@@ -57,7 +56,6 @@ interface ModerationPreset {
 const MODERATION_PRESETS: ModerationPreset[] = [
   {
     id: 'openai_moderation',
-    label: 'Use OpenAI Moderation',
     url: 'https://api.openai.com/v1/moderations',
     headers: [
       { key: 'Authorization', value: 'Bearer {{secret}}' },
@@ -99,8 +97,6 @@ const MODERATION_PRESETS: ModerationPreset[] = [
   },
   {
     id: 'azure_content_safety',
-    label: 'Use Azure Content Safety',
-    note: 'Replace the subdomain with your own Azure resource name.',
     url: 'https://YOUR-RESOURCE.cognitiveservices.azure.com/contentsafety/text:analyze?api-version=2024-09-01',
     headers: [
       { key: 'Ocp-Apim-Subscription-Key', value: '{{secret}}' },
@@ -137,8 +133,6 @@ const MODERATION_PRESETS: ModerationPreset[] = [
   },
   {
     id: 'perspective',
-    label: 'Use Perspective API',
-    note: 'Perspective authenticates via a URL query parameter, not a header. After applying the preset, open Endpoint and append ?key=YOUR_PERSPECTIVE_KEY to the URL. (The encrypted API-key field below is not used by Perspective.)',
     url: 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze',
     headers: [{ key: 'Content-Type', value: 'application/json' }],
     requestTemplate:
@@ -193,6 +187,27 @@ type EndpointDraft = {
 
 type MappingDraft = ModerationCategoryMapping & { scoreThresholdText: string };
 
+function presetLabelKey(id: ModerationPreset['id']): string {
+  if (id === 'openai_moderation') return 'moderationProvider.presetOpenai';
+  if (id === 'azure_content_safety') return 'moderationProvider.presetAzure';
+  return 'moderationProvider.presetPerspective';
+}
+
+function presetActiveLabelKey(id: ModerationPreset['id']): string {
+  if (id === 'openai_moderation')
+    return 'moderationProvider.presetOpenaiActive';
+  if (id === 'azure_content_safety')
+    return 'moderationProvider.presetAzureActive';
+  return 'moderationProvider.presetPerspectiveActive';
+}
+
+function presetNoteKey(id: ModerationPreset['id']): string | null {
+  if (id === 'azure_content_safety')
+    return 'moderationProvider.presetAzureNote';
+  if (id === 'perspective') return 'moderationProvider.presetPerspectiveNote';
+  return null;
+}
+
 interface ModerationProviderConfigProps {
   organizationId: string;
 }
@@ -200,6 +215,7 @@ interface ModerationProviderConfigProps {
 export function ModerationProviderConfigView({
   organizationId,
 }: ModerationProviderConfigProps) {
+  const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
 
@@ -369,13 +385,19 @@ export function ModerationProviderConfigView({
           policyType: 'moderation_provider',
           config,
         });
-        toast({ title: 'Moderation provider saved', variant: 'success' });
+        toast({
+          title: t('moderationProvider.saved'),
+          variant: 'success',
+        });
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Save failed';
+        const message =
+          error instanceof Error
+            ? error.message
+            : t('moderationProvider.saveFailed');
         toast({ title: message, variant: 'destructive' });
       }
     },
-    [upsertMutation, organizationId, toast],
+    [upsertMutation, organizationId, toast, t],
   );
 
   const handleToggleEnabled = useCallback(
@@ -456,15 +478,18 @@ export function ModerationProviderConfigView({
         setMappings(seededMappings);
       }
 
-      if (preset.note) {
+      const noteKey = presetNoteKey(preset.id);
+      if (noteKey) {
         toast({
-          title: 'Preset applied',
-          description: preset.note,
+          title: t('moderationProvider.presetApplied'),
+          description: t(noteKey),
         });
       } else if (seededMappings !== mappings) {
         toast({
-          title: 'Preset applied',
-          description: `Added ${preset.defaultMappings.length} default category mappings (all in flag mode — tune them below).`,
+          title: t('moderationProvider.presetApplied'),
+          description: t('moderationProvider.presetAppliedMappings', {
+            count: preset.defaultMappings.length,
+          }),
         });
       }
       void saveWith(
@@ -477,7 +502,7 @@ export function ModerationProviderConfigView({
         }),
       );
     },
-    [buildConfig, mappings, saveWith, toast],
+    [buildConfig, mappings, saveWith, toast, t],
   );
 
   const handleSaveEndpoint = useCallback(
@@ -529,7 +554,7 @@ export function ModerationProviderConfigView({
 
   if (isLoading) {
     return (
-      <PageSection title="Moderation provider">
+      <PageSection title={t('moderationProvider.title')}>
         <Skeleton className="h-32 w-full" />
       </PageSection>
     );
@@ -547,196 +572,217 @@ export function ModerationProviderConfigView({
 
   return (
     <PageSection
-      title="Moderation provider"
-      description="Send chat messages to an external classifier (OpenAI Moderation, Azure Content Safety, Perspective, or any custom HTTPS endpoint). Paste the API key in the 'API key' section below — it's AES-encrypted server-side — and reference it in any header value as `{{secret}}`."
-    >
-      {cannotManage && (
-        <Alert
-          variant="warning"
-          description="You need admin permissions to configure the moderation provider."
-        />
-      )}
-
-      <FormSection label="Enabled">
+      title={t('moderationProvider.title')}
+      description={t('moderationProvider.description', {
+        secretPlaceholder: '{{secret}}',
+      })}
+      action={
         <Switch
+          label={t('moderationProvider.enableLabel')}
           checked={enabled}
           disabled={cannotManage}
           onCheckedChange={handleToggleEnabled}
         />
-      </FormSection>
-
-      <FormSection label="Apply to">
-        <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={appliesToInput}
-              disabled={cannotManage}
-              onChange={(e) => handleAppliesToInput(e.target.checked)}
-            />
-            <span>User input</span>
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={appliesToOutput}
-              disabled={cannotManage}
-              onChange={(e) => handleAppliesToOutput(e.target.checked)}
-            />
-            <span>Model output</span>
-          </label>
-        </div>
-      </FormSection>
-
-      <FormSection
-        label="Fail behavior"
-        description="What to do when the provider times out, errors, or the circuit breaker is open. Input default is fail-open (let the message through); output default is fail-closed (block the response) since unreviewed model output has higher liability."
-      >
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <div className="text-muted-foreground mb-1 text-xs">Input</div>
-            <Select
-              value={failInput}
-              disabled={cannotManage}
-              onValueChange={(v) => {
-                if (v === 'open' || v === 'closed') handleFailInputChange(v);
-              }}
-              options={[
-                { value: 'open', label: 'Fail open (pass)' },
-                { value: 'closed', label: 'Fail closed (block)' },
-              ]}
-            />
-          </div>
-          <div>
-            <div className="text-muted-foreground mb-1 text-xs">Output</div>
-            <Select
-              value={failOutput}
-              disabled={cannotManage}
-              onValueChange={(v) => {
-                if (v === 'open' || v === 'closed') handleFailOutputChange(v);
-              }}
-              options={[
-                { value: 'open', label: 'Fail open (pass)' },
-                { value: 'closed', label: 'Fail closed (block)' },
-              ]}
-            />
-          </div>
-        </div>
-      </FormSection>
-
-      <FormSection
-        label="Provider"
-        description="Pick a built-in preset — the URL, headers, request template, and response parser are filled in for you. The API key itself is entered (and encrypted) in the API key section below, never in the policy config. Pick Custom JSONPath for any other HTTPS moderation API you want to plug in."
-      >
-        <div className="flex flex-wrap gap-2">
-          {MODERATION_PRESETS.map((preset) => {
-            const active = responseShape === preset.id;
-            return (
-              <Button
-                key={preset.id}
-                variant={active ? 'primary' : 'secondary'}
-                size="sm"
-                disabled={cannotManage}
-                onClick={() => handleApplyPreset(preset)}
-              >
-                {active
-                  ? `✓ ${preset.label.replace(/^Use /, '')}`
-                  : preset.label}
-              </Button>
-            );
-          })}
-          <Button
-            variant={
-              responseShape === 'custom_jsonpath' ? 'primary' : 'secondary'
-            }
-            size="sm"
-            disabled={cannotManage}
-            onClick={() => handleResponseShapeChange('custom_jsonpath')}
-          >
-            {responseShape === 'custom_jsonpath'
-              ? '✓ Custom JSONPath'
-              : 'Custom JSONPath'}
-          </Button>
-        </div>
-        {responseShape === 'custom_jsonpath' &&
-          !customCategoriesPath.trim() && (
-            <p className="mt-2 text-xs text-amber-600">
-              Open <span className="font-medium">Endpoint</span> below, fill in
-              your HTTPS URL, request body template, and the JSONPath for
-              categories. The switch won&rsquo;t persist until those fields are
-              set.
-            </p>
-          )}
-      </FormSection>
-
-      <ApiKeyPanel organizationId={organizationId} disabled={cannotManage} />
-
-      <FormSection
-        label="Endpoint"
-        description="HTTPS URL, headers, request template, and timeout for the external call."
-      >
-        <EndpointSummary
-          url={url}
-          headersCount={headers.filter((h) => h.key.trim().length > 0).length}
-          timeoutMs={timeoutMs}
-          onEdit={() => setEndpointDialogOpen(true)}
-          disabled={cannotManage}
-        />
-      </FormSection>
-
-      <FormSection
-        label="Category mappings"
-        description="Map provider categories (e.g. OpenAI's `hate/threatening`) to an internal label, enforcement mode, and optional score threshold. Block wins over mask wins over flag."
-      >
-        {enabled && mappings.length === 0 && (
-          <Alert
-            variant="warning"
-            description="No category mappings configured. The provider is being called on every message but nothing will ever be flagged, masked, or blocked — only mapped categories produce events. Add at least one mapping below, or re-apply a preset to seed defaults."
-          />
-        )}
-        <MappingList
-          mappings={mappings}
-          disabled={cannotManage}
-          onAdd={() => setMappingEditorIndex('new')}
-          onEdit={(index) => setMappingEditorIndex(index)}
-        />
-      </FormSection>
-
-      <TestConnectionPanel
-        organizationId={organizationId}
-        disabled={cannotManage || !enabled}
-      />
-
-      {endpointDialogOpen && (
-        <EndpointEditDialog
-          open={endpointDialogOpen}
-          initial={endpointDraft}
-          responseShape={responseShape}
-          onCancel={() => setEndpointDialogOpen(false)}
-          onSave={handleSaveEndpoint}
+      }
+    >
+      {cannotManage && (
+        <Alert
+          variant="warning"
+          description={t('moderationProvider.cannotManage')}
         />
       )}
 
-      {mappingEditorIndex !== null && (
-        <MappingEditDialog
-          index={mappingEditorIndex}
-          initial={
-            mappingEditorIndex === 'new'
-              ? undefined
-              : mappings[mappingEditorIndex]
-          }
-          onCancel={() => setMappingEditorIndex(null)}
-          onSave={(draft) => handleSaveMapping(mappingEditorIndex, draft)}
-          onDelete={
-            mappingEditorIndex === 'new'
-              ? undefined
-              : () => {
-                  if (typeof mappingEditorIndex === 'number') {
-                    handleDeleteMapping(mappingEditorIndex);
-                  }
+      {enabled && (
+        <>
+          <FormSection label={t('moderationProvider.applyTo')}>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={appliesToInput}
+                  disabled={cannotManage}
+                  onChange={(e) => handleAppliesToInput(e.target.checked)}
+                />
+                <span>{t('moderationProvider.userInput')}</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={appliesToOutput}
+                  disabled={cannotManage}
+                  onChange={(e) => handleAppliesToOutput(e.target.checked)}
+                />
+                <span>{t('moderationProvider.modelOutput')}</span>
+              </label>
+            </div>
+          </FormSection>
+
+          <FormSection
+            label={t('moderationProvider.failBehavior')}
+            description={t('moderationProvider.failBehaviorDescription')}
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="text-muted-foreground mb-1 text-xs">
+                  {t('moderationProvider.input')}
+                </div>
+                <Select
+                  value={failInput}
+                  disabled={cannotManage}
+                  onValueChange={(v) => {
+                    if (v === 'open' || v === 'closed')
+                      handleFailInputChange(v);
+                  }}
+                  options={[
+                    { value: 'open', label: t('moderationProvider.failOpen') },
+                    {
+                      value: 'closed',
+                      label: t('moderationProvider.failClosed'),
+                    },
+                  ]}
+                />
+              </div>
+              <div>
+                <div className="text-muted-foreground mb-1 text-xs">
+                  {t('moderationProvider.output')}
+                </div>
+                <Select
+                  value={failOutput}
+                  disabled={cannotManage}
+                  onValueChange={(v) => {
+                    if (v === 'open' || v === 'closed')
+                      handleFailOutputChange(v);
+                  }}
+                  options={[
+                    { value: 'open', label: t('moderationProvider.failOpen') },
+                    {
+                      value: 'closed',
+                      label: t('moderationProvider.failClosed'),
+                    },
+                  ]}
+                />
+              </div>
+            </div>
+          </FormSection>
+
+          <FormSection
+            label={t('moderationProvider.provider')}
+            description={t('moderationProvider.providerDescription')}
+          >
+            <div className="flex flex-wrap gap-2">
+              {MODERATION_PRESETS.map((preset) => {
+                const active = responseShape === preset.id;
+                const label = active
+                  ? `✓ ${t(presetActiveLabelKey(preset.id))}`
+                  : t(presetLabelKey(preset.id));
+                return (
+                  <Button
+                    key={preset.id}
+                    variant={active ? 'primary' : 'secondary'}
+                    size="sm"
+                    disabled={cannotManage}
+                    onClick={() => handleApplyPreset(preset)}
+                  >
+                    {label}
+                  </Button>
+                );
+              })}
+              <Button
+                variant={
+                  responseShape === 'custom_jsonpath' ? 'primary' : 'secondary'
                 }
-          }
-        />
+                size="sm"
+                disabled={cannotManage}
+                onClick={() => handleResponseShapeChange('custom_jsonpath')}
+              >
+                {responseShape === 'custom_jsonpath'
+                  ? `✓ ${t('moderationProvider.presetCustomJsonPathActive')}`
+                  : t('moderationProvider.presetCustomJsonPath')}
+              </Button>
+            </div>
+            {responseShape === 'custom_jsonpath' &&
+              !customCategoriesPath.trim() && (
+                <p className="mt-2 text-xs text-amber-600">
+                  {t('moderationProvider.customJsonPathHint')}
+                </p>
+              )}
+          </FormSection>
+
+          <ApiKeyPanel
+            organizationId={organizationId}
+            disabled={cannotManage}
+          />
+
+          <FormSection
+            label={t('moderationProvider.endpoint')}
+            description={t('moderationProvider.endpointDescription')}
+          >
+            <EndpointSummary
+              url={url}
+              headersCount={
+                headers.filter((h) => h.key.trim().length > 0).length
+              }
+              timeoutMs={timeoutMs}
+              onEdit={() => setEndpointDialogOpen(true)}
+              disabled={cannotManage}
+            />
+          </FormSection>
+
+          <FormSection
+            label={t('moderationProvider.categoryMappings')}
+            description={t('moderationProvider.categoryMappingsDescription')}
+          >
+            {mappings.length === 0 && (
+              <Alert
+                variant="warning"
+                description={t('moderationProvider.mappingsWarning')}
+              />
+            )}
+            <MappingList
+              mappings={mappings}
+              disabled={cannotManage}
+              onAdd={() => setMappingEditorIndex('new')}
+              onEdit={(index) => setMappingEditorIndex(index)}
+            />
+          </FormSection>
+
+          <TestConnectionPanel
+            organizationId={organizationId}
+            disabled={cannotManage}
+          />
+
+          {endpointDialogOpen && (
+            <EndpointEditDialog
+              open={endpointDialogOpen}
+              initial={endpointDraft}
+              responseShape={responseShape}
+              onCancel={() => setEndpointDialogOpen(false)}
+              onSave={handleSaveEndpoint}
+            />
+          )}
+
+          {mappingEditorIndex !== null && (
+            <MappingEditDialog
+              index={mappingEditorIndex}
+              initial={
+                mappingEditorIndex === 'new'
+                  ? undefined
+                  : mappings[mappingEditorIndex]
+              }
+              onCancel={() => setMappingEditorIndex(null)}
+              onSave={(draft) => handleSaveMapping(mappingEditorIndex, draft)}
+              onDelete={
+                mappingEditorIndex === 'new'
+                  ? undefined
+                  : () => {
+                      if (typeof mappingEditorIndex === 'number') {
+                        handleDeleteMapping(mappingEditorIndex);
+                      }
+                    }
+              }
+            />
+          )}
+        </>
       )}
     </PageSection>
   );
@@ -752,6 +798,8 @@ interface ApiKeyPanelProps {
 }
 
 function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
+  const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   const { toast } = useToast();
   const { data: currentMask, isLoading } =
     useModerationSecretStatus(organizationId);
@@ -765,19 +813,22 @@ function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
     if (value.length === 0) return;
     try {
       await saveSecret.mutateAsync({ organizationId, authHeader: value });
-      toast({ title: 'API key saved', variant: 'success' });
+      toast({ title: t('moderationProvider.apiKeySaved'), variant: 'success' });
       setEditing(false);
       setDraft('');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Save failed';
+      const msg =
+        err instanceof Error ? err.message : t('moderationProvider.saveFailed');
       toast({ title: msg, variant: 'destructive' });
     }
   };
 
   return (
     <FormSection
-      label="API key"
-      description="Pasted here, encrypted with AES-256-GCM on the server, and stored in governanceSecrets. The plaintext value replaces {{secret}} in your endpoint headers at request time. Use the full header value for Authorization-style headers (e.g. 'Bearer sk-…'); raw key for Azure's Ocp-Apim-Subscription-Key."
+      label={t('moderationProvider.apiKey')}
+      description={t('moderationProvider.apiKeyDescription', {
+        secretPlaceholder: '{{secret}}',
+      })}
     >
       {editing ? (
         <div className="flex flex-col gap-2">
@@ -786,7 +837,7 @@ function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
             value={draft}
             disabled={disabled || saveSecret.isPending}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Bearer sk-... or raw API key"
+            placeholder={t('moderationProvider.apiKeyPlaceholder')}
             autoFocus
           />
           <div className="flex gap-2">
@@ -798,7 +849,7 @@ function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
               }
               onClick={() => void handleSave()}
             >
-              Save
+              {tCommon('actions.save')}
             </Button>
             <Button
               variant="ghost"
@@ -809,7 +860,7 @@ function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
                 setDraft('');
               }}
             >
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
           </div>
         </div>
@@ -817,10 +868,10 @@ function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
         <div className="flex items-center gap-3">
           <code className="text-muted-foreground bg-muted rounded px-2 py-1 text-xs">
             {isLoading
-              ? 'Loading…'
+              ? t('moderationProvider.apiKeyLoading')
               : currentMask
                 ? currentMask
-                : 'Not configured'}
+                : t('moderationProvider.apiKeyNotConfigured')}
           </code>
           <Button
             variant="secondary"
@@ -828,7 +879,9 @@ function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
             disabled={disabled}
             onClick={() => setEditing(true)}
           >
-            {currentMask ? 'Replace' : 'Set key'}
+            {currentMask
+              ? t('moderationProvider.replaceKey')
+              : t('moderationProvider.setKey')}
           </Button>
         </div>
       )}
@@ -874,8 +927,9 @@ function TestConnectionPanel({
   organizationId,
   disabled,
 }: TestConnectionPanelProps) {
+  const { t } = useT('governance');
   const testMutation = useTestModerationProvider();
-  const [text, setText] = useState('I want to kill everyone in this building');
+  const [text, setText] = useState(t('moderationProvider.testDefaultText'));
   const [result, setResult] = useState<TestResult | null>(null);
 
   const runTest = async () => {
@@ -900,14 +954,14 @@ function TestConnectionPanel({
 
   return (
     <FormSection
-      label="Test connection"
-      description="Send a sample message through the real provider path. Verifies the API key, endpoint URL, request template, response parser, and category mappings in one round-trip. No chat message is saved — this call bypasses the thread and audit pipeline."
+      label={t('moderationProvider.testConnection')}
+      description={t('moderationProvider.testConnectionDescription')}
     >
       <div className="flex flex-col gap-3">
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Type a sample message to send through the provider…"
+          placeholder={t('moderationProvider.testPlaceholder')}
           rows={3}
           disabled={disabled || testMutation.isPending}
         />
@@ -920,7 +974,9 @@ function TestConnectionPanel({
               disabled || testMutation.isPending || text.trim().length === 0
             }
           >
-            {testMutation.isPending ? 'Testing…' : 'Run test'}
+            {testMutation.isPending
+              ? t('moderationProvider.testing')
+              : t('moderationProvider.runTest')}
           </Button>
         </div>
         {result && <TestResultView result={result} />}
@@ -930,6 +986,7 @@ function TestConnectionPanel({
 }
 
 function TestResultView({ result }: { result: TestResult }) {
+  const { t } = useT('governance');
   // `Alert` supports: 'default' | 'warning' | 'destructive'. A passing test
   // (no category hits) renders as 'default' — neutral, not green.
   const variant: 'default' | 'warning' | 'destructive' =
@@ -942,47 +999,65 @@ function TestResultView({ result }: { result: TestResult }) {
         : 'default';
   const title =
     result.kind === 'pass'
-      ? 'Call succeeded — no categories matched'
+      ? t('moderationProvider.testPass')
       : result.kind === 'flagged'
-        ? 'Call succeeded — flagged'
+        ? t('moderationProvider.testFlagged')
         : result.kind === 'blocked'
-          ? 'Call succeeded — would block'
+          ? t('moderationProvider.testBlocked')
           : result.kind === 'modified'
-            ? 'Call succeeded — would mask'
+            ? t('moderationProvider.testModified')
             : result.kind === 'not_configured'
-              ? 'Not configured'
-              : `Step error (${result.errorClass ?? 'unknown'})`;
+              ? t('moderationProvider.testNotConfigured')
+              : t('moderationProvider.testStepError', {
+                  errorClass: result.errorClass ?? 'unknown',
+                });
   return (
     <Alert variant={variant} title={title}>
       <dl className="mt-2 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-1 text-xs">
         {result.httpStatus !== undefined && (
           <>
-            <dt className="text-muted-foreground">HTTP status</dt>
+            <dt className="text-muted-foreground">
+              {t('moderationProvider.testResultHttpStatus')}
+            </dt>
             <dd className="tabular-nums">{result.httpStatus}</dd>
           </>
         )}
         {result.durationMs !== undefined && (
           <>
-            <dt className="text-muted-foreground">Duration</dt>
-            <dd className="tabular-nums">{result.durationMs} ms</dd>
+            <dt className="text-muted-foreground">
+              {t('moderationProvider.testResultDuration')}
+            </dt>
+            <dd className="tabular-nums">
+              {t('moderationProvider.testResultDurationValue', {
+                ms: result.durationMs,
+              })}
+            </dd>
           </>
         )}
         {result.categoryIds && result.categoryIds.length > 0 && (
           <>
-            <dt className="text-muted-foreground">Matched</dt>
+            <dt className="text-muted-foreground">
+              {t('moderationProvider.testResultMatched')}
+            </dt>
             <dd>{result.categoryIds.join(', ')}</dd>
           </>
         )}
         {result.matchCount !== undefined && result.matchCount > 0 && (
           <>
-            <dt className="text-muted-foreground">Match count</dt>
+            <dt className="text-muted-foreground">
+              {t('moderationProvider.testResultMatchCount')}
+            </dt>
             <dd className="tabular-nums">{result.matchCount}</dd>
           </>
         )}
         {result.circuitOpened && (
           <>
-            <dt className="text-muted-foreground">Circuit</dt>
-            <dd className="text-amber-700">Opened by this failure</dd>
+            <dt className="text-muted-foreground">
+              {t('moderationProvider.testResultCircuit')}
+            </dt>
+            <dd className="text-amber-700">
+              {t('moderationProvider.testResultCircuitOpened')}
+            </dd>
           </>
         )}
       </dl>
@@ -1010,22 +1085,36 @@ function EndpointSummary({
   onEdit,
   disabled,
 }: EndpointSummaryProps) {
+  const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   return (
     <div className="border-border flex items-start justify-between gap-4 rounded-lg border p-4">
       <dl className="min-w-0 flex-1 space-y-1 text-sm">
         <div className="flex gap-2">
-          <dt className="text-muted-foreground w-36 shrink-0">URL</dt>
+          <dt className="text-muted-foreground w-36 shrink-0">
+            {t('moderationProvider.endpointUrlLabel')}
+          </dt>
           <dd className="font-mono text-xs break-all">
-            {url || <span className="text-muted-foreground">Not set</span>}
+            {url || (
+              <span className="text-muted-foreground">
+                {t('moderationProvider.endpointUrlNotSet')}
+              </span>
+            )}
           </dd>
         </div>
         <div className="flex gap-2">
-          <dt className="text-muted-foreground w-36 shrink-0">Headers</dt>
+          <dt className="text-muted-foreground w-36 shrink-0">
+            {t('moderationProvider.endpointHeadersLabel')}
+          </dt>
           <dd>{headersCount}</dd>
         </div>
         <div className="flex gap-2">
-          <dt className="text-muted-foreground w-36 shrink-0">Timeout</dt>
-          <dd>{timeoutMs} ms</dd>
+          <dt className="text-muted-foreground w-36 shrink-0">
+            {t('moderationProvider.endpointTimeoutLabel')}
+          </dt>
+          <dd>
+            {t('moderationProvider.endpointTimeoutValue', { ms: timeoutMs })}
+          </dd>
         </div>
       </dl>
       <Button
@@ -1035,7 +1124,7 @@ function EndpointSummary({
         disabled={disabled}
         onClick={onEdit}
       >
-        Edit
+        {tCommon('actions.edit')}
       </Button>
     </div>
   );
@@ -1079,6 +1168,8 @@ function EndpointEditDialog({
   onCancel,
   onSave,
 }: EndpointEditDialogProps) {
+  const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   const [draft, setDraft] = useState(initial);
 
   // Reset when dialog reopens with a different initial value.
@@ -1110,58 +1201,64 @@ function EndpointEditDialog({
       onOpenChange={(next) => {
         if (!next) onCancel();
       }}
-      title="Edit endpoint"
-      description="URL, headers, and request template are validated server-side. {{text}} and {{direction}} placeholders are JSON-safe; {{secret}} is only allowed in header values."
+      title={t('moderationProvider.editEndpointTitle')}
+      description={t('moderationProvider.editEndpointDescription', {
+        textPlaceholder: '{{text}}',
+        directionPlaceholder: '{{direction}}',
+        secretPlaceholder: '{{secret}}',
+      })}
       size="xl"
       footer={
         <>
           <Button variant="ghost" onClick={onCancel}>
-            Cancel
+            {tCommon('actions.cancel')}
           </Button>
           <Button
             variant="primary"
             disabled={!hasChanges}
             onClick={() => onSave(draft)}
           >
-            Save
+            {tCommon('actions.save')}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
         <FormSection
-          label="Endpoint URL"
-          description="Full HTTPS URL of the moderation API (HTTP allowed for internal / localhost mocks). Only this host is contacted — redirects to other hosts are rejected for SSRF safety."
+          label={t('moderationProvider.endpointUrlField')}
+          description={t('moderationProvider.endpointUrlFieldDescription')}
         >
           <Input
             value={draft.url}
             onChange={(e) => setDraft({ ...draft, url: e.target.value })}
-            placeholder="https://api.example.com/v1/moderate"
+            placeholder={t('moderationProvider.endpointUrlPlaceholder')}
           />
         </FormSection>
 
-        <FormSection label="Headers">
+        <FormSection label={t('moderationProvider.headersTitle')}>
           <div className="flex flex-col gap-2">
             {draft.headers.map((header, index) => (
               <div key={index} className="flex gap-2">
                 <Input
-                  aria-label="Header name"
+                  aria-label={t('moderationProvider.headerNameAria')}
                   value={header.key}
                   onChange={(e) => updateHeader(index, { key: e.target.value })}
-                  placeholder="Authorization"
+                  placeholder={t('moderationProvider.headerNamePlaceholder')}
                 />
                 <Input
-                  aria-label="Header value"
+                  aria-label={t('moderationProvider.headerValueAria')}
                   value={header.value}
                   onChange={(e) =>
                     updateHeader(index, { value: e.target.value })
                   }
-                  placeholder="Bearer {{secret}}"
+                  placeholder={t('moderationProvider.headerValuePlaceholder', {
+                    secretPlaceholder: '{{secret}}',
+                  })}
                 />
                 <Button
                   variant="ghost"
                   size="sm"
-                  aria-label="Remove header"
+                  aria-label={t('moderationProvider.removeHeaderAria')}
                   onClick={() => removeHeader(index)}
                 >
                   <Trash2 className="size-4" />
@@ -1174,14 +1271,17 @@ function EndpointEditDialog({
               icon={Plus}
               onClick={addHeader}
             >
-              Add header
+              {t('moderationProvider.addHeader')}
             </Button>
           </div>
         </FormSection>
 
         <FormSection
-          label="Request body template"
-          description="JSON with {{text}} and optional {{direction}} placeholders. Substitution is JSON-safe; secrets are NOT permitted in the body, only in headers."
+          label={t('moderationProvider.requestTemplateLabel')}
+          description={t('moderationProvider.requestTemplateDescription', {
+            textPlaceholder: '{{text}}',
+            directionPlaceholder: '{{direction}}',
+          })}
         >
           <Textarea
             value={draft.requestTemplate}
@@ -1193,7 +1293,7 @@ function EndpointEditDialog({
           />
         </FormSection>
 
-        <FormSection label="Timeout (ms)">
+        <FormSection label={t('moderationProvider.timeoutLabel')}>
           <Input
             type="number"
             value={draft.timeoutMs}
@@ -1238,27 +1338,23 @@ function CustomJsonPathSection({
   draft: EndpointDraft;
   onChange: (patch: Partial<EndpointDraft>) => void;
 }) {
+  const { t } = useT('governance');
   const [showAdvanced, setShowAdvanced] = useState(
     draft.customFlaggedPath.trim().length > 0,
   );
   const sample = SHAPE_SAMPLES[draft.customCategoryShape];
   return (
     <FormSection
-      label="Parse provider response"
-      description={
-        <>
-          Tell us how the provider&rsquo;s JSON response looks so we can pull
-          out the flagged categories. If you&rsquo;re not sure, run the provider
-          once in a terminal (curl) and paste the response shape into your picks
-          below.
-        </>
-      }
+      label={t('moderationProvider.parseResponseLabel')}
+      description={t('moderationProvider.parseResponseDescription')}
     >
       <div className="flex flex-col gap-4">
         <div>
-          <p className="text-sm font-medium">1. Pick the response shape</p>
+          <p className="text-sm font-medium">
+            {t('moderationProvider.shapeStepTitle')}
+          </p>
           <p className="text-muted-foreground mt-1 text-xs">
-            Which format does the provider use for its category flags?
+            {t('moderationProvider.shapeStepDescription')}
           </p>
           <Select
             className="mt-1.5"
@@ -1275,16 +1371,15 @@ function CustomJsonPathSection({
             options={[
               {
                 value: 'record_of_bool',
-                label:
-                  'Object of booleans — { "hate": true, "violence": false }',
+                label: `${t('moderationProvider.shapeRecordBool')} — { "hate": true, "violence": false }`,
               },
               {
                 value: 'record_of_score',
-                label: 'Object of scores — { "hate": 0.02, "violence": 0.87 }',
+                label: `${t('moderationProvider.shapeRecordScore')} — { "hate": 0.02, "violence": 0.87 }`,
               },
               {
                 value: 'array',
-                label: 'Array of names — ["hate", "violence"]',
+                label: `${t('moderationProvider.shapeArray')} — ["hate", "violence"]`,
               },
             ]}
           />
@@ -1292,12 +1387,13 @@ function CustomJsonPathSection({
 
         <div>
           <label className="text-sm font-medium">
-            2. Path to the categories{' '}
-            <span className="text-destructive">*required</span>
+            {t('moderationProvider.pathStepTitle')}{' '}
+            <span className="text-destructive">
+              {t('moderationProvider.pathStepRequired')}
+            </span>
           </label>
           <p className="text-muted-foreground mt-1 text-xs">
-            Where the shape above lives inside the response. A dollar sign is
-            the root; dots traverse objects; numbers in brackets index arrays.
+            {t('moderationProvider.pathStepDescription')}
           </p>
           <Input
             className="mt-1.5 font-mono text-sm"
@@ -1307,17 +1403,16 @@ function CustomJsonPathSection({
           />
           <div className="border-border bg-muted/40 mt-2 rounded-md border p-3">
             <div className="text-muted-foreground mb-1 text-xs">
-              Example response body this path matches:
+              {t('moderationProvider.pathExampleTitle')}
             </div>
             <pre className="bg-background overflow-x-auto rounded border p-2 font-mono text-xs">
               {sample.json}
             </pre>
             <div className="text-muted-foreground mt-2 text-xs">
-              The path{' '}
               <code className="text-foreground bg-background rounded px-1 font-mono">
                 {sample.categoriesPath}
               </code>{' '}
-              picks out the bold part.
+              — {t('moderationProvider.pathExampleExplanation')}
             </div>
           </div>
         </div>
@@ -1328,23 +1423,18 @@ function CustomJsonPathSection({
             className="text-muted-foreground hover:text-foreground self-start text-xs underline underline-offset-2"
             onClick={() => setShowAdvanced(true)}
           >
-            Show advanced (overall flagged path)
+            {t('moderationProvider.showAdvanced')}
           </button>
         ) : (
           <div>
             <label className="text-sm font-medium">
-              Overall flagged path{' '}
-              <span className="text-muted-foreground">(optional)</span>
+              {t('moderationProvider.flaggedPathLabel')}{' '}
+              <span className="text-muted-foreground">
+                {t('moderationProvider.flaggedPathOptional')}
+              </span>
             </label>
             <p className="text-muted-foreground mt-1 text-xs">
-              Some providers also return a single top-level boolean — e.g.
-              OpenAI&rsquo;s{' '}
-              <code className="text-foreground font-mono">
-                $.results[0].flagged
-              </code>
-              . If set, <code className="font-mono">false</code> here
-              short-circuits the category check and the message passes. Leave
-              empty for providers that don&rsquo;t have this field.
+              {t('moderationProvider.flaggedPathDescription')}
             </p>
             <Input
               className="mt-1.5 font-mono text-sm"
@@ -1412,22 +1502,33 @@ interface MappingListProps {
 }
 
 function MappingList({ mappings, disabled, onAdd, onEdit }: MappingListProps) {
+  const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   return (
     <div className="flex flex-col gap-2">
       {mappings.length === 0 ? (
         <div className="text-muted-foreground text-sm">
-          No category mappings configured. Add one to enforce this provider's
-          verdicts.
+          {t('moderationProvider.mappingsEmpty')}
         </div>
       ) : (
         <table className="w-full text-sm">
           <thead>
             <tr className="text-muted-foreground text-left text-xs">
-              <th className="py-1 font-medium">Provider category</th>
-              <th className="py-1 font-medium">Internal label</th>
-              <th className="py-1 font-medium">Mode</th>
-              <th className="py-1 font-medium">Threshold</th>
-              <th className="py-1 font-medium">Enabled</th>
+              <th className="py-1 font-medium">
+                {t('moderationProvider.mappingColumnProviderCategory')}
+              </th>
+              <th className="py-1 font-medium">
+                {t('moderationProvider.mappingColumnInternalLabel')}
+              </th>
+              <th className="py-1 font-medium">
+                {t('moderationProvider.mappingColumnMode')}
+              </th>
+              <th className="py-1 font-medium">
+                {t('moderationProvider.mappingColumnThreshold')}
+              </th>
+              <th className="py-1 font-medium">
+                {t('moderationProvider.mappingColumnEnabled')}
+              </th>
               <th className="py-1 font-medium"></th>
             </tr>
           </thead>
@@ -1444,7 +1545,11 @@ function MappingList({ mappings, disabled, onAdd, onEdit }: MappingListProps) {
                     <span className="text-muted-foreground">—</span>
                   )}
                 </td>
-                <td className="py-2">{mapping.enabled ? 'Yes' : 'No'}</td>
+                <td className="py-2">
+                  {mapping.enabled
+                    ? t('moderationProvider.yes')
+                    : t('moderationProvider.no')}
+                </td>
                 <td className="py-2 text-right">
                   <Button
                     variant="ghost"
@@ -1453,7 +1558,7 @@ function MappingList({ mappings, disabled, onAdd, onEdit }: MappingListProps) {
                     disabled={disabled}
                     onClick={() => onEdit(index)}
                   >
-                    Edit
+                    {tCommon('actions.edit')}
                   </Button>
                 </td>
               </tr>
@@ -1469,7 +1574,7 @@ function MappingList({ mappings, disabled, onAdd, onEdit }: MappingListProps) {
           disabled={disabled}
           onClick={onAdd}
         >
-          Add category mapping
+          {t('moderationProvider.addMapping')}
         </Button>
       </div>
     </div>
@@ -1491,6 +1596,8 @@ function MappingEditDialog({
   onSave,
   onDelete,
 }: MappingEditDialogProps) {
+  const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   const [providerCategory, setProviderCategory] = useState(
     initial?.providerCategory ?? '',
   );
@@ -1541,79 +1648,92 @@ function MappingEditDialog({
       onOpenChange={(next) => {
         if (!next) onCancel();
       }}
-      title={isNew ? 'Add category mapping' : 'Edit category mapping'}
-      description="Block wins over mask wins over flag when multiple mappings fire."
+      title={
+        isNew
+          ? t('moderationProvider.addMappingTitle')
+          : t('moderationProvider.editMappingTitle')
+      }
+      description={t('moderationProvider.mappingDialogDescription')}
       footer={
         <>
           {onDelete && (
             <Button variant="destructive" onClick={onDelete}>
-              Delete
+              {tCommon('actions.delete')}
             </Button>
           )}
           <Button variant="ghost" onClick={onCancel}>
-            Cancel
+            {tCommon('actions.cancel')}
           </Button>
           <Button
             variant="primary"
             disabled={!canSave || !hasChanges}
             onClick={handleSave}
           >
-            Save
+            {tCommon('actions.save')}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
         <FormSection
-          label="Provider category"
-          description="The exact category key the provider returns (e.g. `hate`, `hate/threatening`, `violence`)."
+          label={t('moderationProvider.providerCategoryLabel')}
+          description={t('moderationProvider.providerCategoryDescription')}
         >
           <Input
             value={providerCategory}
             onChange={(e) => setProviderCategory(e.target.value)}
-            placeholder="hate"
+            placeholder={t('moderationProvider.providerCategoryPlaceholder')}
           />
         </FormSection>
 
         <FormSection
-          label="Internal label"
-          description="Human-readable name shown in the audit log and dashboards."
+          label={t('moderationProvider.internalLabelLabel')}
+          description={t('moderationProvider.internalLabelDescription')}
         >
           <Input
             value={internalLabel}
             onChange={(e) => setInternalLabel(e.target.value)}
-            placeholder="Hate speech"
+            placeholder={t('moderationProvider.internalLabelPlaceholder')}
           />
         </FormSection>
 
-        <FormSection label="Mode">
+        <FormSection label={t('moderationProvider.modeLabel')}>
           <Select
             value={mode}
             onValueChange={(v) => {
               if (v === 'block' || v === 'mask' || v === 'flag') setMode(v);
             }}
             options={[
-              { value: 'block', label: 'Block' },
-              { value: 'mask', label: 'Mask (flag-equivalent)' },
-              { value: 'flag', label: 'Flag' },
+              {
+                value: 'block',
+                label: t('moderationProvider.modeBlock'),
+              },
+              {
+                value: 'mask',
+                label: t('moderationProvider.modeMask'),
+              },
+              {
+                value: 'flag',
+                label: t('moderationProvider.modeFlag'),
+              },
             ]}
           />
         </FormSection>
 
         <FormSection
-          label="Score threshold"
-          description="Optional. When the provider returns scores, the mapping only fires when the category's score is at or above this value."
+          label={t('moderationProvider.scoreThresholdLabel')}
+          description={t('moderationProvider.scoreThresholdDescription')}
         >
           <Input
             type="number"
             step="0.05"
             value={scoreThresholdText}
             onChange={(e) => setScoreThresholdText(e.target.value)}
-            placeholder="0.5"
+            placeholder={t('moderationProvider.scoreThresholdPlaceholder')}
           />
         </FormSection>
 
-        <FormSection label="Enabled">
+        <FormSection label={t('moderationProvider.enabled')}>
           <Switch checked={enabled} onCheckedChange={setEnabled} />
         </FormSection>
       </div>
