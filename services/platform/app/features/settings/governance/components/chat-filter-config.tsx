@@ -15,6 +15,7 @@ import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
+import { useT } from '@/lib/i18n/client';
 import {
   chatFilterConfigSchema,
   type ChatFilterCategory,
@@ -44,6 +45,7 @@ function sanitizeFilename(raw: string): string {
 export function ChatFilterConfigView({
   organizationId,
 }: ChatFilterConfigProps) {
+  const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
 
@@ -123,13 +125,16 @@ export function ChatFilterConfigView({
           policyType: 'chat_filter',
           config,
         });
-        toast({ title: 'Content safety saved', variant: 'success' });
+        toast({ title: t('contentSafety.saved'), variant: 'success' });
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Save failed';
+        const message =
+          error instanceof Error
+            ? error.message
+            : t('contentSafety.saveFailed');
         toast({ title: message, variant: 'destructive' });
       }
     },
-    [upsertMutation, organizationId, toast],
+    [upsertMutation, organizationId, toast, t],
   );
 
   const handleSaveCategory = useCallback(
@@ -165,7 +170,11 @@ export function ChatFilterConfigView({
       if (
         typeof window !== 'undefined' &&
         !window.confirm(
-          `Delete category "${target.label}"? This removes its ${target.words.length} words and ${target.patterns.length} patterns.`,
+          t('contentSafety.deleteConfirm', {
+            label: target.label,
+            words: target.words.length,
+            patterns: target.patterns.length,
+          }),
         )
       ) {
         return;
@@ -175,12 +184,12 @@ export function ChatFilterConfigView({
       setEditorIndex((prev) => (prev === index ? null : prev));
       void saveWith(buildConfig({ categories: next }));
     },
-    [buildConfig, categories, saveWith],
+    [buildConfig, categories, saveWith, t],
   );
 
   if (isLoading) {
     return (
-      <PageSection title="Content safety">
+      <PageSection title={t('contentSafety.title')}>
         <Skeleton className="h-32 w-full" />
       </PageSection>
     );
@@ -188,19 +197,12 @@ export function ChatFilterConfigView({
 
   return (
     <PageSection
-      title="Content safety"
-      description="Word lists and custom regex applied to chat messages. All three modes (block / mask / flag) run in order and aggregate to a single audit event per message."
-    >
-      {cannotManage && (
-        <Alert
-          variant="warning"
-          description="You need admin permissions to edit content safety policy."
-        />
-      )}
-
-      <FormSection label="Enabled">
+      title={t('contentSafety.title')}
+      description={t('contentSafety.description')}
+      action={
         <Switch
           id="chat-filter-enabled"
+          label={t('contentSafety.enableLabel')}
           checked={enabled}
           disabled={cannotManage}
           onCheckedChange={(checked) => {
@@ -208,97 +210,108 @@ export function ChatFilterConfigView({
             void saveWith(buildConfig({ enabled: checked }));
           }}
         />
-      </FormSection>
+      }
+    >
+      {cannotManage && (
+        <Alert
+          variant="warning"
+          description={t('contentSafety.cannotManage')}
+        />
+      )}
 
-      <FormSection
-        label="Apply to"
-        description="Input filters user messages before the model. Output filters the assistant's reply; may add per-chunk latency."
-      >
-        <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={appliesToInput}
+      {enabled && (
+        <>
+          <FormSection
+            label={t('contentSafety.applyTo')}
+            description={t('contentSafety.applyToDescription')}
+          >
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={appliesToInput}
+                  disabled={cannotManage}
+                  onChange={(e) => {
+                    setAppliesToInput(e.target.checked);
+                    void saveWith(
+                      buildConfig({ appliesToInput: e.target.checked }),
+                    );
+                  }}
+                />
+                <span>{t('contentSafety.userInput')}</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={appliesToOutput}
+                  disabled={cannotManage}
+                  onChange={(e) => {
+                    setAppliesToOutput(e.target.checked);
+                    void saveWith(
+                      buildConfig({ appliesToOutput: e.target.checked }),
+                    );
+                  }}
+                />
+                <span>{t('contentSafety.modelOutput')}</span>
+              </label>
+            </div>
+          </FormSection>
+
+          <FormSection label={t('contentSafety.maskReplacement')}>
+            <Input
+              id="chat-filter-mask"
+              value={maskReplacement}
               disabled={cannotManage}
-              onChange={(e) => {
-                setAppliesToInput(e.target.checked);
-                void saveWith(
-                  buildConfig({ appliesToInput: e.target.checked }),
-                );
+              onChange={(e) => setMaskReplacement(e.target.value)}
+              onBlur={() => void saveWith(buildConfig({ maskReplacement }))}
+            />
+          </FormSection>
+
+          <FormSection
+            label={t('contentSafety.preferNonStreaming')}
+            description={t('contentSafety.preferNonStreamingDescription')}
+          >
+            <Switch
+              id="chat-filter-nonstreaming"
+              checked={preferNonStreaming}
+              disabled={cannotManage}
+              onCheckedChange={(checked) => {
+                setPreferNonStreaming(checked);
+                void saveWith(buildConfig({ preferNonStreaming: checked }));
               }}
             />
-            <span>User input</span>
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={appliesToOutput}
+          </FormSection>
+
+          <FormSection
+            label={t('contentSafety.categoriesTitle')}
+            description={t('contentSafety.categoriesDescription')}
+          >
+            <CategoryList
+              categories={categories}
               disabled={cannotManage}
-              onChange={(e) => {
-                setAppliesToOutput(e.target.checked);
-                void saveWith(
-                  buildConfig({ appliesToOutput: e.target.checked }),
-                );
-              }}
+              onAdd={() => setEditorIndex('new')}
+              onEdit={(index) => setEditorIndex(index)}
+              onDelete={handleDeleteCategory}
+              onToggleEnabled={handleToggleCategoryEnabled}
             />
-            <span>Model output</span>
-          </label>
-        </div>
-      </FormSection>
+          </FormSection>
 
-      <FormSection label="Mask replacement">
-        <Input
-          id="chat-filter-mask"
-          value={maskReplacement}
-          disabled={cannotManage}
-          onChange={(e) => setMaskReplacement(e.target.value)}
-          onBlur={() => void saveWith(buildConfig({ maskReplacement }))}
-        />
-      </FormSection>
-
-      <FormSection
-        label="Prefer non-streaming when output filter is on"
-        description="Wait for the complete response before showing anything. Eliminates any brief flash of unfiltered content in exchange for higher perceived latency."
-      >
-        <Switch
-          id="chat-filter-nonstreaming"
-          checked={preferNonStreaming}
-          disabled={cannotManage}
-          onCheckedChange={(checked) => {
-            setPreferNonStreaming(checked);
-            void saveWith(buildConfig({ preferNonStreaming: checked }));
-          }}
-        />
-      </FormSection>
-
-      <FormSection
-        label="Categories"
-        description="Each category has its own mode. block wins over mask wins over flag when multiple match."
-      >
-        <CategoryList
-          categories={categories}
-          disabled={cannotManage}
-          onAdd={() => setEditorIndex('new')}
-          onEdit={(index) => setEditorIndex(index)}
-          onDelete={handleDeleteCategory}
-          onToggleEnabled={handleToggleCategoryEnabled}
-        />
-      </FormSection>
-
-      <CategoryEditSheet
-        open={editorIndex !== null}
-        index={editorIndex}
-        initial={
-          editorIndex === null || editorIndex === 'new'
-            ? undefined
-            : categories[editorIndex]
-        }
-        onCancel={() => setEditorIndex(null)}
-        onSave={(draft) => {
-          if (editorIndex === null) return;
-          handleSaveCategory(editorIndex, draft);
-        }}
-      />
+          <CategoryEditSheet
+            open={editorIndex !== null}
+            index={editorIndex}
+            initial={
+              editorIndex === null || editorIndex === 'new'
+                ? undefined
+                : categories[editorIndex]
+            }
+            onCancel={() => setEditorIndex(null)}
+            onSave={(draft) => {
+              if (editorIndex === null) return;
+              handleSaveCategory(editorIndex, draft);
+            }}
+          />
+        </>
+      )}
     </PageSection>
   );
 }
@@ -320,12 +333,16 @@ function CategoryEditForm({
   onCancel,
   onSave,
 }: CategoryEditFormProps) {
+  const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   // Initialized from `initial` on mount. Because this component unmounts on
   // sheet close (key on the parent), a reopen re-mounts with a fresh
   // snapshot of `initial` — so an earlier abandoned draft can never leak
   // into a later edit session, and the previous useEffect-based reset
   // (which was the source of a mode-revert bug) is no longer needed.
-  const [label, setLabel] = useState(initial?.label ?? 'New category');
+  const [label, setLabel] = useState(
+    initial?.label ?? t('contentSafety.newCategoryDefault'),
+  );
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [mode, setMode] = useState<'block' | 'mask' | 'flag'>(
     initial?.mode ?? 'flag',
@@ -404,7 +421,11 @@ function CategoryEditForm({
       hadExisting &&
       typeof window !== 'undefined' &&
       !window.confirm(
-        `Replace ${wordLines.length} existing words with ${incoming.length} words from "${file.name}"?`,
+        t('contentSafety.importReplaceConfirm', {
+          existing: wordLines.length,
+          incoming: incoming.length,
+          filename: file.name,
+        }),
       )
     ) {
       return;
@@ -417,31 +438,32 @@ function CategoryEditForm({
     <div className="flex h-full flex-col">
       <div className="shrink-0 pr-10">
         <h2 className="text-lg font-semibold tracking-tight">
-          {isNew ? 'Add category' : 'Edit category'}
+          {isNew
+            ? t('contentSafety.addCategory')
+            : t('contentSafety.editCategory')}
         </h2>
         <p className="text-muted-foreground mt-1 text-sm">
-          Block wins over mask wins over flag when multiple categories match the
-          same message.
+          {t('contentSafety.categoryEditorDescription')}
         </p>
       </div>
 
       <div className="-mx-6 min-h-0 flex-1 overflow-y-auto px-6 py-4">
         <div className="flex flex-col gap-4">
-          <FormSection label="Label">
+          <FormSection label={t('contentSafety.categoryLabel')}>
             <Input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g. Hate speech"
+              placeholder={t('contentSafety.categoryLabelPlaceholder')}
             />
           </FormSection>
 
-          <FormSection label="Enabled">
+          <FormSection label={t('contentSafety.enabled')}>
             <Switch checked={enabled} onCheckedChange={setEnabled} />
           </FormSection>
 
           <FormSection
-            label="Mode"
-            description="Block refuses the message. Mask replaces matches with the configured placeholder. Flag records the detection but lets the message pass."
+            label={t('contentSafety.categoryMode')}
+            description={t('contentSafety.categoryModeDescription')}
           >
             <Select
               value={mode}
@@ -449,16 +471,16 @@ function CategoryEditForm({
                 if (v === 'block' || v === 'mask' || v === 'flag') setMode(v);
               }}
               options={[
-                { value: 'block', label: 'Block' },
-                { value: 'mask', label: 'Mask' },
-                { value: 'flag', label: 'Flag' },
+                { value: 'block', label: t('contentSafety.modeBlock') },
+                { value: 'mask', label: t('contentSafety.modeMask') },
+                { value: 'flag', label: t('contentSafety.modeFlag') },
               ]}
             />
           </FormSection>
 
           <FormSection
-            label={`Words (${wordLines.length})`}
-            description="One word or phrase per line. Case-insensitive. For CJK/Thai/Lao text, substring matching is used automatically; other scripts use Unicode-aware word boundaries."
+            label={t('contentSafety.wordsCount', { count: wordLines.length })}
+            description={t('contentSafety.wordsDescription')}
           >
             <div className="flex flex-col gap-2">
               <div className="flex gap-2">
@@ -468,7 +490,7 @@ function CategoryEditForm({
                   icon={Upload}
                   onClick={handleImportClick}
                 >
-                  Import .txt
+                  {t('contentSafety.importTxt')}
                 </Button>
                 <Button
                   variant="secondary"
@@ -477,7 +499,7 @@ function CategoryEditForm({
                   disabled={wordLines.length === 0}
                   onClick={handleExport}
                 >
-                  Export .txt
+                  {t('contentSafety.exportTxt')}
                 </Button>
                 <input
                   ref={fileInputRef}
@@ -494,7 +516,7 @@ function CategoryEditForm({
                 rows={14}
                 className="font-mono text-xs"
                 onChange={(e) => setWordsText(e.target.value)}
-                placeholder={`forbidden\nanother word\n傻逼`}
+                placeholder={t('contentSafety.wordsPlaceholder')}
               />
             </div>
           </FormSection>
@@ -503,14 +525,14 @@ function CategoryEditForm({
 
       <div className="flex shrink-0 justify-end gap-2 border-t pt-4">
         <Button variant="ghost" onClick={onCancel}>
-          Cancel
+          {tCommon('actions.cancel')}
         </Button>
         <Button
           variant="primary"
           disabled={!canSave || !hasChanges}
           onClick={handleSave}
         >
-          Save
+          {tCommon('actions.save')}
         </Button>
       </div>
     </div>
@@ -538,21 +560,33 @@ function CategoryList({
   onDelete,
   onToggleEnabled,
 }: CategoryListProps) {
+  const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   return (
     <div className="flex flex-col gap-2">
       {categories.length === 0 ? (
         <div className="text-muted-foreground text-sm">
-          No categories configured. Add one to start filtering.
+          {t('contentSafety.categoriesEmpty')}
         </div>
       ) : (
         <table className="w-full text-sm">
           <thead>
             <tr className="text-muted-foreground text-left text-xs">
-              <th className="py-1 font-medium">Label</th>
-              <th className="py-1 font-medium">Mode</th>
-              <th className="py-1 font-medium">Enabled</th>
-              <th className="py-1 font-medium">Words</th>
-              <th className="py-1 font-medium">Patterns</th>
+              <th className="py-1 font-medium">
+                {t('contentSafety.columnLabel')}
+              </th>
+              <th className="py-1 font-medium">
+                {t('contentSafety.columnMode')}
+              </th>
+              <th className="py-1 font-medium">
+                {t('contentSafety.columnEnabled')}
+              </th>
+              <th className="py-1 font-medium">
+                {t('contentSafety.columnWords')}
+              </th>
+              <th className="py-1 font-medium">
+                {t('contentSafety.columnPatterns')}
+              </th>
               <th className="py-1 font-medium"></th>
             </tr>
           </thead>
@@ -565,7 +599,9 @@ function CategoryList({
                   <Switch
                     checked={category.enabled}
                     disabled={disabled}
-                    aria-label={`Enable ${category.label}`}
+                    aria-label={t('contentSafety.enableAria', {
+                      label: category.label,
+                    })}
                     onCheckedChange={(next) => onToggleEnabled(index, next)}
                   />
                 </td>
@@ -577,17 +613,21 @@ function CategoryList({
                       variant="ghost"
                       size="sm"
                       icon={Pencil}
-                      aria-label={`Edit ${category.label}`}
+                      aria-label={t('contentSafety.editAria', {
+                        label: category.label,
+                      })}
                       disabled={disabled}
                       onClick={() => onEdit(index)}
                     >
-                      Edit
+                      {tCommon('actions.edit')}
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       icon={Trash2}
-                      aria-label={`Delete ${category.label}`}
+                      aria-label={t('contentSafety.deleteAria', {
+                        label: category.label,
+                      })}
                       disabled={disabled}
                       onClick={() => onDelete(index)}
                     />
@@ -606,7 +646,7 @@ function CategoryList({
           disabled={disabled}
           onClick={onAdd}
         >
-          Add category
+          {t('contentSafety.addCategory')}
         </Button>
       </div>
     </div>
@@ -632,6 +672,7 @@ function CategoryEditSheet({
   onCancel,
   onSave,
 }: CategoryEditSheetProps) {
+  const { t } = useT('governance');
   const isNew = index === 'new';
 
   return (
@@ -640,8 +681,10 @@ function CategoryEditSheet({
       onOpenChange={(next) => {
         if (!next) onCancel();
       }}
-      title={isNew ? 'Add category' : 'Edit category'}
-      description="Configure a content safety category, its enforcement mode, and its word list."
+      title={
+        isNew ? t('contentSafety.addCategory') : t('contentSafety.editCategory')
+      }
+      description={t('contentSafety.categorySheetDescription')}
       className="sm:!max-w-2xl"
     >
       {/* Keyed so each open re-mounts the form with fresh state derived from

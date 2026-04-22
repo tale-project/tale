@@ -13,6 +13,7 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
 import {
   chatFilterConfigSchema,
   moderationProviderConfigSchema,
@@ -96,6 +97,7 @@ function StatusCard({
 export function GuardrailsOverview({
   organizationId,
 }: GuardrailsOverviewProps) {
+  const { t } = useT('governance');
   const { data: piiPolicy, isLoading: piiLoading } = useGovernancePolicy(
     organizationId,
     'pii_config',
@@ -127,18 +129,24 @@ export function GuardrailsOverview({
 
   if (piiLoading || chatFilterLoading || moderationLoading) {
     return (
-      <PageSection title="Guardrails overview">
+      <PageSection title={t('guardrailsOverview.title')}>
         <Skeleton className="h-48 w-full" />
       </PageSection>
     );
   }
   const chatFilterDetails: string[] = chatFilterEnabled
     ? [
-        `Applies to: ${(chatFilterConfig?.appliesTo ?? ['input']).join(', ')}`,
-        `Categories: ${chatFilterConfig?.categories?.length ?? 0}`,
-        `Mask replacement: ${chatFilterConfig?.maskReplacement ?? '[BLOCKED]'}`,
+        t('guardrailsOverview.statusCards.contentSafety.appliesTo', {
+          targets: (chatFilterConfig?.appliesTo ?? ['input']).join(', '),
+        }),
+        t('guardrailsOverview.statusCards.contentSafety.categories', {
+          count: chatFilterConfig?.categories?.length ?? 0,
+        }),
+        t('guardrailsOverview.statusCards.contentSafety.maskReplacement', {
+          value: chatFilterConfig?.maskReplacement ?? '[BLOCKED]',
+        }),
       ]
-    : ['Disabled — add a category and enable to start filtering.'];
+    : [t('guardrailsOverview.statusCards.contentSafety.disabled')];
 
   const piiEnabled = !!piiPolicy?.enabled;
   const piiParsed = piiPolicy
@@ -147,12 +155,15 @@ export function GuardrailsOverview({
   const piiConfig = piiParsed?.success ? piiParsed.data : undefined;
   const piiDetails: string[] = piiEnabled
     ? [
-        `Mode: ${piiConfig?.mode ?? 'mask'}`,
-        `Patterns: ${piiConfig?.enabledPatterns?.length ?? 0} built-in + ${
-          piiConfig?.customPatterns?.length ?? 0
-        } custom`,
+        t('guardrailsOverview.statusCards.pii.mode', {
+          mode: piiConfig?.mode ?? 'mask',
+        }),
+        t('guardrailsOverview.statusCards.pii.patterns', {
+          builtIn: piiConfig?.enabledPatterns?.length ?? 0,
+          custom: piiConfig?.customPatterns?.length ?? 0,
+        }),
       ]
-    : ['Disabled — PII detection is off for this organization.'];
+    : [t('guardrailsOverview.statusCards.pii.disabled')];
 
   const moderationEnabled = !!moderationPolicy?.enabled;
   const moderationParsed = moderationPolicy
@@ -163,36 +174,49 @@ export function GuardrailsOverview({
     : undefined;
   const moderationDetails: string[] = moderationEnabled
     ? [
-        `Provider: ${moderationConfig?.responseShape?.type ?? 'custom_jsonpath'}`,
-        `Applies to: ${(moderationConfig?.appliesTo ?? ['input']).join(', ')}`,
-        `Mappings: ${moderationConfig?.categoryMappings?.length ?? 0}`,
-        `Fail behavior: in=${moderationConfig?.failBehavior?.input ?? 'open'}, out=${moderationConfig?.failBehavior?.output ?? 'closed'}`,
+        t('guardrailsOverview.statusCards.moderation.provider', {
+          value: moderationConfig?.responseShape?.type ?? 'custom_jsonpath',
+        }),
+        t('guardrailsOverview.statusCards.moderation.appliesTo', {
+          targets: (moderationConfig?.appliesTo ?? ['input']).join(', '),
+        }),
+        t('guardrailsOverview.statusCards.moderation.mappings', {
+          count: moderationConfig?.categoryMappings?.length ?? 0,
+        }),
+        t('guardrailsOverview.statusCards.moderation.failBehavior', {
+          input: moderationConfig?.failBehavior?.input ?? 'open',
+          output: moderationConfig?.failBehavior?.output ?? 'closed',
+        }),
       ]
-    : ['Disabled — no external moderation API configured.'];
+    : [t('guardrailsOverview.statusCards.moderation.disabled')];
 
   return (
     <PageSection
-      title="Guardrails overview"
-      description="Read-only snapshot of the three filter layers. Each one runs in order per message: chat_filter → PII → moderation_provider."
+      title={t('guardrailsOverview.title')}
+      description={t('guardrailsOverview.description')}
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <StatusCard
-          title="Content safety"
-          description="Word lists and admin-supplied regex patterns."
+          title={t('guardrailsOverview.statusCards.contentSafety.title')}
+          description={t(
+            'guardrailsOverview.statusCards.contentSafety.description',
+          )}
           enabled={chatFilterEnabled}
           details={chatFilterDetails}
           icon={ShieldAlert}
         />
         <StatusCard
-          title="PII detection"
-          description="Built-in patterns for emails, phones, IDs, etc."
+          title={t('guardrailsOverview.statusCards.pii.title')}
+          description={t('guardrailsOverview.statusCards.pii.description')}
           enabled={piiEnabled}
           details={piiDetails}
           icon={ShieldAlert}
         />
         <StatusCard
-          title="Moderation provider"
-          description="External classifier (OpenAI / Azure / Perspective / custom)."
+          title={t('guardrailsOverview.statusCards.moderation.title')}
+          description={t(
+            'guardrailsOverview.statusCards.moderation.description',
+          )}
           enabled={moderationEnabled}
           details={moderationDetails}
           icon={ShieldAlert}
@@ -225,6 +249,7 @@ interface RecentEventsProps {
 }
 
 function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
+  const { t } = useT('governance');
   const [filterName, setFilterName] = useState<FilterNameFilter>('all');
   const [kind, setKind] = useState<KindFilter>('all');
   const [selectedEvent, setSelectedEvent] = useState<RecentEvent | null>(null);
@@ -249,10 +274,11 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
     <section className="mt-8">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold">Recent events</h3>
+          <h3 className="text-sm font-semibold">
+            {t('guardrailsOverview.recentEvents.title')}
+          </h3>
           <p className="text-muted-foreground text-xs">
-            Last 50 detections / blocks / provider errors for this org. Raw
-            matched text is never stored.
+            {t('guardrailsOverview.recentEvents.description')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -269,10 +295,22 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
               }
             }}
             options={[
-              { value: 'all', label: 'All filters' },
-              { value: 'pii', label: 'PII' },
-              { value: 'chat_filter', label: 'Content safety' },
-              { value: 'moderation_provider', label: 'Moderation' },
+              {
+                value: 'all',
+                label: t('guardrailsOverview.recentEvents.filterAll'),
+              },
+              {
+                value: 'pii',
+                label: t('guardrailsOverview.recentEvents.filterPii'),
+              },
+              {
+                value: 'chat_filter',
+                label: t('guardrailsOverview.recentEvents.filterChatFilter'),
+              },
+              {
+                value: 'moderation_provider',
+                label: t('guardrailsOverview.recentEvents.filterModeration'),
+              },
             ]}
           />
           <Select
@@ -289,11 +327,26 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
               }
             }}
             options={[
-              { value: 'all', label: 'All kinds' },
-              { value: 'detected', label: 'Detected' },
-              { value: 'blocked', label: 'Blocked' },
-              { value: 'step_error', label: 'Step error' },
-              { value: 'circuit_open', label: 'Circuit open' },
+              {
+                value: 'all',
+                label: t('guardrailsOverview.recentEvents.kindAll'),
+              },
+              {
+                value: 'detected',
+                label: t('guardrailsOverview.recentEvents.kindDetected'),
+              },
+              {
+                value: 'blocked',
+                label: t('guardrailsOverview.recentEvents.kindBlocked'),
+              },
+              {
+                value: 'step_error',
+                label: t('guardrailsOverview.recentEvents.kindStepError'),
+              },
+              {
+                value: 'circuit_open',
+                label: t('guardrailsOverview.recentEvents.kindCircuitOpen'),
+              },
             ]}
           />
         </div>
@@ -303,20 +356,31 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
         <Skeleton className="h-48 w-full" />
       ) : !events || events.length === 0 ? (
         <div className="border-border text-muted-foreground rounded-lg border p-6 text-center text-sm">
-          No events yet. Detections from flag / mask / block modes will appear
-          here once chat traffic starts flowing.
+          {t('guardrailsOverview.recentEvents.empty')}
         </div>
       ) : (
         <div className="border-border overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-border bg-muted/40 text-muted-foreground border-b text-left text-xs">
-                <th className="px-3 py-2 font-medium">Time</th>
-                <th className="px-3 py-2 font-medium">Filter</th>
-                <th className="px-3 py-2 font-medium">Direction</th>
-                <th className="px-3 py-2 font-medium">Kind</th>
-                <th className="px-3 py-2 font-medium">Categories</th>
-                <th className="px-3 py-2 text-right font-medium">Matches</th>
+                <th className="px-3 py-2 font-medium">
+                  {t('guardrailsOverview.recentEvents.columnTime')}
+                </th>
+                <th className="px-3 py-2 font-medium">
+                  {t('guardrailsOverview.recentEvents.columnFilter')}
+                </th>
+                <th className="px-3 py-2 font-medium">
+                  {t('guardrailsOverview.recentEvents.columnDirection')}
+                </th>
+                <th className="px-3 py-2 font-medium">
+                  {t('guardrailsOverview.recentEvents.columnKind')}
+                </th>
+                <th className="px-3 py-2 font-medium">
+                  {t('guardrailsOverview.recentEvents.columnCategories')}
+                </th>
+                <th className="px-3 py-2 text-right font-medium">
+                  {t('guardrailsOverview.recentEvents.columnMatches')}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -327,7 +391,10 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
                     key={typedEvent._id}
                     className="border-border hover:bg-muted/30 cursor-pointer border-t transition-colors"
                     tabIndex={0}
-                    aria-label={`View event ${typedEvent._id}`}
+                    aria-label={t(
+                      'guardrailsOverview.recentEvents.viewEventAria',
+                      { id: typedEvent._id },
+                    )}
                     onClick={() => setSelectedEvent(typedEvent)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
@@ -346,7 +413,7 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
                       {formatDate(new Date(typedEvent.createdAt), 'relative')}
                     </td>
                     <td className="px-3 py-2">
-                      {filterNameLabel(typedEvent.filterName)}
+                      {filterNameLabel(typedEvent.filterName, t)}
                     </td>
                     <td className="px-3 py-2 capitalize">
                       {typedEvent.direction}
@@ -402,6 +469,7 @@ function EventDetailSheet({
   chatFilterLabels,
   onClose,
 }: EventDetailSheetProps) {
+  const { t } = useT('governance');
   const { formatDate } = useFormatDate();
   const { toast } = useToast();
   const open = event !== null;
@@ -409,9 +477,15 @@ function EventDetailSheet({
   const copy = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast({ title: `${label} copied`, variant: 'success' });
+      toast({
+        title: t('guardrailsOverview.eventDetails.copied', { label }),
+        variant: 'success',
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Copy failed';
+      const message =
+        err instanceof Error
+          ? err.message
+          : t('guardrailsOverview.eventDetails.copyFailed');
       toast({ title: message, variant: 'destructive' });
     }
   };
@@ -422,14 +496,14 @@ function EventDetailSheet({
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
-      title="Event details"
-      description="Full metadata for a guardrails event. Raw matched text is never stored."
+      title={t('guardrailsOverview.eventDetails.title')}
+      description={t('guardrailsOverview.eventDetails.description')}
       className="sm:!max-w-xl"
     >
       <div className="flex h-full flex-col">
         <div className="shrink-0 pr-10">
           <h2 className="text-lg font-semibold tracking-tight">
-            Event details
+            {t('guardrailsOverview.eventDetails.title')}
           </h2>
           {event && (
             <p className="text-muted-foreground mt-1 text-sm">
@@ -441,16 +515,18 @@ function EventDetailSheet({
         <div className="-mx-6 min-h-0 flex-1 overflow-y-auto px-6 py-4">
           {event && (
             <dl className="space-y-4 text-sm">
-              <DetailRow label="Filter">
-                {filterNameLabel(event.filterName)}
+              <DetailRow label={t('guardrailsOverview.eventDetails.filter')}>
+                {filterNameLabel(event.filterName, t)}
               </DetailRow>
-              <DetailRow label="Direction">
+              <DetailRow label={t('guardrailsOverview.eventDetails.direction')}>
                 <span className="capitalize">{event.direction}</span>
               </DetailRow>
-              <DetailRow label="Kind">
+              <DetailRow label={t('guardrailsOverview.eventDetails.kind')}>
                 <KindBadge kind={event.kind} />
               </DetailRow>
-              <DetailRow label="Categories">
+              <DetailRow
+                label={t('guardrailsOverview.eventDetails.categories')}
+              >
                 {event.categoryIds.length === 0 ? (
                   <span className="text-muted-foreground">—</span>
                 ) : (
@@ -473,7 +549,9 @@ function EventDetailSheet({
                           )}
                           {event.filterName === 'chat_filter' && !label && (
                             <span className="text-muted-foreground italic">
-                              (deleted)
+                              {t(
+                                'guardrailsOverview.eventDetails.categoryDeleted',
+                              )}
                             </span>
                           )}
                         </li>
@@ -482,65 +560,92 @@ function EventDetailSheet({
                   </ul>
                 )}
               </DetailRow>
-              <DetailRow label="Matches">
+              <DetailRow label={t('guardrailsOverview.eventDetails.matches')}>
                 <span className="tabular-nums">{event.matchCount ?? 0}</span>
               </DetailRow>
               {event.truncated && (
-                <DetailRow label="Truncated">
+                <DetailRow
+                  label={t('guardrailsOverview.eventDetails.truncated')}
+                >
                   <span className="text-amber-600">
-                    Yes — message exceeded the scan-length cap
+                    {t('guardrailsOverview.eventDetails.truncatedValue')}
                   </span>
                 </DetailRow>
               )}
               {event.errorClass && (
-                <DetailRow label="Error class">
+                <DetailRow
+                  label={t('guardrailsOverview.eventDetails.errorClass')}
+                >
                   <span className="font-mono text-xs">{event.errorClass}</span>
                 </DetailRow>
               )}
               {event.httpStatus !== undefined && (
-                <DetailRow label="HTTP status">
+                <DetailRow
+                  label={t('guardrailsOverview.eventDetails.httpStatus')}
+                >
                   <span className="tabular-nums">{event.httpStatus}</span>
                 </DetailRow>
               )}
               {event.durationMs !== undefined && (
-                <DetailRow label="Duration">
-                  <span className="tabular-nums">{event.durationMs} ms</span>
+                <DetailRow
+                  label={t('guardrailsOverview.eventDetails.duration')}
+                >
+                  <span className="tabular-nums">
+                    {t('guardrailsOverview.eventDetails.durationValue', {
+                      ms: event.durationMs,
+                    })}
+                  </span>
                 </DetailRow>
               )}
               {event.attempt !== undefined && (
-                <DetailRow label="Attempt">
+                <DetailRow label={t('guardrailsOverview.eventDetails.attempt')}>
                   <span className="tabular-nums">{event.attempt}</span>
                 </DetailRow>
               )}
-              <DetailRow label="Sanitization run">
+              <DetailRow
+                label={t('guardrailsOverview.eventDetails.sanitizationRun')}
+              >
                 <button
                   type="button"
                   className="hover:text-foreground text-muted-foreground inline-flex items-center gap-1 font-mono text-xs"
                   onClick={() =>
-                    void copy(event.sanitizationRunId, 'Sanitization run id')
+                    void copy(
+                      event.sanitizationRunId,
+                      t(
+                        'guardrailsOverview.eventDetails.sanitizationRunCopyLabel',
+                      ),
+                    )
                   }
                 >
                   {event.sanitizationRunId}
                   <Copy className="size-3" aria-hidden />
                 </button>
               </DetailRow>
-              <DetailRow label="Thread">
+              <DetailRow label={t('guardrailsOverview.eventDetails.thread')}>
                 <button
                   type="button"
                   className="hover:text-foreground text-muted-foreground inline-flex items-center gap-1 font-mono text-xs"
-                  onClick={() => void copy(event.threadId, 'Thread id')}
+                  onClick={() =>
+                    void copy(
+                      event.threadId,
+                      t('guardrailsOverview.eventDetails.threadCopyLabel'),
+                    )
+                  }
                 >
                   {event.threadId}
                   <Copy className="size-3" aria-hidden />
                 </button>
               </DetailRow>
               {event.messageId && (
-                <DetailRow label="Message">
+                <DetailRow label={t('guardrailsOverview.eventDetails.message')}>
                   <button
                     type="button"
                     className="hover:text-foreground text-muted-foreground inline-flex items-center gap-1 font-mono text-xs"
                     onClick={() =>
-                      void copy(event.messageId ?? '', 'Message id')
+                      void copy(
+                        event.messageId ?? '',
+                        t('guardrailsOverview.eventDetails.messageCopyLabel'),
+                      )
                     }
                   >
                     {event.messageId}
@@ -549,14 +654,18 @@ function EventDetailSheet({
                 </DetailRow>
               )}
               {event.agentSlug && (
-                <DetailRow label="Agent">{event.agentSlug}</DetailRow>
+                <DetailRow label={t('guardrailsOverview.eventDetails.agent')}>
+                  {event.agentSlug}
+                </DetailRow>
               )}
               {event.actorType && (
-                <DetailRow label="Actor type">
+                <DetailRow
+                  label={t('guardrailsOverview.eventDetails.actorType')}
+                >
                   <span className="capitalize">{event.actorType}</span>
                 </DetailRow>
               )}
-              <DetailRow label="Timestamp">
+              <DetailRow label={t('guardrailsOverview.eventDetails.timestamp')}>
                 {formatDate(new Date(event.createdAt), 'medium')}
               </DetailRow>
             </dl>
@@ -565,7 +674,7 @@ function EventDetailSheet({
 
         <div className="flex shrink-0 justify-end gap-2 border-t pt-4">
           <Button variant="ghost" onClick={onClose}>
-            Close
+            {t('guardrailsOverview.eventDetails.close')}
           </Button>
         </div>
       </div>
@@ -588,10 +697,12 @@ function DetailRow({
   );
 }
 
-function filterNameLabel(name: string): string {
-  if (name === 'pii') return 'PII';
-  if (name === 'chat_filter') return 'Content safety';
-  if (name === 'moderation_provider') return 'Moderation';
+function filterNameLabel(name: string, t: (key: string) => string): string {
+  if (name === 'pii') return t('guardrailsOverview.filterNames.pii');
+  if (name === 'chat_filter')
+    return t('guardrailsOverview.filterNames.chatFilter');
+  if (name === 'moderation_provider')
+    return t('guardrailsOverview.filterNames.moderation');
   return name;
 }
 
@@ -612,6 +723,7 @@ function resolveCategoryLabels(
 }
 
 function KindBadge({ kind }: { kind: string }) {
+  const { t } = useT('governance');
   const classes =
     kind === 'blocked'
       ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
@@ -620,11 +732,21 @@ function KindBadge({ kind }: { kind: string }) {
         : kind === 'step_error'
           ? 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300'
           : 'bg-muted text-muted-foreground';
+  const label =
+    kind === 'blocked'
+      ? t('guardrailsOverview.recentEvents.kindBlocked')
+      : kind === 'detected'
+        ? t('guardrailsOverview.recentEvents.kindDetected')
+        : kind === 'step_error'
+          ? t('guardrailsOverview.recentEvents.kindStepError')
+          : kind === 'circuit_open'
+            ? t('guardrailsOverview.recentEvents.kindCircuitOpen')
+            : kind.replace('_', ' ');
   return (
     <span
-      className={`inline-block rounded px-2 py-0.5 text-xs font-medium capitalize ${classes}`}
+      className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${classes}`}
     >
-      {kind.replace('_', ' ')}
+      {label}
     </span>
   );
 }
