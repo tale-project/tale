@@ -1,4 +1,6 @@
 import { existsSync } from 'node:fs';
+import { cp, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
@@ -77,6 +79,8 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
   // Track containers started during this deploy for cleanup on interrupt
   const startedContainers: string[] = [];
+  // Track tmp staging dirs created by syncProjectFiles so interrupts don't leak /tmp/tale-sync-*
+  const tempStageDirs = new Set<string>();
   let interrupted = false;
 
   const onInterrupt = () => {
@@ -93,6 +97,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
         // Best-effort cleanup: log so an operator can follow up manually.
         logger.warn(
           `Failed to clean up ${name}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    for (const stageDir of tempStageDirs) {
+      try {
+        Bun.spawnSync(['rm', '-rf', stageDir]);
+      } catch (err) {
+        logger.warn(
+          `Failed to clean up stage dir ${stageDir}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }
@@ -531,6 +544,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
         env.DEPLOY_DIR,
         dryRun,
         prefix,
+        tempStageDirs,
       );
     });
   } finally {
@@ -552,6 +566,7 @@ async function syncProjectFiles(
   projectDir: string,
   dryRun: boolean,
   prefix: string,
+  tempStageDirs: Set<string>,
 ): Promise<void> {
   const dirsToSync = SYNC_DIRS.filter((dir) =>
     existsSync(join(projectDir, dir)),
@@ -581,38 +596,146 @@ async function syncProjectFiles(
       logger.info(
         `${prefix}Would sync ${dir}/ → ${containerName}:/app/data/${dir}/`,
       );
+      if (dir === 'providers') {
+        logger.info(
+          `${prefix}  (any existing container *.secrets.json will be preserved)`,
+        );
+      }
       continue;
     }
 
-    const dockerSrcPath = srcPath.replaceAll('\\', '/');
-    const result = await exec('docker', [
-      'cp',
-      `${dockerSrcPath}/.`,
-      `${containerName}:/app/data/${dir}/`,
-    ]);
+    // INVARIANT: when dir === 'providers', `dockerSrcDir` must come from
+    // stageProvidersWithoutConflictingSecrets() so that *.secrets.json files
+    // written via the admin UI (SOPS-encrypted API keys, etc.) are not
+    // clobbered by host copies. Do not remove this branch without also
+    // moving the protection elsewhere.
+    let dockerSrcDir = srcPath;
+    let tempStageDir: string | null = null;
+    let preserved: string[] = [];
 
-    if (result.success) {
-      // docker cp copies files as root — fix ownership so the app user can write
-      const chownResult = await exec('docker', [
-        'exec',
-        containerName,
-        'chown',
-        '-R',
-        'app:app',
-        `/app/data/${dir}/`,
-      ]);
-      if (!chownResult.success) {
-        logger.warn(
-          `Failed to fix ownership for ${dir}/: ${chownResult.stderr}`,
+    if (dir === 'providers') {
+      const containerSecrets = await listContainerSecrets(containerName);
+      if (containerSecrets.size > 0) {
+        const staged = await stageProvidersWithoutConflictingSecrets(
+          srcPath,
+          containerSecrets,
         );
+        tempStageDir = staged.stageDir;
+        tempStageDirs.add(staged.stageDir);
+        preserved = staged.skipped;
+        dockerSrcDir = staged.stageDir;
       }
-      logger.info(`Synced ${dir}/`);
-    } else {
-      logger.warn(`Failed to sync ${dir}/: ${result.stderr}`);
+    }
+
+    try {
+      const dockerSrcPath = dockerSrcDir.replaceAll('\\', '/');
+      const result = await exec('docker', [
+        'cp',
+        `${dockerSrcPath}/.`,
+        `${containerName}:/app/data/${dir}/`,
+      ]);
+
+      if (result.success) {
+        // docker cp copies files as root — fix ownership so the app user can write
+        const chownResult = await exec('docker', [
+          'exec',
+          containerName,
+          'chown',
+          '-R',
+          'app:app',
+          `/app/data/${dir}/`,
+        ]);
+        if (!chownResult.success) {
+          logger.warn(
+            `Failed to fix ownership for ${dir}/: ${chownResult.stderr}`,
+          );
+        }
+        logger.info(`Synced ${dir}/`);
+        if (preserved.length > 0) {
+          logger.info(
+            `Preserved ${preserved.length} existing container secret(s) (host copy skipped to avoid overwriting UI edits):`,
+          );
+          for (const p of preserved) {
+            logger.info(`  - providers/${p}`);
+          }
+          logger.info(
+            `  To push host values instead: docker exec ${containerName} rm /app/data/providers/<file>, then redeploy.`,
+          );
+        }
+      } else {
+        logger.warn(`Failed to sync ${dir}/: ${result.stderr}`);
+      }
+    } finally {
+      if (tempStageDir) {
+        tempStageDirs.delete(tempStageDir);
+        await rm(tempStageDir, { recursive: true, force: true });
+      }
     }
   }
 
   if (!dryRun) {
     logger.success('Project files synced');
   }
+}
+
+// Enumerate *.secrets.json files already in the convex container so the
+// subsequent docker cp can skip host copies that would overwrite them.
+// Distinguishes benign "directory missing" (first deploy, empty volume) from
+// hard failures (container unreachable, permission denied, etc.) — the latter
+// aborts the deploy rather than silently reverting to the old overwrite
+// behavior.
+async function listContainerSecrets(
+  containerName: string,
+): Promise<Set<string>> {
+  const result = await exec('docker', [
+    'exec',
+    containerName,
+    'find',
+    '/app/data/providers',
+    '-type',
+    'f',
+    '-name',
+    '*.secrets.json',
+    '-printf',
+    '%P\n',
+  ]);
+  if (result.success) {
+    return new Set(
+      result.stdout
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    );
+  }
+  if (/No such file or directory/.test(result.stderr)) {
+    // Providers directory not yet created — nothing to protect.
+    return new Set();
+  }
+  throw new Error(
+    `Failed to enumerate container provider secrets on ${containerName}: ${result.stderr || 'unknown error'}`,
+  );
+}
+
+// Copy host `providers/` into a fresh tmp dir and delete any *.secrets.json
+// whose relative path also exists in the container. The resulting stage dir
+// is what `docker cp` will ship — so conflicting secrets are preserved on the
+// container side, non-conflicting files sync as before. fs.cp defaults to
+// dereference=false, which keeps symlinks intact.
+async function stageProvidersWithoutConflictingSecrets(
+  srcDir: string,
+  protectedRelPaths: Set<string>,
+): Promise<{ stageDir: string; skipped: string[] }> {
+  const stageDir = await mkdtemp(join(tmpdir(), 'tale-sync-'));
+  await cp(srcDir, stageDir, { recursive: true });
+  const skipped: string[] = [];
+  for (const rel of protectedRelPaths) {
+    // `rel` comes from the Linux container's find, so it uses '/'. Split
+    // and re-join so Windows host paths resolve correctly against stageDir.
+    const candidate = join(stageDir, ...rel.split('/'));
+    if (existsSync(candidate)) {
+      await rm(candidate);
+      skipped.push(rel);
+    }
+  }
+  return { stageDir, skipped };
 }
