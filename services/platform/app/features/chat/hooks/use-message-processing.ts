@@ -186,6 +186,21 @@ export function useMessageProcessing(
         ? Math.min(...userMessages.map((m) => m.order))
         : 0;
 
+    // When a tool writes a file-only assistant message (via appendFilePart)
+    // mid-stream, its row lands before the post-tool text message does.
+    // If we render it standalone in that window, the bubble unmounts and the
+    // post-tool message's TypewriterText mounts fresh once the merge catches up
+    // — visible as a flicker. Hide file-only messages while their turn still
+    // has an active streaming/pending assistant message; the forward merge
+    // will attach them once that message gains content. Read the order from
+    // the same uiMessages snapshot the merge iterates to keep the pass
+    // consistent.
+    const activeTurnOrder = uiMessages.find(
+      (m) =>
+        m.role === 'assistant' &&
+        (m.status === 'streaming' || m.status === 'pending'),
+    )?.order;
+
     const currentKeys = new Set<string>();
 
     const result = uiMessages
@@ -347,10 +362,27 @@ export function useMessageProcessing(
       }
     }
 
-    // Pass 2: rebuild without file-only messages, merging extra parts immutably
+    // Pass 2: rebuild without file-only messages, merging extra parts immutably.
+    // Also hide any file-only message that did not find a merge target but
+    // shares its order with an in-flight streaming/pending assistant message
+    // — the forward merge will pick it up as soon as that message streams
+    // text, so deferring is preferable to a transient standalone bubble.
     return (
       result
-        .filter((msg) => !fileOnlyKeys.has(msg.key))
+        .filter((msg) => {
+          if (fileOnlyKeys.has(msg.key)) return false;
+          if (
+            activeTurnOrder != null &&
+            msg.role === 'assistant' &&
+            !msg.content &&
+            !msg.isAborted &&
+            msg.fileParts?.length &&
+            msg.order === activeTurnOrder
+          ) {
+            return false;
+          }
+          return true;
+        })
         // oxlint-disable-next-line oxc/no-map-spread -- immutable update required
         .map((msg) => {
           const extra = extraFileParts.get(msg.key);
