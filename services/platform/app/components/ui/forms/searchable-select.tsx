@@ -161,7 +161,6 @@ export function SearchableSelect({
       type="button"
       id={triggerId}
       disabled={disabled}
-      aria-invalid={error || undefined}
       aria-describedby={description ? descriptionId : undefined}
       className={cn(selectTriggerClasses({ size, error }), triggerClassName)}
     >

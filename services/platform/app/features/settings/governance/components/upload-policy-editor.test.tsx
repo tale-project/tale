@@ -13,7 +13,10 @@ vi.mock('../hooks/mutations', () => ({
 }));
 
 vi.mock('../hooks/queries', () => ({
-  useGovernancePolicy: () => ({ data: null, isLoading: false }),
+  useGovernancePolicy: () => ({
+    data: { config: { enabled: true } },
+    isLoading: false,
+  }),
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
