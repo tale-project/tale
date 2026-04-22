@@ -151,7 +151,6 @@ export const loadIntegration = internalAction({
       title: string;
       description?: string;
       version?: number;
-      installed?: boolean;
       type?: 'rest_api' | 'sql';
       authMethod: string;
       supportedAuthMethods?: string[];

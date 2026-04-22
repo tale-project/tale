@@ -2,7 +2,6 @@
   "title": "Circuly",
   "description": "Circuly API integration for products, customers, and subscriptions",
   "version": 1,
-  "installed": true,
   "authMethod": "basic_auth",
   "secretBindings": ["username", "password"],
   "allowedHosts": ["circuly.io"],

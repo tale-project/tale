@@ -23,7 +23,6 @@ export interface IntegrationListItem {
   slug: string;
   title: string;
   description?: string;
-  installed: boolean;
   type?: 'rest_api' | 'sql';
   authMethod: string;
   operationCount: number;

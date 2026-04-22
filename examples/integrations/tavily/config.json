@@ -2,14 +2,7 @@
   "title": "Tavily",
   "description": "Open-web search and page extraction optimised for LLM agents. Use with the Researcher agent for real-time research with cited sources.",
   "version": 1,
-  "installed": false,
   "type": "rest_api",
-  "exposeAsCapability": {
-    "label": "Web search",
-    "icon": "globe",
-    "tooltip": "Search the open web for current information via Tavily",
-    "order": 10
-  },
   "authMethod": "api_key",
   "supportedAuthMethods": ["api_key"],
   "secretBindings": ["apiKey"],

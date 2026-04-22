@@ -1,6 +1,5 @@
 {
   "title": "Twilio",
-  "installed": false,
   "description": "Twilio API integration for SMS messaging, voice calls, and phone number management",
   "version": 1,
   "authMethod": "basic_auth",
