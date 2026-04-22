@@ -253,15 +253,16 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
 
   return (
     <>
-      <PreviewPane className="overflow-x-visible">
-        {/* Canvas */}
-        <canvas
-          ref={canvasRef}
-          className="absolute top-0 left-1/2 block -translate-x-1/2"
-          style={{ maxWidth: `calc(48rem * ${state.scale})`, height: 'auto' }}
-        />
+      <PreviewPane className="overflow-x-auto">
+        <div className="flex min-h-full w-fit min-w-full justify-center">
+          <canvas
+            ref={canvasRef}
+            className="block h-auto"
+            style={{ maxWidth: `calc(48rem * ${state.scale})` }}
+          />
+        </div>
         {/* Sticky center-bottom toolbar */}
-        <div className="sticky top-[95%] z-50 flex w-full justify-center">
+        <div className="sticky bottom-4 z-50 flex w-full justify-center">
           <HStack
             gap={4}
             className="bg-background text-foreground rounded-full px-4 py-2 shadow-xl ring-1 ring-white/10"
