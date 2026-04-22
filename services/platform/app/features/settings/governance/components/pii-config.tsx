@@ -100,11 +100,19 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
       };
       try {
         await upsertMutation.mutateAsync(resolved);
-        toast({ title: t('pii.saved'), variant: 'success' });
+        toast({
+          title: t('toastSavedTitle'),
+          description: t('pii.saved'),
+          variant: 'success',
+        });
       } catch (error: unknown) {
-        const message =
+        const description =
           error instanceof Error ? error.message : t('pii.saveFailed');
-        toast({ title: message, variant: 'destructive' });
+        toast({
+          title: t('toastSaveFailedTitle'),
+          description,
+          variant: 'destructive',
+        });
       }
     },
     [
@@ -211,14 +219,46 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
     setTestResults(detectPii(testText, allPatterns));
   }, [testText, enabledPatterns, customPatterns]);
 
-  if (isLoading || !initializedRef.current) {
-    return (
-      <div aria-busy="true" className="space-y-3 py-4">
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-4 w-72" />
-        <Skeleton className="h-10 w-full" />
+  const skeleton = (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-4 w-80 max-w-full" />
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <Skeleton className="h-3.5 w-14" />
+          <Skeleton className="h-[1.15rem] w-8 rounded-full" />
+        </div>
       </div>
-    );
+      {enabled && (
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-1.5">
+            <Skeleton className="h-3.5 w-16" />
+            <Skeleton className="h-8 w-56 rounded-md" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-3.5 w-32" />
+            <Skeleton className="h-3 w-80 max-w-full" />
+            <div className="mt-1 flex flex-col gap-2">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col gap-1">
+                    <Skeleton className="h-3.5 w-40" />
+                    <Skeleton className="h-3 w-56 max-w-full" />
+                  </div>
+                  <Skeleton className="h-[1.15rem] w-8 shrink-0 rounded-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  if (isLoading || !initializedRef.current) {
+    return <div aria-busy="true">{skeleton}</div>;
   }
 
   const modeOptions = [

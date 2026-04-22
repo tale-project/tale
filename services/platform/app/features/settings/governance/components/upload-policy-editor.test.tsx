@@ -8,11 +8,11 @@ const mockUpsertMutation = {
   isPending: false,
 };
 
-vi.mock('../../hooks/mutations', () => ({
+vi.mock('../hooks/mutations', () => ({
   useUpsertGovernancePolicy: () => mockUpsertMutation,
 }));
 
-vi.mock('../../hooks/queries', () => ({
+vi.mock('../hooks/queries', () => ({
   useGovernancePolicy: () => ({ data: null, isLoading: false }),
 }));
 
@@ -27,7 +27,7 @@ vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
-import { UploadPolicyEditor } from '../upload-policy-editor';
+import { UploadPolicyEditor } from './upload-policy-editor';
 
 describe('UploadPolicyEditor', () => {
   describe('accessibility', () => {

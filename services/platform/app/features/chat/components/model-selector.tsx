@@ -15,6 +15,7 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useAccessibleModels } from '@/app/features/settings/governance/hooks/queries';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { useT } from '@/lib/i18n/client';
@@ -278,15 +279,17 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
       optionAction={renderTagIcons}
       showRadio
       trigger={
-        <button
+        <Button
           type="button"
-          className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-xs transition-colors"
+          className="gap-2"
+          size="icon"
+          variant="ghost"
           aria-label={t('modelSelector.label')}
         >
           <Cpu className="size-3.5" aria-hidden="true" />
           <span>{currentLabel}</span>
           <ChevronDown className="size-3" aria-hidden="true" />
-        </button>
+        </Button>
       }
     />
   );

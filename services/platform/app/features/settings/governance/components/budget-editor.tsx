@@ -1,6 +1,6 @@
 'use client';
 
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
@@ -8,7 +8,6 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
-import { Switch } from '@/app/components/ui/forms/switch';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -23,12 +22,11 @@ import {
   type BudgetConfig,
   type BudgetRule,
 } from '@/lib/shared/schemas/governance';
-import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
-import { SelectTriggerButton } from './select-trigger-button';
+import { RulesTableEmptyState } from './rules-table-empty-state';
 
 interface BudgetEditorProps {
   organizationId: string;
@@ -137,104 +135,78 @@ function RuleDialog({
       submitText={t('budgets.confirm')}
     >
       <Stack gap={4}>
-        <HStack gap={3} wrap>
-          <div className="w-40">
+        <div className="flex flex-wrap gap-3 *:min-w-[10rem] *:flex-1">
+          <Select
+            label={t('budgets.scope')}
+            options={SCOPE_OPTIONS}
+            value={draft.scope}
+            onValueChange={(value: string) => {
+              if (isScopeValue(value)) {
+                updateDraft({ scope: value });
+              }
+            }}
+            disabled={cannotManage}
+            size="sm"
+          />
+
+          {draft.scope === 'role' && (
             <Select
-              label={t('budgets.scope')}
-              options={SCOPE_OPTIONS}
-              value={draft.scope}
-              onValueChange={(value: string) => {
-                if (isScopeValue(value)) {
-                  updateDraft({ scope: value });
-                }
-              }}
+              label={t('budgets.role')}
+              options={ROLE_OPTIONS}
+              value={draft.scopeId ?? ''}
+              onValueChange={(value) => updateDraft({ scopeId: value })}
               disabled={cannotManage}
               size="sm"
             />
-          </div>
-
-          {draft.scope === 'role' && (
-            <div className="w-40">
-              <Select
-                label={t('budgets.role')}
-                options={ROLE_OPTIONS}
-                value={draft.scopeId ?? ''}
-                onValueChange={(value) => updateDraft({ scopeId: value })}
-                disabled={cannotManage}
-                size="sm"
-              />
-            </div>
           )}
 
           {draft.scope === 'user' && (
-            <div className="w-56">
-              <Text className="mb-1 text-xs font-medium">
-                {t('budgets.user')}
-              </Text>
+            <div className="min-w-[14rem] flex-2">
               <SearchableSelect
+                label={t('budgets.user')}
+                placeholder={t('budgets.selectUser')}
+                size="sm"
+                disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
                 options={memberOptions}
                 searchPlaceholder={t('budgets.searchUsers')}
                 emptyText={t('budgets.noUsersFound')}
                 aria-label={t('budgets.selectUserAriaLabel')}
-                trigger={
-                  <SelectTriggerButton
-                    disabled={cannotManage}
-                    hasValue={!!draft.scopeId}
-                  >
-                    {draft.scopeId
-                      ? (memberOptions.find((o) => o.value === draft.scopeId)
-                          ?.label ?? draft.scopeId)
-                      : t('budgets.selectUser')}
-                  </SelectTriggerButton>
-                }
               />
             </div>
           )}
 
           {draft.scope === 'team' && (
-            <div className="w-56">
-              <Text className="mb-1 text-xs font-medium">
-                {t('budgets.team')}
-              </Text>
+            <div className="min-w-[14rem] flex-2">
               <SearchableSelect
+                label={t('budgets.team')}
+                placeholder={t('budgets.selectTeam')}
+                size="sm"
+                disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
                 options={teamOptions}
                 searchPlaceholder={t('budgets.searchTeams')}
                 emptyText={t('budgets.noTeamsFound')}
                 aria-label={t('budgets.selectTeamAriaLabel')}
-                trigger={
-                  <SelectTriggerButton
-                    disabled={cannotManage}
-                    hasValue={!!draft.scopeId}
-                  >
-                    {draft.scopeId
-                      ? (teamOptions.find((o) => o.value === draft.scopeId)
-                          ?.label ?? draft.scopeId)
-                      : t('budgets.selectTeam')}
-                  </SelectTriggerButton>
-                }
               />
             </div>
           )}
 
-          <div className="w-36">
-            <Select
-              label={t('budgets.period')}
-              options={PERIOD_OPTIONS}
-              value={draft.period}
-              onValueChange={(value: string) => {
-                if (isPeriodValue(value)) {
-                  updateDraft({ period: value });
-                }
-              }}
-              disabled={cannotManage}
-              size="sm"
-            />
-          </div>
-        </HStack>
+          <Select
+            label={t('budgets.period')}
+            options={PERIOD_OPTIONS}
+            value={draft.period}
+            onValueChange={(value: string) => {
+              if (isPeriodValue(value)) {
+                updateDraft({ period: value });
+              }
+            }}
+            disabled={cannotManage}
+            size="sm"
+          />
+        </div>
 
         <Stack gap={3}>
           <div>
@@ -373,7 +345,6 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
     [policy],
   );
 
-  const [enabled, setEnabled] = useState(false);
   const [rules, setRules] = useState<BudgetRule[]>([]);
 
   // Dialog state
@@ -382,45 +353,46 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
   const [dialogRule, setDialogRule] = useState(emptyRule());
 
   useEffect(() => {
-    setEnabled(savedConfig.enabled);
     setRules(savedConfig.rules);
   }, [savedConfig]);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
   const saveConfig = useCallback(
-    async (configToSave: { enabled: boolean; rules: BudgetRule[] }) => {
+    async (nextRules: BudgetRule[]) => {
       try {
         await upsertMutation.mutateAsync({
           organizationId,
           policyType: 'budgets',
-          config: configToSave,
+          // `enabled` is always true from the UI — rules presence drives
+          // enforcement (server short-circuits on `!enabled || rules.length === 0`).
+          config: { enabled: true, rules: nextRules },
         });
-        toast({ title: t('budgets.saved'), variant: 'success' });
+        toast({
+          title: t('toastSavedTitle'),
+          description: t('budgets.saved'),
+          variant: 'success',
+        });
       } catch (error: unknown) {
         const message =
           error instanceof Error ? error.message : 'Failed to save';
-        toast({ title: message, variant: 'destructive' });
+        toast({
+          title: t('toastSaveFailedTitle'),
+          description: message,
+          variant: 'destructive',
+        });
       }
     },
     [organizationId, upsertMutation, toast, t],
-  );
-
-  const handleToggleEnabled = useCallback(
-    (checked: boolean) => {
-      setEnabled(checked);
-      void saveConfig({ enabled: checked, rules });
-    },
-    [saveConfig, rules],
   );
 
   const removeRule = useCallback(
     (index: number) => {
       const newRules = rules.filter((_, i) => i !== index);
       setRules(newRules);
-      void saveConfig({ enabled, rules: newRules });
+      void saveConfig(newRules);
     },
-    [rules, enabled, saveConfig],
+    [rules, saveConfig],
   );
 
   const openAddDialog = useCallback(() => {
@@ -447,49 +419,59 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         newRules = rules.map((r, i) => (i === editingIndex ? rule : r));
       }
       setRules(newRules);
-      void saveConfig({ enabled, rules: newRules });
+      void saveConfig(newRules);
     },
-    [editingIndex, rules, enabled, saveConfig],
+    [editingIndex, rules, saveConfig],
   );
 
   const resolveTarget = useCallback(
     (rule: BudgetRule): string => {
       switch (rule.scope) {
         case 'user': {
-          if (!rule.scopeId) return '\u2014';
+          if (!rule.scopeId) return '—';
           return (
             memberOptions.find((o) => o.value === rule.scopeId)?.label ??
             rule.scopeId
           );
         }
         case 'team': {
-          if (!rule.scopeId) return '\u2014';
+          if (!rule.scopeId) return '—';
           return (
             teamOptions.find((o) => o.value === rule.scopeId)?.label ??
             rule.scopeId
           );
         }
         case 'role':
-          return rule.scopeId ?? '\u2014';
+          return rule.scopeId ?? '—';
         case 'org':
           return t('budgets.orgScopeTarget');
         case 'default':
           return t('budgets.allUsers');
         default:
-          return '\u2014';
+          return '—';
       }
     },
     [memberOptions, teamOptions, t],
   );
 
-  if (isLoading) {
-    return (
-      <div aria-busy="true" className="space-y-3 py-4">
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-4 w-72" />
-        <Skeleton className="h-10 w-full" />
+  const skeleton = (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-4 w-96 max-w-full" />
+        </div>
+        <Skeleton className="h-8 w-20 shrink-0 rounded-md" />
       </div>
-    );
+      <Skeleton className="h-3 w-[32rem] max-w-full" />
+      <div className="border-border overflow-hidden rounded-lg border">
+        <Skeleton className="h-60 w-full rounded-none" />
+      </div>
+    </div>
+  );
+
+  if (isLoading) {
+    return <div aria-busy="true">{skeleton}</div>;
   }
 
   return (
@@ -497,147 +479,141 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
       title={t('budgets.title')}
       description={t('budgets.description')}
       action={
-        <Switch
-          label={t('budgets.enabled')}
-          checked={enabled}
-          onCheckedChange={handleToggleEnabled}
-          disabled={cannotManage || upsertMutation.isPending}
-        />
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={openAddDialog}
+          disabled={cannotManage}
+        >
+          <Plus className="mr-1.5 size-4" />
+          {t('budgets.addRule')}
+        </Button>
       }
     >
-      <div
-        className={cn(
-          'transition-opacity duration-200',
-          !enabled && 'pointer-events-none opacity-50',
-        )}
-      >
-        <Stack gap={6}>
-          <Text variant="muted" className="text-xs">
-            {t('budgets.overrideHint')}
-          </Text>
+      <Stack gap={6}>
+        <Text variant="muted" className="text-xs">
+          {t('budgets.overrideHint')}
+        </Text>
 
-          <Stack gap={3}>
-            {rules.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <caption className="sr-only">{t('budgets.title')}</caption>
-                  <thead>
-                    <tr className="border-border border-b">
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-left font-medium"
-                      >
-                        {t('budgets.scope')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-left font-medium"
-                      >
-                        {t('budgets.target')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-left font-medium"
-                      >
-                        {t('budgets.period')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-right font-medium"
-                      >
-                        {t('budgets.tokenLimit')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-right font-medium"
-                      >
-                        {t('budgets.maxCost')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-right font-medium"
-                      >
-                        {t('budgets.maxRequests')}
-                      </th>
-                      <th
-                        scope="col"
-                        className="text-muted-foreground px-3 py-2 text-right font-medium"
-                      >
-                        {t('budgets.actions')}
-                      </th>
+        <div className="border-border overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <caption className="sr-only">{t('budgets.title')}</caption>
+              <thead className="bg-muted/50">
+                <tr className="border-border border-b">
+                  <th
+                    scope="col"
+                    className="text-muted-foreground px-3 py-2 text-left font-medium"
+                  >
+                    {t('budgets.scope')}
+                  </th>
+                  <th
+                    scope="col"
+                    className="text-muted-foreground px-3 py-2 text-left font-medium"
+                  >
+                    {t('budgets.target')}
+                  </th>
+                  <th
+                    scope="col"
+                    className="text-muted-foreground px-3 py-2 text-left font-medium"
+                  >
+                    {t('budgets.period')}
+                  </th>
+                  <th
+                    scope="col"
+                    className="text-muted-foreground px-3 py-2 text-right font-medium"
+                  >
+                    {t('budgets.tokenLimit')}
+                  </th>
+                  <th
+                    scope="col"
+                    className="text-muted-foreground px-3 py-2 text-right font-medium"
+                  >
+                    {t('budgets.maxCost')}
+                  </th>
+                  <th
+                    scope="col"
+                    className="text-muted-foreground px-3 py-2 text-right font-medium"
+                  >
+                    {t('budgets.maxRequests')}
+                  </th>
+                  <th
+                    scope="col"
+                    className="text-muted-foreground px-3 py-2 text-right font-medium"
+                  >
+                    {t('budgets.actions')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rules.length > 0 ? (
+                  rules.map((rule, index) => (
+                    <tr
+                      key={index}
+                      className="border-border border-b last:border-b-0"
+                    >
+                      <td className="px-3 py-2 capitalize">{rule.scope}</td>
+                      <td className="px-3 py-2">{resolveTarget(rule)}</td>
+                      <td className="px-3 py-2 capitalize">{rule.period}</td>
+                      <td className="px-3 py-2 text-right">
+                        {rule.maxTokens != null
+                          ? rule.maxTokens.toLocaleString()
+                          : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {rule.maxCostCents != null
+                          ? formatCost(rule.maxCostCents)
+                          : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {rule.maxRequests != null
+                          ? rule.maxRequests.toLocaleString()
+                          : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <HStack gap={1} justify="end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditDialog(index)}
+                            disabled={cannotManage}
+                            aria-label={t('budgets.editRuleAriaLabel', {
+                              index: index + 1,
+                            })}
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeRule(index)}
+                            disabled={cannotManage}
+                            aria-label={t('budgets.removeRuleAriaLabel', {
+                              index: index + 1,
+                            })}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </HStack>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {rules.map((rule, index) => (
-                      <tr key={index} className="border-border border-b">
-                        <td className="px-3 py-2 capitalize">{rule.scope}</td>
-                        <td className="px-3 py-2">{resolveTarget(rule)}</td>
-                        <td className="px-3 py-2 capitalize">{rule.period}</td>
-                        <td className="px-3 py-2 text-right">
-                          {rule.maxTokens != null
-                            ? rule.maxTokens.toLocaleString()
-                            : '\u2014'}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {rule.maxCostCents != null
-                            ? formatCost(rule.maxCostCents)
-                            : '\u2014'}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {rule.maxRequests != null
-                            ? rule.maxRequests.toLocaleString()
-                            : '\u2014'}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <HStack gap={1} justify="end">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openEditDialog(index)}
-                              disabled={cannotManage}
-                              aria-label={t('budgets.editRuleAriaLabel', {
-                                index: index + 1,
-                              })}
-                            >
-                              <Pencil className="size-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeRule(index)}
-                              disabled={cannotManage}
-                              aria-label={t('budgets.removeRuleAriaLabel', {
-                                index: index + 1,
-                              })}
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </HStack>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <Text variant="muted" className="text-sm">
-                {t('budgets.noRules')}
-              </Text>
-            )}
-
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={openAddDialog}
-              disabled={cannotManage}
-              className="self-start"
-            >
-              <Plus className="mr-1.5 size-4" />
-              {t('budgets.addRule')}
-            </Button>
-          </Stack>
-        </Stack>
-      </div>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="p-0">
+                      <RulesTableEmptyState
+                        icon={Wallet}
+                        title={t('budgets.noRulesTitle')}
+                        description={t('budgets.noRulesDescription')}
+                      />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Stack>
 
       <RuleDialog
         open={dialogOpen}

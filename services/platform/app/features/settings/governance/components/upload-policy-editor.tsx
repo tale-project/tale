@@ -8,7 +8,6 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
-import { Text } from '@/app/components/ui/typography/text';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -16,7 +15,6 @@ import {
   uploadPolicyConfigSchema,
   type UploadPolicyConfig,
 } from '@/lib/shared/schemas/governance';
-import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
@@ -132,10 +130,15 @@ export function UploadPolicyEditor({
           policyType: 'upload_policy',
           config,
         });
-        toast({ title: t('uploadPolicy.saved'), variant: 'success' });
+        toast({
+          title: t('toastSavedTitle'),
+          description: t('uploadPolicy.saved'),
+          variant: 'success',
+        });
       } catch {
         toast({
-          title: t('uploadPolicy.saveFailed'),
+          title: t('toastSaveFailedTitle'),
+          description: t('uploadPolicy.saveFailed'),
           variant: 'destructive',
         });
       }
@@ -155,14 +158,50 @@ export function UploadPolicyEditor({
     [saveConfig, buildConfig],
   );
 
-  if (isLoading) {
-    return (
-      <div aria-busy="true" className="space-y-3 py-4">
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-4 w-72" />
-        <Skeleton className="h-10 w-full" />
+  const skeleton = (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-4 w-80 max-w-full" />
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <Skeleton className="h-3.5 w-14" />
+          <Skeleton className="h-[1.15rem] w-8 rounded-full" />
+        </div>
       </div>
-    );
+      {enabled && (
+        <div className="flex max-w-2xl flex-col gap-6">
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {[0, 1].map((i) => (
+                <div key={i} className="flex flex-col gap-2.5">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-8 w-full rounded-md" />
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-col gap-2.5">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-8 w-full rounded-md" />
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {[0, 1].map((i) => (
+                <div key={i} className="flex flex-col gap-2.5">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-8 w-full rounded-md" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <Skeleton className="h-8 w-20 rounded-md" />
+        </div>
+      )}
+    </div>
+  );
+
+  if (isLoading) {
+    return <div aria-busy="true">{skeleton}</div>;
   }
 
   return (
@@ -178,73 +217,54 @@ export function UploadPolicyEditor({
         />
       }
     >
-      <Stack gap={6} className="max-w-2xl">
-        {!enabled && (
-          <Text variant="muted" className="text-sm">
-            {t('uploadPolicy.policyDisabledHint')}
-          </Text>
-        )}
-
-        <div
-          className={cn(
-            'flex flex-col gap-6 transition-opacity duration-200',
-            !enabled && 'pointer-events-none opacity-50',
-          )}
-        >
+      {enabled && (
+        <Stack gap={6} className="max-w-2xl">
           <Stack gap={4}>
-            <div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Input
                 label={t('uploadPolicy.allowedExtensions')}
                 value={allowedExtensions}
                 onChange={(e) => setAllowedExtensions(e.target.value)}
                 placeholder={t('uploadPolicy.extensionPlaceholder')}
-                disabled={cannotManage || !enabled}
+                disabled={cannotManage}
                 size="sm"
               />
-            </div>
-
-            <div>
               <Input
                 label={t('uploadPolicy.blockedExtensions')}
                 value={blockedExtensions}
                 onChange={(e) => setBlockedExtensions(e.target.value)}
                 placeholder={t('uploadPolicy.extensionPlaceholder')}
-                disabled={cannotManage || !enabled}
+                disabled={cannotManage}
                 size="sm"
               />
             </div>
 
-            <div>
-              <Input
-                label={t('uploadPolicy.allowedMimeTypes')}
-                value={allowedMimeTypes}
-                onChange={(e) => setAllowedMimeTypes(e.target.value)}
-                placeholder={t('uploadPolicy.mimeTypePlaceholder')}
-                disabled={cannotManage || !enabled}
-                size="sm"
-              />
-            </div>
+            <Input
+              label={t('uploadPolicy.allowedMimeTypes')}
+              value={allowedMimeTypes}
+              onChange={(e) => setAllowedMimeTypes(e.target.value)}
+              placeholder={t('uploadPolicy.mimeTypePlaceholder')}
+              disabled={cannotManage}
+              size="sm"
+            />
 
-            <div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Input
                 label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
                 type="number"
                 value={maxFileSizeMB}
                 onChange={(e) => setMaxFileSizeMB(e.target.value)}
-                disabled={cannotManage || !enabled}
+                disabled={cannotManage}
                 size="sm"
                 min={0}
                 step={1}
               />
-            </div>
-
-            <div>
               <Input
                 label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
                 type="number"
                 value={maxVolumeGB}
                 onChange={(e) => setMaxVolumeGB(e.target.value)}
-                disabled={cannotManage || !enabled}
+                disabled={cannotManage}
                 size="sm"
                 min={0}
                 step={0.1}
@@ -262,8 +282,8 @@ export function UploadPolicyEditor({
               ? t('systemPrompt.saving')
               : t('systemPrompt.save')}
           </Button>
-        </div>
-      </Stack>
+        </Stack>
+      )}
     </PageSection>
   );
 }
