@@ -1,6 +1,12 @@
 'use client';
 
-import { ChevronUp, ChevronDown, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  ChevronUp,
+  ChevronDown,
+  GripVertical,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
 // PDF.js is bundled locally (see pdfjs-dist in package.json). Loading it from
 // a CDN would break offline deployments and count as a third-party data
 // transfer for GDPR purposes. The worker URL is resolved through Vite's
@@ -13,7 +19,13 @@ import type {
   RenderTask,
 } from 'pdfjs-dist/types/src/display/api';
 import type { PageViewport } from 'pdfjs-dist/types/src/display/display_utils';
-import React, { useReducer, useEffect, useRef, useCallback } from 'react';
+import React, {
+  useReducer,
+  useEffect,
+  useRef,
+  useCallback,
+  useState,
+} from 'react';
 
 import { HStack } from '@/app/components/ui/layout/layout';
 import { useT } from '@/lib/i18n/client';
@@ -251,8 +263,71 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
     queueRenderPage({ pageNum: bounded, scale: state.scale });
   };
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const dragStartRef = useRef<{
+    pointerX: number;
+    pointerY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
+  const [toolbarOffset, setToolbarOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+
+  const clampToolbarOffset = useCallback((x: number, y: number) => {
+    const container = containerRef.current;
+    const toolbar = toolbarRef.current;
+    if (!container || !toolbar) return { x, y };
+    const c = container.getBoundingClientRect();
+    const t = toolbar.getBoundingClientRect();
+    // Default position is centered horizontally with a 16px gap from the
+    // bottom. Offsets are measured from that anchor, so positive y moves the
+    // toolbar down and negative y moves it up.
+    const halfX = Math.max(0, (c.width - t.width) / 2);
+    const maxDown = 0;
+    const maxUp = -(c.height - t.height - 32);
+    return {
+      x: Math.min(halfX, Math.max(-halfX, x)),
+      y: Math.min(maxDown, Math.max(maxUp, y)),
+    };
+  }, []);
+
+  const onHandlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    dragStartRef.current = {
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      originX: toolbarOffset.x,
+      originY: toolbarOffset.y,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setIsDragging(true);
+  };
+
+  const onHandlePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const start = dragStartRef.current;
+    if (!start) return;
+    setToolbarOffset(
+      clampToolbarOffset(
+        start.originX + (e.clientX - start.pointerX),
+        start.originY + (e.clientY - start.pointerY),
+      ),
+    );
+  };
+
+  const onHandlePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!dragStartRef.current) return;
+    dragStartRef.current = null;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (err) {
+      console.warn('Failed to release pointer capture:', err);
+    }
+    setIsDragging(false);
+  };
+
   return (
-    <>
+    <div ref={containerRef} className="relative flex min-h-0 flex-1 flex-col">
       <PreviewPane className="overflow-x-auto">
         <div className="flex min-h-full w-fit min-w-full justify-center">
           <canvas
@@ -261,66 +336,83 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
             style={{ maxWidth: `calc(48rem * ${state.scale})` }}
           />
         </div>
-        {/* Sticky center-bottom toolbar */}
-        <div className="sticky bottom-4 z-50 flex w-full justify-center">
-          <HStack
-            gap={4}
-            className="bg-background text-foreground rounded-full px-4 py-2 shadow-xl ring-1 ring-white/10"
-          >
-            <HStack gap={2}>
-              <button
-                onClick={onPrevPage}
-                disabled={state.pageNum <= 1}
-                className="grid size-8 place-items-center rounded-full transition hover:bg-white/10 disabled:opacity-35"
-                aria-label={tCommon('aria.previousPage')}
-              >
-                <ChevronUp className="size-5" />
-              </button>
-              <button
-                onClick={onNextPage}
-                disabled={state.pageNum >= state.totalPages}
-                className="grid size-8 place-items-center rounded-full transition hover:bg-white/10 disabled:opacity-35"
-                aria-label={tCommon('aria.nextPage')}
-              >
-                <ChevronDown className="size-5" />
-              </button>
-            </HStack>
-            <input
-              type="number"
-              min={1}
-              max={Math.max(1, state.totalPages)}
-              value={state.pageNum}
-              onChange={onPageInputChange}
-              className="bg-background w-10 appearance-none rounded-md py-1 text-center text-sm ring-1 ring-white/20 focus:ring-white/40 focus:outline-none"
-            />
-            <div>/</div>
-            <div className="w-4 text-center text-sm tabular-nums">
-              {state.totalPages || 0}
-            </div>
-            <HStack gap={2}>
-              <button
-                onClick={onZoomOut}
-                className="grid size-8 place-items-center rounded-full transition hover:bg-white/10"
-                aria-label={tCommon('aria.zoomOut')}
-              >
-                <ZoomOut className="size-4" />
-              </button>
-              <button
-                onClick={onZoomIn}
-                className="grid size-8 place-items-center rounded-full transition hover:bg-white/10"
-                aria-label={tCommon('aria.zoomIn')}
-              >
-                <ZoomIn className="size-4" />
-              </button>
-            </HStack>
-          </HStack>
-        </div>
         {!state.pdfDoc && (
           <div className="mt-4 text-center text-gray-500">
             {t('preview.loading')}
           </div>
         )}
       </PreviewPane>
-    </>
+      {/* Floating toolbar pinned to the bottom of the visible pane (draggable) */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-4 z-50 flex justify-center">
+        <HStack
+          ref={toolbarRef}
+          gap={2}
+          style={{
+            transform: `translate(${toolbarOffset.x}px, ${toolbarOffset.y}px)`,
+          }}
+          className="bg-background text-foreground pointer-events-auto rounded-full py-2 pr-4 pl-2 shadow-xl ring-1 ring-white/10"
+        >
+          <button
+            type="button"
+            onPointerDown={onHandlePointerDown}
+            onPointerMove={onHandlePointerMove}
+            onPointerUp={onHandlePointerUp}
+            onPointerCancel={onHandlePointerUp}
+            className={`text-muted-foreground grid size-8 touch-none place-items-center rounded-full transition hover:bg-white/10 ${
+              isDragging ? 'cursor-grabbing' : 'cursor-grab'
+            }`}
+            aria-label={t('preview.dragToolbar')}
+          >
+            <GripVertical className="size-4" />
+          </button>
+          <HStack gap={2}>
+            <button
+              onClick={onPrevPage}
+              disabled={state.pageNum <= 1}
+              className="grid size-8 place-items-center rounded-full transition hover:bg-white/10 disabled:opacity-35"
+              aria-label={tCommon('aria.previousPage')}
+            >
+              <ChevronUp className="size-5" />
+            </button>
+            <button
+              onClick={onNextPage}
+              disabled={state.pageNum >= state.totalPages}
+              className="grid size-8 place-items-center rounded-full transition hover:bg-white/10 disabled:opacity-35"
+              aria-label={tCommon('aria.nextPage')}
+            >
+              <ChevronDown className="size-5" />
+            </button>
+          </HStack>
+          <input
+            type="number"
+            min={1}
+            max={Math.max(1, state.totalPages)}
+            value={state.pageNum}
+            onChange={onPageInputChange}
+            className="bg-background w-10 appearance-none rounded-md py-1 text-center text-sm ring-1 ring-white/20 focus:ring-white/40 focus:outline-none"
+          />
+          <div>/</div>
+          <div className="w-4 text-center text-sm tabular-nums">
+            {state.totalPages || 0}
+          </div>
+          <HStack gap={2}>
+            <button
+              onClick={onZoomOut}
+              className="grid size-8 place-items-center rounded-full transition hover:bg-white/10"
+              aria-label={tCommon('aria.zoomOut')}
+            >
+              <ZoomOut className="size-4" />
+            </button>
+            <button
+              onClick={onZoomIn}
+              className="grid size-8 place-items-center rounded-full transition hover:bg-white/10"
+              aria-label={tCommon('aria.zoomIn')}
+            >
+              <ZoomIn className="size-4" />
+            </button>
+          </HStack>
+        </HStack>
+      </div>
+    </div>
   );
 };
