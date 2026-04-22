@@ -3236,6 +3236,7 @@
       "unknownError": "Unknown error",
       "document": "Document",
       "title": "Document preview",
+      "dragToolbar": "Drag toolbar",
       "sidebar": {
         "document": "Document",
         "size": "Size",

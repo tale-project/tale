@@ -50,13 +50,15 @@ class SearchService:
         # semantically irrelevant — discard FTS results too (keyword noise).
         if similarity_threshold > 0:
             pre_count = len(vector_results)
+            top_score = max((r["score"] for r in vector_results), default=0.0)
             vector_results = [r for r in vector_results if r["score"] >= similarity_threshold]
             if pre_count != len(vector_results):
                 logger.debug(
-                    "Vector pre-filter: {}/{} results passed threshold {}",
+                    "Vector pre-filter: {}/{} results passed threshold {} (top score {:.3f})",
                     len(vector_results),
                     pre_count,
                     similarity_threshold,
+                    top_score,
                 )
             if pre_count > 0 and not vector_results:
                 return []

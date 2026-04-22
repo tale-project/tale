@@ -3236,6 +3236,7 @@
       "unknownError": "Unbekannter Fehler",
       "document": "Dokument",
       "title": "Dokumentvorschau",
+      "dragToolbar": "Werkzeugleiste verschieben",
       "sidebar": {
         "document": "Dokument",
         "size": "Größe",
