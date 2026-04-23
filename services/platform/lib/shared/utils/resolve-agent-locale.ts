@@ -1,5 +1,7 @@
 import type { AgentI18nOverrides } from '../../../convex/agents/file_utils';
 import { defaultLocale as appDefaultLocale } from '../../i18n/config';
+import { isEffectivelyEmpty } from './is-effectively-empty';
+import { narrowBcp47 } from './narrow-bcp47';
 
 interface LocalizableAgent {
   displayName?: string;
@@ -17,6 +19,19 @@ interface ResolvedFields {
 }
 
 /**
+ * Walks candidate layers in order and returns the first value that is not
+ * effectively empty (see `isEffectivelyEmpty` — treats `""`, whitespace-only
+ * strings, `[]`, and all-blank arrays as absent). Shared with the
+ * normalization pipeline so disk-state and runtime-fallback agree on "empty".
+ */
+function pickField<T>(layers: (T | undefined)[]): T | undefined {
+  for (const layer of layers) {
+    if (!isEffectivelyEmpty(layer)) return layer;
+  }
+  return undefined;
+}
+
+/**
  * Resolves locale-specific agent fields with i18n-first precedence:
  *   1. `i18n[requestedLocale].<field>`
  *   2. `i18n[baseLanguage].<field>` — e.g. `fr-CH` narrows to `fr`
@@ -30,7 +45,7 @@ export function resolveAgentLocale(
   agent: LocalizableAgent,
   locale: string,
 ): ResolvedFields {
-  const base = locale.includes('-') ? locale.split('-')[0] : undefined;
+  const base = narrowBcp47(locale);
 
   const direct = agent.i18n?.[locale];
   const baseI18n = base ? agent.i18n?.[base] : undefined;
@@ -41,25 +56,29 @@ export function resolveAgentLocale(
 
   return {
     displayName:
-      direct?.displayName ??
-      baseI18n?.displayName ??
-      fallbackI18n?.displayName ??
-      agent.displayName ??
-      '',
-    description:
-      direct?.description ??
-      baseI18n?.description ??
-      fallbackI18n?.description ??
+      pickField([
+        direct?.displayName,
+        baseI18n?.displayName,
+        fallbackI18n?.displayName,
+        agent.displayName,
+      ]) ?? '',
+    description: pickField([
+      direct?.description,
+      baseI18n?.description,
+      fallbackI18n?.description,
       agent.description,
-    conversationStarters:
-      direct?.conversationStarters ??
-      baseI18n?.conversationStarters ??
-      fallbackI18n?.conversationStarters ??
+    ]),
+    conversationStarters: pickField([
+      direct?.conversationStarters,
+      baseI18n?.conversationStarters,
+      fallbackI18n?.conversationStarters,
       agent.conversationStarters,
-    systemInstructions:
-      direct?.systemInstructions ??
-      baseI18n?.systemInstructions ??
-      fallbackI18n?.systemInstructions ??
+    ]),
+    systemInstructions: pickField([
+      direct?.systemInstructions,
+      baseI18n?.systemInstructions,
+      fallbackI18n?.systemInstructions,
       agent.systemInstructions,
+    ]),
   };
 }

@@ -92,30 +92,18 @@ function GeneralTab() {
         const v = patch.description?.trim();
         next.description = v ? patch.description : undefined;
       }
-      const nextI18n = {
-        ...existingI18n,
-        [editingLocale]: next,
-      };
-      // On first edit of the default-locale tab on a legacy agent, retire the
-      // top-level fields so the i18n entries become canonical.
-      const shouldClearLegacy =
-        editingLocale === defaultLocale &&
-        (!!legacyDisplayName || !!legacyDescription);
+      // Server-side `normalizeAgentConfig` enforces the legacy-retirement
+      // invariant (I-1) at the write boundary, so the UI just writes the
+      // edit into i18n[editingLocale] and the server strips top-level
+      // translatables when i18n[defaultLocale] carries content.
       updateConfig({
-        i18n: nextI18n,
-        ...(shouldClearLegacy
-          ? { displayName: undefined, description: undefined }
-          : {}),
+        i18n: {
+          ...existingI18n,
+          [editingLocale]: next,
+        },
       });
     },
-    [
-      config.i18n,
-      editingLocale,
-      defaultLocale,
-      legacyDisplayName,
-      legacyDescription,
-      updateConfig,
-    ],
+    [config.i18n, editingLocale, updateConfig],
   );
 
   const sourceDisplayName =

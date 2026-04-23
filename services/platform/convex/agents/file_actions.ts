@@ -17,6 +17,8 @@ import { ZodError } from 'zod/v4';
 import { PROTECTED_AGENT_NAMES } from '../../lib/shared/constants/agents';
 import { agentJsonSchema } from '../../lib/shared/schemas/agents';
 import { parseModelRef } from '../../lib/shared/utils/model-ref';
+import { normalizeAgentConfig } from '../../lib/shared/utils/normalize-agent-config';
+import { resolveAgentLocale } from '../../lib/shared/utils/resolve-agent-locale';
 import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
 import { authComponent } from '../auth';
@@ -137,6 +139,13 @@ export const saveAgent = action({
     config: v.any(),
     isNew: v.optional(v.boolean()),
     oldAgentName: v.optional(v.string()),
+    /**
+     * Better Auth organization ID — used to resolve the org's `defaultLocale`
+     * so the write-boundary normalization retires top-level translatables
+     * against the right locale. Optional for backward compat; when omitted,
+     * normalization falls back to the app default locale (`en`).
+     */
+    organizationId: v.optional(v.string()),
   },
   returns: v.object({
     hash: v.string(),
@@ -229,7 +238,26 @@ export const saveAgent = action({
       }
     }
 
-    const content = serializeAgentJson(config);
+    // Normalize at the write boundary — single chokepoint that enforces:
+    // (1) no empty-string / empty-array placeholders in i18n, and
+    // (2) mutual exclusion between top-level and i18n[defaultLocale] per
+    // translatable field. Lets the UI write "naive" payloads (both layers
+    // populated); the server is the single source of truth for canonicalization.
+    const orgLocale = args.organizationId
+      ? await ctx.runQuery(
+          internal.organizations.internal_queries.getOrganizationDefaultLocale,
+          { organizationId: args.organizationId },
+        )
+      : undefined;
+    const normalized = normalizeAgentConfig(config, orgLocale);
+    if (JSON.stringify(config) !== JSON.stringify(normalized)) {
+      console.warn('[saveAgent] normalized config before write', {
+        orgSlug: args.orgSlug,
+        agentName: args.agentName,
+      });
+    }
+
+    const content = serializeAgentJson(normalized);
     const filePath = resolveAgentFilePath(args.orgSlug, args.agentName);
 
     if (args.isNew) {
@@ -298,6 +326,8 @@ export const duplicateAgent = action({
   args: {
     orgSlug: v.string(),
     agentName: v.string(),
+    /** See `saveAgent`. */
+    organizationId: v.optional(v.string()),
   },
   returns: v.object({ newAgentName: v.string() }),
   handler: async (ctx, args): Promise<{ newAgentName: string }> => {
@@ -329,13 +359,66 @@ export const duplicateAgent = action({
       counter++;
     }
 
-    const newConfig: AgentJsonConfig = {
+    const orgLocale = args.organizationId
+      ? await ctx.runQuery(
+          internal.organizations.internal_queries.getOrganizationDefaultLocale,
+          { organizationId: args.organizationId },
+        )
+      : undefined;
+
+    // Suffix each populated i18n displayName so the copy is visibly a copy in
+    // every locale the source agent has. Top-level displayName is only used
+    // as a fallback for legacy agents; we suffix it when present so resolver
+    // consumers see "X (Copy)" in pre-normalized states, and normalization
+    // will strip it again if i18n[defaultLocale] carries content.
+    const suffix = ' (Copy)';
+    const nextI18n = source.config.i18n
+      ? Object.fromEntries(
+          Object.entries(source.config.i18n).map(([loc, overrides]) => [
+            loc,
+            overrides.displayName
+              ? {
+                  ...overrides,
+                  displayName: `${overrides.displayName}${suffix}`,
+                }
+              : overrides,
+          ]),
+        )
+      : undefined;
+
+    const legacyDisplayName = source.config.displayName;
+    const suffixedTopLevel = legacyDisplayName
+      ? `${legacyDisplayName}${suffix}`
+      : undefined;
+
+    const draft: AgentJsonConfig = {
       ...source.config,
-      displayName: `${source.config.displayName} (Copy)`,
+      ...(suffixedTopLevel !== undefined
+        ? { displayName: suffixedTopLevel }
+        : {}),
+      ...(nextI18n ? { i18n: nextI18n } : {}),
       visibleInChat: false,
     };
 
-    const content = serializeAgentJson(newConfig);
+    // If neither the legacy top-level nor any i18n locale had a displayName,
+    // schema validation would fail. Fall back to the agent filename so the
+    // copy is always saveable and never silently becomes "undefined (Copy)".
+    const hasAnyDisplayName =
+      !!draft.displayName ||
+      Object.values(draft.i18n ?? {}).some(
+        (overrides) =>
+          overrides.displayName && overrides.displayName.length > 0,
+      );
+    if (!hasAnyDisplayName) {
+      const resolved = resolveAgentLocale(
+        source.config,
+        orgLocale ?? 'en',
+      ).displayName;
+      draft.displayName = `${resolved || args.agentName}${suffix}`;
+    }
+
+    const normalized = normalizeAgentConfig(draft, orgLocale);
+    const content = serializeAgentJson(normalized);
     const filePath = resolveAgentFilePath(args.orgSlug, newName);
     await atomicWrite(filePath, content);
 
@@ -467,7 +550,25 @@ export const restoreFromHistory = action({
 
     const historyContent = await readFileSafe(historyPath);
     if (!historyContent) throw new Error('History entry not found');
-    parseAgentJson(historyContent);
+
+    // Restore bit-faithfully. Only require that the snapshot is parseable
+    // JSON; if it fails the current schema's refinements (e.g. a pre-i18n
+    // snapshot from before a newly-tightened rule), we still restore — the
+    // next saveAgent will normalize it into compliance. Fail loudly only on
+    // corrupt bytes so we never overwrite the agent with unreadable content.
+    try {
+      JSON.parse(historyContent);
+    } catch {
+      throw new Error('History entry is corrupt JSON');
+    }
+    try {
+      parseAgentJson(historyContent);
+    } catch (err) {
+      console.warn(
+        '[restoreFromHistory] snapshot does not pass current schema; restoring as-is',
+        err instanceof Error ? err.message : err,
+      );
+    }
 
     // Snapshot current state before overwriting
     const currentContent = await readFileSafe(agentPath);

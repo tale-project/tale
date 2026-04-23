@@ -60,15 +60,17 @@ function InstructionsTab() {
   const [editingLocale, setEditingLocale] = useState(defaultLocale);
 
   const legacyInstructions = config.systemInstructions ?? '';
-  const overrideForLocale = (locale: string): string =>
-    config.i18n?.[locale]?.systemInstructions ?? '';
+  const overrideForLocale = (locale: string): string | undefined =>
+    config.i18n?.[locale]?.systemInstructions;
 
   // Edit buffer — the textarea's current value. Reads from i18n[locale] for
   // the active tab; for the default-locale tab, falls through to the legacy
-  // top-level field if no i18n.<default> entry exists yet (so older agents
-  // still show their authored text on first open).
+  // top-level field when no i18n.<default> entry exists yet (so older agents
+  // still show their authored text on first open). Uses `??` so an
+  // intentionally-cleared i18n entry (undefined) falls back but a non-default
+  // locale with no entry stays empty, encouraging translation.
   const currentValue =
-    overrideForLocale(editingLocale) ||
+    overrideForLocale(editingLocale) ??
     (editingLocale === defaultLocale ? legacyInstructions : '');
 
   const hasTranslation = useCallback(
@@ -79,41 +81,29 @@ function InstructionsTab() {
   );
 
   // Write path: always writes to i18n.<locale>. Empty value clears the key
-  // (never persists ""). When the user first edits under the default-locale
-  // tab on a legacy agent, their edit moves the content into i18n and we
-  // clear the top-level field so it doesn't shadow the override.
+  // (never persists ""). Server-side `normalizeAgentConfig` retires the
+  // top-level `systemInstructions` at the write boundary when
+  // `i18n[defaultLocale].systemInstructions` carries content.
   const writeOverride = useCallback(
     (value: string) => {
       const trimmed = value.trim();
       const existingI18n = config.i18n ?? {};
       const existingOverrides = existingI18n[editingLocale] ?? {};
-      const nextI18n = {
-        ...existingI18n,
-        [editingLocale]: {
-          ...existingOverrides,
-          systemInstructions: trimmed ? value : undefined,
-        },
-      };
-      // If the user is editing the default-locale tab and the legacy top-level
-      // field still holds content, retire it into the i18n entry.
-      const shouldClearTopLevel =
-        editingLocale === defaultLocale && !!legacyInstructions;
       updateConfig({
-        i18n: nextI18n,
-        ...(shouldClearTopLevel ? { systemInstructions: undefined } : {}),
+        i18n: {
+          ...existingI18n,
+          [editingLocale]: {
+            ...existingOverrides,
+            systemInstructions: trimmed ? value : undefined,
+          },
+        },
       });
     },
-    [
-      config.i18n,
-      editingLocale,
-      defaultLocale,
-      legacyInstructions,
-      updateConfig,
-    ],
+    [config.i18n, editingLocale, updateConfig],
   );
 
   const sourceForTranslation =
-    overrideForLocale(defaultLocale) || legacyInstructions;
+    overrideForLocale(defaultLocale) ?? legacyInstructions;
 
   const handleAutoTranslate = useCallback(async () => {
     if (editingLocale === defaultLocale || !sourceForTranslation) return;

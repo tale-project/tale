@@ -40,6 +40,7 @@ export function AgentRowActions({
       await duplicateAgent({
         orgSlug: 'default',
         agentName,
+        organizationId,
       });
       toast({
         title: t('agents.agentDuplicated'),
@@ -55,7 +56,14 @@ export function AgentRowActions({
     } finally {
       setIsDuplicating(false);
     }
-  }, [isDuplicating, duplicateAgent, agentName, t, onDuplicated]);
+  }, [
+    isDuplicating,
+    duplicateAgent,
+    agentName,
+    organizationId,
+    t,
+    onDuplicated,
+  ]);
 
   const isProtected = (PROTECTED_AGENT_NAMES as readonly string[]).includes(
     agentName,

@@ -18,6 +18,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
+import { narrowBcp47 } from '../../../lib/shared/utils/narrow-bcp47';
 import { internal } from '../../_generated/api';
 import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
 import { checkBudget } from '../sub_agents/helpers/check_budget';
@@ -177,8 +178,14 @@ export function buildDelegationInstructionsSection(
 ): string {
   if (delegates.length === 0) return '';
 
+  // Same narrowing rule as resolveAgentLocale: direct → narrowed base → en.
+  // Keeps the scaffold header/intro/outro in lockstep with the delegate
+  // chrome text when the org locale is a region-qualified BCP-47 tag
+  // (e.g. fr-CH falls back to fr, not directly to English).
+  const base = narrowBcp47(locale);
   const scaffold =
     (locale ? DELEGATION_SCAFFOLD[locale] : undefined) ??
+    (base ? DELEGATION_SCAFFOLD[base] : undefined) ??
     DELEGATION_SCAFFOLD.en;
 
   const delegateLines = delegates

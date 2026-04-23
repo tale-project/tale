@@ -97,4 +97,83 @@ describe('resolveAgentLocale', () => {
     const result = resolveAgentLocale({}, 'en');
     expect(result.displayName).toBe('');
   });
+
+  // --- BCP-47 narrowing: fr-CH / de-AT / en-GB map to base language ---
+
+  it('narrows fr-CH to i18n.fr when only fr is populated', () => {
+    const agent = { i18n: { fr: { displayName: 'Agent FR' } } };
+    expect(resolveAgentLocale(agent, 'fr-CH').displayName).toBe('Agent FR');
+  });
+
+  it('prefers a direct locale match over its narrowed base', () => {
+    const agent = {
+      i18n: {
+        fr: { displayName: 'Agent FR' },
+        'fr-CH': { displayName: 'Agent FR-CH' },
+      },
+    };
+    expect(resolveAgentLocale(agent, 'fr-CH').displayName).toBe('Agent FR-CH');
+  });
+
+  it('narrows de-AT to i18n.de', () => {
+    const agent = { i18n: { de: { displayName: 'Deutsch' } } };
+    expect(resolveAgentLocale(agent, 'de-AT').displayName).toBe('Deutsch');
+  });
+
+  it('narrows en-GB to i18n.en', () => {
+    const agent = { i18n: { en: { displayName: 'English' } } };
+    expect(resolveAgentLocale(agent, 'en-GB').displayName).toBe('English');
+  });
+
+  it('falls through to app-default when narrowed base is missing too', () => {
+    const agent = { i18n: { en: { displayName: 'EN' } } };
+    expect(resolveAgentLocale(agent, 'fr-CH').displayName).toBe('EN');
+  });
+
+  // --- Empty-value treatment: "" / whitespace / [] / all-blank arrays
+  //     are all considered "missing" and fall through to the next layer. ---
+
+  it('skips empty-string i18n value to the next layer', () => {
+    const agent = {
+      displayName: 'Top',
+      i18n: { en: { displayName: '' } },
+    };
+    expect(resolveAgentLocale(agent, 'en').displayName).toBe('Top');
+  });
+
+  it('skips whitespace-only i18n value to the next layer', () => {
+    const agent = {
+      displayName: 'Top',
+      i18n: { en: { systemInstructions: '   ' } },
+    };
+    expect(resolveAgentLocale(agent, 'en').systemInstructions).toBeUndefined();
+  });
+
+  it('skips empty-array conversationStarters to the next layer', () => {
+    const agent = {
+      conversationStarters: ['from top'],
+      i18n: { en: { conversationStarters: [] as string[] } },
+    };
+    expect(resolveAgentLocale(agent, 'en').conversationStarters).toEqual([
+      'from top',
+    ]);
+  });
+
+  it('skips all-blank conversationStarters array to the next layer', () => {
+    const agent = {
+      conversationStarters: ['from top'],
+      i18n: { en: { conversationStarters: ['', '  '] } },
+    };
+    expect(resolveAgentLocale(agent, 'en').conversationStarters).toEqual([
+      'from top',
+    ]);
+  });
+
+  it('uses dirty top-level only when i18n has nothing usable', () => {
+    const agent = {
+      displayName: 'Top',
+      i18n: { en: {} },
+    };
+    expect(resolveAgentLocale(agent, 'en').displayName).toBe('Top');
+  });
 });

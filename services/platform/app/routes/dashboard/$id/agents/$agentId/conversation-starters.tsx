@@ -110,29 +110,20 @@ function ConversationStartersTab() {
 
       const existingI18n = config.i18n ?? {};
       const existingOverrides = existingI18n[targetLocale] ?? {};
-      const nextI18n = {
-        ...existingI18n,
-        [targetLocale]: {
-          ...existingOverrides,
-          conversationStarters: value,
-        },
-      };
-      // On first write under the default tab, retire the legacy top-level
-      // conversationStarters so the i18n entry becomes the canonical source.
-      const shouldClearLegacy =
-        isDefaultTab && (config.conversationStarters?.length ?? 0) > 0;
+      // Server-side normalization retires the legacy top-level
+      // `conversationStarters` at the write boundary (I-1), so the UI just
+      // writes into i18n[targetLocale].
       updateConfig({
-        i18n: nextI18n,
-        ...(shouldClearLegacy ? { conversationStarters: undefined } : {}),
+        i18n: {
+          ...existingI18n,
+          [targetLocale]: {
+            ...existingOverrides,
+            conversationStarters: value,
+          },
+        },
       });
     },
-    [
-      updateConfig,
-      editingLocale,
-      defaultLocale,
-      config.i18n,
-      config.conversationStarters,
-    ],
+    [updateConfig, editingLocale, defaultLocale, config.i18n],
   );
 
   const handleChange = useCallback((id: string, value: string) => {
