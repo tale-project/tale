@@ -670,7 +670,9 @@
       "ownershipTransferFailed": "Échec du transfert de propriété",
       "leaveOrganization": "Quitter l'organisation",
       "leaveConfirmation": "Es-tu sûr de vouloir quitter cette organisation ? Tu perdras l'accès à toutes les ressources.",
-      "leaving": "Départ..."
+      "leaving": "Départ...",
+      "twoFactorResetSuccess": "Double facteur réinitialisé — le membre devra se réinscrire lors de sa prochaine connexion",
+      "twoFactorResetFailed": "Échec de la réinitialisation de l'authentification à double facteur"
     },
     "teams": {
       "title": "Équipes",
@@ -923,7 +925,8 @@
           "dragHandle": "Glisser pour réorganiser le modèle"
         },
         "structuredResponsesInjectedPrompt": "Les instructions suivantes seront automatiquement ajoutées au prompt système :",
-        "browsePrompts": "Parcourir les prompts"
+        "browsePrompts": "Parcourir les prompts",
+        "viaProvider": "via {provider}"
       },
       "delegation": {
         "title": "Délégation",
@@ -1036,7 +1039,8 @@
         "exampleFileUploadStream": "Téléversement de fichier avec streaming (réponse SSE)",
         "exampleOpenAICompat": "Point de terminaison compatible OpenAI (ChatCompletion)",
         "exampleOpenAIMeetilyConfig": "Configuration client OpenAI (p. ex. Meetily)"
-      }
+      },
+      "validationError": "Configuration de l'assistant invalide"
     },
     "integrations": {
       "title": "Intégrations",
@@ -3246,7 +3250,8 @@
         "sourceOnedrive": "OneDrive",
         "sourceSharepoint": "SharePoint",
         "imagePages": "Pages image"
-      }
+      },
+      "dragToolbar": "Déplacer la barre d'outils"
     },
     "upload": {
       "fromComputer": "Depuis l'ordinateur",
@@ -4468,7 +4473,8 @@
         "budgets": "Budgets",
         "uploadPolicy": "Politique de téléversement",
         "retention": "Conservation",
-        "featureControls": "Contrôles des fonctionnalités"
+        "featureControls": "Contrôles des fonctionnalités",
+        "twoFactor": "Authentification à double facteur"
       }
     },
     "modelAccess": {
@@ -4510,6 +4516,19 @@
       "removeDefaultConfirmTitle": "Révoquer l'accès à un modèle par défaut actif ?",
       "removeDefaultConfirmBody": "Les règles de modèle par défaut suivantes utilisent des modèles qui ne seraient plus autorisés : {rules}. Les utilisateurs concernés basculeront vers un autre modèle autorisé.",
       "removeDefaultConfirmAction": "Enregistrer quand même"
+    },
+    "twoFactorPolicy": {
+      "title": "Authentification à double facteur",
+      "description": "Exiger que tous les utilisateurs authentifiés par mot de passe activent un second facteur (TOTP) après une période de grâce.",
+      "enforced": "Exiger l'authentification à double facteur",
+      "policyDisabledHint": "L'authentification à double facteur reste facultative pour tous les utilisateurs tant que cette politique est désactivée.",
+      "gracePeriodDays": "Période de grâce (jours)",
+      "gracePeriodDaysHint": "Nombre de jours dont dispose chaque utilisateur à partir de sa première connexion soumise à la politique avant que l'inscription ne devienne obligatoire. Règle sur 0 pour une application immédiate.",
+      "exemptSsoUsers": "Exempter les utilisateurs SSO uniquement",
+      "exemptSsoUsersHint": "Les utilisateurs dont le seul compte est une identité fédérée (p. ex. Microsoft Entra ID) s'appuient sur le MFA du fournisseur d'identité.",
+      "invalidGrace": "La période de grâce doit être un entier compris entre 0 et 30.",
+      "saved": "La politique de double facteur a été mise à jour",
+      "saveFailed": "Échec de l'enregistrement de la politique de double facteur"
     }
   },
   "prompts": {
@@ -4689,6 +4708,162 @@
       "title": "Mis à jour vers v{version}",
       "description": "Découvrez les changements de cette version.",
       "action": "Voir"
+    }
+  },
+  "twoFactor": {
+    "enrollment": {
+      "title": "Authentification à double facteur",
+      "description": "Protège ton compte avec un code temporel généré par une application d'authentification.",
+      "notEnabledHint": "L'authentification à double facteur n'est pas encore activée sur ton compte.",
+      "enabledHint": "L'authentification à double facteur est active sur ton compte.",
+      "requiredByOrg": "Ton organisation exige l'authentification à double facteur. Active-la maintenant pour continuer.",
+      "enableButton": "Activer le double facteur",
+      "disableButton": "Désactiver",
+      "regenerateButton": "Régénérer les codes de secours",
+      "enabled": "Authentification à double facteur activée",
+      "disabled": "Authentification à double facteur désactivée",
+      "passwordPromptDescription": "Confirme ton mot de passe pour commencer la configuration de l'authentification à double facteur.",
+      "disablePromptDescription": "Confirme ton mot de passe pour désactiver l'authentification à double facteur.",
+      "regeneratePromptDescription": "Confirme ton mot de passe. Générer de nouveaux codes invalide tous les codes de secours précédents."
+    },
+    "setup": {
+      "title": "Configurer l'authentification à double facteur",
+      "qrInstructions": "Scanne le code QR avec une application d'authentification (Google Authenticator, 1Password, Authy), puis saisis le code à 6 chiffres ci-dessous.",
+      "manualEntry": "Impossible de scanner ? Saisis ce secret manuellement :",
+      "verifyCodeLabel": "Code de vérification",
+      "verifyButton": "Vérifier et activer"
+    },
+    "backupCodes": {
+      "title": "Enregistre tes codes de secours",
+      "description": "Chaque code peut être utilisé une seule fois si tu perds l'accès à ton application d'authentification.",
+      "warningOnce": "Ces codes ne seront plus affichés. Télécharge-les ou copie-les maintenant.",
+      "downloadButton": "Télécharger",
+      "doneButton": "Terminé",
+      "regenerated": "Nouveaux codes de secours générés"
+    },
+    "confirmPassword": {
+      "label": "Mot de passe",
+      "submit": "Confirmer"
+    },
+    "verify": {
+      "title": "Vérifier ton identité",
+      "description": "Saisis le code à 6 chiffres de ton application d'authentification.",
+      "codeLabel": "Code d'authentification",
+      "useBackupCodeToggle": "Utiliser un code de secours à la place",
+      "useAuthenticatorToggle": "Utiliser l'application d'authentification à la place",
+      "backupCodeLabel": "Code de secours",
+      "submitButton": "Vérifier",
+      "invalid": "Code invalide ou expiré. Merci de réessayer.",
+      "tooManyAttempts": "Trop de tentatives échouées. Merci de réessayer plus tard.",
+      "backupCodeSuccess": "Code de secours utilisé. Pense à régénérer tes codes de secours dans les Paramètres."
+    },
+    "lowBackupCodes": {
+      "titleOne": "Il ne reste qu'1 code de secours",
+      "titleOther": "Il ne reste que {count} codes de secours",
+      "body": "Génère un nouveau lot afin de pouvoir récupérer ton compte en cas de perte de ton application d'authentification.",
+      "regenerateLink": "Régénérer maintenant"
+    },
+    "enroll": {
+      "title": "Double facteur requis",
+      "description": "Ton organisation exige l'authentification à double facteur pour continuer."
+    },
+    "grace": {
+      "titleOne": "Authentification à double facteur requise dans {days} jour",
+      "titleOther": "Authentification à double facteur requise dans {days} jours",
+      "body": "Ton organisation exigera bientôt que tous les membres utilisent un second facteur. Active-le maintenant pour éviter toute interruption.",
+      "setupLink": "Configurer maintenant"
+    },
+    "admin": {
+      "resetButton": "Réinitialiser le double facteur",
+      "confirmTitle": "Réinitialiser l'authentification à double facteur ?",
+      "confirmDescription": "Cela désactive le double facteur pour {name} et met fin à toutes ses sessions actives. {name} devra se réinscrire lors de sa prochaine connexion.",
+      "resetSuccess": "Authentification à double facteur réinitialisée",
+      "resetFailed": "Échec de la réinitialisation de l'authentification à double facteur"
+    },
+    "errors": {
+      "enableFailed": "Échec du démarrage de la configuration du double facteur. Merci de réessayer.",
+      "disableFailed": "Échec de la désactivation de l'authentification à double facteur.",
+      "regenerateFailed": "Échec de la génération de nouveaux codes de secours.",
+      "invalidCode": "Code invalide ou expiré. Merci de réessayer.",
+      "sessionExpired": "Ta session a expiré. Merci de te reconnecter."
+    }
+  },
+  "analytics": {
+    "usage": {
+      "title": "Analyse d'utilisation",
+      "description": "Consommation de tokens, requêtes et utilisateurs actifs au fil du temps.",
+      "cappedNotice": "Les résultats sont limités car la plage temporelle contient trop d'enregistrements. Réduisez la plage pour obtenir des données complètes.",
+      "activeUsersTooltip": "Utilisateurs ayant effectué des requêtes IA durant cette période.",
+      "unknownAgent": "Assistant inconnu",
+      "unknownModel": "Modèle inconnu",
+      "period": {
+        "label": "Période",
+        "last7Days": "7 derniers jours",
+        "last30Days": "30 derniers jours",
+        "last90Days": "90 derniers jours"
+      },
+      "granularity": {
+        "label": "Granularité",
+        "daily": "Quotidien",
+        "weekly": "Hebdomadaire",
+        "monthly": "Mensuel"
+      },
+      "metric": {
+        "label": "Métrique",
+        "requests": "Requêtes",
+        "tokens": "Tokens",
+        "cost": "Coût"
+      },
+      "cards": {
+        "totalRequests": "Requêtes totales",
+        "totalTokens": "Tokens totaux",
+        "totalCost": "Coût total",
+        "activeUsers": "Utilisateurs actifs"
+      },
+      "chart": {
+        "ariaLabel": "{metric} au fil du temps",
+        "inputTokens": "Entrée",
+        "outputTokens": "Sortie"
+      },
+      "tables": {
+        "topAgents": {
+          "title": "Principaux assistants",
+          "rank": "#",
+          "agent": "Assistant",
+          "requests": "Requêtes",
+          "tokens": "Tokens",
+          "cost": "Coût"
+        },
+        "topModels": {
+          "title": "Principaux modèles",
+          "rank": "#",
+          "model": "Modèle",
+          "provider": "Fournisseur",
+          "requests": "Requêtes",
+          "tokens": "Tokens",
+          "cost": "Coût"
+        },
+        "users": {
+          "title": "Utilisation par utilisateur",
+          "user": "Utilisateur",
+          "team": "Équipe",
+          "inputTokens": "Tokens d'entrée",
+          "outputTokens": "Tokens de sortie",
+          "requests": "Requêtes",
+          "tokens": "Tokens",
+          "cost": "Coût"
+        }
+      },
+      "filterChips": {
+        "agent": "Assistant : {value}",
+        "model": "Modèle : {value}",
+        "provider": "Fournisseur : {value}",
+        "clear": "Réinitialiser les filtres"
+      },
+      "empty": {
+        "title": "Aucune utilisation pour l'instant",
+        "description": "Aucune utilisation IA n'a été enregistrée pour la période sélectionnée."
+      }
     }
   }
 }
