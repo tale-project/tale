@@ -35,6 +35,7 @@ import type {
 
 import { findBlockSplitPoint } from '../utils/find-block-split';
 import { remarkCjkAttention } from '../utils/micromark-cjk-attention';
+import { normalizeHtmlBlocks } from '../utils/normalize-html-blocks';
 import { remendMarkdown } from '../utils/remend-markdown';
 
 const chatSanitizeSchema = {
@@ -211,7 +212,10 @@ const StreamingMarkdown = memo(
     showCursor?: boolean;
   }) {
     const rawRevealed = content ? content.slice(0, revealedLength) : '';
-    const revealedContent = remendMarkdown(rawRevealed);
+    // normalizeHtmlBlocks runs first so block-level HTML tags get the blank
+    // lines CommonMark needs to parse markdown inside them; remendMarkdown
+    // then closes any incomplete syntax for stable mid-stream rendering.
+    const revealedContent = remendMarkdown(normalizeHtmlBlocks(rawRevealed));
 
     // Refs must track the remended string because react-markdown's AST
     // node.position offsets reference positions in the string it received.
@@ -382,6 +386,9 @@ const StableMarkdown = memo(
     content: string;
     components?: MarkdownComponentMap;
   }) {
+    // Same normalization as StreamingMarkdown — block-level HTML tags need
+    // surrounding blank lines for CommonMark to parse markdown inside them.
+    const normalized = normalizeHtmlBlocks(content);
     return (
       <Markdown
         remarkPlugins={REMARK_PLUGINS}
@@ -389,7 +396,7 @@ const StableMarkdown = memo(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same as StreamingMarkdown
         components={components as Components}
       >
-        {content}
+        {normalized}
       </Markdown>
     );
   },
