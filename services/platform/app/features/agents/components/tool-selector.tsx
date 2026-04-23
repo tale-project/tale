@@ -32,7 +32,7 @@ interface ToolSelectorProps {
 const TOOL_CATEGORIES: Record<string, ToolName[]> = {
   CRM: ['customer_read', 'product_read'],
   Web: ['web'],
-  Files: ['pdf', 'image', 'pptx', 'docx', 'text', 'excel'],
+  Files: ['pdf', 'image', 'docx', 'text', 'excel'],
   Documents: [
     'rag_search',
     'document_retrieve',

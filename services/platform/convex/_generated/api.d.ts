@@ -51,7 +51,6 @@ import type * as agent_tools_files_image_tool from "../agent_tools/files/image_t
 import type * as agent_tools_files_internal_actions from "../agent_tools/files/internal_actions.js";
 import type * as agent_tools_files_internal_mutations from "../agent_tools/files/internal_mutations.js";
 import type * as agent_tools_files_pdf_tool from "../agent_tools/files/pdf_tool.js";
-import type * as agent_tools_files_pptx_tool from "../agent_tools/files/pptx_tool.js";
 import type * as agent_tools_files_text_tool from "../agent_tools/files/text_tool.js";
 import type * as agent_tools_human_input_actions from "../agent_tools/human_input/actions.js";
 import type * as agent_tools_human_input_internal_mutations from "../agent_tools/human_input/internal_mutations.js";
@@ -1051,7 +1050,6 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/internal_actions": typeof agent_tools_files_internal_actions;
   "agent_tools/files/internal_mutations": typeof agent_tools_files_internal_mutations;
   "agent_tools/files/pdf_tool": typeof agent_tools_files_pdf_tool;
-  "agent_tools/files/pptx_tool": typeof agent_tools_files_pptx_tool;
   "agent_tools/files/text_tool": typeof agent_tools_files_text_tool;
   "agent_tools/human_input/actions": typeof agent_tools_human_input_actions;
   "agent_tools/human_input/internal_mutations": typeof agent_tools_human_input_internal_mutations;

@@ -16,7 +16,6 @@ export const TOOL_NAMES = [
   'web',
   'pdf',
   'image',
-  'pptx',
   'docx',
   'text',
   'workflow_read',
