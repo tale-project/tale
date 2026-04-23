@@ -6,6 +6,10 @@
  */
 
 import { v } from 'convex/values';
+// xlsx@0.18.5 on npm is frozen (SheetJS community edition). Known CVEs
+// (CVE-2023-30533, CVE-2024-22363, CVE-2024-22364) are not fixed in this
+// channel; migration to the maintained CDN build (https://cdn.sheetjs.com/)
+// is tracked separately. Alerts for this dep are dismissed until then.
 import * as XLSX from 'xlsx';
 
 import { internalAction } from '../../_generated/server';

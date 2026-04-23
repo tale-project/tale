@@ -27,6 +27,10 @@ export function useXlsxPreview(url: string) {
       if (!res.ok)
         throw new Error(`Failed to fetch spreadsheet (${res.status})`);
       const ab = await res.arrayBuffer();
+      // xlsx@0.18.5 npm build is frozen (SheetJS community edition); known
+      // CVEs are unfixed in this channel. Output is passed through
+      // DOMPurify, and migration to the maintained CDN build is tracked
+      // separately.
       const { read, utils } = await import('xlsx');
       const wb = read(ab);
       const ws = wb.Sheets[wb.SheetNames[0]];
