@@ -183,7 +183,3 @@ export function isNormalized(
 
   return true;
 }
-
-/** Exposed for the delegation-scaffold lookup. */
-export { TRANSLATABLE_FIELDS };
-export type { TranslatableField };
