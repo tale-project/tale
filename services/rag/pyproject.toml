@@ -20,6 +20,7 @@ dependencies = [
   "httpx==0.28.1",
   "stamina==25.2.0",
   "tale-telemetry",
+  "lxml>=6.1.0",
 ]
 
 [project.optional-dependencies]
