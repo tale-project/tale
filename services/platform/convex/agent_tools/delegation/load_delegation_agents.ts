@@ -9,6 +9,7 @@
 
 import { readFile, stat } from 'node:fs/promises';
 
+import { resolveAgentLocale } from '../../../lib/shared/utils/resolve-agent-locale';
 import type { ActionCtx } from '../../_generated/server';
 import { toSerializableConfig } from '../../agents/config';
 import {
@@ -23,6 +24,7 @@ export async function loadDelegateAgents(
   delegateNames: string[],
   organizationId: string,
   orgSlug: string,
+  orgLocale?: string,
 ): Promise<DelegateAgentMeta[]> {
   if (delegateNames.length === 0) return [];
 
@@ -36,13 +38,19 @@ export async function loadDelegateAgents(
 
       const content = await readFile(filePath, 'utf-8');
       const config = parseAgentJson(content);
-      const agentConfig = toSerializableConfig(name, config);
+      const agentConfig = toSerializableConfig(
+        name,
+        config,
+        undefined,
+        orgLocale,
+      );
+      const resolved = resolveAgentLocale(config, orgLocale ?? 'en');
 
       delegates.push({
         agentSlug: name,
         name,
-        displayName: config.displayName,
-        description: config.description ?? '',
+        displayName: resolved.displayName,
+        description: resolved.description ?? '',
         agentConfig,
         model: agentConfig.model ?? '',
         provider: agentConfig.provider,

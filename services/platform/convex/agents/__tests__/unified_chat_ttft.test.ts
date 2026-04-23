@@ -50,6 +50,11 @@ vi.mock('../../_generated/api', () => ({
         getBindingByAgent: 'getBindingByAgent',
       },
     },
+    organizations: {
+      internal_queries: {
+        getOrganizationDefaultLocale: 'getOrganizationDefaultLocale',
+      },
+    },
     audit_logs: {
       internal_mutations: {
         createAuditLog: 'createAuditLog',
@@ -157,6 +162,9 @@ describe('chatWithAgent — TTFT parallelization', () => {
         if (fn === 'getBindingByAgent') {
           return Promise.resolve(null);
         }
+        if (fn === 'getOrganizationDefaultLocale') {
+          return Promise.resolve('en');
+        }
         if (fn === 'getAccessibleModelsInternal') {
           return Promise.resolve(
             (args as { modelIds?: string[] } | undefined)?.modelIds ?? [],
@@ -203,6 +211,9 @@ describe('chatWithAgent — TTFT parallelization', () => {
       callOrder.push(`query:${fn}`);
       if (fn === 'getBindingByAgent') {
         return Promise.resolve(null);
+      }
+      if (fn === 'getOrganizationDefaultLocale') {
+        return Promise.resolve('en');
       }
       if (fn === 'getAccessibleModelsInternal') {
         return Promise.resolve(

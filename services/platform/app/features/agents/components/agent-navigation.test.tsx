@@ -78,6 +78,10 @@ vi.mock('@/convex/_generated/api', () => ({
   },
 }));
 
+vi.mock('../../organization/hooks/queries', () => ({
+  useOrganization: () => ({ data: undefined, isLoading: false }),
+}));
+
 vi.mock('../hooks/use-agent-config-context', () => ({
   useAgentConfig: () => ({
     config: {},

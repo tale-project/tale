@@ -618,7 +618,8 @@
       "membersTitle": "Membres de l'organisation",
       "membersEntityLabel": "membres",
       "manageAccess": "Gérer l'accès à l'organisation",
-      "defaultLocale": "Langue par défaut",
+      "defaultLocale": "Langue de réponse des agents",
+      "defaultLocaleHelp": "S'applique à la sortie de l'agent. La langue de l'interface suit les préférences de chaque utilisateur.",
       "searchMember": "Rechercher un membre",
       "addMember": "Ajouter un membre",
       "members": {
@@ -4311,7 +4312,7 @@
       "newCategoryDefault": "Nouvelle catégorie",
       "deleteConfirm": "Supprimer la catégorie « {label} » ? Cela retire ses {words} mots et {patterns} motifs.",
       "importReplaceConfirm": "Remplacer {existing} mots existants par {incoming} mots issus de « {filename} » ?",
-      "wordsPlaceholder": "interdit\nautre mot\n傻逼",
+      "wordsPlaceholder": "interdit\nforbidden\nverboten",
       "saved": "Sécurité du contenu enregistrée",
       "saveFailed": "Échec de l'enregistrement"
     },

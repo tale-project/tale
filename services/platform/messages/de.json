@@ -618,7 +618,8 @@
       "membersTitle": "Organisationsmitglieder",
       "membersEntityLabel": "Mitglieder",
       "manageAccess": "Zugriff auf die Organisation verwalten",
-      "defaultLocale": "Welche Sprache sollen deine Agenten verwenden?",
+      "defaultLocale": "Antwortsprache der Agenten",
+      "defaultLocaleHelp": "Gilt für die Agentenausgabe. Die Sprache der Benutzeroberfläche richtet sich nach der individuellen Einstellung jedes Nutzers.",
       "searchMember": "Mitglied suchen",
       "addMember": "Mitglied hinzufügen",
       "members": {
@@ -4407,7 +4408,7 @@
       "newCategoryDefault": "Neue Kategorie",
       "deleteConfirm": "Kategorie \"{label}\" löschen? Dies entfernt ihre {words} Wörter und {patterns} Muster.",
       "importReplaceConfirm": "{existing} vorhandene Wörter durch {incoming} Wörter aus \"{filename}\" ersetzen?",
-      "wordsPlaceholder": "verboten\nanderes Wort\n傻逼",
+      "wordsPlaceholder": "verboten\nforbidden\ninterdit",
       "saved": "Inhaltssicherheit gespeichert",
       "saveFailed": "Speichern fehlgeschlagen"
     },

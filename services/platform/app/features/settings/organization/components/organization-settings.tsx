@@ -253,6 +253,12 @@ export function OrganizationSettings({
         },
       });
 
+      // The Better Auth session carries the org's metadata (including
+      // `defaultLocale`), which agent write-boundary normalization and the
+      // chat pipeline read. Invalidate it so in-flight tabs pick up the new
+      // locale without a reload.
+      await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
+
       reset(data);
 
       toast({
@@ -296,6 +302,7 @@ export function OrganizationSettings({
           <Select
             id="default-locale"
             label={tSettings('organization.defaultLocale')}
+            description={tSettings('organization.defaultLocaleHelp')}
             value={defaultLocale}
             onValueChange={(value) =>
               setValue('defaultLocale', value, { shouldDirty: true })

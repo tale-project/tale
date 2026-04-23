@@ -1,8 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useOrganization } from '@/app/features/organization/hooks/queries';
-import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 
 import type { SelectedAgent } from '../context/chat-layout-context';
@@ -21,8 +19,10 @@ const DEFAULT_CHAT_AGENT_NAME = 'chat-agent';
  * When the user has explicitly selected an agent, returns that selection.
  * Otherwise, falls back to the hardcoded default 'chat-agent' filename.
  *
- * Translatable fields (displayName, conversationStarters) are resolved
- * based on the user's current locale and the organization's default locale.
+ * Translatable display fields (displayName, conversationStarters) resolve
+ * against the user's current UI locale via `resolveAgentLocale`'s i18n-first
+ * precedence — agent output language (systemInstructions) is a separate,
+ * server-side concern driven by the org's defaultLocale.
  */
 export function useEffectiveAgent(organizationId: string): {
   agent: EffectiveAgent | null;
@@ -31,14 +31,12 @@ export function useEffectiveAgent(organizationId: string): {
   const { selectedAgent } = useChatLayout();
   const { agents, isLoading } = useChatAgents(organizationId);
   const { i18n } = useTranslation();
-  const { data: organization } = useOrganization(organizationId);
 
   const locale = i18n.language;
-  const defaultLocale = getOrganizationDefaultLocale(organization?.metadata);
 
   const agent = useMemo(() => {
     function resolve(entry: NonNullable<typeof agents>[number]) {
-      const resolved = resolveAgentLocale(entry, locale, defaultLocale);
+      const resolved = resolveAgentLocale(entry, locale);
       return {
         name: entry.name,
         displayName: resolved.displayName,
@@ -57,12 +55,11 @@ export function useEffectiveAgent(organizationId: string): {
     const defaultAgent = agents.find((a) => a.name === DEFAULT_CHAT_AGENT_NAME);
     if (defaultAgent) return resolve(defaultAgent);
 
-    // Fall back to first available agent
     const firstAgent = agents[0];
     if (!firstAgent) return null;
 
     return resolve(firstAgent);
-  }, [selectedAgent, agents, locale, defaultLocale]);
+  }, [selectedAgent, agents, locale]);
 
   return { agent, isLoading };
 }

@@ -201,18 +201,40 @@ export const runAgentGeneration = internalAction({
       // Build all tool categories and fetch governance policy in parallel.
       // Each builder is independent, so running them concurrently saves
       // ~300-1200ms depending on the number of bindings.
+      //
+      // `orgSlug` and `orgLocale` are resolved in the same outer Promise.all
+      // and threaded into the delegation+workflow builders below. Both
+      // builders need orgSlug, and delegation needs orgLocale — resolving
+      // them once here avoids duplicate queries when both run.
       const [
         integrationExtraTools,
-        delegationResult,
-        workflowExtraTools,
+        orgSlug,
+        orgLocale,
         governanceResult,
         mcpExtraTools,
       ] = await Promise.all([
         buildIntegrationTools(ctx, agentConfig, organizationId),
-        buildDelegationTools(ctx, agentConfig, organizationId),
-        buildWorkflowTools(ctx, agentConfig, organizationId),
+        resolveOrgSlug(ctx, organizationId),
+        ctx.runQuery(
+          internal.organizations.internal_queries.getOrganizationDefaultLocale,
+          { organizationId },
+        ),
         fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
         buildMcpTools(ctx, organizationId),
+      ]);
+
+      // Delegation and workflows depend on orgSlug (+ orgLocale for
+      // delegation), so they run after the slug is resolved but in parallel
+      // with each other.
+      const [delegationResult, workflowExtraTools] = await Promise.all([
+        buildDelegationTools(
+          ctx,
+          agentConfig,
+          organizationId,
+          orgSlug,
+          orgLocale,
+        ),
+        buildWorkflowTools(ctx, agentConfig, orgSlug),
       ]);
 
       // Extract delegation tools and instructions append
@@ -298,10 +320,9 @@ export const runAgentGeneration = internalAction({
         const currentModelId = modelsToTry[attempt];
 
         try {
-          // Resolve model from provider files with automatic failover.
-          // Pass orgSlug so multi-org deployments read each org's own
-          // provider/API-key files, not the global default.
-          const orgSlug = await resolveOrgSlug(ctx, organizationId);
+          // orgSlug was resolved once in the outer Promise.all and is shared
+          // across model lookup + delegation + workflows so multi-org
+          // deployments read each org's own provider/API-key files.
           // Parse provider qualifier from the ref (e.g. "openrouter:foo" → {providerName:"openrouter", modelId:"foo"}).
           // Per-entry qualifier takes precedence over the agent's top-level provider.
           const parsed = currentModelId
@@ -690,11 +711,20 @@ async function buildIntegrationTools(
 
 /**
  * Build delegation tools for all configured delegate slugs.
+ *
+ * `orgSlug` and `orgLocale` are resolved once by the caller (hoisted into
+ * the outer Promise.all) so they can be shared with sibling builders —
+ * notably workflows, which also need the real orgSlug for multi-tenant
+ * filesystem lookups. Delegate systemInstructions and the appended scaffold
+ * text both resolve against `orgLocale` so parent + delegates speak the
+ * same language.
  */
 async function buildDelegationTools(
   ctx: ActionCtx,
   agentConfig: AgentConfigForTools,
   organizationId: string,
+  orgSlug: string,
+  orgLocale: string,
 ): Promise<
   | {
       tools: Record<string, unknown>;
@@ -708,7 +738,8 @@ async function buildDelegationTools(
     ctx,
     agentConfig.delegateSlugs,
     organizationId,
-    'default',
+    orgSlug,
+    orgLocale,
   );
 
   if (delegates.length === 0) return undefined;
@@ -721,7 +752,10 @@ async function buildDelegationTools(
 
   return {
     tools,
-    instructionsAppend: buildDelegationInstructionsSection(delegates),
+    instructionsAppend: buildDelegationInstructionsSection(
+      delegates,
+      orgLocale,
+    ),
   };
 }
 
@@ -731,11 +765,9 @@ async function buildDelegationTools(
 async function buildWorkflowTools(
   ctx: ActionCtx,
   agentConfig: AgentConfigForTools,
-  organizationId: string,
+  orgSlug: string,
 ): Promise<Record<string, unknown> | undefined> {
   if (!agentConfig.workflowBindings?.length) return undefined;
-
-  const orgSlug = await resolveOrgSlug(ctx, organizationId);
 
   const results = await Promise.all(
     agentConfig.workflowBindings.map(async (slug) => {

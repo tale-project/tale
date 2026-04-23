@@ -57,7 +57,14 @@ function ConversationStartersTab() {
 
   const [editingLocale, setEditingLocale] = useState<string | null>(null);
 
-  const sourceStarters = config.conversationStarters ?? [];
+  // i18n-first: the "source" for slot count and auto-translate is the default
+  // locale's i18n entry, falling back to the legacy top-level field so old
+  // agents continue to render until their next edit migrates content into
+  // i18n.<default-locale>.
+  const sourceStarters =
+    config.i18n?.[defaultLocale]?.conversationStarters ??
+    config.conversationStarters ??
+    [];
 
   function getStarters(): string[] {
     if (editingLocale === null) {
@@ -88,31 +95,35 @@ function ConversationStartersTab() {
 
   const syncToConfig = useCallback(
     (newItems: StarterItem[]) => {
-      if (editingLocale === null) {
-        const filtered = toStrings(newItems)
-          .map((s) => s.trim())
-          .filter(Boolean);
-        updateConfig({
-          conversationStarters: filtered.length ? filtered : undefined,
-        });
-      } else {
-        // For override locales, preserve slot positions (keep empty strings)
-        const strings = toStrings(newItems).map((s) => s.trim());
-        const hasAny = strings.some(Boolean);
-        const existingI18n = config.i18n ?? {};
-        const existingOverrides = existingI18n[editingLocale] ?? {};
-        updateConfig({
-          i18n: {
-            ...existingI18n,
-            [editingLocale]: {
-              ...existingOverrides,
-              conversationStarters: hasAny ? strings : undefined,
-            },
+      const targetLocale = editingLocale ?? defaultLocale;
+      // Default tab: full trim+filter (source). Non-default tab: preserve slot
+      // positions via empty strings so translations align 1:1 with the source.
+      const strings = toStrings(newItems).map((s) => s.trim());
+      const isDefaultTab = editingLocale === null;
+      const value = isDefaultTab
+        ? strings.filter(Boolean).length
+          ? strings.filter(Boolean)
+          : undefined
+        : strings.some(Boolean)
+          ? strings
+          : undefined;
+
+      const existingI18n = config.i18n ?? {};
+      const existingOverrides = existingI18n[targetLocale] ?? {};
+      // Server-side normalization retires the legacy top-level
+      // `conversationStarters` at the write boundary (I-1), so the UI just
+      // writes into i18n[targetLocale].
+      updateConfig({
+        i18n: {
+          ...existingI18n,
+          [targetLocale]: {
+            ...existingOverrides,
+            conversationStarters: value,
           },
-        });
-      }
+        },
+      });
     },
-    [updateConfig, editingLocale, config.i18n],
+    [updateConfig, editingLocale, defaultLocale, config.i18n],
   );
 
   const handleChange = useCallback((id: string, value: string) => {

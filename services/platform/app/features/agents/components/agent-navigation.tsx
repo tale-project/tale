@@ -21,7 +21,10 @@ import { api } from '@/convex/_generated/api';
 import type { AgentJsonConfig } from '@/convex/agents/file_utils';
 import { useT } from '@/lib/i18n/client';
 import { agentJsonSchema } from '@/lib/shared/schemas/agents';
+import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
+import { normalizeAgentConfig } from '@/lib/shared/utils/normalize-agent-config';
 
+import { useOrganization } from '../../organization/hooks/queries';
 import { useAgentConfig } from '../hooks/use-agent-config-context';
 import { HistoryDiffDialog } from './history-diff-dialog';
 
@@ -53,6 +56,8 @@ export function AgentNavigation({
     overrideConfig,
   } = useAgentConfig();
   const { formatDate } = useFormatDate();
+  const { data: organization } = useOrganization(organizationId);
+  const orgDefaultLocale = getOrganizationDefaultLocale(organization?.metadata);
 
   const snapshotAction = useConvexAction(
     api.agents.file_actions.snapshotToHistory,
@@ -131,23 +136,30 @@ export function AgentNavigation({
         .mutateAsync({ orgSlug: 'default', agentName: agentId })
         .catch((err) => console.error('[agent history snapshot]', err));
 
+      // Client-side normalize mirrors what `saveAgent` applies server-side
+      // so `savedConfig` (baseline for isDirty) matches disk truth
+      // immediately — no flash of "unsaved changes" after a successful save.
+      const normalized = normalizeAgentConfig(config, orgDefaultLocale);
+
       await saveAction.mutateAsync({
         orgSlug: 'default',
         agentName: agentId,
         config,
+        organizationId,
       });
 
-      markSaved(config);
+      markSaved(normalized);
       setHistoryEntries([]);
       toast({
         title: t('agents.agentSaved'),
         variant: 'success',
       });
-      onSaved(config);
+      onSaved(normalized);
     } catch (err) {
       console.error('[agent save]', err);
       toast({
         title: t('agents.agentSaveFailed'),
+        description: err instanceof Error ? err.message : undefined,
         variant: 'destructive',
       });
     } finally {
@@ -159,6 +171,8 @@ export function AgentNavigation({
     markSaving,
     markSaved,
     onSaved,
+    orgDefaultLocale,
+    organizationId,
     saveAction,
     snapshotAction,
     t,

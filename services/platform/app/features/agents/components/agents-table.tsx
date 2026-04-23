@@ -5,11 +5,13 @@ import { useNavigate } from '@tanstack/react-router';
 import type { Row } from '@tanstack/react-table';
 import { Bot } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
+import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 
 import { useListAgents } from '../hooks/queries';
 import { useAgentsTableConfig } from '../hooks/use-agents-table-config';
@@ -37,25 +39,30 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { agents: rawAgents, isLoading } = useListAgents('default');
+  const { i18n: i18nCtx } = useTranslation();
+  const locale = i18nCtx.language;
 
   const agents = useMemo(() => {
     if (!rawAgents) return [];
     const validAgents: AgentRow[] = [];
     for (const a of rawAgents) {
-      if (a && 'displayName' in a && typeof a.displayName === 'string') {
-        validAgents.push({
-          name: a.name,
-          displayName: a.displayName,
-          description: a.description,
-          supportedModels: a.supportedModels,
-          toolNames: a.toolNames,
-          visibleInChat: a.visibleInChat,
-          roleRestriction: a.roleRestriction,
-        });
-      }
+      // Skip read errors surfaced by listAgents (they have `status`/`message`
+      // instead of config fields).
+      if (!a || typeof a.name !== 'string' || 'status' in a) continue;
+      const resolved = resolveAgentLocale(a, locale);
+      if (!resolved.displayName) continue;
+      validAgents.push({
+        name: a.name,
+        displayName: resolved.displayName,
+        description: resolved.description,
+        supportedModels: a.supportedModels,
+        toolNames: a.toolNames,
+        visibleInChat: a.visibleInChat,
+        roleRestriction: a.roleRestriction,
+      });
     }
     return validAgents;
-  }, [rawAgents]);
+  }, [rawAgents, locale]);
 
   const invalidateAgents = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['config', 'agents'] });
