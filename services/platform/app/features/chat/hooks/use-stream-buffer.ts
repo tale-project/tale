@@ -25,7 +25,8 @@
  * 4. STREAM ENDS: Drains remaining buffer in SENTENCE-paced chunks:
  *    - Switches from per-word to per-sentence reveal (coherent chunks
  *      read smoother than a sped-up word stream)
- *    - Targets ~300 ms per sentence (avg 50 chars ≈ 167 CPS)
+ *    - Targets ~200 ms per sentence (avg 50 chars ≈ 250 CPS) — fast
+ *      enough that small drains finish briskly; still sentence-grouped
  *    - Total drain time capped at 8 seconds so large buffers don't feel
  *      stuck; very large buffers still reveal slightly faster per sentence
  *    - Reduced motion: reveals immediately (no animation)
@@ -55,8 +56,9 @@ import {
 const DEFAULT_CONFIG = {
   /** Effective characters per second. Translated internally to a word-tick
    *  cadence via avgWordChars — text reveals in word/CJK-punct chunks, not
-   *  per character, so the effect feels like ChatGPT's token-by-token stream. */
-  targetCPS: 60,
+   *  per character, so the effect feels like ChatGPT's token-by-token stream.
+   *  80 CPS → ~63 ms/tick → ~16 English words / ~48 CJK chars per second. */
+  targetCPS: 80,
   /** Characters to buffer before starting reveal */
   initialBufferChars: 30,
   /** Average characters per word-tick — used to convert targetCPS to tick
@@ -649,16 +651,15 @@ export function useStreamBuffer({
         setIsTyping(false);
       } else {
         // Stream ended — drain remaining buffer at a sentence-paced rate.
-        // Target ~300 ms per sentence (avgSentenceChars chars each) for a
-        // comfortable reading rhythm, with an 8-second cap on total drain
-        // time so very large buffers don't feel stuck. A 2× targetCPS floor
-        // keeps tiny drains responsive.
+        // Target ~200 ms per sentence for a brisk-but-grouped reveal, with
+        // an 8-second cap on total drain time so very large buffers don't
+        // feel stuck. A 2× targetCPS floor keeps tiny drains responsive.
         const remaining = text.length - displayedLengthRef.current;
         const sentencesRemaining = Math.max(
           1,
           remaining / DEFAULT_CONFIG.avgSentenceChars,
         );
-        const targetDrainMs = Math.min(8000, sentencesRemaining * 300);
+        const targetDrainMs = Math.min(8000, sentencesRemaining * 200);
         drainCPSRef.current = Math.max(
           Math.max(1, targetCPS) * 2,
           (remaining * 1000) / targetDrainMs,
