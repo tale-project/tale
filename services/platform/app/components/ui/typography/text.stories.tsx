@@ -87,7 +87,7 @@ export const InlineSpan: Story = {
 };
 
 export const CodeText: Story = {
-  args: { as: 'span', variant: 'code', children: 'sk_live_abc123def456' },
+  args: { as: 'span', variant: 'code', children: 'example_code_abc123def456' },
 };
 
 export const Truncated: Story = {

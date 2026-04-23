@@ -35,13 +35,13 @@ type Story = StoryObj<typeof CopyableField>;
 
 export const Default: Story = {
   args: {
-    value: 'sk_live_abc123def456ghi789',
+    value: 'example_api_key_abc123def456',
   },
 };
 
 export const WithLabel: Story = {
   args: {
-    value: 'sk_live_abc123def456ghi789',
+    value: 'example_api_key_abc123def456',
     label: 'API key',
   },
 };
@@ -80,7 +80,7 @@ export const MultipleFields: Story = {
   render: () => (
     <div className="w-96 space-y-4">
       <CopyableField value="proj_abc123" label="Project ID" />
-      <CopyableField value="sk_live_secret_key_here" label="Secret key" />
+      <CopyableField value="example_secret_token_abc123" label="Secret key" />
       <CopyableField
         value="https://api.example.com/v1"
         label="API endpoint"
@@ -97,8 +97,8 @@ export const InCard: Story = {
       <p className="text-muted-foreground text-sm">
         Use these credentials to authenticate API requests.
       </p>
-      <CopyableField value="pk_live_public_key" label="Public key" />
-      <CopyableField value="sk_live_secret_key" label="Secret key" />
+      <CopyableField value="pk_example_public_key" label="Public key" />
+      <CopyableField value="example_secret_key" label="Secret key" />
       <p className="text-muted-foreground text-xs">
         Keep your secret key safe. Never share it publicly.
       </p>

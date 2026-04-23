@@ -26,6 +26,9 @@ dependencies = [
   "tale-knowledge",
   "tale-shared",
   "ultimate-sitemap-parser==1.8.0",
+  # NOTE: lxml is pinned to the 5.x series by crawl4ai==0.8.6, so
+  # CVE-2026-41066 (lxml XXE, fixed in 6.1.0) cannot be resolved here
+  # without first upgrading crawl4ai. Alert is dismissed until then.
 ]
 
 [project.optional-dependencies]

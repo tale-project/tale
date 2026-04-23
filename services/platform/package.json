@@ -90,7 +90,7 @@
     "dagre": "0.8.5",
     "date-fns": "4.1.0",
     "dayjs": "1.11.20",
-    "dompurify": "3.3.3",
+    "dompurify": "3.4.0",
     "framer-motion": "12.38.0",
     "he": "1.2.0",
     "hono": "4.12.14",
