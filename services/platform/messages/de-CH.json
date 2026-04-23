@@ -80,12 +80,7 @@
     "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB.",
     "canvas": {
       "close": "Canvas schliessen",
-      "resizeHandle": "Canvas-Grösse ändern",
-      "apply": "Änderige übernäh",
-      "applied": "Änderige übernoh",
-      "applyFailed": "Änderige händ nöd chönne übernoh wärde",
-      "enterFullscreen": "Vollbild",
-      "exitFullscreen": "Vollbild verlah"
+      "resizeHandle": "Canvas-Grösse ändern"
     }
   },
   "documents": {
