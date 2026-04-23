@@ -311,11 +311,11 @@ describe('IncrementalMarkdown — cursor not in empty marker elements', () => {
     }
   });
 
-  it('does not place cursor in trailing empty <li> for `- one\\n- two\\n- `', () => {
-    // Mid-stream pause at the third bullet's marker. The user's complaint was
-    // a "stuck cursor" inside that empty bullet. After the fix the cursor
-    // either lands in a previous bullet or briefly disappears — both are
-    // acceptable; the bug we're fixing is "cursor inside the empty bullet".
+  it('places cursor in last <li> with content, not the trailing empty bullet', () => {
+    // The original bug: stream pauses at the third bullet's marker — empty
+    // <li> renders, cursor lands inside the empty bullet (visual "stuck"
+    // cursor at line start). With the fix, cursor lands in the second <li>
+    // ("two"), NOT in the third (empty) one.
     const content = '- one\n- two\n- ';
     const { container } = render(
       <IncrementalMarkdown
@@ -324,27 +324,15 @@ describe('IncrementalMarkdown — cursor not in empty marker elements', () => {
         showCursor
       />,
     );
+    expect(countCursors(container)).toBe(1);
     const items = container.querySelectorAll('li');
-    for (const li of items) {
-      if (!li.textContent?.trim()) {
-        expect(li.querySelector('.animate-cursor-blink')).toBeNull();
-      }
-    }
-    // Any cursor that DOES exist must sit in an element with text content
-    const cursor = container.querySelector('.animate-cursor-blink');
-    if (cursor) {
-      let host: HTMLElement | null = cursor.parentElement;
-      while (host && !host.textContent?.replace(/[​-‍﻿]/g, '').trim()) {
-        host = host.parentElement;
-      }
-      expect(host?.textContent?.trim()).not.toBe('');
-    }
+    expect(items[1]?.querySelector('.animate-cursor-blink')).not.toBeNull();
+    expect(items[2]?.querySelector('.animate-cursor-blink')).toBeNull();
   });
 
-  it('does not duplicate cursors across an empty trailing element', () => {
-    // Regression check: even when the trailing element is empty (no cursor),
-    // the rest of the cursor logic must not double-inject elsewhere.
-    const content = '- foo\n- ';
+  it('places cursor in second-last bullet for ordered list with trailing empty marker', () => {
+    // Same bug class for ordered lists.
+    const content = '1. first\n2. second\n3. ';
     const { container } = render(
       <IncrementalMarkdown
         content={content}
@@ -352,6 +340,9 @@ describe('IncrementalMarkdown — cursor not in empty marker elements', () => {
         showCursor
       />,
     );
-    expect(countCursors(container)).toBeLessThanOrEqual(1);
+    expect(countCursors(container)).toBe(1);
+    const items = container.querySelectorAll('li');
+    expect(items[1]?.querySelector('.animate-cursor-blink')).not.toBeNull();
+    expect(items[2]?.querySelector('.animate-cursor-blink')).toBeNull();
   });
 });

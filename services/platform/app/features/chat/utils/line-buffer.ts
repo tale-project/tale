@@ -44,22 +44,6 @@ const SETEXT_RE = /^[ ]{0,3}=+[ \t]*$/;
 const TRAILING_MARKER_RE = /(^|[^*_~])(\*{1,2}|_{1,2}|~~)[ \t]*$/;
 
 /**
- * Trailing empty block marker: line starts (after up-to-3-space indent per
- * CommonMark) with a block-level marker that has nothing but whitespace after
- * it. Holding here prevents `<li>` / `<blockquote>` / heading / table-cell
- * from rendering empty during the upstream pause between the marker and its
- * content.
- *
- * Anchor `(^|\n)` is critical: it ensures `\|` only matches a true new-row
- * pipe, NOT the trailing `| ` of a mid-row table cell like `| col1 | col2 | `.
- *
- * `[ \t]+$` (not ` +$`) matches the convention used by every other regex in
- * this file and supports CommonMark's tab-after-marker form.
- */
-const TRAILING_BLOCK_MARKER_RE =
-  /(^|\n)[ ]{0,3}(?:[-*+]|\d{1,9}[.)]|>|#{1,6}|\|)[ \t]+$/;
-
-/**
  * Check whether the reveal position falls on a partial line whose start
  * is ambiguous in CommonMark/GFM.
  *
@@ -112,12 +96,11 @@ export function isAtTrailingEmptyMarker(
 ): boolean {
   if (!isStreaming || pos <= 1 || pos > text.length) return false;
 
-  // Window sized to fit the worst-case block marker (`\n  9999. ` = 10 chars)
-  // plus a little headroom for the inline-marker check (max ~5 chars).
-  const windowStart = Math.max(0, pos - 16);
+  // Only check the last few characters (marker is at most 2 chars + optional spaces)
+  const windowStart = Math.max(0, pos - 10);
   const tail = text.slice(windowStart, pos);
 
-  return TRAILING_MARKER_RE.test(tail) || TRAILING_BLOCK_MARKER_RE.test(tail);
+  return TRAILING_MARKER_RE.test(tail);
 }
 
 /**

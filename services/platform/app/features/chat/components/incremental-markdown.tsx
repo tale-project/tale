@@ -149,6 +149,34 @@ function hasRenderedText(node: HastNode | undefined): boolean {
   return false;
 }
 
+/**
+ * Lines that consist entirely of a block-level marker (`-`, `*`, `+`,
+ * ordered-list digit + `.` or `)`, `>`, `#`–`######`, or `|`) followed by
+ * optional whitespace. Used to ignore trailing marker-only lines when
+ * deciding "is there more rendered content past this element".
+ */
+const ONLY_BLOCK_MARKER_LINE_RE =
+  /^[ \t]{0,3}(?:[-*+]|\d{1,9}[.)]|>|#{1,6}|\|)[ \t]*$/;
+
+/**
+ * Returns true if the given source-text slice would render any visible text
+ * past the current element. The naive `slice.trim() === ''` check fails for
+ * trailing markers like `\n- ` (trims to `-`, truthy) — the cursor wrapper
+ * then thinks there's more content ahead and refuses to mark this element
+ * as the last cursor target. By treating marker-only lines as no-content
+ * (matching `hasRenderedText`'s AST view), the cursor correctly lands in
+ * the last element with actual text.
+ */
+function hasRenderedTextRemaining(text: string): boolean {
+  if (!text || !text.trim()) return false;
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    if (ONLY_BLOCK_MARKER_LINE_RE.test(line)) continue;
+    return true;
+  }
+  return false;
+}
+
 // ============================================================================
 // STREAMING MARKDOWN COMPONENT
 // ============================================================================
@@ -275,8 +303,10 @@ const StreamingMarkdown = memo(
             !hasCursorEligibleChild &&
             (isCurrentlyTyping ||
               endOffset === revealedLen ||
-              (endOffset &&
-                revealedTextRef.current.slice(endOffset).trim() === ''));
+              (endOffset !== undefined &&
+                !hasRenderedTextRemaining(
+                  revealedTextRef.current.slice(endOffset),
+                )));
 
           if (CustomComponent) {
             return (
