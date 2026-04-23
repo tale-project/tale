@@ -365,6 +365,94 @@ describe('trailing empty marker detection', () => {
       expect(isAtTrailingEmptyMarker('text **', 20, true)).toBe(false);
     });
   });
+
+  describe('trailing block markers (returns true — should hold)', () => {
+    it('detects trailing list marker `- `', () => {
+      expect(isAtTrailingEmptyMarker('foo\n- ', 6, true)).toBe(true);
+    });
+
+    it('detects trailing list marker `* `', () => {
+      expect(isAtTrailingEmptyMarker('foo\n* ', 6, true)).toBe(true);
+    });
+
+    it('detects trailing list marker `+ `', () => {
+      expect(isAtTrailingEmptyMarker('foo\n+ ', 6, true)).toBe(true);
+    });
+
+    it('detects trailing ordered list marker `1. `', () => {
+      expect(isAtTrailingEmptyMarker('foo\n1. ', 7, true)).toBe(true);
+    });
+
+    it('detects trailing ordered list marker `1) `', () => {
+      expect(isAtTrailingEmptyMarker('foo\n1) ', 7, true)).toBe(true);
+    });
+
+    it('detects trailing blockquote marker `> `', () => {
+      expect(isAtTrailingEmptyMarker('foo\n> ', 6, true)).toBe(true);
+    });
+
+    it('detects trailing heading marker `# `', () => {
+      expect(isAtTrailingEmptyMarker('foo\n# ', 6, true)).toBe(true);
+    });
+
+    it('detects trailing heading marker `### `', () => {
+      expect(isAtTrailingEmptyMarker('foo\n### ', 8, true)).toBe(true);
+    });
+
+    it('detects trailing list marker with tab (CommonMark spec)', () => {
+      expect(isAtTrailingEmptyMarker('foo\n-\t', 6, true)).toBe(true);
+    });
+
+    it('detects trailing list marker with up-to-3-space indent', () => {
+      expect(isAtTrailingEmptyMarker('foo\n   - ', 9, true)).toBe(true);
+    });
+
+    it('detects trailing pipe at start of new table row', () => {
+      expect(isAtTrailingEmptyMarker('| col |\n| ', 10, true)).toBe(true);
+    });
+
+    it('detects list marker at start of text (no preceding newline)', () => {
+      expect(isAtTrailingEmptyMarker('- ', 2, true)).toBe(true);
+    });
+  });
+
+  describe('trailing block markers (returns false — no hold)', () => {
+    it('does NOT match mid-row table pipe `| col1 | col2 | `', () => {
+      // The trailing `| ` is preceded by content, not a newline — anchor blocks it
+      expect(isAtTrailingEmptyMarker('| col1 | col2 | ', 16, true)).toBe(false);
+    });
+
+    it('does NOT match in-line dash with surrounding text', () => {
+      expect(isAtTrailingEmptyMarker('foo - bar - ', 12, true)).toBe(false);
+    });
+
+    it('does NOT match `\\n--- ` (thematic break, not list marker)', () => {
+      // Multiple dashes don't fit the single `[-*+]` alternative
+      expect(isAtTrailingEmptyMarker('foo\n--- ', 8, true)).toBe(false);
+    });
+
+    it('does NOT match `\\n---` (thematic break partial)', () => {
+      expect(isAtTrailingEmptyMarker('foo\n---', 7, true)).toBe(false);
+    });
+
+    it('does NOT match list marker with content after', () => {
+      expect(isAtTrailingEmptyMarker('foo\n- bar', 9, true)).toBe(false);
+    });
+
+    it('does NOT match `\\n-` without trailing whitespace', () => {
+      // Bare `-` with no space could be plain text or pending list — not the
+      // empty-marker case we hold for. Only matches `- ` (with trailing space).
+      expect(isAtTrailingEmptyMarker('foo\n-', 5, true)).toBe(false);
+    });
+
+    it('does NOT match heading with content after', () => {
+      expect(isAtTrailingEmptyMarker('foo\n# title', 11, true)).toBe(false);
+    });
+
+    it('does NOT match when not streaming', () => {
+      expect(isAtTrailingEmptyMarker('foo\n- ', 6, false)).toBe(false);
+    });
+  });
 });
 
 // ============================================================================

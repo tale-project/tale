@@ -105,6 +105,51 @@ interface IncrementalMarkdownProps {
 }
 
 // ============================================================================
+// AST HELPERS
+// ============================================================================
+
+/**
+ * Minimal HAST node shape used by the cursor wrapper. react-markdown v10
+ * passes full HAST nodes to component overrides; we only need a subset.
+ */
+type HastNode = {
+  type?: 'element' | 'text' | 'raw' | 'comment' | 'root';
+  value?: string;
+  tagName?: string;
+  children?: HastNode[];
+};
+
+/**
+ * Returns true if the node (or any descendant) contains an actual text node
+ * with non-whitespace content.
+ *
+ * The cursor selection logic needs to skip elements that exist in the AST
+ * but produce no rendered text — empty `<li>` from a trailing `\n- `,
+ * empty `<blockquote>` from `\n> `, empty heading from `\n# `, etc. The
+ * old slice-trim heuristic missed these because the source slice contained
+ * the marker character (`"- "` trims to `"-"`, truthy). This walks the
+ * actual AST instead, which is the authoritative answer.
+ *
+ * String.prototype.trim() is Unicode-whitespace-aware per ECMA-262, so
+ * full-width space U+3000 / NBSP / etc. in CJK content are correctly
+ * treated as empty. ZWSP / ZWJ are not whitespace and correctly count
+ * as content. Comment nodes (which carry `value`) are excluded by the
+ * `text|raw` type guard, and rehypeSanitize strips them upstream anyway.
+ */
+function hasRenderedText(node: HastNode | undefined): boolean {
+  if (!node) return false;
+  if (node.type === 'text' || node.type === 'raw') {
+    return (node.value ?? '').trim() !== '';
+  }
+  if (node.children) {
+    for (const child of node.children) {
+      if (hasRenderedText(child)) return true;
+    }
+  }
+  return false;
+}
+
+// ============================================================================
 // STREAMING MARKDOWN COMPONENT
 // ============================================================================
 
@@ -188,12 +233,11 @@ const StreamingMarkdown = memo(
           children,
           ...props
         }: Record<string, unknown> & {
-          node?: {
+          node?: HastNode & {
             position?: {
               start?: { offset?: number };
               end?: { offset?: number };
             };
-            children?: { tagName?: string }[];
           };
           children?: ReactNode;
         }) {
@@ -218,14 +262,13 @@ const StreamingMarkdown = memo(
             startOffset < revealedLen &&
             endOffset > revealedLen;
 
-          // Skip cursor injection into elements whose revealed content is
-          // entirely whitespace — e.g. trailing empty <p> from a final \n.
-          const hasContent =
-            startOffset === undefined ||
-            endOffset === undefined ||
-            revealedTextRef.current
-              .slice(startOffset, Math.min(endOffset, revealedLen))
-              .trim() !== '';
+          // Skip cursor injection into elements with no rendered text. The
+          // old slice-trim heuristic mistook markers like `\n- ` (trims to
+          // `-`, truthy) for content, dropping the cursor into an empty
+          // `<li>`. Walking the AST text nodes is the authoritative answer
+          // and covers all marker-only-element cases (`<li>`, `<blockquote>`,
+          // headings, table cells) in one place.
+          const hasContent = hasRenderedText(node);
 
           const isLastElement =
             hasContent &&

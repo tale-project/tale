@@ -257,3 +257,101 @@ describe('IncrementalMarkdown — DOM stability on cursor toggle', () => {
     expect(normalizedWithCursor).toBe(withoutCursorHTML);
   });
 });
+
+// ============================================================================
+// EMPTY MARKER ELEMENTS — cursor must NOT land in elements with no rendered text
+// ============================================================================
+
+describe('IncrementalMarkdown — cursor not in empty marker elements', () => {
+  it('omits cursor inside empty <li> from trailing list marker', () => {
+    // Stream paused at `\n- ` — empty <li> rendered but no content yet
+    const content = 'foo\n- ';
+    const { container } = render(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={content.length}
+        showCursor
+      />,
+    );
+    const items = container.querySelectorAll('li');
+    for (const li of items) {
+      if (!li.textContent?.trim()) {
+        expect(li.querySelector('.animate-cursor-blink')).toBeNull();
+      }
+    }
+  });
+
+  it('omits cursor inside empty <blockquote> from trailing > marker', () => {
+    const content = 'text\n\n> ';
+    const { container } = render(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={content.length}
+        showCursor
+      />,
+    );
+    const bq = container.querySelector('blockquote');
+    if (bq && !bq.textContent?.trim()) {
+      expect(bq.querySelector('.animate-cursor-blink')).toBeNull();
+    }
+  });
+
+  it('omits cursor inside empty heading from trailing ## marker', () => {
+    const content = 'text\n\n## ';
+    const { container } = render(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={content.length}
+        showCursor
+      />,
+    );
+    const h2 = container.querySelector('h2');
+    if (h2 && !h2.textContent?.trim()) {
+      expect(h2.querySelector('.animate-cursor-blink')).toBeNull();
+    }
+  });
+
+  it('does not place cursor in trailing empty <li> for `- one\\n- two\\n- `', () => {
+    // Mid-stream pause at the third bullet's marker. The user's complaint was
+    // a "stuck cursor" inside that empty bullet. After the fix the cursor
+    // either lands in a previous bullet or briefly disappears — both are
+    // acceptable; the bug we're fixing is "cursor inside the empty bullet".
+    const content = '- one\n- two\n- ';
+    const { container } = render(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={content.length}
+        showCursor
+      />,
+    );
+    const items = container.querySelectorAll('li');
+    for (const li of items) {
+      if (!li.textContent?.trim()) {
+        expect(li.querySelector('.animate-cursor-blink')).toBeNull();
+      }
+    }
+    // Any cursor that DOES exist must sit in an element with text content
+    const cursor = container.querySelector('.animate-cursor-blink');
+    if (cursor) {
+      let host: HTMLElement | null = cursor.parentElement;
+      while (host && !host.textContent?.replace(/[​-‍﻿]/g, '').trim()) {
+        host = host.parentElement;
+      }
+      expect(host?.textContent?.trim()).not.toBe('');
+    }
+  });
+
+  it('does not duplicate cursors across an empty trailing element', () => {
+    // Regression check: even when the trailing element is empty (no cursor),
+    // the rest of the cursor logic must not double-inject elsewhere.
+    const content = '- foo\n- ';
+    const { container } = render(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={content.length}
+        showCursor
+      />,
+    );
+    expect(countCursors(container)).toBeLessThanOrEqual(1);
+  });
+});
