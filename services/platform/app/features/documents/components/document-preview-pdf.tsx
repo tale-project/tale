@@ -9,9 +9,10 @@ import {
 } from 'lucide-react';
 // PDF.js is bundled locally (see pdfjs-dist in package.json). Loading it from
 // a CDN would break offline deployments and count as a third-party data
-// transfer for GDPR purposes. The worker URL is resolved through Vite's
-// `new URL(..., import.meta.url)` pattern so it ships as a build asset
-// served same-origin.
+// transfer for GDPR purposes. Vite's `?url` suffix emits the worker as a
+// build asset served same-origin; oxlint doesn't understand that query and
+// flags a missing default export on the ESM worker file.
+// eslint-disable-next-line import/default
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type {
   PDFDocumentProxy,
