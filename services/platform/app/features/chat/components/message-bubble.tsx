@@ -319,7 +319,7 @@ function MessageBubbleComponent({
           'rounded-2xl',
           isUser
             ? 'bg-muted text-foreground max-w-xs lg:max-w-md'
-            : 'text-foreground bg-background min-w-0',
+            : 'text-foreground bg-background w-full min-w-0',
           (displayContent || message.isAborted || isBlocked) && 'px-4 py-3',
         )}
       >
