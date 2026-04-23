@@ -235,6 +235,83 @@ describe('useStreamBuffer', () => {
       expect(result.current.displayLength).toBe(fullText.length);
       expect(result.current.isTyping).toBe(false);
     });
+
+    it('reveals multi-sentence tail word-by-word, not as sentence flashes', () => {
+      // Regression: previously the drain phase used sentence-paced chunks,
+      // so a multi-sentence reply revealed in ~3 ticks (one per sentence).
+      // Now drain is always word-paced — we should see many distinct
+      // intermediate displayLengths, not just a handful of sentence stops.
+      const frenchText =
+        "C'est très gentil à vous, merci beaucoup ! Je suis ravi de savoir " +
+        "que mon aide vous satisfait. N'hésitez pas si vous avez besoin de " +
+        "quoi que ce soit d'autre !";
+
+      const { result, rerender } = renderHook(
+        ({ text, isStreaming }) =>
+          useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+        { initialProps: { text: frenchText, isStreaming: true } },
+      );
+
+      // Reveal a little during streaming, then end the stream.
+      act(() => advanceFrames(4));
+      rerender({ text: frenchText, isStreaming: false });
+
+      // Sample displayLength across drain — word-paced reveal should
+      // produce many distinct intermediate values (≫ 3 sentence stops).
+      const seen = new Set<number>();
+      for (let i = 0; i < 40; i++) {
+        act(() => advanceFrames(2));
+        seen.add(result.current.displayLength);
+      }
+      const intermediates = [...seen].filter(
+        (n) => n > 0 && n < frenchText.length,
+      );
+      expect(intermediates.length).toBeGreaterThan(10);
+
+      // Finishes eventually.
+      act(() => advanceFrames(60));
+      expect(result.current.displayLength).toBe(frenchText.length);
+    });
+
+    it('reveals short tail in multiple word-paced ticks, not one dump', () => {
+      // Short reply scenario: text is below the initialBufferChars gate so
+      // streaming never starts the reveal; the whole buffer is handed to
+      // the drain phase. The fix routes short tails through word-mode so
+      // the sentence doesn't land in a single sentence-tick.
+      const shortText = 'Hello there friend it works.';
+
+      const { result, rerender } = renderHook(
+        ({ text, isStreaming }) =>
+          useStreamBuffer({ text, isStreaming, initialBufferChars: 50 }),
+        { initialProps: { text: shortText, isStreaming: true } },
+      );
+
+      // During streaming, text length (28) < initialBufferChars (50) — no reveal.
+      act(() => advanceFrames(10));
+      expect(result.current.displayLength).toBe(0);
+
+      // Stream ends — drain engages.
+      rerender({ text: shortText, isStreaming: false });
+
+      // Sample reveal progression at a few checkpoints. With base targetCPS=80
+      // in word-mode, tickInterval ≈ 62.5 ms — each ~4 frames advances one
+      // word chunk. We expect to observe at least two distinct intermediate
+      // positions before the final length (i.e. the reveal is word-paced,
+      // not a single sentence-tick dump).
+      const samples: number[] = [];
+      for (let i = 0; i < 8; i++) {
+        act(() => advanceFrames(3));
+        samples.push(result.current.displayLength);
+      }
+      const intermediate = samples.filter((n) => n > 0 && n < shortText.length);
+      const distinctIntermediate = new Set(intermediate);
+      expect(distinctIntermediate.size).toBeGreaterThanOrEqual(2);
+
+      // Finishes eventually.
+      act(() => advanceFrames(30));
+      expect(result.current.displayLength).toBe(shortText.length);
+      expect(result.current.isTyping).toBe(false);
+    });
   });
 
   describe('targetCPS edge cases', () => {
@@ -615,10 +692,10 @@ describe('useStreamBuffer — freezeActiveStream (module-level)', () => {
 });
 
 // ============================================================================
-// Adaptive CPS (drain rate scaling)
+// Adaptive CPS — base rate for shallow buffers, scales with buffer depth
 // ============================================================================
 
-describe('useStreamBuffer — constant CPS', () => {
+describe('useStreamBuffer — adaptive CPS', () => {
   beforeEach(() => {
     setupAnimationMocks();
     vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
@@ -630,7 +707,7 @@ describe('useStreamBuffer — constant CPS', () => {
     vi.restoreAllMocks();
   });
 
-  it('reveals at constant rate for small buffers', () => {
+  it('reveals near base CPS when buffer is shallow', () => {
     const text =
       'A relatively short streaming message that fits within a small buffer.';
 
@@ -643,17 +720,21 @@ describe('useStreamBuffer — constant CPS', () => {
       }),
     );
 
-    // Run 60 frames = 1 second at 50 CPS → expect ~50 chars revealed
+    // Run 60 frames = 1 second. Buffer stays shallow (text length ≈ target
+    // buffer depth), so effective CPS should hover near base 50.
     act(() => advanceFrames(60));
 
     expect(result.current.displayLength).toBeGreaterThan(30);
     expect(result.current.displayLength).toBeLessThanOrEqual(text.length);
   });
 
-  it('reveals at same constant rate for large buffers', () => {
+  it('scales CPS above base when buffer is deep', () => {
+    // Large text → big buffer depth → adaptive CPS should ramp well above
+    // base. Comparing against a shallow-buffer run at the same base CPS:
+    // the deep-buffer run should reveal meaningfully more in the same time.
     const longText = 'word '.repeat(500); // 2500 chars
 
-    const { result } = renderHook(() =>
+    const { result: deep } = renderHook(() =>
       useStreamBuffer({
         text: longText,
         isStreaming: true,
@@ -661,17 +742,29 @@ describe('useStreamBuffer — constant CPS', () => {
         initialBufferChars: 3,
       }),
     );
+    const { result: shallow } = renderHook(() =>
+      useStreamBuffer({
+        text: 'word '.repeat(6), // ~30 chars — shallow buffer
+        isStreaming: true,
+        targetCPS: 50,
+        initialBufferChars: 3,
+      }),
+    );
 
-    // Run 60 frames (1 second) at constant 50 CPS
     act(() => advanceFrames(60));
 
-    // Constant rate: ~50 chars/sec (word-snap can roughly double effective rate)
-    expect(result.current.displayLength).toBeGreaterThan(30);
-    expect(result.current.displayLength).toBeLessThan(200);
+    // Deep buffer run reveals substantially more than the shallow-buffer
+    // baseline (which is capped by its own length).
+    expect(deep.current.displayLength).toBeGreaterThan(
+      shallow.current.displayLength * 2,
+    );
   });
 
-  it('maintains constant rate regardless of buffer size', () => {
-    const text = 'word '.repeat(200); // 1000 chars
+  it('slows back toward base CPS as buffer drains', () => {
+    // 200-char text — buffer starts moderately deep, drains as reveal runs.
+    // Reveal rate in the first interval should exceed reveal rate in the
+    // second interval (by then buffer is shallower → CPS fell back).
+    const text = 'word '.repeat(40); // 200 chars
 
     const { result } = renderHook(() =>
       useStreamBuffer({
@@ -682,23 +775,19 @@ describe('useStreamBuffer — constant CPS', () => {
       }),
     );
 
-    // First second
-    act(() => advanceFrames(60));
-    const afterFirstSecond = result.current.displayLength;
+    act(() => advanceFrames(15));
+    const afterFirst = result.current.displayLength;
 
-    // Second second
-    act(() => advanceFrames(60));
-    const afterSecondSecond = result.current.displayLength;
+    act(() => advanceFrames(15));
+    const afterSecond = result.current.displayLength;
 
-    const firstDelta = afterFirstSecond;
-    const secondDelta = afterSecondSecond - afterFirstSecond;
+    const firstDelta = afterFirst;
+    const secondDelta = afterSecond - afterFirst;
 
     expect(firstDelta).toBeGreaterThan(0);
-    expect(secondDelta).toBeGreaterThan(0);
-    // Constant rate: second interval reveals a similar order of magnitude
-    // (word-snap variance and buffer-end effects cause some difference)
-    expect(secondDelta).toBeGreaterThan(firstDelta * 0.3);
-    expect(secondDelta).toBeLessThan(firstDelta * 2);
+    // Second interval runs on a shallower buffer (or a fully-drained one),
+    // so reveal slowed — second delta must not exceed the first.
+    expect(secondDelta).toBeLessThanOrEqual(firstDelta);
   });
 
   it('respects custom targetCPS parameter', () => {
