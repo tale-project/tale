@@ -4408,7 +4408,7 @@
       "newCategoryDefault": "New category",
       "deleteConfirm": "Delete category \"{label}\"? This removes its {words} words and {patterns} patterns.",
       "importReplaceConfirm": "Replace {existing} existing words with {incoming} words from \"{filename}\"?",
-      "wordsPlaceholder": "forbidden\nanother word\n傻逼",
+      "wordsPlaceholder": "forbidden\nverboten\ninterdit",
       "saved": "Content safety saved",
       "saveFailed": "Save failed"
     },

@@ -4312,7 +4312,7 @@
       "newCategoryDefault": "Nouvelle catégorie",
       "deleteConfirm": "Supprimer la catégorie « {label} » ? Cela retire ses {words} mots et {patterns} motifs.",
       "importReplaceConfirm": "Remplacer {existing} mots existants par {incoming} mots issus de « {filename} » ?",
-      "wordsPlaceholder": "interdit\nautre mot\n傻逼",
+      "wordsPlaceholder": "interdit\nforbidden\nverboten",
       "saved": "Sécurité du contenu enregistrée",
       "saveFailed": "Échec de l'enregistrement"
     },

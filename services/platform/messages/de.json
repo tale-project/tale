@@ -4408,7 +4408,7 @@
       "newCategoryDefault": "Neue Kategorie",
       "deleteConfirm": "Kategorie \"{label}\" löschen? Dies entfernt ihre {words} Wörter und {patterns} Muster.",
       "importReplaceConfirm": "{existing} vorhandene Wörter durch {incoming} Wörter aus \"{filename}\" ersetzen?",
-      "wordsPlaceholder": "verboten\nanderes Wort\n傻逼",
+      "wordsPlaceholder": "verboten\nforbidden\ninterdit",
       "saved": "Inhaltssicherheit gespeichert",
       "saveFailed": "Speichern fehlgeschlagen"
     },
