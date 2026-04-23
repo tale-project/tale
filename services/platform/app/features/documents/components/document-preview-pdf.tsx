@@ -12,7 +12,7 @@ import {
 // transfer for GDPR purposes. The worker URL is resolved through Vite's
 // `new URL(..., import.meta.url)` pattern so it ships as a build asset
 // served same-origin.
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type {
   PDFDocumentProxy,
   PDFPageProxy,
@@ -132,6 +132,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
       }
 
       const renderTask = page.render({
+        canvas: bufferCanvas,
         canvasContext: bufferCtx,
         viewport: scaledViewport,
         intent: 'display',
