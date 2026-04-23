@@ -30,6 +30,8 @@ vi.mock('@/lib/i18n/client', () => ({
         'canvas.copied': 'Copied!',
         'canvas.resizeHandle': 'Resize canvas',
         'canvas.mermaidError': 'Failed to render diagram',
+        'canvas.enterFullscreen': 'Fullscreen',
+        'canvas.exitFullscreen': 'Exit fullscreen',
       };
       return translations[key] ?? key;
     },
@@ -132,6 +134,28 @@ describe('CanvasPane', () => {
     const separator = screen.getByRole('separator');
     expect(separator).toHaveAttribute('aria-orientation', 'vertical');
     expect(separator).toHaveAttribute('aria-label', 'Resize canvas');
+  });
+
+  it('toggles fullscreen mode and hides the resize handle', async () => {
+    const user = userEvent.setup();
+    render(<TestHarness />);
+
+    await user.click(screen.getByText('Open'));
+    expect(screen.getByRole('separator')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Fullscreen' }));
+
+    expect(
+      screen.getByRole('button', { name: 'Exit fullscreen' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Exit fullscreen' }));
+
+    expect(
+      screen.getByRole('button', { name: 'Fullscreen' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('separator')).toBeInTheDocument();
   });
 
   describe('accessibility', () => {

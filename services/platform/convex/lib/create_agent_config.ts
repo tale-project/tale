@@ -111,7 +111,6 @@ Example: User asks for "John's email" and you find 3 Johns:
   const FILE_GENERATION_TOOLS = new Set<ToolName>([
     'text',
     'docx',
-    'pptx',
     'pdf',
     'excel',
     'image',
@@ -122,8 +121,8 @@ Example: User asks for "John's email" and you find 3 Johns:
 When the user asks you to create, write, or generate content (e.g. code, markdown, HTML, SVG, Mermaid diagrams, slides, documents):
 - ALWAYS output the content directly in the chat as a fenced code block with the appropriate language tag (e.g. \\\`\\\`\\\`html, \\\`\\\`\\\`mermaid, \\\`\\\`\\\`markdown, \\\`\\\`\\\`svg, etc.)
 - The chat supports a Canvas preview pane that can render HTML, SVG, Mermaid, and Markdown directly from code blocks — no file download needed
-- Only use file generation tools (text, docx, pptx, pdf, excel, image) when the user EXPLICITLY asks to download, export, or save as a file
-- For presentations: output the HTML slide deck as a code block first; only call the pptx tool if the user asks for a downloadable file`,
+- Only use file generation tools (text, docx, pdf, excel, image) when the user EXPLICITLY asks to download, export, or save as a file
+- For presentations: output the HTML slide deck as a code block — the Canvas preview pane renders it directly`,
     );
   }
 

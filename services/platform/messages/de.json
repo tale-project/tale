@@ -3101,7 +3101,9 @@
       "resizeHandle": "Canvas-Größe ändern",
       "apply": "Änderungen übernehmen",
       "applied": "Änderungen übernommen",
-      "applyFailed": "Änderungen konnten nicht übernommen werden"
+      "applyFailed": "Änderungen konnten nicht übernommen werden",
+      "enterFullscreen": "Vollbild",
+      "exitFullscreen": "Vollbild verlassen"
     },
     "promptLibrary": "Prompt-Bibliothek",
     "savePrompt": "Prompt speichern",

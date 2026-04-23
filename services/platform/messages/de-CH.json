@@ -83,7 +83,9 @@
       "resizeHandle": "Canvas-Grösse ändern",
       "apply": "Änderige übernäh",
       "applied": "Änderige übernoh",
-      "applyFailed": "Änderige händ nöd chönne übernoh wärde"
+      "applyFailed": "Änderige händ nöd chönne übernoh wärde",
+      "enterFullscreen": "Vollbild",
+      "exitFullscreen": "Vollbild verlah"
     }
   },
   "documents": {
