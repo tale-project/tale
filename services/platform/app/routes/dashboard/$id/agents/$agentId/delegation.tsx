@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -10,7 +11,9 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
+import type { AgentI18nOverrides } from '@/convex/agents/file_utils';
 import { useT } from '@/lib/i18n/client';
+import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute(
@@ -26,11 +29,14 @@ interface AgentListEntry {
   name: string;
   displayName?: string;
   description?: string;
+  i18n?: Record<string, AgentI18nOverrides>;
 }
 
 function DelegationTab() {
   const { t } = useT('settings');
   const { config, updateConfig, agentName } = useAgentConfig();
+  const { i18n: i18nCtx } = useTranslation();
+  const locale = i18nCtx.language;
 
   const listAgentsAction = useConvexAction(api.agents.file_actions.listAgents);
   const listAgentsRef = useRef(listAgentsAction);
@@ -49,10 +55,11 @@ function DelegationTab() {
           orgSlug: 'default',
         })) as AgentListEntry[];
         if (!cancelled) {
+          // Skip self + entries that carry an error shape (have `status` but no
+          // config fields). `displayName` absence is no longer a signal, since
+          // i18n-first agents keep their names under `i18n[locale].displayName`.
           setAvailableAgents(
-            agents.filter(
-              (a) => a.name !== agentName && a.displayName !== undefined,
-            ),
+            agents.filter((a) => a.name !== agentName && !('status' in a)),
           );
         }
       } catch {
@@ -70,12 +77,15 @@ function DelegationTab() {
 
   const delegateOptions = useMemo(
     () =>
-      availableAgents.map((a) => ({
-        value: a.name,
-        label: a.displayName ?? a.name,
-        description: a.description,
-      })),
-    [availableAgents],
+      availableAgents.map((a) => {
+        const resolved = resolveAgentLocale(a, locale);
+        return {
+          value: a.name,
+          label: resolved.displayName || a.name,
+          description: resolved.description,
+        };
+      }),
+    [availableAgents, locale],
   );
 
   const selectedValues = config.delegates ?? [];
