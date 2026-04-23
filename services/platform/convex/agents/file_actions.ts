@@ -518,18 +518,20 @@ export const resolveAgentConfig = internalAction({
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<SerializableAgentConfig> => {
-    const result = await readAgentFile(args.orgSlug, args.agentSlug);
+    const [result, binding, orgLocale] = await Promise.all([
+      readAgentFile(args.orgSlug, args.agentSlug),
+      ctx.runQuery(internal.agents.internal_queries.getBindingByAgent, {
+        organizationId: args.organizationId,
+        agentSlug: args.agentSlug,
+      }),
+      ctx.runQuery(
+        internal.organizations.internal_queries.getOrganizationDefaultLocale,
+        { organizationId: args.organizationId },
+      ),
+    ]);
     if (!result.ok) {
       throw new Error(`Agent not found: ${args.agentSlug} — ${result.message}`);
     }
-
-    const binding = await ctx.runQuery(
-      internal.agents.internal_queries.getBindingByAgent,
-      {
-        organizationId: args.organizationId,
-        agentSlug: args.agentSlug,
-      },
-    );
 
     // Cross-validate supportedModels against provider model lists so the
     // user is never presented with models that cannot be resolved. Both
@@ -612,6 +614,7 @@ export const resolveAgentConfig = internalAction({
             knowledgeFiles: binding.knowledgeFiles ?? undefined,
           }
         : undefined,
+      orgLocale,
     );
 
     if (args.modelId) {

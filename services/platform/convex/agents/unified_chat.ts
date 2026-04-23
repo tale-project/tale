@@ -298,24 +298,29 @@ async function resolveAgentConfigInline(
     organizationId: string;
     modelId?: string;
   },
-): Promise<InlineConfigResult> {
+): Promise<InlineConfigResult & { orgLocale: string }> {
   const filePath = resolveAgentFilePath(args.orgSlug, args.agentSlug);
-  const result = await readJsonFile<AgentJsonConfig>(
-    filePath,
-    MAX_FILE_SIZE_BYTES,
-    parseAgentJson,
-  );
+
+  // Parallelize JSON read, binding lookup, and org-locale lookup to preserve
+  // the TTFT savings the inlined path was designed for.
+  const [result, binding, orgLocale] = await Promise.all([
+    readJsonFile<AgentJsonConfig>(
+      filePath,
+      MAX_FILE_SIZE_BYTES,
+      parseAgentJson,
+    ),
+    ctx.runQuery(internal.agents.internal_queries.getBindingByAgent, {
+      organizationId: args.organizationId,
+      agentSlug: args.agentSlug,
+    }),
+    ctx.runQuery(
+      internal.organizations.internal_queries.getOrganizationDefaultLocale,
+      { organizationId: args.organizationId },
+    ),
+  ]);
   if (!result.ok) {
     throw new Error(`Agent not found: ${args.agentSlug} — ${result.message}`);
   }
-
-  const binding = await ctx.runQuery(
-    internal.agents.internal_queries.getBindingByAgent,
-    {
-      organizationId: args.organizationId,
-      agentSlug: args.agentSlug,
-    },
-  );
 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- binding shape guaranteed by getBindingByAgent query; returns v.any()
   const typedBinding = binding as {
@@ -334,11 +339,12 @@ async function resolveAgentConfigInline(
           knowledgeFiles: typedBinding.knowledgeFiles ?? undefined,
         }
       : undefined,
+    orgLocale,
   );
 
   if (args.modelId) {
     applyModelOverride(config, args.modelId, result.data.supportedModels);
   }
 
-  return { config, supportedModels: result.data.supportedModels };
+  return { config, supportedModels: result.data.supportedModels, orgLocale };
 }

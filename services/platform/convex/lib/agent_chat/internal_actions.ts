@@ -690,6 +690,10 @@ async function buildIntegrationTools(
 
 /**
  * Build delegation tools for all configured delegate slugs.
+ *
+ * Fetches the org's `defaultLocale` in parallel with delegate loading so
+ * delegate systemInstructions and the appended delegation scaffold text
+ * resolve to the same language the parent agent is speaking.
  */
 async function buildDelegationTools(
   ctx: ActionCtx,
@@ -704,11 +708,17 @@ async function buildDelegationTools(
 > {
   if (!agentConfig.delegateSlugs?.length) return undefined;
 
+  const orgLocale = await ctx.runQuery(
+    internal.organizations.internal_queries.getOrganizationDefaultLocale,
+    { organizationId },
+  );
+
   const delegates = await loadDelegateAgents(
     ctx,
     agentConfig.delegateSlugs,
     organizationId,
     'default',
+    orgLocale,
   );
 
   if (delegates.length === 0) return undefined;
@@ -721,7 +731,10 @@ async function buildDelegationTools(
 
   return {
     tools,
-    instructionsAppend: buildDelegationInstructionsSection(delegates),
+    instructionsAppend: buildDelegationInstructionsSection(
+      delegates,
+      orgLocale,
+    ),
   };
 }
 

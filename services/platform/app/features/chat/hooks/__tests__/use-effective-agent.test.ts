@@ -6,12 +6,18 @@ import type { SelectedAgent } from '../../context/chat-layout-context';
 
 interface MockAgent {
   name: string;
-  displayName: string;
-  description: string;
+  displayName?: string;
+  description?: string;
   conversationStarters?: string[];
+  systemInstructions?: string;
   i18n?: Record<
     string,
-    { displayName?: string; conversationStarters?: string[] }
+    {
+      displayName?: string;
+      description?: string;
+      conversationStarters?: string[];
+      systemInstructions?: string;
+    }
   >;
 }
 

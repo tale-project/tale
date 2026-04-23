@@ -303,6 +303,9 @@ export function OrganizationSettings({
             disabled={isSubmitting}
             options={localeOptions}
           />
+          <p className="text-muted-foreground mt-1.5 text-xs">
+            {tSettings('organization.defaultLocaleHelp')}
+          </p>
         </div>
       </Form>
 

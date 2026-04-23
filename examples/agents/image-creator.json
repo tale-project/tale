@@ -1,6 +1,4 @@
 {
-  "displayName": "Image Creator",
-  "description": "Generates and edits images from text prompts using FLUX, Imagen, or Nano Banana.",
   "primaryBehavior": "image-generation",
   "supportedModels": [
     "vercel-gateway:bfl/flux-2-pro",
@@ -22,12 +20,6 @@
     "tooltip": "Generate or edit images from a description",
     "order": 30
   },
-  "conversationStarters": [
-    "Generate a product photo for a minimalist white coffee mug",
-    "Create a watercolor illustration of a sunset over the ocean",
-    "Design a social media banner for a summer sale event",
-    "Generate a logo concept for a tech startup called 'NovaByte'"
-  ],
   "visibleInChat": true,
   "i18n": {
     "de": {
@@ -38,6 +30,26 @@
         "Erstelle eine Aquarell-Illustration eines Sonnenuntergangs über dem Meer",
         "Entwirf ein Social-Media-Banner für einen Sommerschlussverkauf",
         "Erzeuge ein Logo-Konzept für ein Tech-Startup namens 'NovaByte'"
+      ]
+    },
+    "en": {
+      "displayName": "Image Creator",
+      "description": "Generates and edits images from text prompts using FLUX, Imagen, or Nano Banana.",
+      "conversationStarters": [
+        "Generate a product photo for a minimalist white coffee mug",
+        "Create a watercolor illustration of a sunset over the ocean",
+        "Design a social media banner for a summer sale event",
+        "Generate a logo concept for a tech startup called 'NovaByte'"
+      ]
+    },
+    "fr": {
+      "displayName": "Créateur d'images",
+      "description": "Génère et retouche des images à partir de descriptions textuelles avec FLUX, Imagen ou Nano Banana.",
+      "conversationStarters": [
+        "Génère une photo produit d'une tasse à café blanche minimaliste",
+        "Crée une illustration à l'aquarelle d'un coucher de soleil sur l'océan",
+        "Conçois une bannière pour les réseaux sociaux pour des soldes d'été",
+        "Génère un concept de logo pour une start-up tech appelée « NovaByte »"
       ]
     }
   }

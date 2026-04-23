@@ -618,7 +618,8 @@
       "membersTitle": "Membres de l'organisation",
       "membersEntityLabel": "membres",
       "manageAccess": "Gérer l'accès à l'organisation",
-      "defaultLocale": "Langue par défaut",
+      "defaultLocale": "Langue de réponse des agents",
+      "defaultLocaleHelp": "S'applique à la sortie de l'agent. La langue de l'interface suit les préférences de chaque utilisateur.",
       "searchMember": "Rechercher un membre",
       "addMember": "Ajouter un membre",
       "members": {

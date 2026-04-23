@@ -618,7 +618,8 @@
       "membersTitle": "Organization members",
       "membersEntityLabel": "members",
       "manageAccess": "Manage access to the organization",
-      "defaultLocale": "What language should your agents use?",
+      "defaultLocale": "Agent response language",
+      "defaultLocaleHelp": "Applies to agent output. User interface language follows each user's own setting.",
       "searchMember": "Search member",
       "addMember": "Add member",
       "members": {

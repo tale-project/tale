@@ -140,24 +140,57 @@ Pass the user's request in natural language. The agent will handle it and return
 }
 
 /**
+ * Localized scaffold text wrapping the delegate list. The locale is the
+ * org's `defaultLocale`; unknown locales fall through to English.
+ */
+const DELEGATION_SCAFFOLD: Record<
+  string,
+  { header: string; intro: string; outro: string }
+> = {
+  en: {
+    header: 'DELEGATION AGENTS',
+    intro: 'You can delegate tasks to these specialized agents:',
+    outro:
+      "Call the appropriate delegation tool with the user's request. Preserve the user's full intent.",
+  },
+  de: {
+    header: 'DELEGATIONS-AGENTEN',
+    intro: 'Du kannst Aufgaben an diese spezialisierten Agenten delegieren:',
+    outro:
+      'Rufe das passende Delegations-Werkzeug mit der Anfrage des Nutzers auf. Bewahre die volle Absicht des Nutzers.',
+  },
+  fr: {
+    header: 'AGENTS DE DÉLÉGATION',
+    intro: 'Vous pouvez déléguer des tâches à ces agents spécialisés :',
+    outro:
+      "Appelez l'outil de délégation approprié avec la requête de l'utilisateur. Préservez l'intention complète de l'utilisateur.",
+  },
+};
+
+/**
  * Build a section to append to an agent's system instructions
  * describing its available delegate agents.
  */
 export function buildDelegationInstructionsSection(
   delegates: DelegateAgentMeta[],
+  locale?: string,
 ): string {
   if (delegates.length === 0) return '';
+
+  const scaffold =
+    (locale ? DELEGATION_SCAFFOLD[locale] : undefined) ??
+    DELEGATION_SCAFFOLD.en;
 
   const delegateLines = delegates
     .map((d) => `- **delegate_${d.name}**: ${d.displayName} — ${d.description}`)
     .join('\n');
 
   return `\n\n====================
-DELEGATION AGENTS
+${scaffold.header}
 ====================
 
-You can delegate tasks to these specialized agents:
+${scaffold.intro}
 ${delegateLines}
 
-Call the appropriate delegation tool with the user's request. Preserve the user's full intent.`;
+${scaffold.outro}`;
 }

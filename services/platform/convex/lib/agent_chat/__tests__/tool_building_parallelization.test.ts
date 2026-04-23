@@ -43,6 +43,11 @@ vi.mock('../../../_generated/api', () => ({
         listActiveByOrg: 'mock-listActiveByOrg',
       },
     },
+    organizations: {
+      internal_queries: {
+        getOrganizationDefaultLocale: 'mock-getOrganizationDefaultLocale',
+      },
+    },
     lib: {
       response_cache: {
         internal_queries: { lookupCache: 'mock-lookupCache' },
@@ -234,6 +239,9 @@ describe('runAgentGeneration — tool building parallelization', () => {
         if (fn === 'mock-listActiveByOrg') {
           return Promise.resolve([]);
         }
+        if (fn === 'mock-getOrganizationDefaultLocale') {
+          return Promise.resolve('en');
+        }
         return Promise.resolve(null);
       }),
       runAction: vi.fn().mockImplementation((fn: string) => {
@@ -350,6 +358,9 @@ describe('runAgentGeneration — tool building parallelization', () => {
       }
       if (fn === 'mock-listActiveByOrg') {
         return Promise.resolve([]);
+      }
+      if (fn === 'mock-getOrganizationDefaultLocale') {
+        return Promise.resolve('en');
       }
       return Promise.resolve(null);
     });

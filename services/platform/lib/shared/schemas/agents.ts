@@ -23,20 +23,30 @@ const composerModeSchema = z.object({
 
 /**
  * Fields that can be overridden per locale via the i18n key.
+ *
+ * Canonical location for translatable fields under the i18n-first data model.
+ * Top-level translatable fields on `agentJsonSchema` remain only as a legacy
+ * fallback for agents authored before this model.
  */
 const translatableFieldsSchema = z.object({
   displayName: z.string().min(1).max(200).optional(),
   description: z.string().max(1000).optional(),
   conversationStarters: z.array(z.string().max(200)).max(4).optional(),
+  systemInstructions: z.string().max(20_000).optional(),
 });
 
 /**
  * Schema for the agent JSON file format.
  * Matches the AgentJsonConfig type in convex/agents/file_utils.ts.
+ *
+ * i18n-first: translatable fields live under `i18n.<locale>.*`. The top-level
+ * translatable fields (`displayName`, `description`, `conversationStarters`,
+ * `systemInstructions`) are legacy fallbacks — the superRefine below requires
+ * the relevant ones to exist in *some* locale (top-level or any i18n entry).
  */
 export const agentJsonSchema = z
   .object({
-    displayName: z.string().min(1).max(200),
+    displayName: z.string().min(1).max(200).optional(),
     description: z.string().max(1000).optional(),
     avatarUrl: z.string().url().optional(),
     /**
@@ -45,12 +55,6 @@ export const agentJsonSchema = z
      * to an image model; toolNames/integrationBindings/workflows are ignored.
      */
     primaryBehavior: primaryBehaviorSchema.optional(),
-    /**
-     * Required for chat agents (enforced by superRefine). Optional for
-     * image-generation agents, where an empty value means the user prompt goes
-     * to the image model unchanged; non-empty is prepended to the prompt as a
-     * style/constraint prefix.
-     */
     systemInstructions: z.string().optional(),
     toolNames: z.array(z.string()).optional(),
     integrationBindings: z.array(z.string()).optional(),
@@ -99,17 +103,39 @@ export const agentJsonSchema = z
       .optional(),
   })
   .superRefine((data, ctx) => {
-    // Chat agents require non-empty systemInstructions.
-    if (
-      (data.primaryBehavior ?? 'chat') === 'chat' &&
-      (data.systemInstructions == null || data.systemInstructions.length === 0)
-    ) {
+    const i18nLocales = Object.values(data.i18n ?? {});
+
+    // displayName must exist at top-level or in at least one locale override.
+    const hasDisplayName =
+      !!data.displayName ||
+      i18nLocales.some((v) => v.displayName && v.displayName.length > 0);
+    if (!hasDisplayName) {
       ctx.addIssue({
         code: 'custom',
-        path: ['systemInstructions'],
-        message: 'systemInstructions is required for chat agents',
+        path: ['displayName'],
+        message:
+          'displayName must be set at top-level or in at least one i18n locale',
       });
     }
+
+    // Chat agents require systemInstructions in some locale (top-level or i18n).
+    if ((data.primaryBehavior ?? 'chat') === 'chat') {
+      const hasInstructions =
+        (data.systemInstructions != null &&
+          data.systemInstructions.length > 0) ||
+        i18nLocales.some(
+          (v) => v.systemInstructions && v.systemInstructions.length > 0,
+        );
+      if (!hasInstructions) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['systemInstructions'],
+          message:
+            'systemInstructions is required for chat agents at top-level or in at least one i18n locale',
+        });
+      }
+    }
+
     // Image-generation agents have no tool loop — these fields are meaningless.
     if (data.primaryBehavior === 'image-generation') {
       const disallowed: Array<keyof typeof data> = [
