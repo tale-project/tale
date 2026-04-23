@@ -264,6 +264,102 @@ function startAbortWatcher(
 }
 
 /**
+ * Find the first assistant message in the latest response order group and
+ * link any pending approvals to it. Pending approvals are queried by
+ * threadId but only rendered in the UI once their messageId field is set,
+ * so this must complete BEFORE clearGenerationStatus or the user sees the
+ * spinner stop, then a "approve this action" panel pop in a beat later.
+ *
+ * Wrapped in try/catch — approval linking is non-fatal.
+ */
+async function linkApprovalsToLatestAssistantMessage(
+  ctx: GenerateResponseArgs['ctx'],
+  threadId: string,
+  debugLog: (...args: unknown[]) => void,
+): Promise<void> {
+  try {
+    const messagesResult = await listMessages(ctx, components.agent, {
+      threadId,
+      paginationOpts: { cursor: null, numItems: 50 },
+      excludeToolMessages: false,
+    });
+
+    // Find the first assistant message in the current response order group.
+    // We must link to an assistant message (not tool messages) because the UI
+    // only loads user/assistant messages — tool message IDs are not in the
+    // rendered message set and approvals linked to them would be invisible.
+    const latestAssistantMessage = messagesResult.page.find(
+      (m: MessageDoc) => m.message?.role === 'assistant',
+    );
+    if (!latestAssistantMessage) return;
+
+    const currentOrder = latestAssistantMessage.order;
+    const firstAssistantInOrder =
+      messagesResult.page
+        .filter(
+          (m: MessageDoc) =>
+            m.order === currentOrder && m.message?.role === 'assistant',
+        )
+        .sort((a: MessageDoc, b: MessageDoc) => a.stepOrder - b.stepOrder)[0] ??
+      latestAssistantMessage;
+
+    const linkedCount = await ctx.runMutation(
+      internal.approvals.internal_mutations.linkApprovalsToMessage,
+      {
+        threadId,
+        messageId: firstAssistantInOrder._id,
+      },
+    );
+    if (linkedCount > 0) {
+      debugLog(
+        `Linked ${linkedCount} pending approvals to message ${firstAssistantInOrder._id}`,
+      );
+    }
+  } catch (error) {
+    console.error(
+      '[generateAgentResponse] Failed to link approvals to message:',
+      error,
+    );
+  }
+}
+
+/**
+ * Finalize the persistent text stream after a successful generation. The
+ * Agent SDK's DeltaStreamer already delivered text to the client in real
+ * time; this only updates the persistent stream document used for refresh
+ * recovery and HTTP polling. Non-fatal: if the stream is in a terminal
+ * state from a prior fallback attempt, these mutations may fail and that
+ * must not turn a successful response into a failure.
+ *
+ * When `cancelled` is true, only `completeStream` is called (no append) —
+ * content was already streamed via the SDK before the abort.
+ */
+async function finalizePersistentStream(
+  ctx: GenerateResponseArgs['ctx'],
+  streamId: string,
+  text: string,
+  cancelled: boolean,
+): Promise<void> {
+  try {
+    if (!cancelled && text) {
+      await ctx.runMutation(
+        internal.streaming.internal_mutations.appendToStream,
+        { streamId, text },
+      );
+    }
+    await ctx.runMutation(
+      internal.streaming.internal_mutations.completeStream,
+      { streamId },
+    );
+  } catch (streamError) {
+    console.error(
+      '[generateAgentResponse] Persistent stream finalization failed (non-fatal):',
+      streamError,
+    );
+  }
+}
+
+/**
  * Generate an agent response using the provided configuration.
  *
  * This is the core implementation shared by all agents.
@@ -1819,128 +1915,68 @@ export async function generateAgentResponse(
       await hooks.afterGenerate(ctx, args, responseResult, hookData);
     }
 
-    // Call unified completion handler (saves metadata + schedules summarization)
-    await onAgentComplete(ctx, {
-      threadId,
-      agentType,
-      result: {
-        threadId,
-        messageId: savedMessageId,
-        text: responseResult.text,
-        model: actualModel,
-        provider,
-        usage: responseResult.usage,
-        durationMs,
-        timeToFirstTokenMs,
-        toolCalls: responseResult.toolCalls,
-        toolsUsage: responseResult.toolsUsage,
-        citations: responseResult.citations,
-        contextWindow: completeContextWindow,
-        contextStats: responseResult.contextStats,
-      },
-      organizationId,
-      userId,
-      teamIds,
-      agentSlug,
-      providerCost,
-    });
-
-    // Link approvals to message (only for main agent, not sub-agents)
+    // Approvals must be linked BEFORE clearGenerationStatus. Pending approval
+    // rows are loaded by threadId but only render in the UI once messageId is
+    // patched (use-merged-chat-items checks loadedMessageIds). If the spinner
+    // clears first, the user sees: spinner stops → blank gap → "approve this
+    // action" panel pops in. Sub-agents skip — only main threads have UI.
     if (!parentThreadId && savedMessageId) {
-      try {
-        const messagesResult = await listMessages(ctx, components.agent, {
-          threadId,
-          paginationOpts: { cursor: null, numItems: 50 },
-          excludeToolMessages: false,
-        });
-
-        // Find the first assistant message in the current response order group.
-        // We must link to an assistant message (not tool messages) because the UI
-        // only loads user/assistant messages — tool message IDs are not in the
-        // rendered message set and approvals linked to them would be invisible.
-        const latestAssistantMessage = messagesResult.page.find(
-          (m: MessageDoc) => m.message?.role === 'assistant',
-        );
-
-        if (latestAssistantMessage) {
-          const currentOrder = latestAssistantMessage.order;
-          const firstAssistantInOrder =
-            messagesResult.page
-              .filter(
-                (m: MessageDoc) =>
-                  m.order === currentOrder && m.message?.role === 'assistant',
-              )
-              .sort(
-                (a: MessageDoc, b: MessageDoc) => a.stepOrder - b.stepOrder,
-              )[0] ?? latestAssistantMessage;
-
-          const linkedCount = await ctx.runMutation(
-            internal.approvals.internal_mutations.linkApprovalsToMessage,
-            {
-              threadId,
-              messageId: firstAssistantInOrder._id,
-            },
-          );
-          if (linkedCount > 0) {
-            debugLog(
-              `Linked ${linkedCount} pending approvals to message ${firstAssistantInOrder._id}`,
-            );
-          }
-        }
-      } catch (error) {
-        console.error(
-          '[generateAgentResponse] Failed to link approvals to message:',
-          error,
-        );
-      }
+      await linkApprovalsToLatestAssistantMessage(ctx, threadId, debugLog);
     }
 
-    // Complete stream if streamId provided
     const cancelled = await checkCancelled();
-    if (streamId && !cancelled) {
-      // Persistent stream finalization is non-fatal: the Agent SDK's
-      // DeltaStreamer already delivered text to the client in real-time.
-      // If the persistent stream is in a terminal state (e.g. from a
-      // previous failed fallback attempt), these mutations may fail —
-      // that must not cause the overall response to be treated as failed.
-      try {
-        if (responseResult.text) {
-          await ctx.runMutation(
-            internal.streaming.internal_mutations.appendToStream,
-            {
+
+    // Run the remaining post-processing in parallel — clearGenerationStatus
+    // (the only operation the user perceives), onAgentComplete (metadata +
+    // ledger + audit), and persistent stream finalization are all
+    // independent. Wrapped in try/catch so a non-OCC throw from
+    // clearGenerationStatus doesn't propagate into the outer catch (which
+    // saves a "failed" message and would mis-classify a successful run).
+    try {
+      await Promise.all([
+        streamId
+          ? ctx.runMutation(
+              internal.threads.internal_mutations.clearGenerationStatus,
+              { threadId, streamId },
+            )
+          : Promise.resolve(),
+        onAgentComplete(ctx, {
+          threadId,
+          agentType,
+          result: {
+            threadId,
+            messageId: savedMessageId,
+            text: responseResult.text,
+            model: actualModel,
+            provider,
+            usage: responseResult.usage,
+            durationMs,
+            timeToFirstTokenMs,
+            toolCalls: responseResult.toolCalls,
+            toolsUsage: responseResult.toolsUsage,
+            citations: responseResult.citations,
+            contextWindow: completeContextWindow,
+            contextStats: responseResult.contextStats,
+          },
+          organizationId,
+          userId,
+          teamIds,
+          agentSlug,
+          providerCost,
+        }),
+        streamId
+          ? finalizePersistentStream(
+              ctx,
               streamId,
-              text: responseResult.text,
-            },
-          );
-        }
-        await ctx.runMutation(
-          internal.streaming.internal_mutations.completeStream,
-          { streamId },
-        );
-      } catch (streamError) {
-        console.error(
-          '[generateAgentResponse] Persistent stream finalization failed (non-fatal):',
-          streamError,
-        );
-      }
-    } else if (streamId && cancelled) {
-      // User cancelled — complete the stream cleanly (content already streamed)
-      try {
-        await ctx.runMutation(
-          internal.streaming.internal_mutations.completeStream,
-          { streamId },
-        );
-      } catch (streamError) {
-        console.error(
-          '[generateAgentResponse] Cancelled stream completion failed:',
-          streamError,
-        );
-      }
-    }
-    if (streamId) {
-      await ctx.runMutation(
-        internal.threads.internal_mutations.clearGenerationStatus,
-        { threadId, streamId },
+              responseResult.text,
+              !!cancelled,
+            )
+          : Promise.resolve(),
+      ]);
+    } catch (postProcessError) {
+      console.error(
+        '[generateAgentResponse] Post-processing failed (non-fatal):',
+        postProcessError,
       );
     }
 
@@ -2053,41 +2089,47 @@ export async function generateAgentResponse(
     // marking the stream as error and clearing generation status — the
     // caller will handle cleanup. This prevents the loading indicator from
     // disappearing and error messages from flashing between retries.
+    // Stream cleanup + clearGenerationStatus are independent; run in
+    // parallel so the spinner clears as fast as possible on errors too.
     if (streamId && !suppressErrorCleanup) {
-      try {
-        if (userCancelled) {
-          // Complete the stream cleanly — content was already streamed
-          await ctx.runMutation(
-            internal.streaming.internal_mutations.completeStream,
-            { streamId },
-          );
-        } else {
-          await ctx.runMutation(
-            internal.streaming.internal_mutations.errorStream,
-            { streamId },
+      const streamCleanup = (async () => {
+        try {
+          if (userCancelled) {
+            // Complete the stream cleanly — content was already streamed
+            await ctx.runMutation(
+              internal.streaming.internal_mutations.completeStream,
+              { streamId },
+            );
+          } else {
+            await ctx.runMutation(
+              internal.streaming.internal_mutations.errorStream,
+              { streamId },
+            );
+          }
+        } catch (streamError) {
+          console.error(
+            '[generateAgentResponse] Failed to finalize stream:',
+            streamError,
           );
         }
-      } catch (streamError) {
-        console.error(
-          '[generateAgentResponse] Failed to finalize stream:',
-          streamError,
-        );
-      }
-    }
+      })();
 
-    // Clear generation status so isThreadGenerating returns false
-    if (streamId && !suppressErrorCleanup) {
-      try {
-        await ctx.runMutation(
+      const statusCleanup = ctx
+        .runMutation(
           internal.threads.internal_mutations.clearGenerationStatus,
-          { threadId, streamId },
-        );
-      } catch (clearError) {
-        console.error(
-          '[generateAgentResponse] Failed to clear generation status:',
-          clearError,
-        );
-      }
+          {
+            threadId,
+            streamId,
+          },
+        )
+        .catch((clearError) => {
+          console.error(
+            '[generateAgentResponse] Failed to clear generation status:',
+            clearError,
+          );
+        });
+
+      await Promise.all([streamCleanup, statusCleanup]);
     }
 
     // Abort any stuck agent SDK streams. The SDK's DeltaStreamer.fail() may
