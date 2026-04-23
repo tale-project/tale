@@ -83,6 +83,10 @@ export const HighlightedCode = memo(function HighlightedCode({
   return <code dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
+/** Pixel tolerance for considering the pre "at the bottom". Accounts for
+ * sub-pixel rounding and lets the user be a few px off and still auto-follow. */
+const STICK_TO_BOTTOM_THRESHOLD_PX = 24;
+
 export function CodeBlock({
   lang,
   children,
@@ -93,6 +97,7 @@ export function CodeBlock({
   const [isCopied, setIsCopied] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const stickToBottomRef = useRef(true);
   const canvasContext = useCanvasOptional();
   const messageContext = useMessageContentOptional();
 
@@ -103,6 +108,25 @@ export function CodeBlock({
       }
     };
   }, []);
+
+  useEffect(() => {
+    const pre = preRef.current;
+    if (!pre) return;
+    const onScroll = () => {
+      const distanceFromBottom =
+        pre.scrollHeight - pre.scrollTop - pre.clientHeight;
+      stickToBottomRef.current =
+        distanceFromBottom <= STICK_TO_BOTTOM_THRESHOLD_PX;
+    };
+    pre.addEventListener('scroll', onScroll, { passive: true });
+    return () => pre.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const pre = preRef.current;
+    if (!pre || !stickToBottomRef.current) return;
+    pre.scrollTop = pre.scrollHeight;
+  }, [children]);
 
   const handleCopy = async () => {
     const textContent = preRef.current?.textContent ?? '';
