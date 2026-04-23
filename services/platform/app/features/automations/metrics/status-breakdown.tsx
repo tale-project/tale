@@ -58,7 +58,9 @@ export function StatusBreakdown({
                   border: '1px solid var(--border)',
                   background: 'var(--popover)',
                 }}
-                formatter={(value: number) => formatNumber(value)}
+                formatter={(value) =>
+                  typeof value === 'number' ? formatNumber(value) : ''
+                }
               />
               <Pie
                 data={data}

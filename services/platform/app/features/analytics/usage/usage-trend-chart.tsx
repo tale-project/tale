@@ -66,11 +66,13 @@ export function UsageTrendChart({
   });
 
   const formatTooltipValue = (
-    value: number,
-    name: string,
+    value: number | undefined,
+    name: string | undefined,
   ): [string, string] => {
-    if (metric === 'cost') return [formatCostCents(value), name];
-    return [formatNumber(value), name];
+    const label = name ?? '';
+    if (value === undefined) return ['', label];
+    if (metric === 'cost') return [formatCostCents(value), label];
+    return [formatNumber(value), label];
   };
 
   const formatYTick = (value: number): string => {
