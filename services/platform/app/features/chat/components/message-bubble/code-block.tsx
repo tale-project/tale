@@ -111,7 +111,7 @@ export function CodeBlock({
 
   useEffect(() => {
     const pre = preRef.current;
-    if (!pre) return;
+    if (!pre) return undefined;
     const onScroll = () => {
       const distanceFromBottom =
         pre.scrollHeight - pre.scrollTop - pre.clientHeight;
@@ -119,13 +119,16 @@ export function CodeBlock({
         distanceFromBottom <= STICK_TO_BOTTOM_THRESHOLD_PX;
     };
     pre.addEventListener('scroll', onScroll, { passive: true });
-    return () => pre.removeEventListener('scroll', onScroll);
+    return () => {
+      pre.removeEventListener('scroll', onScroll);
+    };
   }, []);
 
   useEffect(() => {
     const pre = preRef.current;
-    if (!pre || !stickToBottomRef.current) return;
-    pre.scrollTop = pre.scrollHeight;
+    if (pre && stickToBottomRef.current) {
+      pre.scrollTop = pre.scrollHeight;
+    }
   }, [children]);
 
   const handleCopy = async () => {
