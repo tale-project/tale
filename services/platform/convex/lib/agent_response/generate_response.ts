@@ -1117,7 +1117,7 @@ export async function generateAgentResponse(
               excludeToolMessages: true,
               searchOtherThreads: false,
             },
-            saveStreamDeltas: { chunking: /[\p{P}\s]/u, throttleMs: 100 },
+            saveStreamDeltas: { throttleMs: 100, chunking: /[\p{P}\s]/u },
           },
         );
 
