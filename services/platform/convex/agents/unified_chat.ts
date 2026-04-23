@@ -194,21 +194,29 @@ export const chatWithAgent = action({
     // Guardrails: chat_filter → PII → moderation_provider (see sanitize.ts).
     // Blocked outcomes throw ConvexError with structured `data` for the UI
     // and a legacy substring in `.message` for older client bundles.
-    const sanitized = await sanitizeMessage(
-      ctx,
-      args.message,
-      'input',
-      guardrails,
-      {
-        organizationId: args.organizationId,
-        orgSlug: args.orgSlug,
-        threadId: args.threadId,
-        agentSlug: args.agentSlug,
-        actorId: authUserId,
-        actorEmail: authUserEmail,
-        actorType: 'user',
-      },
-    );
+    // Roll back the generating flag on any throw so the spinner doesn't
+    // strand for ~35 min (the isThreadGenerating stale threshold).
+    let sanitized;
+    try {
+      sanitized = await sanitizeMessage(
+        ctx,
+        args.message,
+        'input',
+        guardrails,
+        {
+          organizationId: args.organizationId,
+          orgSlug: args.orgSlug,
+          threadId: args.threadId,
+          agentSlug: args.agentSlug,
+          actorId: authUserId,
+          actorEmail: authUserEmail,
+          actorType: 'user',
+        },
+      );
+    } catch (err) {
+      await rollbackGenerating();
+      throw err;
+    }
     const message = sanitized.text;
 
     // Model access RBAC: check if the user is allowed to use the requested model.
@@ -253,23 +261,31 @@ export const chatWithAgent = action({
     // Delegate to the internal mutation for transactional chat start.
     // Pass preAllocatedStreamId so startAgentChat reuses the stream
     // created by markGenerating (avoids redundant stream + status patch).
+    // Roll back the generating flag if startChat throws (thread not found,
+    // etc.) so the spinner doesn't strand for ~35 min.
     console.log(`[chatWithAgent] calling startChat threadId=${args.threadId}`);
-    const result = await ctx.runMutation(internal.agents.start_chat.startChat, {
-      threadId: args.threadId,
-      organizationId: args.organizationId,
-      userId: authUserId,
-      userEmail: authUserEmail,
-      userName: authUserName,
-      message,
-      maxSteps: args.maxSteps,
-      attachments: args.attachments,
-      additionalContext: args.additionalContext,
-      userContext: args.userContext,
-      agentConfig,
-      agentSlug: args.agentSlug,
-      preAllocatedStreamId,
-      capabilityBindings: args.capabilityBindings,
-    });
+    let result;
+    try {
+      result = await ctx.runMutation(internal.agents.start_chat.startChat, {
+        threadId: args.threadId,
+        organizationId: args.organizationId,
+        userId: authUserId,
+        userEmail: authUserEmail,
+        userName: authUserName,
+        message,
+        maxSteps: args.maxSteps,
+        attachments: args.attachments,
+        additionalContext: args.additionalContext,
+        userContext: args.userContext,
+        agentConfig,
+        agentSlug: args.agentSlug,
+        preAllocatedStreamId,
+        capabilityBindings: args.capabilityBindings,
+      });
+    } catch (err) {
+      await rollbackGenerating();
+      throw err;
+    }
     console.log(
       `[chatWithAgent] DONE threadId=${args.threadId} messageAlreadyExists=${result.messageAlreadyExists}`,
     );
