@@ -3097,7 +3097,9 @@
       "resizeHandle": "Redimensionner le canevas",
       "apply": "Appliquer les modifications",
       "applied": "Modifications appliquées",
-      "applyFailed": "Échec de l'application des modifications"
+      "applyFailed": "Échec de l'application des modifications",
+      "enterFullscreen": "Plein écran",
+      "exitFullscreen": "Quitter le plein écran"
     },
     "promptLibrary": "Bibliothèque de prompts",
     "savePrompt": "Enregistrer le prompt",

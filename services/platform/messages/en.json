@@ -3101,7 +3101,9 @@
       "resizeHandle": "Resize canvas",
       "apply": "Apply changes",
       "applied": "Changes applied",
-      "applyFailed": "Failed to apply changes"
+      "applyFailed": "Failed to apply changes",
+      "enterFullscreen": "Fullscreen",
+      "exitFullscreen": "Exit fullscreen"
     },
     "promptLibrary": "Prompt library",
     "savePrompt": "Save prompt",
