@@ -43,6 +43,7 @@ import {
   useUpdateThread,
 } from './mutations';
 import type { ChatMessage } from './use-message-processing';
+import { clearSendPending, markSendPending } from './use-pending-send';
 import { resetGlobalFreeze } from './use-stream-buffer';
 import type { UserContext } from './use-user-context';
 
@@ -220,6 +221,15 @@ export function useSendMessage({
         });
       }
 
+      // Track threads we've flagged optimistic-pending so the catch block can
+      // clear them regardless of which branch (arena / new-chat / existing)
+      // set them, and including any thread IDs created mid-try.
+      const pendingThreadIdsLocal = new Set<string>();
+      const markPending = (id: string) => {
+        pendingThreadIdsLocal.add(id);
+        markSendPending(id);
+      };
+
       try {
         if (isArena) {
           // --- Arena mode: Thread A = root, Thread B = branch ---
@@ -292,6 +302,12 @@ export function useSendMessage({
               });
             });
           }
+
+          // Flip per-thread optimistic spinner IMMEDIATELY so both columns
+          // show "Thinking" before the Node action cold-starts. Real
+          // isThreadGenerating subscriptions take over once they arrive.
+          markPending(tIdA);
+          markPending(tIdB);
 
           // Start both models generating (split view shows "Thinking")
           await arenaChatRef.current({
@@ -372,6 +388,11 @@ export function useSendMessage({
             await updateThread({ threadId: currentThreadId, title });
           }
 
+          // Flip the optimistic spinner IMMEDIATELY — the Node action cold
+          // start adds ~100–300 ms before markGenerating commits. Real
+          // isThreadGenerating takes over once it arrives.
+          markPending(currentThreadId);
+
           await chatWithAgent({
             agentSlug: selectedAgent.name,
             orgSlug: 'default',
@@ -392,6 +413,10 @@ export function useSendMessage({
         }
       } catch (error) {
         console.error('Failed to send message:', error);
+        // Clear every thread we flagged — server either never started the
+        // turn (pre-markGenerating throw) or rolled it back. Real state
+        // stays authoritative once isThreadGenerating catches up.
+        for (const id of pendingThreadIdsLocal) clearSendPending(id);
         clearChatState();
         resetGlobalFreeze();
 

@@ -51,15 +51,29 @@ import {
 // ============================================================================
 
 const DEFAULT_CONFIG = {
-  /** Characters per second for reveal animation */
-  targetCPS: 20,
+  /** Effective characters per second. Translated internally to a word-tick
+   *  cadence via AVG_WORD_CHARS — text reveals in word/CJK-punct chunks, not
+   *  per character, so the effect feels like ChatGPT's token-by-token stream. */
+  targetCPS: 60,
   /** Characters to buffer before starting reveal */
   initialBufferChars: 30,
-  /** Interval between React state updates (ms) */
-  stateUpdateInterval: 30,
+  /** Average characters per word-tick — used to convert targetCPS to tick
+   *  interval. 5 matches average English word length including trailing space. */
+  avgWordChars: 5,
+  /** Hard cap on chars revealed in a single tick. Prevents a long code token
+   *  (e.g. a 200-char identifier) from dumping in one frame. */
+  maxChunkChars: 40,
   /** Maximum delta time (ms) to prevent jumps after tab switching */
   maxDeltaTime: 100,
 };
+
+// CJK ranges: Hiragana, Katakana, CJK Ext-A, CJK Unified, Hangul Syllables, halfwidth kana
+const CJK_RE = /[぀-ヿ㐀-䶿一-鿿가-힯ｦ-ﾟ]/;
+// CJK punctuation and fullwidth ASCII punctuation
+const CJK_PUNCT_RE = /[　-〿！-･]/;
+/** Consecutive CJK chars before we insert a soft boundary (keeps CJK text
+ *  chunking in small groups instead of appearing in one burst). */
+const CJK_SOFT_BOUNDARY_RUN = 3;
 
 // ============================================================================
 // TYPES
@@ -224,14 +238,43 @@ function isWordBoundary(char: string): boolean {
   return /[\s.,!?;:\-\n]/.test(char);
 }
 
-function findNextWordBoundary(text: string, startPos: number): number {
-  const maxLookAhead = Math.min(startPos + 15, text.length);
-  for (let i = startPos; i < maxLookAhead; i++) {
-    if (isWordBoundary(text[i])) {
-      return i + 1;
+/**
+ * Find the next "chunk end" for word/CJK-aware reveal.
+ *
+ * Returns a position > startPos where the next chunk ends:
+ * - After a Western word boundary (space/newline/punct)
+ * - After any CJK punctuation
+ * - After {CJK_SOFT_BOUNDARY_RUN} consecutive CJK characters (soft boundary)
+ * - At maxChunkChars (force chunk for long code tokens / URLs)
+ * - At text.length (reveal remaining tail chunk)
+ */
+function findNextWordBoundary(
+  text: string,
+  startPos: number,
+  maxChunkChars: number,
+): number {
+  if (startPos >= text.length) return startPos;
+  const maxEnd = Math.min(startPos + maxChunkChars, text.length);
+  let cjkRun = 0;
+  for (let i = startPos; i < maxEnd; i++) {
+    const ch = text[i];
+    if (CJK_PUNCT_RE.test(ch)) return i + 1;
+    if (CJK_RE.test(ch)) {
+      cjkRun++;
+      if (cjkRun >= CJK_SOFT_BOUNDARY_RUN) return i + 1;
+      continue;
     }
+    cjkRun = 0;
+    if (isWordBoundary(ch)) return i + 1;
   }
-  return startPos;
+  // No natural boundary within the window.
+  if (maxEnd < text.length) {
+    // Force a chunk at maxChunkChars — prevents hanging on long code tokens.
+    return maxEnd;
+  }
+  // Reached end of buffered text — reveal the remaining partial chunk.
+  // If more text arrives later, the next scan starts from text.length.
+  return text.length;
 }
 
 // ============================================================================
@@ -260,8 +303,9 @@ export function useStreamBuffer({
   const displayedLengthRef = useRef(cachedPosition);
   const targetTextRef = useRef('');
   const isStreamingRef = useRef(false);
-  const accumulatedCharsRef = useRef(0);
-  const lastStateUpdateRef = useRef(0);
+  // Accumulates elapsed ms between ticks. A tick (= one word/chunk reveal)
+  // fires when this exceeds tickInterval. Replaces the old per-char accumulator.
+  const accumulatedTimeRef = useRef(0);
 
   // Adaptive-rate specific refs
   const hasStartedRevealRef = useRef(false);
@@ -348,76 +392,96 @@ export function useStreamBuffer({
       lastFrameTimeRef.current = currentTime;
 
       const normalizedDelta = Math.min(deltaTime, DEFAULT_CONFIG.maxDeltaTime);
-      const frameRatio = normalizedDelta / 16.67;
 
+      // Convert effective CPS → tick interval (ms per word chunk).
+      // Default 60 CPS ÷ 5 chars/word = 12 WPS → ~83ms per tick.
       const safeCPS = Math.max(1, targetCPS);
       const effectiveCPS =
         drainCPSRef.current > 0 && !streaming ? drainCPSRef.current : safeCPS;
-      const charsPerFrame = effectiveCPS / 60;
+      // Upper-clamp so very low CPS still produces visible progress.
+      const tickInterval = Math.min(
+        500,
+        (DEFAULT_CONFIG.avgWordChars * 1000) / effectiveCPS,
+      );
 
-      accumulatedCharsRef.current += charsPerFrame * frameRatio;
+      accumulatedTimeRef.current += normalizedDelta;
 
-      const charsToAdd = Math.floor(accumulatedCharsRef.current);
-      if (charsToAdd > 0) {
-        accumulatedCharsRef.current -= charsToAdd;
-        let newDisplayed = Math.min(currentDisplayed + charsToAdd, textLength);
+      let newDisplayed = currentDisplayed;
+      let ticks = 0;
+      // Safety cap: in case of huge catch-up (shouldn't happen with maxDeltaTime
+      // clamp, but keeps the loop bounded).
+      const maxTicksPerFrame = 8;
+      while (
+        accumulatedTimeRef.current >= tickInterval &&
+        newDisplayed < textLength &&
+        ticks < maxTicksPerFrame
+      ) {
+        let candidate = findNextWordBoundary(
+          targetText,
+          newDisplayed,
+          DEFAULT_CONFIG.maxChunkChars,
+        );
+
+        if (candidate <= newDisplayed) break;
+        candidate = Math.min(candidate, textLength);
 
         // Avoid splitting surrogate pairs — emoji and other supplementary
         // characters use two UTF-16 code units. Slicing between them produces
         // an invalid string that causes react-markdown to misparse.
-        if (newDisplayed < textLength && newDisplayed > 0) {
-          const code = targetText.charCodeAt(newDisplayed - 1);
+        if (candidate < textLength && candidate > 0) {
+          const code = targetText.charCodeAt(candidate - 1);
           if (code >= 0xd800 && code <= 0xdbff) {
-            // Last char is a high surrogate — advance past the low surrogate
-            newDisplayed = Math.min(newDisplayed + 1, textLength);
+            candidate = Math.min(candidate + 1, textLength);
           }
-        }
-
-        // Snap to next word boundary
-        const nextBoundary = findNextWordBoundary(targetText, newDisplayed);
-        if (nextBoundary <= textLength && nextBoundary - newDisplayed <= 3) {
-          newDisplayed = nextBoundary;
         }
 
         // Skip past complete link/image/checkbox syntax so these elements
         // appear atomically instead of flickering from plain text to styled.
-        const syntaxEnd = findSyntaxSkipEnd(targetText, newDisplayed);
-        if (syntaxEnd > newDisplayed) {
-          newDisplayed = Math.min(syntaxEnd, textLength);
+        const syntaxEnd = findSyntaxSkipEnd(targetText, candidate);
+        if (syntaxEnd > candidate) {
+          candidate = Math.min(syntaxEnd, textLength);
         }
 
-        // Line buffering: hold at current position for ambiguous line starts
-        // or trailing empty formatting markers (**, *, ~~).
-        // Re-credit only the debited chars (not word-boundary snap's free chars)
-        // so the accumulator stays bounded and releases as a small burst.
-        if (
-          isAmbiguousPartialLine(targetText, newDisplayed, streaming) ||
-          isAtTrailingEmptyMarker(targetText, newDisplayed, streaming)
+        // Line buffering: if candidate lands inside an ambiguous markdown
+        // prefix (partial ---, ```, === etc.) or on a trailing empty marker
+        // (**, *, ~~), extend char-by-char (bounded by maxChunkChars) until
+        // the prefix resolves. If it won't resolve within budget, hold.
+        const extendCap = Math.min(
+          newDisplayed + DEFAULT_CONFIG.maxChunkChars,
+          textLength,
+        );
+        while (
+          candidate < extendCap &&
+          (isAmbiguousPartialLine(targetText, candidate, streaming) ||
+            isAtTrailingEmptyMarker(targetText, candidate, streaming))
         ) {
-          accumulatedCharsRef.current += charsToAdd;
-          newDisplayed = currentDisplayed;
+          candidate++;
         }
-
-        if (newDisplayed !== displayedLengthRef.current) {
-          displayedLengthRef.current = newDisplayed;
-
-          const timeSinceLastUpdate = currentTime - lastStateUpdateRef.current;
-          const atWordBoundary = isWordBoundary(
-            targetText[newDisplayed - 1] || '',
-          );
-          const caughtUp = newDisplayed === textLength;
-
-          const shouldUpdate =
-            timeSinceLastUpdate >= DEFAULT_CONFIG.stateUpdateInterval ||
-            atWordBoundary ||
-            caughtUp;
-
-          if (shouldUpdate) {
-            lastStateUpdateRef.current = currentTime;
-            setDisplayLength(newDisplayed);
-            setIsTyping(true);
+        // Re-apply surrogate pair protection after char-level extension.
+        if (candidate < textLength && candidate > 0) {
+          const code = targetText.charCodeAt(candidate - 1);
+          if (code >= 0xd800 && code <= 0xdbff) {
+            candidate = Math.min(candidate + 1, textLength);
           }
         }
+        if (
+          candidate < textLength &&
+          (isAmbiguousPartialLine(targetText, candidate, streaming) ||
+            isAtTrailingEmptyMarker(targetText, candidate, streaming))
+        ) {
+          // Still ambiguous — hold and wait for more text.
+          break;
+        }
+
+        accumulatedTimeRef.current -= tickInterval;
+        newDisplayed = candidate;
+        ticks++;
+      }
+
+      if (newDisplayed !== displayedLengthRef.current) {
+        displayedLengthRef.current = newDisplayed;
+        setDisplayLength(newDisplayed);
+        setIsTyping(true);
       }
 
       animationFrameRef.current = requestAnimationFrame(animate);
@@ -511,7 +575,7 @@ export function useStreamBuffer({
         } else {
           hasStartedRevealRef.current = false;
         }
-        accumulatedCharsRef.current = 0;
+        accumulatedTimeRef.current = 0;
         drainCPSRef.current = 0;
       }
 
@@ -531,7 +595,7 @@ export function useStreamBuffer({
         hasStartedRevealRef.current = false;
         drainCPSRef.current = 0;
         displayedLengthRef.current = text.length;
-        accumulatedCharsRef.current = 0;
+        accumulatedTimeRef.current = 0;
         setDisplayLength(text.length);
         setIsTyping(false);
       } else {
@@ -554,7 +618,7 @@ export function useStreamBuffer({
       hasStartedRevealRef.current = false;
       drainCPSRef.current = 0;
       displayedLengthRef.current = text.length;
-      accumulatedCharsRef.current = 0;
+      accumulatedTimeRef.current = 0;
       setDisplayLength(text.length);
       setIsTyping(false);
     }

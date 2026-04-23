@@ -57,6 +57,7 @@ import { useFileTranscriptionStatus } from '../hooks/use-file-transcription-stat
 import { useMergedChatItems } from '../hooks/use-merged-chat-items';
 import { useMessageProcessing } from '../hooks/use-message-processing';
 import { usePendingMessages } from '../hooks/use-pending-messages';
+import { useIsSendPending, clearSendPending } from '../hooks/use-pending-send';
 import { usePersistedAttachments } from '../hooks/use-persisted-attachments';
 import { useSendMessage } from '../hooks/use-send-message';
 import { useStopGenerating } from '../hooks/use-stop-generating';
@@ -395,10 +396,20 @@ export function ChatInterface({
     dataThreadId ? { threadId: dataThreadId } : 'skip',
   );
 
-  // Loading state: generationStatus is the single source of truth.
-  // The Convex subscription on isThreadGenerating reflects
-  // threadMetadata.generationStatus in real-time.
-  const isLoading = isGenerating ?? false;
+  // Client-side optimistic flag — set on send click, released when the
+  // server subscription confirms or the send fails. Closes the ~200–550 ms
+  // gap between click and `chatWithAgent` completing `markGenerating`
+  // (Node action cold start + round trips). VISUAL state only — the Stop
+  // button below reads real `isGenerating` via `onStopGenerating` gating.
+  const isSendPending = useIsSendPending(dataThreadId);
+  const isLoading = (isGenerating ?? false) || isSendPending;
+
+  // Hand off to the authoritative signal the moment it arrives: clear the
+  // optimistic flag once the server reports generating, so a fast response
+  // (idle < 8s safety timeout) doesn't leave the spinner stuck on.
+  useEffect(() => {
+    if (isGenerating && dataThreadId) clearSendPending(dataThreadId);
+  }, [isGenerating, dataThreadId]);
 
   // Stop generating
   const { stopGenerating, resetCancelled } = useStopGenerating({
@@ -1011,7 +1022,7 @@ export function ChatInterface({
               value={inputValue}
               onChange={setInputValue}
               onSendMessage={handleSendMessage}
-              onStopGenerating={stopGenerating}
+              onStopGenerating={isGenerating ? stopGenerating : undefined}
               isLoading={isLoading}
               disabled={hasNoAgents || hasActiveApproval}
               disabledReason={
