@@ -2,17 +2,16 @@
   "toolNames": [
     "rag_search",
     "web",
-    "pdf",
-    "image",
-    "docx",
-    "pptx",
-    "text",
-    "excel",
     "request_human_input",
     "request_user_location",
     "document_retrieve",
     "document_find",
-    "document_write"
+    "document_write",
+    "pdf",
+    "image",
+    "pptx",
+    "docx",
+    "excel"
   ],
   "supportedModels": [
     "openrouter:deepseek/deepseek-v3.2",
