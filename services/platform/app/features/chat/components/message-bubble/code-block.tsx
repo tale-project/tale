@@ -166,7 +166,7 @@ export function CodeBlock({
   }, [canvasContext, lang, messageContext]);
 
   return (
-    <div className="border-border bg-background my-4 overflow-hidden rounded-lg border">
+    <div className="border-border bg-background my-4 w-full overflow-hidden rounded-lg border">
       <div className="border-border flex items-center justify-between border-b px-4 py-2.5">
         <span className="text-muted-foreground font-sans text-xs">
           {lang ?? 'code'}
