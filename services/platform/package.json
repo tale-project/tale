@@ -93,7 +93,7 @@
     "dompurify": "3.3.3",
     "framer-motion": "12.38.0",
     "he": "1.2.0",
-    "hono": "4.10.3",
+    "hono": "4.12.14",
     "i18next": "26.0.4",
     "i18next-icu": "2.4.3",
     "intl-messageformat": "11.2.0",
