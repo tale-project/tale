@@ -10,6 +10,7 @@ import {
   parseSystemMessageTag,
 } from '@/lib/shared/constants/system-message-tags';
 
+import { useChatLayout } from '../context/chat-layout-context';
 import type { FileAttachment } from '../types';
 
 const INTERNAL_ATTACHMENT_MARKER =
@@ -127,6 +128,21 @@ export function useMessageProcessing(
     threadId ? { threadId } : 'skip',
   );
 
+  // Client-side pending-send signal. When the user has just clicked send
+  // but the new user message hasn't been persisted yet, `pendingMessage` is
+  // non-null on the same thread. During that narrow window, isGenerating is
+  // already true (markGenerating committed first for TTFT) but uiMessages
+  // still reflects the PREVIOUS completed turn — so the intra-turn file-only
+  // hide logic below would mistakenly treat the previous turn's file-only
+  // reply as the currently-generating turn's pre-tool message and hide it.
+  // The presence of a matching pendingMessage is the unambiguous signal
+  // that we're in the cross-turn gap (not an intra-turn gap).
+  const { pendingMessage } = useChatLayout();
+  const hasPendingSendForThread =
+    !!pendingMessage &&
+    (pendingMessage.threadId === threadId ||
+      pendingMessage.arenaThreadIdB === threadId);
+
   const isLoadingMore = paginationStatus === 'LoadingMore';
 
   // Check if we've loaded the first message (order: 0)
@@ -209,17 +225,18 @@ export function useMessageProcessing(
     // and post-tool creation, but generationStatus stays true across that
     // gap.
     //
-    // Scope to the current turn's order. `max(assistant.order)` alone is
-    // unsafe: when markGenerating commits before the new user message is
-    // saved, isGenerating flips true while the max assistant order still
-    // belongs to the previous completed turn — a standalone file-only reply
-    // there (e.g. from the image-generation agent) would get hidden for the
-    // entire wait. A new user `saveMessage` always advances `order` past the
-    // thread max, so gate on `maxAssistantOrder >= maxUserOrder`: if a new
-    // user message outranks every assistant, the current turn has produced
-    // no assistant row yet and nothing should be hidden. `>=` (not `>`)
-    // preserves the intra-turn case where appendFilePart shares `order` with
-    // the user prompt.
+    // Scope to the current turn's order. Three cases, distinguished by the
+    // relationship between maxAssistantOrder and maxUserOrder, plus the
+    // client's `pendingMessage` signal:
+    //   - maxAssistant < maxUser: new user message arrived but no assistant
+    //     response yet — nothing to hide.
+    //   - maxAssistant === maxUser: ambiguous. Could be intra-turn gap (user
+    //     + appendFilePart share one order) OR cross-turn gap (previous turn
+    //     fully settled; client just clicked send; new user message not yet
+    //     saved server-side). Disambiguate with `hasPendingSendForThread`:
+    //     if set, it's the cross-turn case — DON'T hide the previous turn's
+    //     file-only reply. Otherwise it's intra-turn — DO hide.
+    //   - maxAssistant > maxUser: intra-turn with strict advance — hide.
     let activeTurnOrder: number | undefined;
     if (isGenerating) {
       let maxUserOrder = -Infinity;
@@ -231,10 +248,11 @@ export function useMessageProcessing(
           maxAssistantOrder = m.order;
         }
       }
-      if (
+      const isIntraTurnGap =
         Number.isFinite(maxAssistantOrder) &&
-        maxAssistantOrder >= maxUserOrder
-      ) {
+        (maxAssistantOrder > maxUserOrder ||
+          (maxAssistantOrder === maxUserOrder && !hasPendingSendForThread));
+      if (isIntraTurnGap) {
         activeTurnOrder = maxAssistantOrder;
       }
     }
@@ -428,7 +446,7 @@ export function useMessageProcessing(
           return { ...msg, fileParts: [...(msg.fileParts ?? []), ...extra] };
         })
     );
-  }, [uiMessages, messageErrors, isGenerating]);
+  }, [uiMessages, messageErrors, isGenerating, hasPendingSendForThread]);
 
   // Find active assistant message (streaming or pending tool execution).
   // Unified lookup ensures ThinkingAnimation receives tool parts during both phases.
