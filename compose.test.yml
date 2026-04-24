@@ -32,6 +32,16 @@ services:
       - '18002:8002'
     volumes:
       - ./tests/fixtures/platform-config:/app/platform-config:ro
+    # Dbmate (public_web schema) runs at container start before uvicorn, so
+    # the fresh-DB path — pg_search BM25 index creation + 2 migrations — can
+    # exceed the 40s compose.yml start_period on a cold CI runner. Match the
+    # convex/platform tolerance pattern.
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8002/health']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 120s
 
   rag:
     env_file:
@@ -40,6 +50,15 @@ services:
       - '18001:8001'
     volumes:
       - ./tests/fixtures/platform-config:/app/platform-config:ro
+    # Same rationale as crawler: dbmate (private_knowledge schema, 10
+    # migrations including BM25 index) precedes uvicorn, so give the
+    # fresh-DB boot room under slow runners.
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8001/health']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 120s
 
   # Phase 2 (split): convex service gets its own test port mapping + health.
   convex:
