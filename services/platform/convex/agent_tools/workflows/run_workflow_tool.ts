@@ -60,7 +60,7 @@ export const runWorkflowTool = {
 • Updating workflow steps — use update_workflow_step instead
 
 **APPROVAL REQUIRED:**
-This tool creates an approval card. The user must click "Run Workflow" to confirm execution. The workflow will NOT start until approved.
+This tool creates an approval card. The user must click "Run Workflow" to confirm execution. The workflow will NOT start until approved. When telling the user the card is ready, do not reference its position (no "above" / "below") — just say the approval card has been created.
 
 **PARAMETERS:**
 • workflowSlug (required): The workflow file slug (e.g., "conversation-sync")

@@ -10,11 +10,10 @@ const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[AgentConfig]');
 /**
  * Create a general Agent configuration object compatible with @convex-dev/agent.
  *
- * - Supports merging Convex tools (by name) with extra tools (object)
- * - Supports extra tools (e.g., dynamic json_output tool) via extraTools option
- * - Appends instruction suffixes to ensure a final assistant message after tool use
- *   and stricter formatting when outputFormat === 'json'
- * - Optionally enables vector search for retrieving semantically relevant older messages
+ * Pure config assembly: merges Convex tools (by name) with extra tools, picks
+ * maxOutputTokens / maxSteps defaults, and passes `instructions` through as-is.
+ * Tool behavior rules live on each tool's own `description`; agent system prompts
+ * live on the agent config. This factory does not wrap or mutate `instructions`.
  */
 export function createAgentConfig(opts: {
   name: string;
@@ -22,12 +21,8 @@ export function createAgentConfig(opts: {
   languageModel: LanguageModelV3;
   /** Pre-resolved text embedding model for vector search */
   textEmbeddingModel?: unknown;
-  /** Temperature override. If not provided, auto-determined by outputFormat: json→0.2, text→0.5 */
-  temperature?: number;
   maxTokens?: number;
   instructions: string;
-  /** Output format - also determines default temperature if not explicitly set */
-  outputFormat?: 'text' | 'json';
   convexToolNames?: ToolName[];
   /** Additional tools to merge (e.g., dynamic json_output tool) */
   extraTools?: Record<string, unknown>;
@@ -68,92 +63,12 @@ export function createAgentConfig(opts: {
     });
   }
 
-  // Augment instructions to ensure a final assistant message after any tool use
-  const suffixParts: string[] = [
-    'If you use any tools, you must always conclude by producing a final assistant message with the answer.',
-  ];
-  if (opts.outputFormat === 'json') {
-    suffixParts.push(
-      'Return only a single JSON object and no extra commentary. If you used tools, still end with that JSON object.',
-    );
-  }
-
-  // Add human input enforcement and disambiguation rules for agents with request_human_input tool
-  if (opts.convexToolNames?.includes('request_human_input')) {
-    suffixParts.push(`
-**HUMAN INPUT RULE**
-When you need ANY information, confirmation, or decision from the user:
-- You MUST use the request_human_input tool to create an interactive input card
-- NEVER ask questions as plain text in your response — the user cannot reply to text
-- The ONLY way to collect user input is through the request_human_input tool
-- This applies to: clarifications, missing values, confirmations, preferences, follow-up questions
-
-**DISAMBIGUATION RULE**
-When searching for a specific record and finding MULTIPLE matches:
-1. DO NOT proceed with all matches or pick one arbitrarily
-2. Use request_human_input tool with format="single_select"
-3. Include distinguishing details in each option (name, email, status, etc.)
-4. STOP IMMEDIATELY after calling request_human_input - do NOT continue
-
-CRITICAL: After calling request_human_input:
-- You MUST produce your final response and STOP
-- Do NOT call any more tools
-- Do NOT assume what the user will select
-- Do NOT generate a fake <human_response>
-- The user's response will come in a FUTURE conversation turn
-
-Example: User asks for "John's email" and you find 3 Johns:
-→ Call request_human_input with options
-→ Then STOP and say "I found 3 customers named John. Please select which one you mean from the options above."`);
-  }
-
-  // Prefer inline output over file generation when file tools are available
-  const FILE_GENERATION_TOOLS = new Set<ToolName>([
-    'text',
-    'docx',
-    'pdf',
-    'excel',
-    'image',
-  ]);
-  if (opts.convexToolNames?.some((name) => FILE_GENERATION_TOOLS.has(name))) {
-    suffixParts.push(
-      `**INLINE OUTPUT PREFERENCE**
-When the user asks you to create, write, or generate content (e.g. code, markdown, HTML, SVG, Mermaid diagrams, slides, documents):
-- ALWAYS output the content directly in the chat as a fenced code block with the appropriate language tag (e.g. \\\`\\\`\\\`html, \\\`\\\`\\\`mermaid, \\\`\\\`\\\`markdown, \\\`\\\`\\\`svg, etc.)
-- The chat supports a Canvas preview pane that can render HTML, SVG, Mermaid, and Markdown directly from code blocks — no file download needed
-- Only use file generation tools (text, docx, pdf, excel, image) when the user EXPLICITLY asks to download, export, or save as a file
-- For presentations: output the HTML slide deck as a code block — the Canvas preview pane renders it directly`,
-    );
-  }
-
-  // Add approval card placement rule for agents with tools that create approval cards
-  if (
-    opts.convexToolNames?.some((name) =>
-      [
-        'run_workflow',
-        'create_workflow',
-        'save_workflow_definition',
-        'update_workflow_step',
-        'integration',
-        'document_write',
-      ].includes(name),
-    ) ||
-    opts.extraTools
-  ) {
-    suffixParts.push(
-      'When a tool creates an approval card, do NOT mention its position in the chat. Never say the card is "above" or "below" — just inform the user that the card has been created.',
-    );
-  }
-
-  const finalInstructions = [opts.instructions, suffixParts.join('\n\n')]
-    .filter(Boolean)
-    .join('\n\n');
-
-  // DEBUG: Log system instructions size
-  const estimatedInstructionTokens = Math.ceil(finalInstructions.length / 4);
+  const estimatedInstructionTokens = Math.ceil(
+    (opts.instructions?.length ?? 0) / 4,
+  );
   debugLog('System instructions analysis', {
     agentName: opts.name,
-    instructionsLength: finalInstructions.length,
+    instructionsLength: opts.instructions?.length ?? 0,
     estimatedInstructionTokens,
   });
 
@@ -171,7 +86,7 @@ When the user asks you to create, write, or generate content (e.g. code, markdow
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Agent config is dynamically assembled from heterogeneous tool sources (createTool results, integration-bound tools); the ToolSet branded type cannot be satisfied statically
   return {
     name: opts.name,
-    instructions: finalInstructions,
+    instructions: opts.instructions,
     languageModel: opts.languageModel,
     callSettings,
     ...(typeof opts.maxTokens === 'number'

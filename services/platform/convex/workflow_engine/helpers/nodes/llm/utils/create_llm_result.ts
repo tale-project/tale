@@ -22,8 +22,6 @@ export function createLLMResult(
   const shouldTerminate = isTerminationSignal(llmResult.finalOutput);
 
   // Attach LLM-specific metadata into output.meta (not variables)
-  // Note: temperature is auto-determined by createAgentConfig based on outputFormat
-  // (json→0.2, text→0.5) and is not stored in NormalizedConfig
   const meta = {
     ...config.contextVariables,
     llm: {
