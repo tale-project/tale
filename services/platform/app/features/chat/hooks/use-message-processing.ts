@@ -207,17 +207,36 @@ export function useMessageProcessing(
     // isThreadGenerating) rather than a streaming/pending status scan —
     // those statuses are undefined during the gap between pre-tool `success`
     // and post-tool creation, but generationStatus stays true across that
-    // gap. Scope to the current turn by taking the max assistant order in
-    // the same uiMessages snapshot the merge iterates, so a completed
-    // earlier turn's file-only (if any) is not hidden by a later turn's
-    // generation.
+    // gap.
+    //
+    // Scope to the current turn's order. `max(assistant.order)` alone is
+    // unsafe: when markGenerating commits before the new user message is
+    // saved, isGenerating flips true while the max assistant order still
+    // belongs to the previous completed turn — a standalone file-only reply
+    // there (e.g. from the image-generation agent) would get hidden for the
+    // entire wait. A new user `saveMessage` always advances `order` past the
+    // thread max, so gate on `maxAssistantOrder >= maxUserOrder`: if a new
+    // user message outranks every assistant, the current turn has produced
+    // no assistant row yet and nothing should be hidden. `>=` (not `>`)
+    // preserves the intra-turn case where appendFilePart shares `order` with
+    // the user prompt.
     let activeTurnOrder: number | undefined;
     if (isGenerating) {
-      let maxOrder = -Infinity;
+      let maxUserOrder = -Infinity;
+      let maxAssistantOrder = -Infinity;
       for (const m of uiMessages) {
-        if (m.role === 'assistant' && m.order > maxOrder) maxOrder = m.order;
+        if (m.role === 'user' && m.order > maxUserOrder) {
+          maxUserOrder = m.order;
+        } else if (m.role === 'assistant' && m.order > maxAssistantOrder) {
+          maxAssistantOrder = m.order;
+        }
       }
-      if (Number.isFinite(maxOrder)) activeTurnOrder = maxOrder;
+      if (
+        Number.isFinite(maxAssistantOrder) &&
+        maxAssistantOrder >= maxUserOrder
+      ) {
+        activeTurnOrder = maxAssistantOrder;
+      }
     }
 
     const currentKeys = new Set<string>();
