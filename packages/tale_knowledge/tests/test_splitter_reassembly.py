@@ -16,6 +16,7 @@ pathological inputs).
 from __future__ import annotations
 
 import pytest
+
 from tale_knowledge.chunking.splitter import chunk_content
 
 # ---------------------------------------------------------------------------
@@ -182,7 +183,7 @@ def test_reindex_idempotency():
     a = chunk_content(PROSE, chunk_size=300, chunk_overlap=40)
     b = chunk_content(PROSE, chunk_size=300, chunk_overlap=40)
     assert len(a) == len(b)
-    for x, y in zip(a, b):
+    for x, y in zip(a, b, strict=True):
         assert x == y
 
 

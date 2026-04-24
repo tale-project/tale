@@ -119,11 +119,11 @@ class IndexingService:
                 await conn.execute(_UPSERT_WEBSITE_URL, domain, url, title, content_hash, filtered_hash)
             return {"url": url, "status": "empty", "chunks_indexed": 0}
 
-        # During Phase 1–3 chunk_content carries the "Title\n\nURL\n\n" prefix
+        # During Phase 1-3 chunk_content carries the "Title\n\nURL\n\n" prefix
         # (as it did pre-refactor) so the existing BM25 index over
         # chunk_content continues to surface title/URL keyword hits. core_content
         # stays metadata-free and is what `"".join(core)` tiles back to the
-        # original input — the reassembly invariant is unaffected. Phase 4
+        # original input - the reassembly invariant is unaffected. Phase 4
         # will swap BM25 to index (content_full, title, url) separately, at
         # which point the prefix in chunk_content becomes redundant and
         # chunk_content itself can be dropped in Phase 5.
