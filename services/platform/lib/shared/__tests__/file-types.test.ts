@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  detectMediaMime,
   extractExtension,
   isAllowedDocumentUpload,
   mimeToExtension,
@@ -108,6 +109,169 @@ describe('resolveFileType', () => {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
     expect(resolveFileType('data.csv', '')).toBe('text/csv');
+  });
+
+  it('refuses audio/video browser MIME (media is byte-driven)', () => {
+    expect(resolveFileType('song.mp3', 'audio/mpeg')).toBe('');
+    expect(resolveFileType('clip.mp4', 'video/mp4')).toBe('');
+    expect(resolveFileType('connector.ts', 'video/mp2t')).toBe('');
+  });
+
+  it('ignores audio/video extensions (no longer in extension map)', () => {
+    expect(resolveFileType('song.mp3', '')).toBe('');
+    expect(resolveFileType('clip.mp4', '')).toBe('');
+    expect(resolveFileType('broadcast.ts', '')).toBe('');
+  });
+});
+
+describe('detectMediaMime', () => {
+  // Pad a signature out to `size` bytes so the total sample size rule
+  // (>= 4 bytes) is satisfied without forcing every fixture to 512 bytes.
+  function makeBlob(bytes: number[], size?: number): Blob {
+    const total = size ?? Math.max(bytes.length, 16);
+    const buf = new Uint8Array(total);
+    buf.set(bytes);
+    return new Blob([buf]);
+  }
+
+  function textBytes(s: string): number[] {
+    return Array.from(s).map((c) => c.charCodeAt(0));
+  }
+
+  it('detects MPEG TS by 0x47 at offsets 0 and 188', async () => {
+    const buf = new Uint8Array(200);
+    buf[0] = 0x47;
+    buf[188] = 0x47;
+    const mime = await detectMediaMime(new Blob([buf]));
+    expect(mime).toBe('video/mp2t');
+  });
+
+  it('returns null for files too small to contain two MPEG TS packets', async () => {
+    const buf = new Uint8Array(100);
+    buf[0] = 0x47;
+    const mime = await detectMediaMime(new Blob([buf]));
+    expect(mime).toBeNull();
+  });
+
+  it('detects MP3 with ID3 tag', async () => {
+    const mime = await detectMediaMime(makeBlob(textBytes('ID3\x04\x00')));
+    expect(mime).toBe('audio/mpeg');
+  });
+
+  it('detects raw MP3 frame sync', async () => {
+    const mime = await detectMediaMime(makeBlob([0xff, 0xfb, 0x90, 0x00]));
+    expect(mime).toBe('audio/mpeg');
+  });
+
+  it('detects WAV (RIFF + WAVE)', async () => {
+    const bytes = [
+      ...textBytes('RIFF'),
+      0x24,
+      0x00,
+      0x00,
+      0x00,
+      ...textBytes('WAVE'),
+    ];
+    const mime = await detectMediaMime(makeBlob(bytes));
+    expect(mime).toBe('audio/wav');
+  });
+
+  it('detects AVI (RIFF + AVI )', async () => {
+    const bytes = [
+      ...textBytes('RIFF'),
+      0x24,
+      0x00,
+      0x00,
+      0x00,
+      ...textBytes('AVI '),
+    ];
+    const mime = await detectMediaMime(makeBlob(bytes));
+    expect(mime).toBe('video/x-msvideo');
+  });
+
+  it('detects Ogg', async () => {
+    const mime = await detectMediaMime(makeBlob(textBytes('OggS\x00\x02')));
+    expect(mime).toBe('audio/ogg');
+  });
+
+  it('detects WebM/MKV by EBML header', async () => {
+    const mime = await detectMediaMime(makeBlob([0x1a, 0x45, 0xdf, 0xa3]));
+    expect(mime).toBe('video/webm');
+  });
+
+  it('detects MP4 with isom brand as video/mp4', async () => {
+    const bytes = [
+      0x00,
+      0x00,
+      0x00,
+      0x20,
+      ...textBytes('ftyp'),
+      ...textBytes('isom'),
+    ];
+    const mime = await detectMediaMime(makeBlob(bytes));
+    expect(mime).toBe('video/mp4');
+  });
+
+  it('detects MP4 with M4A brand as audio/mp4', async () => {
+    const bytes = [
+      0x00,
+      0x00,
+      0x00,
+      0x20,
+      ...textBytes('ftyp'),
+      ...textBytes('M4A '),
+    ];
+    const mime = await detectMediaMime(makeBlob(bytes));
+    expect(mime).toBe('audio/mp4');
+  });
+
+  it('detects MP4 with qt brand as video/quicktime', async () => {
+    const bytes = [
+      0x00,
+      0x00,
+      0x00,
+      0x20,
+      ...textBytes('ftyp'),
+      ...textBytes('qt  '),
+    ];
+    const mime = await detectMediaMime(makeBlob(bytes));
+    expect(mime).toBe('video/quicktime');
+  });
+
+  it('detects MP4 with 3gp brand as video/3gpp', async () => {
+    const bytes = [
+      0x00,
+      0x00,
+      0x00,
+      0x20,
+      ...textBytes('ftyp'),
+      ...textBytes('3gp4'),
+    ];
+    const mime = await detectMediaMime(makeBlob(bytes));
+    expect(mime).toBe('video/3gpp');
+  });
+
+  it('returns null for TypeScript source bytes', async () => {
+    const src = "import { foo } from './bar';\nexport const x = 1;\n";
+    const mime = await detectMediaMime(new Blob([src]));
+    expect(mime).toBeNull();
+  });
+
+  it('returns null for PDF header', async () => {
+    const mime = await detectMediaMime(makeBlob(textBytes('%PDF-1.7')));
+    expect(mime).toBeNull();
+  });
+
+  it('returns null for PNG header', async () => {
+    const mime = await detectMediaMime(
+      makeBlob([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    );
+    expect(mime).toBeNull();
+  });
+
+  it('returns null for empty or too-short blobs', async () => {
+    expect(await detectMediaMime(new Blob([]))).toBeNull();
+    expect(await detectMediaMime(new Blob([new Uint8Array(2)]))).toBeNull();
   });
 });
 

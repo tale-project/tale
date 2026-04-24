@@ -146,9 +146,101 @@ export function isSpreadsheet(fileName: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Byte-based media detection (authoritative for audio/video classification)
+// ---------------------------------------------------------------------------
+
+function startsWith(head: Uint8Array, sig: readonly number[]): boolean {
+  if (head.length < sig.length) return false;
+  for (let i = 0; i < sig.length; i++) {
+    if (head[i] !== sig[i]) return false;
+  }
+  return true;
+}
+
+function equalsAt(
+  head: Uint8Array,
+  offset: number,
+  sig: readonly number[],
+): boolean {
+  if (head.length < offset + sig.length) return false;
+  for (let i = 0; i < sig.length; i++) {
+    if (head[offset + i] !== sig[i]) return false;
+  }
+  return true;
+}
+
+// MP4 family: bytes 4-7 are 'ftyp', bytes 8-11 are the major brand.
+function mp4MimeFromBrand(head: Uint8Array, brandOffset: number): string {
+  if (head.length < brandOffset + 4) return MIME_TYPES.VIDEO_MP4;
+  const brand = String.fromCharCode(
+    head[brandOffset],
+    head[brandOffset + 1],
+    head[brandOffset + 2],
+    head[brandOffset + 3],
+  );
+  if (brand === 'M4A ' || brand === 'M4B ') return MIME_TYPES.M4A;
+  if (brand === 'qt  ') return MIME_TYPES.VIDEO_QUICKTIME;
+  if (brand.startsWith('3gp') || brand.startsWith('3g2')) {
+    return MIME_TYPES.VIDEO_3GP;
+  }
+  return MIME_TYPES.VIDEO_MP4;
+}
+
+/**
+ * Classify a blob as audio/video from its content bytes, not its filename or
+ * browser-reported MIME. Returns the canonical MIME on match, `null` when
+ * the bytes don't match any known media container.
+ *
+ * Motivation: browsers report `.ts` as `video/mp2t` (MPEG Transport Stream)
+ * regardless of content, which routed TypeScript source files into the
+ * ffmpeg transcription pipeline. Bytes are the only reliable signal.
+ */
+export async function detectMediaMime(blob: Blob): Promise<string | null> {
+  const sampleSize = Math.min(blob.size, 512);
+  if (sampleSize < 4) return null;
+  const head = new Uint8Array(await blob.slice(0, sampleSize).arrayBuffer());
+
+  // MPEG TS: 188-byte packets, each starting with 0x47 sync byte.
+  if (sampleSize >= 189 && head[0] === 0x47 && head[188] === 0x47) {
+    return MIME_TYPES.VIDEO_MP2T;
+  }
+
+  // MP3: "ID3" tag or MPEG frame sync (0xFF 0xEx/Fx).
+  if (startsWith(head, [0x49, 0x44, 0x33])) return MIME_TYPES.MP3;
+  if (head[0] === 0xff && (head[1] & 0xe0) === 0xe0) return MIME_TYPES.MP3;
+
+  // RIFF container: distinguish WAV and AVI by form type at offset 8.
+  if (startsWith(head, [0x52, 0x49, 0x46, 0x46])) {
+    if (equalsAt(head, 8, [0x57, 0x41, 0x56, 0x45])) return MIME_TYPES.WAV;
+    if (equalsAt(head, 8, [0x41, 0x56, 0x49, 0x20])) {
+      return MIME_TYPES.VIDEO_AVI;
+    }
+  }
+
+  // Ogg: "OggS". Audio vs. video Ogg aren't distinguishable from the first
+  // bytes; default to audio (pipeline treats both identically).
+  if (startsWith(head, [0x4f, 0x67, 0x67, 0x53])) return MIME_TYPES.OGG;
+
+  // EBML (Matroska / WebM). DocType parsing is deferred; default to WebM.
+  if (startsWith(head, [0x1a, 0x45, 0xdf, 0xa3])) {
+    return MIME_TYPES.VIDEO_WEBM;
+  }
+
+  // MP4 family: 'ftyp' at offset 4, brand at offset 8.
+  if (equalsAt(head, 4, [0x66, 0x74, 0x79, 0x70])) {
+    return mp4MimeFromBrand(head, 8);
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Extension → MIME resolution (handles unreliable browser MIME detection)
 // ---------------------------------------------------------------------------
 
+// Audio/video extensions are intentionally absent: media classification is
+// byte-driven (see `detectMediaMime`). Extensions are unreliable for media —
+// notably `.ts` maps to both TypeScript source and MPEG Transport Stream.
 const EXTENSION_TO_MIME: Readonly<Record<string, MimeType>> = {
   jpg: MIME_TYPES.JPEG,
   jpeg: MIME_TYPES.JPEG,
@@ -164,30 +256,6 @@ const EXTENSION_TO_MIME: Readonly<Record<string, MimeType>> = {
   xlsx: MIME_TYPES.XLSX,
   csv: MIME_TYPES.CSV,
   txt: MIME_TYPES.PLAIN,
-  // Audio
-  mp3: MIME_TYPES.MP3,
-  mpga: MIME_TYPES.MP3,
-  m4a: MIME_TYPES.M4A,
-  wav: MIME_TYPES.WAV,
-  ogg: MIME_TYPES.OGG,
-  oga: MIME_TYPES.OGG,
-  // Video — default .mp4/.webm/.mpeg to video since meeting recordings are
-  // overwhelmingly video; browsers override via MIME when the actual content
-  // is audio-only (e.g. .webm Opus audio → audio/webm is reported directly).
-  mp4: MIME_TYPES.VIDEO_MP4,
-  m4v: MIME_TYPES.VIDEO_M4V,
-  mov: MIME_TYPES.VIDEO_QUICKTIME,
-  qt: MIME_TYPES.VIDEO_QUICKTIME,
-  webm: MIME_TYPES.VIDEO_WEBM,
-  mkv: MIME_TYPES.VIDEO_MATROSKA,
-  avi: MIME_TYPES.VIDEO_AVI,
-  mpeg: MIME_TYPES.VIDEO_MPEG,
-  mpg: MIME_TYPES.VIDEO_MPEG,
-  ogv: MIME_TYPES.VIDEO_OGG,
-  '3gp': MIME_TYPES.VIDEO_3GP,
-  '3g2': MIME_TYPES.VIDEO_3GP,
-  ts: MIME_TYPES.VIDEO_MP2T,
-  m2ts: MIME_TYPES.VIDEO_MP2T,
 };
 
 const MIME_TO_EXTENSION: Readonly<Record<string, string>> = {
@@ -233,15 +301,17 @@ const KNOWN_MIME_TYPES: ReadonlySet<string> = new Set(
  * or empty string instead of the correct Office XML MIME type.
  */
 export function resolveFileType(fileName: string, browserMime: string): string {
-  if (browserMime && KNOWN_MIME_TYPES.has(browserMime)) {
-    return browserMime;
-  }
+  // Audio/video classification is byte-driven (see `detectMediaMime`). This
+  // function never returns audio/* or video/* — browser MIME and extension
+  // are both unreliable for media (browsers report .ts as video/mp2t).
+  const mime = isAudioOrVideo(browserMime) ? '' : browserMime;
+  if (mime && KNOWN_MIME_TYPES.has(mime)) return mime;
   const ext = extractExtension(fileName);
   if (ext) {
     const resolved = EXTENSION_TO_MIME[ext];
     if (resolved) return resolved;
   }
-  return browserMime;
+  return mime;
 }
 
 function isParseable(fileName: string): boolean {
