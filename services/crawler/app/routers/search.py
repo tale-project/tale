@@ -43,6 +43,7 @@ async def search_all(request: SearchRequest):
                     chunk_content=r.chunk_content,
                     chunk_index=r.chunk_index,
                     score=r.score,
+                    core_content=r.core_content,
                 )
                 for r in results
             ],
@@ -75,6 +76,7 @@ async def search_domain(domain: str, request: SearchRequest):
                     chunk_content=r.chunk_content,
                     chunk_index=r.chunk_index,
                     score=r.score,
+                    core_content=r.core_content,
                 )
                 for r in results
             ],

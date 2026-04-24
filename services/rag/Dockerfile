@@ -74,13 +74,17 @@ FROM python:3.11-slim AS runtime
 WORKDIR /app
 
 # Install ONLY runtime dependencies (no build-essential, no libpq-dev)
-# - curl: Used by health check
+# - curl: Used by health check + dbmate binary download
 # - libpq5: PostgreSQL runtime library (not the dev headers)
 # Note: SOPS binary is already provided by COPY --from=builder /usr/local/bin
+ARG DBMATE_VERSION=2.20.0
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libpq5 \
     && rm -rf /var/lib/apt/lists/* \
+    # dbmate: runs per-service schema migrations at container startup.
+    && curl -fsSL "https://github.com/amacneil/dbmate/releases/download/v${DBMATE_VERSION}/dbmate-linux-$(dpkg --print-architecture)" -o /usr/local/bin/dbmate \
+    && chmod +x /usr/local/bin/dbmate \
     # Strip system bloat
     && rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
@@ -90,14 +94,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Remove pip/setuptools that may have leaked from the runtime base image (~13 MB)
+# Remove pip/setuptools that may have leaked from the runtime base image (~13 MB).
+# Also drop distutils-precedence.pth — Python executes it on every interpreter
+# startup, and after _distutils_hack is removed it prints a harmless-but-noisy
+# "ModuleNotFoundError: No module named '_distutils_hack'" to stderr.
 RUN rm -rf /usr/local/lib/python3.11/site-packages/pip* \
            /usr/local/lib/python3.11/site-packages/setuptools* \
            /usr/local/lib/python3.11/site-packages/_distutils_hack* \
-           /usr/local/lib/python3.11/site-packages/pkg_resources*
+           /usr/local/lib/python3.11/site-packages/pkg_resources* \
+    && rm -f /usr/local/lib/python3.11/site-packages/distutils-precedence.pth
 
 # Copy FastAPI application
 COPY services/rag/app /app/app
+
+# Copy service-owned dbmate migrations (private_knowledge schema)
+COPY services/rag/migrations /app/migrations
 
 # Copy and set up entrypoint script
 COPY services/rag/docker-entrypoint.sh /app/docker-entrypoint.sh
