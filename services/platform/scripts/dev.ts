@@ -321,7 +321,7 @@ async function main() {
     }
 
     function spawnConvex() {
-      convexProcess = spawn('bunx', ['convex', 'dev'], {
+      convexProcess = spawn('npx', ['convex', 'dev'], {
         stdio: 'inherit',
         cwd: platformRoot,
         env: convexEnv,
@@ -454,22 +454,24 @@ async function main() {
       );
       await waitForConvex();
     } else {
-      // Preflight: `bunx convex dev --once` absorbs slow first-run work
-      // (binary download, SQLite bootstrap, migrations, function push) under
-      // a mode without the long-running daemon's internal 30s port-bind
-      // timeout. After this, the subsequent `bunx convex dev` binds reliably.
+      // Preflight: `npx convex dev --once` absorbs slow first-run work
+      // (binary download, SQLite bootstrap, migrations, function push). We use
+      // `npx` (not `bunx`) so the Convex CLI runs under Node, which is what
+      // upstream tests and supports — under Bun, child_process/fetch timing
+      // quirks can blow the CLI's internal 30s port-ready window even when the
+      // backend is actually coming up fine.
       console.log(
-        '[dev] 🧰 Pre-warming Convex backend (bunx convex dev --once)...',
+        '[dev] 🧰 Pre-warming Convex backend (npx convex dev --once)...',
       );
       const preflightEnv: Record<string, string> = hasLocalDeployment
         ? {}
         : { CONVEX_AGENT_MODE: 'anonymous' };
       try {
-        await runCommand('bunx', ['convex', 'dev', '--once'], preflightEnv);
+        await runCommand('npx', ['convex', 'dev', '--once'], preflightEnv);
         console.log('[dev] ✅ Convex backend pre-warmed');
       } catch (err) {
         throw new Error(
-          `Convex preflight (bunx convex dev --once) failed. This usually means a stale backend is holding port 3210, or the local deployment state is corrupt. Try: lsof -i :3210 and kill any leftover 'convex-local-backend' processes. Underlying: ${err instanceof Error ? err.message : String(err)}`,
+          `Convex preflight (npx convex dev --once) failed. This usually means a stale backend is holding port 3210, or the local deployment state is corrupt. Try: lsof -i :3210 and kill any leftover 'convex-local-backend' processes. Underlying: ${err instanceof Error ? err.message : String(err)}`,
           { cause: err },
         );
       }
@@ -497,7 +499,7 @@ async function main() {
       // Sync TALE_CONFIG_DIR and derived dirs explicitly (set dynamically, not in .env files)
       const taleConfigDir = process.env.TALE_CONFIG_DIR;
       if (taleConfigDir) {
-        await runCommand('bunx', [
+        await runCommand('npx', [
           'convex',
           'env',
           'set',
@@ -517,7 +519,7 @@ async function main() {
     }
 
     console.log('[dev] 🔄 Running code generation...');
-    await runCommand('bunx', ['convex', 'codegen']);
+    await runCommand('npx', ['convex', 'codegen']);
     console.log('[dev] ✅ Code generation completed');
 
     // Preserve any existing CONVEX_URL the user set (external mode); only
