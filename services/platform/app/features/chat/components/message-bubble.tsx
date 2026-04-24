@@ -217,8 +217,9 @@ function MessageBubbleComponent({
       messageId: message.id,
       messageContent: message.content,
       threadId: message.threadId,
+      isStreaming: !!isAssistantStreaming,
     }),
-    [message.id, message.content, message.threadId],
+    [message.id, message.content, message.threadId, isAssistantStreaming],
   );
   const galleryImages = useMessageGallery(message);
 

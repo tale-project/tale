@@ -39,6 +39,11 @@ vi.mock('convex/react', () => ({
   ),
 }));
 
+const mockChatLayout: { pendingMessage: unknown } = { pendingMessage: null };
+vi.mock('../../context/chat-layout-context', () => ({
+  useChatLayout: () => mockChatLayout,
+}));
+
 import { useUIMessages } from '@convex-dev/agent/react';
 
 import { api } from '@/convex/_generated/api';
@@ -70,6 +75,7 @@ describe('useMessageProcessing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     queryResults.clear();
+    mockChatLayout.pendingMessage = null;
   });
 
   describe('streamingMessage', () => {

@@ -454,6 +454,26 @@ async function main() {
       );
       await waitForConvex();
     } else {
+      // Preflight: `bunx convex dev --once` absorbs slow first-run work
+      // (binary download, SQLite bootstrap, migrations, function push) under
+      // a mode without the long-running daemon's internal 30s port-bind
+      // timeout. After this, the subsequent `bunx convex dev` binds reliably.
+      console.log(
+        '[dev] 🧰 Pre-warming Convex backend (bunx convex dev --once)...',
+      );
+      const preflightEnv: Record<string, string> = hasLocalDeployment
+        ? {}
+        : { CONVEX_AGENT_MODE: 'anonymous' };
+      try {
+        await runCommand('bunx', ['convex', 'dev', '--once'], preflightEnv);
+        console.log('[dev] ✅ Convex backend pre-warmed');
+      } catch (err) {
+        throw new Error(
+          `Convex preflight (bunx convex dev --once) failed. This usually means a stale backend is holding port 3210, or the local deployment state is corrupt. Try: lsof -i :3210 and kill any leftover 'convex-local-backend' processes. Underlying: ${err instanceof Error ? err.message : String(err)}`,
+          { cause: err },
+        );
+      }
+
       console.log('[dev] ⏳ Starting Convex backend...');
       spawnConvex();
       await waitForConvex();

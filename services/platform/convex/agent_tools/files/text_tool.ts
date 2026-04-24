@@ -42,7 +42,9 @@ export const textTool = {
   tool: createTool({
     description: `Text file tool for generating text-based files (.txt, .md, .js, .ts, .json, .csv, .log, and any other text format).
 
-IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting a text file. Do NOT proactively generate text files unless the user specifically asks for this format.
+IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting a text file — phrases like "download", "export", "save as a file", "attach to email". Do NOT proactively generate text files unless the user specifically asks for this format.
+
+For inline viewing (code, markdown, HTML, SVG, Mermaid diagrams, slide decks), output a fenced code block with the appropriate language tag directly in the chat — the Canvas preview pane renders HTML / SVG / Mermaid / Markdown code blocks automatically, no file download needed. Only reach for this tool when persistence as a downloadable file is the explicit requirement.
 
 TO READ TEXT FILE CONTENT: Do NOT use this tool. Instead use the rag_search tool:
 • To get the full content of a text file: use rag_search with operation='retrieve' and the fileId

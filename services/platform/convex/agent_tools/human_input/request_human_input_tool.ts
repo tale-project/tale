@@ -144,6 +144,10 @@ export const requestHumanInputTool = {
   tool: createTool({
     description: `**DIRECTLY call this tool** to ask the user a question and collect their response in the current chat.
 
+**MANDATORY — this tool is the ONLY way to collect user input:**
+• Whenever you need ANY information, confirmation, or decision from the user, you MUST call this tool — the user CANNOT reply to plain text in your response
+• Applies to: clarifications, missing values, confirmations, preferences, follow-up questions, disambiguation
+
 **IMPORTANT - DIRECT TOOL CALL:**
 • This is a DIRECT tool call - do NOT delegate to other agents to create human input requests
 • When you call this tool, an interactive input card will IMMEDIATELY appear in the chat UI
@@ -158,6 +162,15 @@ export const requestHumanInputTool = {
 • To clarify ambiguous requirements before proceeding
 • To get user confirmation for important or destructive actions
 • To collect structured information (e.g., contract details, user profiles, configuration)
+
+**DISAMBIGUATION — multiple matches from a search:**
+When searching for a specific record and you find MULTIPLE candidates:
+1. Do NOT proceed with all matches or pick one arbitrarily
+2. Call this tool with format "single_select"
+3. Include distinguishing details in each option (name, email, status, etc.) so the user can tell them apart
+4. STOP immediately after calling — do not continue with other tools
+
+Example: user asks for "John's email" and you find 3 Johns → call this tool with 3 options, then stop and say you found 3 customers named John and are waiting for their selection.
 
 **HOW IT WORKS:**
 Every request is a form with one or more fields. Each field has a type that determines how it renders:

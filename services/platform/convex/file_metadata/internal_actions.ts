@@ -26,6 +26,17 @@ export const uploadFileToRag = internalAction({
   handler: async (ctx, args): Promise<null> => {
     const ragConfig = getRagConfig();
     if (!ragConfig.serviceUrl) {
+      // Mark failed explicitly — returning null silently would leave
+      // ragStatus at 'queued' forever, and the client would poll RAG
+      // `/statuses` indefinitely with no data coming back.
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.updateFileRagStatus,
+        {
+          storageId: args.storageId,
+          ragStatus: 'failed',
+          ragError: 'RAG service is not configured',
+        },
+      );
       return null;
     }
 

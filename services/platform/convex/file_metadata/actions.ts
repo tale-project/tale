@@ -53,9 +53,22 @@ export const checkFileRagStatuses = action({
 
     const statuses = body.statuses;
 
+    // Give RAG 90s to have ingested a newly-queued upload. If we're still
+    // getting null after that window, the upload never reached RAG (likely
+    // the scheduled action was dropped before it ran) — mark failed so the
+    // client stops polling. Threshold is measured against `ragQueuedAt` on
+    // the fileMetadata row, so re-queues reset the clock.
+    const STALE_QUEUE_MS = 90_000;
+
     for (const storageId of args.storageIds) {
       const docStatus = statuses[storageId];
-      if (!isRecord(docStatus)) continue;
+      if (!isRecord(docStatus)) {
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.expireStaleRagQueue,
+          { storageId, staleAfterMs: STALE_QUEUE_MS },
+        );
+        continue;
+      }
 
       const status = getString(docStatus, 'status');
       const error = getString(docStatus, 'error');

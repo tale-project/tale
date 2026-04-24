@@ -40,6 +40,14 @@ export const saveFileMetadata = mutation({
       throw new Error(check.reason ?? 'Upload rejected by organization policy');
     }
 
+    // Audio AND video files go through the transcription pipeline (ffmpeg
+    // strips video via `-vn`, transcribes the audio track).
+    const isAudio =
+      args.contentType.startsWith('audio/') ||
+      args.contentType.startsWith('video/');
+
+    const now = Date.now();
+
     const existing = await ctx.db
       .query('fileMetadata')
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
@@ -58,15 +66,60 @@ export const saveFileMetadata = mutation({
       if (args.source !== undefined) {
         patchData.source = args.source;
       }
+
+      // If the prior pipeline didn't reach a terminal state (failed /
+      // undefined for the non-audio RAG path, or for the audio
+      // transcription path), reset and re-schedule. Without this, a row
+      // left at `queued` by a silently-dropped scheduled action would
+      // stay stuck forever.
+      const needsRagRetry =
+        !isAudio &&
+        (existing.ragStatus === undefined || existing.ragStatus === 'failed');
+      const needsTranscribeRetry =
+        isAudio &&
+        (existing.transcriptionStatus === undefined ||
+          existing.transcriptionStatus === 'failed');
+
+      if (needsRagRetry) {
+        patchData.ragStatus = 'queued';
+        patchData.ragError = undefined;
+        patchData.ragProgress = undefined;
+        patchData.ragQueuedAt = now;
+      }
+      if (needsTranscribeRetry) {
+        patchData.transcriptionStatus = 'queued';
+        patchData.transcriptionError = undefined;
+        patchData.transcriptionProgress = undefined;
+      }
+
       await ctx.db.patch(existing._id, patchData);
+
+      if (needsRagRetry) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.file_metadata.internal_actions.uploadFileToRag,
+          {
+            storageId: args.storageId,
+            fileName: args.fileName,
+            contentType: args.contentType,
+          },
+        );
+      }
+      if (needsTranscribeRetry) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.file_metadata.transcribe_audio.transcribeAudio,
+          {
+            storageId: args.storageId,
+            fileName: args.fileName,
+            contentType: args.contentType,
+            organizationId: args.organizationId,
+          },
+        );
+      }
+
       return existing._id;
     }
-
-    // Audio AND video files go through the transcription pipeline (ffmpeg
-    // strips video via `-vn`, transcribes the audio track).
-    const isAudio =
-      args.contentType.startsWith('audio/') ||
-      args.contentType.startsWith('video/');
 
     const id = await ctx.db.insert('fileMetadata', {
       organizationId: args.organizationId,
@@ -77,6 +130,7 @@ export const saveFileMetadata = mutation({
       // RAG runs on the primary upload for non-audio; audio's transcript
       // is indexed to RAG separately after transcription succeeds.
       ragStatus: isAudio ? undefined : 'queued',
+      ragQueuedAt: isAudio ? undefined : now,
       transcriptionStatus: isAudio ? 'queued' : undefined,
       uploadedBy: userId,
       ...(args.documentId !== undefined && { documentId: args.documentId }),

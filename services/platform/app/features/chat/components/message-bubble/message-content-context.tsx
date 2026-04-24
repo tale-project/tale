@@ -6,6 +6,7 @@ interface MessageContentContextType {
   messageId: string;
   messageContent: string;
   threadId?: string;
+  isStreaming?: boolean;
 }
 
 export const MessageContentContext =

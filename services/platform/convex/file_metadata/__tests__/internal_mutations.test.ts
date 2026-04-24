@@ -95,6 +95,7 @@ describe('saveFileMetadata (internal)', () => {
       contentType: 'application/pdf',
       size: 1024,
       ragStatus: 'queued',
+      ragQueuedAt: expect.any(Number),
     });
     expect(ctx.db.patch).not.toHaveBeenCalled();
   });
@@ -153,6 +154,7 @@ describe('saveFileMetadata (internal)', () => {
       size: 1024,
       documentId: 'doc_1',
       ragStatus: 'queued',
+      ragQueuedAt: expect.any(Number),
     });
   });
 

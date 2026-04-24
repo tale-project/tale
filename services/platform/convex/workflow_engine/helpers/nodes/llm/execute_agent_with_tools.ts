@@ -331,14 +331,11 @@ async function executeJsonOutputWithoutTools(
     threadId,
   });
 
-  // Note: temperature is auto-determined by createAgentConfig based on outputFormat
-  // (json→0.2, text→0.5)
   const agent = new Agent(
     components.agent,
     createAgentConfig({
       name: config.name,
       languageModel,
-      outputFormat: config.outputFormat,
       instructions: prompts.systemPrompt,
     }),
   );
@@ -394,14 +391,12 @@ async function executeTextOutput(
     threadId,
   });
 
-  // Note: maxTokens uses model default, maxSteps defaults to 40 with tools,
-  // temperature auto-determined by outputFormat (json→0.2, text→0.5)
+  // Note: maxTokens uses model default, maxSteps defaults to 40 with tools.
   const agent = new Agent(
     components.agent,
     createAgentConfig({
       name: config.name,
       languageModel,
-      outputFormat: config.outputFormat,
       instructions: prompts.systemPrompt,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- config.tools contains valid ToolName strings from workflow step configuration
       convexToolNames: (config.tools ?? []) as ToolName[],

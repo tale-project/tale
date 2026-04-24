@@ -25,13 +25,22 @@
  *    - Cursor stays visible while waiting for next chunk
  *    - Resumes at the same rate when text arrives
  *
- * 4. STREAM ENDS: Drain remaining buffer. Three regimes by tail size:
+ * 4. BACKLOG OVERFLOW (stream phase): When the buffer exceeds
+ *    sentenceModeMinChars (≈ 300) while streaming is still active, reveal
+ *    switches from word-mode to sentence-mode chunks AND the effective CPS
+ *    is lifted to streamSentenceModeMinCPS (≈ 400) — so sentences arrive
+ *    as a steady stream (~125 ms/tick, ~8 sentences/sec) that visibly
+ *    shrinks the backlog, rather than trickling at the drain-style
+ *    ~500 ms pace. Drops back to word-mode (and the regular
+ *    streamingCPSMax cap) once the buffer drains below the threshold.
+ *
+ * 5. STREAM ENDS: Drain remaining buffer. Three regimes by tail size:
  *    - Short (< drainShortRemainingChars ≈ 80): base targetCPS,
  *      word-mode. A one-sentence reply types out at reading speed.
- *    - Medium (< drainSentenceModeMinChars ≈ 300): CPS tuned to
+ *    - Medium (< sentenceModeMinChars ≈ 300): CPS tuned to
  *      drainMsPerChar (≈ 83 CPS), capped at drainMaxTotalMs total,
  *      word-mode. A few-sentence reply reveals briskly but word-by-word.
- *    - Long (≥ drainSentenceModeMinChars): same CPS calculation,
+ *    - Long (≥ sentenceModeMinChars): same CPS calculation,
  *      sentence-mode chunking — a paragraph reads as calm sentence
  *      ticks (~600 ms each) instead of a racing word stream at high CPS.
  *    - Reduced motion: reveals immediately (no animation)
@@ -72,9 +81,10 @@ const DEFAULT_CONFIG = {
   /** Average characters per word-tick — used to convert targetCPS to tick
    *  interval. 5 matches average English word length including trailing space. */
   avgWordChars: 5,
-  /** Hard cap on chars revealed in a single tick (word mode). Prevents a long
-   *  code token (e.g. a 200-char identifier) from dumping in one frame. */
-  maxChunkChars: 40,
+  /** Hard cap on chars revealed in a single tick (word mode). Sized so a
+   *  typical long code token / URL fits in one tick (no mid-token flicker);
+   *  genuinely huge identifiers (>80 chars) still get chunked across frames. */
+  maxChunkChars: 80,
   /** Average characters per sentence-tick — used during long-tail drain to
    *  translate drain CPS into a sentence-paced interval. */
   avgSentenceChars: 50,
@@ -94,14 +104,25 @@ const DEFAULT_CONFIG = {
    *  so a short reply types out naturally. Above it, drain bumps CPS to
    *  fit the drainMaxTotalMs budget, still word-by-word. */
   drainShortRemainingChars: 80,
-  /** Minimum remaining chars before drain switches to per-sentence chunks.
-   *  Below this, drain reveals per word so users see progressive word-by-
-   *  word reveal instead of whole-sentence flashes. Set high enough that
-   *  only genuinely long tails (≈6+ avg sentences) get sentence-mode. */
-  drainSentenceModeMinChars: 300,
+  /** Minimum buffered chars before switching from word-mode to per-sentence
+   *  chunks. Applies in both phases: during streaming it caps the backlog
+   *  by letting big paragraphs catch up a sentence at a time, and during
+   *  drain it keeps long tails from racing through as a word blur. Below
+   *  this threshold, reveal stays word-by-word so short content doesn't
+   *  flash whole-sentence. Set high enough (≈ 6+ avg sentences) that only
+   *  genuinely large backlogs trigger sentence-mode. */
+  sentenceModeMinChars: 300,
+  /** Minimum effective CPS when sentence-mode activates mid-stream
+   *  (backlog ≥ sentenceModeMinChars with the stream still open). Lifts
+   *  the reveal well above streamingCPSMax so sentences arrive as a
+   *  steady stream (≈ 125 ms/tick with avgSentenceChars = 50, ~8
+   *  sentences/sec) and the backlog visibly shrinks, instead of the
+   *  calm ≈ 500 ms drain-style pace. Doesn't apply in the drain phase —
+   *  drain keeps the relaxed post-stream rhythm. */
+  streamSentenceModeMinCPS: 400,
   /** Target ms per char for medium/long drains. 12 ms/char ≈ 83 CPS —
    *  near the base typewriter rate so drain still feels like typing rather
-   *  than racing. Sentence-mode (≥ drainSentenceModeMinChars) uses the
+   *  than racing. Sentence-mode (≥ sentenceModeMinChars) uses the
    *  same CPS, which translates to one-sentence-per-tick ≈ 600 ms/sentence
    *  — calm paragraph reveal instead of a rapid word blur. */
   drainMsPerChar: 12,
@@ -327,8 +348,9 @@ function findNextWordBoundary(
 }
 
 /**
- * Find the next "chunk end" for sentence-paced reveal (used during DRAIN
- * when the remaining tail is long — see drainSentenceModeMinChars).
+ * Find the next "chunk end" for sentence-paced reveal (used when the
+ * buffered backlog is long — see sentenceModeMinChars; applies during
+ * both stream-phase overflow and drain of long tails).
  *
  * Returns a position > startPos where the next sentence ends:
  * - After ASCII sentence-terminating punctuation (`.`, `!`, `?`)
@@ -480,9 +502,10 @@ export function useStreamBuffer({
       //     CPS ramps proportionally up to streamingCPSMax. This keeps the
       //     buffer shallow so the drain phase rarely has a big backlog.
       //   - Drain: fixed at drainCPSRef (set when stream ends).
-      // Chunk boundary is word-level except for genuinely long drain tails
-      // (≥ drainSentenceModeMinChars), where sentence chunks read calmer
-      // than a racing word stream at high CPS.
+      // Chunk boundary is word-level except when the buffered backlog is
+      // large (≥ sentenceModeMinChars) — then reveal switches to sentence
+      // chunks so a big paragraph catches up a sentence at a time instead
+      // of racing through words. Applies in both streaming and drain.
       const safeCPS = Math.max(1, targetCPS);
       const isDrainPhase = drainCPSRef.current > 0 && !streaming;
       let effectiveCPS: number;
@@ -495,8 +518,19 @@ export function useStreamBuffer({
           Math.max(safeCPS, safeCPS * ratio),
         );
       }
-      const useSentenceMode =
-        isDrainPhase && bufferSize >= DEFAULT_CONFIG.drainSentenceModeMinChars;
+      const useSentenceMode = bufferSize >= DEFAULT_CONFIG.sentenceModeMinChars;
+      // Stream-phase sentence-mode engages because the backlog is big and
+      // word-mode can't catch up. Lift effectiveCPS well above
+      // streamingCPSMax so sentences arrive as a steady stream
+      // (~125 ms/tick, ~8 sentences/sec) that visibly shrinks the
+      // backlog, instead of the calm ~500 ms drain-style pace. Drain
+      // phase keeps its own relaxed pacing via drainCPSRef.
+      if (useSentenceMode && !isDrainPhase) {
+        effectiveCPS = Math.max(
+          effectiveCPS,
+          DEFAULT_CONFIG.streamSentenceModeMinCPS,
+        );
+      }
       const avgChunkChars = useSentenceMode
         ? DEFAULT_CONFIG.avgSentenceChars
         : DEFAULT_CONFIG.avgWordChars;
@@ -703,7 +737,7 @@ export function useStreamBuffer({
         //   Medium/long tail: target drainMsPerChar per char (≈ base rate)
         //     up to drainMaxTotalMs total — for very large buffers the CPS
         //     scales above base so we don't wait minutes. Mode-switch to
-        //     sentence chunks happens in animate (≥ drainSentenceModeMinChars)
+        //     sentence chunks happens in animate (≥ sentenceModeMinChars)
         //     so very long tails read as calm sentence ticks, not a word blur.
         const remaining = text.length - displayedLengthRef.current;
         const safeCPS = Math.max(1, targetCPS);

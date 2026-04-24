@@ -51,7 +51,7 @@ Steps:
 1. First call integration_introspect(operation="xxx") to get required parameters
 2. Then call this tool with ALL required params filled in
 
-Write operations create approval cards. Use integration_batch for multiple parallel reads.`,
+Write operations create approval cards. When telling the user an approval card is ready, do not reference its position (no "above" / "below") — just say the approval card has been created. Use integration_batch for multiple parallel reads.`,
 
     inputSchema: integrationArgs,
 

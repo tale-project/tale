@@ -377,7 +377,6 @@ export const runAgentGeneration = internalAction({
                   : undefined,
               extraTools: allExtraTools,
               maxSteps: agentConfig.maxSteps,
-              outputFormat: agentConfig.outputFormat,
             });
             return new Agent(components.agent, config);
           };
