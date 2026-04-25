@@ -347,10 +347,12 @@ async function signInEnforcementAfterHook(
   // session but returning `enrollRequired: true` lets the client route
   // to the wall while preserving access to the 2FA plugin endpoints.
   //
-  // The hard gate lives in the `/dashboard` route guard (see
-  // `app/routes/dashboard.tsx`), which calls `getStatus` and redirects
-  // any 'blocked' user to `/2fa-enroll`. That covers fresh login,
-  // existing-session restore, SSO callback, and direct-URL navigation —
-  // including users who try to bypass this client-side redirect.
+  // A client-side redirect in the `/dashboard` route guard (see
+  // `app/routes/dashboard.tsx`) calls `getStatus` and routes any
+  // 'blocked' user to `/2fa-enroll`. That covers normal entry paths
+  // (fresh login, existing-session restore, SSO callback, direct-URL
+  // navigation). Server-side enforcement on subsequent queries and
+  // mutations is still pending — a determined client could call Convex
+  // directly and bypass the redirect. Tracked separately.
   return mw.json({ twoFactorRedirect: true, enrollRequired: true });
 }

@@ -36,11 +36,12 @@ function DashboardRedirect() {
   const [sessionVerified, setSessionVerified] = useState(false);
   const [hasValidSession, setHasValidSession] = useState(true);
 
-  // Hard 2FA enforcement: when the org policy requires 2FA and the user is
-  // past their (effective) grace deadline, hold them at /2fa-enroll until
-  // they complete enrolment. This catches all entry paths into the
-  // dashboard — fresh login, existing session restore, SSO callback,
-  // direct-URL navigation — without needing per-path patches.
+  // Client-side 2FA enforcement: when the org policy requires 2FA and the
+  // user is past their (effective) grace deadline, route them to
+  // /2fa-enroll. Catches normal entry paths (fresh login, existing
+  // session restore, SSO callback, direct-URL navigation). A determined
+  // client could still call Convex directly — server-side enforcement
+  // is tracked separately.
   //
   // Uses client-side navigation (not window.location) so the browser's
   // `beforeunload` handlers in nested editors don't fire a "leave site?"
@@ -55,7 +56,17 @@ function DashboardRedirect() {
       twoFactorStatus?.authenticated &&
       twoFactorStatus.decision === 'blocked'
     ) {
-      void navigate({ to: '/2fa-enroll', replace: true });
+      const basePath = getEnv('BASE_PATH');
+      const pathname = window.location.pathname;
+      const routePath = basePath
+        ? pathname.replace(new RegExp(`^${basePath}`), '')
+        : pathname;
+      const redirectTo = routePath + window.location.search;
+      void navigate({
+        to: '/2fa-enroll',
+        search: { redirectTo },
+        replace: true,
+      });
     }
   }, [twoFactorStatus, navigate]);
 
@@ -93,6 +104,13 @@ function DashboardRedirect() {
   }
 
   if (sessionVerified && !hasValidSession) {
+    return null;
+  }
+
+  // Fail-closed: while authenticated but `getStatus` has not yet resolved
+  // (or errored), hold the dashboard. Otherwise a transient query failure
+  // would silently let a `'blocked'` user through.
+  if (isAuthenticated && twoFactorStatus === undefined) {
     return null;
   }
 
