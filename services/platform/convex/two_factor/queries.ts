@@ -126,7 +126,11 @@ export const getStatus = query({
       twoFactorEnabled,
       enforced: result.policy.enforced,
       decision: result.decision,
-      graceUntil: twoFactorGraceUntil ?? result.graceUntilToSet,
+      // Surface the *effective* deadline (capped by current policy), not the
+      // raw stored anchor — admin tightening must take effect immediately
+      // for the UI countdown too, otherwise the banner contradicts the
+      // enforcement decision.
+      graceUntil: result.graceDeadline,
       hasCredential,
       exemptSsoUsers: result.policy.exemptSsoUsers,
       backupCodesRemaining,

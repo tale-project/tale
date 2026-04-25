@@ -125,10 +125,10 @@ function TwoFactorEnrollPage() {
       align="stretch"
       className="bg-background text-foreground min-h-screen"
     >
-      <div className="px-4 pt-8 pb-16 sm:px-8 md:pb-32">
+      <div className="px-4 pt-8 pb-8 sm:px-8">
         <LogoLink href="/" />
       </div>
-      <main className="mx-auto w-full max-w-[24.875rem] px-4">
+      <main className="mx-auto w-full max-w-[24.875rem] px-4 pb-12">
         <Stack gap={6}>
           <Stack gap={2} className="text-center">
             <Heading level={1} size="xl">

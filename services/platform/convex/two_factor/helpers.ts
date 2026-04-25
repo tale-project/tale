@@ -33,6 +33,14 @@ export interface TwoFactorEnforcementResult {
    */
   graceUntilToSet: number | null;
   /**
+   * Effective deadline (ms epoch) by which the user must enrol to keep
+   * access — `min(user.twoFactorGraceUntil, now + policy.gracePeriodDays)`.
+   * Lets admin tightening take effect immediately while preserving the
+   * "no extension on policy loosening" guarantee. Null when decision is
+   * 'ok' or 'blocked'.
+   */
+  graceDeadline: number | null;
+  /**
    * Strictest two-factor policy across the user's orgs. Exposed for UI
    * banners that want to render remaining grace days.
    */
@@ -130,7 +138,12 @@ export async function evaluateTwoFactorEnforcement(
       : mergeStrictestTwoFactorPolicy(policies);
 
   if (!policy.enforced || args.twoFactorEnabled) {
-    return { decision: 'ok', graceUntilToSet: null, policy };
+    return {
+      decision: 'ok',
+      graceUntilToSet: null,
+      graceDeadline: null,
+      policy,
+    };
   }
 
   // SSO-only users are exempt when policy permits. A user with BOTH a
@@ -139,24 +152,49 @@ export async function evaluateTwoFactorEnforcement(
   if (policy.exemptSsoUsers) {
     const accounts = await findUserAccounts(ctx, args.userId);
     if (!hasCredentialProvider(accounts)) {
-      return { decision: 'ok', graceUntilToSet: null, policy };
+      return {
+        decision: 'ok',
+        graceUntilToSet: null,
+        graceDeadline: null,
+        policy,
+      };
     }
   }
 
-  const graceUntil = args.twoFactorGraceUntil ?? null;
-  if (graceUntil === null) {
-    // Policy enforcement first applies to this user right now — propose a
-    // grace window. Caller writes idempotently.
-    const toSet = now + policy.gracePeriodDays * 24 * 60 * 60 * 1000;
-    // Fail-closed when grace is zero (immediate enforcement).
-    if (policy.gracePeriodDays === 0) {
-      return { decision: 'blocked', graceUntilToSet: null, policy };
-    }
-    return { decision: 'grace', graceUntilToSet: toSet, policy };
+  // Fail-closed when grace is zero — no anchor can save the user.
+  if (policy.gracePeriodDays === 0) {
+    return {
+      decision: 'blocked',
+      graceUntilToSet: null,
+      graceDeadline: null,
+      policy,
+    };
   }
 
-  if (now >= graceUntil) {
-    return { decision: 'blocked', graceUntilToSet: null, policy };
+  // Cap the stored anchor by `now + current policy gracePeriodDays`.
+  // This lets admin tightening apply immediately to users with an existing
+  // (longer) anchor — without that cap, tightening was a no-op for anyone
+  // who had already signed in under the old policy. Loosening still cannot
+  // extend a user's window because we keep the original anchor in storage
+  // and never write a later one.
+  const policyGraceMs = policy.gracePeriodDays * 24 * 60 * 60 * 1000;
+  const storedAnchor = args.twoFactorGraceUntil ?? null;
+  const policyAnchor = now + policyGraceMs;
+  const effectiveDeadline =
+    storedAnchor === null ? policyAnchor : Math.min(storedAnchor, policyAnchor);
+
+  if (now >= effectiveDeadline) {
+    return {
+      decision: 'blocked',
+      graceUntilToSet: null,
+      graceDeadline: null,
+      policy,
+    };
   }
-  return { decision: 'grace', graceUntilToSet: null, policy };
+  return {
+    decision: 'grace',
+    graceUntilToSet: storedAnchor === null ? policyAnchor : null,
+    graceDeadline: effectiveDeadline,
+    policy,
+  };
 }

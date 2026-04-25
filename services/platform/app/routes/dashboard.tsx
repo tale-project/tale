@@ -1,7 +1,14 @@
-import { Outlet, createFileRoute, redirect } from '@tanstack/react-router';
+import {
+  Outlet,
+  createFileRoute,
+  redirect,
+  useNavigate,
+} from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 
@@ -24,9 +31,33 @@ export const Route = createFileRoute('/dashboard')({
 });
 
 function DashboardRedirect() {
+  const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const [sessionVerified, setSessionVerified] = useState(false);
   const [hasValidSession, setHasValidSession] = useState(true);
+
+  // Hard 2FA enforcement: when the org policy requires 2FA and the user is
+  // past their (effective) grace deadline, hold them at /2fa-enroll until
+  // they complete enrolment. This catches all entry paths into the
+  // dashboard — fresh login, existing session restore, SSO callback,
+  // direct-URL navigation — without needing per-path patches.
+  //
+  // Uses client-side navigation (not window.location) so the browser's
+  // `beforeunload` handlers in nested editors don't fire a "leave site?"
+  // confirm dialog when redirecting an unenrolled user.
+  const { data: twoFactorStatus } = useConvexQuery(
+    api.two_factor.queries.getStatus,
+    {},
+    { enabled: isAuthenticated },
+  );
+  useEffect(() => {
+    if (
+      twoFactorStatus?.authenticated &&
+      twoFactorStatus.decision === 'blocked'
+    ) {
+      void navigate({ to: '/2fa-enroll', replace: true });
+    }
+  }, [twoFactorStatus, navigate]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -62,6 +93,13 @@ function DashboardRedirect() {
   }
 
   if (sessionVerified && !hasValidSession) {
+    return null;
+  }
+
+  if (
+    twoFactorStatus?.authenticated &&
+    twoFactorStatus.decision === 'blocked'
+  ) {
     return null;
   }
 
