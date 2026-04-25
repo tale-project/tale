@@ -25,6 +25,8 @@ interface SearchResult {
   chunk_content: string;
   chunk_index: number;
   score: number;
+  // Part B Phase 1+: empty for legacy rows, populated after crawler reindex.
+  core_content?: string;
 }
 
 interface SearchApiResponse {
@@ -117,7 +119,7 @@ export async function queryWebContext(
           const title = chunks[0].title ?? url;
           const content = chunks
             .sort((a, b) => a.chunk_index - b.chunk_index)
-            .map((c) => c.chunk_content)
+            .map((c) => c.core_content || c.chunk_content)
             .join('\n\n');
 
           return { title, url, score: bestScore, content };

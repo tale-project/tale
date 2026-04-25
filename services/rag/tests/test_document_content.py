@@ -58,12 +58,24 @@ DOC_ROW = {
     "source_modified_at": None,
 }
 
+
+def _row(index: int, chunk_content: str, core_content: str = "") -> dict[str, Any]:
+    """Mock chunk row. `core_content=''` simulates an un-migrated (legacy) row;
+    a non-empty `core_content` simulates a row written by the new indexer."""
+    return {"chunk_index": index, "chunk_content": chunk_content, "core_content": core_content}
+
+
+# Legacy-shaped rows (core_content empty) — reassembly falls back to the old
+# `"\n\n".join(chunk_content)` path and thus still exhibits the duplicate
+# behavior of the pre-Part-B reader. Once the corresponding doc is reindexed,
+# rows get `core_content` populated and the new `"".join(core_content)` path
+# takes over.
 CHUNK_ROWS = [
-    {"chunk_index": 0, "chunk_content": "First chunk content."},
-    {"chunk_index": 1, "chunk_content": "Second chunk content."},
-    {"chunk_index": 2, "chunk_content": "Third chunk content."},
-    {"chunk_index": 3, "chunk_content": "Fourth chunk content."},
-    {"chunk_index": 4, "chunk_content": "Fifth chunk content."},
+    _row(0, "First chunk content."),
+    _row(1, "Second chunk content."),
+    _row(2, "Third chunk content."),
+    _row(3, "Fourth chunk content."),
+    _row(4, "Fifth chunk content."),
 ]
 
 
@@ -85,12 +97,10 @@ class TestGetDocumentContent:
         assert "First chunk content." in result["content"]
         assert "Fifth chunk content." in result["content"]
 
-    async def test_content_joined_with_double_newline(self):
+    async def test_legacy_rows_use_double_newline_join(self):
+        """Unmigrated rows (core_content='') fall back to the old stitching."""
         service = _make_service()
-        chunks = [
-            {"chunk_index": 0, "chunk_content": "AAA"},
-            {"chunk_index": 1, "chunk_content": "BBB"},
-        ]
+        chunks = [_row(0, "AAA"), _row(1, "BBB")]
         mock_conn = _mock_conn(
             fetchrow_return={**DOC_ROW, "chunks_count": 2},
             fetch_return=chunks,
@@ -100,6 +110,26 @@ class TestGetDocumentContent:
             result = await service.get_document_content("doc-1")
 
         assert result["content"] == "AAA\n\nBBB"
+
+    async def test_migrated_rows_use_core_content_join(self):
+        """After reindex every row has core_content populated and reassembly
+        is the clean concatenation that eliminates overlap duplication."""
+        service = _make_service()
+        chunks = [
+            # A realistic migrated pair: "ABCDEF" tiled as core='ABC' + core='DEF'
+            # with an overlap region 'C' shared between chunk_content values.
+            _row(0, chunk_content="ABC", core_content="AB"),
+            _row(1, chunk_content="CDEF", core_content="CDEF"),
+        ]
+        mock_conn = _mock_conn(
+            fetchrow_return={**DOC_ROW, "chunks_count": 2},
+            fetch_return=chunks,
+        )
+
+        with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
+            result = await service.get_document_content("doc-1")
+
+        assert result["content"] == "ABCDEF"
 
     async def test_returns_none_for_nonexistent_document(self):
         service = _make_service()
@@ -113,8 +143,8 @@ class TestGetDocumentContent:
     async def test_chunk_range_filters_correctly(self):
         service = _make_service()
         filtered_chunks = [
-            {"chunk_index": 1, "chunk_content": "Second chunk content."},
-            {"chunk_index": 2, "chunk_content": "Third chunk content."},
+            _row(1, "Second chunk content."),
+            _row(2, "Third chunk content."),
         ]
         mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=filtered_chunks)
 
@@ -129,10 +159,7 @@ class TestGetDocumentContent:
 
     async def test_chunk_start_only_returns_from_start_to_end(self):
         service = _make_service()
-        chunks = [
-            {"chunk_index": 3, "chunk_content": "Fourth chunk content."},
-            {"chunk_index": 4, "chunk_content": "Fifth chunk content."},
-        ]
+        chunks = [_row(3, "Fourth chunk content."), _row(4, "Fifth chunk content.")]
         mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=chunks)
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
@@ -156,7 +183,7 @@ class TestGetDocumentContent:
         service = _make_service()
         mock_conn = _mock_conn(
             fetchrow_return={**DOC_ROW, "chunks_count": 1},
-            fetch_return=[{"chunk_index": 0, "chunk_content": "Only chunk."}],
+            fetch_return=[_row(0, "Only chunk.")],
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):

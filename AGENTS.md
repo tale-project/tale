@@ -148,6 +148,33 @@ The Convex backend is a standalone Docker service; function source lives at [`se
 - **Module layout:** `routes/`, `services/`, `models/`, `utils/` under each service. Flat packages beat deep hierarchies.
 - **Type hints on every signature.** Use `from __future__ import annotations` and prefer PEP 604 unions (`str | None`).
 
+## Databases and migrations
+
+Postgres (`tale_knowledge`) is shared by RAG and crawler but **each service owns its own schema** — `private_knowledge` is RAG's, `public_web` is crawler's. Migrations live next to the service that owns them:
+
+- RAG schema changes → [`services/rag/migrations/`](services/rag/migrations/)
+- Crawler schema changes → [`services/crawler/migrations/`](services/crawler/migrations/)
+
+Both run via dbmate at each service's container startup (see `services/<svc>/docker-entrypoint.sh`). Tracking tables are schema-scoped (`private_knowledge.schema_migrations`, `public_web.schema_migrations`) so one service's dbmate never sees the other's migrations.
+
+- **Shared infrastructure only goes in [`services/db/init-scripts/`](services/db/init-scripts/)**: database creation, extensions, schema namespaces, role grants. Never add table DDL there.
+- **Use timestamped filenames** (`YYYYMMDDhhmmss_description.sql`) with `-- migrate:up` and `-- migrate:down` sections.
+- **Idempotent DDL** (`CREATE TABLE IF NOT EXISTS`, `DROP COLUMN IF EXISTS`, etc.) so baselines and migrations are re-runnable without damage.
+- **Cross-service schema changes ship as two sibling migrations**, one per service — never fold them into a single centralized file.
+- **Upgrades are automatic.** Rebuild images and restart — each service's dbmate runs on startup. Existing migrations are idempotent (`IF NOT EXISTS` / existence-guarded `DO` blocks), so re-applying against a populated DB is a safe no-op that just updates the per-service tracking table. [`scripts/bootstrap_migration_split.sql`](scripts/bootstrap_migration_split.sql) is an optional one-off cleanup that skips the first-boot "apply 9 no-op migrations" step — not required.
+
+## Chunk storage (post-Part-B)
+
+Both `private_knowledge.chunks` and `public_web.chunks` carry four text columns after the Part B Phase 1 migration:
+
+- `chunk_content` — the splitter's raw chunk text (interior ≈ `core_content || suffix_overlap`). Still the BM25-indexed column. For the crawler it includes the "Title\n\nURL\n\n" prefix so BM25 keyword hits on title/URL keep working.
+- `core_content` — the chunk's forward-owning span. `"".join(core_content for chunks_in_doc)` reconstructs the original input byte-for-byte. Use this for `document_retrieve`-style reassembly.
+- `prefix_overlap` / `suffix_overlap` — the shared bytes with the adjacent chunks. `chunks[i].prefix_overlap == chunks[i-1].suffix_overlap` when both non-empty.
+
+**Readers:** prefer `core_content`, fall back to `chunk_content` while the row's `core_content` is still empty (pre-Phase-3 legacy rows). Drop the fallback only after Phase 5.
+
+**Writers:** the new indexer dual-writes all four columns. Do not drop `chunk_content` before Phase 4 ships — the crawler's BM25 index still tokenises it and removing the title/URL prefix from it would silently degrade BM25 recall on those keywords. Phase 4 moves BM25 to a generated `content_full` column plus dedicated `title`/`url` fields, at which point the prefix in `chunk_content` becomes redundant.
+
 ## Internationalization
 
 Every user-facing string goes through the translation layer. Never compare against an English literal in code, tests, stories, or comments — the UI can (and does) ship localized labels, and literal comparisons drift silently.

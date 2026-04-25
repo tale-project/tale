@@ -13,7 +13,7 @@ import logging
 import asyncpg
 from tale_shared.db import transact_with_retry
 
-from app.services.chunking_service import chunk_content
+from app.services.chunking_service import build_metadata_prefix, chunk_content
 from app.services.database import acquire_with_retry
 from app.services.embedding_service import get_embedding_service
 from app.services.index_health import reindex_chunks
@@ -107,30 +107,58 @@ class IndexingService:
         if existing and existing["content_hash"] == content_hash and existing["filtering_hash"] == filtered_hash:
             return {"url": url, "status": "skipped", "chunks_indexed": 0}
 
-        # Chunk filtered content
-        chunks = chunk_content(filtered, title=title, url=url)
+        # Chunk filtered content. The chunker no longer takes title/url so
+        # tale_knowledge's invariants (notably "".join(core_content) == input)
+        # hold unconditionally. The crawler-specific title/URL prefix is
+        # reintroduced below at embed- and storage-time only, so BM25 on
+        # `chunk_content` keeps matching title/URL keywords until Phase 4
+        # moves that responsibility onto dedicated indexed columns.
+        chunks = chunk_content(filtered)
         if not chunks:
             async with acquire_with_retry(self._pool) as conn:
                 await conn.execute(_UPSERT_WEBSITE_URL, domain, url, title, content_hash, filtered_hash)
             return {"url": url, "status": "empty", "chunks_indexed": 0}
 
-        # Generate embeddings
-        texts = [c.content for c in chunks]
+        # During Phase 1-3 chunk_content carries the "Title\n\nURL\n\n" prefix
+        # (as it did pre-refactor) so the existing BM25 index over
+        # chunk_content continues to surface title/URL keyword hits. core_content
+        # stays metadata-free and is what `"".join(core)` tiles back to the
+        # original input - the reassembly invariant is unaffected. Phase 4
+        # will swap BM25 to index (content_full, title, url) separately, at
+        # which point the prefix in chunk_content becomes redundant and
+        # chunk_content itself can be dropped in Phase 5.
+        metadata_prefix = build_metadata_prefix(title, url)
+        embed_texts = [metadata_prefix + c.content for c in chunks]
         try:
-            embeddings = await get_embedding_service().embed_texts(texts)
+            embeddings = await get_embedding_service().embed_texts(embed_texts)
         except Exception:
             logger.exception(f"Embedding failed for {url}")
             return {"url": url, "status": "error", "chunks_indexed": 0, "error": "embedding_failed"}
 
-        # Store in DB (transactional + retried)
+        # Store in DB (transactional + retried). `chunk_content` keeps the
+        # same shape as pre-refactor (prefix + raw chunk text) so the BM25
+        # index doesn't regress; the three new columns hold the clean
+        # forward-owning decomposition produced by tale_knowledge.
         chunk_rows = [
-            (domain, url, title, content_hash, chunk.index, chunk.content, str(embeddings[i]))
+            (
+                domain,
+                url,
+                title,
+                content_hash,
+                chunk.index,
+                embed_texts[i],  # chunk_content = prefix + chunk.content
+                str(embeddings[i]),
+                chunk.core_content,
+                chunk.prefix_overlap,
+                chunk.suffix_overlap,
+            )
             for i, chunk in enumerate(chunks)
         ]
 
         _chunk_insert = """\
-INSERT INTO chunks (domain, url, title, content_hash, chunk_index, chunk_content, embedding)
-VALUES ($1, $2, $3, $4, $5, $6, $7::vector)"""
+INSERT INTO chunks (domain, url, title, content_hash, chunk_index, chunk_content, embedding,
+                    core_content, prefix_overlap, suffix_overlap)
+VALUES ($1, $2, $3, $4, $5, $6, $7::vector, $8, $9, $10)"""
 
         async def _store_chunks(conn: asyncpg.Connection) -> None:
             await conn.execute(_UPSERT_WEBSITE_URL, domain, url, title, content_hash, filtered_hash)

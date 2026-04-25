@@ -37,6 +37,9 @@ class ContentChunk:
 
     content: str
     index: int
+    core_content: str = ""
+    prefix_overlap: str = ""
+    suffix_overlap: str = ""
 
 
 def _mock_pool(

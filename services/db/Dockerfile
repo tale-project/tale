@@ -59,15 +59,12 @@ RUN mkdir -p /docker-entrypoint-initdb.d \
              /etc/postgresql/conf.d \
              /var/lib/postgresql/backup
 
-# Install dbmate for database migrations
-COPY --from=ghcr.io/amacneil/dbmate:2 /usr/local/bin/dbmate /usr/local/bin/dbmate
-
-# Copy initialization scripts
+# Copy initialization scripts (create databases, extensions, schema namespaces,
+# grants). Service-specific tables live in per-service dbmate migrations at
+# services/<service>/migrations/ and are applied at each service's startup —
+# not here.
 COPY services/db/init-scripts/ /docker-entrypoint-initdb.d/
 COPY services/db/init-scripts/ /etc/postgresql/init-scripts/
-
-# Copy database migrations (tale_knowledge)
-COPY services/db/migrations/ /etc/postgresql/migrations/
 
 # Copy custom PostgreSQL configuration
 COPY services/db/postgresql.conf /etc/postgresql/postgresql.conf

@@ -210,6 +210,7 @@ def _make_chunk_row(**overrides):
     defaults = {
         "chunk_index": 0,
         "chunk_content": "This is chunk content.",
+        "core_content": "",
     }
     defaults.update(overrides)
     return FakeRecord(defaults)

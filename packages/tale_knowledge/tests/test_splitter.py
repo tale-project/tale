@@ -5,6 +5,7 @@ from tale_knowledge.chunking.splitter import (
     CHUNK_SIZE,
     MIN_CHUNK_LENGTH,
     ContentChunk,
+    build_metadata_prefix,
     chunk_content,
 )
 
@@ -21,7 +22,7 @@ class TestChunkContent:
         text = "Hello world, this is a test of chunking." + " extra" * 10
         chunks = chunk_content(text)
         assert len(chunks) == 1
-        assert chunks[0].content == text.strip()
+        assert chunks[0].content == text
         assert chunks[0].index == 0
 
     def test_chunk_indexes_sequential(self):
@@ -35,26 +36,12 @@ class TestChunkContent:
         chunks = chunk_content(text)
         assert all(isinstance(c, ContentChunk) for c in chunks)
 
-    def test_with_title_prefix(self):
-        text = "Some content that is long enough to pass minimum." + " extra" * 10
-        chunks = chunk_content(text, title="My Page Title")
-        assert chunks[0].content.startswith("My Page Title")
-
-    def test_with_url_prefix(self):
-        text = "Some content that is long enough to pass minimum." + " extra" * 10
-        chunks = chunk_content(text, url="https://example.com/page")
-        assert "https://example.com/page" in chunks[0].content
-
-    def test_with_title_and_url(self):
-        text = "Some content that is long enough to pass minimum." + " extra" * 10
-        chunks = chunk_content(text, title="Title", url="https://example.com")
-        assert chunks[0].content.startswith("Title")
-        assert "https://example.com" in chunks[0].content
-
-    def test_min_chunk_length_filter(self):
-        text = "Hi"  # Shorter than MIN_CHUNK_LENGTH (10)
-        chunks = chunk_content(text)
-        assert chunks == []
+    def test_tiny_content_still_produces_chunk(self):
+        # min_chunk_length no longer gates tiling — a 2-char input still
+        # round-trips, otherwise "".join(core) != content.
+        chunks = chunk_content("Hi")
+        assert len(chunks) == 1
+        assert chunks[0].core_content == "Hi"
 
     def test_short_valid_content_indexed(self):
         text = "2025年我们的销售额度是1000万"
@@ -75,7 +62,27 @@ class TestChunkContent:
         assert MIN_CHUNK_LENGTH == 10
 
     def test_long_content_multiple_chunks(self):
-        # Generate content that's definitely larger than one chunk
         text = "# Document Title\n\n" + ("This is a paragraph of text. " * 50 + "\n\n") * 10
         chunks = chunk_content(text)
         assert len(chunks) > 1
+
+
+class TestBuildMetadataPrefix:
+    def test_title_and_url(self):
+        prefix = build_metadata_prefix("My Page", "https://example.com/page")
+        assert prefix == "My Page\n\nhttps://example.com/page\n\n"
+
+    def test_title_only(self):
+        assert build_metadata_prefix("Title", None) == "Title\n\n"
+
+    def test_url_only(self):
+        assert build_metadata_prefix(None, "https://example.com") == "https://example.com\n\n"
+
+    def test_none_both(self):
+        assert build_metadata_prefix(None, None) == ""
+
+    def test_blank_strings(self):
+        assert build_metadata_prefix("   ", "") == ""
+
+    def test_strips_title_and_url(self):
+        assert build_metadata_prefix("  Title  ", "  https://x.com  ") == "Title\n\nhttps://x.com\n\n"

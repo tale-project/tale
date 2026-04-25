@@ -460,7 +460,8 @@ class RagService:
             chunk_params: list[Any] = [doc_uuid, chunk_start - 1, chunk_end - 1]
 
             rows = await conn.fetch(
-                f"SELECT chunk_index, chunk_content FROM {SCHEMA}.chunks "
+                f"SELECT chunk_index, chunk_content, core_content "
+                f"FROM {SCHEMA}.chunks "
                 f"WHERE document_id = $1 AND chunk_index >= $2 AND chunk_index <= $3 "
                 f"ORDER BY chunk_index ASC",
                 *chunk_params,
@@ -478,7 +479,25 @@ class RagService:
                 "source_modified_at": doc["source_modified_at"],
             }
 
-        combined = "\n\n".join(row["chunk_content"] for row in rows)
+        # Reassembly: concatenate each chunk's forward-owning `core_content`
+        # span. By construction, "".join(core_content) equals the original
+        # ingested text (see tale_knowledge.chunking.splitter tests), so
+        # overlap regions between adjacent chunks appear exactly once —
+        # fixing the duplicate-content bug the old "\n\n".join(chunk_content)
+        # exhibited.
+        #
+        # Per-document reindex is atomic (see _do_store), so a document's
+        # chunks are either all migrated (core_content populated) or all
+        # legacy (core_content == ''). Mixed state within one document is
+        # not possible. Falling back to the old stitching for legacy docs
+        # preserves correctness (no lost text) with today's known
+        # duplicate-content behavior until reindex completes.
+        # The fallback + chunk_content column disappear in Phase 5.
+        all_migrated = all(row["core_content"] for row in rows)
+        if all_migrated:
+            combined = "".join(row["core_content"] for row in rows)
+        else:
+            combined = "\n\n".join(row["chunk_content"] for row in rows)
 
         actual_start = rows[0]["chunk_index"] + 1
         actual_end = rows[-1]["chunk_index"] + 1
@@ -495,7 +514,8 @@ class RagService:
         }
 
         if return_chunks:
-            result["chunks"] = [{"index": row["chunk_index"] + 1, "content": row["chunk_content"]} for row in rows]
+            chunk_field = "core_content" if all_migrated else "chunk_content"
+            result["chunks"] = [{"index": row["chunk_index"] + 1, "content": row[chunk_field]} for row in rows]
 
         return result
 
