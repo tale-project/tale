@@ -74,21 +74,21 @@ FROM python:3.11-slim AS runtime
 WORKDIR /app
 
 # Install ONLY runtime dependencies (no build-essential, no libpq-dev)
-# - curl: Used by health check + dbmate binary download
+# - curl: Used by health check
 # - libpq5: PostgreSQL runtime library (not the dev headers)
 # Note: SOPS binary is already provided by COPY --from=builder /usr/local/bin
-ARG DBMATE_VERSION=2.20.0
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libpq5 \
     && rm -rf /var/lib/apt/lists/* \
-    # dbmate: runs per-service schema migrations at container startup.
-    && curl -fsSL "https://github.com/amacneil/dbmate/releases/download/v${DBMATE_VERSION}/dbmate-linux-$(dpkg --print-architecture)" -o /usr/local/bin/dbmate \
-    && chmod +x /usr/local/bin/dbmate \
     # Strip system bloat
     && rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
     && apt-get clean 2>/dev/null || true
+
+# dbmate: runs per-service schema migrations at container startup.
+# Sourced from the signed upstream image for provenance (no curl + checksum needed).
+COPY --from=ghcr.io/amacneil/dbmate:2 /usr/local/bin/dbmate /usr/local/bin/dbmate
 
 # Copy cleaned Python site-packages from builder (no uv, no pip cache, no __pycache__)
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages

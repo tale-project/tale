@@ -97,7 +97,6 @@ ARG INSTALL_CJK_FONTS=false
 # Chromium runtime libs: libasound2, libatk*, libnss3, libgbm1, etc.
 # NOT installed: wget, gnupg (only needed for apt key management during build)
 ARG SOPS_VERSION=3.9.4
-ARG DBMATE_VERSION=2.20.0
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
     curl \
@@ -127,8 +126,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && fc-cache -fv \
-    && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
-    && curl -fsSL "https://github.com/amacneil/dbmate/releases/download/v${DBMATE_VERSION}/dbmate-linux-$(dpkg --print-architecture)" -o /usr/local/bin/dbmate && chmod +x /usr/local/bin/dbmate
+    && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops
+
+# dbmate: runs per-service schema migrations at container startup.
+# Sourced from the signed upstream image for provenance (no curl + checksum needed).
+COPY --from=ghcr.io/amacneil/dbmate:2 /usr/local/bin/dbmate /usr/local/bin/dbmate
 
 # Strip safely removable bloat (conservative — keep GTK/mesa/systemd for Chromium)
 RUN ARCH_LIB="/usr/lib/$(dpkg --print-architecture | sed 's/amd64/x86_64-linux-gnu/;s/arm64/aarch64-linux-gnu/')"; \
