@@ -4260,7 +4260,8 @@
         "dateOfBirth": "Geburtsdaten",
         "address": "Straßenadressen",
         "iban": "IBAN-Nummern",
-        "germanId": "Personalausweisnummern"
+        "germanId": "Personalausweisnummern",
+        "cvc": "Kartenprüfziffern (CVC/CVV)"
       },
       "customPatternsTitle": "Benutzerdefinierte Regex-Regeln",
       "customPatternsDescription": "Füge benutzerdefinierte Regex-Muster hinzu, um weitere Arten personenbezogener Daten zu erkennen.",

@@ -29,6 +29,16 @@ export const BUILT_IN_PII_PATTERNS: PiiPattern[] = [
     replacement: '[CREDIT_CARD]',
   },
   {
+    // Context-anchored: bare 3-4 digit numbers are intentionally NOT detected
+    // (would false-positive on ages, room numbers, error codes). Microsoft
+    // Presidio, AWS Comprehend, and Cloudflare WAF all skip CVV detection
+    // for the same reason. This catches the labeled cases only.
+    name: 'cvc',
+    regex:
+      /\b(?:cvc|cvv|cv2|card[\s-]?security[\s-]?code)\b(?:\s+is)?\s*[:=]?\s*\d{3,4}\b/gi,
+    replacement: '[CVC]',
+  },
+  {
     name: 'ipAddress',
     regex: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
     replacement: '[IP_ADDRESS]',
