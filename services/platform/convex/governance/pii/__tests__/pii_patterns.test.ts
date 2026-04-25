@@ -176,3 +176,127 @@ describe('scrubPii with new patterns', () => {
     expect(result.kind).toBe('pass');
   });
 });
+
+describe('overlap dedup (regression for #1618)', () => {
+  // Before the dedup fix, the phone regex matched a 14-char prefix of a
+  // creditCard match; both ranges shared a start, and maskPii spliced the
+  // shorter replacement first using original indices into a mutated string,
+  // eating adjacent characters — sometimes the next [EMAIL] token entirely.
+  const config = {
+    enabled: true,
+    mode: 'mask',
+    enabledPatterns: ['email', 'phone', 'creditCard'],
+    customPatterns: [],
+  } satisfies PiiConfig;
+
+  it('does not eat the [EMAIL] token when CC + email are adjacent', () => {
+    // The original repro from the issue: prior to the fix, the email part
+    // disappeared completely from the output.
+    const result = scrubPii('4532123456789010 test@example.com 123', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[CREDIT_CARD] [EMAIL] 123');
+  });
+
+  it('keeps creditCard, drops the overlapping phone match', () => {
+    const result = scrubPii('4532-1234-5678-9010', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[CREDIT_CARD]');
+    expect(result.text).not.toContain('[PHONE]');
+    expect(result.categoryIds).toEqual(['creditCard']);
+  });
+
+  it('does not corrupt surrounding text when CC + email co-occur with prose', () => {
+    const result = scrubPii(
+      'My credit card is 4532-1234-5678-9010, my email is alice@example.com.',
+      config,
+    );
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe(
+      'My credit card is [CREDIT_CARD], my email is [EMAIL].',
+    );
+  });
+
+  it('masks all three independent items when patterns do not overlap', () => {
+    const result = scrubPii(
+      'call 555-867-5309 mail a@b.com card 4532-1234-5678-9010',
+      config,
+    );
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toContain('[PHONE]');
+    expect(result.text).toContain('[EMAIL]');
+    expect(result.text).toContain('[CREDIT_CARD]');
+    expect(result.text).not.toMatch(/\d{3}-\d{3}-\d{4}/);
+    expect(result.text).not.toMatch(/4532/);
+  });
+
+  it('handles email and creditCard separated only by a non-word char', () => {
+    // The creditCard regex requires \b on both sides, so a letter-adjacent
+    // CC (e.g. ".com4532...") won't match — that's an intentional limit of
+    // the existing pattern. A non-word separator (here a comma) is enough.
+    const result = scrubPii('test@example.com,4532-1234-5678-9010', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[EMAIL],[CREDIT_CARD]');
+  });
+});
+
+describe('CVC pattern (context-anchored)', () => {
+  const config = {
+    enabled: true,
+    mode: 'mask',
+    enabledPatterns: ['cvc'],
+    customPatterns: [],
+  } satisfies PiiConfig;
+
+  it('masks "my CVC is 123"', () => {
+    const result = scrubPii('my CVC is 123', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('my [CVC]');
+  });
+
+  it('masks "cvv: 4567"', () => {
+    const result = scrubPii('cvv: 4567', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[CVC]');
+  });
+
+  it('masks "card security code 890"', () => {
+    const result = scrubPii('card security code 890', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[CVC]');
+  });
+
+  it('masks "card-security-code 100"', () => {
+    const result = scrubPii('card-security-code 100', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[CVC]');
+  });
+
+  it('masks "CV2=999" (mixed case via i flag)', () => {
+    const result = scrubPii('CV2=999', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[CVC]');
+  });
+
+  it('does NOT detect bare 3-digit numbers without context', () => {
+    // Intentional: bare digits would false-positive on ages, room numbers,
+    // error codes, etc. Industry-standard tools (Presidio, Comprehend, CF
+    // WAF) skip CVV for the same reason.
+    const result = scrubPii('My room is 123 and my age is 45.', config);
+    expect(result.kind).toBe('pass');
+  });
+
+  it('does NOT match the literal word "cid" without a number', () => {
+    const result = scrubPii('citric acid is sour', config);
+    expect(result.kind).toBe('pass');
+  });
+});
