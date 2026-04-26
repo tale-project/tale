@@ -33,7 +33,7 @@ Ouvre **Paramètres > Gouvernance > Politique double facteur**. Active **Double 
 - **Période de grâce (jours)** — combien de jours chaque utilisateur a, à partir de sa première connexion sous la politique, avant que l'enrôlement soit imposé. Mets `0` pour appliquer immédiatement ; choisis une fenêtre plus longue lors d'un déploiement dans une organisation existante pour que les membres puissent s'inscrire sans perdre l'accès. Pendant la grâce, l'utilisateur voit un bandeau l'invitant à configurer ; à expiration, le dashboard n'est plus accessible tant que la 2FA n'est pas activée.
 - **Réinitialiser le double facteur d'un membre** — dans **Paramètres > Membres**, le menu de la ligne propose une action **Réinitialiser le double facteur** réservée aux admins. Utilise-la quand quelqu'un a perdu son authentificateur et n'a plus de codes de secours. Le reset désactive la 2FA pour ce compte, met fin à toutes ses sessions actives et l'oblige à se réinscrire à la prochaine connexion. Chaque reset est consigné dans l'audit log pour que les équipes sécurité puissent suivre la trace.
 
-La politique ne concerne que la connexion par mot de passe. Les utilisateurs SSO et trusted headers en sont exemptés parce que leur fournisseur d'identité gère déjà leur second facteur.
+La politique ne concerne que la connexion par mot de passe. Les utilisateurs SSO et trusted headers ne sont exemptés **que si l'option _Exempter les utilisateurs SSO_ est activée dans la politique** — Tale considère alors que leur fournisseur d'identité gère le second facteur. Un utilisateur qui a à la fois un compte SSO et un mot de passe n'est jamais exempté, parce que le mot de passe reste un chemin de contournement.
 
 ## Événements d'audit
 

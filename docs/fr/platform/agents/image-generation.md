@@ -3,7 +3,7 @@ title: Agents de génération d'images
 description: Configurer des agents qui génèrent ou éditent des images avec FLUX, Imagen, Nano Banana, GPT-Image ou tout modèle compatible.
 ---
 
-Les agents de génération d'images prennent un prompt, éventuellement une image de référence, et produisent une nouvelle image en guise de réponse de l'assistant. Ils réutilisent la configuration standard d'un agent (instructions, connaissances, outils, conversations starters) mais sont liés à un modèle taggé `image-generation` ou `image-edit` au lieu d'un modèle de chat. Imagine un agent pour des miniatures marketing, des maquettes produit, des cartes pour les réseaux sociaux ou du concept-art rapide — tout ce que l'équipe veut traiter en un aller-retour plutôt que dans un workflow d'édition complet.
+Les agents de génération d'images prennent un prompt, éventuellement une image de référence, et produisent une nouvelle image en guise de réponse de l'assistant. Ils réutilisent la configuration standard d'un agent (instructions, connaissances, outils, amorces) mais sont liés à un modèle taggé `image-generation` ou `image-edit` au lieu d'un modèle de chat. Imagine un agent pour des miniatures marketing, des maquettes produit, des cartes pour les réseaux sociaux ou du concept-art rapide — tout ce que l'équipe veut traiter en un aller-retour plutôt que dans un workflow d'édition complet.
 
 Le sélecteur de modèle dans le chat fait apparaître les agents de génération d'images aux côtés des agents de chat. Quand un utilisateur en choisit un, le composeur bascule en mode image : un sélecteur de miniatures pour les images de référence, un placeholder _Décris une image à créer…_, et un panneau d'aperçu sur les réponses de l'assistant.
 
@@ -34,7 +34,7 @@ Pars depuis **Agents > New Agent** et remplis les champs de base — nom, slug, 
 - **Préréglage de modèle** — choisis le modèle d'image enregistré ci-dessus. Le sélecteur n'affiche que les modèles taggés `image-generation` ou `image-edit`.
 - **Instructions système** — décris ce dans quoi l'agent doit exceller. _« Tu produis des miniatures marketing minimalistes : aplats de couleur, un seul sujet, pas de texte »_ guide bien plus fiablement qu'aucune instruction.
 
-Connaissances, outils, conversations starters, délégation et webhook fonctionnent comme pour les agents de chat — voir [Créer un agent](/fr/platform/agents/create).
+Connaissances, outils, amorces, délégation et webhook fonctionnent comme pour les agents de chat — voir [Créer un agent](/fr/platform/agents/create).
 
 ## L'utiliser dans le chat
 

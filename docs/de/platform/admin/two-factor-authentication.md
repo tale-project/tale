@@ -33,7 +33,7 @@ Wiederholte Fehlversuche werden mit demselben Back-off rate-limitiert wie falsch
 - **Karenzfrist (Tage)** — wie viele Tage jeder Nutzer ab seiner ersten Anmeldung unter dieser Policy hat, bevor die Pflicht greift. Setze `0` für sofortiges Erzwingen; wähle ein längeres Fenster bei der Einführung in einer bestehenden Organisation, damit Mitglieder sich einrichten können, ohne den Zugriff zu verlieren. Wer in der Karenzfrist ist, sieht ein Banner mit der Aufforderung zur Einrichtung; nach Ablauf der Frist ist das Dashboard erst nach Einrichtung wieder erreichbar.
 - **Zwei-Faktor des Mitglieds zurücksetzen** — in **Einstellungen > Mitglieder** hat das Zeilenmenü für Admins die Aktion **Zwei-Faktor zurücksetzen**. Nutze sie, wenn jemand seinen Authenticator verloren hat und keine Backup-Codes mehr besitzt. Der Reset deaktiviert 2FA für diesen Nutzer, beendet alle aktiven Sessions und erzwingt eine erneute Einrichtung bei der nächsten Anmeldung. Jeder Reset wird im Audit-Log protokolliert, damit Security-Teams die Spur nachvollziehen können.
 
-Die Policy gilt nur für Passwort-Logins. SSO- und Trusted-Headers-Nutzer sind ausgenommen, weil ihr externes Identity-System den zweiten Faktor bereits steuert.
+Die Policy gilt nur für Passwort-Logins. SSO- und Trusted-Headers-Nutzer sind **nur dann ausgenommen, wenn die Option _SSO-Nutzer ausnehmen_ in der Policy aktiv ist** — Tale geht in dem Fall davon aus, dass das Identity-System den zweiten Faktor bereits steuert. Wer sowohl ein SSO-Konto als auch ein Passwort hat, ist nie ausgenommen, weil das Passwort einen Bypass-Pfad bietet.
 
 ## Audit-Events
 
@@ -53,4 +53,4 @@ Jede 2FA-Aktion schreibt einen strukturierten Eintrag, sichtbar unter **Einstell
 
 - [Authentifizierung](/de/self-hosted/admin/authentication) — Passwort-, SSO- und Trusted-Headers-Login.
 - [Mitglieder und Rollen](/de/platform/admin/members-and-roles) — 2FA eines Mitglieds aus dem Zeilenmenü zurücksetzen.
-- [Governance](/de/platform/admin/governance) — Policy setzen und Audit-Log lesen.
+- [Richtlinien](/de/platform/admin/governance) — Policy setzen und Audit-Log lesen.

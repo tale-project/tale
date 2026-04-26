@@ -45,14 +45,14 @@ Les guardrails sont trois couches de filtrage que Tale exécute en séquence sur
 
 ```mermaid
 flowchart LR
-  user[Message utilisateur] --> chatFilter[Sécurité du contenu]
-  chatFilter --> pii[Détection DCP]
-  pii --> moderation[Fournisseur de modération]
-  moderation --> model[Modèle]
-  model --> outChatFilter[Sécurité du contenu]
-  outChatFilter --> outPii[Détection DCP]
-  outPii --> outModeration[Fournisseur de modération]
-  outModeration --> reply[Réponse diffusée]
+  user["L'utilisateur envoie un message."] --> chatFilter["Tale applique les contrôles de sûreté du contenu."]
+  chatFilter --> pii["Tale détecte les données personnelles."]
+  pii --> moderation["Tale évalue le message via le fournisseur de modération."]
+  moderation --> model["Le modèle génère une réponse."]
+  model --> outChatFilter["Tale applique les contrôles de sûreté du contenu aux tokens de sortie."]
+  outChatFilter --> outPii["Tale scanne les tokens de sortie pour détecter les données personnelles."]
+  outPii --> outModeration["Tale évalue les tokens de sortie via le fournisseur de modération."]
+  outModeration --> reply["Tale diffuse la réponse autorisée à l'utilisateur."]
 ```
 
 Un message bloqué n'atteint jamais le modèle, et un token bloqué n'est jamais transmis à l'utilisateur. Chaque décision (autoriser, masquer, bloquer) écrit un événement structuré dans l'audit log ; le texte brut correspondant n'est jamais stocké.

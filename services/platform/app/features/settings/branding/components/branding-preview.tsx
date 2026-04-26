@@ -75,6 +75,7 @@ export const BrandingPreview = memo(function BrandingPreview({
   data,
 }: BrandingPreviewProps) {
   const { t } = useT('settings');
+  const { t: tConversations } = useT('conversations');
   const { appName, textLogo, logoUrl, faviconUrl, brandColor, accentColor } =
     data;
 
@@ -167,10 +168,14 @@ export const BrandingPreview = memo(function BrandingPreview({
                   borderColor: accentColor || 'currentColor',
                 }}
               >
-                Open
+                {tConversations('status.open')}
               </span>
-              <span className="text-muted-foreground text-[10px]">Closed</span>
-              <span className="text-muted-foreground text-[10px]">Spam</span>
+              <span className="text-muted-foreground text-[10px]">
+                {tConversations('status.closed')}
+              </span>
+              <span className="text-muted-foreground text-[10px]">
+                {tConversations('status.spam')}
+              </span>
             </div>
 
             {/* Content placeholder */}

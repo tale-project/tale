@@ -43,25 +43,30 @@ function discoverReadmes(): Readme[] {
 }
 
 /** Outline = sequence of heading depths (1 for `#`, 2 for `##`, …) outside
- *  fenced code blocks. Different prose, same structure. */
+ *  fenced code blocks. Different prose, same structure.
+ *
+ *  CommonMark closing rule: a closing fence must use the same fence character
+ *  as the opener AND be at least as long. A 3-backtick fence inside an open
+ *  4-backtick block is content, not a close. Track the full opener so a
+ *  shorter inner fence cannot end the block prematurely. */
 function extractOutline(src: string): number[] {
   const out: number[] = [];
-  let inFence = false;
-  let fenceMarker: string | null = null;
+  let openFence: string | null = null;
   for (const line of src.split('\n')) {
-    const fence = /^\s*(```+|~~~+)/.exec(line);
+    const fence = /^\s*(`{3,}|~{3,})\s*/.exec(line);
     if (fence) {
-      const marker = fence[1][0];
-      if (!inFence) {
-        inFence = true;
-        fenceMarker = marker;
-      } else if (marker === fenceMarker) {
-        inFence = false;
-        fenceMarker = null;
+      const marker = fence[1];
+      if (openFence === null) {
+        openFence = marker;
+      } else if (
+        marker[0] === openFence[0] &&
+        marker.length >= openFence.length
+      ) {
+        openFence = null;
       }
       continue;
     }
-    if (inFence) continue;
+    if (openFence !== null) continue;
     const h = /^(#{1,6})\s+\S/.exec(line);
     if (h) out.push(h[1].length);
   }

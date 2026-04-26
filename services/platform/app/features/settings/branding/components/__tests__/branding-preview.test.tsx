@@ -3,9 +3,38 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
+import enMessages from '@/messages/en.json';
 import { checkAccessibility } from '@/test/utils/a11y';
 
 import { BrandingPreview } from '../branding-preview';
+
+// Mock useT against en.json so tests match rendered prose, not raw keys.
+function lookup(ns: string, key: string): string {
+  const segments = `${ns}.${key}`.split('.');
+  let cursor: unknown = enMessages;
+  for (const segment of segments) {
+    if (cursor && typeof cursor === 'object' && segment in cursor) {
+      cursor = (cursor as Record<string, unknown>)[segment];
+    } else {
+      return `${ns}.${key}`;
+    }
+  }
+  return typeof cursor === 'string' ? cursor : `${ns}.${key}`;
+}
+
+vi.mock('@/lib/i18n/client', () => ({
+  useT: (ns: string) => ({
+    t: (key: string, vars?: Record<string, unknown>) => {
+      let out = lookup(ns, key);
+      if (vars) {
+        for (const [k, v] of Object.entries(vars)) {
+          out = out.replaceAll(`{${k}}`, String(v));
+        }
+      }
+      return out;
+    },
+  }),
+}));
 
 // Mock Image component
 vi.mock('@/app/components/ui/data-display/image', () => ({

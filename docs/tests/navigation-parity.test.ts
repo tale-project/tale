@@ -33,14 +33,32 @@ function collectPages(entries: NavEntry[] | undefined, out: string[] = []) {
   return out;
 }
 
+function isDocsConfig(value: unknown): value is DocsConfig {
+  if (value === null || typeof value !== 'object') return false;
+  const nav = (value as { navigation?: unknown }).navigation;
+  if (nav === null || typeof nav !== 'object') return false;
+  const langs = (nav as { languages?: unknown }).languages;
+  return Array.isArray(langs);
+}
+
 const configPath = path.join(DOCS_ROOT, 'docs.json');
-const config = JSON.parse(fs.readFileSync(configPath, 'utf8')) as DocsConfig;
+const parsed: unknown = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+if (!isDocsConfig(parsed)) {
+  throw new Error(`${configPath} does not match expected DocsConfig shape`);
+}
+const config: DocsConfig = parsed;
 
 function fileExistsForPage(page: string): boolean {
   const md = path.join(DOCS_ROOT, `${page}.md`);
   const mdx = path.join(DOCS_ROOT, `${page}.mdx`);
   return fs.existsSync(md) || fs.existsSync(mdx);
 }
+
+// Prefixes (`<locale>/`) for every non-English locale declared in
+// `docs.json`. An English nav entry must not start with any of these.
+const nonEnPrefixes = config.navigation.languages
+  .filter((l) => l.language !== 'en')
+  .map((l) => `${l.language}/`);
 
 describe('docs navigation parity', () => {
   it('docs.json declares at least one language block', () => {
@@ -65,8 +83,10 @@ describe('docs navigation parity', () => {
         for (const p of pages) {
           if (language === 'en') {
             // English pages live at the docs root; they must NOT be prefixed
-            // with a locale folder.
-            if (/^[a-z]{2}(?:-[A-Z]{2})?\//.test(p)) wrongPrefix.push(p);
+            // with any other declared locale folder.
+            if (nonEnPrefixes.some((prefix) => p.startsWith(prefix))) {
+              wrongPrefix.push(p);
+            }
           } else {
             // Non-English pages must be prefixed with their locale folder.
             if (!p.startsWith(`${language}/`)) wrongPrefix.push(p);

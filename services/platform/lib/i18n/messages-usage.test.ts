@@ -16,6 +16,20 @@ const SCAN_ROOTS = ['app', 'components', 'hooks', 'lib', 'convex'].map((d) =>
 // File globs to skip — non-runtime surfaces don't count as "users" of a key.
 const SKIP_RE = /(\.test\.tsx?$|\.stories\.tsx?$|\.bench\.tsx?$)/;
 
+// Directory names to prune from the walk: anything under these is non-runtime
+// (tests, stories, benchmarks, fixtures). Helper or fixture files inside them
+// would otherwise count as translation usage and mask orphan keys.
+const PRUNE_DIRS = new Set([
+  '__tests__',
+  'tests',
+  'stories',
+  '__stories__',
+  'benchmarks',
+  '__mocks__',
+  '__fixtures__',
+  'fixtures',
+]);
+
 // Dynamic-key allowlist. Each line is a dotted prefix; any en.json key that
 // starts with a listed prefix is exempt from orphan detection. Use this when
 // keys are constructed at runtime in ways the regex below cannot follow
@@ -57,6 +71,7 @@ function walk(dir: string, out: string[] = []): string[] {
   if (!fs.existsSync(dir)) return out;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+    if (entry.isDirectory() && PRUNE_DIRS.has(entry.name)) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       walk(full, out);
@@ -111,8 +126,11 @@ function buildUsedKeys(allFlatKeys: Set<string>): {
   // `'vendors.title'` — if `vendors` is a known namespace, the literal
   // covers `vendors.title`.
   const allNamespaces = new Set<string>();
-  const fileScans: Array<{ file: string; aliases: Map<string, Set<string>> }> =
-    [];
+  const fileScans: Array<{
+    file: string;
+    content: string;
+    aliases: Map<string, Set<string>>;
+  }> = [];
 
   for (const root of SCAN_ROOTS) {
     for (const file of walk(root)) {
@@ -133,7 +151,7 @@ function buildUsedKeys(allFlatKeys: Set<string>): {
       }
       for (const m of content.matchAll(I18N_T_RE)) exact.add(m[1]);
 
-      fileScans.push({ file, aliases });
+      fileScans.push({ file, content, aliases });
     }
   }
 
@@ -142,9 +160,7 @@ function buildUsedKeys(allFlatKeys: Set<string>): {
   // any file may be passed through to `t()` later via a variable lookup.
   // Treat it as "used" iff its dotted prefix matches a known namespace OR
   // it exactly matches a flat key in en.json.
-  for (const { file, aliases } of fileScans) {
-    const content = fs.readFileSync(file, 'utf8');
-
+  for (const { content, aliases } of fileScans) {
     for (const [alias, namespaces] of aliases) {
       const literalRe = new RegExp(
         `(?<![\\w$])${alias}\\(\\s*['"\`]([\\w.-]+)['"\`]`,

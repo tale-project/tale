@@ -33,7 +33,7 @@ Open **Settings > Governance > Two-factor policy**. Toggle **Require two-factor*
 - **Grace period (days)** — how many days each user has from their first sign-in under the policy before enrolment is enforced. Set to `0` for immediate enforcement; pick a longer window when you roll out 2FA to an existing organisation so members can enrol without losing access. Members in their grace period see a banner reminding them to set up; once the grace ends they cannot reach the dashboard until they enrol.
 - **Reset member's two-factor** — under **Settings > Members**, the row menu has a **Reset two-factor** action for admins. Use it when someone loses their authenticator and runs out of backup codes. The reset disables 2FA for that user, ends all their active sessions, and forces them to enrol again on their next sign-in. Every reset is recorded in the audit log so security teams can review the trail.
 
-The policy only governs password sign-in. SSO and trusted-headers users are exempt because their identity provider already controls their second factor.
+The policy only governs password sign-in. SSO and trusted-headers users are exempt **only when the policy's _Exempt SSO users_ option is on** — Tale assumes their identity provider controls the second factor in that case. A user who has both an SSO account and a credential (password) is never exempt, because the password is a bypass route.
 
 ## Audit events
 

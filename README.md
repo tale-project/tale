@@ -176,7 +176,7 @@ The docs site ships in three locales (`en`, `de`, `fr`) with full coverage. The 
 - **[Members and roles](docs/platform/admin/members-and-roles.md)** — user management and permission matrix
 - **[Authentication](docs/self-hosted/admin/authentication.md)** — password, SSO, trusted headers
 - **[AI providers](docs/platform/admin/providers.md)** — configure models in the admin UI
-- **[Governance](docs/platform/admin/governance.md)** — budgets, retention, PII detection, audit logs
+- **[Governance](docs/platform/admin/governance.md)** — budgets, retention, guardrails (content safety, PII detection, moderation provider), audit logs
 - **[Usage analytics](docs/platform/admin/usage-analytics.md)** — time-based token and cost reporting
 
 ### For operators

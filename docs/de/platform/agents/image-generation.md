@@ -7,7 +7,7 @@ Bildgenerierungs-Agents nehmen einen Prompt, optional ein Referenzbild, und lief
 
 Im Chat-Modell-Picker erscheinen Bildgenerierungs-Agents neben den Chat-Agents. Sobald jemand einen wählt, schaltet der Composer in einen bildbewussten Modus: einen Thumbnail-Picker für Referenzbilder, einen Platzhalter mit dem Text _Beschreibe ein Bild, das erstellt werden soll…_ und eine Vorschau in der Assistant-Antwort.
 
-## Image generation mode
+## Bildgenerierungsmodi
 
 Jedes Bild-Modell ist auf einen von zwei Aufruf-Modi verdrahtet. Der Modus wird pro Modell in **Einstellungen > KI-Anbieter** gesetzt und bestimmt, welchen OpenAI-kompatiblen Endpunkt Tale anspricht.
 

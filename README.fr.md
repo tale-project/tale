@@ -176,7 +176,7 @@ Le site de doc est publié en trois langues (`en`, `de`, `fr`) avec une couvertu
 - **[Membres et rôles](docs/fr/platform/admin/members-and-roles.md)** — gestion des utilisateurs et matrice de permissions
 - **[Authentification](docs/fr/self-hosted/admin/authentication.md)** — mot de passe, SSO, trusted headers
 - **[Fournisseurs IA](docs/fr/platform/admin/providers.md)** — configurer les modèles dans l'UI admin
-- **[Gouvernance](docs/fr/platform/admin/governance.md)** — budgets, rétention, détection PII, journaux d'audit
+- **[Gouvernance](docs/fr/platform/admin/governance.md)** — budgets, rétention, guardrails (sûreté du contenu, détection PII, fournisseur de modération), journaux d'audit
 - **[Analytics d'usage](docs/fr/platform/admin/usage-analytics.md)** — reporting tokens et coûts dans le temps
 
 ### Pour les opérateurs

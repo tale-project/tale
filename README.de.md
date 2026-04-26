@@ -41,7 +41,7 @@ Die CLI fragt nach Domain, API-Key und TLS-Modus. Sicherheits-Secrets werden aut
 tale start
 ```
 
-Öffne https://localhost (oder deine konfigurierte Domain), sobald „Tale Platform is running!" erscheint.
+Öffne https://localhost (oder deine konfigurierte Domain), sobald "Tale Platform is running!" erscheint.
 
 > **Hinweis:** Dein Browser zeigt eine Zertifikatswarnung für selbstsignierte Zertifikate. Die ist sicher zu akzeptieren.
 
@@ -176,7 +176,7 @@ Die Doku-Seite erscheint in drei Sprachen (`en`, `de`, `fr`) mit voller Abdeckun
 - **[Mitglieder und Rollen](docs/de/platform/admin/members-and-roles.md)** — Userverwaltung und Berechtigungs-Matrix
 - **[Authentifizierung](docs/de/self-hosted/admin/authentication.md)** — Passwort, SSO, Trusted Headers
 - **[KI-Anbieter](docs/de/platform/admin/providers.md)** — Modelle im Admin-UI konfigurieren
-- **[Richtlinien](docs/de/platform/admin/governance.md)** — Budgets, Retention, PII-Erkennung, Audit-Logs
+- **[Richtlinien](docs/de/platform/admin/governance.md)** — Budgets, Retention, Guardrails (Content Safety, PII-Erkennung, Moderation-Provider), Audit-Logs
 - **[Nutzungs-Analytics](docs/de/platform/admin/usage-analytics.md)** — zeitbasiertes Token- und Kosten-Reporting
 
 ### Für Operators

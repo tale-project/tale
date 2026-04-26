@@ -45,14 +45,14 @@ Guardrails sind drei Filter-Schichten, die Tale für jede Chat-Nachricht **bevor
 
 ```mermaid
 flowchart LR
-  user[Nutzer-Nachricht] --> chatFilter[Inhaltssicherheit]
-  chatFilter --> pii[PII-Erkennung]
-  pii --> moderation[Moderations-Anbieter]
-  moderation --> model[Modell]
-  model --> outChatFilter[Inhaltssicherheit]
-  outChatFilter --> outPii[PII-Erkennung]
-  outPii --> outModeration[Moderations-Anbieter]
-  outModeration --> reply[Gestreamte Antwort]
+  user["Nutzer schickt eine Nachricht."] --> chatFilter["Tale prüft die Inhaltssicherheit."]
+  chatFilter --> pii["Tale scannt nach personenbezogenen Daten."]
+  pii --> moderation["Tale bewertet die Nachricht beim Moderations-Anbieter."]
+  moderation --> model["Das Modell erzeugt eine Antwort."]
+  model --> outChatFilter["Tale prüft die Inhaltssicherheit der Output-Tokens."]
+  outChatFilter --> outPii["Tale scannt die Output-Tokens nach personenbezogenen Daten."]
+  outPii --> outModeration["Tale bewertet die Output-Tokens beim Moderations-Anbieter."]
+  outModeration --> reply["Tale streamt die freigegebene Antwort an den Nutzer."]
 ```
 
 Eine blockierte Nachricht erreicht das Modell nie, ein blockiertes Token wird dem Nutzer nie ausgespielt. Jede Guardrail-Entscheidung (zulassen, maskieren, blockieren) schreibt einen strukturierten Eintrag ins Audit-Log; der rohe Treffer-Text wird nie gespeichert.

@@ -45,14 +45,14 @@ Guardrails are three filter layers Tale runs in sequence on every chat message *
 
 ```mermaid
 flowchart LR
-  user[User message] --> chatFilter[Content safety]
-  chatFilter --> pii[PII detection]
-  pii --> moderation[Moderation provider]
-  moderation --> model[Model]
-  model --> outChatFilter[Content safety]
-  outChatFilter --> outPii[PII detection]
-  outPii --> outModeration[Moderation provider]
-  outModeration --> reply[Streamed reply]
+  user["User sends a message."] --> chatFilter["Tale applies content-safety checks."]
+  chatFilter --> pii["Tale scans for personally identifiable information."]
+  pii --> moderation["Tale evaluates the message with the moderation provider."]
+  moderation --> model["The model generates a response."]
+  model --> outChatFilter["Tale applies content-safety checks to output tokens."]
+  outChatFilter --> outPii["Tale scans output tokens for personally identifiable information."]
+  outPii --> outModeration["Tale evaluates output tokens with the moderation provider."]
+  outModeration --> reply["Tale streams the allowed reply to the user."]
 ```
 
 A blocked message never reaches the model, and a blocked token is never streamed to the user. Every guardrail decision (allow, mask, block) writes a structured event to the audit log; the raw matched text is never stored.
