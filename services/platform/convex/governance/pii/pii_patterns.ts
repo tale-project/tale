@@ -50,8 +50,20 @@ export const BUILT_IN_PII_PATTERNS: PiiPattern[] = [
   },
   {
     name: 'address',
-    regex:
-      /\b\d{1,5}\s+[\w\s]{1,30}(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|court|ct|way|place|pl)\b/gi,
+    // Three common shapes (#1473):
+    //  1. US/UK style    "123 Main Street"          NUMBER NAME KEYWORD
+    //  2. Keyword-first  "Jalan Dieng Atas no 02G"  KEYWORD NAME no/nr/# NUMBER
+    //                    requires an explicit "no/nr/number/#" marker to
+    //                    avoid false positives like "street art is cool 5".
+    //  3. German cmpd.   "Hauptstrasse 12"          <name>strasse [Nr.] NUMBER
+    regex: new RegExp(
+      [
+        String.raw`\b\d{1,5}[a-z]?\s+[\w\s]{1,30}(?:street|st\.?|avenue|ave\.?|road|rd\.?|drive|dr\.?|lane|ln\.?|boulevard|blvd\.?|court|ct\.?|way|place|pl\.?|highway|hwy\.?)\b`,
+        String.raw`\b(?:street|jalan|jl\.?|rue|calle|avenida|carrera|via)\s+[\w\s]{1,30}?\s+(?:no\.?|nr\.?|number|#)\s*\d{1,5}[a-z]?\b`,
+        String.raw`\b\w+(?:strasse|straße|str\.?|weg|allee|platz|gasse)\s+(?:nr\.?\s*)?\d{1,5}[a-z]?\b`,
+      ].join('|'),
+      'gi',
+    ),
     replacement: '[ADDRESS]',
   },
   {

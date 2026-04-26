@@ -177,6 +177,91 @@ describe('scrubPii with new patterns', () => {
   });
 });
 
+describe('address pattern', () => {
+  const addressPatterns = getEnabledPatterns(['address']);
+
+  it('detects US-style "123 Main Street"', () => {
+    const matches = detectPii('123 Main Street', addressPatterns);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedText).toBe('123 Main Street');
+  });
+
+  it('detects "1234 5th Ave"', () => {
+    const matches = detectPii('1234 5th Ave', addressPatterns);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedText).toBe('1234 5th Ave');
+  });
+
+  it('detects address embedded in prose', () => {
+    const matches = detectPii(
+      'My address is 42 Oak Lane, Apt 5',
+      addressPatterns,
+    );
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedText).toBe('42 Oak Lane');
+  });
+
+  it('detects Indonesian-style "street X no 02G" (regression for #1473)', () => {
+    const matches = detectPii(
+      'i live in street dieng atas no 02G malang jawa timur indonesia',
+      addressPatterns,
+    );
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedText.toLowerCase()).toBe(
+      'street dieng atas no 02g',
+    );
+  });
+
+  it('detects "Jalan Sudirman No 15"', () => {
+    const matches = detectPii('Jalan Sudirman No 15', addressPatterns);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedText).toBe('Jalan Sudirman No 15');
+  });
+
+  it('detects German compound "Hauptstrasse 12"', () => {
+    const matches = detectPii('Hauptstrasse 12', addressPatterns);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedText).toBe('Hauptstrasse 12');
+  });
+
+  it('detects abbreviated German "Bahnhofstr. 5"', () => {
+    const matches = detectPii('Bahnhofstr. 5', addressPatterns);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedText).toBe('Bahnhofstr. 5');
+  });
+
+  it('does not match plain digits with no street keyword', () => {
+    const matches = detectPii('I had 5 cookies', addressPatterns);
+    expect(matches).toHaveLength(0);
+  });
+
+  it('does not match "street" without a number marker', () => {
+    const matches = detectPii('street art is cool', addressPatterns);
+    expect(matches).toHaveLength(0);
+  });
+
+  it('does not match "street X 5 days" (no no/nr marker)', () => {
+    // The keyword-first form requires an explicit no/nr/number/# marker to
+    // avoid grabbing unrelated digits in the same sentence.
+    const matches = detectPii('street art is cool 5 days', addressPatterns);
+    expect(matches).toHaveLength(0);
+  });
+
+  it('masks address with [ADDRESS] placeholder via scrubPii', () => {
+    const config = {
+      enabled: true,
+      mode: 'mask',
+      enabledPatterns: ['address'],
+      customPatterns: [],
+    } satisfies PiiConfig;
+    const result = scrubPii('Mail to 123 Main Street please', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('Mail to [ADDRESS] please');
+    expect(result.categoryIds).toContain('address');
+  });
+});
+
 describe('overlap dedup (regression for #1618)', () => {
   // Before the dedup fix, the phone regex matched a 14-char prefix of a
   // creditCard match; both ranges shared a start, and maskPii spliced the
