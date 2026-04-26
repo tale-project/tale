@@ -25,7 +25,7 @@ This runs `mintlify broken-links --check-anchors` against [`docs/`](../../docs/)
 ## Common failure modes and fixes
 
 - **Anchor with stripped umlaut or accent.** `mintlify` slugger preserves unicode, so a link `#schema-kompatibilitat-und-rollback` will not match a heading `## Schema-Kompatibilität und Rollback` — the correct anchor is `#schema-kompatibilität-und-rollback`. Fix the link, not the heading.
-- **Heading with parentheses or dots.** Slug generation for `## Upgrading from pre-split-convex (pre-v0.2.34)` is not obvious. Lock it in with an explicit `{#explicit-slug}` suffix on the heading, then reference that slug from links.
+- **Heading with parentheses or dots.** Slug generation for headings like `## Foo (bar)` or `## Step 1.2 — bootstrap` is not obvious. Lock it in with an explicit `{#explicit-slug}` suffix on the heading, then reference that slug from links.
 - **Page moved without updating callers.** `grep -r` for the old path across all three locale trees and update.
 - **Link in a non-English file missing its locale prefix.** A link in `docs/de/**` to `/self-hosted/foo` 404s — it must be `/de/self-hosted/foo`.
 

@@ -2,6 +2,7 @@
 
 import { memo } from 'react';
 
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import {
@@ -21,6 +22,8 @@ function CanvasMarkdownRendererComponent({
   isEditing,
   onContentChange,
 }: CanvasMarkdownRendererProps) {
+  const { t } = useT('chat');
+
   if (isEditing) {
     return (
       <textarea
@@ -31,7 +34,7 @@ function CanvasMarkdownRendererComponent({
           'focus:outline-none',
         )}
         spellCheck={false}
-        aria-label="Markdown editor"
+        aria-label={t('canvas.markdownEditor')}
       />
     );
   }

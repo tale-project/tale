@@ -4,6 +4,7 @@ import { XIcon } from 'lucide-react';
 
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 
@@ -22,6 +23,7 @@ export function FilePreviewCard({
   onRemove,
   className,
 }: FilePreviewCardProps) {
+  const { t } = useT('common');
   return (
     <div
       className={cn(
@@ -43,7 +45,7 @@ export function FilePreviewCard({
       {onRemove && (
         <IconButton
           icon={XIcon}
-          aria-label="Remove file"
+          aria-label={t('aria.removeFile')}
           onClick={onRemove}
           className="shrink-0"
         />

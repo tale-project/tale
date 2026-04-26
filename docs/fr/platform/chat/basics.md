@@ -71,6 +71,20 @@ Enregistre et réutilise des modèles de prompt dans toute ton organisation. Ouv
 
 Voir [Bibliothèque de prompts](/fr/platform/workspace/prompt-library) pour tous les détails.
 
+## Plan de recherche
+
+Pour les questions multi-étapes qui demandent de la planification — recherche large, comparaisons sur plusieurs sources, synthèses qui s'appuient sur plusieurs documents et le web — l'agent découpe le travail en un **Plan de recherche** et l'exécute étape par étape. Le plan s'ouvre automatiquement en panneau latéral dès que l'agent émet le premier todo dans la conversation ; tu peux l'épingler ou le fermer depuis la barre située au bord droit du chat.
+
+Chaque todo affiche un statut (en attente, en cours, terminé, échoué), un résumé d'une ligne et les sources que l'agent a capturées pour l'étape — résultats issus de la base de connaissances, pages web récupérées et résultats des intégrations. Le plan se met à jour en direct à mesure que l'agent termine chaque étape, donc tu suis son raisonnement au fil de l'eau au lieu d'attendre une longue réponse à la fin.
+
+Tu peux intervenir sans casser l'exécution :
+
+- **Réduire une étape** pour masquer ses sources quand la liste devient longue.
+- **Réordonner** en envoyant un message de suivi — l'agent revoit les todos restants en fonction de tes retours.
+- **Arrêter** avec le bouton stop standard du composeur — les résultats partiels restent dans le thread, et le compteur de todos échoués s'affiche en haut du plan.
+
+Le Plan de recherche est en lecture seule — tu n'édites pas les todos directement. Pilote l'exécution avec des messages de chat normaux.
+
 ## Raccourcis clavier
 
 | Action                | Windows / Linux  | macOS              |

@@ -61,6 +61,7 @@ export const UploadFileRow = memo(function UploadFileRow({
   onRemove,
 }: UploadFileRowProps) {
   const { t } = useT('documents');
+  const { t: tCommon } = useT('common');
   const ext = getDisplayExtension(fileName);
   const percentage =
     bytesTotal > 0 ? Math.round((bytesLoaded / bytesTotal) * 100) : 0;
@@ -130,7 +131,7 @@ export const UploadFileRow = memo(function UploadFileRow({
         {isCompleted && (
           <CircleCheck
             className="size-3.5 shrink-0 text-green-700"
-            aria-label="Completed"
+            aria-label={tCommon('aria.completed')}
           />
         )}
 

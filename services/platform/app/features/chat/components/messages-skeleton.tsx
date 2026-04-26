@@ -1,4 +1,5 @@
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 const rows: Array<{ role: 'user' | 'assistant'; widths: string[] }> = [
@@ -9,6 +10,7 @@ const rows: Array<{ role: 'user' | 'assistant'; widths: string[] }> = [
 ];
 
 export function MessagesSkeleton() {
+  const { t } = useT('chat');
   return (
     <div className="flex w-full max-w-(--chat-max-width) flex-col gap-6 self-center">
       {rows.map((row, rowIdx) => (
@@ -23,7 +25,7 @@ export function MessagesSkeleton() {
             <Skeleton
               key={i}
               className={cn('h-4', w)}
-              label="Loading message"
+              label={t('skeleton.loadingMessage')}
             />
           ))}
         </div>

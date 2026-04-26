@@ -12,6 +12,7 @@ import {
 import { memo } from 'react';
 
 import { Image } from '@/app/components/ui/data-display/image';
+import { useT } from '@/lib/i18n/client';
 
 export interface BrandingPreviewData {
   appName?: string;
@@ -73,6 +74,7 @@ function BrowserChrome({
 export const BrandingPreview = memo(function BrandingPreview({
   data,
 }: BrandingPreviewProps) {
+  const { t } = useT('settings');
   const { appName, textLogo, logoUrl, faviconUrl, brandColor, accentColor } =
     data;
 
@@ -80,7 +82,7 @@ export const BrandingPreview = memo(function BrandingPreview({
     <div
       className="bg-muted flex flex-1 items-start justify-center overflow-hidden rounded-xl p-10 pt-20"
       role="img"
-      aria-label="Branding preview"
+      aria-label={t('branding.preview')}
     >
       <div className="bg-background border-border w-full max-w-[660px] overflow-hidden rounded-2xl border shadow-sm">
         <BrowserChrome appName={appName} faviconUrl={faviconUrl} />

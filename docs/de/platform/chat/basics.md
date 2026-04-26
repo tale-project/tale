@@ -71,6 +71,20 @@ Speichere und nutze Prompt-Vorlagen in deiner ganzen Organisation wieder. Öffne
 
 Siehe [Prompt library](/de/platform/workspace/prompt-library) für alle Details.
 
+## Recherche-Plan
+
+Bei mehrstufigen Fragen, die Planung verlangen — breite Recherche, Vergleiche über viele Quellen, Zusammenfassungen aus mehreren Dokumenten und dem Web — zerlegt der Agent die Aufgabe in einen **Recherche-Plan** und arbeitet ihn Schritt für Schritt ab. Der Plan öffnet sich automatisch als Seitenbereich, sobald der Agent in der Konversation den ersten Todo ausgibt; du kannst ihn anpinnen oder über die Leiste am rechten Rand des Chats schließen.
+
+Jeder Todo zeigt einen Status (offen, läuft, erledigt, fehlgeschlagen), eine einzeilige Zusammenfassung und die Quellen, die der Agent für diesen Schritt erfasst hat — Treffer aus der Wissensdatenbank, abgerufene Web-Seiten und Ergebnisse aus Integrationen. Der Plan aktualisiert sich live, sobald ein Schritt abgeschlossen ist, sodass du die Argumentationskette des Agents mitliest, statt am Ende auf eine lange Antwort zu warten.
+
+Du kannst eingreifen, ohne den Lauf abzubrechen:
+
+- **Schritt einklappen**, um die Quellenliste zu verbergen, wenn sie lang wird.
+- **Umpriorisieren** mit einer Folge-Nachricht — der Agent passt verbleibende Todos auf Basis deines Feedbacks an.
+- **Stoppen** mit dem normalen Stop-Button am Composer — Teilergebnisse bleiben im Thread, und die Anzahl fehlgeschlagener Todos steht oben im Plan.
+
+Der Recherche-Plan ist schreibgeschützt — du bearbeitest Todos nicht direkt. Steuere den Lauf über reguläre Chat-Nachrichten.
+
 ## Tastaturkürzel
 
 | Aktion                          | Windows / Linux  | macOS              |

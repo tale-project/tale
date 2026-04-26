@@ -39,9 +39,37 @@ Schalte Plattform-Features organisationsweit ein oder aus: Datei-Uploads, Web-Su
 
 ## Security & Monitoring
 
-### PII-Erkennung
+### Guardrails
 
-Aktiviere automatische Erkennung und Maskierung (oder Blockierung) von personenbezogenen Daten in Nachrichten. Unterstützt vordefinierte Muster (E-Mail, Telefon, Kreditkartennummern) und eigene Regex-Regeln. Blockierte Nachrichten erreichen das Modell nie.
+Guardrails sind drei Filter-Schichten, die Tale für jede Chat-Nachricht **bevor** sie das Modell erreicht und für jedes Modell-Token **bevor** es beim Nutzer ankommt nacheinander durchläuft. Jede Schicht wird unter **Einstellungen > Richtlinien > Guardrails** unabhängig konfiguriert; eine schreibgeschützte Karte **Guardrails-Übersicht** zeigt, welche Schicht aktiv ist. Die Reihenfolge ist fest:
+
+```mermaid
+flowchart LR
+  user[Nutzer-Nachricht] --> chatFilter[Inhaltssicherheit]
+  chatFilter --> pii[PII-Erkennung]
+  pii --> moderation[Moderations-Anbieter]
+  moderation --> model[Modell]
+  model --> outChatFilter[Inhaltssicherheit]
+  outChatFilter --> outPii[PII-Erkennung]
+  outPii --> outModeration[Moderations-Anbieter]
+  outModeration --> reply[Gestreamte Antwort]
+```
+
+Eine blockierte Nachricht erreicht das Modell nie, ein blockiertes Token wird dem Nutzer nie ausgespielt. Jede Guardrail-Entscheidung (zulassen, maskieren, blockieren) schreibt einen strukturierten Eintrag ins Audit-Log; der rohe Treffer-Text wird nie gespeichert.
+
+#### Inhaltssicherheit
+
+Öffne **Einstellungen > Richtlinien > Inhaltssicherheit**. Lege Kategorien an (zum Beispiel _Vulgaritäten_, _Mitbewerber-Namen_, _vertrauliche Codenamen_), gib jeder eine Wortliste und wähle einen Durchsetzungsmodus — _Aus_, _Warnen_, _Maskieren_ oder _Blockieren_. Kategorien laufen als schnelle Regex-Treffer mit Schutz vor katastrophalem Backtracking, die Latenz dieser Schicht ist also vernachlässigbar. Nutze sie für organisationsspezifische Schlüsselwort-Regeln, die öffentliche Moderation-APIs nicht kennen können.
+
+#### PII-Erkennung {#pii-detection}
+
+Aktiviere automatische Erkennung und Maskierung (oder Blockierung) personenbezogener Daten in Nachrichten. Eingebaute Muster decken E-Mail, Telefon, Kreditkarten- und IBAN-Nummern, US-Adressen und einige nationale Ausweise ab; eigene Regex-Regeln ergänzen interne Formate (Mitarbeiter-ID, Ticket-Nummern, Produkt-SKUs). Jedes Muster wählt seinen eigenen Durchsetzungsmodus. Erkannte PII in Anhängen durchläuft dieselbe Pipeline wie getippte Nachrichten.
+
+#### Moderations-Anbieter
+
+Schicke Chat-Nachrichten an einen externen Klassifikator — OpenAI Moderation, Azure Content Safety, Perspective oder einen beliebigen HTTPS-Endpunkt, der Kategorie-Scores zurückgibt. Wähle ein eingebautes Preset, dann sind URL, Header, Request-Template und Response-Parser für dich ausgefüllt; für alles andere wählst du _Custom JSONPath_ und mappst die Felder selbst. Der API-Schlüssel wird serverseitig AES-verschlüsselt gespeichert und in jedem Header-Wert als `{secretPlaceholder}` referenziert. Mit dem Button **Verbindung testen** schickst du eine Beispielnachricht über den echten Anbieter-Pfad — er prüft Schlüssel, Endpunkt, Request-Template, Response-Parser und Kategorie-Mappings in einem Round-Trip, ohne eine Konversation zu schreiben.
+
+Aus SSRF-Schutz wird nur der konfigurierte Host kontaktiert; Redirects zu anderen Hosts werden abgewiesen. Parallele Aufrufe sind pro Organisation rate-limitiert, damit ein einzelner Chat-Burst dein Moderations-Kontingent nicht erschöpft.
 
 ### Usage Dashboard
 

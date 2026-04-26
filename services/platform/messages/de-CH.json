@@ -13,17 +13,8 @@
       "size": "Grösse"
     }
   },
-  "toast": {
-    "imagePreview": {
-      "zoomIn": "Vergrössern"
-    }
-  },
   "auth": {
-    "requirements": {
-      "uppercase": "Grossbuchstabe"
-    },
     "validation": {
-      "passwordRequirements": "Passwort muss die konfigurierte Richtlinie erfüllen",
       "passwordUppercase": "Passwort muss einen Grossbuchstaben enthalten"
     },
     "changePassword": {
@@ -34,17 +25,8 @@
   },
   "settings": {
     "agents": {
-      "testChat": {
-        "close": "Testbereich schliessen"
-      },
       "knowledge": {
         "fileTooLarge": "Datei zu gross"
-      }
-    },
-    "integrations": {
-      "authorizationRequiredDescription": "Schliessen die Autorisierung ab, um E-Mails senden und empfangen zu können",
-      "sso": {
-        "excludeGroupsLabel": "Gruppen ausschliessen"
       }
     }
   },
@@ -57,11 +39,6 @@
     "sidePanel": {
       "close": "Panel schliessen",
       "resizePanel": "Panel-Grösse ändern"
-    },
-    "assistant": {
-      "upload": {
-        "invalidFilesDescription": "Einige Dateien sind zu gross (>100 MB) oder werden nicht unterstützt. Unterstützt: Bilder, PDF, Word-Dokumente, Textdateien."
-      }
     }
   },
   "conversations": {
@@ -76,7 +53,6 @@
     }
   },
   "chat": {
-    "filesNotSupported": "Einige Dateien sind zu gross (>100 MB) oder werden nicht unterstützt. Unterstützt: Bilder, PDF, Word-Dokumente, Textdateien.",
     "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB.",
     "canvas": {
       "close": "Canvas schliessen",

@@ -3,9 +3,7 @@ title: Architecture des conteneurs
 description: Comment les images Docker de Tale sont structurées, construites et connectées.
 ---
 
-Tale tourne comme **six** conteneurs Docker gérés par Docker Compose. Chacun a une seule responsabilité et communique sur un réseau bridge interne.
-
-> **Architecture split phase 2** (depuis v0.2.34) : Convex tourne comme son propre service (`convex`) au lieu d'être intégré au conteneur `platform`. Platform devient un client Vite léger qui pousse schéma + env à Convex en HTTP. Voir [Upgrade depuis pre-split-convex (pre-v0.2.34)](/fr/self-hosted/install/linux-server#upgrade-depuis-pre-split-convex-pre-v0234) pour l'étape de migration unique.
+Tale tourne comme **six** conteneurs Docker gérés par Docker Compose. Chacun a une seule responsabilité et communique sur un réseau bridge interne. Convex tourne comme son propre service (`convex`) et sert les clients WebSocket indépendamment du conteneur platform ; platform est un client Vite léger qui pousse schéma et env à Convex en HTTP.
 
 ## Vue des services
 
