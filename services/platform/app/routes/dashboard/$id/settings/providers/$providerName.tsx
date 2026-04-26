@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ChevronRight, Loader2, Pencil, Trash2, X } from 'lucide-react';
+import { ChevronRight, Loader2, Pencil, Trash2, X, Zap } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 
 import {
@@ -24,6 +24,7 @@ import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { ProviderEditPanel } from '@/app/features/settings/providers/components/provider-edit-panel';
+import { TestConnectionSheet } from '@/app/features/settings/providers/components/test-connection-sheet';
 import { useSaveProviderSecret } from '@/app/features/settings/providers/hooks/mutations';
 import {
   useHasProviderSecret,
@@ -304,6 +305,7 @@ function ApiKeySection({
   const hasSecret = maskedKey != null;
   const saveSecret = useSaveProviderSecret();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
   const apiKeyInputRef = useRef<HTMLInputElement>(null);
@@ -355,6 +357,14 @@ function ApiKeySection({
               >
                 <Pencil className="size-3.5" />
                 {t('providers.editKey')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setTestDialogOpen(true)}
+                className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-[13px] font-medium"
+              >
+                <Zap className="size-3.5" />
+                {t('providers.testConnection')}
               </button>
             </>
           ) : (
@@ -447,6 +457,13 @@ function ApiKeySection({
           </div>
         </form>
       </Sheet>
+
+      <TestConnectionSheet
+        open={testDialogOpen}
+        onOpenChange={setTestDialogOpen}
+        orgSlug={orgSlug}
+        providerName={providerName}
+      />
     </>
   );
 }

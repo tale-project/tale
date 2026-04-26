@@ -703,6 +703,434 @@ export const fetchProviderModels = action({
 });
 
 // ---------------------------------------------------------------------------
+// Connection test
+// ---------------------------------------------------------------------------
+
+type ProbeTag = 'chat' | 'embedding' | 'transcription' | 'image-generation';
+
+interface ProbeResult {
+  modelId: string;
+  tag: ProbeTag;
+  ok: boolean;
+  latencyMs: number;
+  status?: number;
+  error?: string;
+  /**
+   * Soft warning when auth succeeded but full verification wasn't possible —
+   * e.g. listing probe returned 200 but the model isn't advertised in
+   * `/v1/models` (common on OpenRouter for image-only models). The key is
+   * valid; the specific model may or may not be invocable.
+   */
+  warning?: string;
+}
+
+function buildProbeUrl(baseUrl: string, endpoint: string): string {
+  const trimmed = baseUrl.replace(/\/+$/, '');
+  if (trimmed.endsWith(`/${endpoint}`)) return trimmed;
+  if (trimmed.endsWith('/v1')) return `${trimmed}/${endpoint}`;
+  return `${trimmed}/v1/${endpoint}`;
+}
+
+/**
+ * Generate ~250 ms of 8 kHz, 16-bit, mono PCM silence wrapped in a WAV
+ * container. Used as the probe payload for transcription models — Whisper
+ * accepts it, returns `{ text: "" }`, and bills at most 1 second of audio
+ * (~$0.0001 on OpenAI's whisper-1). Total file size is ~4 KB.
+ */
+function makeSilentWav(): ArrayBuffer {
+  const sampleRate = 8000;
+  const samples = 2000;
+  const dataSize = samples * 2;
+  const buf = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buf);
+  // RIFF chunk descriptor
+  view.setUint32(0, 0x52494646, false); // "RIFF"
+  view.setUint32(4, 36 + dataSize, true);
+  view.setUint32(8, 0x57415645, false); // "WAVE"
+  // "fmt " sub-chunk
+  view.setUint32(12, 0x666d7420, false); // "fmt "
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  // "data" sub-chunk (already zero-filled)
+  view.setUint32(36, 0x64617461, false); // "data"
+  view.setUint32(40, dataSize, true);
+  return buf;
+}
+
+async function runTranscriptionProbe(
+  baseUrl: string,
+  apiKey: string,
+  modelId: string,
+): Promise<ProbeResult> {
+  const url = buildProbeUrl(baseUrl, 'audio/transcriptions');
+  const start = Date.now();
+  try {
+    const formData = new FormData();
+    formData.append(
+      'file',
+      new Blob([makeSilentWav()], { type: 'audio/wav' }),
+      'probe.wav',
+    );
+    formData.append('model', modelId);
+    const response = await fetch(url, {
+      method: 'POST',
+      // Don't set Content-Type — fetch sets it (with boundary) for FormData.
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: formData,
+      signal: AbortSignal.timeout(15_000),
+    });
+    const latencyMs = Date.now() - start;
+    if (response.ok) {
+      await response.text().catch(() => '');
+      return { modelId, tag: 'transcription', ok: true, latencyMs };
+    }
+    const errorText = await response.text().catch(() => '');
+    return {
+      modelId,
+      tag: 'transcription',
+      ok: false,
+      latencyMs,
+      status: response.status,
+      error: extractErrorMessage(errorText) || response.statusText,
+    };
+  } catch (err) {
+    const latencyMs = Date.now() - start;
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      modelId,
+      tag: 'transcription',
+      ok: false,
+      latencyMs,
+      error: message,
+    };
+  }
+}
+
+type ListingResult =
+  | { ok: true; ids: Set<string> }
+  | { ok: false; status?: number; error: string };
+
+/**
+ * Fetch the provider's model catalog (`GET /v1/models`) and return the set
+ * of advertised model IDs. Used by the image-generation probe — image gen
+ * costs cents per real call, so we settle for an indirect check that the
+ * key is accepted and the model is in the provider's listing.
+ *
+ * Some providers (notably OpenRouter) return hundreds of models and the
+ * response is several hundred KB; the 15 s timeout accounts for that.
+ */
+async function fetchProviderModelIds(
+  baseUrl: string,
+  apiKey: string,
+): Promise<ListingResult> {
+  const url = buildProbeUrl(baseUrl, 'models');
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      return {
+        ok: false,
+        status: response.status,
+        error: extractErrorMessage(errorText) || response.statusText,
+      };
+    }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- raw JSON, narrowed below
+    const json = (await response.json().catch(() => null)) as unknown;
+    const data =
+      json &&
+      typeof json === 'object' &&
+      'data' in json &&
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by 'data' in check above
+      Array.isArray((json as Record<string, unknown>).data)
+        ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Array.isArray narrows the value
+          ((json as Record<string, unknown>).data as Array<unknown>)
+        : null;
+    if (!data) {
+      return { ok: false, error: 'Unexpected response from /v1/models' };
+    }
+    const ids = new Set<string>();
+    for (const m of data) {
+      if (m != null && typeof m === 'object' && 'id' in m) {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by 'id' in check above
+        const id = (m as Record<string, unknown>).id;
+        if (typeof id === 'string') ids.add(id);
+      }
+    }
+    return { ok: true, ids };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+}
+
+/**
+ * Verify an `images-api` image-generation model indirectly via a (cached)
+ * `/v1/models` listing keyed by API key. All probes sharing a key reuse the
+ * same fetch, so a provider with N image models hits the catalog endpoint
+ * once instead of N times.
+ */
+async function runImageListingProbe(
+  baseUrl: string,
+  apiKey: string,
+  modelId: string,
+  listingCache: Map<string, Promise<ListingResult>>,
+): Promise<ProbeResult> {
+  const start = Date.now();
+  let pending = listingCache.get(apiKey);
+  if (!pending) {
+    pending = fetchProviderModelIds(baseUrl, apiKey);
+    listingCache.set(apiKey, pending);
+  }
+  const result = await pending;
+  const latencyMs = Date.now() - start;
+  if (!result.ok) {
+    return {
+      modelId,
+      tag: 'image-generation',
+      ok: false,
+      latencyMs,
+      status: result.status,
+      error: result.error,
+    };
+  }
+  if (!result.ids.has(modelId)) {
+    // Listing succeeded → the API key is valid for this provider. The model
+    // simply isn't advertised in /v1/models, which is common for image-only
+    // models on routers like OpenRouter. Soft-warn instead of hard-fail so
+    // the user knows their key works but full verification wasn't possible.
+    return {
+      modelId,
+      tag: 'image-generation',
+      ok: true,
+      latencyMs,
+      warning: 'Key verified, but model not in provider catalog',
+    };
+  }
+  return { modelId, tag: 'image-generation', ok: true, latencyMs };
+}
+
+async function runProbe(
+  url: string,
+  apiKey: string,
+  body: unknown,
+  modelId: string,
+  tag: 'chat' | 'embedding' | 'image-generation',
+): Promise<ProbeResult> {
+  const start = Date.now();
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(8_000),
+    });
+    const latencyMs = Date.now() - start;
+    if (response.ok) {
+      // Drain the body so the connection can be reused; we don't need it.
+      await response.text().catch(() => '');
+      return { modelId, tag, ok: true, latencyMs };
+    }
+    const errorText = await response.text().catch(() => '');
+    return {
+      modelId,
+      tag,
+      ok: false,
+      latencyMs,
+      status: response.status,
+      error: extractErrorMessage(errorText) || response.statusText,
+    };
+  } catch (err) {
+    const latencyMs = Date.now() - start;
+    const message = err instanceof Error ? err.message : String(err);
+    return { modelId, tag, ok: false, latencyMs, error: message };
+  }
+}
+
+/**
+ * Pull a human-readable error message from a JSON or plain-text error body.
+ *
+ * Handles OpenRouter-style wrapped errors: when the upstream provider returns
+ * an error, OpenRouter wraps it as `error.message = "Provider returned error"`
+ * and stuffs the real upstream JSON into `error.metadata.raw`. We prefer that
+ * inner message so users see the real cause (e.g. "Unsupported parameter:
+ * max_tokens — use max_completion_tokens") instead of the opaque outer wrap.
+ */
+function extractErrorMessage(body: string): string | null {
+  if (!body) return null;
+  try {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- raw JSON before structural narrowing
+    const parsed = JSON.parse(body) as unknown;
+    return extractFromObject(parsed) ?? body.slice(0, 200);
+  } catch {
+    return body.slice(0, 200);
+  }
+}
+
+function extractFromObject(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by typeof/null check above
+  const obj = value as Record<string, unknown>;
+
+  // 1. Try to drill into a wrapped upstream error first (OpenRouter etc.).
+  const error = obj.error;
+  if (error && typeof error === 'object') {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by typeof/null check above
+    const errObj = error as Record<string, unknown>;
+    const metadata = errObj.metadata;
+    if (metadata && typeof metadata === 'object') {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by typeof/null check above
+      const meta = metadata as Record<string, unknown>;
+      const raw = meta.raw;
+      if (typeof raw === 'string') {
+        try {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- raw JSON before structural narrowing
+          const inner = JSON.parse(raw) as unknown;
+          const innerMsg = extractFromObject(inner);
+          if (innerMsg) {
+            const provider =
+              typeof meta.provider_name === 'string'
+                ? `${meta.provider_name}: `
+                : '';
+            return `${provider}${innerMsg}`;
+          }
+        } catch {
+          // raw isn't JSON — fall through to outer message.
+        }
+      }
+    }
+    if (typeof errObj.message === 'string') return errObj.message;
+  }
+  if (typeof error === 'string') return error;
+
+  if (typeof obj.message === 'string') return obj.message;
+  return null;
+}
+
+/**
+ * Probe each chat / embedding model configured on a provider with a minimal
+ * real request. Verifies that the provider-level API key (and any per-model
+ * `modelKeys` overrides) actually work against the live provider, surfacing
+ * per-model failures so users can diagnose configuration issues without
+ * opening a chat. Transcription and image-generation models are skipped —
+ * probing them is either expensive or requires real assets.
+ */
+export const testProviderConnection = action({
+  args: { orgSlug: v.string(), providerName: v.string() },
+  returns: v.object({
+    results: v.array(
+      v.object({
+        modelId: v.string(),
+        tag: v.string(),
+        ok: v.boolean(),
+        latencyMs: v.number(),
+        status: v.optional(v.number()),
+        error: v.optional(v.string()),
+        warning: v.optional(v.string()),
+      }),
+    ),
+    skipped: v.array(v.object({ modelId: v.string(), reason: v.string() })),
+  }),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    if (!validateProviderName(args.providerName))
+      throw new Error(`Invalid provider name: ${args.providerName}`);
+
+    const configResult = await readProviderFile(
+      args.orgSlug,
+      args.providerName,
+    );
+    if (!configResult.ok) {
+      throw new Error(
+        `Cannot read provider "${args.providerName}": ${configResult.message}`,
+      );
+    }
+    const config = configResult.config;
+
+    const secretsPath = resolveProviderSecretsPath(
+      args.orgSlug,
+      args.providerName,
+    );
+    const secrets = parseProviderSecrets(await decryptSecretsFile(secretsPath));
+
+    const probes: Promise<ProbeResult>[] = [];
+    const skipped: { modelId: string; reason: string }[] = [];
+    const listingCache = new Map<string, Promise<ListingResult>>();
+
+    for (const model of config.models) {
+      const apiKey = secrets.modelKeys?.[model.id] ?? secrets.apiKey;
+      const isChat =
+        model.tags.includes('chat') || model.tags.includes('vision');
+      const isEmbedding = model.tags.includes('embedding');
+      const isTranscription = model.tags.includes('transcription');
+      const isImageGeneration = model.tags.includes('image-generation');
+
+      if (isChat) {
+        probes.push(
+          runProbe(
+            buildProbeUrl(config.baseUrl, 'chat/completions'),
+            apiKey,
+            {
+              model: model.id,
+              messages: [{ role: 'user', content: 'hi' }],
+            },
+            model.id,
+            'chat',
+          ),
+        );
+      } else if (isEmbedding) {
+        probes.push(
+          runProbe(
+            buildProbeUrl(config.baseUrl, 'embeddings'),
+            apiKey,
+            { model: model.id, input: 'hi' },
+            model.id,
+            'embedding',
+          ),
+        );
+      } else if (isTranscription) {
+        probes.push(runTranscriptionProbe(config.baseUrl, apiKey, model.id));
+      } else if (isImageGeneration) {
+        // All image-generation modes use a /v1/models membership check.
+        // Direct invocation isn't safe to probe: `images-api` bills per image
+        // (cents per call), and `chat-multimodal` (FLUX, gpt-image-1, nano-
+        // banana) routes through /v1/chat/completions but still triggers a
+        // real image generation on most providers — so a "hi" prompt either
+        // costs real money or times out. Listing verifies key + catalog
+        // membership without any generation.
+        probes.push(
+          runImageListingProbe(config.baseUrl, apiKey, model.id, listingCache),
+        );
+      } else {
+        skipped.push({
+          modelId: model.id,
+          reason: model.tags.join(',') || 'no probeable tag',
+        });
+      }
+    }
+
+    const results = await Promise.all(probes);
+    return { results, skipped };
+  },
+});
+
+// ---------------------------------------------------------------------------
 // Secret management actions
 // ---------------------------------------------------------------------------
 
