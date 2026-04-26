@@ -3,7 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row } from '@tanstack/react-table';
-import { Ellipsis, Pencil, Plus, Server, Trash2 } from 'lucide-react';
+import { Ellipsis, Pencil, Plus, Server, Trash2, Zap } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -24,6 +24,7 @@ import { useListProviders } from '../hooks/queries';
 import { useProvidersTableConfig } from '../hooks/use-providers-table-config';
 import { ProviderAddPanel } from './provider-add-panel';
 import { ProviderEditPanel } from './provider-edit-panel';
+import { TestConnectionSheet } from './test-connection-sheet';
 
 export interface ProviderRow {
   name: string;
@@ -48,6 +49,7 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
   const { providers: rawProviders, isLoading } = useListProviders(orgSlug);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editProvider, setEditProvider] = useState<ProviderRow | null>(null);
+  const [testProvider, setTestProvider] = useState<ProviderRow | null>(null);
   const [deleteProvider, setDeleteProvider] = useState<ProviderRow | null>(
     null,
   );
@@ -110,6 +112,7 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
         cell: ({ row }: { row: Row<ProviderRow> }) => (
           <ProviderRowActions
             onEdit={() => setEditProvider(row.original)}
+            onTest={() => setTestProvider(row.original)}
             onDelete={() => setDeleteProvider(row.original)}
           />
         ),
@@ -163,6 +166,17 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
         />
       )}
 
+      {testProvider && (
+        <TestConnectionSheet
+          open
+          onOpenChange={(open) => {
+            if (!open) setTestProvider(null);
+          }}
+          orgSlug={orgSlug}
+          providerName={testProvider.name}
+        />
+      )}
+
       <ConfirmDialog
         open={deleteProvider != null}
         onOpenChange={(open) => {
@@ -184,9 +198,11 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
 
 function ProviderRowActions({
   onEdit,
+  onTest,
   onDelete,
 }: {
   onEdit: () => void;
+  onTest: () => void;
   onDelete: () => void;
 }) {
   const { t } = useT('settings');
@@ -200,6 +216,12 @@ function ProviderRowActions({
           icon: Pencil,
           onClick: onEdit,
         },
+        {
+          type: 'item',
+          label: t('providers.testConnection'),
+          icon: Zap,
+          onClick: onTest,
+        },
       ],
       [
         {
@@ -211,7 +233,7 @@ function ProviderRowActions({
         },
       ],
     ],
-    [t, onEdit, onDelete],
+    [t, onEdit, onTest, onDelete],
   );
 
   return (
