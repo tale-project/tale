@@ -103,7 +103,13 @@ function BlankTabContent({
             description: data.description ?? '',
             installed: true,
             enabled: false,
-            steps: [],
+            steps: [
+              {
+                stepSlug: 'start',
+                name: 'Start',
+                stepType: 'start',
+              },
+            ],
           },
         });
 

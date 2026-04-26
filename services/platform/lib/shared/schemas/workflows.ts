@@ -56,7 +56,7 @@ export const workflowJsonSchema = z.object({
   enabled: z.boolean().default(false),
   config: workflowConfigSchema.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
-  steps: z.array(workflowStepSchema),
+  steps: z.array(workflowStepSchema).default([]),
 });
 
 export type WorkflowJsonConfig = z.infer<typeof workflowJsonSchema>;
