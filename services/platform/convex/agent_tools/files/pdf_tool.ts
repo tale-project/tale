@@ -58,7 +58,11 @@ OPERATIONS:
    LANGUAGE SUPPORT (applies to sourceType "markdown" and "html" only):
    • Renders correctly: Latin (English, French, German, Spanish, Portuguese, Italian, Nordic), Cyrillic (Russian, Ukrainian, Serbian), Arabic, Hebrew, Greek, Devanagari (Hindi), Bengali, Tamil, Thai, Lao, Khmer, Armenian, Georgian, Ethiopic, emoji.
    • NOT supported: Chinese (Simplified & Traditional), Japanese, Korean. These scripts render as empty-box glyphs because the PDF renderer has no CJK fonts installed.
-   • If the content you would send is primarily in Chinese/Japanese/Korean, do NOT call "generate" with sourceType "markdown" or "html" — the resulting PDF will be unreadable. Deliver the content in chat instead (no PDF). The "url" sourceType is exempt from this limit — remote pages supply their own fonts.
+   • If the content you would send is primarily in Chinese / Japanese / Korean, do NOT call "generate" with sourceType "markdown" or "html". Instead, in your reply you MUST do BOTH:
+     (a) Deliver the full report content directly in chat — same structure (headings, Conclusion, Key Points, Details, Sources) you would have put in the PDF.
+     (b) Add ONE short sentence in the user's own language explaining that no PDF was produced because the renderer does not yet support CJK fonts, and inviting them to ask for an English-translated PDF if they need a file deliverable. Example (Chinese): "(说明：当前 PDF 渲染器暂不支持中文字体，因此直接以 Markdown 形式输出。如需英文 PDF 版本，请告诉我。)"
+   Silently omitting the PDF without (b) is not acceptable — the user expected a file deliverable and must understand why it didn't come.
+   • The "url" sourceType is exempt from this limit — remote pages supply their own fonts.
 
    URL MODE (sourceType: "url"):
    • For web pages: renders the page as a PDF

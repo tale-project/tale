@@ -4,7 +4,7 @@
   "baseUrl": "https://openrouter.ai/api/v1",
   "supportsStructuredOutputs": true,
   "defaults": {
-    "chat": "deepseek/deepseek-v3.2",
+    "chat": "deepseek/deepseek-v4-flash",
     "vision": "qwen/qwen3-vl-32b-instruct",
     "embedding": "qwen/qwen3-embedding-8b"
   },
@@ -198,7 +198,9 @@
       "description": "Frontier-level image generation and editing from Black Forest Labs. Served via OpenRouter's chat/completions endpoint with multimodal output.",
       "tags": ["image-generation", "image-edit"],
       "imageGenerationMode": "chat-multimodal",
-      "cost": { "imageCentsPerImage": 6 }
+      "cost": {
+        "imageCentsPerImage": 6
+      }
     },
     {
       "id": "black-forest-labs/flux.2-max",
@@ -206,7 +208,9 @@
       "description": "Top-tier FLUX.2 variant; highest quality and editing consistency. Served via OpenRouter's chat/completions endpoint with multimodal output.",
       "tags": ["image-generation", "image-edit"],
       "imageGenerationMode": "chat-multimodal",
-      "cost": { "imageCentsPerImage": 9 }
+      "cost": {
+        "imageCentsPerImage": 9
+      }
     },
     {
       "id": "black-forest-labs/flux.2-flex",
@@ -214,7 +218,9 @@
       "description": "FLUX.2 variant tuned for complex text, typography, and multi-reference editing. Served via OpenRouter's chat/completions endpoint with multimodal output.",
       "tags": ["image-generation", "image-edit"],
       "imageGenerationMode": "chat-multimodal",
-      "cost": { "imageCentsPerImage": 4 }
+      "cost": {
+        "imageCentsPerImage": 4
+      }
     },
     {
       "id": "google/gemini-2.5-flash-image",
@@ -222,7 +228,19 @@
       "description": "Gemini 2.5 multimodal image generation + editing. Supports reference images.",
       "tags": ["image-generation", "image-edit"],
       "imageGenerationMode": "chat-multimodal",
-      "cost": { "imageCentsPerImage": 4 }
+      "cost": {
+        "imageCentsPerImage": 4
+      }
+    },
+    {
+      "id": "deepseek/deepseek-v4-flash",
+      "displayName": "DeepSeek V4 Flash",
+      "description": "DeepSeek V4 Flash is an efficiency-optimized Mixture-of-Experts model",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 14,
+        "outputCentsPerMillion": 28
+      }
     }
   ],
   "i18n": {
