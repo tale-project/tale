@@ -114,7 +114,7 @@ describe('recordOrgSwitch', () => {
     expect(mockLogSuccess).toHaveBeenCalledWith(
       ctx,
       expect.objectContaining({
-        action: 'entered_organization',
+        action: 'signed_in_to_organization',
         category: 'auth',
         resourceType: 'organization',
         resourceId: 'org_1',
@@ -135,6 +135,26 @@ describe('recordOrgSwitch', () => {
     const ctx = createMockCtx([
       {
         actorId: 'user_1',
+        action: 'signed_in_to_organization',
+        organizationId: 'org_1',
+        category: 'auth',
+        timestamp: Date.now() - 5 * 60 * 1000,
+      },
+    ]);
+    const handler = await getHandler();
+
+    await handler(ctx, { organizationId: 'org_1' });
+
+    expect(mockLogSuccess).not.toHaveBeenCalled();
+  });
+
+  it('skips audit log when legacy entered_organization entry exists within window', async () => {
+    // Transitional dedup: until demo data is purged, the dedup query must
+    // also recognize the old action name so back-to-back sign-ins straddling
+    // the rename deploy don't double-log.
+    const ctx = createMockCtx([
+      {
+        actorId: 'user_1',
         action: 'entered_organization',
         organizationId: 'org_1',
         category: 'auth',
@@ -152,7 +172,7 @@ describe('recordOrgSwitch', () => {
     const ctx = createMockCtx([
       {
         actorId: 'user_2',
-        action: 'entered_organization',
+        action: 'signed_in_to_organization',
         organizationId: 'org_1',
         category: 'auth',
         timestamp: Date.now() - 5 * 60 * 1000,
@@ -165,7 +185,7 @@ describe('recordOrgSwitch', () => {
     expect(mockLogSuccess).toHaveBeenCalledTimes(1);
   });
 
-  it('writes audit log when only non-entered_organization entries exist for user', async () => {
+  it('writes audit log when only unrelated auth entries exist for user', async () => {
     const ctx = createMockCtx([
       {
         actorId: 'user_1',
@@ -215,7 +235,7 @@ describe('recordOrgSwitch', () => {
     const ctx = createMockCtx([
       {
         actorId: 'user_1',
-        action: 'entered_organization',
+        action: 'signed_in_to_organization',
         organizationId: 'org_1',
         category: 'auth',
         timestamp: Date.now() - 5 * 60 * 1000,

@@ -37,6 +37,23 @@ export const createAuditLog = internalMutation({
   },
 });
 
+/**
+ * Internal mutation wrapper around `logJoinedOrganization` so Better Auth
+ * hooks (which run in an HTTP ActionCtx, not a MutationCtx) can write the
+ * audit row via `ctx.runMutation`.
+ */
+export const logJoinedOrganization = internalMutation({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    userEmail: v.string(),
+    userRole: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await AuditLogHelpers.logJoinedOrganization(ctx, args);
+  },
+});
+
 export const archiveOldLogs = internalMutation({
   args: {
     organizationId: v.string(),
