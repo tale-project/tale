@@ -31,6 +31,12 @@
       "allowedVersions": "<=3.11"
     },
     {
+      "description": "Don't pin requires-python in pyproject.toml — it's a compatibility range, not a dependency pin",
+      "matchManagers": ["pep621"],
+      "matchDepNames": ["python"],
+      "enabled": false
+    },
+    {
       "description": "Disable Convex-related packages (manual upgrades only)",
       "matchPackageNames": ["convex"],
       "matchPackagePatterns": ["^convex-", "^@convex-dev/"],
