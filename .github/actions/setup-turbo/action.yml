@@ -27,7 +27,7 @@ runs:
         bun-version: ${{ inputs.bun-version }}
 
     - name: Restore Bun install cache
-      uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
       with:
         path: ~/.bun/install/cache
         key: bun-install-${{ runner.os }}-${{ inputs.bun-version }}-${{ hashFiles('bun.lock') }}
