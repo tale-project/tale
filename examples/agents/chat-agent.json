@@ -13,6 +13,7 @@
     "excel"
   ],
   "supportedModels": [
+    "openrouter:deepseek/deepseek-v4-flash",
     "openrouter:deepseek/deepseek-v3.2",
     "openrouter:moonshotai/kimi-k2.5",
     "openrouter:anthropic/claude-opus-4.6",
