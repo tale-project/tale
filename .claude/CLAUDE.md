@@ -1,4 +1,4 @@
-Follow the coding standards defined in `/AGENTS.md` at the project root.
+Follow the coding standards defined in `/AGENTS.md` at the project root. The pre-PR checklist there is mandatory — do not open a PR without ticking every box (or marking N/A) and running `bun run check`.
 
 ## Git
 

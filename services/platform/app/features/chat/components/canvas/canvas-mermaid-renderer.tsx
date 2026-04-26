@@ -88,7 +88,7 @@ function CanvasMermaidRendererComponent({
             'focus:outline-none',
           )}
           spellCheck={false}
-          aria-label="Mermaid editor"
+          aria-label={t('canvas.mermaidEditor')}
         />
         {error && (
           <div className="border-border bg-destructive/10 border-t px-4 py-2">

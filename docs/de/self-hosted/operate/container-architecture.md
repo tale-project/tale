@@ -3,9 +3,7 @@ title: Container-Architektur
 description: Wie Tales Docker-Images strukturiert, gebaut und vernetzt sind.
 ---
 
-Tale läuft als **sechs** Docker-Container, die von Docker Compose verwaltet werden. Jeder Container hat genau eine Verantwortung und kommuniziert über ein internes Bridge-Netzwerk.
-
-> **Phase-2-Split-Architektur** (seit v0.2.34): Convex läuft als eigener Dienst (`convex`) statt im `platform`-Container. Platform wird ein schlanker Vite-Client, der Schema und Env über HTTP an Convex pusht. Siehe [Upgrade von Pre-Split-Convex (vor v0.2.34)](/de/self-hosted/install/linux-server#upgrade-von-pre-split-convex-vor-v0234) für den einmaligen Migrationsschritt.
+Tale läuft als **sechs** Docker-Container, die von Docker Compose verwaltet werden. Jeder Container hat genau eine Verantwortung und kommuniziert über ein internes Bridge-Netzwerk. Convex läuft als eigener Dienst (`convex`) und bedient WebSocket-Clients unabhängig vom Platform-Container; Platform ist ein schlanker Vite-Client, der Schema und Env über HTTP an Convex pusht.
 
 ## Dienst-Übersicht
 

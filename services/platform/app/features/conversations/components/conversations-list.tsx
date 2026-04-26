@@ -210,6 +210,8 @@ const ConversationRow = memo(function ConversationRow({
   t,
   tDialogs,
 }: ConversationRowProps) {
+  const { t: tCommon } = useT('common');
+
   const handleClick = (event: React.MouseEvent) => {
     if (
       event.target instanceof HTMLElement &&
@@ -265,7 +267,7 @@ const ConversationRow = memo(function ConversationRow({
               {conversation.unread_count > 0 && (
                 <span
                   className="size-1.5 shrink-0 rounded-full bg-blue-500"
-                  aria-label="Unread"
+                  aria-label={tCommon('aria.unread')}
                   role="status"
                 />
               )}

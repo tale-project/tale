@@ -22,6 +22,7 @@
     "lint:fix": "bunx turbo run lint:fix",
     "format": "oxfmt && bunx turbo run format",
     "format:check": "oxfmt --check && bunx turbo run format:check",
+    "check": "bun run format:check && bunx turbo run lint typecheck test",
     "test": "bunx turbo run test",
     "test:ui": "bunx turbo run test:ui",
     "test:watch": "bunx turbo run test:watch",

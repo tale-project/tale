@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
 
 import { Button } from '@/app/components/ui/primitives/button';
+import { useT } from '@/lib/i18n/client';
 
 import { useBranchContext } from '../context/branch-context';
 
@@ -22,6 +23,7 @@ interface BranchNavigatorProps {
  * The "original" parent counts as option 0, each branch is 1+.
  */
 export function BranchNavigator({ forkOrder }: BranchNavigatorProps) {
+  const { t } = useT('chat');
   const ctx = useBranchContext();
   const forkOrderKey = String(forkOrder);
 
@@ -99,7 +101,7 @@ export function BranchNavigator({ forkOrder }: BranchNavigatorProps) {
         className="size-6"
         onClick={handlePrev}
         disabled={currentIndex <= 0}
-        aria-label="Previous branch"
+        aria-label={t('branchNavigator.previous')}
       >
         <ChevronLeft className="size-3.5" />
       </Button>
@@ -112,7 +114,7 @@ export function BranchNavigator({ forkOrder }: BranchNavigatorProps) {
         className="size-6"
         onClick={handleNext}
         disabled={currentIndex >= totalCount - 1}
-        aria-label="Next branch"
+        aria-label={t('branchNavigator.next')}
       >
         <ChevronRight className="size-3.5" />
       </Button>

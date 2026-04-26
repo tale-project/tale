@@ -30,14 +30,11 @@
       "delete": "Delete",
       "deleting": "Deleting...",
       "edit": "Edit",
-      "add": "Add",
       "adding": "Adding...",
       "create": "Create",
       "close": "Close",
       "confirm": "Confirm",
       "back": "Back",
-      "next": "Next",
-      "submit": "Submit",
       "loading": "Loading...",
       "done": "Done",
       "duplicate": "Duplicate",
@@ -49,26 +46,14 @@
       "showInfo": "Show info",
       "clearAll": "Clear all",
       "reset": "Reset",
-      "undo": "Undo",
       "discard": "Discard",
-      "upload": "Upload",
       "import": "Import",
-      "select": "Select",
-      "search": "Search",
-      "hideSearch": "Hide search",
-      "updating": "Updating...",
       "importing": "Importing...",
       "openMenu": "Open menu",
       "publish": "Publish",
       "rename": "Rename",
       "deactivate": "Deactivate",
       "deactivating": "Deactivating...",
-      "activate": "Activate",
-      "activating": "Activating...",
-      "logIn": "Log in",
-      "saved": "Saved",
-      "saveFailed": "Save failed",
-      "remove": "Remove",
       "deleteSelected": "Delete selected"
     },
     "bulkActions": {
@@ -81,18 +66,14 @@
     },
     "upload": {
       "clickToUpload": "Click to upload",
-      "or": "or",
-      "dragAndDrop": "drag and drop",
       "supportedFormats": ".xlsx, .xls or .csv",
       "pickADate": "Pick a date",
       "dropFilesHere": "Drop files here to upload"
     },
     "labels": {
       "name": "Name",
-      "description": "Description",
       "email": "Email",
       "status": "Status",
-      "type": "Type",
       "phone": "Phone",
       "source": "Source",
       "locale": "Locale",
@@ -130,9 +111,6 @@
     "validation": {
       "required": "{field} is required",
       "email": "Please enter a valid email address",
-      "minLength": "{field} must be at least {min} characters",
-      "maxLength": "{field} must be at most {max} characters",
-      "passwordMismatch": "Passwords do not match",
       "invalidJson": "Invalid JSON format",
       "uploadFile": "Please upload a file",
       "unsupportedFileType": "Unsupported file type",
@@ -149,23 +127,17 @@
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out",
       "selectAll": "Select all",
+      "selectRow": "Select row",
+      "removeFile": "Remove file",
+      "removeNamed": "Remove {name}",
+      "unread": "Unread",
+      "completed": "Completed",
       "backTo": "Back to {page}",
-      "dropzone": "Upload file - click or press Enter to select a file, or drag and drop a file here",
-      "tableCaption": "{entity} data table",
-      "messageHistory": "Message history",
-      "approve": "Approve {item}",
-      "reject": "Reject {item}",
-      "confidence": "{value} percent confidence",
       "settingsNavigation": "Settings navigation",
       "automationsNavigation": "Automations navigation",
       "agentsNavigation": "Agents navigation",
       "knowledgeNavigation": "Knowledge navigation",
       "actionsMenu": "Actions menu",
-      "conversationsNavigation": "Conversations navigation",
-      "expandRow": "Expand row",
-      "collapseRow": "Collapse row",
-      "dropFilesHere": "Drop files here to attach",
-      "addStep": "Add step",
       "required": "required",
       "valid": "valid",
       "invalid": "invalid",
@@ -177,7 +149,6 @@
     },
     "pagination": {
       "rowsPerPage": "Rows per page",
-      "of": "of",
       "showing": "{start}-{end} of {total}",
       "loadMore": "Load more",
       "loading": "Loading more...",
@@ -196,40 +167,17 @@
       "somethingWentWrong": "Something went wrong",
       "unexpectedError": "An unexpected error occurred. Please try again.",
       "errorLoadingPage": "An error occurred while loading this page. You can try again or navigate to another section.",
-      "unexpectedErrorLoading": "An unexpected error occurred while loading this page. This might be a temporary issue.",
       "persistsProblem": "If this problem persists, please",
       "contactSupport": "contact support",
-      "forAssistance": "for assistance.",
-      "tryAgain": "Try again",
-      "organizationNotFound": "Organization ID not found",
-      "invalidOrganizationId": "Invalid organization ID",
-      "sessionExpired": "Session expired",
-      "pleaseLogInAgain": "Your session has expired. Please log in again to continue."
+      "tryAgain": "Try again"
     },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Enter",
       "escape": "Esc"
     },
-    "fileSize": {
-      "bytes": "Bytes",
-      "kb": "KB",
-      "mb": "MB",
-      "gb": "GB"
-    },
     "unsavedChanges": "Unsaved changes",
     "notFound": {
-      "title": "Page not found",
-      "description": "The page you're looking for may have been moved or no longer exists.",
-      "goHome": "Go back home"
-    },
-    "offline": {
-      "backOnline": "Back online",
-      "youAreOffline": "You are currently offline"
-    },
-    "update": {
-      "newVersionAvailable": "New version available",
-      "reloadForUpdates": "Reload to get the latest updates",
-      "reload": "Reload"
+      "title": "Page not found"
     }
   },
   "navigation": {
@@ -247,7 +195,6 @@
     "apiKeys": "API keys",
     "branding": "Branding",
     "governance": "Governance",
-    "apiDocs": "API docs",
     "account": "Account",
     "logs": "Logs",
     "agents": "Agents",
@@ -280,10 +227,6 @@
       "title": "No products yet",
       "description": "Import your products to help your AI understand context"
     },
-    "documents": {
-      "title": "No documents yet",
-      "description": "Upload documents to train your AI assistant"
-    },
     "vendors": {
       "title": "No vendors yet",
       "description": "Upload your first vendor to get started"
@@ -299,18 +242,6 @@
     "agents": {
       "title": "No agents yet",
       "description": "Create your first agent to specialize AI behavior for your team"
-    },
-    "examples": {
-      "title": "No examples yet",
-      "description": "Add example messages to train the AI on your tone"
-    },
-    "conversations": {
-      "title": "No conversations yet",
-      "description": "Conversations will appear here"
-    },
-    "chats": {
-      "title": "No chats yet",
-      "description": "Start a new chat to begin"
     },
     "members": {
       "title": "No members found",
@@ -328,31 +259,21 @@
   "tables": {
     "headers": {
       "name": "Name",
-      "email": "Email",
       "status": "Status",
       "source": "Source",
-      "created": "Created",
       "updated": "Updated",
       "modified": "Modified",
       "uploadedAt": "Uploaded at",
-      "actions": "Actions",
       "member": "Member",
       "role": "Role",
       "joined": "Joined",
       "automation": "Automation",
       "version": "Version",
-      "product": "Product",
-      "description": "Description",
-      "stock": "Stock",
       "document": "Document",
       "size": "Size",
       "ragStatus": "RAG status",
       "locale": "Locale",
-      "website": "Website",
-      "title": "Title",
-      "scanned": "Scanned",
       "interval": "Interval",
-      "message": "Message",
       "executionId": "Execution ID",
       "startedAt": "Started at",
       "duration": "Duration",
@@ -361,82 +282,48 @@
       "uploadedBy": "Uploaded by"
     },
     "cells": {
-      "noEmail": "No email",
       "unknown": "Unknown",
       "empty": "-"
-    },
-    "emptyState": {
-      "noResults": {
-        "title": "No results found",
-        "description": "Try adjusting your search criteria"
-      }
     }
   },
   "toast": {
     "success": {
       "saved": "Changes saved successfully",
       "deleted": "Successfully deleted",
-      "created": "Successfully created",
-      "duplicated": "Successfully duplicated",
       "profileUpdated": "Profile updated successfully",
       "passwordChanged": "Password changed successfully",
       "passwordSet": "Password set successfully",
       "organizationUpdated": "Organization updated successfully",
-      "memberAdded": "Member added successfully",
       "newMemberCreated": "New member created and added to organization",
       "existingUserAdded": "Existing user added to organization",
-      "automationCreated": "Automation created successfully",
       "automationDuplicated": "Automation duplicated successfully",
       "automationRenamed": "Automation renamed successfully",
       "automationDeactivated": "Automation deactivated successfully",
       "automationPublished": "Automation published successfully",
-      "exampleAdded": "Example added successfully",
-      "exampleUpdated": "Example updated successfully",
-      "toneGenerated": "Tone of voice generated successfully",
-      "toneSaved": "Tone of voice saved successfully",
       "brandingUpdated": "Branding updated successfully"
     },
     "error": {
-      "generic": "Something went wrong. Please try again.",
       "saveFailed": "Failed to save changes",
-      "deleteFailed": "Failed to delete",
-      "createFailed": "Failed to create",
-      "duplicateFailed": "Failed to duplicate",
       "profileUpdateFailed": "Failed to update profile",
       "passwordChangeFailed": "Failed to change password. Please check your current password and try again.",
       "organizationUpdateFailed": "Failed to update organization",
       "brandingUpdateFailed": "Failed to update branding",
       "addMemberFailed": "Failed to add member",
-      "automationCreateFailed": "Failed to create automation",
       "automationDuplicateFailed": "Failed to duplicate automation",
       "automationRenameFailed": "Failed to rename automation",
       "automationDeleteFailed": "Failed to delete automation",
       "automationDeactivateFailed": "Failed to deactivate automation",
       "automationPublishFailed": "Failed to publish automation"
-    },
-    "imagePreview": {
-      "zoomIn": "Zoom in",
-      "zoomOut": "Zoom out",
-      "resetZoom": "Reset zoom"
     }
   },
   "dialogs": {
     "addMember": {
-      "title": "Add member",
-      "description": "Add a new team member to your organization",
-      "passwordRequiredForNewUser": "Password is required to create a new user account. If the user already has an account, they will be added without needing a password."
+      "title": "Add member"
     },
     "memberAdded": {
       "title": "Member added successfully",
       "credentialsWarning": "Important: Save these credentials now. They won't be shown again.",
       "existingUserNotice": "This user already had an account, so no new credentials were created. They can log in with their existing password."
-    },
-    "confirmDelete": {
-      "title": "Confirm deletion",
-      "description": "Are you sure you want to delete this? This action cannot be undone."
-    },
-    "imagePreview": {
-      "title": "Image preview"
     },
     "searchChat": {
       "title": "Search chat",
@@ -445,10 +332,8 @@
       "noResults": "No results",
       "untitledChat": "Untitled chat"
     },
-    "cannotBeUndone": "This action cannot be undone.",
     "thisMember": "this member",
     "confirmRemoveMember": "Are you sure you want to remove {name} from the team? They will lose access to this organization and all associated resources.",
-    "dropFilesHere": "Drop files here to upload",
     "toSend": "to send",
     "attach": "Attach",
     "selectConversation": "Select conversation",
@@ -464,10 +349,7 @@
     "password": "Password",
     "emailPlaceholder": "Enter your email address",
     "passwordPlaceholder": "Enter your password",
-    "continueWithMicrosoft": "Continue with Microsoft",
     "login": {
-      "title": "Tale Log In | Access your account",
-      "description": "Log in to your Tale account to analyze customer churn rate, and automate your customer retention workflow.",
       "loginTitle": "Log in",
       "signingIn": "Signing in...",
       "loginButton": "Log in",
@@ -479,30 +361,17 @@
       "accountLockedHours": "Account temporarily locked. Try again in {hours, plural, one {# hour} other {# hours}}, or contact an administrator.",
       "forgotPassword": "Forgot password? Contact an admin for assistance.",
       "toast": {
-        "success": "Signed in successfully",
-        "microsoftFailed": "Microsoft sign-in failed. Please try again.",
-        "ssoFailed": "SSO login failed. Please try again."
+        "success": "Signed in successfully"
       }
     },
     "signup": {
-      "title": "Create account",
-      "description": "Create a Tale account to analyze customer churn rate, and automate your customer retention workflow.",
       "signupTitle": "Create your account",
       "creating": "Creating...",
       "createButton": "Create",
       "accountCreated": "Account created successfully!",
-      "wrongCredentials": "Wrong email or password",
-      "microsoftSignInFailed": "Microsoft sign-in failed. Please try again."
-    },
-    "requirements": {
-      "length": "At least {n} characters",
-      "lowercase": "Lowercase letter",
-      "uppercase": "Uppercase letter",
-      "number": "Number",
-      "specialChar": "Special character"
+      "wrongCredentials": "Wrong email or password"
     },
     "validation": {
-      "passwordRequirements": "Password must meet the configured policy",
       "emailRequired": "Email is required",
       "passwordMinLength": "Password must be at least {n} characters",
       "passwordLowercase": "Password must contain a lowercase letter",
@@ -527,8 +396,6 @@
         "confirm": "Log out"
       },
       "toast": {
-        "signedOut": "Signed out",
-        "signedOutDescription": "You have been signed out successfully",
         "signOutFailed": "Failed to sign out"
       }
     },
@@ -537,23 +404,6 @@
       "reauthenticate": "Re-authenticate with Microsoft",
       "signIn": "Sign in with Microsoft",
       "redirecting": "Redirecting..."
-    },
-    "oauth2": {
-      "success": {
-        "providerAuthorized": "Email provider has been authorized and is ready to use.",
-        "completed": "OAuth2 authorization completed successfully."
-      },
-      "errors": {
-        "missingCode": "No authorization code received from the provider.",
-        "missingState": "Missing state parameter in callback.",
-        "invalidState": "Invalid state parameter. This may be a security issue.",
-        "missingProvider": "The email provider configuration could not be found.",
-        "missingOauth2Config": "OAuth2 configuration is missing for this provider.",
-        "tokenExchangeFailed": "Failed to exchange authorization code for access tokens.",
-        "callbackFailed": "An error occurred while processing the OAuth2 callback.",
-        "missingParameters": "Required parameters are missing from the callback.",
-        "unexpected": "An unexpected error occurred during authorization."
-      }
     },
     "changePassword": {
       "title": "Change password",
@@ -566,7 +416,6 @@
         "confirm": "Confirm new password"
       },
       "requirements": {
-        "title": "Password requirements",
         "length": "At least {n} characters",
         "lowercase": "One lowercase letter",
         "uppercase": "One uppercase letter",
@@ -575,17 +424,12 @@
       },
       "validation": {
         "currentRequired": "Current password is required",
-        "newRequired": "New password is required",
-        "minLength": "Password must be at least {n} characters long",
         "confirmRequired": "Please confirm your new password",
         "mismatch": "Passwords do not match"
-      },
-      "ssoMessage": "Account details and passwords are managed by your identity provider and can't be changed here."
+      }
     },
     "forcedChange": {
       "title": "Password change required",
-      "description": "Your password has expired per the organization's rotation policy. Set a new password to continue.",
-      "descriptionAdminSet": "Your password was set by an administrator. Please choose a new password to continue.",
       "submit": "Update password"
     },
     "setPassword": {
@@ -599,7 +443,6 @@
     "title": "Settings",
     "account": {
       "profile": {
-        "title": "Profile",
         "name": "Display name",
         "namePlaceholder": "Enter your name",
         "email": "Email",
@@ -611,10 +454,7 @@
     },
     "organization": {
       "title": "Organization (optional)",
-      "detailsTitle": "Organization details",
-      "detailsDescription": "Basic information about your organization.",
       "organizationId": "Organization ID",
-      "organizationIdHint": "Used for API integrations",
       "membersTitle": "Organization members",
       "membersEntityLabel": "members",
       "manageAccess": "Manage access to the organization",
@@ -622,13 +462,6 @@
       "defaultLocaleHelp": "Applies to agent output. User interface language follows each user's own setting.",
       "searchMember": "Search member",
       "addMember": "Add member",
-      "members": {
-        "columns": {
-          "name": "Name",
-          "email": "Email",
-          "role": "Role"
-        }
-      },
       "createOrganization": "Create organization",
       "organizationName": "Organization name",
       "companyNameRequired": "Company name is required",
@@ -665,25 +498,16 @@
       "userMustUpdatePassword": "User must update the password on login",
       "adminWarning": "Warning: Your organization should have at least 2 admins for security. This change will be blocked if it would leave fewer than 2 admins.",
       "adminSecurityWarning": "Warning: Your organization must have at least 2 Admins for security. You cannot remove the last admin.",
-      "ownerProtected": "The organization owner cannot be edited or removed",
       "transferOwnership": "Transfer ownership",
       "transferOwnershipConfirmation": "Are you sure you want to transfer ownership to {name}? You will be demoted to admin.",
       "ownershipTransferred": "Ownership transferred successfully",
-      "ownershipTransferFailed": "Failed to transfer ownership",
-      "leaveOrganization": "Leave organization",
-      "leaveConfirmation": "Are you sure you want to leave this organization? You will lose access to all resources.",
-      "leaving": "Leaving..."
+      "ownershipTransferFailed": "Failed to transfer ownership"
     },
     "teams": {
       "title": "Teams",
       "entityLabel": "teams",
-      "description": "Create and manage teams within your organization for granular access control",
-      "externallyManagedDescription": "Teams are managed by your identity provider. You belong to the teams shown below.",
       "createTeam": "Create team",
       "searchTeam": "Search teams",
-      "noTeams": "No teams yet",
-      "noTeamsDescription": "Create your first team to organize members and control access to documents.",
-      "noTeamsExternallyManaged": "You are not assigned to any teams. Contact your identity provider administrator to update your team membership.",
       "columns": {
         "name": "Name",
         "members": "Members",
@@ -699,81 +523,44 @@
       "teamCreateFailed": "Failed to create team",
       "teamUpdated": "Team updated",
       "teamUpdateFailed": "Failed to update team",
-      "teamHasAgentsWarning": "This team has agents assigned to it. Reassign or remove agents from this team before deleting.",
       "teamNameRequired": "Team name is required",
       "manageMembers": "Members",
-      "addMember": "Add member",
-      "removeMember": "Remove member",
-      "memberAdded": "Member added to team",
-      "memberAddFailed": "Failed to add member",
-      "memberRemoved": "Member removed from team successfully",
-      "memberRemoveFailed": "Failed to remove member",
-      "selectMember": "Select a member to add",
       "noMembersToAdd": "All organization members are already in this team",
       "noTeamMembers": "No members in this team yet",
-      "cannotRemoveLastMember": "Cannot remove the last member. Delete the team instead.",
       "sectionDescription": "Organize members into teams for scoped access to agents and resources.",
       "memberCount": "{count} {count, plural, one {member} other {members}}",
-      "showingAllTeams": "Showing all {count} {count, plural, one {team} other {teams}}",
       "teamName": "Team name",
       "teamNamePlaceholder": "Enter team name...",
       "saveChanges": "Save changes",
       "loadingMembers": "Loading...",
       "unknownMember": "Unknown",
-      "memberChecklistHint": "A member can be part of multiple teams. If no one is selected, you will be added automatically.",
-      "teamDetails": "Team details"
+      "memberChecklistHint": "A member can be part of multiple teams. If no one is selected, you will be added automatically."
     },
     "agents": {
       "title": "Agents",
-      "description": "Create and manage AI agents with specialized instructions and tools",
       "createAgent": "Create agent",
-      "createAgentDescription": "Configure an AI agent with specialized instructions, tools, and model settings.",
       "searchAgent": "Search agents",
-      "noAgents": "No agents yet",
-      "noAgentsDescription": "Create your first agent to specialize AI behavior for your team.",
       "columns": {
         "displayName": "Name",
-        "active": "Active",
         "model": "Model",
-        "tools": "Tools",
-        "version": "Version",
-        "team": "Team",
-        "orgWide": "Organization-wide"
+        "tools": "Tools"
       },
-      "editAgent": "Edit agent",
       "deleteAgent": "Delete agent",
       "deleteConfirmation": "Are you sure you want to delete this agent? This action cannot be undone.",
-      "duplicateAgent": "Duplicate agent",
-      "versionHistory": "Version history",
       "agentCreated": "Agent created",
       "agentCreateFailed": "Failed to create agent",
       "agentAlreadyExists": "An agent with this identifier already exists",
       "validationError": "Invalid agent configuration",
-      "agentUpdated": "Agent updated",
-      "agentUpdateFailed": "Failed to update agent",
       "agentDeleted": "Agent deleted",
       "agentDeleteFailed": "Failed to delete agent",
       "agentDuplicated": "Agent duplicated",
       "agentDuplicateFailed": "Failed to duplicate agent",
-      "rolledBack": "Rolled back to version {version}",
-      "rollbackFailed": "Failed to roll back",
       "agentNotFound": "Agent not found or you don't have access.",
-      "agentPublished": "Agent published",
-      "agentPublishFailed": "Failed to publish agent",
-      "agentDeactivated": "Agent deactivated",
-      "agentDeactivateFailed": "Failed to deactivate agent",
       "agentSaved": "Agent saved",
       "agentSaveFailed": "Failed to save agent",
       "historyLoadFailed": "Failed to load history",
       "historyRestored": "Agent restored from history",
       "historyRestoreFailed": "Failed to restore from history",
-      "activeToggle": {
-        "ariaLabel": "Toggle agent active state"
-      },
-      "deactivateDialog": {
-        "title": "Deactivate agent",
-        "description": "Are you sure you want to deactivate \"{name}\"? The agent will no longer be available until you activate it again."
-      },
       "unsavedChanges": {
         "title": "Unsaved changes",
         "description": "You have unsaved changes. Are you sure you want to leave? Your changes will be lost.",
@@ -781,18 +568,13 @@
         "stay": "Stay"
       },
       "navigation": {
-        "configuration": "Configuration",
         "general": "General",
         "instructionsModel": "Instructions & model",
         "tools": "Tools",
         "knowledge": "Knowledge",
-        "publish": "Publish",
-        "publishing": "Publishing...",
-        "goToDraft": "Go to draft",
         "webhook": "Webhook",
         "delegation": "Delegation",
         "conversationStarters": "Starters",
-        "test": "Test",
         "history": "History"
       },
       "history": {
@@ -804,20 +586,6 @@
         "currentVersion": "Current version",
         "snapshotVersion": "Snapshot version"
       },
-      "testChat": {
-        "title": "Test agent",
-        "close": "Close test panel",
-        "newConversation": "New conversation",
-        "welcome": "Send a message to test your draft agent.",
-        "sendFailed": "Failed to send test message",
-        "messagePlaceholder": "Type a message to test...",
-        "uploading": "Uploading...",
-        "attachFiles": "Attach files",
-        "send": "Send message",
-        "previewImage": "Preview {filename}",
-        "removeAttachment": "Remove attachment",
-        "messageHistory": "Message history"
-      },
       "createDialog": {
         "continue": "Continue",
         "creating": "Creating...",
@@ -827,18 +595,12 @@
         "modelEmpty": "No models found"
       },
       "general": {
-        "active": "Active",
-        "activeHelp": "When active, this agent is available for use. Deactivating it will make it unavailable until you activate it again.",
         "visibleInChat": "Visible in chat",
         "visibleInChatHelp": "When enabled, this agent appears in the chat page for users to select. When disabled, the agent can only be used through delegation from other agents.",
-        "visibilityUpdated": "Chat visibility updated",
-        "visibilityUpdateFailed": "Failed to update chat visibility",
         "sectionAdvanced": "Advanced",
         "sectionAdvancedDescription": "Fine-tune agent execution behavior.",
         "timeoutMinutes": "Execution timeout (minutes)",
-        "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations.",
-        "timeoutUpdated": "Timeout updated",
-        "timeoutUpdateFailed": "Failed to update timeout"
+        "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations."
       },
       "conversationStarters": {
         "title": "Conversation starters",
@@ -887,17 +649,6 @@
         "descriptionPlaceholder": "What does this agent do?",
         "systemInstructions": "System instructions",
         "systemInstructionsPlaceholder": "You are a helpful assistant that...",
-        "systemInstructionsRequired": "System instructions are required",
-        "model": "Model",
-        "modelPreset": "Model preset",
-        "modelPresets": {
-          "fast": "Fast",
-          "standard": "Standard",
-          "advanced": "Advanced"
-        },
-        "tools": "Tools",
-        "toolsDescription": "Select which tools this agent can use",
-        "noToolsSelected": "No tools selected",
         "team": "Team",
         "teamHelp": "Assign this agent to a team. Leave empty for organization-wide access.",
         "teamNone": "Organization-wide",
@@ -932,8 +683,7 @@
       "delegation": {
         "title": "Delegation",
         "description": "Select agents that this agent can delegate tasks to",
-        "noDelegatesAvailable": "No other agents available for delegation.",
-        "noDelegatesSelected": "No agents selected for delegation."
+        "noDelegatesAvailable": "No other agents available for delegation."
       },
       "knowledge": {
         "retrievalMode": "Retrieval mode",
@@ -950,10 +700,8 @@
         "includeTeamKnowledge": "Include team documents",
         "includeTeamKnowledgeHelp": "When enabled, the agent can access documents from its assigned team.",
         "teamDocuments": "Team documents",
-        "teamDocumentsInfo": "This agent can access all documents from {teamName}.",
         "orgDocuments": "Organization documents",
         "orgDocumentsEmptyState": "No organization-wide documents found.",
-        "noTeamAssigned": "No team assigned. Assign a team in the General tab to give this agent access to team documents.",
         "emptyState": "No documents found for this team.",
         "agentDocuments": "Agent documents",
         "agentDocumentsHelp": "Upload documents that only this agent can access.",
@@ -981,24 +729,7 @@
         "webSearchHintLink": "Manage websites",
         "cacheExclusions": "Cache exclusions",
         "cacheExclusionsDescription": "When any of these tools are invoked, the response will not be cached",
-        "noCacheToolsEmpty": "Enable response caching tools to configure exclusions",
-        "toolsSaved": "Tools settings saved",
-        "toolsSaveFailed": "Failed to save tools settings",
-        "webModeSaved": "Web search settings saved",
-        "webModeSaveFailed": "Failed to save web search settings"
-      },
-      "versions": {
-        "title": "Version history",
-        "version": "Version {number}",
-        "current": "Current",
-        "draft": "Draft",
-        "active": "Active",
-        "archived": "Archived",
-        "rollback": "Rollback",
-        "rollingBack": "Rolling back...",
-        "activate": "Activate",
-        "activating": "Activating...",
-        "noVersions": "No version history available"
+        "noCacheToolsEmpty": "Enable response caching tools to configure exclusions"
       },
       "webhook": {
         "title": "Webhook",
@@ -1044,8 +775,6 @@
     },
     "integrations": {
       "title": "Integrations",
-      "accessDenied": "You need Admin or Developer permissions to access integrations settings.",
-      "manage": "Manage",
       "pageSubtitle": "Connect third-party services to your workspace.",
       "addCustomIntegration": "Add integration",
       "tabs": {
@@ -1063,164 +792,25 @@
         "searchTitle": "No results found",
         "searchDescription": "Try adjusting your search or request a new integration."
       },
-      "errors": {
-        "organizationRequired": "Organization ID is required"
-      },
       "toast": {
         "disconnected": "Disconnected",
         "disconnectFailed": "Disconnect failed"
       },
-      "testingConnection": "Testing connection",
-      "validatingCredentials": "Validating SMTP and IMAP credentials...",
       "connectionSuccessful": "Connection successful",
-      "allTestsPassed": "All tests passed! SMTP: {smtp}ms, IMAP: {imap}ms",
       "connectionTestFailed": "Connection test failed",
       "failedToTestConnection": "Failed to test connection",
       "oauthConnectedTitle": "Integration connected",
       "oauthConnectedDescription": "OAuth authorization was successful. Your integration is now active.",
       "oauthErrorTitle": "Connection failed",
       "oauthErrorDescription": "OAuth authorization failed. Please try again.",
-      "failedToDeleteProvider": "Failed to delete provider",
-      "defaultProviderUpdated": "Default provider updated",
-      "failedToSetDefault": "Failed to set default provider",
-      "editProvider": "Edit provider",
-      "providerUpdated": "Provider updated",
-      "failedToUpdateProvider": "Failed to update provider",
-      "providerNamePlaceholder": "Enter provider name",
-      "leaveEmptyToKeep": "Leave empty to keep current",
-      "email": {
-        "name": "Email",
-        "description": "Send and receive emails via Outlook, Gmail, or custom SMTP/IMAP."
-      },
-      "emailIntegration": "Email integration",
-      "chooseEmailProvider": "Choose email provider",
-      "connectOAuth": "Connect with OAuth2 (recommended) or app password",
-      "connectMicrosoft": "Connect Microsoft Outlook or Office 365 account",
-      "configureCustom": "Configure a custom SMTP/IMAP email server",
-      "creatingProvider": "Creating provider",
-      "settingUpOAuth": "Setting up OAuth2 configuration...",
-      "authorizeGmail": "Please authorize access to your Gmail account...",
-      "authorizeOutlook": "Please authorize access to your Outlook account...",
-      "failedToStartAuth": "Failed to start OAuth2 authorization",
-      "providerCreated": "{provider} provider created successfully (SMTP: {smtp}ms, IMAP: {imap}ms)",
-      "providerSaved": "Provider saved",
-      "failedToCreateProvider": "Failed to create {provider} provider",
-      "addProvider": "Add {provider} provider",
-      "testingAndCreating": "Testing & Creating...",
-      "gmailIntegration": "Gmail integration",
-      "outlookIntegration": "Outlook integration",
-      "shopifyIntegration": "Shopify integration",
-      "circulyIntegration": "Circuly integration",
-      "connectedTo": "Connected to {provider}",
-      "domain": "Domain",
-      "accessToken": "Access token",
       "disconnecting": "Disconnecting...",
       "disconnect": "Disconnect",
-      "disconnectConfirm": "Disconnect {provider}?",
       "disconnectedSuccessfully": "{provider} disconnected successfully.",
-      "disconnectionFailed": "Disconnection failed",
       "failedToDisconnect": "Failed to disconnect {provider}, please try again.",
-      "disconnectWarning": "Warning: Disconnecting {provider} will stop all automated syncing and data imports. You can reconnect at any time.",
       "updateSuccessful": "Update successful",
       "updateFailed": "Update failed",
-      "gmail": {
-        "namePlaceholder": "e.g., Gmail work account",
-        "emailPlaceholder": "your-email@gmail.com",
-        "passwordPlaceholder": "16-character app password"
-      },
-      "outlook": {
-        "namePlaceholder": "e.g., Outlook work account",
-        "emailPlaceholder": "your-email@outlook.com",
-        "passwordPlaceholder": "App password from Microsoft"
-      },
-      "circuly": {
-        "title": "Circuly",
-        "description": "Manage product subscriptions and rental workflows.",
-        "disconnectError": "Failed to disconnect Circuly",
-        "disconnectedDescription": "Circuly integration has been disconnected.",
-        "usernamePlaceholder": "Enter your Circuly username",
-        "passwordPlaceholder": "Enter your Circuly password",
-        "connectedToCirculy": "Connected to Circuly",
-        "connectedUsername": "Connected username",
-        "connected": "Connected",
-        "syncingData": "Your Circuly account is connected and syncing subscription data.",
-        "username": "Circuly username",
-        "password": "Circuly password",
-        "enterCredentials": "Enter your Circuly credentials to sync subscription and customer data.",
-        "updating": "Updating...",
-        "update": "Update",
-        "connecting": "Connecting...",
-        "connect": "Connect",
-        "connectedAccount": "Connected account:",
-        "disconnectQuestion": "Are you sure you want to disconnect the Circuly integration?",
-        "disconnectWarning": "Warning: Disconnecting Circuly will stop all data synchronization and product recommendations. You will need to reconnect to resume these features.",
-        "yesDisconnect": "Yes, Disconnect"
-      },
-      "shopify": {
-        "title": "Shopify",
-        "description": "Sync products, orders, and customers from your Shopify store.",
-        "disconnectError": "Failed to disconnect Shopify",
-        "domainRequired": "Domain is required",
-        "accessTokenRequired": "Access token is required",
-        "domainPlaceholder": "mystore.myshopify.com",
-        "connectedToShopify": "Connected to Shopify",
-        "domainHelp": "Your shop's .myshopify.com address (e.g., mystore.myshopify.com).",
-        "domainHelpNav": "Go to Shopify → Settings → Domains.",
-        "accessTokenHelp": "Your Shopify Admin API access token from your custom app.",
-        "accessTokenHelpNav": "Go to Shopify → Apps → Develop apps → [Your app] → API credentials → Admin API access token (Reveal).",
-        "updating": "Updating...",
-        "update": "Update",
-        "connecting": "Connecting...",
-        "connect": "Connect",
-        "connectedStore": "Connected store:",
-        "disconnectQuestion": "Are you sure you want to disconnect the Shopify integration?",
-        "disconnectWarning": "Warning: Disconnecting Shopify will stop all data synchronization for products, orders, and customers. You will need to reconnect to resume these features.",
-        "yesDisconnect": "Yes, Disconnect"
-      },
-      "protel": {
-        "title": "Protel PMS",
-        "description": "Connect to your Protel hotel management system for reservations, guests, and room data.",
-        "disconnectError": "Failed to disconnect Protel PMS",
-        "disconnected": "Protel PMS disconnected",
-        "disconnectedDescription": "The Protel PMS integration has been disconnected.",
-        "disconnectFailed": "Disconnection failed",
-        "disconnectFailedDescription": "Failed to disconnect Protel PMS. Please try again.",
-        "disconnectTitle": "Disconnect Protel PMS",
-        "disconnectConfirmation": "Are you sure you want to disconnect from",
-        "database": "Database",
-        "disconnectWarning": "This will stop all data synchronization with this Protel server.",
-        "disconnect": "Disconnect",
-        "disconnecting": "Disconnecting...",
-        "updateSuccess": "Connection updated",
-        "updateSuccessDescription": "Protel PMS connection has been updated successfully.",
-        "connectionSuccess": "Connected to Protel PMS",
-        "connectionSuccessDescription": "Successfully connected to your Protel hotel management system.",
-        "updateFailed": "Update failed",
-        "connectionFailed": "Connection failed",
-        "connectionFailedDescription": "Failed to connect to Protel PMS. Please check your credentials and try again.",
-        "updating": "Updating...",
-        "update": "Update",
-        "connect": "Connect",
-        "connecting": "Connecting...",
-        "connectedTo": "Connected to {server}",
-        "serverAddress": "Server address",
-        "serverPlaceholder": "192.168.1.100",
-        "port": "Port",
-        "databaseName": "Database name",
-        "username": "Username",
-        "usernamePlaceholder": "sa",
-        "password": "Password",
-        "passwordPlaceholder": "Enter password"
-      },
       "upload": {
-        "title": "Upload integration",
         "addDialogTitle": "Add integration",
-        "tabUpload": "Upload",
-        "tabTemplate": "Template",
-        "description": "Upload a .zip package or config.json and connector.js/.ts files to add a custom integration.",
-        "addIntegration": "Add integration",
-        "addDescription": "Upload a custom REST API or SQL integration package.",
-        "uploadPackage": "Upload package",
         "uploadDescription": "Upload a single .zip package, or select config.json + connector.js/.ts + icon individually (max 1 MB total).",
         "dropZoneLabel": "Upload integration package",
         "dropOrClick": "Drop files here or click to browse",
@@ -1229,9 +819,6 @@
         "parsing": "Parsing package...",
         "parseError": "Failed to parse package",
         "unexpectedError": "An unexpected error occurred",
-        "templateDescription": "Choose a pre-built integration template to get started quickly.",
-        "templateFetching": "Loading template...",
-        "templateFetchError": "Failed to load template from GitHub",
         "operations": "Operations",
         "write": "Write",
         "secretBindings": "Required credentials",
@@ -1244,22 +831,14 @@
         "readOnly": "Read-only",
         "maxResultRows": "Max result rows",
         "queryTimeout": "Query timeout (ms)",
-        "steps": "Upload steps",
-        "stepUpload": "Upload",
-        "stepPreview": "Preview",
         "creating": "Creating...",
         "createIntegration": "Install integration",
         "createSuccess": "Integration created",
         "createFailed": "Failed to create integration",
-        "iconUploadFailed": "Failed to upload icon",
         "configureCredentialsHint": "Configure credentials in the integration settings to activate it.",
-        "testConnection": "Test connection",
-        "updateCredentialsHint": "Leave fields empty to keep current values.",
-        "updating": "Updating...",
         "active": "Active",
         "inactive": "Inactive",
         "changeIcon": "Change icon",
-        "removeIcon": "Remove icon",
         "iconTooLarge": "Icon must be under 256KB",
         "invalidIconFormat": "Icon must be PNG, SVG, JPG, or WebP"
       },
@@ -1267,19 +846,8 @@
         "configuration": "Configuration",
         "authentication": "Authentication",
         "setupGuide": "Configuration guide",
-        "connect": "Connect",
         "connecting": "Connecting...",
-        "testAndConnect": "Test and connect",
-        "save": "Save",
-        "saving": "Saving...",
         "saveCredentials": "Save credentials",
-        "saveSettings": "Save settings",
-        "deleteIntegration": "Delete integration",
-        "deleteDescription": "Permanently remove this integration and all its configuration.",
-        "uninstallIntegration": "Uninstall integration",
-        "uninstallDescription": "Uninstall this integration. You can reinstall it later from the templates.",
-        "confirmDelete": "Confirm delete",
-        "cancelDelete": "Cancel",
         "deleted": "Integration deleted",
         "deletedDescription": "{name} has been removed.",
         "deleteFailed": "Failed to delete integration",
@@ -1287,7 +855,6 @@
         "server": "Server",
         "port": "Port",
         "database": "Database",
-        "engine": "Engine",
         "username": "Username",
         "password": "Password",
         "sqlOperations": "SQL operations",
@@ -1298,24 +865,15 @@
         "accessToken": "Access token",
         "refreshToken": "Refresh token",
         "optional": "Optional",
-        "oauth2Authorization": "OAuth2 authorization",
-        "oauth2AuthorizationDescription": "Enter your OAuth2 client credentials and authorize access.",
-        "oauth2ManualFallback": "Manual token input",
-        "oauth2ManualFallbackDescription": "Paste tokens directly if you cannot use the authorization flow.",
-        "authorizationUrl": "Authorization URL",
-        "tokenUrl": "Token URL",
         "clientId": "Client ID",
         "clientSecret": "Client secret",
-        "clientSecretSavedPlaceholder": "Saved — enter new value to update",
         "scopes": "Scopes",
-        "saveAndAuthorize": "Save & authorize",
         "savingCredentials": "Saving...",
         "credentialsSaved": "Credentials saved successfully",
         "credentialsSaveFailed": "Failed to save credentials",
         "updateCredentials": "Update credentials",
         "reauthorize": "Re-authorize",
         "connectedViaOAuth2": "Connected via OAuth2",
-        "oauth2Authorized": "Integration authorized successfully",
         "oauth2AuthorizationFailed": "OAuth2 authorization failed",
         "authenticationMethod": "Authentication method",
         "testConnection": "Test connection",
@@ -1342,15 +900,11 @@
         "addIntegration": "Add integration",
         "integrationDetails": "Integration details",
         "connectName": "Connect {name}",
-        "saveChanges": "Save changes",
         "disconnectConfirmTitle": "Disconnect integration",
         "disconnectConfirmDescription": "Are you sure you want to disconnect this integration? You can reconnect it later.",
         "deleteConfirmTitle": "Delete integration",
         "deleteConfirmDescription": "Are you sure you want to delete this integration? This action cannot be undone.",
-        "deleteIntegration": "Delete integration",
-        "connectedAccount": "Connected account",
-        "connectedVia": "Connected via {provider}",
-        "reconnect": "Reconnect"
+        "deleteIntegration": "Delete integration"
       },
       "authMethods": {
         "api_key": "API key",
@@ -1358,94 +912,9 @@
         "basic_auth": "Basic authentication",
         "oauth2": "OAuth2"
       },
-      "clickToCopy": "Click to copy",
-      "failedToCopy": "Failed to copy to clipboard",
-      "comingSoon": "(Coming soon)",
-      "customSMTP": "Custom SMTP/IMAP",
-      "moreOptions": "More options",
-      "testing": "Testing...",
-      "test": "Test",
-      "setAsDefault": "Set as default",
-      "default": "Default",
-      "noProvidersYet": "No email providers configured yet",
-      "addProviderToStart": "Add Gmail, Outlook, or a custom SMTP/IMAP provider to get started",
-      "addEmailProvider": "Add email provider",
-      "authorize": "Authorize",
-      "oauth2": "OAuth2",
-      "notAuthorized": "Not authorized",
-      "pendingAuthorization": "Pending authorization",
-      "authorizationRequired": "Authorization required",
-      "authorizationRequiredDescription": "Complete authorization to start sending and receiving emails",
-      "authorizingProvider": "Starting authorization...",
-      "password": "Password",
-      "created": "Created",
-      "noOutlookProviders": "No Outlook providers configured yet",
-      "noGmailProviders": "No Gmail providers configured yet",
-      "addOutlookProvider": "Add Outlook provider",
-      "addGmailProvider": "Add Gmail provider",
-      "account": "Account",
-      "sendMethod": "Send method",
-      "apiGmailGraph": "API (Gmail/Graph)",
-      "smtp": "SMTP",
-      "imap": "IMAP",
-      "user": "User",
-      "ssl": "SSL",
-      "tls": "TLS",
-      "providerName": "Provider name",
-      "oauth2Tab": "OAuth2",
-      "appPasswordTab": "App password",
-      "setAsDefaultProvider": "Set as default email provider",
-      "continueWithGoogle": "Continue with Google",
-      "redirectingToGoogle": "Redirecting to Google...",
-      "continueWithMicrosoft": "Continue with Microsoft",
-      "redirectingToMicrosoft": "Redirecting to Microsoft...",
-      "testAndCreate": "Test & create provider",
-      "useApiSending": "Use API sending (recommended - no port blocking)",
-      "useApiSendingShort": "Use API sending",
-      "apiSending": "API sending",
-      "providerGmail": "Gmail",
-      "providerOutlook": "Outlook",
-      "gmailAddress": "Gmail address",
-      "emailAddress": "Email address",
-      "appPassword": "App password",
-      "oauth2Authentication": "OAuth2 authentication",
-      "oauth2GoogleInfo": "You'll be redirected to Google to authorize access. This method works with Google security defaults and is more secure than password authentication.",
-      "oauth2MicrosoftInfo": "You'll be redirected to Microsoft to authorize access. This method works with Microsoft 365 security defaults and is more secure than password authentication.",
-      "googleClientId": "Google client ID",
-      "googleClientIdPlaceholder": "xxx.apps.googleusercontent.com",
-      "googleClientSecret": "Google client secret",
-      "googleClientSecretPlaceholder": "Your OAuth 2.0 client secret",
-      "googleOAuthCredentialsInfo": "Enter your Google Cloud OAuth 2.0 credentials. Create these in the Google Cloud Console under APIs & Services > Credentials > Create OAuth client ID.",
-      "googleOAuth2Guide": "Google OAuth2 setup guide",
-      "microsoftClientId": "Azure client ID",
-      "microsoftClientIdPlaceholder": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-      "microsoftClientSecret": "Azure client secret",
-      "microsoftClientSecretPlaceholder": "Your Azure AD client secret",
-      "microsoftTenantId": "Tenant ID (optional)",
-      "microsoftTenantIdPlaceholder": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-      "microsoftTenantIdDescription": "Required only for single-tenant apps. Leave empty for multi-tenant apps.",
-      "microsoftOAuthCredentialsInfo": "Create an app registration in Azure Portal (Microsoft Entra ID > App registrations).",
-      "microsoftRedirectUriInfo": "Add the following redirect URI to your app registration (Authentication > Add a platform > Web):",
-      "microsoftOAuth2Guide": "Microsoft OAuth2 setup guide",
-      "gmailAppPasswordInfo": "Use Gmail App Passwords for quick setup. Requires 2FA enabled on your Google account.",
-      "googleAppPasswordsGuide": "Google App Passwords guide",
-      "outlookLimitedAvailability": "⚠️ Limited availability",
-      "outlookSecurityWarning": "Microsoft 365 security defaults block password authentication. This may not work for your account.",
-      "microsoftAppPasswordsGuide": "Microsoft App Passwords guide",
-      "recommended": "Recommended",
-      "useSsoCredentials": "Use Entra ID SSO credentials",
-      "useSsoCredentialsDescription": "Pre-fill with your organization's SSO app registration credentials.",
-      "credentialsFromSso": "Credentials from Entra ID SSO",
-      "syncFromSso": "Sync from SSO",
-      "syncFromSsoSuccess": "Credentials synced from SSO",
-      "failedToLoadSsoCredentials": "Failed to load SSO credentials",
       "sso": {
         "name": "Single Sign-On",
         "description": "Auto-provision teams and roles via Microsoft Entra ID SSO.",
-        "title": "SSO configuration",
-        "connected": "Connected",
-        "domain": "Domain",
-        "connectedToEntra": "Connected to Microsoft Entra ID",
         "validationError": "Validation error",
         "allFieldsRequired": "All fields are required",
         "configureSuccessful": "Configuration successful",
@@ -1457,45 +926,16 @@
         "ssoDisconnected": "SSO provider has been removed",
         "disconnectFailed": "Disconnect failed",
         "disconnectError": "Failed to remove SSO provider",
-        "updating": "Updating...",
-        "update": "Update",
-        "configuring": "Configuring...",
-        "configure": "Configure",
-        "domainLabel": "Domain",
-        "domainHelp": "The email domain for SSO authentication (e.g., yourcompany.com)",
-        "issuerLabel": "Issuer URL",
-        "issuerHelp": "The OIDC issuer URL for your Entra ID tenant",
-        "clientIdLabel": "Client ID",
-        "clientIdHelp": "The Application (client) ID from Azure App Registration",
-        "clientSecretLabel": "Client secret",
-        "clientSecretHelp": "The client secret from Azure App Registration",
-        "autoProvisionTeamLabel": "Auto-provision teams",
-        "autoProvisionTeamHelp": "Automatically sync team memberships from Entra ID groups",
-        "excludeGroupsLabel": "Exclude groups",
-        "excludeGroupsHelp": "Comma-separated list of Entra groups to exclude from team sync",
-        "syncModeLabel": "Full sync mode",
-        "syncModeHelp": "When enabled, team memberships are fully synced - users will be removed from teams they no longer belong to in Entra",
-        "additiveModeHelp": "When disabled, teams are only added - users keep existing team memberships even if removed in Entra",
-        "autoProvisionRoleLabel": "Auto-provision roles",
-        "autoProvisionRoleHelp": "Automatically assign roles based on job title or app roles from Entra ID",
         "roleMappingRulesLabel": "Role mapping rules",
         "roleMappingRulesHelp": "Define rules to map job titles or app roles to platform roles. Use * as wildcard (e.g., *developer*).",
         "sourceJobTitle": "Job title",
         "sourceAppRole": "App role",
         "addRule": "Add rule",
-        "defaultRoleLabel": "Default role",
-        "defaultRoleHelp": "Role assigned when no mapping rules match",
-        "defaultRoleHelpNoAutoProvision": "Role assigned to all SSO users",
-        "oneDriveAccessLabel": "Enable OneDrive/SharePoint access",
-        "oneDriveAccessHelp": "Allow users to access OneDrive and SharePoint files using their SSO credentials",
-        "testConnection": "Test connection",
-        "testing": "Testing...",
         "testSuccessful": "Connection successful",
         "testSuccessfulDescription": "SSO credentials have been validated successfully",
         "testFailed": "Connection failed",
         "testFailedDescription": "Failed to validate SSO credentials",
         "testError": "An error occurred while testing the connection",
-        "testPassed": "Valid",
         "roleAdmin": "Admin",
         "roleDeveloper": "Developer",
         "roleEditor": "Editor",
@@ -1505,14 +945,11 @@
     },
     "providers": {
       "title": "Providers",
-      "description": "Description",
       "addProvider": "Add provider",
       "editProvider": "Edit provider",
       "deleteProvider": "Delete provider",
-      "deleteConfirm": "Are you sure you want to delete this provider? This action cannot be undone.",
       "apiKey": "API Key",
       "apiKeyConfigured": "API key configured",
-      "apiKeyNotConfigured": "API key not configured",
       "models": "Models",
       "addModel": "Add model",
       "editModel": "Edit model",
@@ -1524,14 +961,12 @@
       "description_field": "Description",
       "baseUrl": "Base URL",
       "tags": "Tags",
-      "defaultModel": "Default",
       "defaultModels": "Default Models",
       "defaultModelsDescription": "Default models used by crawler, RAG, and other services for each capability.",
       "defaultNone": "None",
       "dimensions": "Dimensions",
       "saved": "Provider saved",
       "deleted": "Provider deleted",
-      "secretSaved": "API key saved",
       "name": "Provider name",
       "namePlaceholder": "e.g., openai",
       "nameHelp": "Lowercase letters, numbers, and hyphens only.",
@@ -1543,15 +978,11 @@
       "modelIdPlaceholder": "e.g., gpt-4o",
       "modelDisplayNamePlaceholder": "e.g., GPT-4o",
       "modelDescriptionPlaceholder": "e.g., Multimodal model with vision capabilities",
-      "dimensionsPlaceholder": "e.g., 1536",
-      "noProviders": "No providers configured",
-      "noProvidersDescription": "Add an LLM provider to get started with AI features.",
       "general": "General",
       "saveFailed": "Failed to save provider",
       "deleteFailed": "Failed to delete provider",
       "secretSaveFailed": "Failed to save API key",
       "createFailed": "Failed to create provider",
-      "discard": "Discard",
       "save": "Save",
       "saving": "Saving...",
       "saveKey": "Save key",
@@ -1569,26 +1000,20 @@
       "addApiKey": "Add API Key",
       "replaceApiKey": "Replace API Key",
       "replaceApiKeyDescription": "Current key: {maskedKey}",
-      "apiKeyReplace": "Enter new API key to replace ({maskedKey})",
       "apiKeyEnter": "Enter API key",
       "searchProvider": "Search providers...",
       "created": "Provider created",
       "modelCount": "{count, plural, one {# model} other {# models}}",
       "removeModel": "Remove model",
       "apiKeyPlaceholder": "Enter API key",
-      "apiKeyReplacePlaceholder": "Enter new API key to replace ({maskedKey})",
       "providerNotFound": "Provider not found: {name}",
       "backToProviders": "Back to providers",
       "tagChat": "Chat",
       "tagVision": "Vision",
       "tagEmbedding": "Embedding",
-      "tagImageGeneration": "Image generation",
-      "tagImageEdit": "Image edit",
-      "tagTranscription": "Transcription",
       "imageGenerationMode": "Image generation mode",
       "imageGenerationModeHelp": "How this image model is invoked. `images-api` uses the standard /v1/images/generations endpoint (FLUX, Imagen; edit mode via /v1/images/edits). `chat-multimodal` uses /v1/chat/completions with image content parts (Nano Banana, GPT-Image; edit mode via image parts in the user message).",
       "displayNameRequired": "Display name is required",
-      "invalidBaseUrl": "Base URL must be a valid URL",
       "modelIdRequired": "All models must have an ID",
       "deleteConfirmNamed": "Are you sure you want to delete the provider \"{name}\"? This action cannot be undone. All model configurations associated with this provider will be removed.",
       "providerActions": "Provider actions",
@@ -1602,12 +1027,8 @@
       "searchModels": "Search models…",
       "fetchingModels": "Fetching…",
       "fetchModelsError": "Could not fetch models. You can add them manually instead.",
-      "selectModels": "Select the models you want to add:",
-      "selectAll": "Select all",
-      "deselectAll": "Deselect all",
       "modelsSelected": "{count} selected",
       "duplicateModelId": "Duplicate model ID",
-      "modelNumber": "Model {number}",
       "modelBaseUrl": "Base URL override",
       "modelBaseUrlPlaceholder": "Leave empty to use provider base URL",
       "modelBaseUrlHelp": "Override the provider base URL for this model only.",
@@ -1620,7 +1041,6 @@
       "modelApiKeyOverrideIndicator": "Custom key",
       "deleteModelApiKey": "Remove",
       "undoRemoveKey": "Undo",
-      "deleteModelApiKeyConfirm": "Remove the model-specific API key for \"{model}\"? The provider-level key will be used instead.",
       "costHelp": "Used for budget tracking. Leave empty to use default estimates."
     },
     "form": {
@@ -1631,11 +1051,9 @@
       "password": "Password",
       "passwordPlaceholder": "Enter password",
       "role": "Role",
-      "passwordHint": "Password is required to create a new user account. If the user already has an account, they will be added without needing a password.",
       "forgotPassword": "Users who forget their password should contact an admin."
     },
     "roles": {
-      "owner": "Owner",
       "admin": "Admin",
       "developer": "Developer",
       "editor": "Editor",
@@ -1643,15 +1061,10 @@
       "disabled": "Disabled"
     },
     "apiKeys": {
-      "title": "API keys",
       "entityLabel": "keys",
-      "description": "Manage API keys for external integrations",
-      "accessDenied": "You need Admin or Developer permissions to manage API keys.",
       "createKey": "Create API key",
       "createKeySubmit": "Create key",
       "searchKeys": "Search API keys...",
-      "noKeys": "No API keys yet",
-      "noKeysDescription": "Create an API key to enable external integrations via REST API.",
       "keyCreated": "API key created",
       "keyCreatedDescription": "Make sure to copy your API key now. You won't be able to see it again.",
       "yourApiKey": "Your API key",
@@ -1660,8 +1073,6 @@
       "revokeKey": "Revoke key",
       "revokeKeyTitle": "Revoke API key",
       "revokeConfirmation": "Are you sure you want to revoke the API key \"{keyName}\"? This action cannot be undone. Any applications using this key will lose access immediately.",
-      "revoking": "Revoking...",
-      "copyKey": "Copy API key",
       "keyCopied": "API key copied to clipboard",
       "columns": {
         "name": "Name",
@@ -1682,29 +1093,16 @@
           "never": "Never"
         }
       },
-      "never": "Never",
-      "neverUsed": "Never used",
-      "docsGuide": "Use API keys to access the REST API. View available endpoints in the API documentation."
+      "neverUsed": "Never used"
     },
     "apiDocs": {
-      "title": "API documentation",
-      "description": "Interactive API documentation for the Tale platform. Test endpoints directly from this page.",
-      "apiKeyLabel": "API key",
-      "apiKeyPlaceholder": "Enter your API key to test endpoints",
-      "noApiKeyWarning": "Enter an API key above to authenticate requests. You can create one in API Keys settings.",
-      "refresh": "Refresh",
-      "manageKeys": "Manage keys",
-      "backToApp": "Back",
       "openDocs": "API docs"
     },
     "logs": {
       "auditLogs": "Audit logs",
       "activityLogs": "Activity logs",
       "errorLogs": "Error logs",
-      "auditDescription": "Track all actions performed across your organization.",
-      "activityDescription": "View system activity and audit logs.",
       "activityComingSoon": "Activity logs are coming soon.",
-      "errorDescription": "View system errors and warnings.",
       "errorComingSoon": "Error logs are coming soon.",
       "blockCounters": {
         "tabLabel": "Sign-in blocks",
@@ -1771,21 +1169,6 @@
           "duration": "Duration",
           "agent": "Agent",
           "tools": "Tools used"
-        },
-        "verification": {
-          "button": "Verify integrity",
-          "inProgress": "Verifying...",
-          "valid": "Chain valid",
-          "validDescription": "{count} entries verified, no tampering detected",
-          "broken": "Chain broken",
-          "brokenDescription": "Integrity break detected at entry {logId}"
-        },
-        "retention": {
-          "label": "Retention period",
-          "days": "days",
-          "minHint": "Minimum: 30 days",
-          "maxHint": "Maximum: 365 days",
-          "saved": "Retention policy saved"
         }
       }
     },
@@ -1803,12 +1186,9 @@
       "dark": "Dark",
       "brandColor": "Brand color",
       "accentColor": "Accent color",
-      "preview": "Preview",
       "uploadLogo": "Upload logo",
       "uploadFavicon": "Upload favicon",
-      "invalidHexColor": "Enter a valid hex color (e.g., #FF5733)",
-      "brandingSaved": "Branding updated successfully",
-      "brandingSaveFailed": "Failed to update branding",
+      "preview": "Branding preview",
       "validation": {
         "appNameRequired": "App name is required"
       }
@@ -1863,23 +1243,8 @@
       "noSteps": "No automation steps to display",
       "createStepsHint": "Create steps to see the automation overview, or use the AI assistant to help you get started."
     },
-    "breadcrumb": {
-      "back": "Back to automations"
-    },
     "search": {
       "placeholder": "Search automations"
-    },
-    "columns": {
-      "automation": "Automation",
-      "category": "Category",
-      "status": "Status",
-      "active": "Active",
-      "version": "Version",
-      "created": "Created"
-    },
-    "publishDialog": {
-      "title": "Publish automation",
-      "description": "Once published, this automation will run automatically whenever its triggers occur, and it cannot be changed."
     },
     "deactivateDialog": {
       "title": "Deactivate automation",
@@ -1889,29 +1254,9 @@
       "ariaLabel": "Toggle automation active state"
     },
     "createWithAI": "Create automation with AI",
-    "searchPlaceholder": "Search automations",
-    "accessDenied": "You need Admin or Developer permissions to access automations.",
     "navigation": {
       "editor": "Editor",
-      "archived": "Archived",
-      "history": "History",
-      "publish": "Publish",
-      "publishing": "Publishing...",
-      "rollback": "Activate",
-      "rollingBack": "Activating...",
-      "toast": {
-        "unableToPublish": "Unable to publish automation",
-        "published": "Automation published successfully",
-        "rolledBack": "Automation activated successfully",
-        "publishFailed": "Failed to publish automation",
-        "deactivated": "Automation deactivated successfully",
-        "deactivateFailed": "Failed to deactivate automation",
-        "unableToDeactivate": "Unable to deactivate automation",
-        "unableToCreateDraft": "Unable to create draft",
-        "draftCreated": "Draft created for editing",
-        "navigatingToExisting": "Navigating to existing draft",
-        "draftFailed": "Failed to create draft"
-      }
+      "history": "History"
     },
     "history": {
       "empty": "No history entries",
@@ -1928,20 +1273,15 @@
     },
     "configuration": {
       "title": "Configuration",
-      "active": "Active",
-      "activeHelp": "When active, this automation will run automatically whenever its triggers fire. Deactivating it will pause all triggers.",
       "name": "Name",
       "namePlaceholder": "Enter automation name",
       "description": "Description",
       "descriptionPlaceholder": "Enter automation description",
       "timeout": "Timeout (ms)",
-      "timeoutPlaceholder": "120000",
       "timeoutHelp": "Maximum execution time in milliseconds",
       "maxRetries": "Max retries",
-      "maxRetriesPlaceholder": "2",
       "maxRetriesHelp": "Number of retry attempts on failure",
       "backoff": "Backoff (ms)",
-      "backoffPlaceholder": "1000",
       "backoffHelp": "Delay between retry attempts in milliseconds",
       "variables": "Variables (JSON)",
       "variablesHelp": "These variables will be available to all steps in the automation",
@@ -1949,10 +1289,6 @@
       "validation": {
         "nameRequired": "Name is required",
         "invalidJson": "Invalid JSON in variables field"
-      },
-      "notAvailable": {
-        "title": "Saving not yet available",
-        "message": "Saving workflow configuration is not yet wired to a public API. Please update this workflow via backend/admin tools for now."
       }
     },
     "triggers": {
@@ -1974,7 +1310,6 @@
           "cronExpression": "Cron expression",
           "cronPlaceholder": "0 * * * *",
           "cronHelp": "Standard 5-field cron format: minute hour day month weekday",
-          "timezoneNote": "All schedules run in UTC timezone.",
           "presets": {
             "every5Minutes": "Every 5 minutes",
             "hourly": "Every hour",
@@ -2068,51 +1403,7 @@
     },
     "executions": {
       "title": "Executions",
-      "searchPlaceholder": "Search executions",
-      "columns": {
-        "executionId": "Execution ID",
-        "status": "Status",
-        "startedAt": "Started at",
-        "duration": "Duration",
-        "triggeredBy": "Triggered by"
-      },
-      "filters": {
-        "title": "Filters",
-        "dateRange": "Date range",
-        "status": "Status",
-        "allStatus": "All status",
-        "triggeredBy": "Triggered by",
-        "allTriggers": "All triggers"
-      }
-    },
-    "execution": {
-      "control": {
-        "title": "Execution control",
-        "description": "Start and control automation executions"
-      },
-      "selectedAutomation": "Selected automation",
-      "inputLabel": "Input data (JSON)",
-      "startButton": "Start execution",
-      "testButton": "Test",
-      "mustBeActive": "Automation must be active to start execution",
-      "selectToStart": "Select an automation from the Templates tab to start execution",
-      "history": {
-        "title": "Execution history",
-        "description": "Recent executions for selected automation",
-        "loading": "Loading executions...",
-        "noExecutions": "No executions found for this automation",
-        "triggeredBy": "Triggered by: {source}",
-        "waitingFor": "Waiting for: {target}",
-        "selectToView": "Select an automation to view execution history"
-      },
-      "toast": {
-        "invalidJson": "Invalid JSON input",
-        "startedSuccess": "Automation started successfully",
-        "startFailed": "Failed to start automation: {error}",
-        "testStarted": "Test execution started",
-        "testFailed": "Test failed",
-        "executionId": "Execution ID: {id}"
-      }
+      "searchPlaceholder": "Search executions"
     },
     "createDialog": {
       "title": "Create automation",
@@ -2121,50 +1412,21 @@
       "namePlaceholder": "e.g., Social media workflow",
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
-      "continue": "Continue",
-      "initialPrompt": "I just created a new automation called \"{name}\". Here is what it should do:\n\n{description}\n\nPlease help me build the workflow steps for this automation."
+      "continue": "Continue"
     },
     "templates": {
       "description": "Choose a template to get started with pre-configured steps.",
-      "fetchError": "Failed to load template. Please try again.",
       "installFailed": "Unable to create automation from template",
       "fetching": "Loading template...",
-      "noTemplates": "No templates available for this integration.",
-      "newAutomation": "New automation",
-      "createNewTemplate": "Create a new automation template",
-      "fillDetails": "Fill in the details for your new workflow.",
-      "automationTemplates": "Automation templates",
-      "manageExisting": "Manage existing automation templates",
-      "loading": "Loading automations...",
-      "noAutomationsFound": "No automations found. Create your first automation above.",
-      "configJson": "Config (JSON)",
-      "configDescription": "Automation configuration settings",
-      "noDescription": "No description",
-      "deleteTitle": "Delete automation?",
-      "deleteDescription": "This action cannot be undone. This will permanently delete the automation template and its steps."
+      "noTemplates": "No templates available for this integration."
     },
     "editDialog": {
-      "title": "Edit automation",
-      "namePlaceholder": "Enter automation name",
-      "descriptionPlaceholder": "Enter automation description (optional)",
-      "timeoutPlaceholder": "300000",
-      "maxRetriesPlaceholder": "3",
-      "backoffPlaceholder": "1000",
-      "variablesPlaceholder": "{\n  \"environment\": \"test\"\n}",
-      "variablesDescription": "Default variables available to all automation steps",
-      "updating": "Updating...",
-      "updateButton": "Update automation"
+      "namePlaceholder": "Enter automation name"
     },
     "steps": {
       "toast": {
         "editingNotAvailable": "Editing connections not yet available",
-        "apiNotWired": "Public APIs for editing workflow steps are not wired up yet.",
-        "stepCreationNotAvailable": "Step creation not yet available",
-        "createFailed": "Failed to create step",
-        "stepCreated": "Step created successfully",
-        "notAuthenticated": "You must be logged in to create steps",
-        "invalidStepName": "Step name must contain at least one letter or number",
-        "duplicateStepSlug": "A step with this name already exists"
+        "apiNotWired": "Public APIs for editing workflow steps are not wired up yet."
       },
       "banners": {
         "draftNotPublished": "This automation is not yet published",
@@ -2174,13 +1436,11 @@
         "focus": "Focus",
         "aiAssistant": "AI assistant",
         "testAutomation": "Test automation",
-        "viewAutomation": "View automation",
         "addStep": "Add step"
       }
     },
     "stepTypes": {
       "start": "Start",
-      "trigger": "Trigger",
       "llm": "LLM",
       "condition": "Condition",
       "loop": "Loop",
@@ -2197,10 +1457,8 @@
       "stepTooltip": "{stepType} step",
       "end": "End",
       "close": "Close panel",
-      "viewAutomation": "View automation",
       "validationErrors": "Validation errors",
       "validationWarnings": "Warnings",
-      "stepSaved": "Step saved successfully",
       "stepSaveFailed": "Failed to save step",
       "saving": "Saving...",
       "resizePanel": "Resize panel",
@@ -2231,50 +1489,14 @@
         "output": "Output"
       },
       "configLabel": "Config (JSON)",
-      "configDescription": "Configuration settings",
-      "nextStepsLabel": "Next steps (JSON)",
-      "nextStepsDescription": "Step transitions & flow control",
       "validation": {
         "nameRequired": "Step name is required",
         "nameFormat": "Format: letters, numbers, \"_\", \"-\""
-      }
-    },
-    "deleteStep": {
-      "title": "Delete step",
-      "description": "This action cannot be undone",
-      "confirmMessage": "Are you sure you want to delete the step",
-      "warning": "Warning",
-      "warningMessage": "This may break your automation if other steps depend on this one. Make sure to update any references in other steps' \"Next Steps\" configuration.",
-      "stepSlug": "Step slug:",
-      "type": "Type:",
-      "order": "Order:",
-      "deleting": "Deleting...",
-      "deleteButton": "Delete step"
-    },
-    "stepDetails": {
-      "configLabel": "Config (JSON)",
-      "stepTypeTooltip": "{type} step",
-      "validation": {
-        "nameRequired": "Step name is required",
-        "nameFormat": "Format: letters, numbers, \"_\", \"-\""
-      },
-      "toast": {
-        "editNotAvailable": "Step editing not yet available",
-        "deleteNotAvailable": "Step deletion not yet available",
-        "apiNotReady": "Public APIs for editing workflow steps are not wired up yet."
       }
     },
     "toast": {
       "created": "Automation created successfully",
-      "createFailed": "Failed to create automation",
-      "authRequired": "Authentication required",
-      "activated": "Automation activated successfully",
-      "activateFailed": "Failed to activate automation",
-      "deactivated": "Automation deactivated successfully",
-      "deactivateFailed": "Failed to deactivate automation",
-      "updated": "Automation updated successfully",
-      "updateFailed": "Failed to update automation",
-      "deleteFailed": "Failed to delete automation"
+      "createFailed": "Failed to create automation"
     },
     "validation": {
       "duplicateName": "An automation with this name already exists"
@@ -2285,7 +1507,6 @@
     },
     "assistant": {
       "messagePlaceholder": "Type your message...",
-      "attachFiles": "Attach files",
       "automationDetails": "Automation details",
       "previewImage": "Preview {filename}",
       "fallbackImage": "Image",
@@ -2300,17 +1521,6 @@
         "analyzing": "Analyzing workflow",
         "compiling": "Compiling an answer"
       },
-      "upload": {
-        "uploading": "Uploading...",
-        "invalidFiles": "Invalid files",
-        "invalidFilesDescription": "Some files are too large (>100MB) or not supported. Supported: images, PDF, Word docs, text files.",
-        "success": "File uploaded",
-        "successDescription": "{fileName} uploaded successfully",
-        "failed": "Upload failed",
-        "failedDescription": "Failed to upload {fileName}"
-      },
-      "viewMore": "View more",
-      "viewLess": "View less",
       "analyzeAttachments": "Please analyze the attached files.",
       "messageHistory": "Message history"
     },
@@ -2337,21 +1547,6 @@
         "testFailed": "Execution failed",
         "startFailed": "Failed to start execution"
       }
-    },
-    "monitoring": {
-      "selectAutomation": "Select an automation to view statistics",
-      "realtimeStatus": "Real-time status",
-      "liveMonitoring": "Live execution monitoring",
-      "monitoringExecution": "Monitoring execution: {handle}",
-      "stopMonitoring": "Stop monitoring",
-      "startAutomation": "Start an automation execution to see real-time status",
-      "executionStatistics": "Execution statistics",
-      "performanceMetrics": "Performance metrics for selected automation",
-      "loadingStats": "Loading stats...",
-      "totalExecutions": "Total executions",
-      "successRate": "Success rate",
-      "avgDuration": "Avg duration",
-      "failures": "Failures"
     }
   },
   "conversations": {
@@ -2366,16 +1561,6 @@
       "spam": "Spam",
       "archived": "Archived"
     },
-    "priority": {
-      "high": "High",
-      "medium": "Medium",
-      "low": "Low"
-    },
-    "category": {
-      "productRecommendation": "Product recommendation",
-      "serviceRequest": "Service request",
-      "churnSurvey": "Churn survey"
-    },
     "improvement": {
       "title": "Message improvement preview",
       "description": "Review the AI-improved version and accept or reject the changes",
@@ -2387,8 +1572,6 @@
     "bulkSend": {
       "title": "Send {count} Messages",
       "description": "You're about to send replies for {count, plural, one {# conversation} other {# conversations}}. This action can't be undone.",
-      "confirm": "Are you sure you want to continue?",
-      "sending": "Sending...",
       "send": "Send"
     },
     "updating": "Updating conversations...",
@@ -2459,8 +1642,6 @@
       "selectToView": "Select a conversation to view details",
       "notFound": "Conversation not found",
       "noMessages": "No messages yet",
-      "markedAsSpam": "This conversation has been marked as spam.",
-      "markedAsClosed": "This conversation has been marked as closed.",
       "invalidFileAttachment": "Invalid file attachment",
       "defaultSubject": "Re: Conversation",
       "customerEmailNotFound": "Cannot send email: customer email not found",
@@ -2479,30 +1660,6 @@
       "deleteSuccess": "Conversation deleted successfully.",
       "deleteFailed": "Failed to delete conversation.",
       "showEarlierMessages": "Show {count} earlier {count, plural, one {message} other {messages}}"
-    },
-    "filters": {
-      "title": "Filters",
-      "type": "Type",
-      "priority": "Priority",
-      "typeOptions": {
-        "productRecommendation": "Product recommendation",
-        "serviceRequest": "Service request",
-        "churnSurvey": "Churn survey",
-        "general": "General",
-        "spam": "Spam"
-      },
-      "priorityOptions": {
-        "low": "Low",
-        "medium": "Medium",
-        "high": "High"
-      },
-      "badges": {
-        "search": "Search: \"{query}\"",
-        "applyingFilters": "Applying filters...",
-        "lowPriority": "Low priority",
-        "mediumPriority": "Medium priority",
-        "highPriority": "High priority"
-      }
     },
     "list": {
       "empty": "No conversations in this tab"
@@ -2523,11 +1680,9 @@
     "openMenu": "Open composer menu",
     "addFiles": "Add photos & files",
     "modeHeader": "Modes",
-    "standardMode": "Standard",
     "capabilityHeader": "Capabilities",
     "capabilityDisable": "Disable {name}",
-    "requiresIntegration": "Requires {name}",
-    "connectInSettings": "Connect in Settings → Integrations"
+    "requiresIntegration": "Requires {name}"
   },
   "todoList": {
     "title": "Research plan",
@@ -2536,11 +1691,6 @@
     "failedCount": "{count} failed",
     "collapse": "Collapse",
     "expand": "Expand",
-    "statusPending": "Pending",
-    "statusInProgress": "In progress",
-    "statusDone": "Done",
-    "statusFailed": "Failed",
-    "statusCancelled": "Cancelled",
     "paneClose": "Close plan",
     "paneMinimize": "Minimize plan",
     "paneResizeHandle": "Resize plan panel",
@@ -2556,7 +1706,6 @@
     "respondedByAt": "Responded by {name} at {date}",
     "stopWorkflow": "Stop",
     "stopWorkflowTooltip": "Stop the running workflow",
-    "formFieldRequired": "Required",
     "errorFillRequiredFields": "Please fill in all required fields",
     "errorSelectRequired": "Please make a selection",
     "errorFeedbackRequired": "Please enter your feedback",
@@ -2624,8 +1773,6 @@
     "rejectTooltip": "Cancel workflow execution",
     "statusExecuting": "Executing...",
     "statusCompleted": "Completed",
-    "statusCompletedSuccess": "Workflow execution started successfully.",
-    "statusCompletedFailed": "Workflow execution was approved but failed to start.",
     "statusRejected": "Rejected",
     "showParameters": "Show parameters",
     "hideParameters": "Hide parameters",
@@ -2640,10 +1787,8 @@
     "hideOutput": "Hide output",
     "stopExecution": "Stop",
     "stopTooltip": "Stop workflow execution",
-    "statusPending": "Pending",
     "errorRunFailed": "Failed to run workflow",
     "errorStopFailed": "Failed to stop execution",
-    "humanInputPlaceholder": "Type your response...",
     "submitResponse": "Submit response",
     "copyQuestions": "Copy questions",
     "pushback": "Reply differently",
@@ -2665,7 +1810,6 @@
     "rejectTooltipBatch": "Reject all document saves",
     "savedSuccessfully": "Saved to your documents",
     "savedPartially": "{success} of {total} files saved successfully",
-    "fileFailed": "Failed to save",
     "statusExecuting": "Saving documents...",
     "statusCompletedFailed": "This document was approved but failed to save.",
     "statusCompletedSuccess": "This document was saved to your documents.",
@@ -2693,7 +1837,6 @@
     "backToActions": "Back"
   },
   "chat": {
-    "title": "Chat",
     "imagePreview": "Image preview",
     "previousImage": "Previous image",
     "nextImage": "Next image",
@@ -2702,7 +1845,6 @@
     "moreActions": "More actions",
     "deleteChat": "Delete chat",
     "deleteConfirmation": "Are you sure you want to delete {title}?",
-    "deleteArchiveMessage": "This chat will be archived and won't appear in your chat history.",
     "deletePermanentMessage": "This action cannot be undone. The chat will be permanently deleted.",
     "deleteFailed": "Failed to delete chat",
     "archive": "Archive",
@@ -2712,40 +1854,11 @@
     "unarchiveSuccess": "Chat unarchived",
     "unarchiveFailed": "Failed to unarchive chat",
     "archived": {
-      "title": "Archived",
-      "empty": "No archived chats"
+      "title": "Archived"
     },
-    "welcome": "What are you working on?",
     "welcomeEmpty": "How can I assist you?",
     "welcomeSuffix": "here, what are we working on?",
-    "suggestions": {
-      "admin": [
-        "Draft a project proposal for Q4",
-        "Analyze last month's revenue trends",
-        "Write a follow-up email to the client",
-        "Summarize our latest product updates"
-      ],
-      "editor": [
-        "Write a blog post about our new feature",
-        "Review and improve this content draft",
-        "Create a product description for the catalog",
-        "Summarize the key points from this document"
-      ],
-      "developer": [
-        "Help me debug this issue",
-        "Review this code for best practices",
-        "Write unit tests for this function",
-        "Explain how this integration works"
-      ],
-      "member": [
-        "Draft an email to a customer",
-        "Summarize our latest product updates",
-        "Help me prepare for a meeting",
-        "Answer a question about our products"
-      ]
-    },
     "toast": {
-      "generateFailed": "Failed to generate response",
       "sendFailed": "Failed to send message",
       "piiBlocked": "Message blocked by PII policy",
       "policyViolation": "Message blocked by content policy",
@@ -2786,37 +1899,9 @@
     "agentSelector": {
       "label": "Select agent",
       "defaultAgent": "Assistant",
-      "defaultAgentDescription": "General-purpose AI assistant",
-      "usingAgent": "Using {name}",
       "searchPlaceholder": "Search agents",
       "noResults": "No agents found",
-      "addAgent": "Add agent",
-      "builtinAgents": {
-        "chat": {
-          "name": "Assistant",
-          "description": "General-purpose AI assistant"
-        },
-        "web": {
-          "name": "Search",
-          "description": "Searches the web for the latest information"
-        },
-        "crm": {
-          "name": "Sales",
-          "description": "Looks up customer and product information"
-        },
-        "document": {
-          "name": "Docs",
-          "description": "Reads and creates documents (PDF, Word, Excel, etc.)"
-        },
-        "integration": {
-          "name": "Connect",
-          "description": "Connects and operates with external systems"
-        },
-        "workflow": {
-          "name": "Automate",
-          "description": "Creates automated workflows"
-        }
-      }
+      "addAgent": "Add agent"
     },
     "modelSelector": {
       "label": "Select model",
@@ -2824,41 +1909,19 @@
       "noResults": "No models found",
       "auto": "Auto",
       "autoDescription": "Automatically selects the best available model with fallback",
-      "noModelsAvailable": "No models available",
-      "tags": {
-        "chat": "Chat",
-        "vision": "Vision",
-        "embedding": "Embedding",
-        "imageGeneration": "Image generation",
-        "imageEdit": "Image editing",
-        "transcription": "Transcription"
-      }
+      "noModelsAvailable": "No models available"
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
     "showHistory": "Show history",
     "hideHistory": "Hide history",
     "chatHistory": "History",
-    "searchPlaceholder": "Search chats",
-    "messagePlaceholder": "Type a message...",
     "typeMessageHere": "Type your message here…",
     "send": "Send message",
     "stopGenerating": "Stop generating",
     "generationStopped": "Generation stopped",
-    "errorDetails": "Error details",
     "errorGenerating": "Something went wrong",
-    "errorGeneratingDescription": "There was an error generating a response. Please try again.",
     "retryGeneration": "Try again",
-    "errorHintMissingApiKey": "No API key is configured for this organization yet. Open Settings → AI providers and add one to start chatting.",
-    "errorHintCreditExhausted": "The AI provider's credit limit was exceeded. Contact your administrator to add credits.",
-    "errorHintTokenLimit": "The model's output token limit was exceeded. Try a shorter request or ask your administrator to adjust the model settings.",
-    "errorHintContextLength": "The conversation is too long for the model's context window. Try starting a new chat.",
-    "errorHintRateLimited": "Too many requests. Please wait a moment and try again.",
-    "errorHintContentFilter": "The message was flagged by the content filter. Try rephrasing your message.",
-    "errorHintToolFailure": "The agent encountered an error while accessing data. Try rephrasing your request or asking for a smaller set of data.",
-    "errorHintAuthError": "The API key is invalid or does not have access to this model. Contact your administrator.",
-    "errorHintModelNotFound": "The selected model was not found or is unavailable. Contact your administrator.",
-    "errorHintProviderError": "The AI provider is temporarily experiencing issues. Please try again in a moment.",
     "showMore": "Show more",
     "showLess": "Show less",
     "editMessage": "Edit message",
@@ -2877,7 +1940,6 @@
     "placeholder": "Ask about customers, products, or documents…",
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",
-    "filesNotSupported": "Some files are too large (>100MB) or not supported. Supported: images, PDF, Word docs, text files.",
     "fileSizeExceededMultiple": "{names} exceeded the {maxSize}MB file size limit.",
     "audioDurationExceeded": "{names}: audio is longer than the {maxHours}-hour limit. Please split it into shorter segments.",
     "fileTypeNotAllowed": "{names}: file type not allowed by upload policy.",
@@ -2896,17 +1958,12 @@
     "indexing": "Indexing...",
     "indexingFailed": "Index failed",
     "viewImage": "View image",
-    "dropFilesToAdd": "Drop files here to add to chat",
     "fileTypes": {
       "image": "IMG",
       "pdf": "PDF",
       "doc": "DOC",
       "pptx": "PPTX",
       "txt": "TXT",
-      "code": "CODE",
-      "config": "CONFIG",
-      "data": "DATA",
-      "markup": "MARKUP",
       "xlsx": "XLSX",
       "csv": "CSV",
       "audio": "AUDIO",
@@ -2921,22 +1978,17 @@
       "transcribed": "Transcribed",
       "indexingFailed": "Indexing failed",
       "couldNotTranscribe": "Could not be transcribed",
-      "skip": "Skip transcription",
-      "retry": "Retry transcription",
       "viewTranscript": "View transcript",
       "previewSubtitle": "{seconds}s transcribed"
     },
     "fallback": {
       "image": "Image",
-      "file": "File",
-      "attachment": "Attachment",
-      "imageAttachment": "Image attachment"
+      "file": "File"
     },
     "imageEdit": {
       "editThis": "Edit this image",
       "previewReference": "Preview reference image",
       "editingLatest": "Editing last image",
-      "editing": "Editing",
       "dismiss": "Don't reference this image",
       "change": "Change",
       "placeholder": "Describe the edit…",
@@ -2946,9 +1998,6 @@
       "noOtherImages": "No other images in this thread."
     },
     "downloadFile": "Download file",
-    "toolStatus": {
-      "ragSearch": "Searching knowledge base"
-    },
     "messageInfo": {
       "title": "Message information",
       "description": "Details about this AI response",
@@ -3035,10 +2084,8 @@
       "title": "Share chat",
       "button": "Share",
       "description": "Share this chat with others in your organization via a link.",
-      "enable": "Share this chat",
       "enableSharing": "Enable sharing",
       "enableSharingDescription": "Anyone in your organization with the link can view this chat.",
-      "disable": "Stop sharing",
       "copyLink": "Copy link",
       "copied": "Link copied",
       "copyFailed": "Failed to copy link",
@@ -3047,17 +2094,12 @@
       "preview": "Preview",
       "shareFailed": "Failed to share chat",
       "unshareFailed": "Failed to stop sharing",
-      "sharedBy": "Shared by {name}",
       "sharedChat": "Shared chat",
       "forkChat": "Fork this chat",
-      "forked": "Chat forked successfully",
       "forkSuccess": "Chat forked successfully",
       "forkFailed": "Failed to fork chat",
-      "readOnly": "This is a shared chat (read-only)",
       "readOnlyBanner": "You are viewing a shared chat in read-only mode",
       "sharedIndicator": "Shared",
-      "viewingShared": "Viewing shared chat",
-      "orgAccessDenied": "This shared chat is not available.",
       "notFound": "This shared chat is no longer available.",
       "backToChat": "Back to chat",
       "inputPlaceholder": "Send a message to continue this conversation...",
@@ -3077,7 +2119,6 @@
       "assistant": "Assistant"
     },
     "arena": {
-      "title": "Arena Mode",
       "label": "Arena Mode",
       "enable": "Enable Arena Mode",
       "disable": "Disable Arena Mode",
@@ -3085,7 +2126,6 @@
       "modelB": "Model B",
       "modelALabel": "Model A",
       "modelBLabel": "Model B",
-      "selectModels": "Select two models to compare",
       "selectModel": "Select model",
       "vs": "vs",
       "verdictLabel": "Choose a verdict",
@@ -3097,7 +2137,6 @@
       "verdictError": "Failed to record verdict"
     },
     "canvas": {
-      "title": "Canvas",
       "openInCanvas": "Open in Canvas",
       "close": "Close canvas",
       "edit": "Edit",
@@ -3111,7 +2150,19 @@
       "applied": "Changes applied",
       "applyFailed": "Failed to apply changes",
       "enterFullscreen": "Fullscreen",
-      "exitFullscreen": "Exit fullscreen"
+      "exitFullscreen": "Exit fullscreen",
+      "codeEditor": "Code editor",
+      "markdownEditor": "Markdown editor",
+      "mermaidEditor": "Mermaid editor"
+    },
+    "branchNavigator": {
+      "previous": "Previous branch",
+      "next": "Next branch"
+    },
+    "skeleton": {
+      "loadingWelcome": "Loading welcome",
+      "loadingSuggestion": "Loading suggestion",
+      "loadingMessage": "Loading message"
     },
     "promptLibrary": "Prompt library",
     "savePrompt": "Save prompt",
@@ -3122,10 +2173,7 @@
     "unsavePromptAction": "Unsave"
   },
   "documents": {
-    "title": "Documents",
     "searchPlaceholder": "Search documents",
-    "addButton": "Add document",
-    "deleteDocument": "Delete document",
     "deleteFolder": {
       "title": "Delete folder",
       "confirmation": "Are you sure you want to delete the folder {name}?",
@@ -3157,12 +2205,7 @@
       "title": "No documents yet",
       "description": "Upload documents to train your AI assistant"
     },
-    "searchEmptyState": {
-      "title": "No items found",
-      "description": "No items found matching your search."
-    },
     "actions": {
-      "deleteDocument": "Delete document",
       "deleteSyncFolder": "Delete sync folder",
       "deleteFolderFailed": "Failed to delete folder",
       "deleteFileFailed": "An unexpected error occurred while deleting the file.",
@@ -3188,7 +2231,6 @@
       "noTeamsTitle": "No teams yet",
       "noTeamsDescription": "Create teams in Settings to control which groups can access this item.",
       "goToSettings": "Go to settings",
-      "hint": "Items without teams are accessible to all organization members.",
       "orgWide": "Organization-wide"
     },
     "deleteFile": {
@@ -3200,8 +2242,7 @@
     "breadcrumb": {
       "navigation": "Breadcrumb",
       "documents": "Documents",
-      "oneDrive": "OneDrive",
-      "uploads": "Uploads"
+      "oneDrive": "OneDrive"
     },
     "aria": {
       "openFolder": "Open folder {name}",
@@ -3209,13 +2250,6 @@
       "navigateToFolder": "Navigate to folder {name}"
     },
     "folderNotFound": "Folder not found or no longer accessible",
-    "sourceType": {
-      "oneDriveSynced": "OneDrive (synced)",
-      "oneDrive": "OneDrive",
-      "sharePointSynced": "SharePoint (synced)",
-      "sharePoint": "SharePoint",
-      "uploaded": "Upload"
-    },
     "filter": {
       "ragStatus": {
         "indexed": "Indexed",
@@ -3243,7 +2277,6 @@
       "notAvailableDescription": "This file type cannot be previewed. Please download the file to view its contents.",
       "downloading": "Downloading...",
       "download": "Download",
-      "unknownError": "Unknown error",
       "document": "Document",
       "title": "Document preview",
       "dragToolbar": "Drag toolbar",
@@ -3262,29 +2295,23 @@
       }
     },
     "upload": {
-      "fromComputer": "From computer",
-      "fromComputerDescription": "Upload directly from your device",
-      "uploading": "Uploading files...",
       "cancelUpload": "Cancel upload",
       "importDocuments": "Upload documents",
       "fromYourDevice": "From your device",
       "fromMicrosoft365": "From Microsoft 365",
       "uploadInProgress": "Upload in progress",
+      "uploadingFileNamed": "Uploading {fileName}",
+      "failedFileName": "{fileName} — Failed",
       "pleaseWaitForUpload": "Please wait for the current upload to complete",
       "noFilesSelected": "No files selected",
       "fileTooLarge": "File too large",
       "fileSizeExceeded": "File {name} exceeds {maxSize}MB limit. Current size: {currentSize}MB",
-      "uploadStarted": "Upload started",
-      "uploadingCount": "Uploading {count} {count, plural, one {file} other {files}}...",
-      "uploadSuccessful": "Upload successful",
-      "filesUploadedSuccessfully": "{count} {count, plural, one {file} other {files}} uploaded successfully",
       "uploadCancelled": "Upload cancelled",
       "uploadFailed": "Upload failed",
       "uploadFailedRetry": "Upload failed. Please check your connection and try again.",
       "filesCompletedSummary": "{completed} of {total} files completed",
       "filesCompletedWithFailures": "{completed} of {total} files completed · {failed} failed",
       "selectTeams": "Assign to teams",
-      "selectTeamsPlaceholder": "Select teams...",
       "selectTeamsDescription": "Choose which team the uploaded documents belong to",
       "noTeamsAvailable": "You are not a member of any teams",
       "allMembersHint": "Organization-wide documents are accessible to everyone in the organization.",
@@ -3300,35 +2327,22 @@
       "uploadDocuments": "Upload"
     },
     "ocr": {
-      "available": "OCR available",
       "unavailable": "OCR unavailable",
-      "processingWithOcr": "Document processed with OCR",
-      "noVisionModelWarning": "No vision model configured — scanned documents and images will not be processed"
-    },
-    "import": {
-      "noResponseBody": "No response body received"
+      "processingWithOcr": "Document processed with OCR"
     },
     "microsoft365": {
       "title": "Import from Microsoft 365",
       "myOneDrive": "My OneDrive",
       "sharePointSites": "SharePoint Sites",
       "selectDescription": "Choose files or folders to import",
-      "selectSite": "Select a SharePoint site",
-      "selectLibrary": "Select a document library",
       "noSites": "No SharePoint sites found",
       "noSitesDescription": "You don't have access to any SharePoint sites or sites could not be loaded.",
       "noDrives": "No document libraries found",
       "noDrivesDescription": "This site doesn't have any document libraries.",
-      "loadingSites": "Loading SharePoint sites...",
-      "loadingDrives": "Loading document libraries...",
-      "backToSites": "Back to sites",
-      "backToDrives": "Back to libraries",
       "siteUrl": "Site URL",
       "driveType": "Type"
     },
     "onedrive": {
-      "selectFiles": "Select files or folders",
-      "selectDescription": "Choose which OneDrive files or folders to import",
       "importSettings": "Import settings",
       "settingsDescription": "Choose how to import your {count} selected {count, plural, one {item} other {items}}.",
       "microsoftNotConnected": "Microsoft account not connected",
@@ -3340,7 +2354,6 @@
       "syncImport": "Sync import",
       "syncDescription": "Keep files automatically synchronized",
       "importCount": "Import ({count})",
-      "importItem": "{type, select, oneTime {Import} other {Sync}} {count} {count, plural, one {Item} other {Items}}",
       "importing": "Importing...",
       "syncing": "Syncing...",
       "importStarted": "Import started",
@@ -3349,8 +2362,6 @@
       "syncingItems": "Syncing {count} items to storage...",
       "importCompleted": "Import completed",
       "syncCompleted": "Sync completed",
-      "filesImported": "Files imported successfully",
-      "filesSynced": "Files synced successfully",
       "filesImportedCount": "{count} of {total} files imported successfully",
       "filesSyncedCount": "{count} of {total} files synced successfully",
       "importFailed": "Import failed",
@@ -3360,20 +2371,14 @@
     },
     "rag": {
       "status": {
-        "pending": "Pending",
         "queued": "Queued",
         "indexing": "Indexing",
         "indexed": "Indexed",
         "failed": "Failed",
         "notIndexed": "Not indexed",
         "needsReindex": "Needs reindex",
-        "stale": "Stale",
         "unknown": "Unknown"
       },
-      "index": "Index",
-      "indexing": "Indexing...",
-      "reindex": "Reindex",
-      "reindexing": "Reindexing...",
       "retryIndexing": "Retry indexing",
       "toast": {
         "documentIdRequired": "Document ID is required for retry",
@@ -3396,48 +2401,17 @@
           "unknownError": "Unknown error occurred"
         }
       }
-    },
-    "sync": {
-      "title": "OneDrive to storage sync",
-      "syncingToStorage": "Syncing files to storage...",
-      "pleaseWait": "Please wait while files are being processed...",
-      "processingFiles": "Processing files ({count} total):",
-      "error": "Error",
-      "syncCompleted": "Sync completed",
-      "syncCompletedWithErrors": "Sync completed with errors",
-      "filesProcessed": "{count} files processed",
-      "successfullySynced": "Successfully synced ({count})",
-      "failedToSync": "Failed to sync ({count})",
-      "storageLocation": "Storage location",
-      "storageDescription": "Files have been synced to your storage bucket. You can access them through the storage dashboard or API.",
-      "syncError": "Sync error",
-      "retryFailedFiles": "Retry failed files"
     }
   },
   "products": {
     "title": "Products",
-    "searchPlaceholder": "Search products",
     "addButton": "Add product",
-    "editProduct": "Edit product",
-    "deleteProduct": "Delete product",
     "importMenu": {
-      "importProducts": "Import products",
       "fromDevice": "From your device",
-      "manualEntry": "Manual entry",
-      "fromShopify": "From Shopify",
-      "fromCirculy": "From Circuly"
+      "manualEntry": "Manual entry"
     },
     "noValidData": "No valid product data found",
     "noneImported": "No products were imported",
-    "noMatchingProducts": "No matching products found",
-    "emptyState": {
-      "title": "No products yet",
-      "description": "Import your products to help your AI understand context"
-    },
-    "searchEmptyState": {
-      "title": "No products found",
-      "description": "No products match your search criteria"
-    },
     "edit": {
       "title": "Edit product",
       "description": "Update product information. Required fields are marked with *",
@@ -3458,9 +2432,6 @@
         "category": "Category",
         "status": "Status"
       },
-      "validation": {
-        "nameRequired": "Product name is required"
-      },
       "toast": {
         "success": "Product updated successfully",
         "error": "Failed to update product"
@@ -3477,31 +2448,13 @@
         "error": "Failed to create product"
       }
     },
-    "translations": {
-      "title": "Edit product translations",
-      "enterTranslation": "Enter {language} translation...",
-      "originalProductName": "Original product name",
-      "englishTranslation": "English translation",
-      "germanTranslation": "German translation",
-      "frenchTranslation": "French translation",
-      "toast": {
-        "success": "Product translations updated",
-        "error": "Failed to update translations"
-      }
-    },
     "import": {
       "uploadProducts": "Upload products",
       "uploadFile": "Please upload a file",
       "success": "Import successful",
       "successDescription": "Successfully imported {success} products{failed, select, 0 {} other {, {failed} failed}}",
       "error": "Failed to import products",
-      "errorCodes": {
-        "unknown": "An unexpected error occurred"
-      },
-      "dropzoneAriaLabel": "Upload file - click or press Enter to select a file, or drag and drop a file here",
       "clickToUpload": "Click to upload",
-      "or": "or",
-      "dragAndDrop": "drag and drop",
       "supportedFormats": ".xlsx, .xls or .csv",
       "expectedColumns": "Expected columns: name, description, imageUrl, stock, price, currency, category, status",
       "draftStatusNote": "Imported products are created with 'draft' status by default."
@@ -3533,9 +2486,7 @@
   },
   "customers": {
     "title": "Customers",
-    "searchPlaceholder": "Search customers",
     "filter": {
-      "title": "Filters",
       "source": {
         "manual": "Manual",
         "upload": "Upload",
@@ -3547,9 +2498,6 @@
         "churned": "Churned"
       }
     },
-    "addButton": "Add customer",
-    "addCustomers": "Add customers",
-    "uploadCustomers": "Upload customers",
     "importForm": {
       "circuly": "Circuly",
       "manualEntry": "Manual entry",
@@ -3563,23 +2511,14 @@
     },
     "editCustomer": "Edit customer",
     "deleteCustomer": "Delete customer",
-    "viewDetails": "View details",
-    "viewSubscriptions": "View subscriptions",
     "importMenu": {
       "importCustomers": "Import customers",
       "fromDevice": "From your device",
-      "fromCirculy": "From Circuly",
       "manualEntry": "Manual entry"
     },
-    "noValidData": "No valid customer data found",
-    "noneImported": "No customers were imported",
-    "deleteError": "Failed to delete customer",
-    "deleteConfirmation": "Are you sure you want to delete {name}?",
     "thisCustomer": "this customer",
-    "deleteWarning": "This action cannot be undone.",
     "updateSuccess": "Customer updated successfully",
     "updateError": "Failed to update customer",
-    "updateCustomer": "Update customer",
     "name": "Name",
     "namePlaceholder": "Enter customer name",
     "email": "Email",
@@ -3595,23 +2534,15 @@
       "noValidData": "No valid customer data found",
       "success": "Import successful",
       "successDescription": "Successfully imported {success} customers{failed, select, 0 {} other {, {failed} failed}}",
-      "failed": "failed",
       "noneImported": "No customers were imported",
       "error": "Import error",
       "addCustomers": "Add customers",
       "uploadCustomers": "Upload customers",
-      "import": "Import",
-      "errorCodes": {
-        "duplicate_email": "A customer with this email already exists",
-        "duplicate_external_id": "A customer with this external ID already exists",
-        "unknown": "An unexpected error occurred"
-      }
+      "import": "Import"
     }
   },
   "vendors": {
     "title": "Vendors",
-    "searchPlaceholder": "Search vendors",
-    "addButton": "Add vendor",
     "addVendors": "Add vendors",
     "uploadVendors": "Upload vendors",
     "importForm": {
@@ -3622,7 +2553,6 @@
     },
     "editVendor": "Edit vendor",
     "deleteVendor": "Delete vendor",
-    "viewDetails": "View details",
     "importMenu": {
       "importVendors": "Import vendors",
       "fromDevice": "From your device",
@@ -3631,27 +2561,15 @@
     "noValidData": "No valid vendor data found",
     "noneImported": "No vendors were imported",
     "name": "Name",
-    "noEmail": "No email",
-    "source": "Source",
-    "unknown": "Unknown",
-    "created": "Created",
-    "actions": "Actions",
-    "noVendorsYet": "No vendors yet",
-    "uploadFirstVendor": "Upload your first vendor to get started",
-    "deleteError": "Failed to delete vendor",
-    "deleteConfirmation": "Are you sure you want to delete {name}?",
     "thisVendor": "this vendor",
-    "deleteWarning": "This action cannot be undone.",
     "updateSuccess": "Vendor updated successfully",
     "updateError": "Failed to update vendor",
-    "updateVendor": "Update vendor",
     "namePlaceholder": "Enter vendor name",
     "email": "Email",
     "emailPlaceholder": "Enter email address",
     "locale": "Locale",
     "localePlaceholder": "e.g., en-US",
     "filter": {
-      "title": "Filters",
       "source": {
         "manual": "Manual import",
         "upload": "File upload",
@@ -3663,26 +2581,14 @@
       "provideData": "Please provide vendor data",
       "success": "Import successful",
       "successDescription": "Successfully imported {success} vendors{failed, select, 0 {} other {, {failed} failed}}",
-      "failed": "Import failed",
-      "error": "Failed to import vendors",
-      "errorCodes": {
-        "duplicate_email": "A vendor with this email already exists",
-        "duplicate_external_id": "A vendor with this external ID already exists",
-        "unknown": "An unexpected error occurred"
-      }
+      "error": "Failed to import vendors"
     }
   },
   "websites": {
     "title": "Websites",
-    "searchPlaceholder": "Search website",
     "addButton": "Add website",
     "addWebsite": "Add website",
     "editWebsite": "Edit website",
-    "deleteWebsite": "Delete website",
-    "delete": {
-      "title": "Delete website",
-      "confirmation": "Are you sure you want to delete this website? This action cannot be undone."
-    },
     "urlPlaceholder": "example.com",
     "scanIntervalPlaceholder": "Select scan interval",
     "domain": "Domain",
@@ -3698,7 +2604,6 @@
     },
     "validation": {
       "domainRequired": "Domain is required",
-      "validUrl": "Must be a valid URL",
       "validDomain": "Enter a valid domain (e.g. example.com)",
       "scanIntervalRequired": "Scan interval is required"
     },
@@ -3708,12 +2613,10 @@
       "addErrorDuplicate": "This website has already been added",
       "updateSuccess": "Website updated successfully",
       "updateError": "Failed to update website",
-      "deleteError": "Failed to delete website",
       "fetchPagesError": "Failed to load pages",
       "searchError": "Search failed"
     },
     "adding": "Adding...",
-    "saving": "Saving...",
     "viewDialog": {
       "title": "Website details",
       "domain": "Domain",
@@ -3724,15 +2627,11 @@
       "titleField": "Title",
       "description": "Description",
       "created": "Created",
-      "unknown": "Unknown",
-      "errorReason": "Error reason"
+      "unknown": "Unknown"
     },
     "viewPages": "View pages",
     "indexed": "Indexed",
     "indexedTooltip": "{percentage} % - {crawled} of {total} pages",
-    "pageCount": "{count} pages",
-    "pageCountOne": "{count} page",
-    "pageCountProgress": "{crawled}/{total} pages",
     "pagesDialog": {
       "title": "Website pages",
       "noPages": "No pages crawled yet",
@@ -3744,8 +2643,7 @@
       "noSearchResults": "No results found",
       "noChunks": "No chunks indexed for this page",
       "chunkIndex": "Chunk {index}",
-      "searchResultScore": "Score: {score}",
-      "searchResultSource": "Source: {url}"
+      "searchResultScore": "Score: {score}"
     },
     "filter": {
       "status": {
@@ -3814,8 +2712,6 @@
       "backupCodeSuccess": "Backup code used. Consider regenerating your backup codes in Settings."
     },
     "lowBackupCodes": {
-      "titleOne": "Only 1 backup code remaining",
-      "titleOther": "Only {count} backup codes remaining",
       "body": "Generate a new batch so you can still recover your account if you lose your authenticator.",
       "regenerateLink": "Regenerate now"
     },
@@ -3824,24 +2720,19 @@
       "description": "Your organization requires two-factor authentication to continue."
     },
     "grace": {
-      "titleOne": "Two-factor authentication required in {days} day",
-      "titleOther": "Two-factor authentication required in {days} days",
       "body": "Your organization will require all members to use a second factor. Enrol now to avoid interruption.",
       "setupLink": "Set up now"
     },
     "admin": {
       "resetButton": "Reset two-factor",
       "confirmTitle": "Reset two-factor authentication?",
-      "confirmDescription": "This disables two-factor for {name} and ends all their active sessions. They will have to enrol again on their next sign-in.",
-      "resetSuccess": "Two-factor authentication reset",
-      "resetFailed": "Failed to reset two-factor authentication"
+      "confirmDescription": "This disables two-factor for {name} and ends all their active sessions. They will have to enrol again on their next sign-in."
     },
     "errors": {
       "enableFailed": "Failed to start two-factor setup. Please try again.",
       "disableFailed": "Failed to disable two-factor authentication.",
       "regenerateFailed": "Failed to generate new backup codes.",
-      "invalidCode": "Invalid or expired code. Please try again.",
-      "sessionExpired": "Your session expired. Please sign in again."
+      "invalidCode": "Invalid or expired code. Please try again."
     }
   },
   "accessDenied": {
@@ -3849,14 +2740,12 @@
     "automations": "You need Admin or Developer permissions to access automations.",
     "integrations": "You need Admin or Developer permissions to access integrations settings.",
     "apiKeys": "You need Admin or Developer permissions to manage API keys.",
-    "apiDocs": "You need Admin or Developer permissions to access API documentation.",
     "organization": "You need Admin permissions to access organization settings.",
     "teams": "You need Admin permissions to access team settings.",
     "agents": "You need Admin or Developer permissions to manage agents.",
     "mcpServers": "You need Admin or Developer permissions to manage MCP servers.",
     "branding": "You need Admin permissions to access branding settings.",
     "knowledge": "Your account does not have permission to access knowledge.",
-    "noMembership": "You are not a member of this workspace. Please contact an administrator for access.",
     "workspaceNotFound": "The workspace you're looking for doesn't exist or may have been removed.",
     "disabled": "Your account has been disabled. Contact support for assistance."
   },
@@ -4022,17 +2911,14 @@
   },
   "governance": {
     "title": "Governance",
-    "description": "Configure organization-wide policies and controls.",
     "toastSavedTitle": "Changes saved successfully",
     "toastSaveFailedTitle": "Failed to save changes",
     "systemPrompt": {
       "title": "System Prompt",
       "description": "Set a mandatory system prompt that is applied to all agents and cannot be overridden by users.",
-      "prefix": "Prefix (prepended before agent instructions)",
       "prefixLabel": "Mandatory prefix",
       "prefixDescription": "This text is prepended before every agent's instructions and cannot be overridden.",
       "prefixPlaceholder": "Enter the mandatory prompt prefix...",
-      "suffix": "Suffix (appended after agent instructions)",
       "suffixLabel": "Mandatory suffix",
       "suffixDescription": "This text is appended after every agent's instructions and cannot be overridden.",
       "suffixPlaceholder": "Enter the mandatory prompt suffix...",
@@ -4054,7 +2940,6 @@
       "period": "Period",
       "tokenLimit": "Max tokens",
       "tokenLimitHelp": "Total input + output tokens. 1M tokens ~ 750K words.",
-      "costLimitEur": "Cost limit (EUR)",
       "costLimitUsd": "Max cost (USD)",
       "costLimitHelp": "Hard spending cap in USD. GPT-4o ~ $10/1M tokens.",
       "maxCost": "Max cost",
@@ -4065,14 +2950,12 @@
       "orgScopeTarget": "Entire organization",
       "allUsers": "All users",
       "overrideHint": "More specific scopes override broader ones: user > team > role > default. Org limits always apply as an additional cap.",
-      "noRules": "No budget rules configured. Add a rule to start enforcing limits.",
       "noRulesTitle": "No budget rules configured",
       "noRulesDescription": "Add a rule to start enforcing limits.",
       "editRuleAriaLabel": "Edit rule {index}",
       "removeRuleAriaLabel": "Remove rule {index}",
       "actions": "Actions",
       "confirm": "Confirm",
-      "enabled": "Enabled",
       "role": "Role",
       "user": "User",
       "team": "Team",
@@ -4084,15 +2967,11 @@
       "searchTeams": "Search teams...",
       "noTeamsFound": "No teams found",
       "selectTeamAriaLabel": "Select team",
-      "daily": "Daily",
-      "weekly": "Weekly",
-      "monthly": "Monthly",
       "saved": "Budget rules have been updated"
     },
     "defaultModels": {
       "title": "Default Models",
       "description": "Set default models for specific user groups or roles.",
-      "addMapping": "Add model mapping",
       "saved": "Default model configuration has been updated",
       "addRule": "Add rule",
       "addRuleTitle": "Add default model rule",
@@ -4105,7 +2984,6 @@
       "model": "Model",
       "role": "Role",
       "actions": "Actions",
-      "noRules": "No default model rules configured. Add a rule to set team or role defaults.",
       "noRulesTitle": "No rules configured",
       "noRulesDescription": "Add a rule to set default models by scope.",
       "allUsers": "All users",
@@ -4118,12 +2996,7 @@
       "noProvidersFound": "No providers found",
       "noModelsFound": "No models found",
       "noTeamsFound": "No teams found",
-      "enabled": "Enabled",
-      "confirm": "Confirm",
-      "allowlistConflictWarningTitle": "Model not in allowlist",
-      "allowlistConflictWarning": "This model isn't currently permitted by the Model access allowlist for this scope. Users receiving this default will fall back to an allowlist-permitted model.",
-      "blocklistConflictWarningTitle": "Model is blocked",
-      "blocklistConflictWarning": "This model is currently blocked by the Model access policy for this scope. Users receiving this default will fall back to a permitted model."
+      "confirm": "Confirm"
     },
     "uploadPolicy": {
       "title": "Upload policy",
@@ -4138,19 +3011,62 @@
       "mimeTypePlaceholder": "image/*, application/pdf",
       "mbUnit": "MB",
       "gbUnit": "GB",
-      "policyDisabledHint": "Enable the policy to enforce upload restrictions.",
       "saved": "Upload policy has been updated",
       "saveFailed": "Failed to save upload policy"
     },
     "retentionPolicy": {
-      "title": "Retention policy",
-      "description": "Configure automatic deletion of uploaded files after a specified period.",
-      "enabled": "Enable retention policy",
-      "retentionDays": "Retention period (days)",
-      "retentionDaysHint": "Documents older than this will be permanently deleted. This cannot be undone.",
-      "scope": "Apply to",
-      "tempFileRetentionHours": "Temporary file retention (hours)",
-      "saved": "Retention policy has been updated"
+      "saved": "Retention policy has been updated",
+      "enabled": "Enabled",
+      "retentionDays": "Retention days",
+      "retentionHours": "Retention hours",
+      "chatHistory": {
+        "title": "Chat history",
+        "description": "Automatically delete chat threads (conversations with agents) older than the retention period. Message contents in the agent component are archived. Deletion is irreversible.",
+        "placeholder": "e.g. 90",
+        "helper": "Chat threads older than this (by last-updated time) will be deleted."
+      },
+      "documents": {
+        "title": "Document retention",
+        "description": "Automatically delete documents that exceed the retention period. Use with caution — deleted documents cannot be recovered.",
+        "placeholder": "e.g. 90",
+        "helper": "Documents older than this will be deleted."
+      },
+      "userTemp": {
+        "title": "User temporary file cleanup",
+        "description": "Automatically delete files uploaded by users but never saved to a document (e.g. chat attachments, aborted uploads).",
+        "placeholder": "e.g. 24",
+        "helper": "Temporary files older than this will be deleted."
+      },
+      "agentTemp": {
+        "title": "Agent temporary file cleanup",
+        "description": "Automatically delete files generated by agents but never saved to a document (e.g. intermediate outputs, knowledge files).",
+        "placeholder": "e.g. 24",
+        "helper": "Temporary files older than this will be deleted."
+      },
+      "workflowLogs": {
+        "title": "Workflow execution logs",
+        "description": "Automatically delete workflow execution records and trigger logs older than the retention period. Includes per-execution variable/output storage blobs.",
+        "placeholder": "e.g. 30",
+        "helper": "Workflow runs older than this will be deleted (1–365 days)."
+      },
+      "auditLogs": {
+        "title": "Audit logs",
+        "description": "Automatically delete audit log entries older than the retention period. Note: audit logs are immutable historical records used for compliance; keep retention long enough to satisfy your audit/compliance requirements.",
+        "placeholder": "e.g. 90",
+        "helper": "Audit log entries older than this will be deleted (30–365 days)."
+      },
+      "usageLedger": {
+        "title": "Usage ledger",
+        "description": "Automatically delete token-usage ledger rows older than the retention period. Warning: shortening this retention truncates historical analytics (budgets/reports rely on ledger rows).",
+        "placeholder": "e.g. 365",
+        "helper": "Usage ledger rows older than this will be deleted (30–3650 days)."
+      },
+      "loginAttempts": {
+        "title": "Login attempts",
+        "description": "Automatically delete failed-login tracking records (loginAttempts, per-hour block counters) older than the retention period. Note: these tables are deployment-wide — the strictest (shortest) value across all orgs is used.",
+        "placeholder": "e.g. 90",
+        "helper": "Login attempt records older than this will be deleted (7–365 days)."
+      }
     },
     "passwordPolicy": {
       "title": "Password policy",
@@ -4186,7 +3102,6 @@
       "title": "Login attempt limits",
       "description": "Lock accounts after repeated sign-in failures and grow the wait between attempts.",
       "enabled": "Enable login attempt limits",
-      "policyDisabledHint": "Sign-in failures are not throttled while this policy is disabled.",
       "maxAttempts": "Failures before lockout",
       "maxAttemptsHint": "Number of consecutive wrong-password attempts before the account is temporarily locked.",
       "backoffSchedule": "Backoff schedule (seconds)",
@@ -4199,19 +3114,9 @@
       "saved": "Login policy has been updated",
       "saveFailed": "Failed to save login policy"
     },
-    "tabs": {
-      "systemPrompt": "System prompt",
-      "budgets": "Budgets",
-      "usage": "Usage",
-      "pii": "PII protection",
-      "featureControls": "Feature controls",
-      "modelAccess": "Model access",
-      "retention": "Retention"
-    },
     "featureFlags": {
       "title": "Feature controls",
       "description": "Enable or disable features per user, team, or role.",
-      "enabled": "Enable feature controls",
       "webSearch": "Web search",
       "codeExecution": "Code execution",
       "fileUpload": "File upload",
@@ -4223,7 +3128,6 @@
       "addRule": "Add rule",
       "editRule": "Edit rule",
       "deleteRule": "Delete rule",
-      "noRules": "No feature control rules configured. Add a rule to manage features per user, team, or role.",
       "noRulesTitle": "No feature control rules configured",
       "noRulesDescription": "Add a rule to manage features per user, team, or role.",
       "saved": "Feature controls have been updated",
@@ -4253,7 +3157,6 @@
       "title": "PII protection",
       "description": "Detect and mask or block personal data before sending to AI models.",
       "enableLabel": "Enable PII protection",
-      "enableDescription": "When enabled, messages are scanned for personal data before being sent to AI models.",
       "modeLabel": "Detection mode",
       "modeMask": "Mask (replace with placeholders)",
       "modeBlock": "Block (reject message)",
@@ -4288,9 +3191,7 @@
       "testButton": "Test",
       "addCustomPattern": "Add custom pattern",
       "saved": "PII configuration has been updated",
-      "saveFailed": "Failed to save PII configuration",
-      "blocked": "Message blocked: personal data detected",
-      "detectedTypes": "Detected: {types}"
+      "saveFailed": "Failed to save PII configuration"
     },
     "guardrailsOverview": {
       "title": "Guardrails overview",
@@ -4440,14 +3341,6 @@
       "failClosed": "Fail closed (block)",
       "provider": "Provider",
       "providerDescription": "Pick a built-in preset — the URL, headers, request template, and response parser are filled in for you. The API key itself is entered (and encrypted) in the API key section below, never in the policy config. Pick Custom JSONPath for any other HTTPS moderation API you want to plug in.",
-      "presetOpenai": "Use OpenAI Moderation",
-      "presetOpenaiActive": "OpenAI Moderation",
-      "presetAzure": "Use Azure Content Safety",
-      "presetAzureActive": "Azure Content Safety",
-      "presetAzureNote": "Replace the subdomain with your own Azure resource name.",
-      "presetPerspective": "Use Perspective API",
-      "presetPerspectiveActive": "Perspective API",
-      "presetPerspectiveNote": "Perspective authenticates via a URL query parameter, not a header. After applying the preset, open Endpoint and append ?key=YOUR_PERSPECTIVE_KEY to the URL. (The encrypted API-key field below is not used by Perspective.)",
       "presetCustomJsonPath": "Custom JSONPath",
       "presetCustomJsonPathActive": "Custom JSONPath",
       "presetApplied": "Preset applied",
@@ -4546,10 +3439,6 @@
       "testResultMatchCount": "Match count",
       "testResultCircuit": "Circuit",
       "testResultCircuitOpened": "Opened by this failure",
-      "deleteButton": "Delete",
-      "cancelButton": "Cancel",
-      "saveButton": "Save",
-      "editButton": "Edit",
       "saved": "Moderation provider saved",
       "saveFailed": "Save failed"
     },
@@ -4558,36 +3447,16 @@
       "policiesAndLimits": "Policies & Limits",
       "securityAndMonitoring": "Security & Monitoring",
       "guardrails": "Guardrails",
-      "usage": "Usage",
-      "subtabs": {
-        "login": "Login & authentication",
-        "password": "Password policy",
-        "twoFactor": "Two-factor authentication",
-        "pii": "PII protection",
-        "contentSafety": "Content safety",
-        "moderation": "Moderation provider",
-        "guardrailsOverview": "Guardrails overview",
-        "usage": "Usage",
-        "systemPrompt": "System prompt",
-        "defaultModels": "Default models",
-        "modelAccess": "Model access",
-        "budgets": "Budgets",
-        "uploadPolicy": "Upload policy",
-        "retention": "Retention",
-        "featureControls": "Feature controls"
-      }
+      "usage": "Usage"
     },
     "modelAccess": {
       "title": "Model access",
       "description": "Control which AI models are available to users, teams, and roles.",
       "enabled": "Enable model access policy",
       "mode": "Mode",
-      "allowlist": "Allowlist",
-      "blocklist": "Blocklist",
       "addRule": "Add rule",
       "editRule": "Edit rule",
       "deleteRule": "Delete rule",
-      "noRules": "No access rules configured. All models are available to all users.",
       "noRulesTitle": "No access rules configured",
       "noRulesDescription": "All models are available to all users.",
       "scope": "Scope",
@@ -4596,9 +3465,6 @@
       "allowedModels": "Allowed models",
       "blockedModels": "Blocked models",
       "allUsers": "All users",
-      "selectModels": "Select models",
-      "searchModels": "Search models",
-      "noModelsFound": "No models found",
       "role": "Role",
       "user": "User",
       "team": "Team",
@@ -4609,10 +3475,8 @@
       "noUsersFound": "No users found",
       "noTeamsFound": "No teams found",
       "confirm": "Confirm",
-      "preview": "Preview",
       "saved": "Model access policy has been updated",
       "saveFailed": "Failed to save model access policy",
-      "denied": "Model not available for your account. Contact your administrator to request access.",
       "removeDefaultConfirmTitle": "Remove permission for active default model?",
       "removeDefaultConfirmBody": "The following default model rule(s) currently assign models that would no longer be permitted: {rules}. Affected users will fall back to another permitted model.",
       "removeDefaultConfirmAction": "Save anyway"
@@ -4628,8 +3492,7 @@
       "title": "Prompt library",
       "description": "Browse, save, and share prompt templates.",
       "searchPlaceholder": "Search prompts...",
-      "loading": "Loading prompts...",
-      "empty": "No prompts yet. Create your first prompt template."
+      "loading": "Loading prompts..."
     },
     "emptyState": {
       "title": "No prompts yet",
@@ -4637,11 +3500,8 @@
     },
     "actions": {
       "create": "Create prompt",
-      "createFirst": "Create first prompt",
       "edit": "Edit",
       "delete": "Delete",
-      "use": "Use",
-      "usePrompt": "Use this prompt",
       "more": "More actions",
       "copy": "Copy",
       "copied": "Copied!"
@@ -4678,8 +3538,6 @@
     },
     "saveAs": {
       "title": "Save prompt",
-      "description": "Give your prompt a name and edit the content before saving.",
-      "namePlaceholder": "e.g. API rate limiting best practices",
       "saveTo": "Save to",
       "cancel": "Cancel"
     },
@@ -4696,8 +3554,7 @@
     },
     "sidebar": {
       "sectionTitle": "Prompt Library"
-    },
-    "usageCount": "{count, plural, one {# use} other {# uses}}"
+    }
   },
   "mcpServers": {
     "title": "MCP Servers",
@@ -4724,7 +3581,6 @@
       "command": "Command",
       "args": "Arguments",
       "authType": "Authentication",
-      "none": "None",
       "apiKey": "API Key",
       "oauth2": "OAuth 2.0",
       "save": "Save server",
@@ -4734,17 +3590,12 @@
       "authSection": "Authentication"
     },
     "oauth2": {
-      "title": "OAuth 2.0 Configuration",
       "tokenUrl": "Token URL",
       "authorizationUrl": "Authorization URL",
       "clientId": "Client ID",
       "clientSecret": "Client secret",
       "scopes": "Scopes",
-      "grantType": "Grant type",
-      "clientCredentials": "Client credentials",
-      "authorizationCode": "Authorization code",
-      "authorize": "Authorize",
-      "authorized": "Authorized"
+      "grantType": "Grant type"
     },
     "tools": {
       "title": "Discovered Tools",
@@ -4769,26 +3620,6 @@
     "loading": "Loading…",
     "accountLocked": "Account temporarily locked: {email}",
     "lockoutDetails": "{consecutiveFailures} failed sign-in attempts from {ip}."
-  },
-  "documentComparison": {
-    "title": "Compare Documents",
-    "description": "Upload or select two documents to compare their content.",
-    "baseDocument": "Base Document",
-    "comparisonDocument": "Comparison Document",
-    "compare": "Compare",
-    "comparing": "Comparing documents...",
-    "upload": "Upload",
-    "existing": "Existing",
-    "selectDocument": "Select a document",
-    "results": {
-      "title": "Comparison Results",
-      "added": "Added",
-      "deleted": "Deleted",
-      "modified": "Modified",
-      "unchanged": "Unchanged",
-      "similarityScore": "Similarity: {score}%"
-    },
-    "noResults": "No comparison results yet."
   },
   "analytics": {
     "usage": {
@@ -4830,7 +3661,6 @@
       "tables": {
         "topAgents": {
           "title": "Top Assistants",
-          "rank": "#",
           "agent": "Assistant",
           "requests": "Requests",
           "tokens": "Tokens",
@@ -4838,9 +3668,7 @@
         },
         "topModels": {
           "title": "Top Models",
-          "rank": "#",
           "model": "Model",
-          "provider": "Provider",
           "requests": "Requests",
           "tokens": "Tokens",
           "cost": "Cost"
@@ -4852,7 +3680,6 @@
           "inputTokens": "Input Tokens",
           "outputTokens": "Output Tokens",
           "requests": "Requests",
-          "tokens": "Tokens",
           "cost": "Cost"
         }
       },

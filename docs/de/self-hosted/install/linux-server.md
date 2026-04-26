@@ -321,51 +321,6 @@ services:
 
 So bleibt die Service-Definition bestehen (damit `depends_on`-Referenzen nicht brechen), startet aber nur, wenn du das Profil `disabled` explizit anforderst.
 
-## Upgrade von Pre-Split-Convex (vor v0.2.34) {#upgrade-von-pre-split-convex-vor-v0234}
-
-v0.2.34 trennt das Convex-Backend in einen eigenen `convex`-Dienst. Bestehende Deployments speichern Convex-Daten im Volume `platform-data`; neue Deployments (und v0.2.x-Installationen nach dem Upgrade) nutzen ein dediziertes `convex-data`-Volume. Migrationen werden beim nächsten `tale start` oder `tale deploy` automatisch erkannt und angewendet — es gibt **kein separates `tale migrate`**:
-
-```bash
-tale upgrade                          # Neue CLI + Images laden
-tale deploy --yes                     # Nicht-interaktiv: Migrationen automatisch anwenden
-                                      # (oder `tale deploy` für interaktive Bestätigung)
-tale status                           # Neues Setup verifizieren
-```
-
-Was die Split-Convex-Migration tut, wenn sie ausgelöst wird:
-
-1. **Erkennen** — sucht `${projectId}_platform-data` (Prod) und/oder `${projectId}-dev_platform-data` (Dev) mit Daten und bestätigt, dass das `convex-data`-Volume leer oder nicht vorhanden ist.
-2. **Planen** — gibt Quelle/Ziel aus und welche Container gestoppt werden. Interaktiv fragt der Runner nach Bestätigung (Default: Nein); nicht-interaktive Läufe brauchen `--yes`.
-3. **Stoppen** — fährt Compose-Projekte/Einzelcontainer herunter, die das Quell-Volume halten, damit `cp -a` nicht mit einem laufenden Writer kollidiert.
-4. **Kopieren** — `docker run --rm --user 1001:1001 -v src:/src:ro -v dst:/dst alpine sh -c "cp -a /src/. /dst/ && touch /dst/.tale-migration-complete"`.
-5. **Verifizieren** — vergleicht Datei-Zähler zwischen Quelle und Ziel.
-6. **Protokollieren** — schreibt die Migrations-ID in `.tale/migrations.json`, damit spätere Läufe sie überspringen. Das Legacy-Volume bleibt **erhalten**, damit du bei Bedarf downgraden kannst.
-
-### Sicherheitshinweise
-
-- Die Migration **löscht oder verändert** das Legacy-Volume `platform-data` nicht. Wenn das neue Setup Ende-zu-Ende funktioniert, gibst du den Speicher manuell frei:
-
-  ```bash
-  docker volume rm <projectId>_platform-data
-  docker volume rm <projectId>-dev_platform-data   # falls du Dev nutzt
-  ```
-
-- Bei Fehlern mitten im Kopiervorgang einfach `tale deploy` / `tale start` erneut ausführen — das Sentinel `.tale-migration-complete` wird vor jedem Kopieren geprüft, und jedes unvollständige Ziel wird vor dem erneuten Versuch in ein Backup-Volume mit Zeitstempel verschoben (`…partial-<ts>`).
-- Erneutes Ausführen nach erfolgreicher Migration ist ein No-op.
-
-### Rollback bei fehlgeschlagenem Upgrade
-
-Wenn v0.2.x sich daneben benimmt und du zurück auf v0.2.x musst, **lösche das Legacy-Volume `platform-data` nicht**:
-
-```bash
-tale rollback --version 0.2.33
-# Oder die CLI selbst downgraden:
-curl -fsSL https://raw.githubusercontent.com/tale-project/tale/v0.2.x/scripts/install-cli.sh | bash
-tale start
-```
-
-Das alte Image erwartet `platform-data:/app/data`; solange dieses Volume intakt ist, ist der Rollback sauber.
-
 ## Schema-Kompatibilität und Rollback
 
 Tale-Deployments sind nicht automatisch rollback-sicher, wenn deine Code-Änderung das Convex-Schema ändert. Convex-Daten bleiben unabhängig vom Anwendungscode bestehen, und `tale rollback` tauscht nur Container-Images — nicht den DB-Zustand.

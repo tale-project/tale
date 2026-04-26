@@ -27,14 +27,6 @@
       "archived": "Archived",
       "churned": "Churned",
       "potential": "Potential"
-    },
-    "providers": {
-      "gmail": "Gmail",
-      "outlook": "Outlook",
-      "shopify": "Shopify",
-      "circuly": "Circuly",
-      "protel": "Protel PMS",
-      "oneDrive": "OneDrive"
     }
   }
 }

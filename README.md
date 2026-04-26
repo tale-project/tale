@@ -1,5 +1,7 @@
 # Tale
 
+> **Read this in:** [English](README.md) · [Deutsch](README.de.md) · [Français](README.fr.md)
+
 Build AI-powered applications in minutes, not months.
 
 Tale is a self-hosted AI platform with custom agents, a knowledge base, workflow automation, integrations, and a unified inbox. Install the CLI and run a single command to get started.
@@ -87,21 +89,7 @@ tale cleanup                       # Remove inactive containers
 tale reset --force                 # Remove all containers
 ```
 
-### Upgrading across the split-convex release (v0.2.34)
-
-v0.2.34 splits the Convex backend into its own service. Migrations are detected
-and applied automatically on the next `tale start` or `tale deploy`; there is
-no separate `tale migrate` command.
-
-```bash
-tale upgrade                       # Pull new CLI + images
-tale start                         # Detects pending migrations, prompts to confirm
-#                                  #   (non-interactive: tale deploy --yes)
-```
-
-The old `platform-data` volume is preserved so you can roll back by reverting to the previous CLI version. After verifying the new setup works, reclaim disk space with `docker volume rm <projectId>_platform-data`.
-
-See the [CLI reference](tools/cli/README.md) for all options and flags.
+See the [CLI reference](tools/cli/README.md) for all options and flags. Pending data migrations are detected and applied automatically on the next `tale start` or `tale deploy`.
 
 ## Deploy to production
 
@@ -141,7 +129,7 @@ bun run build                    # Build all services
 
 #### Optional: hybrid mode against a containerised Convex
 
-After the v0.2.34 split, you can run Vite locally against the dedicated `convex` container instead of spawning `bunx convex dev`:
+You can run Vite locally against the dedicated `convex` container instead of spawning `bunx convex dev`:
 
 ```bash
 docker compose up convex                        # in one terminal
@@ -164,7 +152,7 @@ cd services/crawler && uv sync --extra dev
 
 ## Documentation
 
-The docs are published in six locales (`en`, `de`, `de-AT`, `de-CH`, `fr`, `fr-CH`) with full coverage. Start at [`docs/index.md`](docs/index.md) to pick an entry point by persona.
+The docs site ships in three locales (`en`, `de`, `fr`) with full coverage. The platform UI itself ships six (`en`, `de`, `de-AT`, `de-CH`, `fr`, `fr-CH`) — regional variants share the docs of their base locale. Start at [`docs/index.md`](docs/index.md) to pick an entry point by persona.
 
 ### For everyday users
 
@@ -188,7 +176,7 @@ The docs are published in six locales (`en`, `de`, `de-AT`, `de-CH`, `fr`, `fr-C
 - **[Members and roles](docs/platform/admin/members-and-roles.md)** — user management and permission matrix
 - **[Authentication](docs/self-hosted/admin/authentication.md)** — password, SSO, trusted headers
 - **[AI providers](docs/platform/admin/providers.md)** — configure models in the admin UI
-- **[Governance](docs/platform/admin/governance.md)** — budgets, retention, PII detection, audit logs
+- **[Governance](docs/platform/admin/governance.md)** — budgets, retention, guardrails (content safety, PII detection, moderation provider), audit logs
 - **[Usage analytics](docs/platform/admin/usage-analytics.md)** — time-based token and cost reporting
 
 ### For operators
@@ -213,6 +201,11 @@ The docs are published in six locales (`en`, `de`, `de-AT`, `de-CH`, `fr`, `fr-C
 - **Health checks**: Visit `{SITE_URL}/api/health`
 - **Deployment status**: `tale status` to check production deployment
 - **Convex Dashboard**: `tale convex admin` to generate an admin key
+- **Issues and discussions**: [github.com/tale-project/tale/issues](https://github.com/tale-project/tale/issues)
+
+## Contributing
+
+Read [`AGENTS.md`](AGENTS.md) before your first PR — it is the single contract for code style, security, testing, i18n, and documentation across every workspace. [`docs/AGENTS.md`](docs/AGENTS.md) covers the Mintlify documentation site; [`.agents/TERMINOLOGY.md`](.agents/TERMINOLOGY.md) covers cross-locale translation rules. Run `bun run check` (format, lint, typecheck, tests) before opening a PR; the [pull request template](.github/pull_request_template.md) lists the rest of the pre-merge checklist.
 
 ---
 
