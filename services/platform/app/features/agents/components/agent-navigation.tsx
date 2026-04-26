@@ -46,15 +46,8 @@ export function AgentNavigation({
 }: AgentNavigationProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const {
-    config,
-    isDirty,
-    isSaving,
-    resetConfig,
-    markSaving,
-    markSaved,
-    overrideConfig,
-  } = useAgentConfig();
+  const { config, isDirty, isSaving, resetConfig, markSaving, overrideConfig } =
+    useAgentConfig();
   const { formatDate } = useFormatDate();
   const { data: organization } = useOrganization(organizationId);
   const orgDefaultLocale = getOrganizationDefaultLocale(organization?.metadata);
@@ -148,7 +141,7 @@ export function AgentNavigation({
         organizationId,
       });
 
-      markSaved(normalized);
+      overrideConfig(normalized);
       setHistoryEntries([]);
       toast({
         title: t('agents.agentSaved'),
@@ -169,10 +162,10 @@ export function AgentNavigation({
     agentId,
     config,
     markSaving,
-    markSaved,
     onSaved,
     orgDefaultLocale,
     organizationId,
+    overrideConfig,
     saveAction,
     snapshotAction,
     t,

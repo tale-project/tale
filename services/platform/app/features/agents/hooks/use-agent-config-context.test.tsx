@@ -160,6 +160,36 @@ describe('useAgentConfig', () => {
     expect(result.current.config.delegates).toEqual(['web-assistant']);
   });
 
+  it('overrideConfig clears isDirty even when persisted shape differs from working config', () => {
+    // Regression: handleSave normalizes the config (stripping empty i18n
+    // placeholders, retiring top-level translatables, etc.) and must end up
+    // with isDirty=false. Calling markSaved alone leaves `config` un-synced,
+    // so a JSON-shape divergence keeps isDirty=true forever.
+    const { result } = renderHook(() => useAgentConfig(), {
+      wrapper: createWrapper(),
+    });
+
+    act(() => {
+      result.current.updateConfig({
+        i18n: { en: { displayName: 'Assistant', description: '' } },
+      });
+    });
+    expect(result.current.isDirty).toBe(true);
+
+    // Simulated normalized shape: empty `description` stripped.
+    const persisted: AgentJsonConfig = {
+      ...result.current.config,
+      i18n: { en: { displayName: 'Assistant' } },
+    };
+
+    act(() => {
+      result.current.overrideConfig(persisted);
+    });
+
+    expect(result.current.isDirty).toBe(false);
+    expect(result.current.config.i18n?.en?.description).toBeUndefined();
+  });
+
   it('resetConfig reverts to initial config', () => {
     const { result } = renderHook(() => useAgentConfig(), {
       wrapper: createWrapper(),
