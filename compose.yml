@@ -73,17 +73,20 @@ services:
     restart: unless-stopped
 
     # Health check
-    # Docker will check if the database is ready
+    # Gates dependent services on BOTH PostgreSQL accepting connections AND
+    # the post-start init scripts having finished (they create `tale_knowledge`
+    # + extensions in the background, so `pg_isready` alone races with rag's
+    # dbmate startup on slow CI runners).
     healthcheck:
       test:
         [
           'CMD-SHELL',
-          'pg_isready -U ${POSTGRES_USER:-tale} -d ${POSTGRES_DB:-tale}',
+          'pg_isready -U ${POSTGRES_USER:-tale} -d ${POSTGRES_DB:-tale} && [ -f /tmp/.db_ready ]',
         ]
-      interval: 30s
+      interval: 5s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 120s
 
     # Resource limits (optional, adjust based on your needs)
     # deploy:
