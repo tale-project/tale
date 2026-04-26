@@ -327,9 +327,10 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
           required: false,
           input: false,
         } as const,
-        // Last organization the user entered — persists across logout/login,
-        // unlike session.activeOrganizationId which dies with the session.
-        // Written by recordOrgSwitch whenever the user enters an org.
+        // Last organization the user signed in to — persists across
+        // logout/login, unlike session.activeOrganizationId which dies with
+        // the session. Written by recordOrgSwitch whenever the user signs
+        // in to an org.
         lastActiveOrganizationId: {
           type: 'string',
           required: false,
@@ -519,20 +520,67 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
           },
           afterCreateOrganization: async (data) => {
             const slug = data.organization.slug;
-            if (!slug) return;
-            // Scaffolding is filesystem work, so defer to an action via
-            // the scheduler. Failures here should NOT block org creation —
-            // the scaffolder logs and continues per-domain.
+            if (slug) {
+              // Scaffolding is filesystem work, so defer to an action via
+              // the scheduler. Failures here should NOT block org creation —
+              // the scaffolder logs and continues per-domain.
+              try {
+                const runCtx = requireRunMutationCtx(ctx);
+                await runCtx.scheduler.runAfter(
+                  0,
+                  internal.organizations.scaffold.scaffoldNewOrganization,
+                  { orgSlug: slug },
+                );
+              } catch (err) {
+                console.error(
+                  '[afterCreateOrganization] failed to schedule scaffold',
+                  err instanceof Error ? err.message : err,
+                );
+              }
+            }
+
+            // Member-POV audit row: the creator just joined the org as
+            // owner. Better Auth has already persisted the member record
+            // with role='owner' before invoking this hook. Wrap defensively
+            // so audit failures don't bubble to the client as a 500.
             try {
               const runCtx = requireRunMutationCtx(ctx);
-              await runCtx.scheduler.runAfter(
-                0,
-                internal.organizations.scaffold.scaffoldNewOrganization,
-                { orgSlug: slug },
+              await runCtx.runMutation(
+                internal.audit_logs.internal_mutations.logJoinedOrganization,
+                {
+                  organizationId: data.organization.id,
+                  userId: data.user.id,
+                  userEmail: data.user.email,
+                  userRole: data.member.role,
+                },
               );
             } catch (err) {
               console.error(
-                '[afterCreateOrganization] failed to schedule scaffold',
+                '[afterCreateOrganization] failed to write joined_organization audit',
+                err instanceof Error ? err.message : err,
+              );
+            }
+          },
+          afterAcceptInvitation: async (data) => {
+            // Member-POV audit row: the invitee just joined the org with
+            // the role granted by the invitation. Better Auth persists the
+            // member record before invoking this hook, so `data.member.role`
+            // is authoritative. Wrapped defensively per the same rationale
+            // as afterCreateOrganization.
+            try {
+              const runCtx = requireRunMutationCtx(ctx);
+              await runCtx.runMutation(
+                internal.audit_logs.internal_mutations.logJoinedOrganization,
+                {
+                  organizationId: data.organization.id,
+                  userId: data.user.id,
+                  userEmail: data.user.email,
+                  userRole: data.member.role,
+                },
+              );
+            } catch (err) {
+              console.error(
+                '[afterAcceptInvitation] failed to write joined_organization audit',
                 err instanceof Error ? err.message : err,
               );
             }

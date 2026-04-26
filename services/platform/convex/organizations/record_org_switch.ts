@@ -1,21 +1,27 @@
 /**
- * Record that a user entered (selected) an organization.
+ * Record that a user signed in to (activated) an organization for the
+ * current session.
  *
  * Invoked by the client right after `authClient.organization.setActive()`
  * succeeds. Does two things:
- *   1. Writes an auditable `entered_organization` log entry — the compliance
- *      "moment of tenant selection".
+ *   1. Writes an auditable `signed_in_to_organization` log entry — the
+ *      compliance "moment of tenant access".
  *   2. Persists `user.lastActiveOrganizationId` on the user record so the
  *      preference survives logout/login. Better Auth's
  *      `session.activeOrganizationId` only lives for the current session and
  *      gets reset to null when the session is destroyed on logout.
  *
- * The mutation is invoked from several client paths (initial dashboard load,
- * deep-link route guard, explicit switcher, org creation), so without dedup
- * the same user re-entering the same org during a session would spam the
- * audit log. We skip the audit write if the same user already has an
- * `entered_organization` entry for the same org within DEDUP_WINDOW_MS.
- * Cross-org switches and "user came back later" still record.
+ * Mutation name reflects the historical "switch" origin; the four invocation
+ * paths it actually serves are: initial dashboard load (auto-select after
+ * login), explicit org switcher, deep-link route guard, and post-org-creation.
+ * The audit action name (`signed_in_to_organization`) describes the
+ * user-facing semantic; the mutation name describes the state-machine call.
+ *
+ * Without dedup the same user re-activating the same org during a session
+ * would spam the audit log. We skip the audit write if the same user already
+ * has an entry for the same org within DEDUP_WINDOW_MS. The check OR-matches
+ * the legacy `entered_organization` action name so dedup keeps working
+ * across the rename for any old rows in the window.
  */
 
 import { v } from 'convex/values';
@@ -58,7 +64,9 @@ export const recordOrgSwitch = mutation({
       .order('desc')) {
       if (
         entry.actorId === actorId &&
-        entry.action === 'entered_organization'
+        // TODO: drop `entered_organization` branch after demo data purge.
+        (entry.action === 'signed_in_to_organization' ||
+          entry.action === 'entered_organization')
       ) {
         hasRecentEntry = true;
         break;
@@ -76,7 +84,7 @@ export const recordOrgSwitch = mutation({
             type: 'user',
           },
         },
-        action: 'entered_organization',
+        action: 'signed_in_to_organization',
         category: 'auth',
         resourceType: 'organization',
         resourceId: args.organizationId,
