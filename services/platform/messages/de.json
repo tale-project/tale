@@ -381,7 +381,6 @@
     "userButton": {
       "defaultName": "Benutzer",
       "manageAccount": "Konto verwalten",
-      "settings": "Einstellungen",
       "helpFeedback": "Hilfe & Feedback",
       "currentVersion": "Aktuelle Version: v{version}",
       "whatsNew": "Neuigkeiten",
@@ -469,9 +468,6 @@
       "switching": "Wird gewechselt…",
       "switchingTo": "Wechsle zu {name}…",
       "switchingLabel": "Organisation wird gewechselt",
-      "switchAction": "Wechseln",
-      "currentBadge": "Aktuell",
-      "roleLabel": "Rolle",
       "deleteAriaLabel": "{name} löschen",
       "deleteDialogTitle": "Organisation löschen",
       "deleteDialogDescription": "„{name}\" löschen? Damit werden Agents, Workflows, Anbieter und Integrationen entfernt. Mitglieder verlieren den Zugriff. Dies kann nicht rückgängig gemacht werden.",

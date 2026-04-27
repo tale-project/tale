@@ -381,7 +381,6 @@
     "userButton": {
       "defaultName": "User",
       "manageAccount": "Manage account",
-      "settings": "Settings",
       "helpFeedback": "Help & feedback",
       "currentVersion": "Current version: v{version}",
       "whatsNew": "What's new",
@@ -474,9 +473,6 @@
       "switching": "Switching…",
       "switchingTo": "Switching to {name}…",
       "switchingLabel": "Switching organization",
-      "switchAction": "Switch",
-      "currentBadge": "Current",
-      "roleLabel": "role",
       "deleteAriaLabel": "Delete {name}",
       "deleteDialogTitle": "Delete organization",
       "deleteDialogDescription": "Delete \"{name}\"? This removes its agents, workflows, providers, and integrations. Members will lose access. This cannot be undone.",

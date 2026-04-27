@@ -381,7 +381,6 @@
     "userButton": {
       "defaultName": "Utilisateur",
       "manageAccount": "Gérer le compte",
-      "settings": "Paramètres",
       "helpFeedback": "Aide et retours",
       "currentVersion": "Version actuelle : v{version}",
       "whatsNew": "Nouveautés",
@@ -469,9 +468,6 @@
       "switching": "Changement en cours…",
       "switchingTo": "Passage à {name}…",
       "switchingLabel": "Changement d'organisation",
-      "switchAction": "Changer",
-      "currentBadge": "Actuelle",
-      "roleLabel": "rôle",
       "deleteAriaLabel": "Supprimer {name}",
       "deleteDialogTitle": "Supprimer l'organisation",
       "deleteDialogDescription": "Supprimer « {name} » ? Cela supprime ses agents, workflows, fournisseurs et intégrations. Les membres perdront l'accès. Cette action est irréversible.",
