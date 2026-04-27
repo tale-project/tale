@@ -206,10 +206,20 @@ function buildUsedKeys(allFlatKeys: Set<string>): {
       // ternaries / inline expressions, e.g.
       //   t(isDisabled ? 'disabled' : 'noMembership')
       //   t(cond ? 'a.b' : 'a.c', params)
+      // The body pattern uses mutually-exclusive alternatives
+      // (`[^()]` OR a balanced `\([^()]*\)`) so the outer `*` does not
+      // overlap with the inner group — this avoids catastrophic
+      // backtracking. The `${alias}` interpolation is safe: aliases come
+      // from `T_ALIAS_HEURISTIC_RE` / `T_DESTRUCTURE_RE`, both of which
+      // capture only `\w`-character identifiers.
       const callBodyRe = new RegExp(
         `(?<![\\w$])${alias}\\(((?:[^()]|\\([^()]*\\))*)\\)`,
         'g',
       );
+      // Greedy by design: any quoted token in the captured body becomes
+      // a candidate. Spurious matches (e.g. a literal that's not a
+      // translation key) are filtered out by the `allFlatKeys.has(...)`
+      // membership check below.
       const innerLiteralRe = /['"`]([\w-]+(?:\.[\w-]+)*)['"`]/g;
 
       for (const m of content.matchAll(literalRe)) {
