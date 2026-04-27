@@ -136,6 +136,12 @@ export interface GenerateResponseArgs {
   parentThreadId?: string;
   agentOptions?: Record<string, unknown>;
   attachments?: FileAttachment[];
+  /**
+   * Pre-built multimodal prompt with inline image parts. When set, used as
+   * the in-flight prompt to the LLM in place of `promptMessage`. The
+   * `beforeGenerate` hook can still override it via `promptContent`.
+   */
+  multiModalPrompt?: ModelMessage[];
   streamId?: string;
   promptMessageId?: string;
   maxSteps?: number;

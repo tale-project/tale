@@ -6,6 +6,7 @@ import {
   saveMessage,
   type MessageDoc,
 } from '@convex-dev/agent';
+import type { ModelMessage } from 'ai';
 import type { FunctionHandle } from 'convex/server';
 import { v } from 'convex/values';
 
@@ -46,6 +47,7 @@ import type {
   BeforeContextResult,
   BeforeGenerateResult,
 } from '../agent_response/types';
+import { buildInlineMultiModalPrompt } from '../attachments/build_inline_multi_modal_prompt';
 import {
   estimateTokens,
   DEFAULT_MODEL_CONTEXT_LIMIT,
@@ -127,6 +129,13 @@ export const runAgentGeneration = internalAction({
     userId: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
     promptMessage: v.string(),
+    /**
+     * Un-augmented user text (without the attachment markdown that
+     * `buildMessageWithAttachments` appends to `promptMessage`). Used as the
+     * text part when building a multimodal prompt for vision-capable models,
+     * so PDF/audio references aren't duplicated.
+     */
+    originalUserText: v.optional(v.string()),
     additionalContext: v.optional(v.record(v.string(), v.string())),
     userContext: v.optional(
       v.object({
@@ -173,6 +182,7 @@ export const runAgentGeneration = internalAction({
       organizationId,
       userId,
       promptMessage,
+      originalUserText,
       additionalContext,
       userContext,
       parentThreadId,
@@ -342,10 +352,35 @@ export const runAgentGeneration = internalAction({
           const resolvedProvider = modelData.providerName;
           const resolvedModelId = modelData.modelId;
 
+          // Vision branch: when the resolved chat model has the `vision`
+          // tag and the turn carries image attachments, inline the images
+          // as multimodal content and drop the `image` tool for this
+          // attempt. Failover to a non-vision model on the next attempt
+          // re-evaluates and reverts to the markdown + image-tool path.
+          const imageAttachments =
+            attachments?.filter((a) => a.fileType.startsWith('image/')) ?? [];
+          const isVisionCapable = modelData.tags.includes('vision');
+          const useMultiModal = isVisionCapable && imageAttachments.length > 0;
+
+          let multiModalPrompt: ModelMessage[] | undefined;
+          if (useMultiModal) {
+            const built = await buildInlineMultiModalPrompt(ctx, {
+              userText: originalUserText ?? promptMessage,
+              imageAttachments,
+            });
+            multiModalPrompt = built.prompt;
+            debugLog('MULTIMODAL_BRANCH', {
+              modelId: resolvedModelId,
+              inlinedImageCount: built.inlinedImageCount,
+              skippedImages: built.skippedImages,
+            });
+          }
+
           // Create agent factory function from serializable config
           const createAgent = () => {
             // Filter tools: exclude rag_search/web when their retrieval mode
             // is 'context' or 'off' (tool should only be available in 'tool'/'both').
+            // Drop `image` when the chat model handles images natively.
             const knowledgeMode = agentConfig.knowledgeMode ?? 'off';
             const webSearchMode = agentConfig.webSearchMode ?? 'off';
             const filteredToolNames = agentConfig.convexToolNames?.filter(
@@ -364,6 +399,7 @@ export const runAgentGeneration = internalAction({
                   webSearchMode !== 'both'
                 )
                   return false;
+                if (n === 'image' && useMultiModal) return false;
                 return true;
               },
             );
@@ -428,6 +464,7 @@ export const runAgentGeneration = internalAction({
               parentThreadId,
               agentOptions,
               attachments,
+              multiModalPrompt,
               streamId,
               promptMessageId,
               maxSteps,

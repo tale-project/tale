@@ -277,6 +277,7 @@ describe('runAgentGeneration — tool building parallelization', () => {
         modelId: 'gpt-4o',
         inputCentsPerMillion: 250,
         outputCentsPerMillion: 1000,
+        tags: ['chat'],
       },
     };
     mockResolveModelById.mockResolvedValue(modelResult);
