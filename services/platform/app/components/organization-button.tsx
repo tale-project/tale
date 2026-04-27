@@ -51,8 +51,8 @@ export function OrganizationButton({
   const accessibleLabel = tooltipText ?? tNav('orgSwitcher.label');
 
   const triggerContent = (
-    <div
-      role="button"
+    <button
+      type="button"
       aria-label={label ? undefined : accessibleLabel}
       className={cn(
         'relative flex items-center rounded-lg transition-colors hover:bg-muted cursor-pointer',
@@ -63,7 +63,7 @@ export function OrganizationButton({
       {label && (
         <span className="text-sm leading-none font-medium">{label}</span>
       )}
-    </div>
+    </button>
   );
 
   if (label) {
