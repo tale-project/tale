@@ -401,6 +401,7 @@ export async function startAgentChat(
       userId: thread?.userId,
       agentSlug: args.agentSlug,
       promptMessage: messageContent,
+      originalUserText: trimmedMessage,
       attachments: actionAttachments,
       streamId: streamId || undefined,
       promptMessageId,

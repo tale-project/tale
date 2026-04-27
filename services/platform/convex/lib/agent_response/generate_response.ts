@@ -184,6 +184,69 @@ import { AgentTimeoutError, withTimeout } from './with_timeout';
 const PLATFORM_HARD_LIMIT_MS = 540_000;
 
 /**
+ * Fast non-cryptographic hash of a byte buffer (FNV-1a, double-pass for
+ * 64-bit equivalent uniqueness). Used to fingerprint inlined image bytes
+ * for cache-key derivation — collision-resistant enough for cache dedup,
+ * not for security.
+ */
+function fnv1aBytes(bytes: Uint8Array): string {
+  let h1 = 0x811c9dc5;
+  for (let i = 0; i < bytes.length; i++) {
+    h1 ^= bytes[i];
+    h1 = Math.imul(h1, 0x01000193);
+  }
+  let h2 = 0x6c62272e;
+  for (let i = bytes.length - 1; i >= 0; i--) {
+    h2 ^= bytes[i];
+    h2 = Math.imul(h2, 0x01000193);
+  }
+  return (
+    (h1 >>> 0).toString(16).padStart(8, '0') +
+    (h2 >>> 0).toString(16).padStart(8, '0')
+  );
+}
+
+/**
+ * Stringify a prompt for the response-cache key. Multimodal prompts must
+ * contribute every image identity, otherwise two requests with the same
+ * text but different images would share a key.
+ */
+function fingerprintPrompt(prompt: string | ModelMessage[]): string {
+  if (typeof prompt === 'string') return prompt;
+  return JSON.stringify(
+    prompt.map((m) => {
+      const content = m.content;
+      if (typeof content === 'string') {
+        return { role: m.role, text: content };
+      }
+      const parts = (Array.isArray(content) ? content : []).map((p) => {
+        if (p.type === 'text') return { t: 'text', v: p.text };
+        if (p.type === 'image') {
+          const img = p.image;
+          if (img instanceof URL) return { t: 'image', v: img.toString() };
+          if (typeof img === 'string') return { t: 'image', v: img };
+          if (img instanceof Uint8Array) {
+            return { t: 'image', v: fnv1aBytes(img) };
+          }
+          return { t: 'image', v: 'unknown' };
+        }
+        if (p.type === 'file') {
+          const data = p.data;
+          if (data instanceof URL) return { t: 'file', v: data.toString() };
+          if (typeof data === 'string') return { t: 'file', v: data };
+          if (data instanceof Uint8Array) {
+            return { t: 'file', v: fnv1aBytes(data) };
+          }
+          return { t: 'file', v: 'unknown' };
+        }
+        return { t: p.type };
+      });
+      return { role: m.role, parts };
+    }),
+  );
+}
+
+/**
  * How often the abort watcher polls the stream status (ms).
  */
 const ABORT_POLL_INTERVAL_MS = 1500;
@@ -782,8 +845,11 @@ export async function generateAgentResponse(
       elapsedMs: Date.now() - startTime,
     });
 
-    // Hook can override prompt content (e.g., for attachments → ModelMessage[])
-    let hookPromptContent: string | ModelMessage[] | undefined;
+    // Multimodal prompt (e.g. inlined image parts for vision-capable models)
+    // is the default in-flight prompt. The beforeGenerate hook may still
+    // override it via `promptContent`.
+    let hookPromptContent: string | ModelMessage[] | undefined =
+      args.multiModalPrompt;
 
     // Call beforeGenerate hook if provided
     if (hooks?.beforeGenerate) {
@@ -867,12 +933,15 @@ export async function generateAgentResponse(
       : structuredThreadContext.threadContext;
 
     // ── Response cache lookup ──
+    // Multimodal prompts (ModelMessage[]) must contribute a stable fingerprint
+    // to the key, otherwise two requests with identical text but different
+    // images would collide on an empty-string user-message slot.
     const cacheKey = computeCacheKey({
       agentName: agentType,
       model,
       instructions: instructions ?? '',
       threadContext: structuredThreadContext.threadContext,
-      userMessage: typeof promptToSend === 'string' ? promptToSend : '',
+      userMessage: fingerprintPrompt(promptToSend),
       generationParams,
     });
 
@@ -1301,7 +1370,7 @@ export async function generateAgentResponse(
             { threadId, userId },
             {
               system: systemPrompt,
-              prompt: promptMessage,
+              prompt: promptToSend,
               abortSignal: abortController.signal,
               ...(promptMessageId ? { promptMessageId } : {}),
               ...(generationParams?.temperature != null && {

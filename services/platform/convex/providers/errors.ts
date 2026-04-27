@@ -100,6 +100,11 @@ const NO_FAILOVER_PATTERNS = [
   'context_length',
   'maximum context length',
   'context window',
+  // Image-input rejections that fail on any vision model deterministically.
+  'image format',
+  'unsupported format',
+  'unsupported image',
+  'invalid image',
 ];
 
 /**
