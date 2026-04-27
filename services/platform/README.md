@@ -1,53 +1,45 @@
-# Tale Platform (Vite + TanStack Start + Convex)
+# @tale/platform
 
-The main web application. Runs a Vite SPA with TanStack Start alongside a Convex self-hosted backend in one container. Provides a health endpoint and connects to the Tale data services over the internal Docker network.
+Tale's web application. Vite SPA with TanStack Start, served behind the proxy.
 
-## Ports
+## Overview
 
-- 3000 — Vite application (static server)
-- 3210 — Convex backend API
-- 3211 — Convex HTTP actions
-- 6791 — Convex dashboard UI (direct access at http://localhost:6791)
+Talks to the standalone `convex` service over the internal Docker network. Pushes Convex functions to that service via `bunx convex deploy` at startup; clients reach Convex through the proxy, not through this container. Calls `rag` and `crawler` for knowledge ingestion and retrieval.
 
-## Health
+## Interface
 
-- GET /api/health returns JSON status (used by proxy health checks)
+Ports:
 
-## Environment
+- `3000` — Vite app (static server)
 
-See compose.yml for the canonical list. Notable ones:
+Endpoints:
 
-- HOST, PORT, LOG_LEVEL
-- POSTGRES_URL (no DB name in URL; Convex derives DB from INSTANCE_NAME)
-- INSTANCE_NAME (default tale-platform; DB becomes tale_platform)
-- INSTANCE_SECRET (used by Convex)
-- CONVEX_URL, CONVEX_DASHBOARD_URL (internal HTTP URLs)
-- DB_URL, RAG_URL, CRAWLER_URL (internal DNS to services)
+- `GET /api/health` — JSON status, used by the proxy for blue-green health checks
 
-## Running
+## Configuration
 
-With Compose (recommended):
+Notable variables (canonical list in `compose.yml`, which is local-dev only — production deployments use CLI-generated compose configs via `tale deploy`):
 
+- `HOST`, `PORT`, `LOG_LEVEL`
+- `CONVEX_URL`, `CONVEX_DEPLOY_KEY` — point at the `convex` service
+- `DB_URL`, `RAG_URL`, `CRAWLER_URL` — internal DNS to sibling services
+- `INSTANCE_NAME`, `INSTANCE_SECRET` — used when generating Convex admin keys
+
+## Development
+
+```bash
+docker compose up -d platform        # via Compose (recommended)
+bun run dev                          # default: spawns an ephemeral local Convex backend
+CONVEX_EXTERNAL=true bun run dev     # connects Vite to the convex container (docker compose up convex)
+bun run check                        # format + lint + typecheck + tests
 ```
-docker compose up -d platform
-```
 
-During development you may temporarily expose 3000 in compose.yml for direct Vite access.
+## Layout
 
-## Admin and Utilities
-
-- scripts:
-  - docker-entrypoint.sh — orchestrates Convex + Vite + dashboard
-  - env.sh — normalizes env configuration
-  - generate-admin-key.sh — helper for admin keys
-
-## Interaction with Other Services
-
-- Uses Postgres (db) for Convex persistence (database tale_platform)
-- Talks to rag, crawler via internal URLs
-- Designed to sit behind the proxy (Caddy) for TLS termination
-
-## Notes
-
-- The container base comes from ghcr.io/get-convex images to ensure Convex tooling is present
-- If you run this outside Compose, ensure DB and other service URLs point to reachable hosts
+- `app/` — TanStack Start routes, features, and UI components
+- `convex/` — Convex functions deployed to the `convex` service
+- `lib/` — shared utilities, including TanStack DB collection infrastructure
+- `messages/` — i18n message catalogues (`en.json` is the source of truth)
+- `scripts/` — operational helpers (see `scripts/README.md`)
+- `server.ts` — minimal HTTP shim wrapping the Vite static server with `/api/health`
+- `generate-admin-key.sh` — generates Convex admin keys for the dashboard
