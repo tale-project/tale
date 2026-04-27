@@ -1,15 +1,11 @@
 'use client';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { useLocation, useNavigate } from '@tanstack/react-router';
-import { useMutation } from 'convex/react';
-import { Plus, Trash2 } from 'lucide-react';
-import { useCallback, useState, useMemo } from 'react';
+import { Plus } from 'lucide-react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { CopyableText } from '@/app/components/ui/data-display/copyable-field';
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Field } from '@/app/components/ui/forms/field';
 import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
@@ -19,10 +15,8 @@ import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
-import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { SUPPORTED_AGENT_LOCALES } from '@/lib/shared/constants/agents';
@@ -81,112 +75,11 @@ export function OrganizationSettings({
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
   const { t: tGlobal } = useT('global');
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const prepareOrganizationDeletion = useMutation(
-    api.organizations.delete_cleanup.prepareOrganizationDeletion,
-  );
-  const { organizations: userOrgs } = useUserOrganizationsWithDetails();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
-  const [switchingOrgId, setSwitchingOrgId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{
-    organizationId: string;
-    name: string;
-  } | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
-
-  const deleteOrganization = useCallback(async () => {
-    if (!deleteTarget) return;
-    const { organizationId: targetId } = deleteTarget;
-    const isDeletingCurrent = targetId === organization?._id;
-    setIsDeleting(true);
-    try {
-      // Server-side guards (owner role, not-default) + audit log + schedule
-      // filesystem cleanup. Runs before Better Auth destroys the row so the
-      // member-role lookup still works.
-      await prepareOrganizationDeletion({ organizationId: targetId });
-
-      const result = await authClient.organization.delete({
-        organizationId: targetId,
-      });
-      if (result?.error) {
-        throw new Error(result.error.message ?? 'Delete failed');
-      }
-
-      toast({
-        title: tSettings('organization.deleteSuccess'),
-        variant: 'success',
-      });
-
-      setDeleteTarget(null);
-
-      if (isDeletingCurrent) {
-        // Fall back to the first remaining membership; if none, the dashboard
-        // index will route to create-organization.
-        const next = (userOrgs ?? []).find(
-          (o) => o.organizationId !== targetId,
-        )?.organizationId;
-        if (next) {
-          void navigate({
-            to: '/dashboard/switching',
-            search: { to: next },
-            replace: true,
-          });
-        } else {
-          await queryClient.invalidateQueries({
-            queryKey: ['auth', 'session'],
-          });
-          void navigate({
-            to: '/dashboard/create-organization',
-            replace: true,
-          });
-        }
-      }
-    } catch (err) {
-      console.error('Failed to delete organization:', err);
-      toast({
-        title: tSettings('organization.deleteFailed'),
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [
-    deleteTarget,
-    organization?._id,
-    prepareOrganizationDeletion,
-    toast,
-    userOrgs,
-    queryClient,
-    navigate,
-    tSettings,
-  ]);
-
-  const location = useLocation();
-  const switchToOrg = useCallback(
-    (nextOrgId: string) => {
-      if (nextOrgId === organization?._id) return;
-      setSwitchingOrgId(nextOrgId);
-      // Preserve pathname + search + hash so the user lands on the same
-      // page with the same query params in the new org (e.g. Governance →
-      // Security & Monitoring tab stays selected).
-      const subpath =
-        location.href.match(/^\/dashboard\/[^/]+\/(.*)$/)?.[1] ?? '';
-      // Delegate to the dedicated switching route so setActive + session
-      // invalidation + audit happen in one place without racing the current
-      // route's unmount.
-      void navigate({
-        to: '/dashboard/switching',
-        search: { to: nextOrgId, subpath: subpath || undefined },
-        replace: true,
-      });
-    },
-    [organization?._id, navigate, location.href],
-  );
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -323,86 +216,6 @@ export function OrganizationSettings({
       )}
 
       <PageSection
-        title={tSettings('organization.yourOrganizationsTitle')}
-        description={tSettings('organization.yourOrganizationsDescription')}
-        className="pt-4"
-      >
-        <Stack gap={2}>
-          {(userOrgs ?? []).map((org) => {
-            const isCurrent = org.organizationId === organization?._id;
-            const canDelete = org.role === 'owner' && org.slug !== 'default';
-            return (
-              <HStack
-                key={org.organizationId}
-                justify="between"
-                align="center"
-                className="rounded-lg border px-4 py-3"
-              >
-                <Stack gap={1}>
-                  <HStack gap={2} align="center">
-                    <span className="text-sm font-medium">{org.name}</span>
-                    {isCurrent && (
-                      <Badge variant="green">
-                        {tSettings('organization.currentBadge')}
-                      </Badge>
-                    )}
-                  </HStack>
-                  <span className="text-muted-foreground text-xs">
-                    {org.slug ? `@${org.slug} · ` : ''}
-                    {tSettings('organization.roleLabel')}: {org.role}
-                  </span>
-                </Stack>
-                <HStack gap={2} align="center">
-                  {!isCurrent && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => switchToOrg(org.organizationId)}
-                      disabled={switchingOrgId === org.organizationId}
-                    >
-                      {switchingOrgId === org.organizationId
-                        ? tSettings('organization.switching')
-                        : tSettings('organization.switchAction')}
-                    </Button>
-                  )}
-                  {canDelete && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      aria-label={tSettings('organization.deleteAriaLabel', {
-                        name: org.name,
-                      })}
-                      onClick={() =>
-                        setDeleteTarget({
-                          organizationId: org.organizationId,
-                          name: org.name,
-                        })
-                      }
-                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  )}
-                </HStack>
-              </HStack>
-            );
-          })}
-        </Stack>
-
-        <HStack>
-          <Button
-            size="sm"
-            onClick={() =>
-              void navigate({ to: '/dashboard/create-organization' })
-            }
-          >
-            <Plus className="mr-2 size-4" />
-            {tSettings('organization.createOrganization')}
-          </Button>
-        </HStack>
-      </PageSection>
-
-      <PageSection
         title={tSettings('organization.membersTitle')}
         description={tSettings('organization.manageAccess')}
         className="pt-4"
@@ -463,26 +276,6 @@ export function OrganizationSettings({
           onOpenChange={setIsAddMemberDialogOpen}
         />
       )}
-
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open && !isDeleting) setDeleteTarget(null);
-        }}
-        title={tSettings('organization.deleteDialogTitle')}
-        description={
-          deleteTarget
-            ? tSettings('organization.deleteDialogDescription', {
-                name: deleteTarget.name,
-              })
-            : ''
-        }
-        variant="destructive"
-        confirmText={tSettings('organization.deleteConfirmAction')}
-        loadingText={tSettings('organization.deleteLoading')}
-        isLoading={isDeleting}
-        onConfirm={() => void deleteOrganization()}
-      />
     </Stack>
   );
 }

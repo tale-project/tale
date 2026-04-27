@@ -3,6 +3,7 @@
 import { AlertCircle, Database, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Alert } from '@/app/components/ui/feedback/alert';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -387,6 +388,7 @@ export function DefaultModelEditor({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [dialogRule, setDialogRule] = useState(emptyRule());
+  const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
 
   useEffect(() => {
     setRules(savedConfig.rules);
@@ -422,14 +424,13 @@ export function DefaultModelEditor({
     [organizationId, upsertMutation, toast, t],
   );
 
-  const removeRule = useCallback(
-    (index: number) => {
-      const newRules = rules.filter((_, i) => i !== index);
-      setRules(newRules);
-      void saveConfig(newRules);
-    },
-    [rules, saveConfig],
-  );
+  const confirmRemoveRule = useCallback(() => {
+    if (deletingIndex === null) return;
+    const newRules = rules.filter((_, i) => i !== deletingIndex);
+    setRules(newRules);
+    setDeletingIndex(null);
+    void saveConfig(newRules);
+  }, [deletingIndex, rules, saveConfig]);
 
   const openAddDialog = useCallback(() => {
     setEditingIndex(null);
@@ -614,7 +615,7 @@ export function DefaultModelEditor({
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => removeRule(index)}
+                          onClick={() => setDeletingIndex(index)}
                           disabled={cannotManage}
                           aria-label={t('defaultModels.removeRule', {
                             index: index + 1,
@@ -656,6 +657,18 @@ export function DefaultModelEditor({
         teamOptions={teamOptions}
         providerList={providerList}
         accessConfig={accessConfig}
+      />
+
+      <ConfirmDialog
+        open={deletingIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingIndex(null);
+        }}
+        title={t('defaultModels.removeRuleConfirmTitle')}
+        description={t('defaultModels.removeRuleConfirmDescription')}
+        confirmText={t('defaultModels.removeRuleConfirmAction')}
+        variant="destructive"
+        onConfirm={confirmRemoveRule}
       />
     </PageSection>
   );

@@ -1,9 +1,10 @@
 'use client';
 
-import { CheckCircle2, Circle, Copy, ShieldAlert } from 'lucide-react';
+import { Copy, Info, ShieldAlert } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Select } from '@/app/components/ui/forms/select';
 import { PageSection } from '@/app/components/ui/layout/page-section';
@@ -52,6 +53,7 @@ interface StatusCardProps {
   description: string;
   enabled: boolean;
   details: string[];
+  disabledReason: string;
   icon: LucideIcon;
 }
 
@@ -60,9 +62,10 @@ function StatusCard({
   description,
   enabled,
   details,
+  disabledReason,
   icon: Icon,
 }: StatusCardProps) {
-  const Indicator = enabled ? CheckCircle2 : Circle;
+  const { t: tCommon } = useT('common');
   return (
     <div className="border-border rounded-lg border p-4">
       <div className="mb-2 flex items-center gap-2">
@@ -73,23 +76,24 @@ function StatusCard({
           aria-hidden
         />
         <div className="font-medium">{title}</div>
-        <Indicator
-          className={
-            enabled
-              ? 'ml-auto size-4 text-emerald-600'
-              : 'text-muted-foreground ml-auto size-4'
-          }
-          aria-hidden
-        />
       </div>
       <div className="text-muted-foreground mb-3 text-xs">{description}</div>
-      <ul className="text-xs">
-        {details.map((detail) => (
-          <li key={detail} className="py-0.5">
-            {detail}
-          </li>
-        ))}
-      </ul>
+      {enabled ? (
+        <ul className="text-xs">
+          {details.map((detail) => (
+            <li key={detail} className="py-0.5">
+              {detail}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="space-y-2">
+          <Badge variant="outline" icon={Info} className="mt-auto">
+            {tCommon('status.disabled')}
+          </Badge>
+          <p className="text-muted-foreground text-xs">{disabledReason}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -129,8 +133,41 @@ export function GuardrailsOverview({
 
   if (piiLoading || chatFilterLoading || moderationLoading) {
     return (
-      <PageSection title={t('guardrailsOverview.title')}>
-        <Skeleton className="h-48 w-full" />
+      <PageSection
+        title={t('guardrailsOverview.title')}
+        description={t('guardrailsOverview.description')}
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="border-border rounded-lg border p-4">
+              <div className="mb-2 flex items-center gap-2">
+                <Skeleton className="size-4 rounded-sm" />
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="ml-auto size-4 rounded-full" />
+              </div>
+              <Skeleton className="mb-3 h-3 w-full" />
+              <div className="space-y-1.5">
+                <Skeleton className="h-3 w-5/6" />
+                <Skeleton className="h-3 w-2/3" />
+                <Skeleton className="h-3 w-3/4" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <section className="mt-8">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1.5">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-64" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-9 w-32 rounded-md" />
+              <Skeleton className="h-9 w-32 rounded-md" />
+            </div>
+          </div>
+          <Skeleton className="h-48 w-full rounded-lg" />
+        </section>
       </PageSection>
     );
   }
@@ -146,7 +183,7 @@ export function GuardrailsOverview({
           value: chatFilterConfig?.maskReplacement ?? '[BLOCKED]',
         }),
       ]
-    : [t('guardrailsOverview.statusCards.contentSafety.disabled')];
+    : [];
 
   const piiEnabled = !!piiPolicy?.enabled;
   const piiParsed = piiPolicy
@@ -163,7 +200,7 @@ export function GuardrailsOverview({
           custom: piiConfig?.customPatterns?.length ?? 0,
         }),
       ]
-    : [t('guardrailsOverview.statusCards.pii.disabled')];
+    : [];
 
   const moderationEnabled = !!moderationPolicy?.enabled;
   const moderationParsed = moderationPolicy
@@ -188,7 +225,7 @@ export function GuardrailsOverview({
           output: moderationConfig?.failBehavior?.output ?? 'closed',
         }),
       ]
-    : [t('guardrailsOverview.statusCards.moderation.disabled')];
+    : [];
 
   return (
     <PageSection
@@ -203,6 +240,9 @@ export function GuardrailsOverview({
           )}
           enabled={chatFilterEnabled}
           details={chatFilterDetails}
+          disabledReason={t(
+            'guardrailsOverview.statusCards.contentSafety.disabled',
+          )}
           icon={ShieldAlert}
         />
         <StatusCard
@@ -210,6 +250,7 @@ export function GuardrailsOverview({
           description={t('guardrailsOverview.statusCards.pii.description')}
           enabled={piiEnabled}
           details={piiDetails}
+          disabledReason={t('guardrailsOverview.statusCards.pii.disabled')}
           icon={ShieldAlert}
         />
         <StatusCard
@@ -219,6 +260,9 @@ export function GuardrailsOverview({
           )}
           enabled={moderationEnabled}
           details={moderationDetails}
+          disabledReason={t(
+            'guardrailsOverview.statusCards.moderation.disabled',
+          )}
           icon={ShieldAlert}
         />
       </div>

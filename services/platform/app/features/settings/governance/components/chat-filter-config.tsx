@@ -3,6 +3,7 @@
 import { Download, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Alert } from '@/app/components/ui/feedback/alert';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { FormSection } from '@/app/components/ui/forms/form-section';
@@ -63,6 +64,7 @@ export function ChatFilterConfigView({
   const [categories, setCategories] = useState<ChatFilterCategory[]>([]);
 
   const [editorIndex, setEditorIndex] = useState<number | 'new' | null>(null);
+  const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
   const initializedRef = useRef(false);
@@ -163,29 +165,19 @@ export function ChatFilterConfigView({
     [buildConfig, categories, saveWith],
   );
 
-  const handleDeleteCategory = useCallback(
-    (index: number) => {
-      const target = categories[index];
-      if (!target) return;
-      if (
-        typeof window !== 'undefined' &&
-        !window.confirm(
-          t('contentSafety.deleteConfirm', {
-            label: target.label,
-            words: target.words.length,
-            patterns: target.patterns.length,
-          }),
-        )
-      ) {
-        return;
-      }
-      const next = categories.filter((_, i) => i !== index);
-      setCategories(next);
-      setEditorIndex((prev) => (prev === index ? null : prev));
-      void saveWith(buildConfig({ categories: next }));
-    },
-    [buildConfig, categories, saveWith, t],
-  );
+  const confirmDeleteCategory = useCallback(() => {
+    if (deletingIndex === null) return;
+    const index = deletingIndex;
+    const next = categories.filter((_, i) => i !== index);
+    setCategories(next);
+    setEditorIndex((prev) => {
+      if (prev === null || prev === 'new') return prev;
+      if (prev === index) return null;
+      return prev > index ? prev - 1 : prev;
+    });
+    setDeletingIndex(null);
+    void saveWith(buildConfig({ categories: next }));
+  }, [buildConfig, categories, deletingIndex, saveWith]);
 
   if (isLoading) {
     return (
@@ -291,7 +283,7 @@ export function ChatFilterConfigView({
               disabled={cannotManage}
               onAdd={() => setEditorIndex('new')}
               onEdit={(index) => setEditorIndex(index)}
-              onDelete={handleDeleteCategory}
+              onDelete={(index) => setDeletingIndex(index)}
               onToggleEnabled={handleToggleCategoryEnabled}
             />
           </FormSection>
@@ -309,6 +301,26 @@ export function ChatFilterConfigView({
               if (editorIndex === null) return;
               handleSaveCategory(editorIndex, draft);
             }}
+          />
+
+          <ConfirmDialog
+            open={deletingIndex !== null}
+            onOpenChange={(open) => {
+              if (!open) setDeletingIndex(null);
+            }}
+            title={t('contentSafety.deleteConfirmTitle')}
+            description={
+              deletingIndex !== null && categories[deletingIndex]
+                ? t('contentSafety.deleteConfirm', {
+                    label: categories[deletingIndex].label,
+                    words: categories[deletingIndex].words.length,
+                    patterns: categories[deletingIndex].patterns.length,
+                  })
+                : ''
+            }
+            confirmText={t('contentSafety.deleteConfirmAction')}
+            variant="destructive"
+            onConfirm={confirmDeleteCategory}
           />
         </>
       )}

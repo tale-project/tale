@@ -3,6 +3,7 @@
 import { Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Input } from '@/app/components/ui/forms/input';
@@ -324,6 +325,7 @@ export function FeatureFlagsEditor({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [dialogRule, setDialogRule] = useState(emptyRule());
+  const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
 
   useEffect(() => {
     setRules(savedConfig.rules);
@@ -359,14 +361,13 @@ export function FeatureFlagsEditor({
     [organizationId, upsertMutation, toast, t],
   );
 
-  const removeRule = useCallback(
-    (index: number) => {
-      const newRules = rules.filter((_, i) => i !== index);
-      setRules(newRules);
-      void saveConfig(newRules);
-    },
-    [rules, saveConfig],
-  );
+  const confirmRemoveRule = useCallback(() => {
+    if (deletingIndex === null) return;
+    const newRules = rules.filter((_, i) => i !== deletingIndex);
+    setRules(newRules);
+    setDeletingIndex(null);
+    void saveConfig(newRules);
+  }, [deletingIndex, rules, saveConfig]);
 
   const openAddDialog = useCallback(() => {
     setEditingIndex(null);
@@ -550,7 +551,7 @@ export function FeatureFlagsEditor({
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => removeRule(index)}
+                          onClick={() => setDeletingIndex(index)}
                           disabled={cannotManage}
                           aria-label={`${t('featureFlags.deleteRule')} ${index + 1}`}
                         >
@@ -589,6 +590,18 @@ export function FeatureFlagsEditor({
         cannotManage={cannotManage}
         memberOptions={memberOptions}
         teamOptions={teamOptions}
+      />
+
+      <ConfirmDialog
+        open={deletingIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingIndex(null);
+        }}
+        title={t('featureFlags.removeRuleConfirmTitle')}
+        description={t('featureFlags.removeRuleConfirmDescription')}
+        confirmText={t('featureFlags.removeRuleConfirmAction')}
+        variant="destructive"
+        onConfirm={confirmRemoveRule}
       />
     </PageSection>
   );

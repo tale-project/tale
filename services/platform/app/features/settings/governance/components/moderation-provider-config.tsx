@@ -3,6 +3,7 @@
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Alert } from '@/app/components/ui/feedback/alert';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -244,6 +245,9 @@ export function ModerationProviderConfigView({
   const [mappings, setMappings] = useState<ModerationCategoryMapping[]>([]);
 
   const [endpointDialogOpen, setEndpointDialogOpen] = useState(false);
+  const [deletingMappingIndex, setDeletingMappingIndex] = useState<
+    number | null
+  >(null);
   const [mappingEditorIndex, setMappingEditorIndex] = useState<
     number | 'new' | null
   >(null);
@@ -776,12 +780,31 @@ export function ModerationProviderConfigView({
                   ? undefined
                   : () => {
                       if (typeof mappingEditorIndex === 'number') {
-                        handleDeleteMapping(mappingEditorIndex);
+                        setDeletingMappingIndex(mappingEditorIndex);
                       }
                     }
               }
             />
           )}
+
+          <ConfirmDialog
+            open={deletingMappingIndex !== null}
+            onOpenChange={(open) => {
+              if (!open) setDeletingMappingIndex(null);
+            }}
+            title={t('moderationProvider.deleteMappingConfirmTitle')}
+            description={t(
+              'moderationProvider.deleteMappingConfirmDescription',
+            )}
+            confirmText={t('moderationProvider.deleteMappingConfirmAction')}
+            variant="destructive"
+            onConfirm={() => {
+              if (deletingMappingIndex !== null) {
+                handleDeleteMapping(deletingMappingIndex);
+                setDeletingMappingIndex(null);
+              }
+            }}
+          />
         </>
       )}
     </PageSection>
