@@ -101,6 +101,18 @@ const I18N_T_RE = /\bi18n\.t\(\s*['"`]([\w.-]+)['"`]/g;
 // `t()`. Requires at least one dot to avoid matching every short literal.
 const DOTTED_LITERAL_RE = /['"`]([\w-]+(?:\.[\w-]+)+)['"`]/g;
 
+// Heuristic: identifiers shaped `t<Capital><rest>` (e.g. `tTables`,
+// `tCustomers`, `tDocuments`) follow the codebase convention where the
+// suffix names the namespace. We use this to recover translation aliases
+// that are not destructured from `useT(...)` in the current file but
+// instead arrive via a callback parameter or function argument:
+//   ({ tTables, builders }) => [{ header: tTables('headers.product') }, ...]
+//   function createCreationTimeColumn(tTables: TranslationFn) { ... }
+// We only register the alias when the inferred namespace actually exists
+// at the top level of en.json/global.json, so identifiers like `tEntity`
+// (whose namespace is genuinely dynamic) are ignored.
+const T_ALIAS_HEURISTIC_RE = /\b(t[A-Z]\w*)\(/g;
+
 function recordAlias(
   aliases: Map<string, Set<string>>,
   alias: string,
@@ -121,10 +133,16 @@ function buildUsedKeys(allFlatKeys: Set<string>): {
   const exact = new Set<string>();
   const wildcardPrefixes = new Set<string>();
 
-  // First pass: collect every namespace ever registered anywhere. This is
-  // used in the second pass to interpret bare dotted literals like
-  // `'vendors.title'` — if `vendors` is a known namespace, the literal
-  // covers `vendors.title`.
+  // Top-level namespaces are the keys of en.json + global.json. We use
+  // this set both to validate the t-alias heuristic (`tFoo` only counts
+  // when `foo` is a real top-level namespace) and to interpret bare
+  // dotted literals like `'vendors.title'`.
+  const topLevelNamespaces = new Set<string>();
+  for (const key of allFlatKeys) {
+    const dot = key.indexOf('.');
+    topLevelNamespaces.add(dot === -1 ? key : key.slice(0, dot));
+  }
+
   const allNamespaces = new Set<string>();
   const fileScans: Array<{
     file: string;
@@ -151,6 +169,19 @@ function buildUsedKeys(allFlatKeys: Set<string>): {
       }
       for (const m of content.matchAll(I18N_T_RE)) exact.add(m[1]);
 
+      // Heuristic alias detection: any `tFoo(...)` call where `Foo`
+      // names a real top-level namespace is treated as `tFoo` aliasing
+      // that namespace, even when no `useT('foo')` appears in the file.
+      // Skips identifiers like `tEntity` whose namespace is dynamic.
+      for (const m of content.matchAll(T_ALIAS_HEURISTIC_RE)) {
+        const alias = m[1];
+        const inferredNs = alias[1].toLowerCase() + alias.slice(2);
+        if (topLevelNamespaces.has(inferredNs)) {
+          recordAlias(aliases, alias, inferredNs);
+          allNamespaces.add(inferredNs);
+        }
+      }
+
       fileScans.push({ file, content, aliases });
     }
   }
@@ -170,6 +201,26 @@ function buildUsedKeys(allFlatKeys: Set<string>): {
         `(?<![\\w$])${alias}\\(\\s*\`([\\w.-]+)\\.\\$\\{`,
         'g',
       );
+      // Capture the full argument body of `<alias>(...)` calls, supporting
+      // up to one level of nested parens. This catches keys passed via
+      // ternaries / inline expressions, e.g.
+      //   t(isDisabled ? 'disabled' : 'noMembership')
+      //   t(cond ? 'a.b' : 'a.c', params)
+      // The body pattern uses mutually-exclusive alternatives
+      // (`[^()]` OR a balanced `\([^()]*\)`) so the outer `*` does not
+      // overlap with the inner group — this avoids catastrophic
+      // backtracking. The `${alias}` interpolation is safe: aliases come
+      // from `T_ALIAS_HEURISTIC_RE` / `T_DESTRUCTURE_RE`, both of which
+      // capture only `\w`-character identifiers.
+      const callBodyRe = new RegExp(
+        `(?<![\\w$])${alias}\\(((?:[^()]|\\([^()]*\\))*)\\)`,
+        'g',
+      );
+      // Greedy by design: any quoted token in the captured body becomes
+      // a candidate. Spurious matches (e.g. a literal that's not a
+      // translation key) are filtered out by the `allFlatKeys.has(...)`
+      // membership check below.
+      const innerLiteralRe = /['"`]([\w-]+(?:\.[\w-]+)*)['"`]/g;
 
       for (const m of content.matchAll(literalRe)) {
         const suffix = m[1];
@@ -185,17 +236,210 @@ function buildUsedKeys(allFlatKeys: Set<string>): {
           wildcardPrefixes.add(`${ns}.${prefix}.`);
         }
       }
+      for (const m of content.matchAll(callBodyRe)) {
+        const body = m[1];
+        for (const lit of body.matchAll(innerLiteralRe)) {
+          const candidate = lit[1];
+          for (const ns of namespaces) {
+            const fullKey = `${ns}.${candidate}`;
+            if (allFlatKeys.has(fullKey)) exact.add(fullKey);
+          }
+          if (candidate.includes('.') && allFlatKeys.has(candidate)) {
+            exact.add(candidate);
+          }
+        }
+      }
     }
 
-    // Indirect-string-key sweep: any dotted string literal whose first
-    // segment is a known namespace OR which matches a real flat key.
+    // Indirect-string-key sweep: dotted string literals that resolve
+    // to a real translation key. We try, in order:
+    //   1. literal matches a flat key as-is (`'tables.headers.name'`),
+    //   2. literal's first segment is a known top-level namespace
+    //      (`'vendors.title'` → `vendors` is a namespace),
+    //   3. literal is a key SUFFIX under a namespace registered in this
+    //      file (`'headers.product'` in a file where `tables` is bound,
+    //      via `useT('tables')` or the `tTables` heuristic),
+    //   4. cross-file lookup-table fallback: a dotted literal sitting in
+    //      a "translation key" position — value of a `*Key` property
+    //      (`labelKey: 'modelSelector.tags.chat'`), an `as const` cast
+    //      (`'priority.high' as const`), or argument of a bare `t(...)`
+    //      call where `t` isn't bound in this file (the t function came
+    //      in via a custom hook return). For these we search every
+    //      namespace, since the suffix's namespace is determined cross-
+    //      file and can't be inferred locally.
+    // Step 3's per-file restriction prevents accidental matches from
+    // unrelated namespaces (e.g. `'pii.blocked'` discriminator codes
+    // would otherwise resurrect `governance.pii.blocked`).
+    const fileNamespaces = new Set<string>();
+    for (const namespaces of aliases.values()) {
+      for (const ns of namespaces) fileNamespaces.add(ns);
+    }
+    // Lookup-table literals: dotted strings sitting in positions that
+    // hint at translation-key storage (a `*Key` property, an `as const`
+    // cast, or the argument of a bare `t(...)` call where `t` isn't
+    // bound here). For these we permit a global namespace search since
+    // the alias resolution happens in another file.
+    const lookupTableLiterals = new Set<string>();
+    const KEY_PROPERTY_DOT_RE =
+      /\b\w*Key\s*:\s*['"`]([\w-]+(?:\.[\w-]+)+)['"`]/g;
+    const AS_CONST_DOT_RE = /['"`]([\w-]+(?:\.[\w-]+)+)['"`]\s*as\s+const\b/g;
+    const BARE_T_CALL_DOT_RE =
+      /(?<![\w$])t\(\s*['"`]([\w-]+(?:\.[\w-]+)+)['"`]/g;
+    for (const m of content.matchAll(KEY_PROPERTY_DOT_RE)) {
+      lookupTableLiterals.add(m[1]);
+    }
+    for (const m of content.matchAll(AS_CONST_DOT_RE)) {
+      lookupTableLiterals.add(m[1]);
+    }
+    if (!aliases.has('t')) {
+      for (const m of content.matchAll(BARE_T_CALL_DOT_RE)) {
+        lookupTableLiterals.add(m[1]);
+      }
+    }
+    const consumesTranslationFn =
+      /\bTFunction\b/.test(content) ||
+      /\bt\s*:\s*\(\s*key\s*:\s*string/.test(content);
+    if (consumesTranslationFn) {
+      for (const m of content.matchAll(DOTTED_LITERAL_RE)) {
+        lookupTableLiterals.add(m[1]);
+      }
+    }
+
+    // Single-segment literal candidates: identifiers stored in property
+    // positions (`title: 'deleteCustomer'`, `i18nKey: 'errorHintAuthError'`,
+    // inside `keys: { ... }` blocks, etc.) that are passed to `t(...)`
+    // dynamically. Translation keys in this codebase are camelCase
+    // identifiers, so we collect single-word strings sitting in clear
+    // key-storage positions and try them against the file's namespaces
+    // (or globally when the file imports `TFunction` / has an unbound
+    // `t`). Membership in `allFlatKeys` is the final filter, so the
+    // false-positive rate stays low.
+    // Local single-segment candidates: literals stored in property
+    // positions inside this file. Resolved against the file's own
+    // namespaces.
+    const localSingleCandidates = new Set<string>();
+    const SINGLE_KEY_PROPERTY_RE = /\b\w*Key\s*:\s*['"`]([a-zA-Z][\w-]*)['"`]/g;
+    const SINGLE_AS_CONST_RE = /['"`]([a-zA-Z][\w-]*)['"`]\s*as\s+const\b/g;
+    // Inside a `keys: { ... }` object, every string-literal property
+    // value is a candidate translation key.
+    const KEYS_BLOCK_RE = /\bkeys\s*:\s*\{([^{}]*)\}/g;
+    const KEYS_BLOCK_VALUE_RE = /:\s*['"`]([a-zA-Z][\w-]*)['"`]/g;
+    for (const m of content.matchAll(SINGLE_KEY_PROPERTY_RE)) {
+      localSingleCandidates.add(m[1]);
+    }
+    for (const m of content.matchAll(SINGLE_AS_CONST_RE)) {
+      localSingleCandidates.add(m[1]);
+    }
+    for (const block of content.matchAll(KEYS_BLOCK_RE)) {
+      for (const m of block[1].matchAll(KEYS_BLOCK_VALUE_RE)) {
+        localSingleCandidates.add(m[1]);
+      }
+    }
+    // Strong-signal single-segment candidates: values inside a const
+    // record whose name contains `I18N`, `KEY(S)`, or `TRANSLATION(S)`
+    // (e.g. `CATEGORY_I18N_KEY`, `TAG_KEYS`). These are translation
+    // key suffixes consumed cross-file via a t-fn and so deserve a
+    // global namespace search regardless of where the t-fn is bound.
+    // The lazy `[^{]*?` lets us skip over an optional type annotation
+    // (`Record<X, string>`) before reaching the object literal.
+    const strongSingleCandidates = new Set<string>();
+    const I18N_RECORD_RE =
+      /\b\w*(?:I18N|KEY|KEYS|TRANSLATION|TRANSLATIONS)\w*\b[^{]*?=\s*\{([^{}]*)\}/g;
+    const RECORD_VALUE_RE = /:\s*['"`]([a-zA-Z][\w-]*)['"`]/g;
+    for (const block of content.matchAll(I18N_RECORD_RE)) {
+      for (const m of block[1].matchAll(RECORD_VALUE_RE)) {
+        strongSingleCandidates.add(m[1]);
+      }
+    }
+    // Functions whose name ends in `Key` / `Keys` (e.g. `statusLabelKey`,
+    // `presetLabelKey`) typically build a translation-key suffix, then
+    // get consumed via `t(<fnName>(args))` at the callsite. We collect
+    // every string literal returned by such a function and treat the
+    // values as strong candidates. Match the function header with a
+    // regex, then walk the body counting `{`/`}` to find the true
+    // closing brace — a lazy regex would stop at any inner `}` (e.g.
+    // inside an `if`/`else` block) and miss later `return` statements.
+    const KEY_FUNCTION_HEADER_RE =
+      /\bfunction\s+\w*[Kk]eys?\s*\([^)]*\)[^{]*\{/g;
+    const RETURN_LITERAL_RE = /\breturn\s+['"`]([\w-]+(?:\.[\w-]+)*)['"`]/g;
+    for (const m of content.matchAll(KEY_FUNCTION_HEADER_RE)) {
+      const bodyStart = (m.index ?? 0) + m[0].length;
+      let depth = 1;
+      let i = bodyStart;
+      while (i < content.length && depth > 0) {
+        const c = content[i];
+        if (c === '{') depth++;
+        else if (c === '}') depth--;
+        i++;
+      }
+      if (depth !== 0) continue;
+      const body = content.slice(bodyStart, i - 1);
+      for (const r of body.matchAll(RETURN_LITERAL_RE)) {
+        strongSingleCandidates.add(r[1]);
+      }
+    }
+    for (const literal of localSingleCandidates) {
+      let matched = false;
+      for (const ns of fileNamespaces) {
+        const candidate = `${ns}.${literal}`;
+        if (allFlatKeys.has(candidate)) {
+          exact.add(candidate);
+          matched = true;
+        }
+      }
+      if (!matched && consumesTranslationFn) {
+        for (const ns of topLevelNamespaces) {
+          const candidate = `${ns}.${literal}`;
+          if (allFlatKeys.has(candidate)) exact.add(candidate);
+        }
+      }
+    }
+    for (const literal of strongSingleCandidates) {
+      // Prefer per-file namespaces when the file has a `useT(...)` /
+      // heuristic alias bound (e.g. `statusLabelKey` returning `'statusPending'`
+      // in a file that does `useT('todoList')` should only mark
+      // `todoList.statusPending`, not every other namespace that happens
+      // to also have a `statusPending` key). Fall back to a global
+      // namespace search only when the file binds nothing — the
+      // canonical case is a translation-key map declared in a util that
+      // is consumed by another file (e.g. `CATEGORY_I18N_KEY` in
+      // `sanitize-chat-error.ts`).
+      let matched = false;
+      for (const ns of fileNamespaces) {
+        const candidate = `${ns}.${literal}`;
+        if (allFlatKeys.has(candidate)) {
+          exact.add(candidate);
+          matched = true;
+        }
+      }
+      if (!matched && fileNamespaces.size === 0) {
+        for (const ns of topLevelNamespaces) {
+          const candidate = `${ns}.${literal}`;
+          if (allFlatKeys.has(candidate)) exact.add(candidate);
+        }
+      }
+    }
+
     for (const m of content.matchAll(DOTTED_LITERAL_RE)) {
       const literal = m[1];
       if (allFlatKeys.has(literal)) {
         exact.add(literal);
-      } else {
-        const firstSegment = literal.split('.')[0];
-        if (allNamespaces.has(firstSegment)) exact.add(literal);
+        continue;
+      }
+      let matched = false;
+      for (const ns of fileNamespaces) {
+        const candidate = `${ns}.${literal}`;
+        if (allFlatKeys.has(candidate)) {
+          exact.add(candidate);
+          matched = true;
+        }
+      }
+      if (matched) continue;
+      if (lookupTableLiterals.has(literal)) {
+        for (const ns of topLevelNamespaces) {
+          const candidate = `${ns}.${literal}`;
+          if (allFlatKeys.has(candidate)) exact.add(candidate);
+        }
       }
     }
   }

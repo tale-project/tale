@@ -278,11 +278,21 @@
       "duration": "Duration",
       "triggeredBy": "Triggered by",
       "teams": "Teams",
-      "uploadedBy": "Uploaded by"
+      "uploadedBy": "Uploaded by",
+      "actions": "Actions",
+      "created": "Created",
+      "description": "Description",
+      "email": "Email",
+      "product": "Product",
+      "scanned": "Scanned",
+      "stock": "Stock",
+      "title": "Title",
+      "website": "Website"
     },
     "cells": {
       "unknown": "Unknown",
-      "empty": "-"
+      "empty": "-",
+      "noEmail": "No email"
     }
   },
   "toast": {
@@ -432,7 +442,9 @@
     },
     "forcedChange": {
       "title": "Password change required",
-      "submit": "Update password"
+      "submit": "Update password",
+      "description": "Your password has expired per the organization's rotation policy. Set a new password to continue.",
+      "descriptionAdminSet": "Your password was set by an administrator. Please choose a new password to continue."
     },
     "setPassword": {
       "title": "Set password",
@@ -531,7 +543,8 @@
       "saveChanges": "Save changes",
       "loadingMembers": "Loading...",
       "unknownMember": "Unknown",
-      "memberChecklistHint": "A member can be part of multiple teams. If no one is selected, you will be added automatically."
+      "memberChecklistHint": "A member can be part of multiple teams. If no one is selected, you will be added automatically.",
+      "description": "Create and manage teams within your organization for granular access control"
     },
     "agents": {
       "title": "Agents",
@@ -901,7 +914,8 @@
         "disconnectConfirmDescription": "Are you sure you want to disconnect this integration? You can reconnect it later.",
         "deleteConfirmTitle": "Delete integration",
         "deleteConfirmDescription": "Are you sure you want to delete this integration? This action cannot be undone.",
-        "deleteIntegration": "Delete integration"
+        "deleteIntegration": "Delete integration",
+        "saveChanges": "Save changes"
       },
       "authMethods": {
         "api_key": "API key",
@@ -937,7 +951,31 @@
         "roleDeveloper": "Developer",
         "roleEditor": "Editor",
         "roleMember": "Member",
-        "roleDisabled": "Disabled"
+        "roleDisabled": "Disabled",
+        "autoProvisionRoleHelp": "Automatically assign roles based on job title or app roles from Entra ID",
+        "autoProvisionRoleLabel": "Auto-provision roles",
+        "autoProvisionTeamHelp": "Automatically sync team memberships from Entra ID groups",
+        "autoProvisionTeamLabel": "Auto-provision teams",
+        "clientIdHelp": "The Application (client) ID from Azure App Registration",
+        "clientIdLabel": "Client ID",
+        "clientSecretHelp": "The client secret from Azure App Registration",
+        "clientSecretLabel": "Client secret",
+        "configuring": "Configuring...",
+        "connectedToEntra": "Connected to Microsoft Entra ID",
+        "defaultRoleHelp": "Role assigned when no mapping rules match",
+        "defaultRoleHelpNoAutoProvision": "Role assigned to all SSO users",
+        "defaultRoleLabel": "Default role",
+        "excludeGroupsHelp": "Comma-separated list of Entra groups to exclude from team sync",
+        "excludeGroupsLabel": "Exclude groups",
+        "issuerHelp": "The OIDC issuer URL for your Entra ID tenant",
+        "issuerLabel": "Issuer URL",
+        "oneDriveAccessHelp": "Allow users to access OneDrive and SharePoint files using their SSO credentials",
+        "oneDriveAccessLabel": "Enable OneDrive/SharePoint access",
+        "testConnection": "Test connection",
+        "testPassed": "Valid",
+        "testing": "Testing...",
+        "title": "SSO configuration",
+        "updating": "Updating..."
       }
     },
     "providers": {
@@ -1038,7 +1076,11 @@
       "modelApiKeyOverrideIndicator": "Custom key",
       "deleteModelApiKey": "Remove",
       "undoRemoveKey": "Undo",
-      "costHelp": "Used for budget tracking. Leave empty to use default estimates."
+      "costHelp": "Used for budget tracking. Leave empty to use default estimates.",
+      "description": "Description",
+      "tagImageEdit": "Image edit",
+      "tagImageGeneration": "Image generation",
+      "tagTranscription": "Transcription"
     },
     "form": {
       "name": "Name",
@@ -1090,7 +1132,9 @@
           "never": "Never"
         }
       },
-      "neverUsed": "Never used"
+      "neverUsed": "Never used",
+      "description": "Manage API keys for external integrations",
+      "title": "API keys"
     },
     "apiDocs": {
       "openDocs": "API docs"
@@ -1671,6 +1715,16 @@
       "all": "All",
       "read": "Read",
       "unread": "Unread"
+    },
+    "category": {
+      "churnSurvey": "Churn survey",
+      "productRecommendation": "Product recommendation",
+      "serviceRequest": "Service request"
+    },
+    "priority": {
+      "high": "High",
+      "low": "Low",
+      "medium": "Medium"
     }
   },
   "composer": {
@@ -1693,7 +1747,12 @@
     "paneResizeHandle": "Resize plan panel",
     "stripOpen": "Open research plan",
     "showMoreSources": "Show {count} more sources",
-    "hideSources": "Hide additional sources"
+    "hideSources": "Hide additional sources",
+    "statusCancelled": "Cancelled",
+    "statusDone": "Done",
+    "statusFailed": "Failed",
+    "statusInProgress": "In progress",
+    "statusPending": "Pending"
   },
   "humanInputRequest": {
     "questionTitle": "Question",
@@ -1906,7 +1965,15 @@
       "noResults": "No models found",
       "auto": "Auto",
       "autoDescription": "Automatically selects the best available model with fallback",
-      "noModelsAvailable": "No models available"
+      "noModelsAvailable": "No models available",
+      "tags": {
+        "chat": "Chat",
+        "embedding": "Embedding",
+        "imageEdit": "Image editing",
+        "imageGeneration": "Image generation",
+        "transcription": "Transcription",
+        "vision": "Vision"
+      }
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
@@ -2167,7 +2234,18 @@
     "savePromptMenu": "Save options",
     "unsavePrompt": "Unsave prompt",
     "unsavePromptConfirm": "This will remove the saved prompt. You can always save it again later.",
-    "unsavePromptAction": "Unsave"
+    "unsavePromptAction": "Unsave",
+    "errorGeneratingDescription": "There was an error generating a response. Please try again.",
+    "errorHintAuthError": "The API key is invalid or does not have access to this model. Contact your administrator.",
+    "errorHintContentFilter": "The message was flagged by the content filter. Try rephrasing your message.",
+    "errorHintContextLength": "The conversation is too long for the model's context window. Try starting a new chat.",
+    "errorHintCreditExhausted": "The AI provider's credit limit was exceeded. Contact your administrator to add credits.",
+    "errorHintMissingApiKey": "No API key is configured for this organization yet. Open Settings → AI providers and add one to start chatting.",
+    "errorHintModelNotFound": "The selected model was not found or is unavailable. Contact your administrator.",
+    "errorHintProviderError": "The AI provider is temporarily experiencing issues. Please try again in a moment.",
+    "errorHintRateLimited": "Too many requests. Please wait a moment and try again.",
+    "errorHintTokenLimit": "The model's output token limit was exceeded. Try a shorter request or ask your administrator to adjust the model settings.",
+    "errorHintToolFailure": "The agent encountered an error while accessing data. Try rephrasing your request or asking for a smaller set of data."
   },
   "documents": {
     "searchPlaceholder": "Search documents",
@@ -2398,6 +2476,13 @@
           "unknownError": "Unknown error occurred"
         }
       }
+    },
+    "sourceType": {
+      "oneDrive": "OneDrive",
+      "oneDriveSynced": "OneDrive (synced)",
+      "sharePoint": "SharePoint",
+      "sharePointSynced": "SharePoint (synced)",
+      "uploaded": "Upload"
     }
   },
   "products": {
@@ -2454,7 +2539,10 @@
       "clickToUpload": "Click to upload",
       "supportedFormats": ".xlsx, .xls or .csv",
       "expectedColumns": "Expected columns: name, description, imageUrl, stock, price, currency, category, status",
-      "draftStatusNote": "Imported products are created with 'draft' status by default."
+      "draftStatusNote": "Imported products are created with 'draft' status by default.",
+      "errorCodes": {
+        "unknown": "An unexpected error occurred"
+      }
     },
     "actions": {
       "deleteFailed": "Failed to delete product",
@@ -2535,8 +2623,16 @@
       "error": "Import error",
       "addCustomers": "Add customers",
       "uploadCustomers": "Upload customers",
-      "import": "Import"
-    }
+      "import": "Import",
+      "errorCodes": {
+        "duplicate_email": "A customer with this email already exists",
+        "duplicate_external_id": "A customer with this external ID already exists",
+        "unknown": "An unexpected error occurred"
+      }
+    },
+    "deleteConfirmation": "Are you sure you want to delete {name}?",
+    "deleteError": "Failed to delete customer",
+    "deleteWarning": "This action cannot be undone."
   },
   "vendors": {
     "title": "Vendors",
@@ -2578,8 +2674,15 @@
       "provideData": "Please provide vendor data",
       "success": "Import successful",
       "successDescription": "Successfully imported {success} vendors{failed, select, 0 {} other {, {failed} failed}}",
-      "error": "Failed to import vendors"
-    }
+      "error": "Failed to import vendors",
+      "errorCodes": {
+        "duplicate_email": "A vendor with this email already exists",
+        "duplicate_external_id": "A vendor with this external ID already exists",
+        "unknown": "An unexpected error occurred"
+      }
+    },
+    "deleteConfirmation": "Are you sure you want to delete {name}?",
+    "deleteError": "Failed to delete vendor"
   },
   "websites": {
     "title": "Websites",
@@ -2611,7 +2714,8 @@
       "updateSuccess": "Website updated successfully",
       "updateError": "Failed to update website",
       "fetchPagesError": "Failed to load pages",
-      "searchError": "Search failed"
+      "searchError": "Search failed",
+      "deleteError": "Failed to delete website"
     },
     "adding": "Adding...",
     "viewDialog": {
@@ -2659,6 +2763,10 @@
         "7d": "Every 7 days",
         "30d": "Every 30 days"
       }
+    },
+    "delete": {
+      "confirmation": "Are you sure you want to delete this website? This action cannot be undone.",
+      "title": "Delete website"
     }
   },
   "twoFactor": {
@@ -2710,7 +2818,9 @@
     },
     "lowBackupCodes": {
       "body": "Generate a new batch so you can still recover your account if you lose your authenticator.",
-      "regenerateLink": "Regenerate now"
+      "regenerateLink": "Regenerate now",
+      "titleOne": "Only 1 backup code remaining",
+      "titleOther": "Only {count} backup codes remaining"
     },
     "enroll": {
       "title": "Two-factor required",
@@ -2718,7 +2828,9 @@
     },
     "grace": {
       "body": "Your organization will require all members to use a second factor. Enrol now to avoid interruption.",
-      "setupLink": "Set up now"
+      "setupLink": "Set up now",
+      "titleOne": "Two-factor authentication required in {days} day",
+      "titleOther": "Two-factor authentication required in {days} days"
     },
     "admin": {
       "resetButton": "Reset two-factor",
@@ -2744,7 +2856,8 @@
     "branding": "You need Admin permissions to access branding settings.",
     "knowledge": "Your account does not have permission to access knowledge.",
     "workspaceNotFound": "The workspace you're looking for doesn't exist or may have been removed.",
-    "disabled": "Your account has been disabled. Contact support for assistance."
+    "disabled": "Your account has been disabled. Contact support for assistance.",
+    "noMembership": "You are not a member of this workspace. Please contact an administrator for access."
   },
   "metadata": {
     "suffix": "Tale",
@@ -2999,7 +3112,11 @@
       "noProvidersFound": "No providers found",
       "noModelsFound": "No models found",
       "noTeamsFound": "No teams found",
-      "confirm": "Confirm"
+      "confirm": "Confirm",
+      "allowlistConflictWarning": "This model isn't currently permitted by the Model access allowlist for this scope. Users receiving this default will fall back to an allowlist-permitted model.",
+      "allowlistConflictWarningTitle": "Model not in allowlist",
+      "blocklistConflictWarning": "This model is currently blocked by the Model access policy for this scope. Users receiving this default will fall back to a permitted model.",
+      "blocklistConflictWarningTitle": "Model is blocked"
     },
     "uploadPolicy": {
       "title": "Upload policy",
@@ -3451,7 +3568,15 @@
       "testResultCircuit": "Circuit",
       "testResultCircuitOpened": "Opened by this failure",
       "saved": "Moderation provider saved",
-      "saveFailed": "Save failed"
+      "saveFailed": "Save failed",
+      "presetAzure": "Use Azure Content Safety",
+      "presetAzureActive": "Azure Content Safety",
+      "presetAzureNote": "Replace the subdomain with your own Azure resource name.",
+      "presetOpenai": "Use OpenAI Moderation",
+      "presetOpenaiActive": "OpenAI Moderation",
+      "presetPerspective": "Use Perspective API",
+      "presetPerspectiveActive": "Perspective API",
+      "presetPerspectiveNote": "Perspective authenticates via a URL query parameter, not a header. After applying the preset, open Endpoint and append ?key=YOUR_PERSPECTIVE_KEY to the URL. (The encrypted API-key field below is not used by Perspective.)"
     },
     "groups": {
       "contentAndModels": "Content & Models",
