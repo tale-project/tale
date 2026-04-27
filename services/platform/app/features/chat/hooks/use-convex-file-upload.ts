@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
-import { useUploadPolicy } from '@/app/features/settings/governance/hooks/use-upload-policy';
+import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -14,6 +14,7 @@ import {
   CHAT_AUDIO_MAX_DURATION_SEC,
   CHAT_MAX_FILE_COUNT,
   CHAT_MAX_TOTAL_SIZE,
+  detectMediaMime,
   getMaxFileSizeForType,
   isAudioOrVideo,
   resolveFileType,
@@ -82,7 +83,8 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
       const rejectedExtension: File[] = [];
 
       for (const file of files) {
-        const resolvedType = resolveFileType(file.name, file.type);
+        const mediaMime = await detectMediaMime(file);
+        const resolvedType = mediaMime ?? resolveFileType(file.name, file.type);
         const isAllowedType =
           mergedConfig.allowedTypes.includes(resolvedType) ||
           isTextBasedFile(file.name, resolvedType);

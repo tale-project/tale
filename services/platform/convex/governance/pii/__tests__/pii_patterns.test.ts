@@ -136,35 +136,252 @@ describe('scrubPii with new patterns', () => {
 
   it('masks IBAN in text', () => {
     const result = scrubPii('Transfer to DE89 3704 0044 0532 0130 00', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
     expect(result.text).toContain('[IBAN]');
-    expect(result.detectedTypes).toContain('iban');
+    expect(result.categoryIds).toContain('iban');
     expect(result.matchCount).toBeGreaterThan(0);
   });
 
   it('masks German ID in text', () => {
     const result = scrubPii('My Personalausweis is T22000129', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
     expect(result.text).toContain('[GERMAN_ID]');
-    expect(result.detectedTypes).toContain('germanId');
+    expect(result.categoryIds).toContain('germanId');
   });
 
-  it('throws in block mode when IBAN detected', () => {
+  it('returns blocked in block mode when IBAN detected', () => {
     const blockConfig = { ...config, mode: 'block' } satisfies PiiConfig;
-    expect(() =>
-      scrubPii('Transfer to DE89 3704 0044 0532 0130 00', blockConfig),
-    ).toThrow('Message blocked');
-  });
-
-  it('throws in block mode when German ID detected', () => {
-    const blockConfig = { ...config, mode: 'block' } satisfies PiiConfig;
-    expect(() => scrubPii('ID: T22000129', blockConfig)).toThrow(
-      'Message blocked',
+    const result = scrubPii(
+      'Transfer to DE89 3704 0044 0532 0130 00',
+      blockConfig,
     );
+    expect(result.kind).toBe('blocked');
+    if (result.kind !== 'blocked') return;
+    expect(result.categoryIds).toContain('iban');
+  });
+
+  it('returns blocked in block mode when German ID detected', () => {
+    const blockConfig = { ...config, mode: 'block' } satisfies PiiConfig;
+    const result = scrubPii('ID: T22000129', blockConfig);
+    expect(result.kind).toBe('blocked');
+    if (result.kind !== 'blocked') return;
+    expect(result.categoryIds).toContain('germanId');
   });
 
   it('passes through when disabled', () => {
     const disabledConfig = { ...config, enabled: false };
     const result = scrubPii('DE89 3704 0044 0532 0130 00', disabledConfig);
-    expect(result.text).toContain('DE89');
-    expect(result.matchCount).toBe(0);
+    expect(result.kind).toBe('pass');
+  });
+});
+
+describe('address pattern', () => {
+  const addressPatterns = getEnabledPatterns(['address']);
+
+  it('detects US-style "123 Main Street"', () => {
+    const matches = detectPii('123 Main Street', addressPatterns);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedText).toBe('123 Main Street');
+  });
+
+  it('detects "1234 5th Ave"', () => {
+    const matches = detectPii('1234 5th Ave', addressPatterns);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedText).toBe('1234 5th Ave');
+  });
+
+  it('detects address embedded in prose', () => {
+    const matches = detectPii(
+      'My address is 42 Oak Lane, Apt 5',
+      addressPatterns,
+    );
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedText).toBe('42 Oak Lane');
+  });
+
+  it('detects Indonesian-style "street X no 02G" (regression for #1473)', () => {
+    const matches = detectPii(
+      'i live in street dieng atas no 02G malang jawa timur indonesia',
+      addressPatterns,
+    );
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedText.toLowerCase()).toBe(
+      'street dieng atas no 02g',
+    );
+  });
+
+  it('detects "Jalan Sudirman No 15"', () => {
+    const matches = detectPii('Jalan Sudirman No 15', addressPatterns);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedText).toBe('Jalan Sudirman No 15');
+  });
+
+  it('detects German compound "Hauptstrasse 12"', () => {
+    const matches = detectPii('Hauptstrasse 12', addressPatterns);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedText).toBe('Hauptstrasse 12');
+  });
+
+  it('detects abbreviated German "Bahnhofstr. 5"', () => {
+    const matches = detectPii('Bahnhofstr. 5', addressPatterns);
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedText).toBe('Bahnhofstr. 5');
+  });
+
+  it('does not match plain digits with no street keyword', () => {
+    const matches = detectPii('I had 5 cookies', addressPatterns);
+    expect(matches).toHaveLength(0);
+  });
+
+  it('does not match "street" without a number marker', () => {
+    const matches = detectPii('street art is cool', addressPatterns);
+    expect(matches).toHaveLength(0);
+  });
+
+  it('does not match "street X 5 days" (no no/nr marker)', () => {
+    // The keyword-first form requires an explicit no/nr/number/# marker to
+    // avoid grabbing unrelated digits in the same sentence.
+    const matches = detectPii('street art is cool 5 days', addressPatterns);
+    expect(matches).toHaveLength(0);
+  });
+
+  it('masks address with [ADDRESS] placeholder via scrubPii', () => {
+    const config = {
+      enabled: true,
+      mode: 'mask',
+      enabledPatterns: ['address'],
+      customPatterns: [],
+    } satisfies PiiConfig;
+    const result = scrubPii('Mail to 123 Main Street please', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('Mail to [ADDRESS] please');
+    expect(result.categoryIds).toContain('address');
+  });
+});
+
+describe('overlap dedup (regression for #1618)', () => {
+  // Before the dedup fix, the phone regex matched a 14-char prefix of a
+  // creditCard match; both ranges shared a start, and maskPii spliced the
+  // shorter replacement first using original indices into a mutated string,
+  // eating adjacent characters — sometimes the next [EMAIL] token entirely.
+  const config = {
+    enabled: true,
+    mode: 'mask',
+    enabledPatterns: ['email', 'phone', 'creditCard'],
+    customPatterns: [],
+  } satisfies PiiConfig;
+
+  it('does not eat the [EMAIL] token when CC + email are adjacent', () => {
+    // The original repro from the issue: prior to the fix, the email part
+    // disappeared completely from the output.
+    const result = scrubPii('4532123456789010 test@example.com 123', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[CREDIT_CARD] [EMAIL] 123');
+  });
+
+  it('keeps creditCard, drops the overlapping phone match', () => {
+    const result = scrubPii('4532-1234-5678-9010', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[CREDIT_CARD]');
+    expect(result.text).not.toContain('[PHONE]');
+    expect(result.categoryIds).toEqual(['creditCard']);
+  });
+
+  it('does not corrupt surrounding text when CC + email co-occur with prose', () => {
+    const result = scrubPii(
+      'My credit card is 4532-1234-5678-9010, my email is alice@example.com.',
+      config,
+    );
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe(
+      'My credit card is [CREDIT_CARD], my email is [EMAIL].',
+    );
+  });
+
+  it('masks all three independent items when patterns do not overlap', () => {
+    const result = scrubPii(
+      'call 555-867-5309 mail a@b.com card 4532-1234-5678-9010',
+      config,
+    );
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toContain('[PHONE]');
+    expect(result.text).toContain('[EMAIL]');
+    expect(result.text).toContain('[CREDIT_CARD]');
+    expect(result.text).not.toMatch(/\d{3}-\d{3}-\d{4}/);
+    expect(result.text).not.toMatch(/4532/);
+  });
+
+  it('handles email and creditCard separated only by a non-word char', () => {
+    // The creditCard regex requires \b on both sides, so a letter-adjacent
+    // CC (e.g. ".com4532...") won't match — that's an intentional limit of
+    // the existing pattern. A non-word separator (here a comma) is enough.
+    const result = scrubPii('test@example.com,4532-1234-5678-9010', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[EMAIL],[CREDIT_CARD]');
+  });
+});
+
+describe('CVC pattern (context-anchored)', () => {
+  const config = {
+    enabled: true,
+    mode: 'mask',
+    enabledPatterns: ['cvc'],
+    customPatterns: [],
+  } satisfies PiiConfig;
+
+  it('masks "my CVC is 123"', () => {
+    const result = scrubPii('my CVC is 123', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('my [CVC]');
+  });
+
+  it('masks "cvv: 4567"', () => {
+    const result = scrubPii('cvv: 4567', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[CVC]');
+  });
+
+  it('masks "card security code 890"', () => {
+    const result = scrubPii('card security code 890', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[CVC]');
+  });
+
+  it('masks "card-security-code 100"', () => {
+    const result = scrubPii('card-security-code 100', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[CVC]');
+  });
+
+  it('masks "CV2=999" (mixed case via i flag)', () => {
+    const result = scrubPii('CV2=999', config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[CVC]');
+  });
+
+  it('does NOT detect bare 3-digit numbers without context', () => {
+    // Intentional: bare digits would false-positive on ages, room numbers,
+    // error codes, etc. Industry-standard tools (Presidio, Comprehend, CF
+    // WAF) skip CVV for the same reason.
+    const result = scrubPii('My room is 123 and my age is 45.', config);
+    expect(result.kind).toBe('pass');
+  });
+
+  it('does NOT match the literal word "cid" without a number', () => {
+    const result = scrubPii('citric acid is sour', config);
+    expect(result.kind).toBe('pass');
   });
 });

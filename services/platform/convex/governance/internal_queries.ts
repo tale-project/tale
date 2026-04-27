@@ -29,6 +29,55 @@ export const getPiiConfigInternal = internalQuery({
   },
 });
 
+/**
+ * Batched fetch for all three guardrails policies in one round-trip.
+ *
+ * `sanitize.ts` callers snapshot this once per input message (or once at
+ * stream start for output filtering) and pass the frozen result through
+ * all subsequent filter dispatches. Mid-stream admin edits take effect on
+ * the next message — never mid-response — so users never see inconsistent
+ * enforcement within a single turn.
+ */
+export const getGuardrailsConfigsInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.object({
+    chatFilter: v.any(),
+    pii: v.any(),
+    moderation: v.any(),
+  }),
+  handler: async (ctx, args) => {
+    const [chatFilter, pii, moderation] = await Promise.all([
+      ctx.db
+        .query('governancePolicies')
+        .withIndex('by_org_policyType', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('policyType', 'chat_filter'),
+        )
+        .first(),
+      ctx.db
+        .query('governancePolicies')
+        .withIndex('by_org_policyType', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('policyType', 'pii_config'),
+        )
+        .first(),
+      ctx.db
+        .query('governancePolicies')
+        .withIndex('by_org_policyType', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('policyType', 'moderation_provider'),
+        )
+        .first(),
+    ]);
+    return { chatFilter, pii, moderation };
+  },
+});
+
 export const getSystemPromptPolicyInternal = internalQuery({
   args: {
     organizationId: v.string(),

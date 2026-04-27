@@ -9,9 +9,15 @@
  * `forced-change-password.$id.tsx` does: the `_auth` layout rejects
  * authenticated users, but this page requires an active session.
  */
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import {
+  createFileRoute,
+  redirect,
+  useNavigate,
+  useSearch,
+} from '@tanstack/react-router';
 import { QRCodeSVG } from 'qrcode.react';
 import { useState } from 'react';
+import { z } from 'zod';
 
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack, VStack } from '@/app/components/ui/layout/layout';
@@ -25,7 +31,12 @@ import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { extractSecret, normalizeOtpauthURI } from '@/lib/utils/totp';
 
+const searchSchema = z.object({
+  redirectTo: z.string().optional(),
+});
+
 export const Route = createFileRoute('/2fa-enroll')({
+  validateSearch: searchSchema,
   beforeLoad: async () => {
     const session = await authClient.getSession();
     if (!session?.data?.user) {
@@ -62,6 +73,7 @@ function TwoFactorEnrollPage() {
   const { t } = useT('twoFactor');
   const navigate = useNavigate();
   const queryClient = useReactQueryClient();
+  const { redirectTo } = useSearch({ from: '/2fa-enroll' });
 
   const [step, setStep] = useState<Step>({ kind: 'password' });
   const [password, setPassword] = useState('');
@@ -116,7 +128,7 @@ function TwoFactorEnrollPage() {
     await queryClient
       .invalidateQueries({ queryKey: ['auth', 'session'] })
       .catch(() => undefined);
-    void navigate({ to: '/dashboard' });
+    void navigate({ to: redirectTo || '/dashboard' });
   }
 
   return (
@@ -125,10 +137,10 @@ function TwoFactorEnrollPage() {
       align="stretch"
       className="bg-background text-foreground min-h-screen"
     >
-      <div className="px-4 pt-8 pb-16 sm:px-8 md:pb-32">
+      <div className="px-4 pt-8 pb-8 sm:px-8">
         <LogoLink href="/" />
       </div>
-      <main className="mx-auto w-full max-w-[24.875rem] px-4">
+      <main className="mx-auto w-full max-w-[24.875rem] px-4 pb-12">
         <Stack gap={6}>
           <Stack gap={2} className="text-center">
             <Heading level={1} size="xl">

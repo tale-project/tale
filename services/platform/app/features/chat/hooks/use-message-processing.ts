@@ -10,6 +10,7 @@ import {
   parseSystemMessageTag,
 } from '@/lib/shared/constants/system-message-tags';
 
+import { useChatLayout } from '../context/chat-layout-context';
 import type { FileAttachment } from '../types';
 
 const INTERNAL_ATTACHMENT_MARKER =
@@ -116,6 +117,32 @@ export function useMessageProcessing(
     threadId ? { threadId } : 'skip',
   );
 
+  // Thread-level generation status. Held true across an entire multi-step
+  // turn (set by markGenerating, cleared by clearGenerationStatus) including
+  // the gap between pre-tool message success and post-tool message creation
+  // — exactly when an orphan file-only message must stay hidden. Prefer this
+  // over scanning uiMessages for a streaming/pending status, which is
+  // undefined during that gap.
+  const isGenerating = useQuery(
+    api.threads.queries.isThreadGenerating,
+    threadId ? { threadId } : 'skip',
+  );
+
+  // Client-side pending-send signal. When the user has just clicked send
+  // but the new user message hasn't been persisted yet, `pendingMessage` is
+  // non-null on the same thread. During that narrow window, isGenerating is
+  // already true (markGenerating committed first for TTFT) but uiMessages
+  // still reflects the PREVIOUS completed turn — so the intra-turn file-only
+  // hide logic below would mistakenly treat the previous turn's file-only
+  // reply as the currently-generating turn's pre-tool message and hide it.
+  // The presence of a matching pendingMessage is the unambiguous signal
+  // that we're in the cross-turn gap (not an intra-turn gap).
+  const { pendingMessage } = useChatLayout();
+  const hasPendingSendForThread =
+    !!pendingMessage &&
+    (pendingMessage.threadId === threadId ||
+      pendingMessage.arenaThreadIdB === threadId);
+
   const isLoadingMore = paginationStatus === 'LoadingMore';
 
   // Check if we've loaded the first message (order: 0)
@@ -185,6 +212,50 @@ export function useMessageProcessing(
       userMessages.length > 0
         ? Math.min(...userMessages.map((m) => m.order))
         : 0;
+
+    // When a tool writes a file-only assistant message (via appendFilePart)
+    // mid-stream, its row lands before the post-tool text message does.
+    // If we render it standalone in that window, the bubble unmounts and the
+    // post-tool message's TypewriterText mounts fresh once the merge catches
+    // up — visible as a flicker. Hide file-only messages while the turn is
+    // still generating; the forward merge attaches them once the post-tool
+    // message gains content. Use threadMetadata.generationStatus (via
+    // isThreadGenerating) rather than a streaming/pending status scan —
+    // those statuses are undefined during the gap between pre-tool `success`
+    // and post-tool creation, but generationStatus stays true across that
+    // gap.
+    //
+    // Scope to the current turn's order. Three cases, distinguished by the
+    // relationship between maxAssistantOrder and maxUserOrder, plus the
+    // client's `pendingMessage` signal:
+    //   - maxAssistant < maxUser: new user message arrived but no assistant
+    //     response yet — nothing to hide.
+    //   - maxAssistant === maxUser: ambiguous. Could be intra-turn gap (user
+    //     + appendFilePart share one order) OR cross-turn gap (previous turn
+    //     fully settled; client just clicked send; new user message not yet
+    //     saved server-side). Disambiguate with `hasPendingSendForThread`:
+    //     if set, it's the cross-turn case — DON'T hide the previous turn's
+    //     file-only reply. Otherwise it's intra-turn — DO hide.
+    //   - maxAssistant > maxUser: intra-turn with strict advance — hide.
+    let activeTurnOrder: number | undefined;
+    if (isGenerating) {
+      let maxUserOrder = -Infinity;
+      let maxAssistantOrder = -Infinity;
+      for (const m of uiMessages) {
+        if (m.role === 'user' && m.order > maxUserOrder) {
+          maxUserOrder = m.order;
+        } else if (m.role === 'assistant' && m.order > maxAssistantOrder) {
+          maxAssistantOrder = m.order;
+        }
+      }
+      const isIntraTurnGap =
+        Number.isFinite(maxAssistantOrder) &&
+        (maxAssistantOrder > maxUserOrder ||
+          (maxAssistantOrder === maxUserOrder && !hasPendingSendForThread));
+      if (isIntraTurnGap) {
+        activeTurnOrder = maxAssistantOrder;
+      }
+    }
 
     const currentKeys = new Set<string>();
 
@@ -347,10 +418,27 @@ export function useMessageProcessing(
       }
     }
 
-    // Pass 2: rebuild without file-only messages, merging extra parts immutably
+    // Pass 2: rebuild without file-only messages, merging extra parts immutably.
+    // Also hide any file-only message that did not find a merge target but
+    // shares its order with an in-flight streaming/pending assistant message
+    // — the forward merge will pick it up as soon as that message streams
+    // text, so deferring is preferable to a transient standalone bubble.
     return (
       result
-        .filter((msg) => !fileOnlyKeys.has(msg.key))
+        .filter((msg) => {
+          if (fileOnlyKeys.has(msg.key)) return false;
+          if (
+            activeTurnOrder != null &&
+            msg.role === 'assistant' &&
+            !msg.content &&
+            !msg.isAborted &&
+            msg.fileParts?.length &&
+            msg.order === activeTurnOrder
+          ) {
+            return false;
+          }
+          return true;
+        })
         // oxlint-disable-next-line oxc/no-map-spread -- immutable update required
         .map((msg) => {
           const extra = extraFileParts.get(msg.key);
@@ -358,7 +446,7 @@ export function useMessageProcessing(
           return { ...msg, fileParts: [...(msg.fileParts ?? []), ...extra] };
         })
     );
-  }, [uiMessages, messageErrors]);
+  }, [uiMessages, messageErrors, isGenerating, hasPendingSendForThread]);
 
   // Find active assistant message (streaming or pending tool execution).
   // Unified lookup ensures ThinkingAnimation receives tool parts during both phases.

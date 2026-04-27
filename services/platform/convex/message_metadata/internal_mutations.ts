@@ -100,3 +100,52 @@ export const saveMessageMetadata = internalMutation({
     });
   },
 });
+
+/**
+ * Record that the guardrails pipeline blocked this assistant message.
+ * Stored alongside other message metadata so `useMessageMetadata` picks
+ * it up through the same subscription. Called from the output-side
+ * persist step either mid-stream (transform detected block) or at the
+ * finalize sweep (cross-chunk local match).
+ */
+export const setBlockedReason = internalMutation({
+  args: {
+    messageId: v.string(),
+    threadId: v.string(),
+    code: v.union(
+      v.literal('pii.blocked'),
+      v.literal('chat_filter.blocked'),
+      v.literal('moderation_provider.blocked'),
+    ),
+    direction: v.union(v.literal('input'), v.literal('output')),
+    categoryIds: v.array(v.string()),
+    sanitizationRunId: v.string(),
+  },
+  returns: v.id('messageMetadata'),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('messageMetadata')
+      .withIndex('by_messageId', (q) => q.eq('messageId', args.messageId))
+      .first();
+
+    const blockedReason = {
+      code: args.code,
+      direction: args.direction,
+      categoryIds: args.categoryIds,
+      sanitizationRunId: args.sanitizationRunId,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { blockedReason });
+      return existing._id;
+    }
+
+    return await ctx.db.insert('messageMetadata', {
+      messageId: args.messageId,
+      threadId: args.threadId,
+      model: '',
+      provider: '',
+      blockedReason,
+    });
+  },
+});

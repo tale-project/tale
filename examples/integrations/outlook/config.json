@@ -1,6 +1,5 @@
 {
   "title": "Microsoft Outlook",
-  "installed": false,
   "description": "Microsoft Graph API integration for Outlook mail, calendar, and contacts",
   "version": 2,
   "authMethod": "oauth2",

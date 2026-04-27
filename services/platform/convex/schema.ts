@@ -15,6 +15,7 @@ import {
   brandingBindingsTable,
   brandingSettingsLegacyTable,
 } from './branding/schema';
+import { chatFilterEventsTable } from './chat_filter_events/schema';
 import {
   conversationsTable,
   conversationMessagesTable,
@@ -24,7 +25,11 @@ import { documentsTable } from './documents/schema';
 import { messageFeedbackTable } from './feedback/schema';
 import { fileMetadataTable } from './file_metadata/schema';
 import { foldersTable } from './folders/schema';
-import { governancePoliciesTable, usageLedgerTable } from './governance/schema';
+import {
+  governancePoliciesTable,
+  governanceSecretsTable,
+  usageLedgerTable,
+} from './governance/schema';
 import { integrationCredentialsTable } from './integrations/credentials_schema';
 import { integrationsTable } from './integrations/schema';
 import { llmResponseCacheTable } from './lib/response_cache/schema';
@@ -68,6 +73,8 @@ export default defineSchema({
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
   governancePolicies: governancePoliciesTable,
+  governanceSecrets: governanceSecretsTable,
+  chatFilterEvents: chatFilterEventsTable,
   usageLedger: usageLedgerTable,
   promptTemplates: promptTemplatesTable,
   messageFeedback: messageFeedbackTable,

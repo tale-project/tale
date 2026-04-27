@@ -120,7 +120,7 @@ jobs:
           echo "revision=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Build image
-        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
+        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
         with:
           context: .
           file: services/${{ matrix.service }}/Dockerfile
@@ -234,7 +234,7 @@ jobs:
         uses: useblacksmith/setup-docker-builder@ac083cc84672d01c60d5e8561d0a939b697de542 # v1
 
       - name: Build image for scan
-        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
+        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
         with:
           context: .
           file: services/${{ matrix.service }}/Dockerfile

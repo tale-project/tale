@@ -20,7 +20,7 @@ import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
-import { useUploadPolicy } from '@/app/features/settings/governance/hooks/use-upload-policy';
+import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT, isAudioOrVideo } from '@/lib/shared/file-types';
@@ -560,7 +560,7 @@ export function ChatInput({
           </div>
 
           <HStack justify="between" align="center" className="flex-1 pb-3">
-            <HStack gap={1} align="center">
+            <HStack gap={0} align="center">
               <ComposerModeMenu
                 organizationId={organizationId}
                 onAttachFile={() => fileInputRef.current?.click()}
@@ -578,7 +578,7 @@ export function ChatInput({
               {isArenaMode ? (
                 <ArenaModelSelector organizationId={organizationId} />
               ) : (
-                <HStack className="px-2" gap={3} align="center">
+                <HStack gap={0} align="center">
                   <AgentSelector organizationId={organizationId} />
                   <ModelSelector organizationId={organizationId} />
                 </HStack>

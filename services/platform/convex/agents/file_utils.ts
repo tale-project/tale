@@ -22,10 +22,17 @@ export interface AgentI18nOverrides {
   displayName?: string;
   description?: string;
   conversationStarters?: string[];
+  systemInstructions?: string;
 }
 
 export interface AgentJsonConfig {
-  displayName: string;
+  /**
+   * Legacy top-level translatable fields. Canonical values live under
+   * `i18n.<locale>.*`. These remain as a fallback for agents authored before
+   * the i18n-first data model — resolution precedence is
+   * `i18n[locale] → i18n['en'] → top-level`.
+   */
+  displayName?: string;
   description?: string;
   avatarUrl?: string;
   /**
@@ -33,10 +40,6 @@ export interface AgentJsonConfig {
    * user's message straight to an image model, bypassing the tool loop.
    */
   primaryBehavior?: 'chat' | 'image-generation';
-  /**
-   * Required for chat agents. Optional for image-generation agents (used as a
-   * style/constraint prefix prepended to the user prompt if present).
-   */
   systemInstructions?: string;
   toolNames?: string[];
   integrationBindings?: string[];

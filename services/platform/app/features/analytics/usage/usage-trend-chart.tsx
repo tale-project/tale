@@ -66,11 +66,13 @@ export function UsageTrendChart({
   });
 
   const formatTooltipValue = (
-    value: number,
-    name: string,
+    value: number | undefined,
+    name: string | undefined,
   ): [string, string] => {
-    if (metric === 'cost') return [formatCostCents(value), name];
-    return [formatNumber(value), name];
+    const label = name ?? '';
+    if (value === undefined) return ['', label];
+    if (metric === 'cost') return [formatCostCents(value), label];
+    return [formatNumber(value), label];
   };
 
   const formatYTick = (value: number): string => {
@@ -82,13 +84,13 @@ export function UsageTrendChart({
 
   return (
     <div
-      className="border-border flex flex-col gap-3 rounded-lg border px-5 py-4"
+      className="border-border flex flex-col gap-4 rounded-lg border p-5"
       aria-label={ariaLabel}
     >
-      <Text variant="label" as="h3" className="text-sm">
+      <Text as="h3" className="text-foreground text-base font-semibold">
         {t(`usage.metric.${metric}`)}
       </Text>
-      <div className="h-60 w-full">
+      <div className="h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}

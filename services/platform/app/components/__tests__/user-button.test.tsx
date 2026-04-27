@@ -10,7 +10,6 @@ vi.mock('@/lib/i18n/client', () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
         'userButton.defaultName': 'User',
-        'userButton.settings': 'Settings',
         'userButton.helpFeedback': 'Help & Feedback',
         'userButton.logOut': 'Log out',
         'userButton.manageAccount': 'Manage account',

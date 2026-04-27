@@ -1,12 +1,35 @@
 import { useNavigate } from '@tanstack/react-router';
+import { ConvexError } from 'convex/values';
 import { useCallback, useRef, startTransition } from 'react';
 
 import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
-import { scrubPii } from '@/convex/governance/pii';
 import { useT } from '@/lib/i18n/client';
-import { piiConfigSchema } from '@/lib/shared/schemas/governance';
+
+type GuardrailsBlockedCode =
+  | 'pii.blocked'
+  | 'chat_filter.blocked'
+  | 'moderation_provider.blocked';
+
+function extractGuardrailsBlockedCode(
+  error: unknown,
+): GuardrailsBlockedCode | null {
+  if (!(error instanceof ConvexError)) return null;
+  const data: unknown = error.data;
+  if (typeof data !== 'object' || data === null || !('code' in data)) {
+    return null;
+  }
+  const code = (data as Record<string, unknown>)['code'];
+  if (
+    code === 'pii.blocked' ||
+    code === 'chat_filter.blocked' ||
+    code === 'moderation_provider.blocked'
+  ) {
+    return code;
+  }
+  return null;
+}
 
 import type {
   PendingMessage,
@@ -20,6 +43,7 @@ import {
   useUpdateThread,
 } from './mutations';
 import type { ChatMessage } from './use-message-processing';
+import { clearSendPending, markSendPending } from './use-pending-send';
 import { resetGlobalFreeze } from './use-stream-buffer';
 import type { UserContext } from './use-user-context';
 
@@ -117,14 +141,58 @@ export function useSendMessage({
       setPendingThreadId(threadId ?? null);
       onBeforeSend?.();
 
-      // Show optimistic message SYNCHRONOUSLY before any network calls
-      // (PII check, thread creation) so the UI updates instantly.
+      // Pre-send guardrails check. We await this BEFORE rendering the
+      // optimistic bubble so block-mode violations show a toast (and no
+      // message ever appears), and so mask-mode rewrites are reflected in
+      // the first frame the user sees — otherwise they'd watch their raw
+      // input flash for a moment and then get replaced by `[BLOCKED]`.
+      // On any error we fall through with the raw text; the server will
+      // still re-sanitize authoritatively.
+      let messageToSend = message;
+      try {
+        const precheck = await convexClient.action(
+          api.governance.precheck.precheckInput,
+          { organizationId, text: message },
+        );
+        if (precheck.blocked) {
+          clearChatState();
+          const title =
+            precheck.code === 'pii.blocked'
+              ? t('toast.piiBlocked')
+              : t('toast.policyViolation');
+          // Prefer admin-edited labels resolved server-side; fall back to
+          // internal slugs only when the policy was mid-edit and a category
+          // got removed between detection and render.
+          const labels =
+            precheck.categoryLabels && precheck.categoryLabels.length > 0
+              ? precheck.categoryLabels
+              : precheck.categoryIds;
+          const description =
+            labels && labels.length > 0 ? labels.join(', ') : undefined;
+          toast({ title, description, variant: 'destructive' });
+          return;
+        }
+        if (precheck.maskedText !== undefined) {
+          messageToSend = precheck.maskedText;
+        }
+      } catch (error) {
+        console.warn(
+          `[use-send-message] guardrails precheck failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+
+      // Show optimistic message AFTER precheck so it reflects any mask
+      // rewrite from the server. For orgs without guardrails this is a
+      // single cheap query (<50ms typically) — the previous "instant"
+      // render was only winning a round-trip anyway.
       const lastMessageKey = messages[messages.length - 1]?.key;
       const pendingTimestamp = new Date();
       if (isArena) {
         if (currentArena.arenaThreadIdA && currentArena.arenaThreadIdB) {
           setPendingMessage({
-            content: message,
+            content: messageToSend,
             threadId: currentArena.arenaThreadIdA,
             arenaThreadIdB: currentArena.arenaThreadIdB,
             attachments: mutationAttachments,
@@ -136,7 +204,7 @@ export function useSendMessage({
           // or neither exists yet (new chat). Use the known A ID so
           // ArenaColumn A can match and display the optimistic message.
           setPendingMessage({
-            content: message,
+            content: messageToSend,
             threadId: currentArena.arenaThreadIdA ?? 'pending',
             attachments: mutationAttachments,
             timestamp: pendingTimestamp,
@@ -144,9 +212,8 @@ export function useSendMessage({
           });
         }
       } else {
-        // Standard mode: show optimistic message SYNCHRONOUSLY before PII check
         setPendingMessage({
-          content: message,
+          content: messageToSend,
           threadId: threadId ?? 'pending',
           attachments: mutationAttachments,
           timestamp: pendingTimestamp,
@@ -154,40 +221,22 @@ export function useSendMessage({
         });
       }
 
-      // Pre-check PII policy before creating thread
-      try {
-        const piiPolicy = await convexClient.query(
-          api.governance.queries.getPolicy,
-          { organizationId, policyType: 'pii_config' as const },
-        );
-        if (piiPolicy?.enabled && piiPolicy.config) {
-          const parsed = piiConfigSchema.safeParse({
-            ...piiPolicy.config,
-            enabled: piiPolicy.enabled,
-          });
-          if (parsed.success && parsed.data.mode === 'block') {
-            scrubPii(message, parsed.data);
-          }
-        }
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        if (errorMessage.includes('Message blocked: PII')) {
-          clearChatState();
-          toast({
-            title: t('toast.piiBlocked'),
-            description: errorMessage,
-            variant: 'destructive',
-          });
-          return;
-        }
-      }
+      // Track threads we've flagged optimistic-pending so the catch block can
+      // clear them regardless of which branch (arena / new-chat / existing)
+      // set them, and including any thread IDs created mid-try.
+      const pendingThreadIdsLocal = new Set<string>();
+      const markPending = (id: string) => {
+        pendingThreadIdsLocal.add(id);
+        markSendPending(id);
+      };
 
       try {
         if (isArena) {
           // --- Arena mode: Thread A = root, Thread B = branch ---
           const title =
-            message.length > 50 ? message.slice(0, 50) + '...' : message;
+            messageToSend.length > 50
+              ? messageToSend.slice(0, 50) + '...'
+              : messageToSend;
           const arenaGroupId = crypto.randomUUID();
 
           let tIdA: string;
@@ -228,7 +277,7 @@ export function useSendMessage({
             currentArena.setArenaThreadIdB(newB);
             setPendingThreadId(tIdA);
             setPendingMessage({
-              content: message,
+              content: messageToSend,
               threadId: tIdA,
               arenaThreadIdB: tIdB,
               attachments: mutationAttachments,
@@ -254,6 +303,12 @@ export function useSendMessage({
             });
           }
 
+          // Flip per-thread optimistic spinner IMMEDIATELY so both columns
+          // show "Thinking" before the Node action cold-starts. Real
+          // isThreadGenerating subscriptions take over once they arrive.
+          markPending(tIdA);
+          markPending(tIdB);
+
           // Start both models generating (split view shows "Thinking")
           await arenaChatRef.current({
             agentSlug: selectedAgent.name,
@@ -261,7 +316,7 @@ export function useSendMessage({
             threadIdA: tIdA,
             threadIdB: tIdB,
             organizationId,
-            message,
+            message: messageToSend,
             modelIdA: modelA,
             modelIdB: modelB,
             attachments: mutationAttachments,
@@ -281,7 +336,7 @@ export function useSendMessage({
 
           if (!currentThreadId) {
             setPendingMessage({
-              content: message,
+              content: messageToSend,
               threadId: 'pending',
               attachments: mutationAttachments,
               timestamp: pendingTimestamp,
@@ -289,7 +344,9 @@ export function useSendMessage({
             });
 
             const title =
-              message.length > 50 ? message.slice(0, 50) + '...' : message;
+              messageToSend.length > 50
+                ? messageToSend.slice(0, 50) + '...'
+                : messageToSend;
             const newThreadId = await createThread({
               organizationId,
               title,
@@ -305,7 +362,7 @@ export function useSendMessage({
             // fallback path even while URL is still /chat.
             // Only navigation is deferred via startTransition.
             setPendingMessage({
-              content: message,
+              content: messageToSend,
               threadId: newThreadId,
               attachments: mutationAttachments,
               timestamp: pendingTimestamp,
@@ -325,16 +382,23 @@ export function useSendMessage({
 
           if (isFirstMessage && currentThreadId) {
             const title =
-              message.length > 50 ? message.slice(0, 50) + '...' : message;
+              messageToSend.length > 50
+                ? messageToSend.slice(0, 50) + '...'
+                : messageToSend;
             await updateThread({ threadId: currentThreadId, title });
           }
+
+          // Flip the optimistic spinner IMMEDIATELY — the Node action cold
+          // start adds ~100–300 ms before markGenerating commits. Real
+          // isThreadGenerating takes over once it arrives.
+          markPending(currentThreadId);
 
           await chatWithAgent({
             agentSlug: selectedAgent.name,
             orgSlug: 'default',
             threadId: currentThreadId,
             organizationId,
-            message,
+            message: messageToSend,
             modelId: modelId || undefined,
             capabilityBindings:
               enabledCapabilities.length > 0 ? enabledCapabilities : undefined,
@@ -349,6 +413,10 @@ export function useSendMessage({
         }
       } catch (error) {
         console.error('Failed to send message:', error);
+        // Clear every thread we flagged — server either never started the
+        // turn (pre-markGenerating throw) or rolled it back. Real state
+        // stays authoritative once isThreadGenerating catches up.
+        for (const id of pendingThreadIdsLocal) clearSendPending(id);
         clearChatState();
         resetGlobalFreeze();
 
@@ -359,9 +427,23 @@ export function useSendMessage({
         const errorMessage = rawMessage.split('\n')[0] ?? rawMessage;
         const lower = errorMessage.toLowerCase();
 
+        // Guardrails block detection: prefer structured ConvexError data,
+        // fall back to the legacy substring for old server bundles.
+        const blockedCode = extractGuardrailsBlockedCode(error);
+
         let title = t('toast.sendFailed');
-        if (errorMessage.includes('Message blocked: PII')) {
+        if (
+          blockedCode === 'pii.blocked' ||
+          errorMessage.includes('Message blocked: PII')
+        ) {
           title = t('toast.piiBlocked');
+        } else if (
+          blockedCode === 'chat_filter.blocked' ||
+          blockedCode === 'moderation_provider.blocked' ||
+          errorMessage.includes('Message blocked: chat filter') ||
+          errorMessage.includes('Message blocked: content policy')
+        ) {
+          title = t('toast.policyViolation');
         } else if (
           lower.includes('not available for your account') ||
           lower.includes('model access policy') ||

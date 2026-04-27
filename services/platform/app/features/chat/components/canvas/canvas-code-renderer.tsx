@@ -3,6 +3,7 @@
 import { memo, useEffect, useRef, useState } from 'react';
 
 import { useTheme } from '@/app/components/theme/theme-provider';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { highlightCode } from '@/lib/utils/shiki';
 
@@ -24,6 +25,7 @@ function CanvasCodeRendererComponent({
   isEditing,
   onContentChange,
 }: CanvasCodeRendererProps) {
+  const { t } = useT('chat');
   const [html, setHtml] = useState('');
   const { resolvedTheme } = useTheme();
   const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';
@@ -53,7 +55,7 @@ function CanvasCodeRendererComponent({
           'focus:outline-none',
         )}
         spellCheck={false}
-        aria-label="Code editor"
+        aria-label={t('canvas.codeEditor')}
       />
     );
   }

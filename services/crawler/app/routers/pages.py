@@ -107,7 +107,7 @@ async def get_page_chunks(
 
         async with pool.acquire() as conn:
             rows = await conn.fetch(
-                """SELECT chunk_index, chunk_content
+                """SELECT chunk_index, chunk_content, core_content
                    FROM chunks
                    WHERE domain = $1 AND url = $2
                    ORDER BY chunk_index ASC""",
@@ -119,6 +119,7 @@ async def get_page_chunks(
             PageChunkItem(
                 chunk_index=r["chunk_index"],
                 chunk_content=r["chunk_content"],
+                core_content=r["core_content"] or "",
             )
             for r in rows
         ]

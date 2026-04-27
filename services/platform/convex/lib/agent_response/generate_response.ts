@@ -23,12 +23,25 @@ import {
 } from '@convex-dev/agent';
 import type { StreamMessage } from '@convex-dev/agent/validators';
 import type { ModelMessage } from 'ai';
+import { ConvexError } from 'convex/values';
 
 import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
 import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
 import { queryWebContext } from '../../agent_tools/web/helpers/query_web_context';
 import { estimateCostCents } from '../../governance/cost_estimation';
+import {
+  finalizeSanitize,
+  loadGuardrailsSnapshot,
+  type GuardrailsSnapshot,
+} from '../../governance/sanitize';
+import {
+  createGuardrailsTransform,
+  makeInitialState,
+  type BlockedReason,
+  type GuardrailsTransformState,
+} from '../../governance/stream_transform';
+import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { recordFailure, recordSuccess } from '../../providers/circuit_breaker';
 import {
   ProviderUnavailableError,
@@ -43,6 +56,111 @@ import {
 } from '../context_management';
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
+
+const OUTPUT_BLOCKED_SENTINEL = '[blocked by content policy]';
+
+function convexErrorToBlockedReason(err: unknown): BlockedReason | null {
+  if (!(err instanceof ConvexError)) return null;
+  const data: unknown = err.data;
+  if (!isRecord(data)) return null;
+  const code = data['code'];
+  if (
+    code !== 'chat_filter.blocked' &&
+    code !== 'moderation_provider.blocked'
+  ) {
+    return null;
+  }
+  const direction = data['direction'];
+  if (direction !== 'input' && direction !== 'output') return null;
+  const categoryIds = data['categoryIds'];
+  if (!Array.isArray(categoryIds)) return null;
+  const runId = data['sanitizationRunId'];
+  if (typeof runId !== 'string') return null;
+  return {
+    code,
+    direction,
+    categoryIds: categoryIds.filter((c): c is string => typeof c === 'string'),
+    sanitizationRunId: runId,
+  };
+}
+
+async function applyGuardrailsBlockTombstone(
+  ctx: GenerateResponseArgs['ctx'],
+  savedMessageId: string | undefined,
+  streamId: string | undefined,
+  threadId: string,
+  reason: BlockedReason,
+): Promise<void> {
+  if (savedMessageId) {
+    try {
+      await ctx.runMutation(components.agent.messages.updateMessage, {
+        messageId: savedMessageId,
+        patch: {
+          message: {
+            role: 'assistant',
+            content: OUTPUT_BLOCKED_SENTINEL,
+          },
+        },
+      });
+    } catch (err) {
+      console.warn(
+        `[guardrails] tombstone updateMessage failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+    try {
+      await ctx.runMutation(
+        internal.message_metadata.internal_mutations.setBlockedReason,
+        {
+          messageId: savedMessageId,
+          threadId,
+          code: reason.code,
+          direction: reason.direction,
+          categoryIds: reason.categoryIds,
+          sanitizationRunId: reason.sanitizationRunId,
+        },
+      );
+    } catch (err) {
+      console.warn(
+        `[guardrails] setBlockedReason failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+  if (streamId) {
+    try {
+      await ctx.runMutation(components.agent.streams.abort, {
+        streamId,
+        reason: 'blocked_by_content_policy',
+      });
+    } catch (err) {
+      console.warn(
+        `[guardrails] streams.abort failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+}
+
+function buildBlockedReturn(
+  threadId: string,
+  savedMessageId: string | undefined,
+  usage: GenerateResponseResult['usage'] | undefined,
+  finishReason: string | undefined,
+  startTime: number,
+): GenerateResponseResult {
+  return {
+    threadId,
+    text: OUTPUT_BLOCKED_SENTINEL,
+    savedMessageId,
+    usage,
+    finishReason: finishReason ?? 'content-filter',
+    durationMs: Date.now() - startTime,
+  };
+}
 import { computeCacheKey } from '../response_cache/cache_key';
 import { areAllToolsCacheable } from '../response_cache/tool_cacheability';
 import { resolveTemplateVariables } from './resolve_template_variables';
@@ -64,6 +182,69 @@ import { AgentTimeoutError, withTimeout } from './with_timeout';
  * from the agent's configured timeoutMs.
  */
 const PLATFORM_HARD_LIMIT_MS = 540_000;
+
+/**
+ * Fast non-cryptographic hash of a byte buffer (FNV-1a, double-pass for
+ * 64-bit equivalent uniqueness). Used to fingerprint inlined image bytes
+ * for cache-key derivation — collision-resistant enough for cache dedup,
+ * not for security.
+ */
+function fnv1aBytes(bytes: Uint8Array): string {
+  let h1 = 0x811c9dc5;
+  for (let i = 0; i < bytes.length; i++) {
+    h1 ^= bytes[i];
+    h1 = Math.imul(h1, 0x01000193);
+  }
+  let h2 = 0x6c62272e;
+  for (let i = bytes.length - 1; i >= 0; i--) {
+    h2 ^= bytes[i];
+    h2 = Math.imul(h2, 0x01000193);
+  }
+  return (
+    (h1 >>> 0).toString(16).padStart(8, '0') +
+    (h2 >>> 0).toString(16).padStart(8, '0')
+  );
+}
+
+/**
+ * Stringify a prompt for the response-cache key. Multimodal prompts must
+ * contribute every image identity, otherwise two requests with the same
+ * text but different images would share a key.
+ */
+function fingerprintPrompt(prompt: string | ModelMessage[]): string {
+  if (typeof prompt === 'string') return prompt;
+  return JSON.stringify(
+    prompt.map((m) => {
+      const content = m.content;
+      if (typeof content === 'string') {
+        return { role: m.role, text: content };
+      }
+      const parts = (Array.isArray(content) ? content : []).map((p) => {
+        if (p.type === 'text') return { t: 'text', v: p.text };
+        if (p.type === 'image') {
+          const img = p.image;
+          if (img instanceof URL) return { t: 'image', v: img.toString() };
+          if (typeof img === 'string') return { t: 'image', v: img };
+          if (img instanceof Uint8Array) {
+            return { t: 'image', v: fnv1aBytes(img) };
+          }
+          return { t: 'image', v: 'unknown' };
+        }
+        if (p.type === 'file') {
+          const data = p.data;
+          if (data instanceof URL) return { t: 'file', v: data.toString() };
+          if (typeof data === 'string') return { t: 'file', v: data };
+          if (data instanceof Uint8Array) {
+            return { t: 'file', v: fnv1aBytes(data) };
+          }
+          return { t: 'file', v: 'unknown' };
+        }
+        return { t: p.type };
+      });
+      return { role: m.role, parts };
+    }),
+  );
+}
 
 /**
  * How often the abort watcher polls the stream status (ms).
@@ -143,6 +324,102 @@ function startAbortWatcher(
       return cancelledByWatcher;
     },
   };
+}
+
+/**
+ * Find the first assistant message in the latest response order group and
+ * link any pending approvals to it. Pending approvals are queried by
+ * threadId but only rendered in the UI once their messageId field is set,
+ * so this must complete BEFORE clearGenerationStatus or the user sees the
+ * spinner stop, then a "approve this action" panel pop in a beat later.
+ *
+ * Wrapped in try/catch — approval linking is non-fatal.
+ */
+async function linkApprovalsToLatestAssistantMessage(
+  ctx: GenerateResponseArgs['ctx'],
+  threadId: string,
+  debugLog: (...args: unknown[]) => void,
+): Promise<void> {
+  try {
+    const messagesResult = await listMessages(ctx, components.agent, {
+      threadId,
+      paginationOpts: { cursor: null, numItems: 50 },
+      excludeToolMessages: false,
+    });
+
+    // Find the first assistant message in the current response order group.
+    // We must link to an assistant message (not tool messages) because the UI
+    // only loads user/assistant messages — tool message IDs are not in the
+    // rendered message set and approvals linked to them would be invisible.
+    const latestAssistantMessage = messagesResult.page.find(
+      (m: MessageDoc) => m.message?.role === 'assistant',
+    );
+    if (!latestAssistantMessage) return;
+
+    const currentOrder = latestAssistantMessage.order;
+    const firstAssistantInOrder =
+      messagesResult.page
+        .filter(
+          (m: MessageDoc) =>
+            m.order === currentOrder && m.message?.role === 'assistant',
+        )
+        .sort((a: MessageDoc, b: MessageDoc) => a.stepOrder - b.stepOrder)[0] ??
+      latestAssistantMessage;
+
+    const linkedCount = await ctx.runMutation(
+      internal.approvals.internal_mutations.linkApprovalsToMessage,
+      {
+        threadId,
+        messageId: firstAssistantInOrder._id,
+      },
+    );
+    if (linkedCount > 0) {
+      debugLog(
+        `Linked ${linkedCount} pending approvals to message ${firstAssistantInOrder._id}`,
+      );
+    }
+  } catch (error) {
+    console.error(
+      '[generateAgentResponse] Failed to link approvals to message:',
+      error,
+    );
+  }
+}
+
+/**
+ * Finalize the persistent text stream after a successful generation. The
+ * Agent SDK's DeltaStreamer already delivered text to the client in real
+ * time; this only updates the persistent stream document used for refresh
+ * recovery and HTTP polling. Non-fatal: if the stream is in a terminal
+ * state from a prior fallback attempt, these mutations may fail and that
+ * must not turn a successful response into a failure.
+ *
+ * When `cancelled` is true, only `completeStream` is called (no append) —
+ * content was already streamed via the SDK before the abort.
+ */
+async function finalizePersistentStream(
+  ctx: GenerateResponseArgs['ctx'],
+  streamId: string,
+  text: string,
+  cancelled: boolean,
+): Promise<void> {
+  try {
+    if (!cancelled && text) {
+      await ctx.runMutation(
+        internal.streaming.internal_mutations.appendToStream,
+        { streamId, text },
+      );
+    }
+    await ctx.runMutation(
+      internal.streaming.internal_mutations.completeStream,
+      { streamId },
+    );
+  } catch (streamError) {
+    console.error(
+      '[generateAgentResponse] Persistent stream finalization failed (non-fatal):',
+      streamError,
+    );
+  }
 }
 
 /**
@@ -232,6 +509,13 @@ export async function generateAgentResponse(
   let retrySystemMessageId: string | undefined;
   let firstTokenTime: number | null = null;
   let savedMessageId: string | undefined;
+  // Guardrails output-filter state. Populated whether streaming or not;
+  // the streaming transform writes into `guardrailsState` on block, and
+  // `persistAssistantMessage` below uses that + the snapshot to tombstone
+  // the saved assistant message with `blockedReason`.
+  let guardrailsSnapshot: GuardrailsSnapshot | null = null;
+  const guardrailsState: GuardrailsTransformState = makeInitialState();
+  let resolvedOrgSlug: string | null = null;
   let result: {
     text?: string;
     steps?: unknown[];
@@ -561,8 +845,11 @@ export async function generateAgentResponse(
       elapsedMs: Date.now() - startTime,
     });
 
-    // Hook can override prompt content (e.g., for attachments → ModelMessage[])
-    let hookPromptContent: string | ModelMessage[] | undefined;
+    // Multimodal prompt (e.g. inlined image parts for vision-capable models)
+    // is the default in-flight prompt. The beforeGenerate hook may still
+    // override it via `promptContent`.
+    let hookPromptContent: string | ModelMessage[] | undefined =
+      args.multiModalPrompt;
 
     // Call beforeGenerate hook if provided
     if (hooks?.beforeGenerate) {
@@ -646,12 +933,15 @@ export async function generateAgentResponse(
       : structuredThreadContext.threadContext;
 
     // ── Response cache lookup ──
+    // Multimodal prompts (ModelMessage[]) must contribute a stable fingerprint
+    // to the key, otherwise two requests with identical text but different
+    // images would collide on an empty-string user-message slot.
     const cacheKey = computeCacheKey({
       agentName: agentType,
       model,
       instructions: instructions ?? '',
       threadContext: structuredThreadContext.threadContext,
-      userMessage: typeof promptToSend === 'string' ? promptToSend : '',
+      userMessage: fingerprintPrompt(promptToSend),
       generationParams,
     });
 
@@ -770,11 +1060,91 @@ export async function generateAgentResponse(
       timestamp: new Date().toISOString(),
     });
 
+    // Snapshot guardrails configs once before LLM call; used by both the
+    // streaming transform (if enabled) and by `finalizeSanitize` on the
+    // full text at the end. Also resolves orgSlug which moderation needs
+    // to locate the per-org SOPS secrets file.
+    if (organizationId) {
+      try {
+        [guardrailsSnapshot, resolvedOrgSlug] = await Promise.all([
+          loadGuardrailsSnapshot(ctx, organizationId),
+          resolveOrgSlug(ctx, organizationId),
+        ]);
+      } catch (err) {
+        console.warn(
+          `[guardrails] failed to load snapshot for org ${organizationId}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+
+    const guardrailsOutputEnabled =
+      guardrailsSnapshot !== null &&
+      resolvedOrgSlug !== null &&
+      ((guardrailsSnapshot.chatFilter?.enabled &&
+        guardrailsSnapshot.chatFilter.config.appliesTo.includes('output')) ||
+        guardrailsSnapshot.pii?.enabled ||
+        (guardrailsSnapshot.moderation?.enabled &&
+          guardrailsSnapshot.moderation.config.appliesTo.includes('output')));
+
     try {
       if (enableStreaming) {
         // Streaming mode (chat agent)
         // - system: thread context (history, RAG, web search)
         // - prompt: current user message (passed separately to avoid duplication)
+        const transformRunId =
+          guardrailsOutputEnabled && streamId
+            ? `guardrails_${streamId}_${Date.now()}`
+            : null;
+        const outputTransform =
+          guardrailsOutputEnabled &&
+          guardrailsSnapshot !== null &&
+          resolvedOrgSlug !== null &&
+          transformRunId !== null &&
+          streamId !== undefined
+            ? (() => {
+                const snapshot = guardrailsSnapshot;
+                const orgSlug = resolvedOrgSlug;
+                const sid = streamId;
+                const runId = transformRunId;
+                return ({ stopStream }: { stopStream: () => void }) =>
+                  createGuardrailsTransform({
+                    configs: snapshot,
+                    direction: 'output',
+                    sanitizationRunId: runId,
+                    streamId: sid,
+                    orgSlug,
+                    organizationId,
+                    state: guardrailsState,
+                    stopStream,
+                    defaultMaskReplacement:
+                      snapshot.chatFilter?.config.maskReplacement ??
+                      '[BLOCKED]',
+                    runModerationForChunk: snapshot.moderation
+                      ? async (text) => {
+                          const modConfig = snapshot.moderation?.config;
+                          if (!modConfig) return null;
+                          return await ctx.runAction(
+                            internal.governance.moderation_provider
+                              .internal_actions.runModerationProviderAction,
+                            {
+                              organizationId,
+                              orgSlug,
+                              direction: 'output',
+                              text,
+                              endpoint: modConfig.endpoint,
+                              responseShape: modConfig.responseShape,
+                              categoryMappings: modConfig.categoryMappings,
+                              failBehavior: modConfig.failBehavior,
+                            },
+                          );
+                        }
+                      : undefined,
+                  });
+              })()
+            : null;
+
         const streamResult = await agent.streamText(
           contextWithOrg,
           { threadId, userId },
@@ -783,6 +1153,9 @@ export async function generateAgentResponse(
             system: systemPrompt,
             prompt: promptToSend,
             abortSignal: abortController.signal,
+            ...(outputTransform !== null && {
+              experimental_transform: outputTransform,
+            }),
             ...(generationParams?.temperature != null && {
               temperature: generationParams.temperature,
             }),
@@ -813,7 +1186,7 @@ export async function generateAgentResponse(
               excludeToolMessages: true,
               searchOtherThreads: false,
             },
-            saveStreamDeltas: { chunking: 'line', throttleMs: 100 },
+            saveStreamDeltas: { throttleMs: 100, chunking: /[\p{P}\s]/u },
           },
         );
 
@@ -851,6 +1224,31 @@ export async function generateAgentResponse(
           response: streamResponse,
         };
 
+        // Guardrails mid-stream block: transform flipped state.blocked and
+        // called stopStream(). That stops the LLM, but deltas already
+        // persisted via saveStreamDeltas remain on disk. Tombstone the
+        // saved message so reload / history-builder see the sentinel, not
+        // the partial violating text.
+        if (guardrailsState.blocked && guardrailsState.blockedReason) {
+          await applyGuardrailsBlockTombstone(
+            ctx,
+            savedMessageId,
+            streamId,
+            threadId,
+            guardrailsState.blockedReason,
+          );
+          result.text = OUTPUT_BLOCKED_SENTINEL;
+          // Skip the empty-output-provider-error heuristic below: empty
+          // text is now expected.
+          return buildBlockedReturn(
+            threadId,
+            savedMessageId,
+            streamUsage,
+            streamFinishReason,
+            startTime,
+          );
+        }
+
         // Detect stream-level provider errors: the stream completed "successfully"
         // at the transport level but produced no output and no steps — the error
         // is only recorded in the stream deltas. Throw so the catch block can
@@ -863,6 +1261,85 @@ export async function generateAgentResponse(
           throw new Error(
             `Generation produced no output (finishReason: ${streamFinishReason ?? 'undefined'})`,
           );
+        }
+
+        // Finalize sweep: run chat_filter + PII on the full accumulated
+        // text to catch cross-chunk matches the per-delta pass missed.
+        // Moderation is NOT re-run here — it already scanned its byte-
+        // capped buffers during the stream. If the sweep blocks, tombstone
+        // just like a mid-stream block. If it rewrites (mask), overwrite
+        // the saved message text so reload shows the clean version.
+        if (
+          guardrailsOutputEnabled &&
+          guardrailsSnapshot &&
+          resolvedOrgSlug &&
+          streamText &&
+          streamText.trim().length > 0
+        ) {
+          try {
+            const finalized = await finalizeSanitize(
+              ctx,
+              streamText,
+              guardrailsSnapshot,
+              {
+                organizationId,
+                orgSlug: resolvedOrgSlug,
+                threadId,
+                messageId: savedMessageId,
+                agentSlug,
+                actorType: 'assistant',
+              },
+            );
+            if (finalized.text !== streamText) {
+              result.text = finalized.text;
+              if (savedMessageId) {
+                try {
+                  await ctx.runMutation(
+                    components.agent.messages.updateMessage,
+                    {
+                      messageId: savedMessageId,
+                      patch: {
+                        message: {
+                          role: 'assistant',
+                          content: finalized.text,
+                        },
+                      },
+                    },
+                  );
+                } catch (updateErr) {
+                  console.warn(
+                    `[guardrails] finalize-mask update failed: ${
+                      updateErr instanceof Error
+                        ? updateErr.message
+                        : String(updateErr)
+                    }`,
+                  );
+                }
+              }
+            }
+          } catch (err) {
+            // finalizeSanitize throws ConvexError on block — translate to
+            // the tombstone flow.
+            const blockedReason = convexErrorToBlockedReason(err);
+            if (blockedReason) {
+              await applyGuardrailsBlockTombstone(
+                ctx,
+                savedMessageId,
+                streamId,
+                threadId,
+                blockedReason,
+              );
+              result.text = OUTPUT_BLOCKED_SENTINEL;
+              return buildBlockedReturn(
+                threadId,
+                savedMessageId,
+                streamUsage,
+                streamFinishReason,
+                startTime,
+              );
+            }
+            throw err;
+          }
         }
 
         // Post-success abort check: direct DB query closes the polling
@@ -893,7 +1370,7 @@ export async function generateAgentResponse(
             { threadId, userId },
             {
               system: systemPrompt,
-              prompt: promptMessage,
+              prompt: promptToSend,
               abortSignal: abortController.signal,
               ...(promptMessageId ? { promptMessageId } : {}),
               ...(generationParams?.temperature != null && {
@@ -1507,128 +1984,68 @@ export async function generateAgentResponse(
       await hooks.afterGenerate(ctx, args, responseResult, hookData);
     }
 
-    // Call unified completion handler (saves metadata + schedules summarization)
-    await onAgentComplete(ctx, {
-      threadId,
-      agentType,
-      result: {
-        threadId,
-        messageId: savedMessageId,
-        text: responseResult.text,
-        model: actualModel,
-        provider,
-        usage: responseResult.usage,
-        durationMs,
-        timeToFirstTokenMs,
-        toolCalls: responseResult.toolCalls,
-        toolsUsage: responseResult.toolsUsage,
-        citations: responseResult.citations,
-        contextWindow: completeContextWindow,
-        contextStats: responseResult.contextStats,
-      },
-      organizationId,
-      userId,
-      teamIds,
-      agentSlug,
-      providerCost,
-    });
-
-    // Link approvals to message (only for main agent, not sub-agents)
+    // Approvals must be linked BEFORE clearGenerationStatus. Pending approval
+    // rows are loaded by threadId but only render in the UI once messageId is
+    // patched (use-merged-chat-items checks loadedMessageIds). If the spinner
+    // clears first, the user sees: spinner stops → blank gap → "approve this
+    // action" panel pops in. Sub-agents skip — only main threads have UI.
     if (!parentThreadId && savedMessageId) {
-      try {
-        const messagesResult = await listMessages(ctx, components.agent, {
-          threadId,
-          paginationOpts: { cursor: null, numItems: 50 },
-          excludeToolMessages: false,
-        });
-
-        // Find the first assistant message in the current response order group.
-        // We must link to an assistant message (not tool messages) because the UI
-        // only loads user/assistant messages — tool message IDs are not in the
-        // rendered message set and approvals linked to them would be invisible.
-        const latestAssistantMessage = messagesResult.page.find(
-          (m: MessageDoc) => m.message?.role === 'assistant',
-        );
-
-        if (latestAssistantMessage) {
-          const currentOrder = latestAssistantMessage.order;
-          const firstAssistantInOrder =
-            messagesResult.page
-              .filter(
-                (m: MessageDoc) =>
-                  m.order === currentOrder && m.message?.role === 'assistant',
-              )
-              .sort(
-                (a: MessageDoc, b: MessageDoc) => a.stepOrder - b.stepOrder,
-              )[0] ?? latestAssistantMessage;
-
-          const linkedCount = await ctx.runMutation(
-            internal.approvals.internal_mutations.linkApprovalsToMessage,
-            {
-              threadId,
-              messageId: firstAssistantInOrder._id,
-            },
-          );
-          if (linkedCount > 0) {
-            debugLog(
-              `Linked ${linkedCount} pending approvals to message ${firstAssistantInOrder._id}`,
-            );
-          }
-        }
-      } catch (error) {
-        console.error(
-          '[generateAgentResponse] Failed to link approvals to message:',
-          error,
-        );
-      }
+      await linkApprovalsToLatestAssistantMessage(ctx, threadId, debugLog);
     }
 
-    // Complete stream if streamId provided
     const cancelled = await checkCancelled();
-    if (streamId && !cancelled) {
-      // Persistent stream finalization is non-fatal: the Agent SDK's
-      // DeltaStreamer already delivered text to the client in real-time.
-      // If the persistent stream is in a terminal state (e.g. from a
-      // previous failed fallback attempt), these mutations may fail —
-      // that must not cause the overall response to be treated as failed.
-      try {
-        if (responseResult.text) {
-          await ctx.runMutation(
-            internal.streaming.internal_mutations.appendToStream,
-            {
+
+    // Run the remaining post-processing in parallel — clearGenerationStatus
+    // (the only operation the user perceives), onAgentComplete (metadata +
+    // ledger + audit), and persistent stream finalization are all
+    // independent. Wrapped in try/catch so a non-OCC throw from
+    // clearGenerationStatus doesn't propagate into the outer catch (which
+    // saves a "failed" message and would mis-classify a successful run).
+    try {
+      await Promise.all([
+        streamId
+          ? ctx.runMutation(
+              internal.threads.internal_mutations.clearGenerationStatus,
+              { threadId, streamId },
+            )
+          : Promise.resolve(),
+        onAgentComplete(ctx, {
+          threadId,
+          agentType,
+          result: {
+            threadId,
+            messageId: savedMessageId,
+            text: responseResult.text,
+            model: actualModel,
+            provider,
+            usage: responseResult.usage,
+            durationMs,
+            timeToFirstTokenMs,
+            toolCalls: responseResult.toolCalls,
+            toolsUsage: responseResult.toolsUsage,
+            citations: responseResult.citations,
+            contextWindow: completeContextWindow,
+            contextStats: responseResult.contextStats,
+          },
+          organizationId,
+          userId,
+          teamIds,
+          agentSlug,
+          providerCost,
+        }),
+        streamId
+          ? finalizePersistentStream(
+              ctx,
               streamId,
-              text: responseResult.text,
-            },
-          );
-        }
-        await ctx.runMutation(
-          internal.streaming.internal_mutations.completeStream,
-          { streamId },
-        );
-      } catch (streamError) {
-        console.error(
-          '[generateAgentResponse] Persistent stream finalization failed (non-fatal):',
-          streamError,
-        );
-      }
-    } else if (streamId && cancelled) {
-      // User cancelled — complete the stream cleanly (content already streamed)
-      try {
-        await ctx.runMutation(
-          internal.streaming.internal_mutations.completeStream,
-          { streamId },
-        );
-      } catch (streamError) {
-        console.error(
-          '[generateAgentResponse] Cancelled stream completion failed:',
-          streamError,
-        );
-      }
-    }
-    if (streamId) {
-      await ctx.runMutation(
-        internal.threads.internal_mutations.clearGenerationStatus,
-        { threadId, streamId },
+              responseResult.text,
+              !!cancelled,
+            )
+          : Promise.resolve(),
+      ]);
+    } catch (postProcessError) {
+      console.error(
+        '[generateAgentResponse] Post-processing failed (non-fatal):',
+        postProcessError,
       );
     }
 
@@ -1741,41 +2158,47 @@ export async function generateAgentResponse(
     // marking the stream as error and clearing generation status — the
     // caller will handle cleanup. This prevents the loading indicator from
     // disappearing and error messages from flashing between retries.
+    // Stream cleanup + clearGenerationStatus are independent; run in
+    // parallel so the spinner clears as fast as possible on errors too.
     if (streamId && !suppressErrorCleanup) {
-      try {
-        if (userCancelled) {
-          // Complete the stream cleanly — content was already streamed
-          await ctx.runMutation(
-            internal.streaming.internal_mutations.completeStream,
-            { streamId },
-          );
-        } else {
-          await ctx.runMutation(
-            internal.streaming.internal_mutations.errorStream,
-            { streamId },
+      const streamCleanup = (async () => {
+        try {
+          if (userCancelled) {
+            // Complete the stream cleanly — content was already streamed
+            await ctx.runMutation(
+              internal.streaming.internal_mutations.completeStream,
+              { streamId },
+            );
+          } else {
+            await ctx.runMutation(
+              internal.streaming.internal_mutations.errorStream,
+              { streamId },
+            );
+          }
+        } catch (streamError) {
+          console.error(
+            '[generateAgentResponse] Failed to finalize stream:',
+            streamError,
           );
         }
-      } catch (streamError) {
-        console.error(
-          '[generateAgentResponse] Failed to finalize stream:',
-          streamError,
-        );
-      }
-    }
+      })();
 
-    // Clear generation status so isThreadGenerating returns false
-    if (streamId && !suppressErrorCleanup) {
-      try {
-        await ctx.runMutation(
+      const statusCleanup = ctx
+        .runMutation(
           internal.threads.internal_mutations.clearGenerationStatus,
-          { threadId, streamId },
-        );
-      } catch (clearError) {
-        console.error(
-          '[generateAgentResponse] Failed to clear generation status:',
-          clearError,
-        );
-      }
+          {
+            threadId,
+            streamId,
+          },
+        )
+        .catch((clearError) => {
+          console.error(
+            '[generateAgentResponse] Failed to clear generation status:',
+            clearError,
+          );
+        });
+
+      await Promise.all([streamCleanup, statusCleanup]);
     }
 
     // Abort any stuck agent SDK streams. The SDK's DeltaStreamer.fail() may

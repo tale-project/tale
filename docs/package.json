@@ -9,9 +9,10 @@
     "format:check": "bunx oxfmt -c ../.oxfmtrc.json --check",
     "dev": "bunx mintlify dev",
     "build": "bunx mintlify build",
-    "lint:frontmatter": "bun run scripts/lint-frontmatter.ts",
-    "lint:terminology": "bun run scripts/lint-terminology.ts",
+    "lint:oxlint": "bunx oxlint --type-aware",
     "lint:broken-links": "bunx mintlify broken-links --check-anchors",
-    "lint": "bun run lint:frontmatter && bun run lint:terminology && bun run lint:broken-links"
+    "lint": "bun run lint:oxlint && bun run lint:broken-links",
+    "test": "bunx vitest --run",
+    "test:watch": "bunx vitest"
   }
 }

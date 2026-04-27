@@ -3,11 +3,13 @@
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import { BarChart3 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Text } from '@/app/components/ui/typography/text';
 import { useListAgents } from '@/app/features/agents/hooks/queries';
 import { useT } from '@/lib/i18n/client';
+import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 
 export interface TopAgentRow {
@@ -30,6 +32,8 @@ export function TopAgentsTable({
 }: TopAgentsTableProps) {
   const { t } = useT('analytics');
   const { agents } = useListAgents('default');
+  const { i18n: i18nCtx } = useTranslation();
+  const locale = i18nCtx.language;
 
   const displayNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -39,18 +43,17 @@ export function TopAgentsTable({
           a &&
           typeof a === 'object' &&
           'name' in a &&
-          typeof (a as { name: unknown }).name === 'string'
+          typeof (a as { name: unknown }).name === 'string' &&
+          !('status' in a)
         ) {
-          const record = a as { name: string; displayName?: unknown };
-          const name = record.name;
-          const displayName =
-            typeof record.displayName === 'string' ? record.displayName : name;
-          map.set(name, displayName);
+          const name = (a as { name: string }).name;
+          const resolved = resolveAgentLocale(a, locale);
+          map.set(name, resolved.displayName || name);
         }
       }
     }
     return map;
-  }, [agents]);
+  }, [agents, locale]);
 
   const resolveName = useCallback(
     (slug: string | null): string => {
@@ -126,8 +129,8 @@ export function TopAgentsTable({
   );
 
   return (
-    <div className="border-border flex flex-col gap-3 rounded-lg border px-5 py-4">
-      <Text variant="label" as="h3" className="text-sm">
+    <div className="flex flex-col gap-3">
+      <Text as="h3" className="text-foreground text-base font-semibold">
         {t('usage.tables.topAgents.title')}
       </Text>
       <DataTable

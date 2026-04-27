@@ -51,7 +51,7 @@ export const documentWriteArgs = z.object({
 export const documentWriteTool = {
   name: 'document_write' as const,
   tool: createTool({
-    description: `Save one or more files to the documents hub. Requires user approval — an approval card will be created.
+    description: `Save one or more files to the documents hub. Requires user approval — an approval card will be created. When telling the user the card is ready, do not reference its position (no "above" / "below") — just say the approval card has been created.
 
 USE THIS TOOL TO:
 • Save generated files (text, docx, pdf, excel, pptx) to the documents hub

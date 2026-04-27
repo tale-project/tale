@@ -1,22 +1,16 @@
 'use client';
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
-import {
-  useLocation,
-  useNavigate,
-  useParams,
-  useRouter,
-} from '@tanstack/react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import {
   LogOut,
-  Settings,
   HelpCircle,
   Monitor,
   Sun,
   Moon,
   UserCircle,
-  Building2,
-  Briefcase,
+  UsersRound,
+  Languages,
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -31,7 +25,6 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Text } from '@/app/components/ui/typography/text';
-import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -48,20 +41,16 @@ export interface UserButtonProps {
   label?: string;
   /** Optional custom tooltip text (defaults to "Manage account") */
   tooltipText?: string;
-  /** Callback when navigating (e.g., to close mobile nav) */
-  onNavigate?: () => void;
 }
 
 export function UserButton({
   align = 'start',
   label,
   tooltipText,
-  onNavigate,
 }: UserButtonProps) {
   const { t } = useT('auth');
   const { t: tNav } = useT('navigation');
   const { user, signOut, isLoading: loading } = useAuth();
-  const router = useRouter();
   const navigate = useNavigate();
   const params = useParams({ strict: false });
   const organizationId = params.id;
@@ -72,40 +61,12 @@ export function UserButton({
   const selectedTeamId = teamFilter?.selectedTeamId ?? null;
   const setSelectedTeamId = teamFilter?.setSelectedTeamId;
 
-  const { organizations: userOrgs } = useUserOrganizationsWithDetails();
-  const availableOrgs = useMemo(() => userOrgs ?? [], [userOrgs]);
-
   const {
     currentVersion,
     hasUnseenVersion,
     releaseUrl,
     markSeen: markChangelogSeen,
   } = useChangelogNotification();
-
-  const location = useLocation();
-  const switchOrganization = useCallback(
-    (nextOrgId: string) => {
-      if (nextOrgId === organizationId) return;
-      // Clear team filter — the previous team belongs to the old org and
-      // should not carry over.
-      setSelectedTeamId?.(null);
-      // Preserve everything after /dashboard/{orgId}/ — pathname + search +
-      // hash — so the user lands on the same page with the same query
-      // params in the new org (e.g. /settings/governance?group=security
-      // stays intact, not just /settings/governance).
-      const subpath =
-        location.href.match(/^\/dashboard\/[^/]+\/(.*)$/)?.[1] ?? '';
-      // Navigate to the dedicated switching route which owns setActive +
-      // session invalidation + audit logging. Keeping the work there avoids
-      // races between the old route's unmount and the new route's guard.
-      void navigate({
-        to: '/dashboard/switching',
-        search: { to: nextOrgId, subpath: subpath || undefined },
-        replace: true,
-      });
-    },
-    [organizationId, navigate, setSelectedTeamId, location.href],
-  );
 
   const { data: memberContext } = useCurrentMemberContext(
     organizationId,
@@ -198,52 +159,13 @@ export function UserButton({
     ]);
 
     if (!loading && user && organizationId) {
-      const settingsGroup: DropdownMenuItem[] = [
-        {
-          type: 'item',
-          label: t('userButton.settings'),
-          icon: Settings,
-          onClick: () => {
-            if (!organizationId) return;
-            void navigate({
-              to: '/dashboard/$id/settings',
-              params: { id: organizationId },
-            });
-            onNavigate?.();
-          },
-          className: 'py-2.5',
-        },
-      ];
-
-      if (availableOrgs.length > 1) {
-        settingsGroup.push({
-          type: 'sub',
-          label: tNav('orgSwitcher.label'),
-          icon: Briefcase,
-          items: [
-            [
-              {
-                type: 'radio-group',
-                value: organizationId ?? '',
-                onValueChange: (val) => {
-                  if (val) switchOrganization(val);
-                },
-                options: availableOrgs.map((org) => ({
-                  value: org.organizationId,
-                  label: org.name,
-                })),
-              },
-            ],
-          ],
-          className: 'py-2.5',
-        });
-      }
+      const settingsGroup: DropdownMenuItem[] = [];
 
       if (teams && teams.length > 0) {
         settingsGroup.push({
           type: 'sub',
           label: tNav('teamFilter.label'),
-          icon: Building2,
+          icon: UsersRound,
           items: [
             [
               {
@@ -272,7 +194,9 @@ export function UserButton({
         });
       }
 
-      groups.push(settingsGroup);
+      if (settingsGroup.length > 0) {
+        groups.push(settingsGroup);
+      }
     }
 
     groups.push([
@@ -310,28 +234,32 @@ export function UserButton({
       },
     ]);
 
+    const localeBase = locale.split('-')[0];
+    const currentLocaleValue =
+      localeBase === 'de' ? 'de' : localeBase === 'fr' ? 'fr' : 'en';
+
     groups.push([
       {
-        type: 'custom',
-        content: (
-          <Tabs
-            value={
-              locale === 'en' || locale.startsWith('en-')
-                ? 'en'
-                : locale.startsWith('de')
-                  ? 'de'
-                  : 'fr'
-            }
-            onValueChange={(v) => setLocale(v)}
-            listClassName="w-full"
-            triggerClassName="flex-1"
-            items={[
-              { value: 'en', label: 'EN' },
-              { value: 'de', label: 'DE' },
-              { value: 'fr', label: 'FR' },
-            ]}
-          />
-        ),
+        type: 'sub',
+        label: t('userButton.language'),
+        icon: Languages,
+        items: [
+          [
+            {
+              type: 'radio-group',
+              value: currentLocaleValue,
+              onValueChange: (val) => {
+                if (val) setLocale(val);
+              },
+              options: [
+                { value: 'en', label: t('userButton.languageEnglish') },
+                { value: 'de', label: t('userButton.languageGerman') },
+                { value: 'fr', label: t('userButton.languageFrench') },
+              ],
+            },
+          ],
+        ],
+        className: 'py-2.5',
       },
     ]);
 
@@ -368,13 +296,10 @@ export function UserButton({
     t,
     tNav,
     navigate,
-    onNavigate,
     setTheme,
     setLocale,
     setSelectedTeamId,
     handleSignOutClick,
-    availableOrgs,
-    switchOrganization,
     currentVersion,
     releaseUrl,
     markChangelogSeen,
@@ -405,18 +330,6 @@ export function UserButton({
     </div>
   );
 
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      if (open && organizationId) {
-        void router.preloadRoute({
-          to: '/dashboard/$id/settings',
-          params: { id: organizationId },
-        });
-      }
-    },
-    [router, organizationId],
-  );
-
   const signOutConfirmDialog = (
     <ConfirmDialog
       open={signOutDialogOpen}
@@ -436,7 +349,6 @@ export function UserButton({
           items={menuItems}
           align={align}
           contentClassName="w-64"
-          onOpenChange={handleOpenChange}
         />
         {signOutConfirmDialog}
       </>
@@ -456,7 +368,6 @@ export function UserButton({
             items={menuItems}
             align={align}
             contentClassName="w-64"
-            onOpenChange={handleOpenChange}
           />
           <TooltipPrimitive.Content
             side="right"

@@ -41,7 +41,7 @@ export interface AgentKnowledgeCtx extends ToolCtx {
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
 const DEFAULT_TOP_K = 10;
-const DEFAULT_SIMILARITY_THRESHOLD = 0.51;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.3;
 
 export async function resolveFileIds(
   ctx: ToolCtx,

@@ -98,7 +98,13 @@ Voir [Contributing Docker guide](/fr/develop/contributing-docker) pour des techn
 
 ### La DB affiche des erreurs duplicate key au démarrage
 
-Au premier démarrage, la DB peut afficher `ERROR: duplicate key value violates unique constraint`. C'est inoffensif. Ça arrive quand le script d'init de l'extension `uuid-ossp` tourne de façon idempotente. L'extension est déjà installée par l'image ParadeDB de base et le script gère le conflit proprement.
+Au premier démarrage, la DB peut afficher un message tel que :
+
+```
+ERROR: duplicate key value violates unique constraint
+```
+
+C'est inoffensif. Ça arrive quand le script d'init de l'extension `uuid-ossp` tourne de façon idempotente. L'extension est déjà installée par l'image ParadeDB de base et le script gère le conflit proprement.
 
 ### Le health check d'un conteneur échoue en permanence
 

@@ -12,6 +12,8 @@ export const POLICY_TYPES = [
   'login_policy',
   'password_policy',
   'two_factor_policy',
+  'chat_filter',
+  'moderation_provider',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -86,6 +88,8 @@ export const retentionPolicyConfigSchema = z.object({
   usageLedgerRetentionDays: z.number().int().min(30).max(3650).optional(),
   loginAttemptsEnabled: z.boolean().optional(),
   loginAttemptRetentionDays: z.number().int().min(7).max(365).optional(),
+  chatFilterEventsEnabled: z.boolean().optional(),
+  chatFilterEventsRetentionDays: z.number().int().min(1).max(365).optional(),
 });
 export type RetentionPolicyConfig = z.infer<typeof retentionPolicyConfigSchema>;
 
@@ -209,6 +213,169 @@ export const twoFactorPolicyConfigSchema = z.object({
 export type TwoFactorPolicyConfig = z.infer<typeof twoFactorPolicyConfigSchema>;
 export const DEFAULT_TWO_FACTOR_POLICY: TwoFactorPolicyConfig =
   twoFactorPolicyConfigSchema.parse({});
+
+// ---------------------------------------------------------------------------
+// Chat filter (banned words + custom regex) — see governance/chat_filter/
+// ---------------------------------------------------------------------------
+
+const chatFilterCategoryIdRegex = /^[a-z0-9_]{1,32}$/;
+
+const chatFilterWordSchema = z.string().min(1).max(100);
+
+const chatFilterPatternSchema = z.object({
+  name: z.string().min(1).max(80),
+  regex: z
+    .string()
+    .min(1)
+    .max(500)
+    .refine((v) => {
+      try {
+        new RegExp(v);
+        return true;
+      } catch {
+        return false;
+      }
+    }, 'Invalid regex pattern'),
+});
+
+export const chatFilterCategorySchema = z.object({
+  id: z.string().regex(chatFilterCategoryIdRegex),
+  label: z.string().min(1).max(80),
+  enabled: z.boolean(),
+  mode: z.enum(['block', 'mask', 'flag']),
+  words: z.array(chatFilterWordSchema).max(5000),
+  patterns: z.array(chatFilterPatternSchema).max(200),
+});
+export type ChatFilterCategory = z.infer<typeof chatFilterCategorySchema>;
+
+export const chatFilterConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  maskReplacement: z.string().min(1).max(32).default('[BLOCKED]'),
+  appliesTo: z
+    .array(z.enum(['input', 'output']))
+    .min(1)
+    .default(['input']),
+  preferNonStreamingForFiltering: z.boolean().default(false),
+  configVersion: z.number().int().default(1),
+  categories: z.array(chatFilterCategorySchema).max(20),
+});
+export type ChatFilterConfig = z.infer<typeof chatFilterConfigSchema>;
+
+// ---------------------------------------------------------------------------
+// Moderation provider (admin-configurable external HTTP moderation API)
+// ---------------------------------------------------------------------------
+
+const headerNameRegex = /^[A-Za-z0-9-]+$/;
+const crlfNullRegex = /[\r\n\0]/;
+
+const moderationRequestTemplateSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (v) => !/\{\{secret\./.test(v),
+    'Secrets not allowed in body template',
+  )
+  .refine((v) => {
+    try {
+      JSON.parse(
+        v.replace(/\{\{text\}\}/g, '""').replace(/\{\{direction\}\}/g, '""'),
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }, 'Request template must be valid JSON');
+
+const moderationBufferPolicyInnerSchema = z.object({
+  minFlushChars: z.number().int().min(32).max(512).default(120),
+  maxBufferChars: z.number().int().min(256).max(4096).default(800),
+  idleFlushMs: z.number().int().min(100).max(2000).default(400),
+  perStreamMaxConcurrent: z.number().int().min(1).max(4).default(2),
+});
+const MODERATION_BUFFER_POLICY_DEFAULT =
+  moderationBufferPolicyInnerSchema.parse({});
+const moderationBufferPolicySchema = moderationBufferPolicyInnerSchema.default(
+  MODERATION_BUFFER_POLICY_DEFAULT,
+);
+
+const moderationEndpointSchema = z.object({
+  // Accept http:// and https://. HTTPS is strongly recommended for public
+  // endpoints (the request carries chat text in the clear) but HTTP is
+  // valid for internal / localhost mocks. The URL's own host is auto-
+  // allowlisted by `safeFetch`, so admins don't need to also configure an
+  // SSRF allowlist — redirects to a different host still get rejected.
+  url: z
+    .string()
+    .url()
+    .refine((u) => {
+      try {
+        const p = new URL(u).protocol;
+        return p === 'https:' || p === 'http:';
+      } catch {
+        return false;
+      }
+    }, 'URL must be http(s)://'),
+  method: z.literal('POST').default('POST'),
+  headers: z.record(
+    z.string().regex(headerNameRegex, 'Invalid header name'),
+    z.string().refine((v) => !crlfNullRegex.test(v), 'CRLF not allowed'),
+  ),
+  requestTemplate: moderationRequestTemplateSchema,
+  timeoutMs: z.number().int().min(500).max(30_000).default(3000),
+  maxResponseBytes: z.number().int().min(1024).max(1_048_576).default(262_144),
+  bufferPolicy: moderationBufferPolicySchema,
+});
+
+const responseShapeSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('openai_moderation') }),
+  z.object({ type: z.literal('azure_content_safety') }),
+  z.object({ type: z.literal('perspective') }),
+  z.object({
+    type: z.literal('custom_jsonpath'),
+    flaggedPath: z.string().optional(),
+    categoriesPath: z.string().min(1),
+    scoresPath: z.string().optional(),
+    categoryShape: z.enum(['array', 'record_of_bool', 'record_of_score']),
+  }),
+]);
+export type ModerationResponseShape = z.infer<typeof responseShapeSchema>;
+
+export const moderationCategoryMappingSchema = z.object({
+  providerCategory: z.string().min(1).max(64),
+  internalLabel: z.string().min(1).max(80),
+  enabled: z.boolean(),
+  mode: z.enum(['block', 'mask', 'flag']).default('flag'),
+  scoreThreshold: z.number().min(0).max(1).optional(),
+});
+export type ModerationCategoryMapping = z.infer<
+  typeof moderationCategoryMappingSchema
+>;
+
+const moderationFailBehaviorInnerSchema = z.object({
+  input: z.enum(['open', 'closed']).default('open'),
+  output: z.enum(['open', 'closed']).default('closed'),
+});
+const MODERATION_FAIL_BEHAVIOR_DEFAULT =
+  moderationFailBehaviorInnerSchema.parse({});
+const moderationFailBehaviorSchema = moderationFailBehaviorInnerSchema.default(
+  MODERATION_FAIL_BEHAVIOR_DEFAULT,
+);
+
+export const moderationProviderConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  appliesTo: z
+    .array(z.enum(['input', 'output']))
+    .min(1)
+    .default(['input']),
+  endpoint: moderationEndpointSchema,
+  responseShape: responseShapeSchema,
+  categoryMappings: z.array(moderationCategoryMappingSchema).max(30),
+  failBehavior: moderationFailBehaviorSchema,
+  configVersion: z.number().int().default(1),
+});
+export type ModerationProviderConfig = z.infer<
+  typeof moderationProviderConfigSchema
+>;
 
 // Merges multiple policies into the strictest ("strongest") one — longest
 // minLength, OR of each require flag, shortest positive rotationDays.

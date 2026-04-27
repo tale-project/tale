@@ -102,13 +102,15 @@ class RagSearchService:
             # to the indexed documents — discard FTS results too (they are keyword noise).
             if similarity_threshold > 0:
                 pre_count = len(vector_results)
+                top_score = max((r["score"] for r in vector_results), default=0.0)
                 vector_results = [r for r in vector_results if r["score"] >= similarity_threshold]
                 if pre_count != len(vector_results):
                     logger.debug(
-                        "Vector pre-filter: {}/{} results passed threshold {}",
+                        "Vector pre-filter: {}/{} results passed threshold {} (top score {:.3f})",
                         len(vector_results),
                         pre_count,
                         similarity_threshold,
+                        top_score,
                     )
                 if pre_count > 0 and not vector_results:
                     return []
@@ -125,10 +127,18 @@ class RagSearchService:
                     max_age_days=settings.recency_max_age_days,
                 )
 
-            # Re-rank merged results with cross-encoder if enabled
+            # Re-rank merged results with cross-encoder if enabled.
+            # The reranker's input "content" and the returned payload "content"
+            # both prefer `core_content` (the chunk's non-overlap forward-owning
+            # span), falling back to `chunk_content` for un-reindexed rows.
+            # This prevents adjacent search hits from duplicating overlap bytes
+            # to the LLM once Part B Phase 3 reindex completes.
             if self._reranker and merged:
                 rerank_t0 = time.time()
-                rerank_input = [{"content": item.get("chunk_content", ""), **item} for item in merged]
+                rerank_input = [
+                    {"content": (item.get("core_content") or item.get("chunk_content") or ""), **item}
+                    for item in merged
+                ]
                 merged = await self._reranker.rerank(
                     query,
                     rerank_input,
@@ -139,7 +149,7 @@ class RagSearchService:
 
             results = [
                 {
-                    "content": item["chunk_content"],
+                    "content": item.get("core_content") or item.get("chunk_content") or "",
                     "score": item.get("reranking_score", item["rrf_score"]),
                     "file_id": str(item["file_id"]) if item.get("file_id") else None,
                     "filename": item.get("filename"),
@@ -185,7 +195,7 @@ class RagSearchService:
                 vector_results = await self._vector_search(query_embedding, file_ids, top_k)
                 return [
                     {
-                        "content": item["chunk_content"],
+                        "content": item.get("core_content") or item.get("chunk_content") or "",
                         "score": item["score"],
                         "file_id": str(item["file_id"]) if item.get("file_id") else None,
                         "filename": item.get("filename"),
@@ -224,7 +234,7 @@ class RagSearchService:
         tenant_clause, tenant_params = self._build_scope_clause(file_ids, 1)
 
         sql = f"""
-            SELECT c.id, c.chunk_content, c.chunk_index, c.document_id,
+            SELECT c.id, c.chunk_content, c.core_content, c.chunk_index, c.document_id,
                    d.file_id, d.filename,
                    d.source_created_at, d.source_modified_at, d.created_at,
                    paradedb.score(c.id) AS score
@@ -258,7 +268,7 @@ class RagSearchService:
         tenant_clause, tenant_params = self._build_scope_clause(file_ids, 1)
 
         sql = f"""
-            SELECT c.id, c.chunk_content, c.chunk_index, c.document_id,
+            SELECT c.id, c.chunk_content, c.core_content, c.chunk_index, c.document_id,
                    d.file_id, d.filename,
                    d.source_created_at, d.source_modified_at, d.created_at,
                    1 - (c.embedding <=> $1::vector) AS score

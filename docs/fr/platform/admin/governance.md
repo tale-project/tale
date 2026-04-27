@@ -39,9 +39,37 @@ Active/désactive des fonctionnalités à l'échelle de l'organisation : télév
 
 ## Sécurité et monitoring
 
-### Détection DCP
+### Guardrails
 
-Active la détection automatique et le masquage (ou blocage) des données à caractère personnel dans les messages. Supporte des patterns intégrés (e-mail, téléphone, numéros de carte) et des regex personnalisées. Les messages bloqués n'atteignent jamais le modèle.
+Les guardrails sont trois couches de filtrage que Tale exécute en séquence sur chaque message de chat **avant** qu'il atteigne le modèle, et sur chaque token du modèle **avant** qu'il ne parvienne à l'utilisateur. Chaque couche se configure indépendamment dans **Paramètres > Gouvernance > Guardrails** ; une carte en lecture seule **Vue d'ensemble des guardrails** indique quelles couches sont actives. L'ordre est fixe :
+
+```mermaid
+flowchart LR
+  user["L'utilisateur envoie un message."] --> chatFilter["Tale applique les contrôles de sûreté du contenu."]
+  chatFilter --> pii["Tale détecte les données personnelles."]
+  pii --> moderation["Tale évalue le message via le fournisseur de modération."]
+  moderation --> model["Le modèle génère une réponse."]
+  model --> outChatFilter["Tale applique les contrôles de sûreté du contenu aux tokens de sortie."]
+  outChatFilter --> outPii["Tale scanne les tokens de sortie pour détecter les données personnelles."]
+  outPii --> outModeration["Tale évalue les tokens de sortie via le fournisseur de modération."]
+  outModeration --> reply["Tale diffuse la réponse autorisée à l'utilisateur."]
+```
+
+Un message bloqué n'atteint jamais le modèle, et un token bloqué n'est jamais transmis à l'utilisateur. Chaque décision (autoriser, masquer, bloquer) écrit un événement structuré dans l'audit log ; le texte brut correspondant n'est jamais stocké.
+
+#### Sécurité du contenu
+
+Ouvre **Paramètres > Gouvernance > Sécurité du contenu**. Définis des catégories (par exemple _grossièretés_, _noms de concurrents_, _noms de code confidentiels_), associe une liste de mots à chacune et choisis un mode d'application — _Désactivé_, _Avertir_, _Masquer_ ou _Bloquer_. Les catégories sont évaluées comme de simples regex protégées contre le backtracking catastrophique, donc la latence de cette couche reste négligeable. C'est la couche idéale pour des règles de mots-clés propres à ton organisation que les API de modération publiques ne peuvent pas connaître.
+
+#### Détection DCP {#pii-detection}
+
+Active la détection automatique et le masquage (ou blocage) des données à caractère personnel dans les messages. Les patterns intégrés couvrent e-mail, téléphone, numéros de carte et IBAN, adresses au format US et quelques identifiants nationaux ; des regex personnalisées ajoutent des formats internes (matricule, numéros de ticket, références produit). Chaque pattern a son propre mode d'application. Les DCP détectées dans les pièces jointes passent par la même pipeline que les messages saisis.
+
+#### Fournisseur de modération
+
+Envoie les messages de chat vers un classifieur externe — OpenAI Moderation, Azure Content Safety, Perspective ou tout endpoint HTTPS qui renvoie des scores par catégorie. Choisis un préréglage intégré et l'URL, les headers, le request template et le response parser sont remplis automatiquement ; pour tout le reste, choisis _Custom JSONPath_ et mappe les champs à la main. La clé API est stockée chiffrée AES côté serveur et se référence comme `{secretPlaceholder}` dans n'importe quel header. Le bouton **Tester la connexion** envoie un message d'exemple via le vrai chemin du fournisseur — il vérifie la clé, l'endpoint, le request template, le response parser et le mapping des catégories en un seul aller-retour, sans écrire dans une conversation.
+
+Pour la protection SSRF, seul l'hôte configuré est contacté ; les redirections vers d'autres hôtes sont refusées. Les appels concurrents sont rate-limités par organisation pour qu'un pic de chat ne sature pas ton quota de modération.
 
 ### Tableau de bord d'utilisation
 

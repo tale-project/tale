@@ -47,7 +47,7 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: mockTeams, isLoading: false }),
 }));
 
-vi.mock('@/app/features/settings/governance/hooks/use-upload-policy', () => ({
+vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
   useUploadPolicy: () => ({
     maxFileSize: 10 * 1024 * 1024,
     allowedTypes: ['application/pdf', 'image/png'],

@@ -3,11 +3,36 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+// Mock useT against the real en.json so tests match on rendered prose.
+// Resolves ICU placeholders like {fileName} so `aria-label="Remove foo.pdf"`
+// still works after the refactor that introduced translation calls.
+import enMessages from '@/messages/en.json';
 import { checkAccessibility } from '@/test/utils/a11y';
+
+function lookup(ns: string, key: string): string {
+  const segments = `${ns}.${key}`.split('.');
+  let cursor: unknown = enMessages;
+  for (const segment of segments) {
+    if (cursor && typeof cursor === 'object' && segment in cursor) {
+      cursor = (cursor as Record<string, unknown>)[segment];
+    } else {
+      return `${ns}.${key}`;
+    }
+  }
+  return typeof cursor === 'string' ? cursor : `${ns}.${key}`;
+}
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
-    t: (key: string) => `${ns}.${key}`,
+    t: (key: string, vars?: Record<string, unknown>) => {
+      let out = lookup(ns, key);
+      if (vars) {
+        for (const [k, v] of Object.entries(vars)) {
+          out = out.replaceAll(`{${k}}`, String(v));
+        }
+      }
+      return out;
+    },
   }),
 }));
 

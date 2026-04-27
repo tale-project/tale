@@ -436,6 +436,11 @@ class SearchResultItem(BaseModel):
     chunk_content: str
     chunk_index: int
     score: float
+    # Part B Phase 1+: populated for chunks indexed after the refactor.
+    # Clients should prefer `core_content` over `chunk_content` once rollout
+    # completes; both fields remain during the dual-write window and the
+    # old field disappears in Phase 5.
+    core_content: str = ""
 
 
 class SearchResponse(BaseModel):
@@ -478,6 +483,8 @@ class PageChunkItem(BaseModel):
 
     chunk_index: int
     chunk_content: str
+    # Part B Phase 1+: empty for legacy rows, populated after reindex.
+    core_content: str = ""
 
 
 class PageChunksResponse(BaseModel):

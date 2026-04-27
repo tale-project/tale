@@ -3,13 +3,7 @@ title: Container architecture
 description: How Tale's Docker images are structured, built, and connected.
 ---
 
-Tale runs as **six** Docker containers managed by Docker Compose. Each container has a single responsibility and communicates over an internal bridge network.
-
-> **Phase 2 split architecture** (since v0.2.34): Convex runs as its own service
-> (`convex`) instead of being embedded in the `platform` container. Platform
-> becomes a thin Vite client that pushes schema + env to Convex over HTTP. See
-> [Upgrading from pre-split-convex (pre-v0.2.34)](/self-hosted/install/linux-server#upgrading-from-pre-split-convex-pre-v0234) for the
-> one-time migration step.
+Tale runs as **six** Docker containers managed by Docker Compose. Each container has a single responsibility and communicates over an internal bridge network. Convex runs as its own service (`convex`) and serves WebSocket clients independently of the platform container; platform is a thin Vite client that pushes schema and env to Convex over HTTP.
 
 ## Service overview
 

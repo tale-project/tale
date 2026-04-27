@@ -128,6 +128,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && fc-cache -fv \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops
 
+# dbmate: runs per-service schema migrations at container startup.
+# Sourced from the signed upstream image for provenance (no curl + checksum needed).
+COPY --from=ghcr.io/amacneil/dbmate:2 /usr/local/bin/dbmate /usr/local/bin/dbmate
+
 # Strip safely removable bloat (conservative — keep GTK/mesa/systemd for Chromium)
 RUN ARCH_LIB="/usr/lib/$(dpkg --print-architecture | sed 's/amd64/x86_64-linux-gnu/;s/arm64/aarch64-linux-gnu/')"; \
     rm -rf "${ARCH_LIB}"/libLLVM* /usr/lib/llvm-* 2>/dev/null || true; \
@@ -151,6 +155,13 @@ COPY --from=builder /root/.cache/ms-playwright /root/.cache/ms-playwright
 
 # Copy application code
 COPY services/crawler/app ./app
+
+# Copy service-owned dbmate migrations (public_web schema)
+COPY services/crawler/migrations /app/migrations
+
+# Copy and set up entrypoint script
+COPY services/crawler/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
@@ -187,10 +198,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 RUN mkdir -p /app/platform-config/providers /app/data
 
 # Use tini as init process to reap zombie Chrome/Playwright child processes.
-ENTRYPOINT ["tini", "--"]
-
-# Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]
+# The entrypoint script runs dbmate migrations (public_web schema) then execs uvicorn.
+ENTRYPOINT ["tini", "--", "/app/docker-entrypoint.sh"]
 
 # =============================================================================
 # Stage 3: SQUASH — flatten layers to eliminate Docker layer bloat
@@ -224,5 +233,4 @@ EXPOSE 8002
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8002/health || exit 1
 
-ENTRYPOINT ["tini", "--"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]
+ENTRYPOINT ["tini", "--", "/app/docker-entrypoint.sh"]

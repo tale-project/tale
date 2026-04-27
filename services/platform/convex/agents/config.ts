@@ -5,12 +5,34 @@
  * and the existing agent pipeline.
  */
 
+import { defaultLocale as appDefaultLocale } from '../../lib/i18n/config';
 import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
 import type { ToolName } from '../agent_tools/tool_names';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { getAgentTeamIds } from './access';
 import type { AgentJsonConfig } from './file_utils';
 import type { KnowledgeFile } from './schema';
+
+/**
+ * Resolve `systemInstructions` with i18n-first precedence:
+ *   i18n[locale] → i18n[baseLanguage] → i18n[appDefault='en'] → top-level
+ */
+function resolveInstructions(
+  config: AgentJsonConfig,
+  locale: string | undefined,
+): string {
+  const base =
+    locale && locale.includes('-') ? locale.split('-')[0] : undefined;
+
+  const direct = locale ? config.i18n?.[locale]?.systemInstructions : undefined;
+  const baseI18n = base ? config.i18n?.[base]?.systemInstructions : undefined;
+  const fallbackI18n =
+    locale !== appDefaultLocale && base !== appDefaultLocale
+      ? config.i18n?.[appDefaultLocale]?.systemInstructions
+      : undefined;
+
+  return direct ?? baseI18n ?? fallbackI18n ?? config.systemInstructions ?? '';
+}
 
 export function toSerializableConfig(
   agentName: string,
@@ -20,6 +42,7 @@ export function toSerializableConfig(
     sharedWithTeamIds?: string[];
     knowledgeFiles?: KnowledgeFile[];
   },
+  locale?: string,
 ): SerializableAgentConfig {
   const knowledgeMode = config.knowledgeMode ?? 'off';
   const webSearchMode =
@@ -30,7 +53,7 @@ export function toSerializableConfig(
   return {
     name: agentName,
     primaryBehavior: config.primaryBehavior,
-    instructions: config.systemInstructions ?? '',
+    instructions: resolveInstructions(config, locale),
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- toolNames are validated on file read; always valid ToolName values
     convexToolNames: config.toolNames as ToolName[],
     integrationBindings: config.integrationBindings,

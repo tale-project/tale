@@ -35,13 +35,12 @@ export interface CapabilityEntry {
   tooltip?: string;
   icon: LucideIcon;
   order: number;
-  installed: boolean;
-  /** installed AND the credential row for this slug is active. */
+  /** The credential row for this slug exists and is active. */
   ready: boolean;
 }
 
 export interface IntegrationReadiness {
-  /** slug → ready (file `installed` AND credential `isActive`). */
+  /** slug → ready (an active credential row exists for this slug). */
   readyBySlug: Map<string, boolean>;
   /** slug → human-readable title from the integration's config.json. */
   titleBySlug: Map<string, string>;
@@ -89,9 +88,7 @@ export function useIntegrationReadiness(
       const slug =
         typeof integration.slug === 'string' ? integration.slug : undefined;
       if (!slug) continue;
-      const installed = integration.installed === true;
-      const isActive = activeBySlug.get(slug) === true;
-      readyBySlug.set(slug, installed && isActive);
+      readyBySlug.set(slug, activeBySlug.get(slug) === true);
       if (typeof integration.title === 'string' && integration.title) {
         titleBySlug.set(slug, integration.title);
       }
@@ -132,14 +129,12 @@ export function useComposerCapabilities(
         ? integration.exposeAsCapability
         : null;
       if (!exposure) continue;
-      const installed = integration.installed === true;
       entries.push({
         slug,
         label: exposure.label,
         tooltip: exposure.tooltip,
         icon: resolveCapabilityIcon(exposure.icon),
         order: typeof exposure.order === 'number' ? exposure.order : 100,
-        installed,
         ready: readiness.readyBySlug.get(slug) === true,
       });
     }

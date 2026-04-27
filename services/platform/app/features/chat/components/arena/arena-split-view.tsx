@@ -24,6 +24,10 @@ import {
 import { useMergedChatItems } from '../../hooks/use-merged-chat-items';
 import type { ChatMessage } from '../../hooks/use-message-processing';
 import { useMessageProcessing } from '../../hooks/use-message-processing';
+import {
+  clearSendPending,
+  useIsSendPending,
+} from '../../hooks/use-pending-send';
 import type { FileAttachment } from '../../types';
 import { ChatMessages } from '../chat-messages';
 import { useArenaMode } from './arena-mode-context';
@@ -107,7 +111,17 @@ function ArenaColumn({
     api.threads.queries.isThreadGenerating,
     { threadId },
   );
-  const columnLoading = isGenerating ?? false;
+  // Optimistic flag — closes the Node-action cold-start window so both
+  // columns show "Thinking" immediately on send instead of ~200–550 ms
+  // later when the server subscription catches up.
+  const isSendPending = useIsSendPending(threadId);
+  const columnLoading = (isGenerating ?? false) || isSendPending;
+
+  // Hand off to the server signal as soon as it confirms, so a fast
+  // response doesn't leave the spinner stuck behind the 8 s safety timeout.
+  useEffect(() => {
+    if (isGenerating) clearSendPending(threadId);
+  }, [isGenerating, threadId]);
 
   // Approvals
   const { approvals: integrationApprovals } = useIntegrationApprovals(

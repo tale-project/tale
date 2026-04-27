@@ -14,6 +14,8 @@ import {
   Image,
   Save,
   Loader2,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 
@@ -86,6 +88,8 @@ function CanvasPaneComponent() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resizeRef = useRef<HTMLDivElement>(null);
@@ -102,8 +106,24 @@ function CanvasPaneComponent() {
   useEffect(() => {
     if (!isCanvasOpen) {
       setIsEditing(false);
+      setIsFullscreen(false);
     }
   }, [isCanvasOpen]);
+
+  useEffect(() => {
+    setIsHeaderVisible(true);
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    if (!isFullscreen) return undefined;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -174,25 +194,54 @@ function CanvasPaneComponent() {
     setIsEditing((prev) => !prev);
   }, []);
 
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen((prev) => !prev);
+  }, []);
+
   if (!isCanvasOpen) return null;
 
   const TypeIcon = TYPE_ICONS[canvasType];
 
   return (
     <div
-      className="border-border relative flex h-full shrink-0 flex-col border-l"
-      style={{ width }}
+      className={
+        isFullscreen
+          ? 'bg-background fixed inset-0 z-50 flex flex-col'
+          : 'border-border relative flex h-full shrink-0 flex-col border-l'
+      }
+      style={isFullscreen ? undefined : { width }}
     >
-      <div
-        ref={resizeRef}
-        onMouseDown={handleMouseDown}
-        className="absolute top-0 -left-1 z-10 h-full w-2 cursor-col-resize"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label={t('canvas.resizeHandle')}
-      />
+      {!isFullscreen && (
+        <div
+          ref={resizeRef}
+          onMouseDown={handleMouseDown}
+          className="absolute top-0 -left-1 z-10 h-full w-2 cursor-col-resize"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t('canvas.resizeHandle')}
+        />
+      )}
 
-      <div className="border-border flex items-center justify-between border-b p-3">
+      {isFullscreen && !isHeaderVisible && (
+        <div
+          className="absolute top-0 right-0 left-0 z-20 h-4"
+          onMouseEnter={() => setIsHeaderVisible(true)}
+          aria-hidden="true"
+        />
+      )}
+
+      <div
+        className={
+          isFullscreen
+            ? `bg-background/95 border-border absolute top-0 right-0 left-0 z-30 flex items-center justify-between border-b p-3 backdrop-blur transition-transform duration-200 ${
+                isHeaderVisible ? 'translate-y-0' : '-translate-y-full'
+              }`
+            : 'border-border flex items-center justify-between border-b p-3'
+        }
+        onMouseLeave={
+          isFullscreen ? () => setIsHeaderVisible(false) : undefined
+        }
+      >
         <div className="flex min-w-0 items-center gap-2">
           <TypeIcon className="text-muted-foreground size-4 shrink-0" />
           <span className="truncate text-sm font-medium">{canvasTitle}</span>
@@ -268,6 +317,33 @@ function CanvasPaneComponent() {
               aria-label={t('canvas.download')}
             >
               <Download className="size-3.5" />
+            </Button>
+          </Tooltip>
+
+          <Tooltip
+            content={
+              isFullscreen
+                ? t('canvas.exitFullscreen')
+                : t('canvas.enterFullscreen')
+            }
+            side="bottom"
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={toggleFullscreen}
+              aria-label={
+                isFullscreen
+                  ? t('canvas.exitFullscreen')
+                  : t('canvas.enterFullscreen')
+              }
+            >
+              {isFullscreen ? (
+                <Minimize2 className="size-3.5" />
+              ) : (
+                <Maximize2 className="size-3.5" />
+              )}
             </Button>
           </Tooltip>
 

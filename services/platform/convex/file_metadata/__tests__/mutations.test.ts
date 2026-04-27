@@ -116,6 +116,7 @@ describe('saveFileMetadata (public)', () => {
       contentType: 'application/pdf',
       size: 1024,
       ragStatus: 'queued',
+      ragQueuedAt: expect.any(Number),
       uploadedBy: 'user_1',
     });
     expect(ctx.db.patch).not.toHaveBeenCalled();
@@ -141,13 +142,82 @@ describe('saveFileMetadata (public)', () => {
     });
 
     expect(result).toBe('fm_existing');
+    // Existing row had no ragStatus, so the retry-on-reuse logic kicks in:
+    // reset status + stamp queuedAt + reschedule uploadFileToRag.
     expect(ctx.db.patch).toHaveBeenCalledWith('fm_existing', {
       fileName: 'new.pdf',
       contentType: 'application/pdf',
       size: 2048,
       uploadedBy: 'user_1',
+      ragStatus: 'queued',
+      ragError: undefined,
+      ragProgress: undefined,
+      ragQueuedAt: expect.any(Number),
     });
     expect(ctx.db.insert).not.toHaveBeenCalled();
+  });
+
+  it('does not reschedule RAG when existing row already completed', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const existing = {
+      _id: 'fm_existing',
+      organizationId: 'org_1',
+      storageId: 'storage_1',
+      fileName: 'old.pdf',
+      contentType: 'application/pdf',
+      size: 512,
+      ragStatus: 'completed',
+    };
+    const { ctx } = createMockCtx(existing);
+    const handler = await getHandler();
+
+    await handler(ctx, baseArgs);
+
+    expect(ctx.db.patch).toHaveBeenCalledWith('fm_existing', {
+      fileName: 'test.pdf',
+      contentType: 'application/pdf',
+      size: 1024,
+      uploadedBy: 'user_1',
+    });
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalledWith(
+      0,
+      'mock',
+      expect.objectContaining({ storageId: 'storage_1' }),
+    );
+  });
+
+  it('reschedules RAG when existing row previously failed', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const existing = {
+      _id: 'fm_existing',
+      organizationId: 'org_1',
+      storageId: 'storage_1',
+      fileName: 'old.pdf',
+      contentType: 'application/pdf',
+      size: 512,
+      ragStatus: 'failed',
+      ragError: 'old error',
+    };
+    const { ctx } = createMockCtx(existing);
+    const handler = await getHandler();
+
+    await handler(ctx, baseArgs);
+
+    expect(ctx.db.patch).toHaveBeenCalledWith('fm_existing', {
+      fileName: 'test.pdf',
+      contentType: 'application/pdf',
+      size: 1024,
+      uploadedBy: 'user_1',
+      ragStatus: 'queued',
+      ragError: undefined,
+      ragProgress: undefined,
+      ragQueuedAt: expect.any(Number),
+    });
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      'mock',
+      expect.objectContaining({ storageId: 'storage_1' }),
+    );
   });
 
   it('queries by storageId index', async () => {
@@ -180,6 +250,7 @@ describe('saveFileMetadata (public)', () => {
       uploadedBy: 'user_1',
       documentId: 'doc_1',
       ragStatus: 'queued',
+      ragQueuedAt: expect.any(Number),
     });
   });
 
@@ -199,11 +270,17 @@ describe('saveFileMetadata (public)', () => {
 
     await handler(ctx, baseArgs);
 
+    // Existing row has no ragStatus, so retry-on-reuse kicks in (same
+    // as "patches existing" case); documentId must not be cleared.
     expect(ctx.db.patch).toHaveBeenCalledWith('fm_existing', {
       fileName: 'test.pdf',
       contentType: 'application/pdf',
       size: 1024,
       uploadedBy: 'user_1',
+      ragStatus: 'queued',
+      ragError: undefined,
+      ragProgress: undefined,
+      ragQueuedAt: expect.any(Number),
     });
   });
 });

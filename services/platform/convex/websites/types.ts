@@ -107,6 +107,10 @@ export interface FetchPagesResult {
 export interface CrawlerChunk {
   chunk_index: number;
   chunk_content: string;
+  // Part B Phase 1+: empty for legacy rows, populated after crawler reindex.
+  // Prefer this over chunk_content for display/reassembly; chunk_content is
+  // removed in Phase 5.
+  core_content?: string;
 }
 
 export interface CrawlerChunksResponse {
@@ -128,6 +132,10 @@ export interface CrawlerSearchResult {
   chunk_content: string;
   chunk_index: number;
   score: number;
+  // Part B Phase 1+: empty for legacy rows, populated after crawler reindex.
+  // Adjacent-chunk hits duplicate overlap bytes when rendering from
+  // chunk_content; prefer core_content once rollout completes.
+  core_content?: string;
 }
 
 export interface CrawlerSearchResponse {

@@ -4,6 +4,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockLoadMore = vi.fn();
 
+// The Convex `api` proxy returns a NEW object on every property access, so
+// identity-based lookup doesn't work. Key by the function path string the
+// proxy exposes under Symbol.for("functionName") (e.g.
+// "threads/queries:isThreadGenerating").
+const FUNCTION_NAME = Symbol.for('functionName');
+const queryResults = new Map<string, unknown>();
+
+function functionPath(queryRef: unknown): string {
+  if (typeof queryRef === 'object' && queryRef !== null) {
+    const name = (queryRef as Record<symbol, unknown>)[FUNCTION_NAME];
+    if (typeof name === 'string') return name;
+  }
+  return String(queryRef);
+}
+
+function setQueryResult(queryRef: unknown, value: unknown) {
+  queryResults.set(functionPath(queryRef), value);
+}
+
 vi.mock('@convex-dev/agent/react', () => ({
   useUIMessages: vi.fn(() => ({
     results: undefined,
@@ -15,10 +34,19 @@ vi.mock('@convex-dev/agent/react', () => ({
 vi.mock('../use-stream-buffer', () => ({}));
 
 vi.mock('convex/react', () => ({
-  useQuery: vi.fn(() => undefined),
+  useQuery: vi.fn((queryRef: unknown) =>
+    queryResults.get(functionPath(queryRef)),
+  ),
+}));
+
+const mockChatLayout: { pendingMessage: unknown } = { pendingMessage: null };
+vi.mock('../../context/chat-layout-context', () => ({
+  useChatLayout: () => mockChatLayout,
 }));
 
 import { useUIMessages } from '@convex-dev/agent/react';
+
+import { api } from '@/convex/_generated/api';
 
 import {
   useMessageProcessing,
@@ -46,6 +74,8 @@ function createUIMessage(
 describe('useMessageProcessing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    queryResults.clear();
+    mockChatLayout.pendingMessage = null;
   });
 
   describe('streamingMessage', () => {
@@ -1049,6 +1079,303 @@ describe('useMessageProcessing', () => {
       const input =
         '![photo.jpg](https://example.com/img.jpg)\n*(fileId: abc123)*';
       expect(extractFileAttachments(input)).toEqual([]);
+    });
+  });
+
+  describe('file-only message merging', () => {
+    const pdfPart = {
+      type: 'file' as const,
+      mediaType: 'application/pdf',
+      filename: 'report.pdf',
+      url: 'https://example.com/report.pdf',
+    };
+    const pdfPart2 = {
+      type: 'file' as const,
+      mediaType: 'application/pdf',
+      filename: 'appendix.pdf',
+      url: 'https://example.com/appendix.pdf',
+    };
+    const imagePart = {
+      type: 'file' as const,
+      mediaType: 'image/png',
+      filename: 'generated.png',
+      url: 'https://example.com/generated.png',
+    };
+
+    it('hides file-only message while the thread is generating', () => {
+      setQueryResult(api.threads.queries.isThreadGenerating, true);
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-user',
+            order: 0,
+            role: 'user',
+            text: 'Generate a PDF',
+          }),
+          createUIMessage({
+            id: 'msg-streaming',
+            order: 1,
+            role: 'assistant',
+            text: 'Working on it…',
+            status: 'streaming',
+          }),
+          createUIMessage({
+            id: 'file-1',
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'success',
+            parts: [pdfPart],
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(
+        result.current.messages.find((m) => m.key === 'file-1'),
+      ).toBeUndefined();
+    });
+
+    it('hides file-only during the between-step gap (pre-tool success, no streaming yet, isGenerating=true)', () => {
+      // Regression case: shipped guard looked for streaming/pending assistant
+      // status, which is undefined in the window between pre-tool `success`
+      // and post-tool creation. The isGenerating-based guard covers it.
+      setQueryResult(api.threads.queries.isThreadGenerating, true);
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-user',
+            order: 0,
+            role: 'user',
+            text: 'Generate a PDF',
+          }),
+          createUIMessage({
+            id: 'msg-pre-tool',
+            order: 1,
+            role: 'assistant',
+            text: 'Let me generate that PDF.',
+            status: 'success',
+          }),
+          createUIMessage({
+            id: 'file-1',
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'success',
+            parts: [pdfPart],
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(
+        result.current.messages.find((m) => m.key === 'file-1'),
+      ).toBeUndefined();
+    });
+
+    it('merges file-only parts into a text-bearing assistant in the same turn', () => {
+      setQueryResult(api.threads.queries.isThreadGenerating, true);
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-user',
+            order: 0,
+            role: 'user',
+            text: 'Generate a PDF',
+          }),
+          createUIMessage({
+            id: 'file-1',
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'success',
+            parts: [pdfPart],
+          }),
+          createUIMessage({
+            id: 'msg-text',
+            order: 1,
+            role: 'assistant',
+            text: 'Done. PDF below.',
+            status: 'streaming',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(
+        result.current.messages.find((m) => m.key === 'file-1'),
+      ).toBeUndefined();
+      const textMsg = result.current.messages.find((m) => m.key === 'msg-text');
+      expect(textMsg?.fileParts?.map((p) => p.url)).toEqual([pdfPart.url]);
+    });
+
+    it('renders file-only message standalone when its turn has no active streaming', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-user',
+            order: 0,
+            role: 'user',
+            text: 'Generate an image',
+          }),
+          createUIMessage({
+            id: 'file-1',
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'success',
+            parts: [imagePart],
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const fileMsg = result.current.messages.find((m) => m.key === 'file-1');
+      expect(fileMsg).toBeDefined();
+      expect(fileMsg?.fileParts?.map((p) => p.url)).toEqual([imagePart.url]);
+    });
+
+    it('renders file-only standalone when the turn ended in failure (no active streaming)', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-user',
+            order: 0,
+            role: 'user',
+            text: 'Generate a PDF',
+          }),
+          createUIMessage({
+            id: 'msg-failed',
+            order: 1,
+            role: 'assistant',
+            text: 'Partial text before failure',
+            status: 'failed',
+          }),
+          createUIMessage({
+            id: 'file-1',
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'success',
+            parts: [pdfPart],
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const fileMsg = result.current.messages.find((m) => m.key === 'file-1');
+      expect(fileMsg).toBeDefined();
+      expect(fileMsg?.fileParts?.map((p) => p.url)).toEqual([pdfPart.url]);
+    });
+
+    it('merges two file-only messages into the same text-bearing assistant', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-user',
+            order: 0,
+            role: 'user',
+            text: 'Generate two PDFs',
+          }),
+          createUIMessage({
+            id: 'file-1',
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'success',
+            parts: [pdfPart],
+          }),
+          createUIMessage({
+            id: 'file-2',
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'success',
+            parts: [pdfPart2],
+          }),
+          createUIMessage({
+            id: 'msg-text',
+            order: 1,
+            role: 'assistant',
+            text: 'Both ready.',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(
+        result.current.messages.find((m) => m.key === 'file-1'),
+      ).toBeUndefined();
+      expect(
+        result.current.messages.find((m) => m.key === 'file-2'),
+      ).toBeUndefined();
+      const textMsg = result.current.messages.find((m) => m.key === 'msg-text');
+      expect(textMsg?.fileParts?.map((p) => p.url)).toEqual([
+        pdfPart.url,
+        pdfPart2.url,
+      ]);
+    });
+
+    it('does not let a later-turn streaming message hide a prior-turn file-only', () => {
+      setQueryResult(api.threads.queries.isThreadGenerating, true);
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-user-1',
+            order: 0,
+            role: 'user',
+            text: 'First',
+          }),
+          createUIMessage({
+            id: 'msg-done',
+            order: 1,
+            role: 'assistant',
+            text: 'Here is your file.',
+            status: 'success',
+          }),
+          createUIMessage({
+            id: 'file-1',
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'success',
+            parts: [pdfPart],
+          }),
+          createUIMessage({
+            id: 'msg-user-2',
+            order: 2,
+            role: 'user',
+            text: 'Second',
+          }),
+          createUIMessage({
+            id: 'msg-streaming-next',
+            order: 3,
+            role: 'assistant',
+            text: 'Working…',
+            status: 'streaming',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const fileMsg = result.current.messages.find((m) => m.key === 'file-1');
+      expect(fileMsg).toBeDefined();
+      expect(fileMsg?.fileParts?.map((p) => p.url)).toEqual([pdfPart.url]);
     });
   });
 });

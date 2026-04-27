@@ -12,11 +12,16 @@ import { PageSection } from '@/app/components/ui/layout/page-section';
 import { CollapsibleDetails } from '@/app/components/ui/navigation/collapsible-details';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
+import { LocaleTabs } from '@/app/features/agents/components/locale-tabs';
+import { useTranslateAgentFields } from '@/app/features/agents/hooks/mutations';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
+import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
+import { useToast } from '@/app/hooks/use-toast';
 import { SUPPORTED_TEMPLATE_VARIABLES } from '@/convex/lib/agent_response/resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from '@/convex/lib/agent_response/structured_response_instructions';
 import { useT } from '@/lib/i18n/client';
+import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 import {
   parseModelRef,
   stripModelRefQualifier,
@@ -43,9 +48,111 @@ export const Route = createFileRoute(
 
 function InstructionsTab() {
   const { t } = useT('settings');
+  const { id: organizationId } = Route.useParams();
   const { config, updateConfig } = useAgentConfig();
   const { providers } = useListProviders('default');
+  const { data: organization } = useOrganization(organizationId);
+  const translateMutation = useTranslateAgentFields();
+  const { toast } = useToast();
   const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
+
+  const defaultLocale = getOrganizationDefaultLocale(organization?.metadata);
+  const [editingLocale, setEditingLocale] = useState(defaultLocale);
+
+  const legacyInstructions = config.systemInstructions ?? '';
+  const overrideForLocale = (locale: string): string | undefined =>
+    config.i18n?.[locale]?.systemInstructions;
+
+  // Edit buffer — the textarea's current value. Reads from i18n[locale] for
+  // the active tab; for the default-locale tab, falls through to the legacy
+  // top-level field when no i18n.<default> entry exists yet (so older agents
+  // still show their authored text on first open). Uses `??` so an
+  // intentionally-cleared i18n entry (undefined) falls back but a non-default
+  // locale with no entry stays empty, encouraging translation.
+  const currentValue =
+    overrideForLocale(editingLocale) ??
+    (editingLocale === defaultLocale ? legacyInstructions : '');
+
+  const hasTranslation = useCallback(
+    (locale: string): boolean =>
+      !!config.i18n?.[locale]?.systemInstructions ||
+      (locale === defaultLocale && !!legacyInstructions),
+    [config.i18n, defaultLocale, legacyInstructions],
+  );
+
+  // Write path: always writes to i18n.<locale>. Empty value clears the key
+  // (never persists ""). Server-side `normalizeAgentConfig` retires the
+  // top-level `systemInstructions` at the write boundary when
+  // `i18n[defaultLocale].systemInstructions` carries content.
+  const writeOverride = useCallback(
+    (value: string) => {
+      const trimmed = value.trim();
+      const existingI18n = config.i18n ?? {};
+      const existingOverrides = existingI18n[editingLocale] ?? {};
+      updateConfig({
+        i18n: {
+          ...existingI18n,
+          [editingLocale]: {
+            ...existingOverrides,
+            systemInstructions: trimmed ? value : undefined,
+          },
+        },
+      });
+    },
+    [config.i18n, editingLocale, updateConfig],
+  );
+
+  const sourceForTranslation =
+    overrideForLocale(defaultLocale) ?? legacyInstructions;
+
+  const handleAutoTranslate = useCallback(async () => {
+    if (editingLocale === defaultLocale || !sourceForTranslation) return;
+    const target = editingLocale;
+    try {
+      const result = await translateMutation.mutateAsync({
+        fields: { systemInstructions: sourceForTranslation },
+        targetLocale: target,
+      });
+      if (
+        result.error ||
+        typeof result.translated.systemInstructions !== 'string'
+      ) {
+        toast({
+          title: t('agents.conversationStarters.translateError'),
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (editingLocale !== target) return;
+      const translated = result.translated.systemInstructions;
+      const existingI18n = config.i18n ?? {};
+      const existingOverrides = existingI18n[target] ?? {};
+      updateConfig({
+        i18n: {
+          ...existingI18n,
+          [target]: {
+            ...existingOverrides,
+            systemInstructions: translated,
+          },
+        },
+      });
+    } catch (error) {
+      console.error('[auto-translate]', error);
+      toast({
+        title: t('agents.conversationStarters.translateError'),
+        variant: 'destructive',
+      });
+    }
+  }, [
+    editingLocale,
+    defaultLocale,
+    sourceForTranslation,
+    translateMutation,
+    toast,
+    t,
+    config.i18n,
+    updateConfig,
+  ]);
 
   const structuredResponsesEnabled = config.structuredResponsesEnabled ?? false;
   const selectedModels = config.supportedModels;
@@ -183,7 +290,7 @@ function InstructionsTab() {
         description={t('agents.form.sectionInstructionsDescription')}
         gap={4}
       >
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <HStack justify="between" align="center">
             <label htmlFor="systemInstructions" className="text-sm font-medium">
               {t('agents.form.systemInstructions')}
@@ -200,13 +307,29 @@ function InstructionsTab() {
               </Button>
             </Tooltip>
           </HStack>
+          <LocaleTabs
+            defaultLocale={defaultLocale}
+            editingLocale={editingLocale}
+            onEditingLocaleChange={setEditingLocale}
+            hasTranslation={hasTranslation}
+            onAutoTranslate={
+              sourceForTranslation ? handleAutoTranslate : undefined
+            }
+            isTranslating={translateMutation.isPending}
+            subtitle={
+              currentValue
+                ? t('agents.form.systemInstructionsCharCount', {
+                    count: currentValue.length,
+                    defaultValue: `${currentValue.length} characters`,
+                  })
+                : undefined
+            }
+          />
           <Textarea
             id="systemInstructions"
             placeholder={t('agents.form.systemInstructionsPlaceholder')}
-            value={config.systemInstructions}
-            onChange={(e) =>
-              updateConfig({ systemInstructions: e.target.value })
-            }
+            value={currentValue}
+            onChange={(e) => writeOverride(e.target.value)}
             required
             rows={8}
             className="font-mono text-sm"
@@ -270,11 +393,8 @@ function InstructionsTab() {
         open={promptLibraryOpen}
         onOpenChange={setPromptLibraryOpen}
         onSelectPrompt={(content) => {
-          const current = config.systemInstructions ?? '';
-          const separator = current.trim() ? '\n\n' : '';
-          updateConfig({
-            systemInstructions: current + separator + content,
-          });
+          const separator = currentValue.trim() ? '\n\n' : '';
+          writeOverride(currentValue + separator + content);
         }}
       />
     </ContentArea>

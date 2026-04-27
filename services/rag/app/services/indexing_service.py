@@ -396,8 +396,10 @@ async def _do_clone(
             f"""
             WITH inserted AS (
                 INSERT INTO {SCHEMA}.chunks
-                    (document_id, chunk_index, chunk_content, content_hash, embedding)
-                SELECT $1, chunk_index, chunk_content, content_hash, embedding
+                    (document_id, chunk_index, chunk_content, content_hash, embedding,
+                     core_content, prefix_overlap, suffix_overlap)
+                SELECT $1, chunk_index, chunk_content, content_hash, embedding,
+                       core_content, prefix_overlap, suffix_overlap
                 FROM {SCHEMA}.chunks
                 WHERE document_id = $2
                 RETURNING 1
@@ -499,6 +501,9 @@ async def _do_store(
                 chunk.content,
                 compute_content_hash(chunk.content.encode("utf-8")),
                 str(embedding),
+                chunk.core_content,
+                chunk.prefix_overlap,
+                chunk.suffix_overlap,
             )
             for chunk, embedding in zip(prepared.chunks, prepared.embeddings, strict=True)
         ]
@@ -506,8 +511,9 @@ async def _do_store(
             f"""
                 INSERT INTO {SCHEMA}.chunks
                     (document_id, chunk_index, chunk_content,
-                     content_hash, embedding)
-                VALUES ($1, $2, $3, $4, $5::vector)
+                     content_hash, embedding,
+                     core_content, prefix_overlap, suffix_overlap)
+                VALUES ($1, $2, $3, $4, $5::vector, $6, $7, $8)
                 """,
             chunk_rows,
         )

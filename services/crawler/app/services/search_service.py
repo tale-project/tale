@@ -24,6 +24,10 @@ class SearchResult:
     chunk_content: str
     chunk_index: int
     score: float
+    # Part B Phase 1+: populated for chunks indexed after the refactor.
+    # Empty string for legacy rows; consumers should prefer this field over
+    # `chunk_content` once rollout completes.
+    core_content: str = ""
 
 
 class SearchService:
@@ -50,13 +54,15 @@ class SearchService:
         # semantically irrelevant — discard FTS results too (keyword noise).
         if similarity_threshold > 0:
             pre_count = len(vector_results)
+            top_score = max((r["score"] for r in vector_results), default=0.0)
             vector_results = [r for r in vector_results if r["score"] >= similarity_threshold]
             if pre_count != len(vector_results):
                 logger.debug(
-                    "Vector pre-filter: {}/{} results passed threshold {}",
+                    "Vector pre-filter: {}/{} results passed threshold {} (top score {:.3f})",
                     len(vector_results),
                     pre_count,
                     similarity_threshold,
+                    top_score,
                 )
             if pre_count > 0 and not vector_results:
                 return []
@@ -67,7 +73,7 @@ class SearchService:
         async with acquire_with_retry(self._pool) as conn:
             if domain:
                 rows = await conn.fetch(
-                    """SELECT id, url, title, chunk_content, chunk_index,
+                    """SELECT id, url, title, chunk_content, core_content, chunk_index,
                               paradedb.score(id) AS score
                        FROM chunks
                        WHERE id @@@ paradedb.match('chunk_content', $1) AND domain = $2
@@ -79,7 +85,7 @@ class SearchService:
                 )
             else:
                 rows = await conn.fetch(
-                    """SELECT id, url, title, chunk_content, chunk_index,
+                    """SELECT id, url, title, chunk_content, core_content, chunk_index,
                               paradedb.score(id) AS score
                        FROM chunks
                        WHERE id @@@ paradedb.match('chunk_content', $1)
@@ -95,7 +101,7 @@ class SearchService:
         async with acquire_with_retry(self._pool) as conn:
             if domain:
                 rows = await conn.fetch(
-                    """SELECT id, url, title, chunk_content, chunk_index,
+                    """SELECT id, url, title, chunk_content, core_content, chunk_index,
                               1 - (embedding <=> $1::vector) AS score
                        FROM chunks
                        WHERE domain = $2 AND embedding IS NOT NULL
@@ -107,7 +113,7 @@ class SearchService:
                 )
             else:
                 rows = await conn.fetch(
-                    """SELECT id, url, title, chunk_content, chunk_index,
+                    """SELECT id, url, title, chunk_content, core_content, chunk_index,
                               1 - (embedding <=> $1::vector) AS score
                        FROM chunks
                        WHERE embedding IS NOT NULL
@@ -143,6 +149,7 @@ class SearchService:
                 chunk_content=items[item_id]["chunk_content"],
                 chunk_index=items[item_id]["chunk_index"],
                 score=scores[item_id] / max_score,
+                core_content=items[item_id].get("core_content") or "",
             )
             for item_id in sorted_ids
         ]

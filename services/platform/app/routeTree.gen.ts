@@ -41,7 +41,6 @@ import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/da
 import { Route as DashboardIdSettingsMcpServersRouteImport } from './routes/dashboard/$id/settings/mcp-servers'
 import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs'
 import { Route as DashboardIdSettingsIntegrationsRouteImport } from './routes/dashboard/$id/settings/integrations'
-import { Route as DashboardIdSettingsGovernanceRouteImport } from './routes/dashboard/$id/settings/governance'
 import { Route as DashboardIdSettingsBrandingRouteImport } from './routes/dashboard/$id/settings/branding'
 import { Route as DashboardIdSettingsApiKeysRouteImport } from './routes/dashboard/$id/settings/api-keys'
 import { Route as DashboardIdSettingsAgentsRouteImport } from './routes/dashboard/$id/settings/agents'
@@ -56,9 +55,16 @@ import { Route as DashboardIdKnowledgeVendorsRouteImport } from './routes/dashbo
 import { Route as DashboardIdKnowledgeProductsRouteImport } from './routes/dashboard/$id/_knowledge/products'
 import { Route as DashboardIdKnowledgeDocumentsRouteImport } from './routes/dashboard/$id/_knowledge/documents'
 import { Route as DashboardIdKnowledgeCustomersRouteImport } from './routes/dashboard/$id/_knowledge/customers'
+import { Route as DashboardIdSettingsGovernanceRouteRouteImport } from './routes/dashboard/$id/settings/governance/route'
 import { Route as DashboardIdSettingsProvidersIndexRouteImport } from './routes/dashboard/$id/settings/providers/index'
+import { Route as DashboardIdSettingsGovernanceIndexRouteImport } from './routes/dashboard/$id/settings/governance/index'
 import { Route as DashboardIdAgentsAgentIdIndexRouteImport } from './routes/dashboard/$id/agents/$agentId/index'
 import { Route as DashboardIdSettingsProvidersProviderNameRouteImport } from './routes/dashboard/$id/settings/providers/$providerName'
+import { Route as DashboardIdSettingsGovernanceUsageRouteImport } from './routes/dashboard/$id/settings/governance/usage'
+import { Route as DashboardIdSettingsGovernanceSecurityMonitoringRouteImport } from './routes/dashboard/$id/settings/governance/security-monitoring'
+import { Route as DashboardIdSettingsGovernancePoliciesLimitsRouteImport } from './routes/dashboard/$id/settings/governance/policies-limits'
+import { Route as DashboardIdSettingsGovernanceGuardrailsRouteImport } from './routes/dashboard/$id/settings/governance/guardrails'
+import { Route as DashboardIdSettingsGovernanceContentModelsRouteImport } from './routes/dashboard/$id/settings/governance/content-models'
 import { Route as DashboardIdChatSharedShareTokenRouteImport } from './routes/dashboard/$id/chat/shared/$shareToken'
 import { Route as DashboardIdAutomationsAmIdTriggersRouteImport } from './routes/dashboard/$id/automations/$amId/triggers'
 import { Route as DashboardIdAutomationsAmIdExecutionsRouteImport } from './routes/dashboard/$id/automations/$amId/executions'
@@ -237,12 +243,6 @@ const DashboardIdSettingsIntegrationsRoute =
     path: '/integrations',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any)
-const DashboardIdSettingsGovernanceRoute =
-  DashboardIdSettingsGovernanceRouteImport.update({
-    id: '/governance',
-    path: '/governance',
-    getParentRoute: () => DashboardIdSettingsRoute,
-  } as any)
 const DashboardIdSettingsBrandingRoute =
   DashboardIdSettingsBrandingRouteImport.update({
     id: '/branding',
@@ -326,11 +326,23 @@ const DashboardIdKnowledgeCustomersRoute =
     path: '/customers',
     getParentRoute: () => DashboardIdKnowledgeRoute,
   } as any)
+const DashboardIdSettingsGovernanceRouteRoute =
+  DashboardIdSettingsGovernanceRouteRouteImport.update({
+    id: '/governance',
+    path: '/governance',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any)
 const DashboardIdSettingsProvidersIndexRoute =
   DashboardIdSettingsProvidersIndexRouteImport.update({
     id: '/',
     path: '/',
     getParentRoute: () => DashboardIdSettingsProvidersRoute,
+  } as any)
+const DashboardIdSettingsGovernanceIndexRoute =
+  DashboardIdSettingsGovernanceIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
   } as any)
 const DashboardIdAgentsAgentIdIndexRoute =
   DashboardIdAgentsAgentIdIndexRouteImport.update({
@@ -343,6 +355,36 @@ const DashboardIdSettingsProvidersProviderNameRoute =
     id: '/$providerName',
     path: '/$providerName',
     getParentRoute: () => DashboardIdSettingsProvidersRoute,
+  } as any)
+const DashboardIdSettingsGovernanceUsageRoute =
+  DashboardIdSettingsGovernanceUsageRouteImport.update({
+    id: '/usage',
+    path: '/usage',
+    getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
+  } as any)
+const DashboardIdSettingsGovernanceSecurityMonitoringRoute =
+  DashboardIdSettingsGovernanceSecurityMonitoringRouteImport.update({
+    id: '/security-monitoring',
+    path: '/security-monitoring',
+    getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
+  } as any)
+const DashboardIdSettingsGovernancePoliciesLimitsRoute =
+  DashboardIdSettingsGovernancePoliciesLimitsRouteImport.update({
+    id: '/policies-limits',
+    path: '/policies-limits',
+    getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
+  } as any)
+const DashboardIdSettingsGovernanceGuardrailsRoute =
+  DashboardIdSettingsGovernanceGuardrailsRouteImport.update({
+    id: '/guardrails',
+    path: '/guardrails',
+    getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
+  } as any)
+const DashboardIdSettingsGovernanceContentModelsRoute =
+  DashboardIdSettingsGovernanceContentModelsRouteImport.update({
+    id: '/content-models',
+    path: '/content-models',
+    getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
   } as any)
 const DashboardIdChatSharedShareTokenRoute =
   DashboardIdChatSharedShareTokenRouteImport.update({
@@ -426,6 +468,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute
   '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren
   '/dashboard/$id/': typeof DashboardIdIndexRoute
+  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren
   '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute
   '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute
   '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute
@@ -440,7 +483,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute
-  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute
@@ -461,8 +503,14 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute
+  '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute
+  '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute
+  '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute
+  '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute
+  '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute
+  '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute
   '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute
 }
 export interface FileRoutesByTo {
@@ -493,7 +541,6 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute
-  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute
@@ -513,8 +560,14 @@ export interface FileRoutesByTo {
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute
+  '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute
+  '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute
+  '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute
+  '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute
+  '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute
   '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdIndexRoute
+  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceIndexRoute
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersIndexRoute
 }
 export interface FileRoutesById {
@@ -541,6 +594,7 @@ export interface FileRoutesById {
   '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute
   '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren
   '/dashboard/$id/': typeof DashboardIdIndexRoute
+  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren
   '/dashboard/$id/_knowledge/customers': typeof DashboardIdKnowledgeCustomersRoute
   '/dashboard/$id/_knowledge/documents': typeof DashboardIdKnowledgeDocumentsRoute
   '/dashboard/$id/_knowledge/products': typeof DashboardIdKnowledgeProductsRoute
@@ -555,7 +609,6 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute
-  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute
@@ -576,8 +629,14 @@ export interface FileRoutesById {
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute
+  '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute
+  '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute
+  '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute
+  '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute
+  '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute
+  '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute
   '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute
 }
 export interface FileRouteTypes {
@@ -603,6 +662,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/custom-agents'
     | '/dashboard/$id/settings'
     | '/dashboard/$id/'
+    | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/customers'
     | '/dashboard/$id/documents'
     | '/dashboard/$id/products'
@@ -617,7 +677,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/agents'
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
-    | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp-servers'
@@ -638,8 +697,14 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
     | '/dashboard/$id/chat/shared/$shareToken'
+    | '/dashboard/$id/settings/governance/content-models'
+    | '/dashboard/$id/settings/governance/guardrails'
+    | '/dashboard/$id/settings/governance/policies-limits'
+    | '/dashboard/$id/settings/governance/security-monitoring'
+    | '/dashboard/$id/settings/governance/usage'
     | '/dashboard/$id/settings/providers/$providerName'
     | '/dashboard/$id/agents/$agentId/'
+    | '/dashboard/$id/settings/governance/'
     | '/dashboard/$id/settings/providers/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -670,7 +735,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/agents'
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
-    | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp-servers'
@@ -690,8 +754,14 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
     | '/dashboard/$id/chat/shared/$shareToken'
+    | '/dashboard/$id/settings/governance/content-models'
+    | '/dashboard/$id/settings/governance/guardrails'
+    | '/dashboard/$id/settings/governance/policies-limits'
+    | '/dashboard/$id/settings/governance/security-monitoring'
+    | '/dashboard/$id/settings/governance/usage'
     | '/dashboard/$id/settings/providers/$providerName'
     | '/dashboard/$id/agents/$agentId'
+    | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/settings/providers'
   id:
     | '__root__'
@@ -717,6 +787,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/custom-agents'
     | '/dashboard/$id/settings'
     | '/dashboard/$id/'
+    | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/_knowledge/customers'
     | '/dashboard/$id/_knowledge/documents'
     | '/dashboard/$id/_knowledge/products'
@@ -731,7 +802,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/agents'
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
-    | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp-servers'
@@ -752,8 +822,14 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
     | '/dashboard/$id/chat/shared/$shareToken'
+    | '/dashboard/$id/settings/governance/content-models'
+    | '/dashboard/$id/settings/governance/guardrails'
+    | '/dashboard/$id/settings/governance/policies-limits'
+    | '/dashboard/$id/settings/governance/security-monitoring'
+    | '/dashboard/$id/settings/governance/usage'
     | '/dashboard/$id/settings/providers/$providerName'
     | '/dashboard/$id/agents/$agentId/'
+    | '/dashboard/$id/settings/governance/'
     | '/dashboard/$id/settings/providers/'
   fileRoutesById: FileRoutesById
 }
@@ -993,13 +1069,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdSettingsIntegrationsRouteImport
       parentRoute: typeof DashboardIdSettingsRoute
     }
-    '/dashboard/$id/settings/governance': {
-      id: '/dashboard/$id/settings/governance'
-      path: '/governance'
-      fullPath: '/dashboard/$id/settings/governance'
-      preLoaderRoute: typeof DashboardIdSettingsGovernanceRouteImport
-      parentRoute: typeof DashboardIdSettingsRoute
-    }
     '/dashboard/$id/settings/branding': {
       id: '/dashboard/$id/settings/branding'
       path: '/branding'
@@ -1098,12 +1167,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdKnowledgeCustomersRouteImport
       parentRoute: typeof DashboardIdKnowledgeRoute
     }
+    '/dashboard/$id/settings/governance': {
+      id: '/dashboard/$id/settings/governance'
+      path: '/governance'
+      fullPath: '/dashboard/$id/settings/governance'
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceRouteRouteImport
+      parentRoute: typeof DashboardIdSettingsRoute
+    }
     '/dashboard/$id/settings/providers/': {
       id: '/dashboard/$id/settings/providers/'
       path: '/'
       fullPath: '/dashboard/$id/settings/providers/'
       preLoaderRoute: typeof DashboardIdSettingsProvidersIndexRouteImport
       parentRoute: typeof DashboardIdSettingsProvidersRoute
+    }
+    '/dashboard/$id/settings/governance/': {
+      id: '/dashboard/$id/settings/governance/'
+      path: '/'
+      fullPath: '/dashboard/$id/settings/governance/'
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceIndexRouteImport
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
     }
     '/dashboard/$id/agents/$agentId/': {
       id: '/dashboard/$id/agents/$agentId/'
@@ -1118,6 +1201,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/$id/settings/providers/$providerName'
       preLoaderRoute: typeof DashboardIdSettingsProvidersProviderNameRouteImport
       parentRoute: typeof DashboardIdSettingsProvidersRoute
+    }
+    '/dashboard/$id/settings/governance/usage': {
+      id: '/dashboard/$id/settings/governance/usage'
+      path: '/usage'
+      fullPath: '/dashboard/$id/settings/governance/usage'
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceUsageRouteImport
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
+    }
+    '/dashboard/$id/settings/governance/security-monitoring': {
+      id: '/dashboard/$id/settings/governance/security-monitoring'
+      path: '/security-monitoring'
+      fullPath: '/dashboard/$id/settings/governance/security-monitoring'
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceSecurityMonitoringRouteImport
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
+    }
+    '/dashboard/$id/settings/governance/policies-limits': {
+      id: '/dashboard/$id/settings/governance/policies-limits'
+      path: '/policies-limits'
+      fullPath: '/dashboard/$id/settings/governance/policies-limits'
+      preLoaderRoute: typeof DashboardIdSettingsGovernancePoliciesLimitsRouteImport
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
+    }
+    '/dashboard/$id/settings/governance/guardrails': {
+      id: '/dashboard/$id/settings/governance/guardrails'
+      path: '/guardrails'
+      fullPath: '/dashboard/$id/settings/governance/guardrails'
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceGuardrailsRouteImport
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
+    }
+    '/dashboard/$id/settings/governance/content-models': {
+      id: '/dashboard/$id/settings/governance/content-models'
+      path: '/content-models'
+      fullPath: '/dashboard/$id/settings/governance/content-models'
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceContentModelsRouteImport
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
     }
     '/dashboard/$id/chat/shared/$shareToken': {
       id: '/dashboard/$id/chat/shared/$shareToken'
@@ -1338,6 +1456,36 @@ const DashboardIdConversationsRouteWithChildren =
     DashboardIdConversationsRouteChildren,
   )
 
+interface DashboardIdSettingsGovernanceRouteRouteChildren {
+  DashboardIdSettingsGovernanceContentModelsRoute: typeof DashboardIdSettingsGovernanceContentModelsRoute
+  DashboardIdSettingsGovernanceGuardrailsRoute: typeof DashboardIdSettingsGovernanceGuardrailsRoute
+  DashboardIdSettingsGovernancePoliciesLimitsRoute: typeof DashboardIdSettingsGovernancePoliciesLimitsRoute
+  DashboardIdSettingsGovernanceSecurityMonitoringRoute: typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute
+  DashboardIdSettingsGovernanceUsageRoute: typeof DashboardIdSettingsGovernanceUsageRoute
+  DashboardIdSettingsGovernanceIndexRoute: typeof DashboardIdSettingsGovernanceIndexRoute
+}
+
+const DashboardIdSettingsGovernanceRouteRouteChildren: DashboardIdSettingsGovernanceRouteRouteChildren =
+  {
+    DashboardIdSettingsGovernanceContentModelsRoute:
+      DashboardIdSettingsGovernanceContentModelsRoute,
+    DashboardIdSettingsGovernanceGuardrailsRoute:
+      DashboardIdSettingsGovernanceGuardrailsRoute,
+    DashboardIdSettingsGovernancePoliciesLimitsRoute:
+      DashboardIdSettingsGovernancePoliciesLimitsRoute,
+    DashboardIdSettingsGovernanceSecurityMonitoringRoute:
+      DashboardIdSettingsGovernanceSecurityMonitoringRoute,
+    DashboardIdSettingsGovernanceUsageRoute:
+      DashboardIdSettingsGovernanceUsageRoute,
+    DashboardIdSettingsGovernanceIndexRoute:
+      DashboardIdSettingsGovernanceIndexRoute,
+  }
+
+const DashboardIdSettingsGovernanceRouteRouteWithChildren =
+  DashboardIdSettingsGovernanceRouteRoute._addFileChildren(
+    DashboardIdSettingsGovernanceRouteRouteChildren,
+  )
+
 interface DashboardIdSettingsProvidersRouteChildren {
   DashboardIdSettingsProvidersProviderNameRoute: typeof DashboardIdSettingsProvidersProviderNameRoute
   DashboardIdSettingsProvidersIndexRoute: typeof DashboardIdSettingsProvidersIndexRoute
@@ -1357,11 +1505,11 @@ const DashboardIdSettingsProvidersRouteWithChildren =
   )
 
 interface DashboardIdSettingsRouteChildren {
+  DashboardIdSettingsGovernanceRouteRoute: typeof DashboardIdSettingsGovernanceRouteRouteWithChildren
   DashboardIdSettingsAccountRoute: typeof DashboardIdSettingsAccountRoute
   DashboardIdSettingsAgentsRoute: typeof DashboardIdSettingsAgentsRoute
   DashboardIdSettingsApiKeysRoute: typeof DashboardIdSettingsApiKeysRoute
   DashboardIdSettingsBrandingRoute: typeof DashboardIdSettingsBrandingRoute
-  DashboardIdSettingsGovernanceRoute: typeof DashboardIdSettingsGovernanceRoute
   DashboardIdSettingsIntegrationsRoute: typeof DashboardIdSettingsIntegrationsRoute
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute
   DashboardIdSettingsMcpServersRoute: typeof DashboardIdSettingsMcpServersRoute
@@ -1372,11 +1520,12 @@ interface DashboardIdSettingsRouteChildren {
 }
 
 const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
+  DashboardIdSettingsGovernanceRouteRoute:
+    DashboardIdSettingsGovernanceRouteRouteWithChildren,
   DashboardIdSettingsAccountRoute: DashboardIdSettingsAccountRoute,
   DashboardIdSettingsAgentsRoute: DashboardIdSettingsAgentsRoute,
   DashboardIdSettingsApiKeysRoute: DashboardIdSettingsApiKeysRoute,
   DashboardIdSettingsBrandingRoute: DashboardIdSettingsBrandingRoute,
-  DashboardIdSettingsGovernanceRoute: DashboardIdSettingsGovernanceRoute,
   DashboardIdSettingsIntegrationsRoute: DashboardIdSettingsIntegrationsRoute,
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,
   DashboardIdSettingsMcpServersRoute: DashboardIdSettingsMcpServersRoute,

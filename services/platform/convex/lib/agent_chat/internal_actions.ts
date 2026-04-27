@@ -6,6 +6,7 @@ import {
   saveMessage,
   type MessageDoc,
 } from '@convex-dev/agent';
+import type { ModelMessage } from 'ai';
 import type { FunctionHandle } from 'convex/server';
 import { v } from 'convex/values';
 
@@ -46,6 +47,7 @@ import type {
   BeforeContextResult,
   BeforeGenerateResult,
 } from '../agent_response/types';
+import { buildInlineMultiModalPrompt } from '../attachments/build_inline_multi_modal_prompt';
 import {
   estimateTokens,
   DEFAULT_MODEL_CONTEXT_LIMIT,
@@ -127,6 +129,13 @@ export const runAgentGeneration = internalAction({
     userId: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
     promptMessage: v.string(),
+    /**
+     * Un-augmented user text (without the attachment markdown that
+     * `buildMessageWithAttachments` appends to `promptMessage`). Used as the
+     * text part when building a multimodal prompt for vision-capable models,
+     * so PDF/audio references aren't duplicated.
+     */
+    originalUserText: v.optional(v.string()),
     additionalContext: v.optional(v.record(v.string(), v.string())),
     userContext: v.optional(
       v.object({
@@ -173,6 +182,7 @@ export const runAgentGeneration = internalAction({
       organizationId,
       userId,
       promptMessage,
+      originalUserText,
       additionalContext,
       userContext,
       parentThreadId,
@@ -201,18 +211,40 @@ export const runAgentGeneration = internalAction({
       // Build all tool categories and fetch governance policy in parallel.
       // Each builder is independent, so running them concurrently saves
       // ~300-1200ms depending on the number of bindings.
+      //
+      // `orgSlug` and `orgLocale` are resolved in the same outer Promise.all
+      // and threaded into the delegation+workflow builders below. Both
+      // builders need orgSlug, and delegation needs orgLocale — resolving
+      // them once here avoids duplicate queries when both run.
       const [
         integrationExtraTools,
-        delegationResult,
-        workflowExtraTools,
+        orgSlug,
+        orgLocale,
         governanceResult,
         mcpExtraTools,
       ] = await Promise.all([
         buildIntegrationTools(ctx, agentConfig, organizationId),
-        buildDelegationTools(ctx, agentConfig, organizationId),
-        buildWorkflowTools(ctx, agentConfig, organizationId),
+        resolveOrgSlug(ctx, organizationId),
+        ctx.runQuery(
+          internal.organizations.internal_queries.getOrganizationDefaultLocale,
+          { organizationId },
+        ),
         fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
         buildMcpTools(ctx, organizationId),
+      ]);
+
+      // Delegation and workflows depend on orgSlug (+ orgLocale for
+      // delegation), so they run after the slug is resolved but in parallel
+      // with each other.
+      const [delegationResult, workflowExtraTools] = await Promise.all([
+        buildDelegationTools(
+          ctx,
+          agentConfig,
+          organizationId,
+          orgSlug,
+          orgLocale,
+        ),
+        buildWorkflowTools(ctx, agentConfig, orgSlug),
       ]);
 
       // Extract delegation tools and instructions append
@@ -298,10 +330,9 @@ export const runAgentGeneration = internalAction({
         const currentModelId = modelsToTry[attempt];
 
         try {
-          // Resolve model from provider files with automatic failover.
-          // Pass orgSlug so multi-org deployments read each org's own
-          // provider/API-key files, not the global default.
-          const orgSlug = await resolveOrgSlug(ctx, organizationId);
+          // orgSlug was resolved once in the outer Promise.all and is shared
+          // across model lookup + delegation + workflows so multi-org
+          // deployments read each org's own provider/API-key files.
           // Parse provider qualifier from the ref (e.g. "openrouter:foo" → {providerName:"openrouter", modelId:"foo"}).
           // Per-entry qualifier takes precedence over the agent's top-level provider.
           const parsed = currentModelId
@@ -321,10 +352,35 @@ export const runAgentGeneration = internalAction({
           const resolvedProvider = modelData.providerName;
           const resolvedModelId = modelData.modelId;
 
+          // Vision branch: when the resolved chat model has the `vision`
+          // tag and the turn carries image attachments, inline the images
+          // as multimodal content and drop the `image` tool for this
+          // attempt. Failover to a non-vision model on the next attempt
+          // re-evaluates and reverts to the markdown + image-tool path.
+          const imageAttachments =
+            attachments?.filter((a) => a.fileType.startsWith('image/')) ?? [];
+          const isVisionCapable = modelData.tags.includes('vision');
+          const useMultiModal = isVisionCapable && imageAttachments.length > 0;
+
+          let multiModalPrompt: ModelMessage[] | undefined;
+          if (useMultiModal) {
+            const built = await buildInlineMultiModalPrompt(ctx, {
+              userText: originalUserText ?? promptMessage,
+              imageAttachments,
+            });
+            multiModalPrompt = built.prompt;
+            debugLog('MULTIMODAL_BRANCH', {
+              modelId: resolvedModelId,
+              inlinedImageCount: built.inlinedImageCount,
+              skippedImages: built.skippedImages,
+            });
+          }
+
           // Create agent factory function from serializable config
           const createAgent = () => {
             // Filter tools: exclude rag_search/web when their retrieval mode
             // is 'context' or 'off' (tool should only be available in 'tool'/'both').
+            // Drop `image` when the chat model handles images natively.
             const knowledgeMode = agentConfig.knowledgeMode ?? 'off';
             const webSearchMode = agentConfig.webSearchMode ?? 'off';
             const filteredToolNames = agentConfig.convexToolNames?.filter(
@@ -343,6 +399,7 @@ export const runAgentGeneration = internalAction({
                   webSearchMode !== 'both'
                 )
                   return false;
+                if (n === 'image' && useMultiModal) return false;
                 return true;
               },
             );
@@ -356,7 +413,6 @@ export const runAgentGeneration = internalAction({
                   : undefined,
               extraTools: allExtraTools,
               maxSteps: agentConfig.maxSteps,
-              outputFormat: agentConfig.outputFormat,
             });
             return new Agent(components.agent, config);
           };
@@ -408,6 +464,7 @@ export const runAgentGeneration = internalAction({
               parentThreadId,
               agentOptions,
               attachments,
+              multiModalPrompt,
               streamId,
               promptMessageId,
               maxSteps,
@@ -690,11 +747,20 @@ async function buildIntegrationTools(
 
 /**
  * Build delegation tools for all configured delegate slugs.
+ *
+ * `orgSlug` and `orgLocale` are resolved once by the caller (hoisted into
+ * the outer Promise.all) so they can be shared with sibling builders —
+ * notably workflows, which also need the real orgSlug for multi-tenant
+ * filesystem lookups. Delegate systemInstructions and the appended scaffold
+ * text both resolve against `orgLocale` so parent + delegates speak the
+ * same language.
  */
 async function buildDelegationTools(
   ctx: ActionCtx,
   agentConfig: AgentConfigForTools,
   organizationId: string,
+  orgSlug: string,
+  orgLocale: string,
 ): Promise<
   | {
       tools: Record<string, unknown>;
@@ -708,7 +774,8 @@ async function buildDelegationTools(
     ctx,
     agentConfig.delegateSlugs,
     organizationId,
-    'default',
+    orgSlug,
+    orgLocale,
   );
 
   if (delegates.length === 0) return undefined;
@@ -721,7 +788,10 @@ async function buildDelegationTools(
 
   return {
     tools,
-    instructionsAppend: buildDelegationInstructionsSection(delegates),
+    instructionsAppend: buildDelegationInstructionsSection(
+      delegates,
+      orgLocale,
+    ),
   };
 }
 
@@ -731,11 +801,9 @@ async function buildDelegationTools(
 async function buildWorkflowTools(
   ctx: ActionCtx,
   agentConfig: AgentConfigForTools,
-  organizationId: string,
+  orgSlug: string,
 ): Promise<Record<string, unknown> | undefined> {
   if (!agentConfig.workflowBindings?.length) return undefined;
-
-  const orgSlug = await resolveOrgSlug(ctx, organizationId);
 
   const results = await Promise.all(
     agentConfig.workflowBindings.map(async (slug) => {

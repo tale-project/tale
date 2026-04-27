@@ -6,19 +6,24 @@ import type { SelectedAgent } from '../../context/chat-layout-context';
 
 interface MockAgent {
   name: string;
-  displayName: string;
-  description: string;
+  displayName?: string;
+  description?: string;
   conversationStarters?: string[];
+  systemInstructions?: string;
   i18n?: Record<
     string,
-    { displayName?: string; conversationStarters?: string[] }
+    {
+      displayName?: string;
+      description?: string;
+      conversationStarters?: string[];
+      systemInstructions?: string;
+    }
   >;
 }
 
 let mockSelectedAgent: SelectedAgent | null = null;
 let mockAgents: MockAgent[] | undefined;
 let mockLocale = 'en';
-let mockOrgMetadata: unknown = undefined;
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -39,13 +44,6 @@ vi.mock('../queries', () => ({
   useChatAgents: () => ({
     agents: mockAgents,
     isLoading: mockIsLoading,
-  }),
-}));
-
-vi.mock('@/app/features/organization/hooks/queries', () => ({
-  useOrganization: () => ({
-    data:
-      mockOrgMetadata !== undefined ? { metadata: mockOrgMetadata } : undefined,
   }),
 }));
 
@@ -72,7 +70,6 @@ beforeEach(() => {
   mockAgents = undefined;
   mockIsLoading = false;
   mockLocale = 'en';
-  mockOrgMetadata = undefined;
 });
 
 describe('useEffectiveAgent', () => {
@@ -218,10 +215,9 @@ describe('useEffectiveAgent', () => {
       },
     ];
 
-    it('returns top-level fields when locale matches org default', () => {
+    it('returns top-level fields when UI locale matches the app default (en)', () => {
       mockAgents = I18N_AGENTS;
       mockLocale = 'en';
-      mockOrgMetadata = { defaultLocale: 'en' };
 
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
@@ -235,10 +231,9 @@ describe('useEffectiveAgent', () => {
       });
     });
 
-    it('returns i18n overrides when locale differs from org default', () => {
+    it('returns i18n overrides driven by the user UI locale (not org locale)', () => {
       mockAgents = I18N_AGENTS;
       mockLocale = 'de';
-      mockOrgMetadata = { defaultLocale: 'en' };
 
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
@@ -252,27 +247,9 @@ describe('useEffectiveAgent', () => {
       });
     });
 
-    it('falls back to top-level when locale has no i18n overrides', () => {
+    it('falls back to top-level when UI locale has no i18n overrides', () => {
       mockAgents = I18N_AGENTS;
       mockLocale = 'fr';
-      mockOrgMetadata = { defaultLocale: 'en' };
-
-      const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
-
-      expect(result.current).toEqual({
-        agent: {
-          name: 'chat-agent',
-          displayName: 'Chat Agent',
-          conversationStarters: ['Hello', 'Help me'],
-        },
-        isLoading: false,
-      });
-    });
-
-    it('defaults to en when org metadata is missing', () => {
-      mockAgents = I18N_AGENTS;
-      mockLocale = 'en';
-      mockOrgMetadata = undefined;
 
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 

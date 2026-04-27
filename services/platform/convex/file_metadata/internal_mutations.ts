@@ -56,6 +56,7 @@ export const saveFileMetadata = internalMutation({
       contentType: args.contentType,
       size: args.size,
       ragStatus: isAudio ? undefined : 'queued',
+      ragQueuedAt: isAudio ? undefined : Date.now(),
       transcriptionStatus: isAudio ? 'queued' : undefined,
       ...(args.documentId !== undefined && { documentId: args.documentId }),
       ...(args.source !== undefined && { source: args.source }),
@@ -138,13 +139,21 @@ export const updateFileRagStatus = internalMutation({
       .first();
     if (!metadata) return;
 
+    const isTerminal =
+      args.ragStatus === 'completed' || args.ragStatus === 'failed';
+
     await ctx.db.patch(metadata._id, {
       ragStatus: args.ragStatus,
       ragError: args.ragStatus === 'failed' ? args.ragError : undefined,
-      ragProgress:
-        args.ragStatus === 'completed' || args.ragStatus === 'failed'
-          ? undefined
-          : args.ragProgress,
+      ragProgress: isTerminal ? undefined : args.ragProgress,
+      // Stamp when re-queued so the watchdog can time it out. Clear on
+      // terminal states so a later re-queue starts its own clock.
+      ragQueuedAt:
+        args.ragStatus === 'queued'
+          ? Date.now()
+          : isTerminal
+            ? undefined
+            : metadata.ragQueuedAt,
       ...(args.ocrApplied != null && { ocrApplied: args.ocrApplied }),
     });
 
@@ -157,6 +166,43 @@ export const updateFileRagStatus = internalMutation({
         });
       }
     }
+  },
+});
+
+/**
+ * Watchdog: mark a file's RAG pipeline as failed when it has been stuck in
+ * `queued` beyond `staleAfterMs`. Triggered by `checkFileRagStatuses` when
+ * the RAG service returns no status row for a file — either because the
+ * scheduled `uploadFileToRag` never ran, or it silently returned before
+ * hitting the service. Without this, the client polls forever.
+ *
+ * Uses `ragQueuedAt` when present; falls back to `_creationTime` for
+ * legacy rows written before that field existed.
+ */
+export const expireStaleRagQueue = internalMutation({
+  args: {
+    storageId: v.id('_storage'),
+    staleAfterMs: v.number(),
+  },
+  returns: v.null(),
+  async handler(ctx, args) {
+    const metadata = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (!metadata) return null;
+    if (metadata.ragStatus !== 'queued') return null;
+
+    const queuedAt = metadata.ragQueuedAt ?? metadata._creationTime;
+    if (Date.now() - queuedAt < args.staleAfterMs) return null;
+
+    await ctx.db.patch(metadata._id, {
+      ragStatus: 'failed',
+      ragError:
+        'RAG service did not receive the upload. The indexing task may have been dropped before it ran.',
+      ragProgress: undefined,
+    });
+    return null;
   },
 });
 

@@ -144,7 +144,13 @@ export const startWebhookChat = internalMutation({
     streamId: v.string(),
   }),
   handler: async (ctx, args) => {
-    const userId = args.chatOwnerId ?? `webhook:${args.webhookId}`;
+    // When the caller can't resolve a Better Auth user id for the thread
+    // owner (legacy webhooks created before agentWebhooks.createdByUserId
+    // was added in PR #1587), fall back to `'system'` — matches the openai-
+    // compat direct-model path so usage analytics can skip name resolution
+    // uniformly. Never write `webhook:<id>` (40-char synthetic string that
+    // crashes the Better Auth adapter's `db.get(userId)` during lookup).
+    const userId = args.chatOwnerId ?? 'system';
 
     let threadId: string;
     const incomingThreadId = args.threadId;

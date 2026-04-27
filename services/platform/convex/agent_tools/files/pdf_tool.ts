@@ -27,9 +27,15 @@ interface GeneratePdfResult {
 export const pdfTool = {
   name: 'pdf' as const,
   tool: createTool({
-    description: `PDF tool for generating and downloading PDF documents.
+    description: `PDF tool for generating PDF files as persistent artifacts — files that need to be saved to storage, attached to email, or handed off to a downstream tool or agent.
 
-IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting a PDF file. Do NOT proactively generate PDFs unless the user specifically asks for this format.
+IMPORTANT: Only call this tool when the user explicitly asks for a PDF *file* — e.g., "download this as a PDF", "email me a PDF report", "save this as a PDF attachment". Do NOT call this tool for:
+  • "demo page", "comparison page", "interactive page", "visualization", "dashboard"
+  • Content the user will read inline in chat
+  • Mockups, drafts, or previews
+  • Any request where a file download is not the user's actual goal
+
+For interactive or visual content, output an HTML (or Mermaid / SVG / Markdown) code block instead — the chat's Canvas preview pane renders those automatically. Only use this PDF tool when persistence as a downloadable file is the explicit requirement.
 
 TO READ PDF FILE CONTENT: Do NOT use this tool. Instead use the rag_search tool:
 • To get the full content of a PDF file: use rag_search with operation='retrieve' and the fileId
@@ -52,7 +58,11 @@ OPERATIONS:
    LANGUAGE SUPPORT (applies to sourceType "markdown" and "html" only):
    • Renders correctly: Latin (English, French, German, Spanish, Portuguese, Italian, Nordic), Cyrillic (Russian, Ukrainian, Serbian), Arabic, Hebrew, Greek, Devanagari (Hindi), Bengali, Tamil, Thai, Lao, Khmer, Armenian, Georgian, Ethiopic, emoji.
    • NOT supported: Chinese (Simplified & Traditional), Japanese, Korean. These scripts render as empty-box glyphs because the PDF renderer has no CJK fonts installed.
-   • If the content you would send is primarily in Chinese/Japanese/Korean, do NOT call "generate" with sourceType "markdown" or "html" — the resulting PDF will be unreadable. Deliver the content in chat instead (no PDF). The "url" sourceType is exempt from this limit — remote pages supply their own fonts.
+   • If the content you would send is primarily in Chinese / Japanese / Korean, do NOT call "generate" with sourceType "markdown" or "html". Instead, in your reply you MUST do BOTH:
+     (a) Deliver the full report content directly in chat — same structure (headings, Conclusion, Key Points, Details, Sources) you would have put in the PDF.
+     (b) Add ONE short sentence in the user's own language explaining that no PDF was produced because the renderer does not yet support CJK fonts, and inviting them to ask for an English-translated PDF if they need a file deliverable. Example (Chinese): "(说明：当前 PDF 渲染器暂不支持中文字体，因此直接以 Markdown 形式输出。如需英文 PDF 版本，请告诉我。)"
+   Silently omitting the PDF without (b) is not acceptable — the user expected a file deliverable and must understand why it didn't come.
+   • The "url" sourceType is exempt from this limit — remote pages supply their own fonts.
 
    URL MODE (sourceType: "url"):
    • For web pages: renders the page as a PDF

@@ -76,12 +76,15 @@ echo "=================================================="
 # ============================================================================
 # Post-start init scripts (idempotent, run on every startup)
 # ============================================================================
-# All init scripts use IF NOT EXISTS / CREATE OR REPLACE / DROP IF EXISTS
-# so they are safe to re-run. This ensures schema, extensions, and indexes
-# converge to the desired state on every container start — not just first init.
+# Init scripts create shared infrastructure: databases, extensions, schema
+# namespaces, and role grants. They use IF NOT EXISTS / CREATE OR REPLACE /
+# DROP IF EXISTS so they are safe to re-run on every container start.
+#
+# NOTE: Service-specific tables and indexes are NOT created here. Each service
+# (rag, crawler) owns its own schema via dbmate migrations under
+# services/<service>/migrations/, applied at that service's container startup.
 
 INIT_SCRIPTS_DIR="/etc/postgresql/init-scripts"
-MIGRATIONS_DIR="/etc/postgresql/migrations/db/migrations"
 
 run_init_scripts() {
     echo "Running init scripts..."
@@ -93,21 +96,7 @@ run_init_scripts() {
     echo "Init scripts complete."
 }
 
-run_migrations() {
-    if [ ! -d "$MIGRATIONS_DIR" ] || [ -z "$(ls -A "$MIGRATIONS_DIR" 2>/dev/null)" ]; then
-        echo "No migrations found, skipping."
-        return
-    fi
-
-    echo "Running tale_knowledge migrations..."
-    dbmate --url "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/tale_knowledge?sslmode=disable" \
-           --migrations-dir "$MIGRATIONS_DIR" \
-           --no-dump-schema \
-           migrate
-    echo "Migrations complete."
-}
-
-# Run init scripts and migrations in the background after PostgreSQL starts.
+# Run init scripts in the background after PostgreSQL starts.
 # We wait until the target database is actually accessible (not just pg_isready)
 # to avoid racing with docker-entrypoint.sh's first-time init which creates
 # the POSTGRES_USER and POSTGRES_DB after starting a temporary server.
@@ -117,12 +106,6 @@ run_migrations() {
         sleep 1
     done
     run_init_scripts
-    # dbmate connects via TCP — wait for the server to accept TCP connections
-    # (the temp server during first-time init only listens on Unix socket)
-    until pg_isready -U "$POSTGRES_USER" -h localhost -q 2>/dev/null; do
-        sleep 1
-    done
-    run_migrations
     touch /tmp/.db_ready
     echo "Database ready."
 ) &

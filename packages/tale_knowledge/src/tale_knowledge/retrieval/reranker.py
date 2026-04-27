@@ -105,7 +105,7 @@ class Reranker:
         """Re-rank using local sentence-transformers CrossEncoder."""
         cross_encoder = await self._ensure_local_model()
 
-        pairs = [(query, r.get("content") or r.get("chunk_content", "")) for r in results]
+        pairs = [(query, r.get("content") or r.get("core_content") or r.get("chunk_content", "")) for r in results]
 
         loop = asyncio.get_running_loop()
         scores = await loop.run_in_executor(None, lambda: cross_encoder.predict(pairs).tolist())
@@ -140,7 +140,7 @@ class Reranker:
         try:
             import httpx
 
-            documents = [r.get("content") or r.get("chunk_content", "") for r in results]
+            documents = [r.get("content") or r.get("core_content") or r.get("chunk_content", "") for r in results]
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(

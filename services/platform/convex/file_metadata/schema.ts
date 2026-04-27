@@ -23,6 +23,11 @@ export const fileMetadataTable = defineTable({
   ),
   ragError: v.optional(v.string()),
   ragProgress: v.optional(v.string()),
+  // Timestamp (ms) when ragStatus was last set to 'queued'. Used by the
+  // poll-timeout watchdog to give up on uploads that never reached RAG
+  // (e.g. scheduled action silently failed before hitting the service).
+  // Falls back to _creationTime when absent on older rows.
+  ragQueuedAt: v.optional(v.number()),
   // Audio transcription (populated when contentType starts with 'audio/').
   transcript: v.optional(v.string()),
   transcriptionStatus: v.optional(

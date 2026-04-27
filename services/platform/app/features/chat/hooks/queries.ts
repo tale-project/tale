@@ -1,5 +1,6 @@
 import { useUIMessages } from '@convex-dev/agent/react';
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useListAgents } from '@/app/features/agents/hooks/queries';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
@@ -21,6 +22,7 @@ import type {
   HumanInputRequestMetadata,
   LocationRequestMetadata,
 } from '@/lib/shared/schemas/approvals';
+import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { isRecord } from '@/lib/utils/type-guards';
 
 export interface Thread {
@@ -131,6 +133,12 @@ export interface ComposerModeMeta {
 
 export interface ChatAgent {
   name: string;
+  /**
+   * Pre-resolved to the app-default locale (`en`) via `resolveAgentLocale` so
+   * legacy raw-read consumers always see a populated string. Components that
+   * render to the user should call `resolveAgentLocale(agent, userLocale)`
+   * using the `i18n` map below for proper user-locale resolution.
+   */
   displayName: string;
   description?: string;
   visibleInChat?: boolean;
@@ -152,6 +160,7 @@ export interface ChatAgent {
       displayName?: string;
       description?: string;
       conversationStarters?: string[];
+      systemInstructions?: string;
     }
   >;
 }
@@ -164,21 +173,20 @@ function isComposerModeMeta(value: unknown): value is ComposerModeMeta {
 
 export function useChatAgents(_organizationId: string) {
   const { agents: rawAgents, isLoading } = useListAgents('default');
+  const { i18n: i18nCtx } = useTranslation();
+  const locale = i18nCtx.language;
 
   const agents = useMemo(() => {
     if (!rawAgents) return undefined;
     const chatAgents: ChatAgent[] = [];
     for (const a of rawAgents) {
-      if (
-        a &&
-        'displayName' in a &&
-        typeof a.displayName === 'string' &&
-        a.visibleInChat === true
-      ) {
+      if (a && typeof a.name === 'string' && a.visibleInChat === true) {
+        const resolved = resolveAgentLocale(a, locale);
+        if (!resolved.displayName) continue;
         chatAgents.push({
           name: a.name,
-          displayName: a.displayName,
-          description: a.description,
+          displayName: resolved.displayName,
+          description: resolved.description,
           visibleInChat: a.visibleInChat,
           primaryBehavior:
             'primaryBehavior' in a &&
@@ -190,7 +198,7 @@ export function useChatAgents(_organizationId: string) {
           integrationBindings: Array.isArray(a.integrationBindings)
             ? a.integrationBindings
             : undefined,
-          conversationStarters: a.conversationStarters,
+          conversationStarters: resolved.conversationStarters,
           composerMode:
             'composerMode' in a && isComposerModeMeta(a.composerMode)
               ? a.composerMode
@@ -200,7 +208,7 @@ export function useChatAgents(_organizationId: string) {
       }
     }
     return chatAgents;
-  }, [rawAgents]);
+  }, [rawAgents, locale]);
 
   return {
     agents,
@@ -656,6 +664,11 @@ export function useMessageMetadata(
           contextStats: metadata.contextStats,
           costEstimateCents: metadata.costEstimateCents,
           citations: metadata.citations,
+          // Guardrails pipeline flags: set when chat_filter / PII /
+          // moderation_provider blocked the message. `message-bubble`
+          // swaps to <BlockedNotice/> before rendering any content
+          // block (text, reasoning, tools) when this is present.
+          blockedReason: metadata.blockedReason,
         }
       : undefined,
     isLoading,

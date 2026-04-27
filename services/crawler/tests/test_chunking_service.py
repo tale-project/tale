@@ -29,80 +29,21 @@ class TestChunkContentSingleChunk:
         assert result[0].content == text
         assert result[0].index == 0
 
-    def test_content_is_stripped(self):
-        text = "Hello world, this is a test of the chunking service module that needs to be long enough to pass the minimum chunk length filter."
-        result = chunk_content(f"  {text}  \n\n")
-        assert result[0].content == text
-
     def test_returns_content_chunk_dataclass(self):
-        text = "Hello world, this is a test of the chunking service module that needs to be long enough to pass the minimum chunk length filter."
+        text = "Hello world, this is a test of the chunking service module re-exported via crawler."
         result = chunk_content(text)
         assert isinstance(result[0], ContentChunk)
 
 
-class TestChunkContentWithTitle:
-    BODY = "Some body text here that is long enough to pass the minimum chunk length filter for the chunking service test suite."
+# Title / URL injection used to live inside chunk_content() but moved to
+# build_metadata_prefix() applied at embed time in indexing_service. Behavior
+# for that helper is covered by tale_knowledge's own test suite; the crawler
+# path is covered by test_indexing_service.
+class TestBuildMetadataPrefixReExport:
+    def test_importable(self):
+        from app.services.chunking_service import build_metadata_prefix
 
-    def test_title_prepended_to_single_chunk(self):
-        result = chunk_content(self.BODY, title="My Title")
-        assert result[0].content.startswith("My Title\n\n")
-        assert self.BODY in result[0].content
-
-    def test_none_title_ignored(self):
-        result = chunk_content(self.BODY, title=None)
-        assert result[0].content == self.BODY
-
-    def test_empty_title_ignored(self):
-        result = chunk_content(self.BODY, title="")
-        assert result[0].content == self.BODY
-
-    def test_whitespace_title_ignored(self):
-        result = chunk_content(self.BODY, title="   ")
-        assert result[0].content == self.BODY
-
-    def test_title_is_stripped(self):
-        result = chunk_content(self.BODY, title="  My Title  ")
-        assert result[0].content.startswith("My Title\n\n")
-
-    def test_title_prepended_to_every_chunk(self):
-        para = "A" * 100
-        content = f"{para}\n\n{para}\n\n{para}"
-        result = chunk_content(content, title="Title", chunk_size=150, chunk_overlap=20)
-        for chunk in result:
-            assert chunk.content.startswith("Title")
-
-
-class TestChunkContentWithUrl:
-    BODY = "Some body text here that is long enough to pass the minimum chunk length filter for the chunking service test suite."
-
-    def test_url_prepended_to_single_chunk(self):
-        result = chunk_content(self.BODY, url="https://example.com/page")
-        assert result[0].content.startswith("https://example.com/page\n\n")
-        assert self.BODY in result[0].content
-
-    def test_none_url_ignored(self):
-        result = chunk_content(self.BODY, url=None)
-        assert result[0].content == self.BODY
-
-    def test_empty_url_ignored(self):
-        result = chunk_content(self.BODY, url="")
-        assert result[0].content == self.BODY
-
-    def test_whitespace_url_ignored(self):
-        result = chunk_content(self.BODY, url="   ")
-        assert result[0].content == self.BODY
-
-    def test_title_and_url_both_in_prefix(self):
-        result = chunk_content(self.BODY, title="My Title", url="https://example.com/page")
-        assert result[0].content.startswith("My Title\n\nhttps://example.com/page\n\n")
-        assert self.BODY in result[0].content
-
-    def test_url_prepended_to_every_chunk(self):
-        para = "A" * 100
-        content = f"{para}\n\n{para}\n\n{para}"
-        result = chunk_content(content, url="https://example.com", chunk_size=200, chunk_overlap=20)
-        for chunk in result:
-            assert "https://example.com" in chunk.content
+        assert build_metadata_prefix("Title", "https://example.com") == ("Title\n\nhttps://example.com\n\n")
 
 
 class TestChunkContentMultipleParagraphs:
@@ -159,7 +100,7 @@ class TestChunkContentLargeParagraphSentenceSplitting:
     def test_sentences_distributed_across_chunks(self):
         sentences = [f"This is a fairly long sentence number {i} here." for i in range(30)]
         large_para = " ".join(sentences)
-        result = chunk_content(large_para, chunk_size=300, chunk_overlap=20, min_chunk_length=50)
+        result = chunk_content(large_para, chunk_size=300, chunk_overlap=20)
         combined = " ".join(c.content for c in result)
         for s in sentences:
             assert s in combined
@@ -179,27 +120,23 @@ class TestChunkContentHardSplit:
 
 
 class TestChunkContentMinChunkLength:
-    def test_short_content_below_min_filtered_out(self):
-        result = chunk_content("Hi.", min_chunk_length=100)
-        assert result == []
+    """min_chunk_length no longer filters chunks — doing so would break the
+    tiling invariant `"".join(core_content) == content`. The parameter is
+    preserved for backward compatibility and treated as a no-op."""
 
-    def test_content_at_min_length_kept(self):
-        text = "A" * MIN_CHUNK_LENGTH
-        result = chunk_content(text)
-        assert len(result) == 1
+    def test_tiny_content_produces_one_chunk(self):
+        # Pre-refactor this returned []; now it tiles the input fully.
+        assert len(chunk_content("Hi.")) == 1
 
-    def test_content_just_below_min_length_filtered(self):
-        text = "A" * (MIN_CHUNK_LENGTH - 1)
-        result = chunk_content(text)
-        assert result == []
+    def test_content_at_default_min_length_kept(self):
+        assert len(chunk_content("A" * MIN_CHUNK_LENGTH)) == 1
 
-    def test_custom_min_chunk_length(self):
-        result = chunk_content("Short text.", min_chunk_length=5)
-        assert len(result) == 1
+    def test_content_below_default_min_length_still_returned(self):
+        assert len(chunk_content("A" * (MIN_CHUNK_LENGTH - 1))) == 1
 
-    def test_custom_high_min_chunk_length_filters(self):
-        result = chunk_content("Short text.", min_chunk_length=500)
-        assert result == []
+    def test_custom_min_chunk_length_is_ignored(self):
+        # Param accepted but no longer acts as a filter.
+        assert len(chunk_content("Short text.", min_chunk_length=500)) == 1
 
 
 class TestChunkContentCustomParams:
@@ -297,20 +234,6 @@ class TestMarkdownAwareChunking:
         result = chunk_content(content, chunk_size=2048)
         assert len(result) == 1
 
-    def test_title_and_url_in_every_chunk_with_headers(self):
-        content = "## Section One\n\n" + "A" * 300 + "\n\n## Section Two\n\n" + "B" * 300
-        result = chunk_content(
-            content,
-            title="My Page",
-            url="https://example.com/page",
-            chunk_size=400,
-            chunk_overlap=0,
-        )
-        assert len(result) >= 2
-        for chunk in result:
-            assert "My Page" in chunk.content
-            assert "https://example.com/page" in chunk.content
-
     def test_realistic_page(self):
         content = (
             "# WiseKey Security Solutions\n\n"
@@ -326,7 +249,7 @@ class TestMarkdownAwareChunking:
             "## Contact\n\n"
             "Visit us at wisekey.com for more information."
         )
-        result = chunk_content(content, title="WiseKey", url="https://wisekey.com")
+        result = chunk_content(content)
         assert len(result) >= 1
         combined = "\n".join(c.content for c in result)
         assert "WiseKey" in combined

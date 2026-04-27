@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Input } from '@/app/components/ui/forms/input';
@@ -15,7 +15,6 @@ import {
   retentionPolicyConfigSchema,
   type RetentionPolicyConfig,
 } from '@/lib/shared/schemas/governance';
-import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
@@ -32,6 +31,68 @@ function parseRetentionConfig(policy: unknown): RetentionPolicyConfig {
     return result.data;
   }
   return { enabled: false, retentionDays: 90 };
+}
+
+/** Per-section skeleton: matches SectionHeader(items-center, gap-4) + Switch(label + h-[1.15rem] w-8 pill) + optional body. */
+function retentionSectionSkeleton(withBody: boolean): ReactNode {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-4 w-80 max-w-full" />
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <Skeleton className="h-3.5 w-14" />
+          <Skeleton className="h-[1.15rem] w-8 rounded-full" />
+        </div>
+      </div>
+      {withBody && (
+        <div className="flex max-w-xs flex-col gap-1.5">
+          <Skeleton className="h-3.5 w-28" />
+          <Skeleton className="h-8 w-full rounded-md" />
+          <Skeleton className="mt-0.5 h-3 w-48 max-w-full" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface RetentionSectionProps {
+  title: string;
+  description: string;
+  enabled: boolean;
+  onToggle: (checked: boolean) => void;
+  toggleDisabled: boolean;
+  /** Body is hidden entirely when `enabled` is false. */
+  children: ReactNode;
+}
+
+function RetentionSection({
+  title,
+  description,
+  enabled,
+  onToggle,
+  toggleDisabled,
+  children,
+}: RetentionSectionProps) {
+  const { t } = useT('governance');
+  return (
+    <PageSection
+      title={title}
+      description={description}
+      action={
+        <Switch
+          label={t('retentionPolicy.enabled')}
+          checked={enabled}
+          onCheckedChange={onToggle}
+          disabled={toggleDisabled}
+        />
+      }
+    >
+      {enabled && children}
+    </PageSection>
+  );
 }
 
 export function RetentionEditor({ organizationId }: RetentionEditorProps) {
@@ -89,6 +150,7 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
   }
 
   const cannotManage = ability.cannot('write', 'orgSettings');
+  const toggleDisabled = cannotManage || upsertMutation.isPending;
 
   const saveConfig = useCallback(
     async (patch: Partial<RetentionPolicyConfig>) => {
@@ -117,11 +179,19 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
           policyType: 'retention_policy',
           config: fullConfig,
         });
-        toast({ title: t('retentionPolicy.saved'), variant: 'success' });
+        toast({
+          title: t('toastSavedTitle'),
+          description: t('retentionPolicy.saved'),
+          variant: 'success',
+        });
       } catch (error: unknown) {
         const message =
           error instanceof Error ? error.message : 'Failed to save';
-        toast({ title: message, variant: 'destructive' });
+        toast({
+          title: t('toastSaveFailedTitle'),
+          description: message,
+          variant: 'destructive',
+        });
       }
     },
     [
@@ -150,372 +220,274 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
 
   if (isLoading || !initializedRef.current) {
     return (
-      <div aria-busy="true" className="space-y-3 py-4">
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-4 w-72" />
-        <Skeleton className="h-10 w-full" />
+      <div aria-busy="true" className="flex flex-col gap-6">
+        {retentionSectionSkeleton(true)}
+        {retentionSectionSkeleton(false)}
+        {retentionSectionSkeleton(true)}
       </div>
     );
   }
 
   return (
     <Stack gap={6}>
-      <PageSection
-        title="Chat History"
-        description="Automatically delete chat threads (conversations with agents) older than the retention period. Message contents in the agent component are archived. Deletion is irreversible."
-        action={
-          <Switch
-            label="Enabled"
-            checked={chatHistoryEnabled}
-            onCheckedChange={(checked) => {
-              setChatHistoryEnabled(checked);
-              void saveConfig({ chatHistoryEnabled: checked });
-            }}
-            disabled={cannotManage || upsertMutation.isPending}
-          />
-        }
+      <RetentionSection
+        title={t('retentionPolicy.chatHistory.title')}
+        description={t('retentionPolicy.chatHistory.description')}
+        enabled={chatHistoryEnabled}
+        toggleDisabled={toggleDisabled}
+        onToggle={(checked) => {
+          setChatHistoryEnabled(checked);
+          void saveConfig({ chatHistoryEnabled: checked });
+        }}
       >
-        <div
-          className={cn(
-            'transition-opacity duration-200',
-            !chatHistoryEnabled && 'pointer-events-none opacity-50',
-          )}
-        >
-          <div className="max-w-xs">
-            <Input
-              label="Retention Days"
-              type="number"
-              value={chatHistoryRetentionDays}
-              onChange={(e) =>
-                setChatHistoryRetentionDays(
-                  e.target.value ? Number(e.target.value) : 0,
-                )
-              }
-              onBlur={() => void saveConfig({ chatHistoryRetentionDays })}
-              disabled={cannotManage || !chatHistoryEnabled}
-              size="sm"
-              placeholder="e.g. 90"
-              min={1}
-              max={3650}
-            />
-            <Text className="text-muted-foreground mt-1 text-xs">
-              Chat threads older than this (by last-updated time) will be
-              deleted.
-            </Text>
-          </div>
+        <div className="max-w-xs">
+          <Input
+            label={t('retentionPolicy.retentionDays')}
+            type="number"
+            value={chatHistoryRetentionDays}
+            onChange={(e) =>
+              setChatHistoryRetentionDays(
+                e.target.value ? Number(e.target.value) : 0,
+              )
+            }
+            onBlur={() => void saveConfig({ chatHistoryRetentionDays })}
+            disabled={cannotManage}
+            size="sm"
+            placeholder={t('retentionPolicy.chatHistory.placeholder')}
+            min={1}
+            max={3650}
+          />
+          <Text className="text-muted-foreground mt-1 text-xs">
+            {t('retentionPolicy.chatHistory.helper')}
+          </Text>
         </div>
-      </PageSection>
+      </RetentionSection>
 
-      <PageSection
-        title="Document Retention"
-        description="Automatically delete documents that exceed the retention period. Use with caution — deleted documents cannot be recovered."
-        action={
-          <Switch
-            label="Enabled"
-            checked={enabled}
-            onCheckedChange={(checked) => {
-              setEnabled(checked);
-              void saveConfig({ enabled: checked });
-            }}
-            disabled={cannotManage || upsertMutation.isPending}
-          />
-        }
+      <RetentionSection
+        title={t('retentionPolicy.documents.title')}
+        description={t('retentionPolicy.documents.description')}
+        enabled={enabled}
+        toggleDisabled={toggleDisabled}
+        onToggle={(checked) => {
+          setEnabled(checked);
+          void saveConfig({ enabled: checked });
+        }}
       >
-        <div
-          className={cn(
-            'transition-opacity duration-200',
-            !enabled && 'pointer-events-none opacity-50',
-          )}
-        >
-          <div className="max-w-xs">
-            <Input
-              label="Retention Days"
-              type="number"
-              value={retentionDays}
-              onChange={(e) =>
-                setRetentionDays(e.target.value ? Number(e.target.value) : 0)
-              }
-              onBlur={() => void saveConfig({ retentionDays })}
-              disabled={cannotManage || !enabled}
-              size="sm"
-              placeholder="e.g. 90"
-              min={0}
-            />
-            <Text className="text-muted-foreground mt-1 text-xs">
-              Documents older than this will be deleted.
-            </Text>
-          </div>
+        <div className="max-w-xs">
+          <Input
+            label={t('retentionPolicy.retentionDays')}
+            type="number"
+            value={retentionDays}
+            onChange={(e) =>
+              setRetentionDays(e.target.value ? Number(e.target.value) : 0)
+            }
+            onBlur={() => void saveConfig({ retentionDays })}
+            disabled={cannotManage}
+            size="sm"
+            placeholder={t('retentionPolicy.documents.placeholder')}
+            min={0}
+          />
+          <Text className="text-muted-foreground mt-1 text-xs">
+            {t('retentionPolicy.documents.helper')}
+          </Text>
         </div>
-      </PageSection>
+      </RetentionSection>
 
-      <PageSection
-        title="User Temporary File Cleanup"
-        description="Automatically delete files uploaded by users but never saved to a document (e.g. chat attachments, aborted uploads)."
-        action={
-          <Switch
-            label="Enabled"
-            checked={userTempEnabled}
-            onCheckedChange={(checked) => {
-              setUserTempEnabled(checked);
-              void saveConfig({ userTempEnabled: checked });
-            }}
-            disabled={cannotManage || upsertMutation.isPending}
-          />
-        }
+      <RetentionSection
+        title={t('retentionPolicy.userTemp.title')}
+        description={t('retentionPolicy.userTemp.description')}
+        enabled={userTempEnabled}
+        toggleDisabled={toggleDisabled}
+        onToggle={(checked) => {
+          setUserTempEnabled(checked);
+          void saveConfig({ userTempEnabled: checked });
+        }}
       >
-        <div
-          className={cn(
-            'transition-opacity duration-200',
-            !userTempEnabled && 'pointer-events-none opacity-50',
-          )}
-        >
-          <div className="max-w-xs">
-            <Input
-              label="Retention Hours"
-              type="number"
-              value={userTempRetentionHours}
-              onChange={(e) =>
-                setUserTempRetentionHours(
-                  e.target.value ? Number(e.target.value) : 0,
-                )
-              }
-              onBlur={() => void saveConfig({ userTempRetentionHours })}
-              disabled={cannotManage || !userTempEnabled}
-              size="sm"
-              placeholder="e.g. 24"
-              min={0}
-            />
-            <Text className="text-muted-foreground mt-1 text-xs">
-              Temporary files older than this will be deleted.
-            </Text>
-          </div>
+        <div className="max-w-xs">
+          <Input
+            label={t('retentionPolicy.retentionHours')}
+            type="number"
+            value={userTempRetentionHours}
+            onChange={(e) =>
+              setUserTempRetentionHours(
+                e.target.value ? Number(e.target.value) : 0,
+              )
+            }
+            onBlur={() => void saveConfig({ userTempRetentionHours })}
+            disabled={cannotManage}
+            size="sm"
+            placeholder={t('retentionPolicy.userTemp.placeholder')}
+            min={0}
+          />
+          <Text className="text-muted-foreground mt-1 text-xs">
+            {t('retentionPolicy.userTemp.helper')}
+          </Text>
         </div>
-      </PageSection>
+      </RetentionSection>
 
-      <PageSection
-        title="Agent Temporary File Cleanup"
-        description="Automatically delete files generated by agents but never saved to a document (e.g. intermediate outputs, knowledge files)."
-        action={
-          <Switch
-            label="Enabled"
-            checked={agentTempEnabled}
-            onCheckedChange={(checked) => {
-              setAgentTempEnabled(checked);
-              void saveConfig({ agentTempEnabled: checked });
-            }}
-            disabled={cannotManage || upsertMutation.isPending}
-          />
-        }
+      <RetentionSection
+        title={t('retentionPolicy.agentTemp.title')}
+        description={t('retentionPolicy.agentTemp.description')}
+        enabled={agentTempEnabled}
+        toggleDisabled={toggleDisabled}
+        onToggle={(checked) => {
+          setAgentTempEnabled(checked);
+          void saveConfig({ agentTempEnabled: checked });
+        }}
       >
-        <div
-          className={cn(
-            'transition-opacity duration-200',
-            !agentTempEnabled && 'pointer-events-none opacity-50',
-          )}
-        >
-          <div className="max-w-xs">
-            <Input
-              label="Retention Hours"
-              type="number"
-              value={agentTempRetentionHours}
-              onChange={(e) =>
-                setAgentTempRetentionHours(
-                  e.target.value ? Number(e.target.value) : 0,
-                )
-              }
-              onBlur={() => void saveConfig({ agentTempRetentionHours })}
-              disabled={cannotManage || !agentTempEnabled}
-              size="sm"
-              placeholder="e.g. 24"
-              min={0}
-            />
-            <Text className="text-muted-foreground mt-1 text-xs">
-              Temporary files older than this will be deleted.
-            </Text>
-          </div>
+        <div className="max-w-xs">
+          <Input
+            label={t('retentionPolicy.retentionHours')}
+            type="number"
+            value={agentTempRetentionHours}
+            onChange={(e) =>
+              setAgentTempRetentionHours(
+                e.target.value ? Number(e.target.value) : 0,
+              )
+            }
+            onBlur={() => void saveConfig({ agentTempRetentionHours })}
+            disabled={cannotManage}
+            size="sm"
+            placeholder={t('retentionPolicy.agentTemp.placeholder')}
+            min={0}
+          />
+          <Text className="text-muted-foreground mt-1 text-xs">
+            {t('retentionPolicy.agentTemp.helper')}
+          </Text>
         </div>
-      </PageSection>
+      </RetentionSection>
 
-      <PageSection
-        title="Workflow Execution Logs"
-        description="Automatically delete workflow execution records and trigger logs older than the retention period. Includes per-execution variable/output storage blobs."
-        action={
-          <Switch
-            label="Enabled"
-            checked={workflowLogsEnabled}
-            onCheckedChange={(checked) => {
-              setWorkflowLogsEnabled(checked);
-              void saveConfig({ workflowLogsEnabled: checked });
-            }}
-            disabled={cannotManage || upsertMutation.isPending}
-          />
-        }
+      <RetentionSection
+        title={t('retentionPolicy.workflowLogs.title')}
+        description={t('retentionPolicy.workflowLogs.description')}
+        enabled={workflowLogsEnabled}
+        toggleDisabled={toggleDisabled}
+        onToggle={(checked) => {
+          setWorkflowLogsEnabled(checked);
+          void saveConfig({ workflowLogsEnabled: checked });
+        }}
       >
-        <div
-          className={cn(
-            'transition-opacity duration-200',
-            !workflowLogsEnabled && 'pointer-events-none opacity-50',
-          )}
-        >
-          <div className="max-w-xs">
-            <Input
-              label="Retention Days"
-              type="number"
-              value={workflowLogRetentionDays}
-              onChange={(e) =>
-                setWorkflowLogRetentionDays(
-                  e.target.value ? Number(e.target.value) : 0,
-                )
-              }
-              onBlur={() => void saveConfig({ workflowLogRetentionDays })}
-              disabled={cannotManage || !workflowLogsEnabled}
-              size="sm"
-              placeholder="e.g. 30"
-              min={1}
-              max={365}
-            />
-            <Text className="text-muted-foreground mt-1 text-xs">
-              Workflow runs older than this will be deleted (1–365 days).
-            </Text>
-          </div>
+        <div className="max-w-xs">
+          <Input
+            label={t('retentionPolicy.retentionDays')}
+            type="number"
+            value={workflowLogRetentionDays}
+            onChange={(e) =>
+              setWorkflowLogRetentionDays(
+                e.target.value ? Number(e.target.value) : 0,
+              )
+            }
+            onBlur={() => void saveConfig({ workflowLogRetentionDays })}
+            disabled={cannotManage}
+            size="sm"
+            placeholder={t('retentionPolicy.workflowLogs.placeholder')}
+            min={1}
+            max={365}
+          />
+          <Text className="text-muted-foreground mt-1 text-xs">
+            {t('retentionPolicy.workflowLogs.helper')}
+          </Text>
         </div>
-      </PageSection>
+      </RetentionSection>
 
-      <PageSection
-        title="Audit Logs"
-        description="Automatically delete audit log entries older than the retention period. Note: audit logs are immutable historical records used for compliance; keep retention long enough to satisfy your audit/compliance requirements."
-        action={
-          <Switch
-            label="Enabled"
-            checked={auditLogsEnabled}
-            onCheckedChange={(checked) => {
-              setAuditLogsEnabled(checked);
-              void saveConfig({ auditLogsEnabled: checked });
-            }}
-            disabled={cannotManage || upsertMutation.isPending}
-          />
-        }
+      <RetentionSection
+        title={t('retentionPolicy.auditLogs.title')}
+        description={t('retentionPolicy.auditLogs.description')}
+        enabled={auditLogsEnabled}
+        toggleDisabled={toggleDisabled}
+        onToggle={(checked) => {
+          setAuditLogsEnabled(checked);
+          void saveConfig({ auditLogsEnabled: checked });
+        }}
       >
-        <div
-          className={cn(
-            'transition-opacity duration-200',
-            !auditLogsEnabled && 'pointer-events-none opacity-50',
-          )}
-        >
-          <div className="max-w-xs">
-            <Input
-              label="Retention Days"
-              type="number"
-              value={auditLogRetentionDays}
-              onChange={(e) =>
-                setAuditLogRetentionDays(
-                  e.target.value ? Number(e.target.value) : 0,
-                )
-              }
-              onBlur={() => void saveConfig({ auditLogRetentionDays })}
-              disabled={cannotManage || !auditLogsEnabled}
-              size="sm"
-              placeholder="e.g. 90"
-              min={30}
-              max={365}
-            />
-            <Text className="text-muted-foreground mt-1 text-xs">
-              Audit log entries older than this will be deleted (30–365 days).
-            </Text>
-          </div>
+        <div className="max-w-xs">
+          <Input
+            label={t('retentionPolicy.retentionDays')}
+            type="number"
+            value={auditLogRetentionDays}
+            onChange={(e) =>
+              setAuditLogRetentionDays(
+                e.target.value ? Number(e.target.value) : 0,
+              )
+            }
+            onBlur={() => void saveConfig({ auditLogRetentionDays })}
+            disabled={cannotManage}
+            size="sm"
+            placeholder={t('retentionPolicy.auditLogs.placeholder')}
+            min={30}
+            max={365}
+          />
+          <Text className="text-muted-foreground mt-1 text-xs">
+            {t('retentionPolicy.auditLogs.helper')}
+          </Text>
         </div>
-      </PageSection>
+      </RetentionSection>
 
-      <PageSection
-        title="Usage Ledger"
-        description="Automatically delete token-usage ledger rows older than the retention period. Warning: shortening this retention truncates historical analytics (budgets/reports rely on ledger rows)."
-        action={
-          <Switch
-            label="Enabled"
-            checked={usageLedgerEnabled}
-            onCheckedChange={(checked) => {
-              setUsageLedgerEnabled(checked);
-              void saveConfig({ usageLedgerEnabled: checked });
-            }}
-            disabled={cannotManage || upsertMutation.isPending}
-          />
-        }
+      <RetentionSection
+        title={t('retentionPolicy.usageLedger.title')}
+        description={t('retentionPolicy.usageLedger.description')}
+        enabled={usageLedgerEnabled}
+        toggleDisabled={toggleDisabled}
+        onToggle={(checked) => {
+          setUsageLedgerEnabled(checked);
+          void saveConfig({ usageLedgerEnabled: checked });
+        }}
       >
-        <div
-          className={cn(
-            'transition-opacity duration-200',
-            !usageLedgerEnabled && 'pointer-events-none opacity-50',
-          )}
-        >
-          <div className="max-w-xs">
-            <Input
-              label="Retention Days"
-              type="number"
-              value={usageLedgerRetentionDays}
-              onChange={(e) =>
-                setUsageLedgerRetentionDays(
-                  e.target.value ? Number(e.target.value) : 0,
-                )
-              }
-              onBlur={() => void saveConfig({ usageLedgerRetentionDays })}
-              disabled={cannotManage || !usageLedgerEnabled}
-              size="sm"
-              placeholder="e.g. 365"
-              min={30}
-              max={3650}
-            />
-            <Text className="text-muted-foreground mt-1 text-xs">
-              Usage ledger rows older than this will be deleted (30–3650 days).
-            </Text>
-          </div>
+        <div className="max-w-xs">
+          <Input
+            label={t('retentionPolicy.retentionDays')}
+            type="number"
+            value={usageLedgerRetentionDays}
+            onChange={(e) =>
+              setUsageLedgerRetentionDays(
+                e.target.value ? Number(e.target.value) : 0,
+              )
+            }
+            onBlur={() => void saveConfig({ usageLedgerRetentionDays })}
+            disabled={cannotManage}
+            size="sm"
+            placeholder={t('retentionPolicy.usageLedger.placeholder')}
+            min={30}
+            max={3650}
+          />
+          <Text className="text-muted-foreground mt-1 text-xs">
+            {t('retentionPolicy.usageLedger.helper')}
+          </Text>
         </div>
-      </PageSection>
+      </RetentionSection>
 
-      <PageSection
-        title="Login Attempts"
-        description="Automatically delete failed-login tracking records (loginAttempts, per-hour block counters) older than the retention period. Note: these tables are deployment-wide — the strictest (shortest) value across all orgs is used."
-        action={
-          <Switch
-            label="Enabled"
-            checked={loginAttemptsEnabled}
-            onCheckedChange={(checked) => {
-              setLoginAttemptsEnabled(checked);
-              void saveConfig({ loginAttemptsEnabled: checked });
-            }}
-            disabled={cannotManage || upsertMutation.isPending}
-          />
-        }
+      <RetentionSection
+        title={t('retentionPolicy.loginAttempts.title')}
+        description={t('retentionPolicy.loginAttempts.description')}
+        enabled={loginAttemptsEnabled}
+        toggleDisabled={toggleDisabled}
+        onToggle={(checked) => {
+          setLoginAttemptsEnabled(checked);
+          void saveConfig({ loginAttemptsEnabled: checked });
+        }}
       >
-        <div
-          className={cn(
-            'transition-opacity duration-200',
-            !loginAttemptsEnabled && 'pointer-events-none opacity-50',
-          )}
-        >
-          <div className="max-w-xs">
-            <Input
-              label="Retention Days"
-              type="number"
-              value={loginAttemptRetentionDays}
-              onChange={(e) =>
-                setLoginAttemptRetentionDays(
-                  e.target.value ? Number(e.target.value) : 0,
-                )
-              }
-              onBlur={() => void saveConfig({ loginAttemptRetentionDays })}
-              disabled={cannotManage || !loginAttemptsEnabled}
-              size="sm"
-              placeholder="e.g. 90"
-              min={7}
-              max={365}
-            />
-            <Text className="text-muted-foreground mt-1 text-xs">
-              Login attempt records older than this will be deleted (7–365
-              days).
-            </Text>
-          </div>
+        <div className="max-w-xs">
+          <Input
+            label={t('retentionPolicy.retentionDays')}
+            type="number"
+            value={loginAttemptRetentionDays}
+            onChange={(e) =>
+              setLoginAttemptRetentionDays(
+                e.target.value ? Number(e.target.value) : 0,
+              )
+            }
+            onBlur={() => void saveConfig({ loginAttemptRetentionDays })}
+            disabled={cannotManage}
+            size="sm"
+            placeholder={t('retentionPolicy.loginAttempts.placeholder')}
+            min={7}
+            max={365}
+          />
+          <Text className="text-muted-foreground mt-1 text-xs">
+            {t('retentionPolicy.loginAttempts.helper')}
+          </Text>
         </div>
-      </PageSection>
+      </RetentionSection>
     </Stack>
   );
 }

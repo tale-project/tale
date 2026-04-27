@@ -12,6 +12,7 @@
 
 import { components } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
+import { logJoinedOrganization } from '../../audit_logs/helpers';
 import type {
   BetterAuthCreateResult,
   BetterAuthFindManyResult,
@@ -169,6 +170,20 @@ export async function findOrCreateUserFromHeaders(
           },
         },
       });
+
+      try {
+        await logJoinedOrganization(ctx, {
+          organizationId: existingOrgId,
+          userId,
+          userEmail: email,
+          userRole: 'member',
+        });
+      } catch (err) {
+        console.error(
+          '[trusted_headers] failed to write joined_organization audit',
+          err instanceof Error ? err.message : err,
+        );
+      }
     } else {
       // No existing organization yet (first trusted-headers user) - create
       // a default organization for them and make them admin.
@@ -200,6 +215,20 @@ export async function findOrCreateUserFromHeaders(
           },
         },
       });
+
+      try {
+        await logJoinedOrganization(ctx, {
+          organizationId: newOrgId,
+          userId,
+          userEmail: email,
+          userRole: 'admin',
+        });
+      } catch (err) {
+        console.error(
+          '[trusted_headers] failed to write joined_organization audit',
+          err instanceof Error ? err.message : err,
+        );
+      }
     }
   }
 

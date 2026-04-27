@@ -1,4 +1,6 @@
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
+import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -15,6 +17,7 @@ import { AgentNavigation } from '@/app/features/agents/components/agent-navigati
 import { useReadAgent } from '@/app/features/agents/hooks/queries';
 import { AgentConfigProvider } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useT } from '@/lib/i18n/client';
+import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { cn } from '@/lib/utils/cn';
 import { seo } from '@/lib/utils/seo';
 
@@ -30,9 +33,17 @@ function AgentDetailLayout() {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
 
-  const { data, isLoading, error } = useReadAgent('default', agentId);
+  const { data, isLoading, error, refetch } = useReadAgent('default', agentId);
   const agentConfig = data?.ok ? data.config : null;
   const loadError = data && !data.ok ? data.message : (error?.message ?? null);
+  const { i18n: i18nCtx } = useTranslation();
+  const resolvedDisplayName = useMemo(
+    () =>
+      agentConfig
+        ? resolveAgentLocale(agentConfig, i18nCtx.language).displayName
+        : '',
+    [agentConfig, i18nCtx.language],
+  );
 
   if (isLoading) {
     return (
@@ -152,16 +163,16 @@ function AgentDetailLayout() {
                   params={{ id: organizationId }}
                   className={cn(
                     'hidden md:inline text-foreground',
-                    agentConfig.displayName &&
+                    resolvedDisplayName &&
                       'text-muted-foreground cursor-pointer',
                   )}
                 >
                   {t('agents.title')}&nbsp;&nbsp;
                 </Link>
-                {agentConfig.displayName && (
+                {resolvedDisplayName && (
                   <span className="text-foreground">
                     <span className="hidden md:inline">/&nbsp;&nbsp;</span>
-                    {agentConfig.displayName}
+                    {resolvedDisplayName}
                   </span>
                 )}
               </Heading>
@@ -169,7 +180,9 @@ function AgentDetailLayout() {
             <AgentNavigation
               organizationId={organizationId}
               agentId={agentId}
-              onSaved={() => {}}
+              onSaved={() => {
+                void refetch();
+              }}
             />
           </>
         }

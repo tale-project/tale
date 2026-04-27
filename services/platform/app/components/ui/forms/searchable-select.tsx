@@ -1,7 +1,7 @@
 'use client';
 
 import * as PopoverPrimitive from '@radix-ui/react-popover';
-import { Check, Circle, Search } from 'lucide-react';
+import { Check, ChevronDown, Circle, Search } from 'lucide-react';
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -15,6 +15,10 @@ import {
 
 import { Text } from '@/app/components/ui/typography/text';
 import { cn } from '@/lib/utils/cn';
+
+import { Description } from './description';
+import { Label } from './label';
+import { selectTriggerClasses, type SelectTriggerSize } from './select';
 
 export interface SearchableSelectOption {
   value: string;
@@ -35,8 +39,29 @@ export interface SearchableSelectProps {
   onValueChange: (value: string) => void;
   /** Array of options to display */
   options: ReadonlyArray<SearchableSelectOption>;
-  /** Custom trigger element */
-  trigger: ReactNode;
+  /**
+   * Custom trigger element. If omitted, a default trigger visually identical
+   * to `Select` is rendered using `label`, `placeholder`, `size`, etc.
+   */
+  trigger?: ReactNode;
+  /** Label rendered above the default trigger. Ignored when `trigger` is provided. */
+  label?: ReactNode;
+  /** Placeholder shown on the default trigger when no value is selected. */
+  placeholder?: ReactNode;
+  /** Size of the default trigger — matches the `Select` component's sizes. */
+  size?: SelectTriggerSize;
+  /** Marks the default trigger as invalid (adds error ring + aria-invalid). */
+  error?: boolean;
+  /** Description text rendered below the default trigger. */
+  description?: ReactNode;
+  /** Adds a required asterisk next to the default trigger's label. */
+  required?: boolean;
+  /** Disables the default trigger. Ignored when `trigger` is provided. */
+  disabled?: boolean;
+  /** Id for the default trigger (used for label association). */
+  id?: string;
+  /** Additional className merged onto the default trigger. */
+  triggerClassName?: string;
   /** Placeholder text for the search input */
   searchPlaceholder?: string;
   /** Text to display when no options match the search */
@@ -97,6 +122,15 @@ export function SearchableSelect({
   onValueChange,
   options,
   trigger,
+  label,
+  placeholder,
+  size = 'default',
+  error,
+  description,
+  required,
+  disabled,
+  id: providedId,
+  triggerClassName,
   searchPlaceholder,
   emptyText,
   footer,
@@ -114,6 +148,28 @@ export function SearchableSelect({
   const instanceId = useId();
   const listboxId = `${instanceId}-listbox`;
   const optionId = (index: number) => `${instanceId}-option-${index}`;
+  const triggerId = providedId ?? `${instanceId}-trigger`;
+  const descriptionId = `${instanceId}-description`;
+
+  const selectedOption = useMemo(
+    () => (value ? options.find((o) => o.value === value) : undefined),
+    [value, options],
+  );
+
+  const defaultTrigger = trigger ?? (
+    <button
+      type="button"
+      id={triggerId}
+      disabled={disabled}
+      aria-describedby={description ? descriptionId : undefined}
+      className={cn(selectTriggerClasses({ size, error }), triggerClassName)}
+    >
+      <span className={cn(!selectedOption && 'text-muted-foreground')}>
+        {selectedOption ? selectedOption.label : placeholder}
+      </span>
+      <ChevronDown className="size-4 opacity-50" aria-hidden="true" />
+    </button>
+  );
 
   const isControlled = controlledOpen !== undefined;
   const [internalOpen, setInternalOpen] = useState(false);
@@ -230,9 +286,11 @@ export function SearchableSelect({
     [filteredOptions, highlightedIndex, handleSelect],
   );
 
-  return (
+  const popover = (
     <PopoverPrimitive.Root open={isOpen} onOpenChange={handleOpenChange}>
-      <PopoverPrimitive.Trigger asChild>{trigger}</PopoverPrimitive.Trigger>
+      <PopoverPrimitive.Trigger asChild>
+        {defaultTrigger}
+      </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
           align={align}
@@ -309,6 +367,26 @@ export function SearchableSelect({
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>
+  );
+
+  if (!label && !description) {
+    return popover;
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {label && (
+        <Label htmlFor={triggerId} required={required} error={error}>
+          {label}
+        </Label>
+      )}
+      {popover}
+      {description && (
+        <Description id={descriptionId} className="text-xs">
+          {description}
+        </Description>
+      )}
+    </div>
   );
 }
 

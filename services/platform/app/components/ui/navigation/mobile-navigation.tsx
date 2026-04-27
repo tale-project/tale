@@ -5,6 +5,7 @@ import { Menu } from 'lucide-react';
 import { useState } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
+import { OrganizationButton } from '@/app/components/organization-button';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -138,7 +139,7 @@ export function MobileNavigation({ organizationId }: MobileNavigationProps) {
       >
         <NavigationMenu
           aria-label={t('aria.mainNavigation')}
-          className="bg-sidebar flex h-full w-full max-w-none flex-col"
+          className="bg-background flex h-full w-full max-w-none flex-col"
         >
           <div className="border-border flex h-(--nav-size) flex-shrink-0 items-center border-b px-4 py-2">
             <Link
@@ -161,11 +162,9 @@ export function MobileNavigation({ organizationId }: MobileNavigationProps) {
               ))}
             </NavigationMenuList>
           </div>
-          <div className="border-border flex h-(--nav-size) flex-shrink-0 items-center border-t px-4 py-2">
-            <UserButton
-              label={tNav('settings')}
-              onNavigate={() => setIsOpen(false)}
-            />
+          <div className="border-border flex flex-shrink-0 flex-col gap-1 border-t px-4 py-3">
+            <UserButton label={tNav('account')} />
+            <OrganizationButton label={tNav('orgSwitcher.label')} />
           </div>
         </NavigationMenu>
       </Sheet>

@@ -39,12 +39,14 @@ export const evaluateEnforcement = internalQuery({
       v.literal('blocked'),
     ),
     graceUntilToSet: v.union(v.number(), v.null()),
+    graceDeadline: v.union(v.number(), v.null()),
   }),
   handler: async (ctx, args) => {
     const result = await evaluateTwoFactorEnforcement(ctx, args);
     return {
       decision: result.decision,
       graceUntilToSet: result.graceUntilToSet,
+      graceDeadline: result.graceDeadline,
     };
   },
 });

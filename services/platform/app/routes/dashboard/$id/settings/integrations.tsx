@@ -1,7 +1,6 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useAction } from 'convex/react';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -113,25 +112,6 @@ function IntegrationsPage() {
     useIntegrations(orgSlug);
   const { data: credentials } = useIntegrationCredentials(organizationId);
   const { data: ssoProvider, isLoading: isSsoLoading } = useSsoProvider();
-
-  // Auto-create missing credential records for installed integrations
-  const installFn = useAction(api.integrations.file_actions.installIntegration);
-  const ensuredRef = useRef(new Set<string>());
-  useEffect(() => {
-    if (!orgSlug || !credentials || !fileIntegrations.length) return;
-    const credSlugs = new Set(
-      (credentials ?? []).map((c: { slug: string }) => c.slug),
-    );
-    for (const item of fileIntegrations) {
-      if (!item || !('slug' in item) || !('installed' in item)) continue;
-      if (!item.installed) continue;
-      const slug = String(item.slug);
-      if (!credSlugs.has(slug) && !ensuredRef.current.has(slug)) {
-        ensuredRef.current.add(slug);
-        void installFn({ orgSlug, slug, organizationId });
-      }
-    }
-  }, [fileIntegrations, credentials, installFn, organizationId, orgSlug]);
 
   // Handle OAuth2 redirect query params
   useEffect(() => {

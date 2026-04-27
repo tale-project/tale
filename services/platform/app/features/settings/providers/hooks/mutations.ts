@@ -35,3 +35,7 @@ export function useSaveProviderSecret() {
 export function useFetchProviderModels() {
   return useConvexAction(api.providers.file_actions.fetchProviderModels);
 }
+
+export function useTestProviderConnection() {
+  return useConvexAction(api.providers.file_actions.testProviderConnection);
+}

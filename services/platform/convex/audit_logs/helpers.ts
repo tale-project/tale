@@ -256,6 +256,55 @@ export async function logSuccess(
   });
 }
 
+interface LogJoinedOrganizationOptions {
+  organizationId: string;
+  userId: string;
+  userEmail: string;
+  userRole: string;
+}
+
+/**
+ * Log a `joined_organization` audit row for the given user.
+ *
+ * Lifecycle event — should fire exactly once per (org, user) pair.
+ * Skips the write (returns null) if an entry already exists for this
+ * actor/org pair, regardless of how long ago. Uses the
+ * `by_organizationId_and_actorId` index for the existence check; a typical
+ * actor has only tens of rows, so the in-memory action filter is cheap.
+ */
+export async function logJoinedOrganization(
+  ctx: MutationCtx,
+  options: LogJoinedOrganizationOptions,
+): Promise<Id<'auditLogs'> | null> {
+  for await (const entry of ctx.db
+    .query('auditLogs')
+    .withIndex('by_organizationId_and_actorId', (q) =>
+      q
+        .eq('organizationId', options.organizationId)
+        .eq('actorId', options.userId),
+    )) {
+    if (entry.action === 'joined_organization') {
+      return null;
+    }
+  }
+
+  return logSuccess(ctx, {
+    auditCtx: {
+      organizationId: options.organizationId,
+      actor: {
+        id: options.userId,
+        email: options.userEmail,
+        role: options.userRole,
+        type: 'user',
+      },
+    },
+    action: 'joined_organization',
+    category: 'member',
+    resourceType: 'organization',
+    resourceId: options.organizationId,
+  });
+}
+
 interface LogFailureOptions {
   auditCtx: AuditContext;
   action: string;

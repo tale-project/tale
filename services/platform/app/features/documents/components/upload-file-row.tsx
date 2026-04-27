@@ -61,6 +61,7 @@ export const UploadFileRow = memo(function UploadFileRow({
   onRemove,
 }: UploadFileRowProps) {
   const { t } = useT('documents');
+  const { t: tCommon } = useT('common');
   const ext = getDisplayExtension(fileName);
   const percentage =
     bytesTotal > 0 ? Math.round((bytesLoaded / bytesTotal) * 100) : 0;
@@ -104,8 +105,7 @@ export const UploadFileRow = memo(function UploadFileRow({
                 : 'text-foreground',
           )}
         >
-          {fileName}
-          {isFailed && ' — Failed'}
+          {isFailed ? t('upload.failedFileName', { fileName }) : fileName}
         </span>
 
         {/* Size info */}
@@ -130,7 +130,7 @@ export const UploadFileRow = memo(function UploadFileRow({
         {isCompleted && (
           <CircleCheck
             className="size-3.5 shrink-0 text-green-700"
-            aria-label="Completed"
+            aria-label={tCommon('aria.completed')}
           />
         )}
 
@@ -156,7 +156,7 @@ export const UploadFileRow = memo(function UploadFileRow({
             type="button"
             onClick={onRemove}
             className="bg-muted hover:bg-muted-foreground/20 inline-flex size-4 shrink-0 items-center justify-center rounded-full transition-colors"
-            aria-label={`Remove ${fileName}`}
+            aria-label={tCommon('aria.removeNamed', { name: fileName })}
           >
             <X className="text-muted-foreground size-2.5" />
           </button>
@@ -170,7 +170,7 @@ export const UploadFileRow = memo(function UploadFileRow({
           aria-valuenow={bytesLoaded}
           aria-valuemin={0}
           aria-valuemax={bytesTotal}
-          aria-label={`Uploading ${fileName}`}
+          aria-label={t('upload.uploadingFileNamed', { fileName })}
           className="bg-muted h-1 w-full overflow-hidden rounded-full"
         >
           <div

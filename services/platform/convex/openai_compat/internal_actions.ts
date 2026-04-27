@@ -15,7 +15,10 @@ import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
-import { scrubPii, type PiiConfig } from '../governance/pii';
+import {
+  loadGuardrailsSnapshot,
+  sanitizeMessage,
+} from '../governance/sanitize';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 import { convertOpenAITools, generateToolCallId } from './tool_conversion';
@@ -55,54 +58,25 @@ function mapToolChoice(
 // Shared helpers
 // ---------------------------------------------------------------------------
 
-async function scrubMessagePii(
+async function sanitizeUserMessage(
   ctx: ActionCtx,
   message: string,
   organizationId: string,
+  orgSlug: string,
   userId: string,
   userEmail: string,
   agentSlug: string,
 ): Promise<string> {
-  const piiPolicy = await ctx.runQuery(
-    internal.governance.internal_queries.getPiiConfigInternal,
-    { organizationId },
-  );
-
-  if (!piiPolicy?.enabled || !piiPolicy.config) return message;
-
-  const piiConfig: PiiConfig = {
-    enabled: true,
-    mode: piiPolicy.config.mode,
-    enabledPatterns: piiPolicy.config.enabledPatterns,
-    customPatterns: piiPolicy.config.customPatterns,
-  };
-
-  const result = scrubPii(message, piiConfig);
-
-  if (result.matchCount > 0) {
-    await ctx.runMutation(
-      internal.audit_logs.internal_mutations.createAuditLog,
-      {
-        organizationId,
-        actorId: userId,
-        actorEmail: userEmail,
-        actorType: 'api',
-        action: 'pii.detected_in_chat',
-        category: 'security',
-        resourceType: 'chat_message',
-        resourceId: 'openai_compat',
-        status: 'success',
-        metadata: {
-          detectedTypes: result.detectedTypes,
-          matchCount: result.matchCount,
-          mode: piiConfig.mode,
-          agentSlug,
-          source: 'openai_compat',
-        },
-      },
-    );
-  }
-
+  const snapshot = await loadGuardrailsSnapshot(ctx, organizationId);
+  const result = await sanitizeMessage(ctx, message, 'input', snapshot, {
+    organizationId,
+    orgSlug,
+    threadId: 'openai_compat',
+    agentSlug,
+    actorId: userId,
+    actorEmail: userEmail,
+    actorType: 'api',
+  });
   return result.text;
 }
 
@@ -194,18 +168,18 @@ export const chatDirectModel = internalAction({
       );
     }
 
-    const message = await scrubMessagePii(
+    // Resolve model directly — no agent config. Pass orgSlug so each org
+    // uses its own provider files / API keys.
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const message = await sanitizeUserMessage(
       ctx,
       args.message,
       args.organizationId,
+      orgSlug,
       args.userId,
       args.userEmail ?? '',
       args.modelId,
     );
-
-    // Resolve model directly — no agent config. Pass orgSlug so each org
-    // uses its own provider files / API keys.
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const resolved = await resolveLanguageModelWithFallback(ctx, {
       modelId: args.modelId,
       tag: 'chat',

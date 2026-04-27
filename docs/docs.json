@@ -110,10 +110,7 @@
                   },
                   {
                     "group": "Release notes",
-                    "pages": [
-                      "self-hosted/operate/release-notes/format",
-                      "self-hosted/operate/release-notes/v0.2.34-split-convex"
-                    ]
+                    "pages": ["self-hosted/operate/release-notes/format"]
                   }
                 ]
               },
@@ -152,6 +149,7 @@
                 "pages": [
                   "platform/agents/concepts",
                   "platform/agents/create",
+                  "platform/agents/image-generation",
                   "platform/agents/versions"
                 ]
               },
@@ -161,7 +159,8 @@
                   "platform/automations/concepts",
                   "platform/automations/workflows",
                   "platform/automations/triggers",
-                  "platform/automations/execution-logs"
+                  "platform/automations/execution-logs",
+                  "platform/automations/metrics"
                 ]
               },
               {
@@ -199,6 +198,7 @@
                   "platform/admin/providers",
                   "platform/admin/branding",
                   "platform/admin/governance",
+                  "platform/admin/two-factor-authentication",
                   "platform/admin/usage-analytics"
                 ]
               }
@@ -311,10 +311,7 @@
                   },
                   {
                     "group": "Release Notes",
-                    "pages": [
-                      "de/self-hosted/operate/release-notes/format",
-                      "de/self-hosted/operate/release-notes/v0.2.34-split-convex"
-                    ]
+                    "pages": ["de/self-hosted/operate/release-notes/format"]
                   }
                 ]
               },
@@ -353,6 +350,7 @@
                 "pages": [
                   "de/platform/agents/concepts",
                   "de/platform/agents/create",
+                  "de/platform/agents/image-generation",
                   "de/platform/agents/versions"
                 ]
               },
@@ -362,7 +360,8 @@
                   "de/platform/automations/concepts",
                   "de/platform/automations/workflows",
                   "de/platform/automations/triggers",
-                  "de/platform/automations/execution-logs"
+                  "de/platform/automations/execution-logs",
+                  "de/platform/automations/metrics"
                 ]
               },
               {
@@ -400,6 +399,7 @@
                   "de/platform/admin/providers",
                   "de/platform/admin/branding",
                   "de/platform/admin/governance",
+                  "de/platform/admin/two-factor-authentication",
                   "de/platform/admin/usage-analytics"
                 ]
               }
@@ -512,10 +512,7 @@
                   },
                   {
                     "group": "Notes de version",
-                    "pages": [
-                      "fr/self-hosted/operate/release-notes/format",
-                      "fr/self-hosted/operate/release-notes/v0.2.34-split-convex"
-                    ]
+                    "pages": ["fr/self-hosted/operate/release-notes/format"]
                   }
                 ]
               },
@@ -554,6 +551,7 @@
                 "pages": [
                   "fr/platform/agents/concepts",
                   "fr/platform/agents/create",
+                  "fr/platform/agents/image-generation",
                   "fr/platform/agents/versions"
                 ]
               },
@@ -563,7 +561,8 @@
                   "fr/platform/automations/concepts",
                   "fr/platform/automations/workflows",
                   "fr/platform/automations/triggers",
-                  "fr/platform/automations/execution-logs"
+                  "fr/platform/automations/execution-logs",
+                  "fr/platform/automations/metrics"
                 ]
               },
               {
@@ -601,6 +600,7 @@
                   "fr/platform/admin/providers",
                   "fr/platform/admin/branding",
                   "fr/platform/admin/governance",
+                  "fr/platform/admin/two-factor-authentication",
                   "fr/platform/admin/usage-analytics"
                 ]
               }

@@ -42,7 +42,6 @@ function makeIntegration(
     slug: 'test-slug',
     title: 'Test Integration',
     description: 'A test integration',
-    installed: true,
     authMethod: 'bearer_token',
     operationCount: 5,
     hash: 'abc123',

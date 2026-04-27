@@ -71,6 +71,20 @@ Save and reuse prompt templates across your organization. Open the Prompt Librar
 
 See [Prompt library](/platform/workspace/prompt-library) for full details.
 
+## Research plan
+
+For multi-step questions that require planning — broad research, comparisons across many sources, summaries that pull from several documents and the web — the agent breaks the work into a **Research plan** and works through it step by step. The plan opens automatically as a side pane the first time the agent emits a todo for the conversation; you can pin it open or close it from the strip on the right edge of the chat.
+
+Each todo shows a status (pending, running, done, failed), a one-line summary, and the sources the agent has captured for that step — knowledge-base hits, retrieved web pages, and any integration results. The plan updates live as the agent finishes each step, so you watch the agent's reasoning unfold instead of waiting for one long answer at the end.
+
+You can intervene without breaking the run:
+
+- **Collapse a step** to hide its sources when the list gets long.
+- **Reorder** by sending a follow-up message — the agent revises remaining todos based on your feedback.
+- **Stop** with the standard stop button on the composer — partial results stay in the thread, and the failed-todo count is shown at the top of the plan.
+
+The Research plan is read-only — you don't edit todos directly. Steer the run with regular chat messages.
+
 ## Keyboard shortcuts
 
 | Action                 | Windows / Linux  | macOS              |

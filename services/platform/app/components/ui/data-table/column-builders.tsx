@@ -11,6 +11,7 @@ import {
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
+import { i18n } from '@/lib/i18n/i18n';
 import { startCase } from '@/lib/utils/string';
 
 const DEFAULT_LANGUAGE_TO_COUNTRY: Record<string, string> = {
@@ -294,7 +295,7 @@ export function createSelectColumn<TData>(): ColumnDef<TData> {
               : false
         }
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
+        aria-label={i18n.t('common.aria.selectAll')}
       />
     ),
     cell: ({ row }) => (
@@ -302,7 +303,7 @@ export function createSelectColumn<TData>(): ColumnDef<TData> {
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
         onClick={(e) => e.stopPropagation()}
-        aria-label="Select row"
+        aria-label={i18n.t('common.aria.selectRow')}
       />
     ),
     meta: { skeleton: { type: 'action' } },

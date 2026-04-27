@@ -35,6 +35,7 @@ import type {
 
 import { findBlockSplitPoint } from '../utils/find-block-split';
 import { remarkCjkAttention } from '../utils/micromark-cjk-attention';
+import { normalizeHtmlBlocks } from '../utils/normalize-html-blocks';
 import { remendMarkdown } from '../utils/remend-markdown';
 
 const chatSanitizeSchema = {
@@ -105,6 +106,79 @@ interface IncrementalMarkdownProps {
 }
 
 // ============================================================================
+// AST HELPERS
+// ============================================================================
+
+/**
+ * Minimal HAST node shape used by the cursor wrapper. react-markdown v10
+ * passes full HAST nodes to component overrides; we only need a subset.
+ */
+type HastNode = {
+  type?: 'element' | 'text' | 'raw' | 'comment' | 'root';
+  value?: string;
+  tagName?: string;
+  children?: HastNode[];
+};
+
+/**
+ * Returns true if the node (or any descendant) contains an actual text node
+ * with non-whitespace content.
+ *
+ * The cursor selection logic needs to skip elements that exist in the AST
+ * but produce no rendered text — empty `<li>` from a trailing `\n- `,
+ * empty `<blockquote>` from `\n> `, empty heading from `\n# `, etc. The
+ * old slice-trim heuristic missed these because the source slice contained
+ * the marker character (`"- "` trims to `"-"`, truthy). This walks the
+ * actual AST instead, which is the authoritative answer.
+ *
+ * String.prototype.trim() is Unicode-whitespace-aware per ECMA-262, so
+ * full-width space U+3000 / NBSP / etc. in CJK content are correctly
+ * treated as empty. ZWSP / ZWJ are not whitespace and correctly count
+ * as content. Comment nodes (which carry `value`) are excluded by the
+ * `text|raw` type guard, and rehypeSanitize strips them upstream anyway.
+ */
+function hasRenderedText(node: HastNode | undefined): boolean {
+  if (!node) return false;
+  if (node.type === 'text' || node.type === 'raw') {
+    return (node.value ?? '').trim() !== '';
+  }
+  if (node.children) {
+    for (const child of node.children) {
+      if (hasRenderedText(child)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Lines that consist entirely of a block-level marker (`-`, `*`, `+`,
+ * ordered-list digit + `.` or `)`, `>`, `#`–`######`, or `|`) followed by
+ * optional whitespace. Used to ignore trailing marker-only lines when
+ * deciding "is there more rendered content past this element".
+ */
+const ONLY_BLOCK_MARKER_LINE_RE =
+  /^[ \t]{0,3}(?:[-*+]|\d{1,9}[.)]|>|#{1,6}|\|)[ \t]*$/;
+
+/**
+ * Returns true if the given source-text slice would render any visible text
+ * past the current element. The naive `slice.trim() === ''` check fails for
+ * trailing markers like `\n- ` (trims to `-`, truthy) — the cursor wrapper
+ * then thinks there's more content ahead and refuses to mark this element
+ * as the last cursor target. By treating marker-only lines as no-content
+ * (matching `hasRenderedText`'s AST view), the cursor correctly lands in
+ * the last element with actual text.
+ */
+function hasRenderedTextRemaining(text: string): boolean {
+  if (!text || !text.trim()) return false;
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    if (ONLY_BLOCK_MARKER_LINE_RE.test(line)) continue;
+    return true;
+  }
+  return false;
+}
+
+// ============================================================================
 // STREAMING MARKDOWN COMPONENT
 // ============================================================================
 
@@ -138,7 +212,10 @@ const StreamingMarkdown = memo(
     showCursor?: boolean;
   }) {
     const rawRevealed = content ? content.slice(0, revealedLength) : '';
-    const revealedContent = remendMarkdown(rawRevealed);
+    // normalizeHtmlBlocks runs first so block-level HTML tags get the blank
+    // lines CommonMark needs to parse markdown inside them; remendMarkdown
+    // then closes any incomplete syntax for stable mid-stream rendering.
+    const revealedContent = remendMarkdown(normalizeHtmlBlocks(rawRevealed));
 
     // Refs must track the remended string because react-markdown's AST
     // node.position offsets reference positions in the string it received.
@@ -188,12 +265,11 @@ const StreamingMarkdown = memo(
           children,
           ...props
         }: Record<string, unknown> & {
-          node?: {
+          node?: HastNode & {
             position?: {
               start?: { offset?: number };
               end?: { offset?: number };
             };
-            children?: { tagName?: string }[];
           };
           children?: ReactNode;
         }) {
@@ -218,22 +294,23 @@ const StreamingMarkdown = memo(
             startOffset < revealedLen &&
             endOffset > revealedLen;
 
-          // Skip cursor injection into elements whose revealed content is
-          // entirely whitespace — e.g. trailing empty <p> from a final \n.
-          const hasContent =
-            startOffset === undefined ||
-            endOffset === undefined ||
-            revealedTextRef.current
-              .slice(startOffset, Math.min(endOffset, revealedLen))
-              .trim() !== '';
+          // Skip cursor injection into elements with no rendered text. The
+          // old slice-trim heuristic mistook markers like `\n- ` (trims to
+          // `-`, truthy) for content, dropping the cursor into an empty
+          // `<li>`. Walking the AST text nodes is the authoritative answer
+          // and covers all marker-only-element cases (`<li>`, `<blockquote>`,
+          // headings, table cells) in one place.
+          const hasContent = hasRenderedText(node);
 
           const isLastElement =
             hasContent &&
             !hasCursorEligibleChild &&
             (isCurrentlyTyping ||
               endOffset === revealedLen ||
-              (endOffset &&
-                revealedTextRef.current.slice(endOffset).trim() === ''));
+              (endOffset !== undefined &&
+                !hasRenderedTextRemaining(
+                  revealedTextRef.current.slice(endOffset),
+                )));
 
           if (CustomComponent) {
             return (
@@ -309,6 +386,9 @@ const StableMarkdown = memo(
     content: string;
     components?: MarkdownComponentMap;
   }) {
+    // Same normalization as StreamingMarkdown — block-level HTML tags need
+    // surrounding blank lines for CommonMark to parse markdown inside them.
+    const normalized = normalizeHtmlBlocks(content);
     return (
       <Markdown
         remarkPlugins={REMARK_PLUGINS}
@@ -316,7 +396,7 @@ const StableMarkdown = memo(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same as StreamingMarkdown
         components={components as Components}
       >
-        {content}
+        {normalized}
       </Markdown>
     );
   },

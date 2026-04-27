@@ -91,7 +91,7 @@ import type { GenerateResponseArgs, GenerateResponseConfig } from '../types';
 
 function createMockCtx() {
   return {
-    runMutation: vi.fn(),
+    runMutation: vi.fn().mockResolvedValue(undefined),
     runQuery: vi.fn().mockResolvedValue([]),
     runAction: vi.fn(),
   };

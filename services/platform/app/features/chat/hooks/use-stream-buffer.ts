@@ -11,8 +11,11 @@
  *
  * STRATEGY:
  * =========
- * 1. CONSTANT RATE: Fixed CPS (default 20) for a steady, readable
- *    typing feel regardless of buffer depth.
+ * 1. ADAPTIVE STREAMING RATE: Base targetCPS (default 40 ≈ 8 wps) for a
+ *    typewriter feel when the stream is keeping pace. Scales up with
+ *    buffer depth (linearly above streamingBufferTargetChars) when the
+ *    server gets ahead of the reveal. Capped at streamingCPSMax (100)
+ *    ≈ 20 wps so fast streams stay word-by-word, not a dump.
  *
  * 2. INITIAL BUFFERING: Waits for enough characters before starting
  *    - Builds a small reservoir to smooth the first few seconds
@@ -22,10 +25,24 @@
  *    - Cursor stays visible while waiting for next chunk
  *    - Resumes at the same rate when text arrives
  *
- * 4. STREAM ENDS: Drains remaining buffer at whichever is faster:
- *    3× the streaming CPS or the rate needed to finish in ≤ 2 seconds.
- *    - Small buffers drain at 3× CPS for a natural feel
- *    - Large buffers ramp up to guarantee ≤ 2 s total drain time
+ * 4. BACKLOG OVERFLOW (stream phase): When the buffer exceeds
+ *    sentenceModeMinChars (≈ 300) while streaming is still active, reveal
+ *    switches from word-mode to sentence-mode chunks AND the effective CPS
+ *    is lifted to streamSentenceModeMinCPS (≈ 400) — so sentences arrive
+ *    as a steady stream (~125 ms/tick, ~8 sentences/sec) that visibly
+ *    shrinks the backlog, rather than trickling at the drain-style
+ *    ~500 ms pace. Drops back to word-mode (and the regular
+ *    streamingCPSMax cap) once the buffer drains below the threshold.
+ *
+ * 5. STREAM ENDS: Drain remaining buffer. Three regimes by tail size:
+ *    - Short (< drainShortRemainingChars ≈ 80): base targetCPS,
+ *      word-mode. A one-sentence reply types out at reading speed.
+ *    - Medium (< sentenceModeMinChars ≈ 300): CPS tuned to
+ *      drainMsPerChar (≈ 83 CPS), capped at drainMaxTotalMs total,
+ *      word-mode. A few-sentence reply reveals briskly but word-by-word.
+ *    - Long (≥ sentenceModeMinChars): same CPS calculation,
+ *      sentence-mode chunking — a paragraph reads as calm sentence
+ *      ticks (~600 ms each) instead of a racing word stream at high CPS.
  *    - Reduced motion: reveals immediately (no animation)
  *
  * USAGE:
@@ -51,15 +68,83 @@ import {
 // ============================================================================
 
 const DEFAULT_CONFIG = {
-  /** Characters per second for reveal animation */
-  targetCPS: 20,
+  /** Base characters per second — the "typewriter" rate used when the
+   *  buffer is shallow (shallow = stream is keeping pace, nothing to catch
+   *  up on). 40 CPS ≈ 8 English words / 24 CJK chars per second — slow
+   *  enough to unambiguously read word-by-word. The effective CPS scales
+   *  up from this base when the stream gets ahead of the reveal
+   *  (see streamingBufferTargetChars/streamingCPSMax) and during drain
+   *  for moderate/long tails. */
+  targetCPS: 40,
   /** Characters to buffer before starting reveal */
   initialBufferChars: 30,
-  /** Interval between React state updates (ms) */
-  stateUpdateInterval: 30,
+  /** Average characters per word-tick — used to convert targetCPS to tick
+   *  interval. 5 matches average English word length including trailing space. */
+  avgWordChars: 5,
+  /** Hard cap on chars revealed in a single tick (word mode). Sized so a
+   *  typical long code token / URL fits in one tick (no mid-token flicker);
+   *  genuinely huge identifiers (>80 chars) still get chunked across frames. */
+  maxChunkChars: 80,
+  /** Average characters per sentence-tick — used during long-tail drain to
+   *  translate drain CPS into a sentence-paced interval. */
+  avgSentenceChars: 50,
+  /** Hard cap on chars revealed in a single tick (sentence mode). Bigger
+   *  than word-mode cap so most sentences fit in one tick; oversized
+   *  sentences get chunked at the cap with scan-back to the nearest space. */
+  maxSentenceChunkChars: 200,
+  /** During streaming, effective CPS scales up when the buffer grows past
+   *  this depth — keeps the reveal from falling behind a fast server
+   *  stream and piling backlog into the drain phase. */
+  streamingBufferTargetChars: 30,
+  /** Upper cap on streaming effective CPS. 100 CPS ≈ 20 English words per
+   *  second — still discernibly word-by-word; above this human eyes can't
+   *  track individual words and the reveal looks like a dump. */
+  streamingCPSMax: 100,
+  /** At or below this remaining buffer size, drain uses the base targetCPS
+   *  so a short reply types out naturally. Above it, drain bumps CPS to
+   *  fit the drainMaxTotalMs budget, still word-by-word. */
+  drainShortRemainingChars: 80,
+  /** Minimum buffered chars before switching from word-mode to per-sentence
+   *  chunks. Applies in both phases: during streaming it caps the backlog
+   *  by letting big paragraphs catch up a sentence at a time, and during
+   *  drain it keeps long tails from racing through as a word blur. Below
+   *  this threshold, reveal stays word-by-word so short content doesn't
+   *  flash whole-sentence. Set high enough (≈ 6+ avg sentences) that only
+   *  genuinely large backlogs trigger sentence-mode. */
+  sentenceModeMinChars: 300,
+  /** Minimum effective CPS when sentence-mode activates mid-stream
+   *  (backlog ≥ sentenceModeMinChars with the stream still open). Lifts
+   *  the reveal well above streamingCPSMax so sentences arrive as a
+   *  steady stream (≈ 125 ms/tick with avgSentenceChars = 50, ~8
+   *  sentences/sec) and the backlog visibly shrinks, instead of the
+   *  calm ≈ 500 ms drain-style pace. Doesn't apply in the drain phase —
+   *  drain keeps the relaxed post-stream rhythm. */
+  streamSentenceModeMinCPS: 400,
+  /** Target ms per char for medium/long drains. 12 ms/char ≈ 83 CPS —
+   *  near the base typewriter rate so drain still feels like typing rather
+   *  than racing. Sentence-mode (≥ sentenceModeMinChars) uses the
+   *  same CPS, which translates to one-sentence-per-tick ≈ 600 ms/sentence
+   *  — calm paragraph reveal instead of a rapid word blur. */
+  drainMsPerChar: 12,
+  /** Hard cap on total drain time (ms). Beyond this, CPS scales up with
+   *  remaining chars so very large buffers don't sit for minutes. */
+  drainMaxTotalMs: 8000,
   /** Maximum delta time (ms) to prevent jumps after tab switching */
   maxDeltaTime: 100,
 };
+
+// CJK ranges: Hiragana, Katakana, CJK Ext-A, CJK Unified, Hangul Syllables, halfwidth kana
+const CJK_RE = /[぀-ヿ㐀-䶿一-鿿가-힯ｦ-ﾟ]/;
+// CJK punctuation and fullwidth ASCII punctuation
+const CJK_PUNCT_RE = /[　-〿！-･]/;
+/** Consecutive CJK chars before we insert a soft boundary in word mode (keeps
+ *  CJK text chunking in small groups instead of appearing in one burst). */
+const CJK_SOFT_BOUNDARY_RUN = 3;
+
+/** Sentence-terminating punctuation: ASCII (.!?) + CJK fullwidth (。！？) +
+ *  newline. Used for per-sentence drain reveal when the remaining tail is
+ *  long enough that sentence chunks feel calmer than racing word chunks. */
+const SENTENCE_BOUNDARY_RE = /[.!?。！？\n]/;
 
 // ============================================================================
 // TYPES
@@ -224,14 +309,75 @@ function isWordBoundary(char: string): boolean {
   return /[\s.,!?;:\-\n]/.test(char);
 }
 
-function findNextWordBoundary(text: string, startPos: number): number {
-  const maxLookAhead = Math.min(startPos + 15, text.length);
-  for (let i = startPos; i < maxLookAhead; i++) {
-    if (isWordBoundary(text[i])) {
-      return i + 1;
+/**
+ * Find the next "chunk end" for word/CJK-aware reveal (used during STREAMING).
+ *
+ * Returns a position > startPos where the next chunk ends:
+ * - After a Western word boundary (space/newline/punct)
+ * - After any CJK punctuation
+ * - After {CJK_SOFT_BOUNDARY_RUN} consecutive CJK characters (soft boundary)
+ * - At maxChunkChars (force chunk for long code tokens / URLs)
+ * - At text.length (reveal remaining tail chunk)
+ */
+function findNextWordBoundary(
+  text: string,
+  startPos: number,
+  maxChunkChars: number,
+): number {
+  if (startPos >= text.length) return startPos;
+  const maxEnd = Math.min(startPos + maxChunkChars, text.length);
+  let cjkRun = 0;
+  for (let i = startPos; i < maxEnd; i++) {
+    const ch = text[i];
+    if (CJK_PUNCT_RE.test(ch)) return i + 1;
+    if (CJK_RE.test(ch)) {
+      cjkRun++;
+      if (cjkRun >= CJK_SOFT_BOUNDARY_RUN) return i + 1;
+      continue;
     }
+    cjkRun = 0;
+    if (isWordBoundary(ch)) return i + 1;
   }
-  return startPos;
+  // No natural boundary within the window.
+  if (maxEnd < text.length) {
+    // Force a chunk at maxChunkChars — prevents hanging on long code tokens.
+    return maxEnd;
+  }
+  // Reached end of buffered text — reveal the remaining partial chunk.
+  return text.length;
+}
+
+/**
+ * Find the next "chunk end" for sentence-paced reveal (used when the
+ * buffered backlog is long — see sentenceModeMinChars; applies during
+ * both stream-phase overflow and drain of long tails).
+ *
+ * Returns a position > startPos where the next sentence ends:
+ * - After ASCII sentence-terminating punctuation (`.`, `!`, `?`)
+ * - After CJK sentence-terminating punctuation (`。`, `！`, `？`)
+ * - After a newline (paragraph / list-item / hard-line break)
+ * - At maxChunkChars (forced chunk; scans back to the nearest space to
+ *   avoid mid-word cut; falls through to maxChunkChars if no space)
+ * - At text.length (reveal remaining tail chunk)
+ */
+function findNextSentenceBoundary(
+  text: string,
+  startPos: number,
+  maxChunkChars: number,
+): number {
+  if (startPos >= text.length) return startPos;
+  const maxEnd = Math.min(startPos + maxChunkChars, text.length);
+  for (let i = startPos; i < maxEnd; i++) {
+    if (SENTENCE_BOUNDARY_RE.test(text[i])) return i + 1;
+  }
+  if (maxEnd < text.length) {
+    for (let i = maxEnd - 1; i > startPos; i--) {
+      const ch = text[i];
+      if (ch === ' ' || ch === '\t') return i + 1;
+    }
+    return maxEnd;
+  }
+  return text.length;
 }
 
 // ============================================================================
@@ -260,8 +406,9 @@ export function useStreamBuffer({
   const displayedLengthRef = useRef(cachedPosition);
   const targetTextRef = useRef('');
   const isStreamingRef = useRef(false);
-  const accumulatedCharsRef = useRef(0);
-  const lastStateUpdateRef = useRef(0);
+  // Accumulates elapsed ms between ticks. A tick (= one word/chunk reveal)
+  // fires when this exceeds tickInterval. Replaces the old per-char accumulator.
+  const accumulatedTimeRef = useRef(0);
 
   // Adaptive-rate specific refs
   const hasStartedRevealRef = useRef(false);
@@ -348,76 +495,125 @@ export function useStreamBuffer({
       lastFrameTimeRef.current = currentTime;
 
       const normalizedDelta = Math.min(deltaTime, DEFAULT_CONFIG.maxDeltaTime);
-      const frameRatio = normalizedDelta / 16.67;
 
+      // Effective CPS:
+      //   - Streaming: scales with buffer depth — as soon as the stream
+      //     gets ahead of the reveal (bufferSize > streamingBufferTargetChars),
+      //     CPS ramps proportionally up to streamingCPSMax. This keeps the
+      //     buffer shallow so the drain phase rarely has a big backlog.
+      //   - Drain: fixed at drainCPSRef (set when stream ends).
+      // Chunk boundary is word-level except when the buffered backlog is
+      // large (≥ sentenceModeMinChars) — then reveal switches to sentence
+      // chunks so a big paragraph catches up a sentence at a time instead
+      // of racing through words. Applies in both streaming and drain.
       const safeCPS = Math.max(1, targetCPS);
-      const effectiveCPS =
-        drainCPSRef.current > 0 && !streaming ? drainCPSRef.current : safeCPS;
-      const charsPerFrame = effectiveCPS / 60;
+      const isDrainPhase = drainCPSRef.current > 0 && !streaming;
+      let effectiveCPS: number;
+      if (isDrainPhase) {
+        effectiveCPS = drainCPSRef.current;
+      } else {
+        const ratio = bufferSize / DEFAULT_CONFIG.streamingBufferTargetChars;
+        effectiveCPS = Math.min(
+          DEFAULT_CONFIG.streamingCPSMax,
+          Math.max(safeCPS, safeCPS * ratio),
+        );
+      }
+      const useSentenceMode = bufferSize >= DEFAULT_CONFIG.sentenceModeMinChars;
+      // Stream-phase sentence-mode engages because the backlog is big and
+      // word-mode can't catch up. Lift effectiveCPS well above
+      // streamingCPSMax so sentences arrive as a steady stream
+      // (~125 ms/tick, ~8 sentences/sec) that visibly shrinks the
+      // backlog, instead of the calm ~500 ms drain-style pace. Drain
+      // phase keeps its own relaxed pacing via drainCPSRef.
+      if (useSentenceMode && !isDrainPhase) {
+        effectiveCPS = Math.max(
+          effectiveCPS,
+          DEFAULT_CONFIG.streamSentenceModeMinCPS,
+        );
+      }
+      const avgChunkChars = useSentenceMode
+        ? DEFAULT_CONFIG.avgSentenceChars
+        : DEFAULT_CONFIG.avgWordChars;
+      const chunkCap = useSentenceMode
+        ? DEFAULT_CONFIG.maxSentenceChunkChars
+        : DEFAULT_CONFIG.maxChunkChars;
+      const findChunkEnd = useSentenceMode
+        ? findNextSentenceBoundary
+        : findNextWordBoundary;
+      // Upper-clamp so very low CPS still produces visible progress.
+      const tickInterval = Math.min(500, (avgChunkChars * 1000) / effectiveCPS);
 
-      accumulatedCharsRef.current += charsPerFrame * frameRatio;
+      accumulatedTimeRef.current += normalizedDelta;
 
-      const charsToAdd = Math.floor(accumulatedCharsRef.current);
-      if (charsToAdd > 0) {
-        accumulatedCharsRef.current -= charsToAdd;
-        let newDisplayed = Math.min(currentDisplayed + charsToAdd, textLength);
+      let newDisplayed = currentDisplayed;
+      let ticks = 0;
+      // Safety cap: in case of huge catch-up (shouldn't happen with maxDeltaTime
+      // clamp, but keeps the loop bounded).
+      const maxTicksPerFrame = 8;
+      while (
+        accumulatedTimeRef.current >= tickInterval &&
+        newDisplayed < textLength &&
+        ticks < maxTicksPerFrame
+      ) {
+        let candidate = findChunkEnd(targetText, newDisplayed, chunkCap);
+
+        if (candidate <= newDisplayed) break;
+        candidate = Math.min(candidate, textLength);
 
         // Avoid splitting surrogate pairs — emoji and other supplementary
         // characters use two UTF-16 code units. Slicing between them produces
         // an invalid string that causes react-markdown to misparse.
-        if (newDisplayed < textLength && newDisplayed > 0) {
-          const code = targetText.charCodeAt(newDisplayed - 1);
+        if (candidate < textLength && candidate > 0) {
+          const code = targetText.charCodeAt(candidate - 1);
           if (code >= 0xd800 && code <= 0xdbff) {
-            // Last char is a high surrogate — advance past the low surrogate
-            newDisplayed = Math.min(newDisplayed + 1, textLength);
+            candidate = Math.min(candidate + 1, textLength);
           }
-        }
-
-        // Snap to next word boundary
-        const nextBoundary = findNextWordBoundary(targetText, newDisplayed);
-        if (nextBoundary <= textLength && nextBoundary - newDisplayed <= 3) {
-          newDisplayed = nextBoundary;
         }
 
         // Skip past complete link/image/checkbox syntax so these elements
         // appear atomically instead of flickering from plain text to styled.
-        const syntaxEnd = findSyntaxSkipEnd(targetText, newDisplayed);
-        if (syntaxEnd > newDisplayed) {
-          newDisplayed = Math.min(syntaxEnd, textLength);
+        const syntaxEnd = findSyntaxSkipEnd(targetText, candidate);
+        if (syntaxEnd > candidate) {
+          candidate = Math.min(syntaxEnd, textLength);
         }
 
-        // Line buffering: hold at current position for ambiguous line starts
-        // or trailing empty formatting markers (**, *, ~~).
-        // Re-credit only the debited chars (not word-boundary snap's free chars)
-        // so the accumulator stays bounded and releases as a small burst.
-        if (
-          isAmbiguousPartialLine(targetText, newDisplayed, streaming) ||
-          isAtTrailingEmptyMarker(targetText, newDisplayed, streaming)
+        // Line buffering: if candidate lands inside an ambiguous markdown
+        // prefix (partial ---, ```, === etc.) or on a trailing empty marker
+        // (**, *, ~~), extend char-by-char (bounded by chunkCap) until the
+        // prefix resolves. If it won't resolve within budget, hold.
+        const extendCap = Math.min(newDisplayed + chunkCap, textLength);
+        while (
+          candidate < extendCap &&
+          (isAmbiguousPartialLine(targetText, candidate, streaming) ||
+            isAtTrailingEmptyMarker(targetText, candidate, streaming))
         ) {
-          accumulatedCharsRef.current += charsToAdd;
-          newDisplayed = currentDisplayed;
+          candidate++;
         }
-
-        if (newDisplayed !== displayedLengthRef.current) {
-          displayedLengthRef.current = newDisplayed;
-
-          const timeSinceLastUpdate = currentTime - lastStateUpdateRef.current;
-          const atWordBoundary = isWordBoundary(
-            targetText[newDisplayed - 1] || '',
-          );
-          const caughtUp = newDisplayed === textLength;
-
-          const shouldUpdate =
-            timeSinceLastUpdate >= DEFAULT_CONFIG.stateUpdateInterval ||
-            atWordBoundary ||
-            caughtUp;
-
-          if (shouldUpdate) {
-            lastStateUpdateRef.current = currentTime;
-            setDisplayLength(newDisplayed);
-            setIsTyping(true);
+        // Re-apply surrogate pair protection after char-level extension.
+        if (candidate < textLength && candidate > 0) {
+          const code = targetText.charCodeAt(candidate - 1);
+          if (code >= 0xd800 && code <= 0xdbff) {
+            candidate = Math.min(candidate + 1, textLength);
           }
         }
+        if (
+          candidate < textLength &&
+          (isAmbiguousPartialLine(targetText, candidate, streaming) ||
+            isAtTrailingEmptyMarker(targetText, candidate, streaming))
+        ) {
+          // Still ambiguous — hold and wait for more text.
+          break;
+        }
+
+        accumulatedTimeRef.current -= tickInterval;
+        newDisplayed = candidate;
+        ticks++;
+      }
+
+      if (newDisplayed !== displayedLengthRef.current) {
+        displayedLengthRef.current = newDisplayed;
+        setDisplayLength(newDisplayed);
+        setIsTyping(true);
       }
 
       animationFrameRef.current = requestAnimationFrame(animate);
@@ -511,7 +707,7 @@ export function useStreamBuffer({
         } else {
           hasStartedRevealRef.current = false;
         }
-        accumulatedCharsRef.current = 0;
+        accumulatedTimeRef.current = 0;
         drainCPSRef.current = 0;
       }
 
@@ -531,18 +727,32 @@ export function useStreamBuffer({
         hasStartedRevealRef.current = false;
         drainCPSRef.current = 0;
         displayedLengthRef.current = text.length;
-        accumulatedCharsRef.current = 0;
+        accumulatedTimeRef.current = 0;
         setDisplayLength(text.length);
         setIsTyping(false);
       } else {
-        // Stream ended — drain remaining buffer quickly.
-        // Use whichever is faster: 3× CPS or the rate to finish in ≤ 2 seconds.
+        // Stream ended — compute a drain CPS for the remaining buffer.
+        //   Short tail (< drainShortRemainingChars): base targetCPS so a
+        //     one-sentence reply types out at reading speed.
+        //   Medium/long tail: target drainMsPerChar per char (≈ base rate)
+        //     up to drainMaxTotalMs total — for very large buffers the CPS
+        //     scales above base so we don't wait minutes. Mode-switch to
+        //     sentence chunks happens in animate (≥ sentenceModeMinChars)
+        //     so very long tails read as calm sentence ticks, not a word blur.
         const remaining = text.length - displayedLengthRef.current;
-        const drainInTwoSecs = remaining / 2;
-        drainCPSRef.current = Math.max(
-          Math.max(1, targetCPS) * 3,
-          drainInTwoSecs,
-        );
+        const safeCPS = Math.max(1, targetCPS);
+        if (remaining < DEFAULT_CONFIG.drainShortRemainingChars) {
+          drainCPSRef.current = safeCPS;
+        } else {
+          const targetDrainMs = Math.min(
+            DEFAULT_CONFIG.drainMaxTotalMs,
+            remaining * DEFAULT_CONFIG.drainMsPerChar,
+          );
+          drainCPSRef.current = Math.max(
+            safeCPS,
+            (remaining * 1000) / targetDrainMs,
+          );
+        }
         if (!animationFrameRef.current) {
           lastFrameTimeRef.current = 0;
           animationFrameRef.current = requestAnimationFrame(animate);
@@ -554,7 +764,7 @@ export function useStreamBuffer({
       hasStartedRevealRef.current = false;
       drainCPSRef.current = 0;
       displayedLengthRef.current = text.length;
-      accumulatedCharsRef.current = 0;
+      accumulatedTimeRef.current = 0;
       setDisplayLength(text.length);
       setIsTyping(false);
     }

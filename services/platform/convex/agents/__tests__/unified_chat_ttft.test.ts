@@ -28,6 +28,7 @@ vi.mock('../../_generated/api', () => ({
     governance: {
       internal_queries: {
         getPiiConfigInternal: 'getPiiConfigInternal',
+        getGuardrailsConfigsInternal: 'getGuardrailsConfigsInternal',
         resolveDefaultModelInternal: 'resolveDefaultModelInternal',
         getAccessibleModelsInternal: 'getAccessibleModelsInternal',
       },
@@ -49,12 +50,37 @@ vi.mock('../../_generated/api', () => ({
         getBindingByAgent: 'getBindingByAgent',
       },
     },
+    organizations: {
+      internal_queries: {
+        getOrganizationDefaultLocale: 'getOrganizationDefaultLocale',
+      },
+    },
     audit_logs: {
       internal_mutations: {
         createAuditLog: 'createAuditLog',
       },
     },
+    chat_filter_events: {
+      internal_mutations: {
+        recordEvent: 'recordEvent',
+      },
+    },
   },
+}));
+
+// sanitizeMessage is what unified_chat now calls; we short-circuit it to an
+// identity / modify function so the TTFT test can focus on parallelization
+// and the "message mutation reaches startChat" behaviour.
+vi.mock('../../governance/sanitize', () => ({
+  loadGuardrailsSnapshot: vi.fn(async () => ({
+    chatFilter: null,
+    pii: null,
+    moderation: null,
+  })),
+  sanitizeMessage: vi.fn(async (_ctx, text: string) => ({
+    text,
+    sanitizationRunId: 'run_test',
+  })),
 }));
 
 vi.mock('node:path', async () => {
@@ -136,6 +162,9 @@ describe('chatWithAgent — TTFT parallelization', () => {
         if (fn === 'getBindingByAgent') {
           return Promise.resolve(null);
         }
+        if (fn === 'getOrganizationDefaultLocale') {
+          return Promise.resolve('en');
+        }
         if (fn === 'getAccessibleModelsInternal') {
           return Promise.resolve(
             (args as { modelIds?: string[] } | undefined)?.modelIds ?? [],
@@ -166,20 +195,25 @@ describe('chatWithAgent — TTFT parallelization', () => {
     };
   });
 
-  it('calls PII query and agent config resolution concurrently', async () => {
-    // Track call order with timestamps
+  it('calls guardrails snapshot and agent config resolution concurrently', async () => {
     const callOrder: string[] = [];
 
-    // PII query resolves after 100ms
+    // loadGuardrailsSnapshot is mocked at module scope — override to
+    // delay so we can observe parallelism via wall clock.
+    const sanitize = await import('../../governance/sanitize');
+    vi.mocked(sanitize.loadGuardrailsSnapshot).mockImplementation(async () => {
+      callOrder.push('loadGuardrailsSnapshot');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return { chatFilter: null, pii: null, moderation: null };
+    });
+
     mockCtx.runQuery.mockImplementation((fn: string, args?: unknown) => {
       callOrder.push(`query:${fn}`);
-      if (fn === 'getPiiConfigInternal') {
-        return new Promise((resolve) =>
-          setTimeout(() => resolve({ enabled: false }), 10),
-        );
-      }
       if (fn === 'getBindingByAgent') {
         return Promise.resolve(null);
+      }
+      if (fn === 'getOrganizationDefaultLocale') {
+        return Promise.resolve('en');
       }
       if (fn === 'getAccessibleModelsInternal') {
         return Promise.resolve(
@@ -223,7 +257,7 @@ describe('chatWithAgent — TTFT parallelization', () => {
 
     // Both should have been called. With parallelization, total time
     // should be less than sum of individual delays.
-    expect(callOrder).toContain('query:getPiiConfigInternal');
+    expect(callOrder).toContain('loadGuardrailsSnapshot');
     expect(callOrder).toContain('readAgentFile');
 
     // With parallel execution, elapsed < 200ms. With sequential it would be >= 200ms.
@@ -231,35 +265,11 @@ describe('chatWithAgent — TTFT parallelization', () => {
     expect(elapsed).toBeLessThan(150);
   });
 
-  it('still scrubs PII before startChat when PII is enabled', async () => {
-    const { scrubPii } = await import('../../governance/pii');
-    const mockScrubPii = vi.mocked(scrubPii);
-    mockScrubPii.mockReturnValue({
+  it('routes the user message through sanitizeMessage before startChat', async () => {
+    const sanitize = await import('../../governance/sanitize');
+    vi.mocked(sanitize.sanitizeMessage).mockResolvedValue({
       text: 'scrubbed message',
-      matchCount: 1,
-      detectedTypes: ['email'],
-    });
-
-    mockCtx.runQuery.mockImplementation((fn: string, args?: unknown) => {
-      if (fn === 'getPiiConfigInternal') {
-        return Promise.resolve({
-          enabled: true,
-          config: {
-            mode: 'mask',
-            enabledPatterns: ['email'],
-            customPatterns: [],
-          },
-        });
-      }
-      if (fn === 'getBindingByAgent') {
-        return Promise.resolve(null);
-      }
-      if (fn === 'getAccessibleModelsInternal') {
-        return Promise.resolve(
-          (args as { modelIds?: string[] } | undefined)?.modelIds ?? [],
-        );
-      }
-      return Promise.resolve(null);
+      sanitizationRunId: 'run_test',
     });
 
     const handler = chatHandler;
@@ -271,10 +281,19 @@ describe('chatWithAgent — TTFT parallelization', () => {
       message: 'user@example.com',
     });
 
-    // PII scrubbing should happen
-    expect(mockScrubPii).toHaveBeenCalled();
+    expect(sanitize.sanitizeMessage).toHaveBeenCalledWith(
+      expect.anything(),
+      'user@example.com',
+      'input',
+      expect.anything(),
+      expect.objectContaining({
+        organizationId: 'org_1',
+        threadId: 'thread_1',
+        actorType: 'user',
+      }),
+    );
 
-    // startChat mutation should receive the scrubbed message
+    // startChat mutation should receive the sanitized text.
     expect(mockCtx.runMutation).toHaveBeenCalledWith(
       'startChat',
       expect.objectContaining({

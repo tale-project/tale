@@ -30,14 +30,11 @@
       "delete": "Löschen",
       "deleting": "Wird gelöscht...",
       "edit": "Bearbeiten",
-      "add": "Hinzufügen",
       "adding": "Wird hinzugefügt...",
       "create": "Erstellen",
       "close": "Schließen",
       "confirm": "Bestätigen",
       "back": "Zurück",
-      "next": "Weiter",
-      "submit": "Absenden",
       "loading": "Wird geladen...",
       "done": "Fertig",
       "duplicate": "Duplizieren",
@@ -49,26 +46,14 @@
       "showInfo": "Info anzeigen",
       "clearAll": "Alle löschen",
       "reset": "Zurücksetzen",
-      "undo": "Rückgängig",
       "discard": "Verwerfen",
-      "upload": "Hochladen",
       "import": "Importieren",
-      "select": "Auswählen",
-      "search": "Suchen",
-      "hideSearch": "Suche ausblenden",
-      "updating": "Wird aktualisiert...",
       "importing": "Wird importiert...",
       "openMenu": "Menü öffnen",
       "publish": "Veröffentlichen",
       "rename": "Umbenennen",
       "deactivate": "Deaktivieren",
       "deactivating": "Wird deaktiviert...",
-      "activate": "Aktivieren",
-      "activating": "Wird aktiviert...",
-      "logIn": "Anmelden",
-      "saved": "Gespeichert",
-      "saveFailed": "Speichern fehlgeschlagen",
-      "remove": "Entfernen",
       "deleteSelected": "Ausgewählte löschen"
     },
     "bulkActions": {
@@ -81,18 +66,14 @@
     },
     "upload": {
       "clickToUpload": "Klicken zum Hochladen",
-      "or": "oder",
-      "dragAndDrop": "Datei hierher ziehen",
       "supportedFormats": ".xlsx, .xls oder .csv",
       "pickADate": "Datum auswählen",
       "dropFilesHere": "Dateien hier ablegen zum Hochladen"
     },
     "labels": {
       "name": "Name",
-      "description": "Beschreibung",
       "email": "E-Mail",
       "status": "Status",
-      "type": "Typ",
       "phone": "Telefon",
       "source": "Quelle",
       "locale": "Sprache",
@@ -130,9 +111,6 @@
     "validation": {
       "required": "{field} ist erforderlich",
       "email": "Bitte gib eine gültige E-Mail-Adresse ein",
-      "minLength": "{field} muss mindestens {min} Zeichen lang sein",
-      "maxLength": "{field} darf höchstens {max} Zeichen lang sein",
-      "passwordMismatch": "Passwörter stimmen nicht überein",
       "invalidJson": "Ungültiges JSON-Format",
       "uploadFile": "Bitte lade eine Datei hoch",
       "unsupportedFileType": "Nicht unterstützter Dateityp",
@@ -149,23 +127,17 @@
       "zoomIn": "Vergrößern",
       "zoomOut": "Verkleinern",
       "selectAll": "Alle auswählen",
+      "selectRow": "Zeile auswählen",
+      "removeFile": "Datei entfernen",
+      "removeNamed": "{name} entfernen",
+      "unread": "Ungelesen",
+      "completed": "Abgeschlossen",
       "backTo": "Zurück zu {page}",
-      "dropzone": "Datei hochladen – klicken oder Enter drücken, um eine Datei auszuwählen, oder Datei hierher ziehen",
-      "tableCaption": "{entity}-Datentabelle",
-      "messageHistory": "Nachrichtenverlauf",
-      "approve": "{item} genehmigen",
-      "reject": "{item} ablehnen",
-      "confidence": "{value} Prozent Konfidenz",
       "settingsNavigation": "Einstellungen-Navigation",
       "automationsNavigation": "Automatisierungen-Navigation",
       "agentsNavigation": "Agents-Navigation",
       "knowledgeNavigation": "Wissen-Navigation",
       "actionsMenu": "Aktionsmenü",
-      "conversationsNavigation": "Konversationen-Navigation",
-      "expandRow": "Zeile aufklappen",
-      "collapseRow": "Zeile zuklappen",
-      "dropFilesHere": "Dateien hier ablegen zum Anhängen",
-      "addStep": "Schritt hinzufügen",
       "required": "erforderlich",
       "valid": "gültig",
       "invalid": "ungültig",
@@ -177,7 +149,6 @@
     },
     "pagination": {
       "rowsPerPage": "Zeilen pro Seite",
-      "of": "von",
       "showing": "{start}–{end} von {total}",
       "loadMore": "Mehr laden",
       "loading": "Weitere werden geladen...",
@@ -196,40 +167,17 @@
       "somethingWentWrong": "Etwas ist schiefgelaufen",
       "unexpectedError": "Ein unerwarteter Fehler ist aufgetreten. Bitte versuche es erneut.",
       "errorLoadingPage": "Beim Laden dieser Seite ist ein Fehler aufgetreten. Du kannst es erneut versuchen oder zu einem anderen Bereich navigieren.",
-      "unexpectedErrorLoading": "Beim Laden dieser Seite ist ein unerwarteter Fehler aufgetreten. Dies könnte ein vorübergehendes Problem sein.",
       "persistsProblem": "Wenn dieses Problem weiterhin besteht,",
       "contactSupport": "kontaktiere den Support",
-      "forAssistance": "für Unterstützung.",
-      "tryAgain": "Erneut versuchen",
-      "organizationNotFound": "Organisations-ID nicht gefunden",
-      "invalidOrganizationId": "Ungültige Organisations-ID",
-      "sessionExpired": "Sitzung abgelaufen",
-      "pleaseLogInAgain": "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an, um fortzufahren."
+      "tryAgain": "Erneut versuchen"
     },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Enter",
       "escape": "Esc"
     },
-    "fileSize": {
-      "bytes": "Bytes",
-      "kb": "KB",
-      "mb": "MB",
-      "gb": "GB"
-    },
     "unsavedChanges": "Ungespeicherte Änderungen",
     "notFound": {
-      "title": "Seite nicht gefunden",
-      "description": "Die gesuchte Seite wurde möglicherweise verschoben oder existiert nicht mehr.",
-      "goHome": "Zur Startseite"
-    },
-    "offline": {
-      "backOnline": "Wieder online",
-      "youAreOffline": "Du bist derzeit offline"
-    },
-    "update": {
-      "newVersionAvailable": "Neue Version verfügbar",
-      "reloadForUpdates": "Neu laden, um die neuesten Updates zu erhalten",
-      "reload": "Neu laden"
+      "title": "Seite nicht gefunden"
     }
   },
   "navigation": {
@@ -238,7 +186,6 @@
     "knowledge": "Wissen",
     "automations": "Automatisierungen",
     "settings": "Einstellungen",
-    "settingsAndMore": "Einstellungen und mehr",
     "organization": "Organisation",
     "teams": "Teams",
     "integrations": "Integrationen",
@@ -247,7 +194,6 @@
     "apiKeys": "API-Schlüssel",
     "branding": "Branding",
     "governance": "Richtlinien",
-    "apiDocs": "API-Dokumentation",
     "account": "Konto",
     "logs": "Protokolle",
     "agents": "Agents",
@@ -280,10 +226,6 @@
       "title": "Noch keine Produkte",
       "description": "Importiere deine Produkte, damit deine KI den Kontext versteht"
     },
-    "documents": {
-      "title": "Noch keine Dokumente",
-      "description": "Lade Dokumente hoch, um deinen KI-Assistenten zu trainieren"
-    },
     "vendors": {
       "title": "Noch keine Lieferanten",
       "description": "Lade deinen ersten Lieferanten hoch, um loszulegen"
@@ -299,18 +241,6 @@
     "agents": {
       "title": "Noch keine Agents",
       "description": "Erstelle deinen ersten Agent, um KI-Verhalten für dein Team zu spezialisieren"
-    },
-    "examples": {
-      "title": "Noch keine Beispiele",
-      "description": "Füge Beispielnachrichten hinzu, um die KI auf deinen Tonfall zu trainieren"
-    },
-    "conversations": {
-      "title": "Noch keine Konversationen",
-      "description": "Konversationen werden hier angezeigt"
-    },
-    "chats": {
-      "title": "Noch keine Chats",
-      "description": "Starte einen neuen Chat, um zu beginnen"
     },
     "members": {
       "title": "Keine Mitglieder gefunden",
@@ -328,31 +258,21 @@
   "tables": {
     "headers": {
       "name": "Name",
-      "email": "E-Mail",
       "status": "Status",
       "source": "Quelle",
-      "created": "Erstellt",
       "updated": "Aktualisiert",
       "modified": "Geändert",
       "uploadedAt": "Hochgeladen am",
-      "actions": "Aktionen",
       "member": "Mitglied",
       "role": "Rolle",
       "joined": "Beigetreten",
       "automation": "Automatisierung",
       "version": "Version",
-      "product": "Produkt",
-      "description": "Beschreibung",
-      "stock": "Bestand",
       "document": "Dokument",
       "size": "Größe",
       "ragStatus": "RAG-Status",
       "locale": "Sprache",
-      "website": "Website",
-      "title": "Titel",
-      "scanned": "Gescannt",
       "interval": "Intervall",
-      "message": "Nachricht",
       "executionId": "Ausführungs-ID",
       "startedAt": "Gestartet am",
       "duration": "Dauer",
@@ -361,82 +281,48 @@
       "uploadedBy": "Hochgeladen von"
     },
     "cells": {
-      "noEmail": "Keine E-Mail",
       "unknown": "Unbekannt",
       "empty": "-"
-    },
-    "emptyState": {
-      "noResults": {
-        "title": "Keine Ergebnisse gefunden",
-        "description": "Passe deine Suchkriterien an"
-      }
     }
   },
   "toast": {
     "success": {
       "saved": "Änderungen erfolgreich gespeichert",
       "deleted": "Erfolgreich gelöscht",
-      "created": "Erfolgreich erstellt",
-      "duplicated": "Erfolgreich dupliziert",
       "profileUpdated": "Profil erfolgreich aktualisiert",
       "passwordChanged": "Passwort erfolgreich geändert",
       "passwordSet": "Passwort erfolgreich festgelegt",
       "organizationUpdated": "Organisation erfolgreich aktualisiert",
-      "memberAdded": "Mitglied erfolgreich hinzugefügt",
       "newMemberCreated": "Neues Mitglied erstellt und zur Organisation hinzugefügt",
       "existingUserAdded": "Bestehender Benutzer zur Organisation hinzugefügt",
-      "automationCreated": "Automatisierung erfolgreich erstellt",
       "automationDuplicated": "Automatisierung erfolgreich dupliziert",
       "automationRenamed": "Automatisierung erfolgreich umbenannt",
       "automationDeactivated": "Automatisierung erfolgreich deaktiviert",
       "automationPublished": "Automatisierung erfolgreich veröffentlicht",
-      "exampleAdded": "Beispiel erfolgreich hinzugefügt",
-      "exampleUpdated": "Beispiel erfolgreich aktualisiert",
-      "toneGenerated": "Tonalität erfolgreich generiert",
-      "toneSaved": "Tonalität erfolgreich gespeichert",
       "brandingUpdated": "Branding erfolgreich aktualisiert"
     },
     "error": {
-      "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
       "saveFailed": "Änderungen konnten nicht gespeichert werden",
-      "deleteFailed": "Löschen fehlgeschlagen",
-      "createFailed": "Erstellen fehlgeschlagen",
-      "duplicateFailed": "Duplizieren fehlgeschlagen",
       "profileUpdateFailed": "Profil konnte nicht aktualisiert werden",
       "passwordChangeFailed": "Passwort konnte nicht geändert werden. Bitte überprüfe dein aktuelles Passwort und versuche es erneut.",
       "organizationUpdateFailed": "Organisation konnte nicht aktualisiert werden",
       "brandingUpdateFailed": "Branding konnte nicht aktualisiert werden",
       "addMemberFailed": "Mitglied konnte nicht hinzugefügt werden",
-      "automationCreateFailed": "Automatisierung konnte nicht erstellt werden",
       "automationDuplicateFailed": "Automatisierung konnte nicht dupliziert werden",
       "automationRenameFailed": "Automatisierung konnte nicht umbenannt werden",
       "automationDeleteFailed": "Automatisierung konnte nicht gelöscht werden",
       "automationDeactivateFailed": "Automatisierung konnte nicht deaktiviert werden",
       "automationPublishFailed": "Automatisierung konnte nicht veröffentlicht werden"
-    },
-    "imagePreview": {
-      "zoomIn": "Vergrößern",
-      "zoomOut": "Verkleinern",
-      "resetZoom": "Zoom zurücksetzen"
     }
   },
   "dialogs": {
     "addMember": {
-      "title": "Mitglied hinzufügen",
-      "description": "Füge ein neues Teammitglied zu deiner Organisation hinzu",
-      "passwordRequiredForNewUser": "Ein Passwort ist erforderlich, um ein neues Benutzerkonto zu erstellen. Falls der Benutzer bereits ein Konto hat, wird er ohne Passwort hinzugefügt."
+      "title": "Mitglied hinzufügen"
     },
     "memberAdded": {
       "title": "Mitglied erfolgreich hinzugefügt",
       "credentialsWarning": "Wichtig: Speichere diese Zugangsdaten jetzt. Sie werden nicht erneut angezeigt.",
       "existingUserNotice": "Dieser Benutzer hatte bereits ein Konto, es wurden keine neuen Zugangsdaten erstellt. Er kann sich mit seinem bestehenden Passwort anmelden."
-    },
-    "confirmDelete": {
-      "title": "Löschen bestätigen",
-      "description": "Bist du sicher, dass du dies löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden."
-    },
-    "imagePreview": {
-      "title": "Bildvorschau"
     },
     "searchChat": {
       "title": "Chat durchsuchen",
@@ -445,10 +331,8 @@
       "noResults": "Keine Ergebnisse",
       "untitledChat": "Unbenannter Chat"
     },
-    "cannotBeUndone": "Diese Aktion kann nicht rückgängig gemacht werden.",
     "thisMember": "dieses Mitglied",
     "confirmRemoveMember": "Bist du sicher, dass du {name} aus dem Team entfernen möchtest? Die Person verliert den Zugriff auf diese Organisation und alle zugehörigen Ressourcen.",
-    "dropFilesHere": "Dateien hier ablegen zum Hochladen",
     "toSend": "zum Senden",
     "attach": "Anhängen",
     "selectConversation": "Konversation auswählen",
@@ -464,10 +348,7 @@
     "password": "Passwort",
     "emailPlaceholder": "Gib deine E-Mail-Adresse ein",
     "passwordPlaceholder": "Gib Dein Passwort ein",
-    "continueWithMicrosoft": "Weiter mit Microsoft",
     "login": {
-      "title": "Tale Anmeldung | Zugriff auf Dein Konto",
-      "description": "Melde dich bei deinem Tale-Konto an, um die Kundenabwanderungsrate zu analysieren und deinen Kundenbindungs-Workflow zu automatisieren.",
       "loginTitle": "Anmelden",
       "signingIn": "Anmeldung läuft...",
       "loginButton": "Anmelden",
@@ -479,30 +360,17 @@
       "accountLockedHours": "Konto vorübergehend gesperrt. In {hours, plural, one {# Stunde} other {# Stunden}} erneut versuchen oder einen Administrator kontaktieren.",
       "forgotPassword": "Passwort vergessen? Wende dich an einen Admin.",
       "toast": {
-        "success": "Erfolgreich angemeldet",
-        "microsoftFailed": "Microsoft-Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
-        "ssoFailed": "SSO-Anmeldung fehlgeschlagen. Bitte versuche es erneut."
+        "success": "Erfolgreich angemeldet"
       }
     },
     "signup": {
-      "title": "Konto erstellen",
-      "description": "Erstelle ein Tale-Konto, um die Kundenabwanderungsrate zu analysieren und deinen Kundenbindungs-Workflow zu automatisieren.",
       "signupTitle": "Erstelle Dein Konto",
       "creating": "Wird erstellt...",
       "createButton": "Erstellen",
       "accountCreated": "Konto erfolgreich erstellt!",
-      "wrongCredentials": "Falsche E-Mail oder falsches Passwort",
-      "microsoftSignInFailed": "Microsoft-Anmeldung fehlgeschlagen. Bitte versuche es erneut."
-    },
-    "requirements": {
-      "length": "Mindestens {n} Zeichen",
-      "lowercase": "Kleinbuchstabe",
-      "uppercase": "Großbuchstabe",
-      "number": "Zahl",
-      "specialChar": "Sonderzeichen"
+      "wrongCredentials": "Falsche E-Mail oder falsches Passwort"
     },
     "validation": {
-      "passwordRequirements": "Passwort muss die konfigurierte Richtlinie erfüllen",
       "emailRequired": "E-Mail ist erforderlich",
       "passwordMinLength": "Passwort muss mindestens {n} Zeichen lang sein",
       "passwordLowercase": "Passwort muss einen Kleinbuchstaben enthalten",
@@ -513,13 +381,16 @@
     "userButton": {
       "defaultName": "Benutzer",
       "manageAccount": "Konto verwalten",
-      "settings": "Einstellungen",
       "helpFeedback": "Hilfe & Feedback",
       "currentVersion": "Aktuelle Version: v{version}",
       "whatsNew": "Neuigkeiten",
       "themeSystem": "Systemdesign",
       "themeLight": "Helles Design",
       "themeDark": "Dunkles Design",
+      "language": "Sprache",
+      "languageEnglish": "Englisch",
+      "languageGerman": "Deutsch",
+      "languageFrench": "Französisch",
       "logOut": "Abmelden",
       "logOutConfirm": {
         "title": "Abmelden",
@@ -527,8 +398,6 @@
         "confirm": "Abmelden"
       },
       "toast": {
-        "signedOut": "Abgemeldet",
-        "signedOutDescription": "Du wurdest erfolgreich abgemeldet",
         "signOutFailed": "Abmelden fehlgeschlagen"
       }
     },
@@ -537,23 +406,6 @@
       "reauthenticate": "Erneut mit Microsoft authentifizieren",
       "signIn": "Mit Microsoft anmelden",
       "redirecting": "Weiterleitung..."
-    },
-    "oauth2": {
-      "success": {
-        "providerAuthorized": "E-Mail-Anbieter wurde autorisiert und ist einsatzbereit.",
-        "completed": "OAuth2-Autorisierung erfolgreich abgeschlossen."
-      },
-      "errors": {
-        "missingCode": "Kein Autorisierungscode vom Anbieter erhalten.",
-        "missingState": "Fehlender State-Parameter im Callback.",
-        "invalidState": "Ungültiger State-Parameter. Dies könnte ein Sicherheitsproblem sein.",
-        "missingProvider": "Die E-Mail-Anbieter-Konfiguration konnte nicht gefunden werden.",
-        "missingOauth2Config": "OAuth2-Konfiguration fehlt für diesen Anbieter.",
-        "tokenExchangeFailed": "Autorisierungscode konnte nicht gegen Zugriffstoken eingetauscht werden.",
-        "callbackFailed": "Beim Verarbeiten des OAuth2-Callbacks ist ein Fehler aufgetreten.",
-        "missingParameters": "Erforderliche Parameter fehlen im Callback.",
-        "unexpected": "Ein unerwarteter Fehler ist bei der Autorisierung aufgetreten."
-      }
     },
     "changePassword": {
       "title": "Passwort ändern",
@@ -566,7 +418,6 @@
         "confirm": "Neues Passwort bestätigen"
       },
       "requirements": {
-        "title": "Passwortanforderungen",
         "length": "Mindestens {n} Zeichen",
         "lowercase": "Ein Kleinbuchstabe",
         "uppercase": "Ein Großbuchstabe",
@@ -575,17 +426,12 @@
       },
       "validation": {
         "currentRequired": "Aktuelles Passwort ist erforderlich",
-        "newRequired": "Neues Passwort ist erforderlich",
-        "minLength": "Passwort muss mindestens {n} Zeichen lang sein",
         "confirmRequired": "Bitte bestätige dein neues Passwort",
         "mismatch": "Passwörter stimmen nicht überein"
-      },
-      "ssoMessage": "Kontodaten und Passwörter werden von deinem Identitätsanbieter verwaltet und können hier nicht geändert werden."
+      }
     },
     "forcedChange": {
       "title": "Passwortänderung erforderlich",
-      "description": "Dein Passwort ist gemäß der Rotationsrichtlinie der Organisation abgelaufen. Lege ein neues Passwort fest, um fortzufahren.",
-      "descriptionAdminSet": "Dein Passwort wurde von einem Administrator festgelegt. Bitte wähle ein neues Passwort, um fortzufahren.",
       "submit": "Passwort aktualisieren"
     },
     "setPassword": {
@@ -599,7 +445,6 @@
     "title": "Einstellungen",
     "account": {
       "profile": {
-        "title": "Profil",
         "name": "Anzeigename",
         "namePlaceholder": "Gib deinen Namen ein",
         "email": "E-Mail",
@@ -611,37 +456,23 @@
     },
     "organization": {
       "title": "Organisation (optional)",
-      "detailsTitle": "Organisationsdetails",
-      "detailsDescription": "Grundlegende Informationen über deine Organisation.",
       "organizationId": "Organisations-ID",
-      "organizationIdHint": "Für API-Integrationen verwendet",
       "membersTitle": "Organisationsmitglieder",
       "membersEntityLabel": "Mitglieder",
       "manageAccess": "Zugriff auf die Organisation verwalten",
-      "defaultLocale": "Welche Sprache sollen deine Agenten verwenden?",
+      "defaultLocale": "Antwortsprache der Agenten",
+      "defaultLocaleHelp": "Gilt für die Agentenausgabe. Die Sprache der Benutzeroberfläche richtet sich nach der individuellen Einstellung jedes Nutzers.",
       "searchMember": "Mitglied suchen",
       "addMember": "Mitglied hinzufügen",
-      "members": {
-        "columns": {
-          "name": "Name",
-          "email": "E-Mail",
-          "role": "Rolle"
-        }
-      },
       "createOrganization": "Organisation erstellen",
-      "switching": "Wird gewechselt\u2026",
-      "switchingTo": "Wechsle zu {name}\u2026",
+      "switching": "Wird gewechselt…",
+      "switchingTo": "Wechsle zu {name}…",
       "switchingLabel": "Organisation wird gewechselt",
-      "yourOrganizationsTitle": "Deine Organisationen",
-      "yourOrganizationsDescription": "Alle Organisationen, zu denen du gehörst. Wechsle zwischen ihnen oder erstelle eine neue.",
-      "switchAction": "Wechseln",
-      "currentBadge": "Aktuell",
-      "roleLabel": "Rolle",
       "deleteAriaLabel": "{name} löschen",
       "deleteDialogTitle": "Organisation löschen",
       "deleteDialogDescription": "„{name}\" löschen? Damit werden Agents, Workflows, Anbieter und Integrationen entfernt. Mitglieder verlieren den Zugriff. Dies kann nicht rückgängig gemacht werden.",
       "deleteConfirmAction": "Organisation löschen",
-      "deleteLoading": "Wird gelöscht\u2026",
+      "deleteLoading": "Wird gelöscht…",
       "deleteSuccess": "Organisation gelöscht",
       "deleteFailed": "Organisation konnte nicht gelöscht werden",
       "organizationName": "Organisationsname",
@@ -655,7 +486,7 @@
       "memberUpdateFailed": "Mitglied konnte nicht aktualisiert werden",
       "memberRemoved": "Mitglied erfolgreich entfernt",
       "memberRemoveFailed": "Mitglied konnte nicht entfernt werden",
-      "twoFactorResetSuccess": "Zwei-Faktor zurückgesetzt \u2014 das Mitglied muss sich bei der nächsten Anmeldung neu einrichten",
+      "twoFactorResetSuccess": "Zwei-Faktor zurückgesetzt — das Mitglied muss sich bei der nächsten Anmeldung neu einrichten",
       "twoFactorResetFailed": "Zwei-Faktor-Authentifizierung konnte nicht zurückgesetzt werden",
       "emailCannotChange": "E-Mail kann nicht geändert werden",
       "cannotChangeOwnRole": "Du kannst deine eigene Rolle nicht ändern",
@@ -664,25 +495,16 @@
       "userMustUpdatePassword": "Benutzer muss das Passwort bei der Anmeldung ändern",
       "adminWarning": "Warnung: Deine Organisation sollte aus Sicherheitsgründen mindestens 2 Admins haben. Diese Änderung wird blockiert, wenn weniger als 2 Admins übrig bleiben.",
       "adminSecurityWarning": "Warnung: Deine Organisation muss aus Sicherheitsgründen mindestens 2 Admins haben. Du kannst den letzten Admin nicht entfernen.",
-      "ownerProtected": "Der Organisationsinhaber kann nicht bearbeitet oder entfernt werden",
       "transferOwnership": "Inhaberschaft übertragen",
       "transferOwnershipConfirmation": "Möchtest du die Inhaberschaft wirklich an {name} übertragen? Du wirst zum Admin herabgestuft.",
       "ownershipTransferred": "Inhaberschaft erfolgreich übertragen",
-      "ownershipTransferFailed": "Inhaberschaft konnte nicht übertragen werden",
-      "leaveOrganization": "Organisation verlassen",
-      "leaveConfirmation": "Möchtest du diese Organisation wirklich verlassen? Du verlierst den Zugriff auf alle Ressourcen.",
-      "leaving": "Wird verlassen..."
+      "ownershipTransferFailed": "Inhaberschaft konnte nicht übertragen werden"
     },
     "teams": {
       "title": "Teams",
       "entityLabel": "Teams",
-      "description": "Teams innerhalb deiner Organisation erstellen und verwalten für granulare Zugriffskontrolle",
-      "externallyManagedDescription": "Teams werden von deinem Identitätsanbieter verwaltet. Du gehörst den unten angezeigten Teams an.",
       "createTeam": "Team erstellen",
       "searchTeam": "Teams suchen",
-      "noTeams": "Noch keine Teams",
-      "noTeamsDescription": "Erstelle dein erstes Team, um Mitglieder zu organisieren und den Zugriff auf Dokumente zu steuern.",
-      "noTeamsExternallyManaged": "Du bist keinem Team zugewiesen. Wende dich an den Administrator deines Identitätsanbieters, um deine Team-Zugehörigkeit zu aktualisieren.",
       "columns": {
         "name": "Name",
         "members": "Mitglieder",
@@ -698,81 +520,44 @@
       "teamCreateFailed": "Team konnte nicht erstellt werden",
       "teamUpdated": "Team aktualisiert",
       "teamUpdateFailed": "Team konnte nicht aktualisiert werden",
-      "teamHasAgentsWarning": "Diesem Team sind Agents zugewiesen. Weise Agents neu zu oder entferne sie aus diesem Team, bevor du es löschst.",
       "teamNameRequired": "Teamname ist erforderlich",
       "manageMembers": "Mitglieder",
-      "addMember": "Mitglied hinzufügen",
-      "removeMember": "Mitglied entfernen",
-      "memberAdded": "Mitglied zum Team hinzugefügt",
-      "memberAddFailed": "Mitglied konnte nicht hinzugefügt werden",
-      "memberRemoved": "Mitglied erfolgreich aus Team entfernt",
-      "memberRemoveFailed": "Mitglied konnte nicht entfernt werden",
-      "selectMember": "Mitglied zum Hinzufügen auswählen",
       "noMembersToAdd": "Alle Organisationsmitglieder sind bereits in diesem Team",
       "noTeamMembers": "Noch keine Mitglieder in diesem Team",
-      "cannotRemoveLastMember": "Das letzte Mitglied kann nicht entfernt werden. Lösche stattdessen das Team.",
       "sectionDescription": "Teams verwalten und Mitglieder in Gruppen organisieren.",
       "memberCount": "{count} {count, plural, one {Mitglied} other {Mitglieder}}",
-      "showingAllTeams": "Alle {count} {count, plural, one {Team} other {Teams}} werden angezeigt",
       "teamName": "Teamname",
       "teamNamePlaceholder": "Teamname eingeben...",
       "saveChanges": "Änderungen speichern",
       "loadingMembers": "Wird geladen...",
       "unknownMember": "Unbekannt",
-      "memberChecklistHint": "Ein Mitglied kann mehreren Teams angehören. Wenn niemand ausgewählt wird, wirst du automatisch hinzugefügt.",
-      "teamDetails": "Teamdetails"
+      "memberChecklistHint": "Ein Mitglied kann mehreren Teams angehören. Wenn niemand ausgewählt wird, wirst du automatisch hinzugefügt."
     },
     "agents": {
       "title": "Agents",
-      "description": "KI-Agents mit spezialisierten Anweisungen und Tools erstellen und verwalten",
       "createAgent": "Agent erstellen",
-      "createAgentDescription": "Konfiguriere einen KI-Agent mit spezialisierten Anweisungen, Tools und Modelleinstellungen.",
       "searchAgent": "Agents suchen",
-      "noAgents": "Noch keine Agents",
-      "noAgentsDescription": "Erstelle deinen ersten Agent, um KI-Verhalten für dein Team zu spezialisieren.",
       "columns": {
         "displayName": "Name",
-        "active": "Aktiv",
         "model": "Modell",
-        "tools": "Tools",
-        "version": "Version",
-        "team": "Team",
-        "orgWide": "Organisationsweit"
+        "tools": "Tools"
       },
-      "editAgent": "Agent bearbeiten",
       "deleteAgent": "Agent löschen",
       "deleteConfirmation": "Möchtest du diesen Agent wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-      "duplicateAgent": "Agent duplizieren",
-      "versionHistory": "Versionsverlauf",
       "agentCreated": "Agent erstellt",
       "agentCreateFailed": "Agent konnte nicht erstellt werden",
       "agentAlreadyExists": "Ein Agent mit dieser Kennung existiert bereits",
       "validationError": "Ungültige Agent-Konfiguration",
-      "agentUpdated": "Agent aktualisiert",
-      "agentUpdateFailed": "Agent konnte nicht aktualisiert werden",
       "agentDeleted": "Agent gelöscht",
       "agentDeleteFailed": "Agent konnte nicht gelöscht werden",
       "agentDuplicated": "Agent dupliziert",
       "agentDuplicateFailed": "Agent konnte nicht dupliziert werden",
-      "rolledBack": "Auf Version {version} zurückgesetzt",
-      "rollbackFailed": "Zurücksetzen fehlgeschlagen",
       "agentNotFound": "Agent nicht gefunden oder Du hast keinen Zugriff.",
-      "agentPublished": "Agent veröffentlicht",
-      "agentPublishFailed": "Agent konnte nicht veröffentlicht werden",
-      "agentDeactivated": "Agent deaktiviert",
-      "agentDeactivateFailed": "Agent konnte nicht deaktiviert werden",
       "agentSaved": "Agent gespeichert",
       "agentSaveFailed": "Agent konnte nicht gespeichert werden",
       "historyLoadFailed": "Verlauf konnte nicht geladen werden",
       "historyRestored": "Agent aus Verlauf wiederhergestellt",
       "historyRestoreFailed": "Wiederherstellung aus Verlauf fehlgeschlagen",
-      "activeToggle": {
-        "ariaLabel": "Agent-Aktivstatus umschalten"
-      },
-      "deactivateDialog": {
-        "title": "Agent deaktivieren",
-        "description": "Möchtest du \"{name}\" wirklich deaktivieren? Der Agent ist erst wieder verfügbar, wenn du ihn erneut aktivierst."
-      },
       "unsavedChanges": {
         "title": "Ungespeicherte Änderungen",
         "description": "Du hast ungespeicherte Änderungen. Möchtest du wirklich die Seite verlassen? Deine Änderungen gehen verloren.",
@@ -780,18 +565,13 @@
         "stay": "Bleiben"
       },
       "navigation": {
-        "configuration": "Konfiguration",
         "general": "Allgemein",
         "instructionsModel": "Anweisungen & Modell",
         "tools": "Tools",
         "knowledge": "Wissen",
-        "publish": "Veröffentlichen",
-        "publishing": "Wird veröffentlicht...",
-        "goToDraft": "Zum Entwurf",
         "webhook": "Webhook",
         "delegation": "Delegation",
         "conversationStarters": "Gesprächseinstiege",
-        "test": "Test",
         "history": "Verlauf"
       },
       "history": {
@@ -803,20 +583,6 @@
         "currentVersion": "Aktuelle Version",
         "snapshotVersion": "Snapshot-Version"
       },
-      "testChat": {
-        "title": "Agent testen",
-        "close": "Testbereich schließen",
-        "newConversation": "Neue Konversation",
-        "welcome": "Sende eine Nachricht, um deinen Entwurfs-Agent zu testen.",
-        "sendFailed": "Testnachricht konnte nicht gesendet werden",
-        "messagePlaceholder": "Nachricht zum Testen eingeben...",
-        "uploading": "Wird hochgeladen...",
-        "attachFiles": "Dateien anhängen",
-        "send": "Nachricht senden",
-        "previewImage": "Vorschau {filename}",
-        "removeAttachment": "Anhang entfernen",
-        "messageHistory": "Nachrichtenverlauf"
-      },
       "createDialog": {
         "continue": "Weiter",
         "creating": "Wird erstellt...",
@@ -826,18 +592,12 @@
         "modelEmpty": "Keine Modelle gefunden"
       },
       "general": {
-        "active": "Aktiv",
-        "activeHelp": "Wenn aktiv, ist dieser Agent verfügbar. Durch Deaktivieren wird er nicht mehr verfügbar, bis du ihn erneut aktivierst.",
         "visibleInChat": "Im Chat sichtbar",
         "visibleInChatHelp": "Wenn aktiviert, erscheint dieser Agent auf der Chat-Seite zur Auswahl. Wenn deaktiviert, kann der Agent nur durch Delegation von anderen Agents verwendet werden.",
-        "visibilityUpdated": "Chat-Sichtbarkeit aktualisiert",
-        "visibilityUpdateFailed": "Chat-Sichtbarkeit konnte nicht aktualisiert werden",
         "sectionAdvanced": "Erweitert",
         "sectionAdvancedDescription": "Ausführungsverhalten des Agents feinabstimmen.",
         "timeoutMinutes": "Ausführungs-Timeout (Minuten)",
-        "timeoutMinutesHelp": "Maximale Laufzeit des Agents pro Nachricht. Erhöhe den Wert für Aufgaben mit vielen Dateioperationen oder Sub-Agent-Delegationen.",
-        "timeoutUpdated": "Timeout aktualisiert",
-        "timeoutUpdateFailed": "Timeout konnte nicht aktualisiert werden"
+        "timeoutMinutesHelp": "Maximale Laufzeit des Agents pro Nachricht. Erhöhe den Wert für Aufgaben mit vielen Dateioperationen oder Sub-Agent-Delegationen."
       },
       "conversationStarters": {
         "title": "Gesprächseinstiege",
@@ -886,17 +646,6 @@
         "descriptionPlaceholder": "Was macht dieser Agent?",
         "systemInstructions": "Systemanweisungen",
         "systemInstructionsPlaceholder": "Du bist ein hilfreicher Assistent, der...",
-        "systemInstructionsRequired": "Systemanweisungen sind erforderlich",
-        "model": "Modell",
-        "modelPreset": "Modellvoreinstellung",
-        "modelPresets": {
-          "fast": "Schnell",
-          "standard": "Standard",
-          "advanced": "Erweitert"
-        },
-        "tools": "Tools",
-        "toolsDescription": "Auswählen, welche Tools dieser Agent verwenden kann",
-        "noToolsSelected": "Keine Tools ausgewählt",
         "team": "Team",
         "teamHelp": "Diesen Agent einem Team zuweisen. Leer lassen für organisationsweiten Zugriff.",
         "teamNone": "Organisationsweit",
@@ -931,8 +680,7 @@
       "delegation": {
         "title": "Delegation",
         "description": "Agents auswählen, an die dieser Agent Aufgaben delegieren kann",
-        "noDelegatesAvailable": "Keine anderen Agents für Delegation verfügbar.",
-        "noDelegatesSelected": "Keine Agents für Delegation ausgewählt."
+        "noDelegatesAvailable": "Keine anderen Agents für Delegation verfügbar."
       },
       "knowledge": {
         "retrievalMode": "Abrufmodus",
@@ -949,10 +697,8 @@
         "includeTeamKnowledge": "Team-Dokumente einbeziehen",
         "includeTeamKnowledgeHelp": "Wenn aktiviert, kann der Agent auf Dokumente seines zugewiesenen Teams zugreifen.",
         "teamDocuments": "Team-Dokumente",
-        "teamDocumentsInfo": "Dieser Agent kann auf alle Dokumente von {teamName} zugreifen.",
         "orgDocuments": "Organisationsdokumente",
         "orgDocumentsEmptyState": "Keine organisationsweiten Dokumente gefunden.",
-        "noTeamAssigned": "Kein Team zugewiesen. Weise im Tab Allgemein ein Team zu, um diesem Agent Zugriff auf Team-Dokumente zu geben.",
         "emptyState": "Keine Dokumente für dieses Team gefunden.",
         "agentDocuments": "Agent-Dokumente",
         "agentDocumentsHelp": "Dokumente hochladen, auf die nur dieser Agent zugreifen kann.",
@@ -980,24 +726,7 @@
         "webSearchHintLink": "Websites verwalten",
         "cacheExclusions": "Cache-Ausschlüsse",
         "cacheExclusionsDescription": "Wenn eines dieser Tools aufgerufen wird, wird die Antwort nicht zwischengespeichert",
-        "noCacheToolsEmpty": "Aktiviere Response-Caching-Tools, um Ausschlüsse zu konfigurieren",
-        "toolsSaved": "Tool-Einstellungen gespeichert",
-        "toolsSaveFailed": "Tool-Einstellungen konnten nicht gespeichert werden",
-        "webModeSaved": "Websuch-Einstellungen gespeichert",
-        "webModeSaveFailed": "Websuch-Einstellungen konnten nicht gespeichert werden"
-      },
-      "versions": {
-        "title": "Versionsverlauf",
-        "version": "Version {number}",
-        "current": "Aktuell",
-        "draft": "Entwurf",
-        "active": "Aktiv",
-        "archived": "Archiviert",
-        "rollback": "Zurücksetzen",
-        "rollingBack": "Wird zurückgesetzt...",
-        "activate": "Aktivieren",
-        "activating": "Wird aktiviert...",
-        "noVersions": "Kein Versionsverlauf verfügbar"
+        "noCacheToolsEmpty": "Aktiviere Response-Caching-Tools, um Ausschlüsse zu konfigurieren"
       },
       "webhook": {
         "title": "Webhook",
@@ -1043,8 +772,6 @@
     },
     "integrations": {
       "title": "Integrationen",
-      "accessDenied": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die Integrationseinstellungen zuzugreifen.",
-      "manage": "Verwalten",
       "pageSubtitle": "Drittanbieter-Dienste mit deinem Workspace verbinden.",
       "addCustomIntegration": "Integration hinzufügen",
       "tabs": {
@@ -1062,164 +789,25 @@
         "searchTitle": "Keine Ergebnisse gefunden",
         "searchDescription": "Passe deine Suche an oder fordere eine neue Integration an."
       },
-      "errors": {
-        "organizationRequired": "Organisations-ID ist erforderlich"
-      },
       "toast": {
         "disconnected": "Getrennt",
         "disconnectFailed": "Trennung fehlgeschlagen"
       },
-      "testingConnection": "Verbindung wird getestet",
-      "validatingCredentials": "SMTP- und IMAP-Zugangsdaten werden überprüft...",
       "connectionSuccessful": "Verbindung erfolgreich",
-      "allTestsPassed": "Alle Tests bestanden! SMTP: {smtp}ms, IMAP: {imap}ms",
       "connectionTestFailed": "Verbindungstest fehlgeschlagen",
       "failedToTestConnection": "Verbindung konnte nicht getestet werden",
       "oauthConnectedTitle": "Integration verbunden",
       "oauthConnectedDescription": "OAuth-Autorisierung war erfolgreich. Deine Integration ist jetzt aktiv.",
       "oauthErrorTitle": "Verbindung fehlgeschlagen",
       "oauthErrorDescription": "OAuth-Autorisierung fehlgeschlagen. Bitte versuche es erneut.",
-      "failedToDeleteProvider": "E-Mail-Anbieter konnte nicht gelöscht werden",
-      "defaultProviderUpdated": "Standard-Anbieter aktualisiert",
-      "failedToSetDefault": "Standard-Anbieter konnte nicht festgelegt werden",
-      "editProvider": "Anbieter bearbeiten",
-      "providerUpdated": "Anbieter aktualisiert",
-      "failedToUpdateProvider": "Anbieter konnte nicht aktualisiert werden",
-      "providerNamePlaceholder": "Anbietername eingeben",
-      "leaveEmptyToKeep": "Leer lassen, um aktuellen Wert beizubehalten",
-      "email": {
-        "name": "E-Mail",
-        "description": "E-Mails über Outlook, Gmail oder benutzerdefiniertes SMTP/IMAP senden und empfangen."
-      },
-      "emailIntegration": "E-Mail-Integration",
-      "chooseEmailProvider": "E-Mail-Anbieter wählen",
-      "connectOAuth": "Mit OAuth2 (empfohlen) oder App-Passwort verbinden",
-      "connectMicrosoft": "Microsoft Outlook- oder Office 365-Konto verbinden",
-      "configureCustom": "Benutzerdefinierten SMTP/IMAP-E-Mail-Server konfigurieren",
-      "creatingProvider": "Anbieter wird erstellt",
-      "settingUpOAuth": "OAuth2-Konfiguration wird eingerichtet...",
-      "authorizeGmail": "Bitte autorisiere den Zugriff auf dein Gmail-Konto...",
-      "authorizeOutlook": "Bitte autorisiere den Zugriff auf dein Outlook-Konto...",
-      "failedToStartAuth": "OAuth2-Autorisierung konnte nicht gestartet werden",
-      "providerCreated": "{provider}-Anbieter erfolgreich erstellt (SMTP: {smtp}ms, IMAP: {imap}ms)",
-      "providerSaved": "Anbieter gespeichert",
-      "failedToCreateProvider": "{provider}-Anbieter konnte nicht erstellt werden",
-      "addProvider": "{provider}-Anbieter hinzufügen",
-      "testingAndCreating": "Testen & Erstellen...",
-      "gmailIntegration": "Gmail-Integration",
-      "outlookIntegration": "Outlook-Integration",
-      "shopifyIntegration": "Shopify-Integration",
-      "circulyIntegration": "Circuly-Integration",
-      "connectedTo": "Verbunden mit {provider}",
-      "domain": "Domain",
-      "accessToken": "Zugriffstoken",
       "disconnecting": "Wird getrennt...",
       "disconnect": "Trennen",
-      "disconnectConfirm": "{provider} trennen?",
       "disconnectedSuccessfully": "{provider} erfolgreich getrennt.",
-      "disconnectionFailed": "Trennung fehlgeschlagen",
       "failedToDisconnect": "{provider} konnte nicht getrennt werden, bitte versuche es erneut.",
-      "disconnectWarning": "Warnung: Das Trennen von {provider} stoppt alle automatischen Synchronisierungen und Datenimporte. Du kannst jederzeit erneut verbinden.",
       "updateSuccessful": "Aktualisierung erfolgreich",
       "updateFailed": "Aktualisierung fehlgeschlagen",
-      "gmail": {
-        "namePlaceholder": "z. B. Gmail-Arbeitskonto",
-        "emailPlaceholder": "ihre-email@gmail.com",
-        "passwordPlaceholder": "16-stelliges App-Passwort"
-      },
-      "outlook": {
-        "namePlaceholder": "z. B. Outlook-Arbeitskonto",
-        "emailPlaceholder": "ihre-email@outlook.com",
-        "passwordPlaceholder": "App-Passwort von Microsoft"
-      },
-      "circuly": {
-        "title": "Circuly",
-        "description": "Produktabonnements und Miet-Workflows verwalten.",
-        "disconnectError": "Circuly konnte nicht getrennt werden",
-        "disconnectedDescription": "Circuly-Integration wurde getrennt.",
-        "usernamePlaceholder": "Gib deinen Circuly-Benutzernamen ein",
-        "passwordPlaceholder": "Gib dein Circuly-Passwort ein",
-        "connectedToCirculy": "Mit Circuly verbunden",
-        "connectedUsername": "Verbundener Benutzername",
-        "connected": "Verbunden",
-        "syncingData": "Dein Circuly-Konto ist verbunden und synchronisiert Abonnementdaten.",
-        "username": "Circuly-Benutzername",
-        "password": "Circuly-Passwort",
-        "enterCredentials": "Gib deine Circuly-Zugangsdaten ein, um Abonnement- und Kundendaten zu synchronisieren.",
-        "updating": "Wird aktualisiert...",
-        "update": "Aktualisieren",
-        "connecting": "Wird verbunden...",
-        "connect": "Verbinden",
-        "connectedAccount": "Verbundenes Konto:",
-        "disconnectQuestion": "Möchtest du die Circuly-Integration wirklich trennen?",
-        "disconnectWarning": "Warnung: Das Trennen von Circuly stoppt alle Datensynchronisierungen und Produktempfehlungen. Du musst erneut verbinden, um diese Funktionen fortzusetzen.",
-        "yesDisconnect": "Ja, trennen"
-      },
-      "shopify": {
-        "title": "Shopify",
-        "description": "Produkte, Bestellungen und Kunden aus deinem Shopify-Shop synchronisieren.",
-        "disconnectError": "Shopify konnte nicht getrennt werden",
-        "domainRequired": "Domain ist erforderlich",
-        "accessTokenRequired": "Zugriffstoken ist erforderlich",
-        "domainPlaceholder": "meinshop.myshopify.com",
-        "connectedToShopify": "Mit Shopify verbunden",
-        "domainHelp": "Die .myshopify.com-Adresse deines Shops (z. B. meinshop.myshopify.com).",
-        "domainHelpNav": "Gehe zu Shopify → Einstellungen → Domains.",
-        "accessTokenHelp": "Dein Shopify Admin-API-Zugriffstoken aus deiner benutzerdefinierten App.",
-        "accessTokenHelpNav": "Gehe zu Shopify → Apps → Apps entwickeln → [deine App] → API-Zugangsdaten → Admin-API-Zugriffstoken (Anzeigen).",
-        "updating": "Wird aktualisiert...",
-        "update": "Aktualisieren",
-        "connecting": "Wird verbunden...",
-        "connect": "Verbinden",
-        "connectedStore": "Verbundener Shop:",
-        "disconnectQuestion": "Möchtest du die Shopify-Integration wirklich trennen?",
-        "disconnectWarning": "Warnung: Das Trennen von Shopify stoppt alle Datensynchronisierungen für Produkte, Bestellungen und Kunden. Du musst erneut verbinden, um diese Funktionen fortzusetzen.",
-        "yesDisconnect": "Ja, trennen"
-      },
-      "protel": {
-        "title": "Protel PMS",
-        "description": "Verbinde dich mit deinem Protel-Hotelmanagementsystem für Reservierungen, Gäste und Zimmerdaten.",
-        "disconnectError": "Protel PMS konnte nicht getrennt werden",
-        "disconnected": "Protel PMS getrennt",
-        "disconnectedDescription": "Die Protel PMS-Integration wurde getrennt.",
-        "disconnectFailed": "Trennung fehlgeschlagen",
-        "disconnectFailedDescription": "Protel PMS konnte nicht getrennt werden. Bitte versuche es erneut.",
-        "disconnectTitle": "Protel PMS trennen",
-        "disconnectConfirmation": "Möchtest du die Verbindung wirklich trennen zu",
-        "database": "Datenbank",
-        "disconnectWarning": "Dies stoppt alle Datensynchronisierungen mit diesem Protel-Server.",
-        "disconnect": "Trennen",
-        "disconnecting": "Wird getrennt...",
-        "updateSuccess": "Verbindung aktualisiert",
-        "updateSuccessDescription": "Protel PMS-Verbindung wurde erfolgreich aktualisiert.",
-        "connectionSuccess": "Mit Protel PMS verbunden",
-        "connectionSuccessDescription": "Erfolgreich mit deinem Protel-Hotelmanagementsystem verbunden.",
-        "updateFailed": "Aktualisierung fehlgeschlagen",
-        "connectionFailed": "Verbindung fehlgeschlagen",
-        "connectionFailedDescription": "Verbindung zu Protel PMS fehlgeschlagen. Bitte überprüfe deine Zugangsdaten und versuche es erneut.",
-        "updating": "Wird aktualisiert...",
-        "update": "Aktualisieren",
-        "connect": "Verbinden",
-        "connecting": "Wird verbunden...",
-        "connectedTo": "Verbunden mit {server}",
-        "serverAddress": "Serveradresse",
-        "serverPlaceholder": "192.168.1.100",
-        "port": "Port",
-        "databaseName": "Datenbankname",
-        "username": "Benutzername",
-        "usernamePlaceholder": "sa",
-        "password": "Passwort",
-        "passwordPlaceholder": "Passwort eingeben"
-      },
       "upload": {
-        "title": "Integration hochladen",
         "addDialogTitle": "Integration hinzufügen",
-        "tabUpload": "Hochladen",
-        "tabTemplate": "Vorlage",
-        "description": "Lade ein .zip-Paket oder config.json und connector.js/.ts-Dateien hoch, um eine benutzerdefinierte Integration hinzuzufügen.",
-        "addIntegration": "Integration hinzufügen",
-        "addDescription": "Lade ein benutzerdefiniertes REST-API- oder SQL-Integrationspaket hoch.",
-        "uploadPackage": "Paket hochladen",
         "uploadDescription": "Lade ein einzelnes .zip-Paket hoch oder wähle config.json + connector.js/.ts + Symbol einzeln aus (max. 1 MB gesamt).",
         "dropZoneLabel": "Integrationspaket hochladen",
         "dropOrClick": "Dateien hierher ziehen oder zum Durchsuchen klicken",
@@ -1228,9 +816,6 @@
         "parsing": "Paket wird analysiert...",
         "parseError": "Paket konnte nicht analysiert werden",
         "unexpectedError": "Ein unerwarteter Fehler ist aufgetreten",
-        "templateDescription": "Wähle eine vorgefertigte Integrationsvorlage für einen schnellen Einstieg.",
-        "templateFetching": "Vorlage wird geladen...",
-        "templateFetchError": "Vorlage konnte nicht von GitHub geladen werden",
         "operations": "Operationen",
         "write": "Schreiben",
         "secretBindings": "Erforderliche Zugangsdaten",
@@ -1243,22 +828,14 @@
         "readOnly": "Nur lesen",
         "maxResultRows": "Max. Ergebniszeilen",
         "queryTimeout": "Abfrage-Timeout (ms)",
-        "steps": "Upload-Schritte",
-        "stepUpload": "Hochladen",
-        "stepPreview": "Vorschau",
         "creating": "Wird erstellt...",
         "createIntegration": "Integration installieren",
         "createSuccess": "Integration erstellt",
         "createFailed": "Integration konnte nicht erstellt werden",
-        "iconUploadFailed": "Symbol konnte nicht hochgeladen werden",
         "configureCredentialsHint": "Konfiguriere die Zugangsdaten in den Integrationseinstellungen, um sie zu aktivieren.",
-        "testConnection": "Verbindung testen",
-        "updateCredentialsHint": "Felder leer lassen, um aktuelle Werte beizubehalten.",
-        "updating": "Wird aktualisiert...",
         "active": "Aktiv",
         "inactive": "Inaktiv",
         "changeIcon": "Symbol ändern",
-        "removeIcon": "Symbol entfernen",
         "iconTooLarge": "Symbol muss unter 256 KB sein",
         "invalidIconFormat": "Symbol muss PNG, SVG, JPG oder WebP sein"
       },
@@ -1266,19 +843,8 @@
         "configuration": "Konfiguration",
         "authentication": "Authentifizierung",
         "setupGuide": "Konfigurationsanleitung",
-        "connect": "Verbinden",
         "connecting": "Wird verbunden...",
-        "testAndConnect": "Testen und verbinden",
-        "save": "Speichern",
-        "saving": "Wird gespeichert...",
         "saveCredentials": "Zugangsdaten speichern",
-        "saveSettings": "Einstellungen speichern",
-        "deleteIntegration": "Integration löschen",
-        "deleteDescription": "Diese Integration und alle Konfigurationen dauerhaft entfernen.",
-        "uninstallIntegration": "Integration deinstallieren",
-        "uninstallDescription": "Diese Integration deinstallieren. Du kannst sie später aus den Vorlagen neu installieren.",
-        "confirmDelete": "Löschen bestätigen",
-        "cancelDelete": "Abbrechen",
         "deleted": "Integration gelöscht",
         "deletedDescription": "{name} wurde entfernt.",
         "deleteFailed": "Integration konnte nicht gelöscht werden",
@@ -1286,7 +852,6 @@
         "server": "Server",
         "port": "Port",
         "database": "Datenbank",
-        "engine": "Engine",
         "username": "Benutzername",
         "password": "Passwort",
         "sqlOperations": "SQL-Operationen",
@@ -1297,24 +862,15 @@
         "accessToken": "Zugriffstoken",
         "refreshToken": "Aktualisierungstoken",
         "optional": "Optional",
-        "oauth2Authorization": "OAuth2-Autorisierung",
-        "oauth2AuthorizationDescription": "Gib deine OAuth2-Client-Zugangsdaten ein und autorisiere den Zugriff.",
-        "oauth2ManualFallback": "Manuelle Token-Eingabe",
-        "oauth2ManualFallbackDescription": "Füge Token direkt ein, wenn du den Autorisierungsablauf nicht nutzen kannst.",
-        "authorizationUrl": "Autorisierungs-URL",
-        "tokenUrl": "Token-URL",
         "clientId": "Client-ID",
         "clientSecret": "Client-Secret",
-        "clientSecretSavedPlaceholder": "Gespeichert – neuen Wert eingeben zum Aktualisieren",
         "scopes": "Berechtigungen",
-        "saveAndAuthorize": "Speichern & autorisieren",
         "savingCredentials": "Wird gespeichert...",
         "credentialsSaved": "Zugangsdaten erfolgreich gespeichert",
         "credentialsSaveFailed": "Zugangsdaten konnten nicht gespeichert werden",
         "updateCredentials": "Zugangsdaten aktualisieren",
         "reauthorize": "Erneut autorisieren",
         "connectedViaOAuth2": "Verbunden über OAuth2",
-        "oauth2Authorized": "Integration erfolgreich autorisiert",
         "oauth2AuthorizationFailed": "OAuth2-Autorisierung fehlgeschlagen",
         "authenticationMethod": "Authentifizierungsmethode",
         "testConnection": "Verbindung testen",
@@ -1341,15 +897,11 @@
         "addIntegration": "Integration hinzufügen",
         "integrationDetails": "Integrationsdetails",
         "connectName": "{name} verbinden",
-        "saveChanges": "Änderungen speichern",
         "disconnectConfirmTitle": "Integration trennen",
         "disconnectConfirmDescription": "Möchtest du diese Integration wirklich trennen? Du kannst sie später erneut verbinden.",
         "deleteConfirmTitle": "Integration löschen",
         "deleteConfirmDescription": "Möchtest du diese Integration wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-        "deleteIntegration": "Integration löschen",
-        "connectedAccount": "Verbundenes Konto",
-        "connectedVia": "Verbunden über {provider}",
-        "reconnect": "Erneut verbinden"
+        "deleteIntegration": "Integration löschen"
       },
       "authMethods": {
         "api_key": "API-Schlüssel",
@@ -1357,94 +909,9 @@
         "basic_auth": "Basis-Authentifizierung",
         "oauth2": "OAuth2"
       },
-      "clickToCopy": "Zum Kopieren klicken",
-      "failedToCopy": "Kopieren in die Zwischenablage fehlgeschlagen",
-      "comingSoon": "(Demnächst verfügbar)",
-      "customSMTP": "Benutzerdefiniertes SMTP/IMAP",
-      "moreOptions": "Weitere Optionen",
-      "testing": "Wird getestet...",
-      "test": "Testen",
-      "setAsDefault": "Als Standard festlegen",
-      "default": "Standard",
-      "noProvidersYet": "Noch keine E-Mail-Anbieter konfiguriert",
-      "addProviderToStart": "Füge Gmail, Outlook oder einen benutzerdefinierten SMTP/IMAP-Anbieter hinzu",
-      "addEmailProvider": "E-Mail-Anbieter hinzufügen",
-      "authorize": "Autorisieren",
-      "oauth2": "OAuth2",
-      "notAuthorized": "Nicht autorisiert",
-      "pendingAuthorization": "Autorisierung ausstehend",
-      "authorizationRequired": "Autorisierung erforderlich",
-      "authorizationRequiredDescription": "Schließen die Autorisierung ab, um E-Mails senden und empfangen zu können",
-      "authorizingProvider": "Autorisierung wird gestartet...",
-      "password": "Passwort",
-      "created": "Erstellt",
-      "noOutlookProviders": "Noch keine Outlook-Anbieter konfiguriert",
-      "noGmailProviders": "Noch keine Gmail-Anbieter konfiguriert",
-      "addOutlookProvider": "Outlook-Anbieter hinzufügen",
-      "addGmailProvider": "Gmail-Anbieter hinzufügen",
-      "account": "Konto",
-      "sendMethod": "Sendemethode",
-      "apiGmailGraph": "API (Gmail/Graph)",
-      "smtp": "SMTP",
-      "imap": "IMAP",
-      "user": "Benutzer",
-      "ssl": "SSL",
-      "tls": "TLS",
-      "providerName": "Anbietername",
-      "oauth2Tab": "OAuth2",
-      "appPasswordTab": "App-Passwort",
-      "setAsDefaultProvider": "Als Standard-E-Mail-Anbieter festlegen",
-      "continueWithGoogle": "Weiter mit Google",
-      "redirectingToGoogle": "Weiterleitung zu Google...",
-      "continueWithMicrosoft": "Weiter mit Microsoft",
-      "redirectingToMicrosoft": "Weiterleitung zu Microsoft...",
-      "testAndCreate": "Testen & Anbieter erstellen",
-      "useApiSending": "API-Versand verwenden (empfohlen – keine Port-Blockierung)",
-      "useApiSendingShort": "API-Versand verwenden",
-      "apiSending": "API-Versand",
-      "providerGmail": "Gmail",
-      "providerOutlook": "Outlook",
-      "gmailAddress": "Gmail-Adresse",
-      "emailAddress": "E-Mail-Adresse",
-      "appPassword": "App-Passwort",
-      "oauth2Authentication": "OAuth2-Authentifizierung",
-      "oauth2GoogleInfo": "Du wirst zu Google weitergeleitet, um den Zugriff zu autorisieren. Diese Methode funktioniert mit den Google-Sicherheitsstandards und ist sicherer als Passwort-Authentifizierung.",
-      "oauth2MicrosoftInfo": "Du wirst zu Microsoft weitergeleitet, um den Zugriff zu autorisieren. Diese Methode funktioniert mit den Microsoft 365-Sicherheitsstandards und ist sicherer als Passwort-Authentifizierung.",
-      "googleClientId": "Google-Client-ID",
-      "googleClientIdPlaceholder": "xxx.apps.googleusercontent.com",
-      "googleClientSecret": "Google-Client-Secret",
-      "googleClientSecretPlaceholder": "Dein OAuth 2.0 Client-Secret",
-      "googleOAuthCredentialsInfo": "Gib deine Google Cloud OAuth 2.0-Zugangsdaten ein. Erstelle diese in der Google Cloud Console unter APIs & Dienste > Zugangsdaten > OAuth-Client-ID erstellen.",
-      "googleOAuth2Guide": "Google OAuth2-Einrichtungsanleitung",
-      "microsoftClientId": "Azure-Client-ID",
-      "microsoftClientIdPlaceholder": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-      "microsoftClientSecret": "Azure-Client-Secret",
-      "microsoftClientSecretPlaceholder": "Dein Azure AD Client-Secret",
-      "microsoftTenantId": "Mandanten-ID (optional)",
-      "microsoftTenantIdPlaceholder": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-      "microsoftTenantIdDescription": "Nur für Single-Tenant-Apps erforderlich. Für Multi-Tenant-Apps leer lassen.",
-      "microsoftOAuthCredentialsInfo": "Erstelle eine App-Registrierung im Azure-Portal (Microsoft Entra ID > App-Registrierungen).",
-      "microsoftRedirectUriInfo": "Füge die folgende Umleitungs-URI zu deiner App-Registrierung hinzu (Authentifizierung > Plattform hinzufügen > Web):",
-      "microsoftOAuth2Guide": "Microsoft OAuth2-Einrichtungsanleitung",
-      "gmailAppPasswordInfo": "Verwende Gmail App-Passwörter für eine schnelle Einrichtung. Erfordert aktivierte 2FA in deinem Google-Konto.",
-      "googleAppPasswordsGuide": "Google App-Passwörter-Anleitung",
-      "outlookLimitedAvailability": "Eingeschränkte Verfügbarkeit",
-      "outlookSecurityWarning": "Microsoft 365-Sicherheitsstandards blockieren Passwort-Authentifizierung. Dies funktioniert möglicherweise nicht für Dein Konto.",
-      "microsoftAppPasswordsGuide": "Microsoft App-Passwörter-Anleitung",
-      "recommended": "Empfohlen",
-      "useSsoCredentials": "Entra ID SSO-Zugangsdaten verwenden",
-      "useSsoCredentialsDescription": "Mit den SSO-App-Registrierungsdaten deiner Organisation vorausfüllen.",
-      "credentialsFromSso": "Zugangsdaten von Entra ID SSO",
-      "syncFromSso": "Von SSO synchronisieren",
-      "syncFromSsoSuccess": "Zugangsdaten von SSO synchronisiert",
-      "failedToLoadSsoCredentials": "SSO-Zugangsdaten konnten nicht geladen werden",
       "sso": {
         "name": "Single Sign-On",
         "description": "Teams und Rollen automatisch über Microsoft Entra ID SSO bereitstellen.",
-        "title": "SSO-Konfiguration",
-        "connected": "Verbunden",
-        "domain": "Domain",
-        "connectedToEntra": "Verbunden mit Microsoft Entra ID",
         "validationError": "Validierungsfehler",
         "allFieldsRequired": "Alle Felder sind erforderlich",
         "configureSuccessful": "Konfiguration erfolgreich",
@@ -1456,45 +923,16 @@
         "ssoDisconnected": "SSO-Anbieter wurde entfernt",
         "disconnectFailed": "Trennung fehlgeschlagen",
         "disconnectError": "SSO-Anbieter konnte nicht entfernt werden",
-        "updating": "Wird aktualisiert...",
-        "update": "Aktualisieren",
-        "configuring": "Wird konfiguriert...",
-        "configure": "Konfigurieren",
-        "domainLabel": "Domain",
-        "domainHelp": "Die E-Mail-Domain für SSO-Authentifizierung (z. B. ihreFirma.com)",
-        "issuerLabel": "Aussteller-URL",
-        "issuerHelp": "Die OIDC-Aussteller-URL für deinen Entra ID-Mandanten",
-        "clientIdLabel": "Client-ID",
-        "clientIdHelp": "Die Anwendungs-ID (Client-ID) aus der Azure-App-Registrierung",
-        "clientSecretLabel": "Client-Secret",
-        "clientSecretHelp": "Das Client-Secret aus der Azure-App-Registrierung",
-        "autoProvisionTeamLabel": "Teams automatisch bereitstellen",
-        "autoProvisionTeamHelp": "Team-Mitgliedschaften automatisch aus Entra ID-Gruppen synchronisieren",
-        "excludeGroupsLabel": "Gruppen ausschließen",
-        "excludeGroupsHelp": "Kommagetrennte Liste von Entra-Gruppen, die von der Team-Synchronisierung ausgeschlossen werden",
-        "syncModeLabel": "Vollständiger Synchronisierungsmodus",
-        "syncModeHelp": "Wenn aktiviert, werden Team-Mitgliedschaften vollständig synchronisiert – Benutzer werden aus Teams entfernt, denen sie in Entra nicht mehr angehören",
-        "additiveModeHelp": "Wenn deaktiviert, werden Teams nur hinzugefügt – Benutzer behalten bestehende Team-Mitgliedschaften, auch wenn sie in Entra entfernt wurden",
-        "autoProvisionRoleLabel": "Rollen automatisch zuweisen",
-        "autoProvisionRoleHelp": "Rollen automatisch basierend auf Jobtitel oder App-Rollen aus Entra ID zuweisen",
         "roleMappingRulesLabel": "Rollenzuordnungsregeln",
         "roleMappingRulesHelp": "Regeln definieren, um Jobtitel oder App-Rollen auf Plattformrollen abzubilden. Verwende * als Platzhalter (z. B. *entwickler*).",
         "sourceJobTitle": "Jobtitel",
         "sourceAppRole": "App-Rolle",
         "addRule": "Regel hinzufügen",
-        "defaultRoleLabel": "Standardrolle",
-        "defaultRoleHelp": "Rolle, die zugewiesen wird, wenn keine Zuordnungsregeln zutreffen",
-        "defaultRoleHelpNoAutoProvision": "Rolle, die allen SSO-Benutzern zugewiesen wird",
-        "oneDriveAccessLabel": "OneDrive/SharePoint-Zugriff aktivieren",
-        "oneDriveAccessHelp": "Benutzern erlauben, mit ihren SSO-Zugangsdaten auf OneDrive- und SharePoint-Dateien zuzugreifen",
-        "testConnection": "Verbindung testen",
-        "testing": "Wird getestet...",
         "testSuccessful": "Verbindung erfolgreich",
         "testSuccessfulDescription": "SSO-Zugangsdaten wurden erfolgreich validiert",
         "testFailed": "Verbindung fehlgeschlagen",
         "testFailedDescription": "SSO-Zugangsdaten konnten nicht validiert werden",
         "testError": "Beim Testen der Verbindung ist ein Fehler aufgetreten",
-        "testPassed": "Gültig",
         "roleAdmin": "Admin",
         "roleDeveloper": "Entwickler",
         "roleEditor": "Redakteur",
@@ -1504,14 +942,11 @@
     },
     "providers": {
       "title": "Anbieter",
-      "description": "Beschreibung",
       "addProvider": "Anbieter hinzufügen",
       "editProvider": "Anbieter bearbeiten",
       "deleteProvider": "Anbieter löschen",
-      "deleteConfirm": "Möchtest du diesen Anbieter wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
       "apiKey": "API-Schlüssel",
       "apiKeyConfigured": "API-Schlüssel konfiguriert",
-      "apiKeyNotConfigured": "API-Schlüssel nicht konfiguriert",
       "models": "Modelle",
       "addModel": "Modell hinzufügen",
       "editModel": "Modell bearbeiten",
@@ -1523,14 +958,12 @@
       "description_field": "Beschreibung",
       "baseUrl": "Basis-URL",
       "tags": "Tags",
-      "defaultModel": "Standard",
       "defaultModels": "Standardmodelle",
       "defaultModelsDescription": "Standardmodelle, die von Crawler, RAG und anderen Diensten für jede Fähigkeit verwendet werden.",
       "defaultNone": "Keine",
       "dimensions": "Dimensionen",
       "saved": "Anbieter gespeichert",
       "deleted": "Anbieter gelöscht",
-      "secretSaved": "API-Schlüssel gespeichert",
       "name": "Anbietername",
       "namePlaceholder": "z. B. openai",
       "nameHelp": "Nur Kleinbuchstaben, Zahlen und Bindestriche.",
@@ -1542,45 +975,42 @@
       "modelIdPlaceholder": "z. B. gpt-4o",
       "modelDisplayNamePlaceholder": "z. B. GPT-4o",
       "modelDescriptionPlaceholder": "z. B. Multimodales Modell mit Bildverarbeitung",
-      "dimensionsPlaceholder": "z. B. 1536",
-      "noProviders": "Keine Anbieter konfiguriert",
-      "noProvidersDescription": "Füge einen LLM-Anbieter hinzu, um mit KI-Funktionen zu beginnen.",
       "general": "Allgemein",
       "saveFailed": "Anbieter konnte nicht gespeichert werden",
       "deleteFailed": "Anbieter konnte nicht gelöscht werden",
       "secretSaveFailed": "API-Schlüssel konnte nicht gespeichert werden",
       "createFailed": "Anbieter konnte nicht erstellt werden",
-      "discard": "Verwerfen",
       "save": "Speichern",
       "saving": "Wird gespeichert...",
       "saveKey": "Schlüssel speichern",
       "editGeneral": "Details bearbeiten",
       "editKey": "Bearbeiten",
+      "testConnection": "Verbindung testen",
+      "testDialogTitle": "Provider-Verbindungstest",
+      "testSummary": "{ok} von {total} Modellen erreichbar · {failed} fehlgeschlagen",
+      "testRunning": "Wird ausgeführt…",
+      "testSkipped": "Nicht testbar (übersprungen)",
+      "testRerun": "Erneut ausführen",
+      "testLatency": "{latencyMs} ms",
+      "testKeyFailed": "Verbindung fehlgeschlagen",
       "addKey": "API-Schlüssel hinzufügen",
       "addApiKey": "API-Schlüssel hinzufügen",
       "replaceApiKey": "API-Schlüssel ersetzen",
       "replaceApiKeyDescription": "Aktueller Schlüssel: {maskedKey}",
-      "apiKeyReplace": "Neuen API-Schlüssel eingeben zum Ersetzen ({maskedKey})",
       "apiKeyEnter": "API-Schlüssel eingeben",
       "searchProvider": "Anbieter suchen...",
       "created": "Anbieter erstellt",
       "modelCount": "{count, plural, one {# Modell} other {# Modelle}}",
       "removeModel": "Modell entfernen",
       "apiKeyPlaceholder": "API-Schlüssel eingeben",
-      "apiKeyReplacePlaceholder": "Neuen API-Schlüssel eingeben zum Ersetzen ({maskedKey})",
       "providerNotFound": "Anbieter nicht gefunden: {name}",
       "backToProviders": "Zurück zu Anbietern",
       "tagChat": "Chat",
       "tagVision": "Vision",
       "tagEmbedding": "Embedding",
-      "tagImageGeneration": "Bildgenerierung",
-      "tagImageEdit": "Bildbearbeitung",
-      "tagTranscription": "Transkription",
       "imageGenerationMode": "Bildgenerierungs-Modus",
       "imageGenerationModeHelp": "Wie dieses Bildmodell aufgerufen wird. `images-api` nutzt den Standard-Endpunkt /v1/images/generations (FLUX, Imagen; Bearbeitung via /v1/images/edits). `chat-multimodal` nutzt /v1/chat/completions mit Bild-Inhaltsteilen (Nano Banana, GPT-Image; Bearbeitung via Bild-Teile in der Nutzernachricht).",
-      "default": "Standard",
       "displayNameRequired": "Anzeigename ist erforderlich",
-      "invalidBaseUrl": "Basis-URL muss eine gültige URL sein",
       "modelIdRequired": "Alle Modelle müssen eine ID haben",
       "deleteConfirmNamed": "Möchtest du den Anbieter \"{name}\" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden. Alle Modellkonfigurationen dieses Anbieters werden entfernt.",
       "providerActions": "Anbieteraktionen",
@@ -1594,12 +1024,8 @@
       "searchModels": "Modelle suchen…",
       "fetchingModels": "Abrufen…",
       "fetchModelsError": "Modelle konnten nicht abgerufen werden. Du kannst sie stattdessen manuell hinzufügen.",
-      "selectModels": "Wähle die Modelle aus, die du hinzufügen möchtest:",
-      "selectAll": "Alle auswählen",
-      "deselectAll": "Alle abwählen",
       "modelsSelected": "{count} ausgewählt",
       "duplicateModelId": "Doppelte Modell-ID",
-      "modelNumber": "Modell {number}",
       "modelBaseUrl": "Basis-URL-Überschreibung",
       "modelBaseUrlPlaceholder": "Leer lassen, um die Anbieter-Basis-URL zu verwenden",
       "modelBaseUrlHelp": "Überschreibt die Anbieter-Basis-URL nur für dieses Modell.",
@@ -1612,7 +1038,6 @@
       "modelApiKeyOverrideIndicator": "Eigener Key",
       "deleteModelApiKey": "Entfernen",
       "undoRemoveKey": "Rückgängig",
-      "deleteModelApiKeyConfirm": "Den modellspezifischen API-Key für \"{model}\" entfernen? Stattdessen wird der Anbieter-Key verwendet.",
       "costHelp": "Wird für die Budgetverfolgung verwendet. Leer lassen für Standardschätzungen."
     },
     "form": {
@@ -1623,11 +1048,9 @@
       "password": "Passwort",
       "passwordPlaceholder": "Passwort eingeben",
       "role": "Rolle",
-      "passwordHint": "Ein Passwort ist erforderlich, um ein neues Benutzerkonto zu erstellen. Wenn der Benutzer bereits ein Konto hat, wird er ohne Passwort hinzugefügt.",
       "forgotPassword": "Benutzer, die ihr Passwort vergessen, sollten sich an einen Admin wenden."
     },
     "roles": {
-      "owner": "Inhaber",
       "admin": "Admin",
       "developer": "Entwickler",
       "editor": "Redakteur",
@@ -1635,15 +1058,10 @@
       "disabled": "Deaktiviert"
     },
     "apiKeys": {
-      "title": "API-Schlüssel",
       "entityLabel": "Schlüssel",
-      "description": "API-Schlüssel für externe Integrationen verwalten",
-      "accessDenied": "Du benötigst Admin- oder Entwickler-Berechtigungen, um API-Schlüssel zu verwalten.",
       "createKey": "API-Schlüssel erstellen",
       "createKeySubmit": "Schlüssel erstellen",
       "searchKeys": "API-Schlüssel suchen...",
-      "noKeys": "Noch keine API-Schlüssel",
-      "noKeysDescription": "Erstelle einen API-Schlüssel, um externe Integrationen über die REST-API zu ermöglichen.",
       "keyCreated": "API-Schlüssel erstellt",
       "keyCreatedDescription": "Kopiere deinen API-Schlüssel jetzt. Er wird nicht erneut angezeigt.",
       "yourApiKey": "Dein API-Schlüssel",
@@ -1652,8 +1070,6 @@
       "revokeKey": "Schlüssel widerrufen",
       "revokeKeyTitle": "API-Schlüssel widerrufen",
       "revokeConfirmation": "Möchtest du den API-Schlüssel \"{keyName}\" wirklich widerrufen? Diese Aktion kann nicht rückgängig gemacht werden. Alle Anwendungen, die diesen Schlüssel verwenden, verlieren sofort den Zugriff.",
-      "revoking": "Wird widerrufen...",
-      "copyKey": "API-Schlüssel kopieren",
       "keyCopied": "API-Schlüssel in Zwischenablage kopiert",
       "columns": {
         "name": "Name",
@@ -1674,29 +1090,16 @@
           "never": "Nie"
         }
       },
-      "never": "Nie",
-      "neverUsed": "Nie verwendet",
-      "docsGuide": "Verwenden Sie API-Schlüssel für den Zugriff auf die REST-API. Verfügbare Endpunkte finden Sie in der API-Dokumentation."
+      "neverUsed": "Nie verwendet"
     },
     "apiDocs": {
-      "title": "API-Dokumentation",
-      "description": "Interaktive API-Dokumentation für die Tale-Plattform. Teste Endpunkte direkt von dieser Seite.",
-      "apiKeyLabel": "API-Schlüssel",
-      "apiKeyPlaceholder": "Gib deinen API-Schlüssel ein, um Endpunkte zu testen",
-      "noApiKeyWarning": "Gib oben einen API-Schlüssel ein, um Anfragen zu authentifizieren. Du kannst einen unter API-Schlüssel-Einstellungen erstellen.",
-      "refresh": "Aktualisieren",
-      "manageKeys": "Schlüssel verwalten",
-      "backToApp": "Zurück",
       "openDocs": "API-Dokumentation"
     },
     "logs": {
       "auditLogs": "Audit-Protokolle",
       "activityLogs": "Aktivitätsprotokolle",
       "errorLogs": "Fehlerprotokolle",
-      "auditDescription": "Alle Aktionen in deiner Organisation nachverfolgen.",
-      "activityDescription": "Systemaktivität und Audit-Protokolle anzeigen.",
       "activityComingSoon": "Aktivitätsprotokolle sind bald verfügbar.",
-      "errorDescription": "Systemfehler und Warnungen anzeigen.",
       "errorComingSoon": "Fehlerprotokolle sind bald verfügbar.",
       "blockCounters": {
         "tabLabel": "Anmeldeblockaden",
@@ -1763,21 +1166,6 @@
           "duration": "Dauer",
           "agent": "Agent",
           "tools": "Verwendete Tools"
-        },
-        "verification": {
-          "button": "Integrität prüfen",
-          "inProgress": "Prüfung läuft...",
-          "valid": "Kette gültig",
-          "validDescription": "{count} Einträge geprüft, keine Manipulation erkannt",
-          "broken": "Kette unterbrochen",
-          "brokenDescription": "Integritätsbruch erkannt bei Eintrag {logId}"
-        },
-        "retention": {
-          "label": "Aufbewahrungsdauer",
-          "days": "Tage",
-          "minHint": "Minimum: 30 Tage",
-          "maxHint": "Maximum: 365 Tage",
-          "saved": "Aufbewahrungsrichtlinie gespeichert"
         }
       }
     },
@@ -1795,12 +1183,9 @@
       "dark": "Dunkel",
       "brandColor": "Markenfarbe",
       "accentColor": "Akzentfarbe",
-      "preview": "Vorschau",
       "uploadLogo": "Logo hochladen",
       "uploadFavicon": "Favicon hochladen",
-      "invalidHexColor": "Gib eine gültige Hex-Farbe ein (z. B. #FF5733)",
-      "brandingSaved": "Branding erfolgreich aktualisiert",
-      "brandingSaveFailed": "Branding konnte nicht aktualisiert werden",
+      "preview": "Branding-Vorschau",
       "validation": {
         "appNameRequired": "App-Name ist erforderlich"
       }
@@ -1855,23 +1240,8 @@
       "noSteps": "Keine Automatisierungsschritte vorhanden",
       "createStepsHint": "Erstelle Schritte, um die Automatisierungsübersicht zu sehen, oder nutze den KI-Assistenten für den Einstieg."
     },
-    "breadcrumb": {
-      "back": "Zurück zu Automatisierungen"
-    },
     "search": {
       "placeholder": "Automatisierungen suchen"
-    },
-    "columns": {
-      "automation": "Automatisierung",
-      "category": "Kategorie",
-      "status": "Status",
-      "active": "Aktiv",
-      "version": "Version",
-      "created": "Erstellt"
-    },
-    "publishDialog": {
-      "title": "Automatisierung veröffentlichen",
-      "description": "Nach der Veröffentlichung wird diese Automatisierung automatisch ausgeführt, wenn ihre Trigger ausgelöst werden, und kann nicht mehr geändert werden."
     },
     "deactivateDialog": {
       "title": "Automatisierung deaktivieren",
@@ -1881,29 +1251,9 @@
       "ariaLabel": "Automatisierung-Aktivstatus umschalten"
     },
     "createWithAI": "Automatisierung mit KI erstellen",
-    "searchPlaceholder": "Automatisierungen suchen",
-    "accessDenied": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf Automatisierungen zuzugreifen.",
     "navigation": {
       "editor": "Editor",
-      "archived": "Archiviert",
-      "history": "Verlauf",
-      "publish": "Veröffentlichen",
-      "publishing": "Wird veröffentlicht...",
-      "rollback": "Aktivieren",
-      "rollingBack": "Wird aktiviert...",
-      "toast": {
-        "unableToPublish": "Automatisierung kann nicht veröffentlicht werden",
-        "published": "Automatisierung erfolgreich veröffentlicht",
-        "rolledBack": "Automatisierung erfolgreich aktiviert",
-        "publishFailed": "Automatisierung konnte nicht veröffentlicht werden",
-        "deactivated": "Automatisierung erfolgreich deaktiviert",
-        "deactivateFailed": "Automatisierung konnte nicht deaktiviert werden",
-        "unableToDeactivate": "Automatisierung kann nicht deaktiviert werden",
-        "unableToCreateDraft": "Entwurf kann nicht erstellt werden",
-        "draftCreated": "Entwurf zur Bearbeitung erstellt",
-        "navigatingToExisting": "Zum bestehenden Entwurf navigieren",
-        "draftFailed": "Entwurf konnte nicht erstellt werden"
-      }
+      "history": "Verlauf"
     },
     "history": {
       "empty": "Keine Verlaufseinträge",
@@ -1920,20 +1270,15 @@
     },
     "configuration": {
       "title": "Konfiguration",
-      "active": "Aktiv",
-      "activeHelp": "Wenn aktiv, wird diese Automatisierung automatisch ausgeführt, wenn ihre Trigger ausgelöst werden. Durch Deaktivieren werden alle Trigger pausiert.",
       "name": "Name",
       "namePlaceholder": "Automatisierungsname eingeben",
       "description": "Beschreibung",
       "descriptionPlaceholder": "Automatisierungsbeschreibung eingeben",
       "timeout": "Timeout (ms)",
-      "timeoutPlaceholder": "120000",
       "timeoutHelp": "Maximale Ausführungszeit in Millisekunden",
       "maxRetries": "Max. Wiederholungen",
-      "maxRetriesPlaceholder": "2",
       "maxRetriesHelp": "Anzahl der Wiederholungsversuche bei Fehler",
       "backoff": "Backoff (ms)",
-      "backoffPlaceholder": "1000",
       "backoffHelp": "Verzögerung zwischen Wiederholungsversuchen in Millisekunden",
       "variables": "Variablen (JSON)",
       "variablesHelp": "Diese Variablen stehen allen Schritten der Automatisierung zur Verfügung",
@@ -1941,10 +1286,6 @@
       "validation": {
         "nameRequired": "Name ist erforderlich",
         "invalidJson": "Ungültiges JSON im Variablen-Feld"
-      },
-      "notAvailable": {
-        "title": "Speichern noch nicht verfügbar",
-        "message": "Das Speichern der Workflow-Konfiguration ist noch nicht mit einer öffentlichen API verbunden. Bitte aktualisiere diesen Workflow vorerst über Backend-/Admin-Tools."
       }
     },
     "triggers": {
@@ -1966,7 +1307,6 @@
           "cronExpression": "Cron-Ausdruck",
           "cronPlaceholder": "0 * * * *",
           "cronHelp": "Standard 5-Feld Cron-Format: Minute Stunde Tag Monat Wochentag",
-          "timezoneNote": "Alle Zeitpläne laufen in der UTC-Zeitzone.",
           "presets": {
             "every5Minutes": "Alle 5 Minuten",
             "hourly": "Jede Stunde",
@@ -2060,51 +1400,7 @@
     },
     "executions": {
       "title": "Ausführungen",
-      "searchPlaceholder": "Ausführungen suchen",
-      "columns": {
-        "executionId": "Ausführungs-ID",
-        "status": "Status",
-        "startedAt": "Gestartet am",
-        "duration": "Dauer",
-        "triggeredBy": "Ausgelöst von"
-      },
-      "filters": {
-        "title": "Filter",
-        "dateRange": "Zeitraum",
-        "status": "Status",
-        "allStatus": "Alle Status",
-        "triggeredBy": "Ausgelöst von",
-        "allTriggers": "Alle Trigger"
-      }
-    },
-    "execution": {
-      "control": {
-        "title": "Ausführungssteuerung",
-        "description": "Automatisierungsausführungen starten und steuern"
-      },
-      "selectedAutomation": "Ausgewählte Automatisierung",
-      "inputLabel": "Eingabedaten (JSON)",
-      "startButton": "Ausführung starten",
-      "testButton": "Testen",
-      "mustBeActive": "Automatisierung muss aktiv sein, um die Ausführung zu starten",
-      "selectToStart": "Wähle eine Automatisierung im Tab Vorlagen aus, um die Ausführung zu starten",
-      "history": {
-        "title": "Ausführungsverlauf",
-        "description": "Letzte Ausführungen der ausgewählten Automatisierung",
-        "loading": "Ausführungen werden geladen...",
-        "noExecutions": "Keine Ausführungen für diese Automatisierung gefunden",
-        "triggeredBy": "Ausgelöst von: {source}",
-        "waitingFor": "Wartet auf: {target}",
-        "selectToView": "Wähle eine Automatisierung, um den Ausführungsverlauf anzuzeigen"
-      },
-      "toast": {
-        "invalidJson": "Ungültige JSON-Eingabe",
-        "startedSuccess": "Automatisierung erfolgreich gestartet",
-        "startFailed": "Automatisierung konnte nicht gestartet werden: {error}",
-        "testStarted": "Testausführung gestartet",
-        "testFailed": "Test fehlgeschlagen",
-        "executionId": "Ausführungs-ID: {id}"
-      }
+      "searchPlaceholder": "Ausführungen suchen"
     },
     "createDialog": {
       "title": "Automatisierung erstellen",
@@ -2113,50 +1409,21 @@
       "namePlaceholder": "z. B. Social-Media-Workflow",
       "descriptionPlaceholder": "Beschreibe, was diese Automatisierung tut...",
       "creating": "Wird erstellt...",
-      "continue": "Weiter",
-      "initialPrompt": "Ich habe gerade eine neue Automatisierung namens \"{name}\" erstellt. Folgendes soll sie tun:\n\n{description}\n\nBitte hilf mir, die Workflow-Schritte für diese Automatisierung zu erstellen."
+      "continue": "Weiter"
     },
     "templates": {
       "description": "Wähle eine Vorlage mit vorkonfigurierten Schritten.",
-      "fetchError": "Vorlage konnte nicht geladen werden. Bitte versuche es erneut.",
       "installFailed": "Automatisierung konnte nicht aus Vorlage erstellt werden",
       "fetching": "Vorlage wird geladen...",
-      "noTemplates": "Keine Vorlagen für diese Integration verfügbar.",
-      "newAutomation": "Neue Automatisierung",
-      "createNewTemplate": "Neue Automatisierungsvorlage erstellen",
-      "fillDetails": "Gib die Details für deinen neuen Workflow ein.",
-      "automationTemplates": "Automatisierungsvorlagen",
-      "manageExisting": "Bestehende Automatisierungsvorlagen verwalten",
-      "loading": "Automatisierungen werden geladen...",
-      "noAutomationsFound": "Keine Automatisierungen gefunden. Erstelle oben deine erste Automatisierung.",
-      "configJson": "Konfiguration (JSON)",
-      "configDescription": "Konfigurationseinstellungen der Automatisierung",
-      "noDescription": "Keine Beschreibung",
-      "deleteTitle": "Automatisierung löschen?",
-      "deleteDescription": "Diese Aktion kann nicht rückgängig gemacht werden. Die Automatisierungsvorlage und ihre Schritte werden dauerhaft gelöscht."
+      "noTemplates": "Keine Vorlagen für diese Integration verfügbar."
     },
     "editDialog": {
-      "title": "Automatisierung bearbeiten",
-      "namePlaceholder": "Automatisierungsname eingeben",
-      "descriptionPlaceholder": "Automatisierungsbeschreibung eingeben (optional)",
-      "timeoutPlaceholder": "300000",
-      "maxRetriesPlaceholder": "3",
-      "backoffPlaceholder": "1000",
-      "variablesPlaceholder": "{\n  \"environment\": \"test\"\n}",
-      "variablesDescription": "Standardvariablen für alle Automatisierungsschritte",
-      "updating": "Wird aktualisiert...",
-      "updateButton": "Automatisierung aktualisieren"
+      "namePlaceholder": "Automatisierungsname eingeben"
     },
     "steps": {
       "toast": {
         "editingNotAvailable": "Verbindungen bearbeiten noch nicht verfügbar",
-        "apiNotWired": "Öffentliche APIs zum Bearbeiten von Workflow-Schritten sind noch nicht verbunden.",
-        "stepCreationNotAvailable": "Schritterstellung noch nicht verfügbar",
-        "createFailed": "Schritt konnte nicht erstellt werden",
-        "stepCreated": "Schritt erfolgreich erstellt",
-        "notAuthenticated": "Du musst angemeldet sein, um Schritte zu erstellen",
-        "invalidStepName": "Schrittname muss mindestens einen Buchstaben oder eine Zahl enthalten",
-        "duplicateStepSlug": "Ein Schritt mit diesem Namen existiert bereits"
+        "apiNotWired": "Öffentliche APIs zum Bearbeiten von Workflow-Schritten sind noch nicht verbunden."
       },
       "banners": {
         "draftNotPublished": "Diese Automatisierung ist noch nicht veröffentlicht",
@@ -2166,13 +1433,11 @@
         "focus": "Fokus",
         "aiAssistant": "KI-Assistent",
         "testAutomation": "Automatisierung testen",
-        "viewAutomation": "Automatisierung anzeigen",
         "addStep": "Schritt hinzufügen"
       }
     },
     "stepTypes": {
       "start": "Start",
-      "trigger": "Trigger",
       "llm": "LLM",
       "condition": "Bedingung",
       "loop": "Schleife",
@@ -2189,10 +1454,8 @@
       "stepTooltip": "{stepType}-Schritt",
       "end": "Ende",
       "close": "Panel schließen",
-      "viewAutomation": "Automatisierung anzeigen",
       "validationErrors": "Validierungsfehler",
       "validationWarnings": "Warnungen",
-      "stepSaved": "Schritt erfolgreich gespeichert",
       "stepSaveFailed": "Schritt konnte nicht gespeichert werden",
       "saving": "Wird gespeichert...",
       "resizePanel": "Panel-Größe ändern",
@@ -2223,50 +1486,14 @@
         "output": "Ausgabe"
       },
       "configLabel": "Konfiguration (JSON)",
-      "configDescription": "Konfigurationseinstellungen",
-      "nextStepsLabel": "Nächste Schritte (JSON)",
-      "nextStepsDescription": "Schrittübergänge & Ablaufsteuerung",
       "validation": {
         "nameRequired": "Schrittname ist erforderlich",
         "nameFormat": "Format: Buchstaben, Zahlen, \"_\", \"-\""
-      }
-    },
-    "deleteStep": {
-      "title": "Schritt löschen",
-      "description": "Diese Aktion kann nicht rückgängig gemacht werden",
-      "confirmMessage": "Möchtest du den Schritt wirklich löschen",
-      "warning": "Warnung",
-      "warningMessage": "Dies kann deine Automatisierung beeinträchtigen, wenn andere Schritte von diesem abhängen. Stelle sicher, dass du alle Verweise in der Konfiguration \"Nächste Schritte\" anderer Schritte aktualisieren.",
-      "stepSlug": "Schritt-Slug:",
-      "type": "Typ:",
-      "order": "Reihenfolge:",
-      "deleting": "Wird gelöscht...",
-      "deleteButton": "Schritt löschen"
-    },
-    "stepDetails": {
-      "configLabel": "Konfiguration (JSON)",
-      "stepTypeTooltip": "{type}-Schritt",
-      "validation": {
-        "nameRequired": "Schrittname ist erforderlich",
-        "nameFormat": "Format: Buchstaben, Zahlen, \"_\", \"-\""
-      },
-      "toast": {
-        "editNotAvailable": "Schrittbearbeitung noch nicht verfügbar",
-        "deleteNotAvailable": "Schrittlöschung noch nicht verfügbar",
-        "apiNotReady": "Öffentliche APIs zum Bearbeiten von Workflow-Schritten sind noch nicht verbunden."
       }
     },
     "toast": {
       "created": "Automatisierung erfolgreich erstellt",
-      "createFailed": "Automatisierung konnte nicht erstellt werden",
-      "authRequired": "Authentifizierung erforderlich",
-      "activated": "Automatisierung erfolgreich aktiviert",
-      "activateFailed": "Automatisierung konnte nicht aktiviert werden",
-      "deactivated": "Automatisierung erfolgreich deaktiviert",
-      "deactivateFailed": "Automatisierung konnte nicht deaktiviert werden",
-      "updated": "Automatisierung erfolgreich aktualisiert",
-      "updateFailed": "Automatisierung konnte nicht aktualisiert werden",
-      "deleteFailed": "Automatisierung konnte nicht gelöscht werden"
+      "createFailed": "Automatisierung konnte nicht erstellt werden"
     },
     "validation": {
       "duplicateName": "Eine Automatisierung mit diesem Namen existiert bereits"
@@ -2277,7 +1504,6 @@
     },
     "assistant": {
       "messagePlaceholder": "Nachricht eingeben...",
-      "attachFiles": "Dateien anhängen",
       "automationDetails": "Automatisierungsdetails",
       "previewImage": "Vorschau {filename}",
       "fallbackImage": "Bild",
@@ -2292,17 +1518,6 @@
         "analyzing": "Workflow wird analysiert",
         "compiling": "Antwort wird erstellt"
       },
-      "upload": {
-        "uploading": "Wird hochgeladen...",
-        "invalidFiles": "Ungültige Dateien",
-        "invalidFilesDescription": "Einige Dateien sind zu groß (>100 MB) oder werden nicht unterstützt. Unterstützt: Bilder, PDF, Word-Dokumente, Textdateien.",
-        "success": "Datei hochgeladen",
-        "successDescription": "{fileName} erfolgreich hochgeladen",
-        "failed": "Upload fehlgeschlagen",
-        "failedDescription": "{fileName} konnte nicht hochgeladen werden"
-      },
-      "viewMore": "Mehr anzeigen",
-      "viewLess": "Weniger anzeigen",
       "analyzeAttachments": "Bitte analysiere die angehängten Dateien.",
       "messageHistory": "Nachrichtenverlauf"
     },
@@ -2329,21 +1544,6 @@
         "testFailed": "Ausführung fehlgeschlagen",
         "startFailed": "Ausführung konnte nicht gestartet werden"
       }
-    },
-    "monitoring": {
-      "selectAutomation": "Wähle eine Automatisierung, um Statistiken anzuzeigen",
-      "realtimeStatus": "Echtzeitstatus",
-      "liveMonitoring": "Live-Ausführungsüberwachung",
-      "monitoringExecution": "Ausführung wird überwacht: {handle}",
-      "stopMonitoring": "Überwachung stoppen",
-      "startAutomation": "Starte eine Automatisierungsausführung, um den Echtzeitstatus zu sehen",
-      "executionStatistics": "Ausführungsstatistiken",
-      "performanceMetrics": "Leistungskennzahlen für die ausgewählte Automatisierung",
-      "loadingStats": "Statistiken werden geladen...",
-      "totalExecutions": "Gesamtausführungen",
-      "successRate": "Erfolgsrate",
-      "avgDuration": "Durchschn. Dauer",
-      "failures": "Fehler"
     }
   },
   "conversations": {
@@ -2358,16 +1558,6 @@
       "spam": "Spam",
       "archived": "Archiviert"
     },
-    "priority": {
-      "high": "Hoch",
-      "medium": "Mittel",
-      "low": "Niedrig"
-    },
-    "category": {
-      "productRecommendation": "Produktempfehlung",
-      "serviceRequest": "Serviceanfrage",
-      "churnSurvey": "Abwanderungsumfrage"
-    },
     "improvement": {
       "title": "Nachrichtenverbesserung Vorschau",
       "description": "Prüfe die KI-verbesserte Version und übernimm oder verwirf die Änderungen",
@@ -2379,8 +1569,6 @@
     "bulkSend": {
       "title": "{count} Nachrichten senden",
       "description": "Du sendest Antworten für {count, plural, one {# Konversation} other {# Konversationen}}. Diese Aktion kann nicht rückgängig gemacht werden.",
-      "confirm": "Möchtest du wirklich fortfahren?",
-      "sending": "Wird gesendet...",
       "send": "Senden"
     },
     "updating": "Konversationen werden aktualisiert...",
@@ -2451,8 +1639,6 @@
       "selectToView": "Wähle eine Konversation, um Details anzuzeigen",
       "notFound": "Konversation nicht gefunden",
       "noMessages": "Noch keine Nachrichten",
-      "markedAsSpam": "Diese Konversation wurde als Spam markiert.",
-      "markedAsClosed": "Diese Konversation wurde als geschlossen markiert.",
       "invalidFileAttachment": "Ungültiger Dateianhang",
       "defaultSubject": "Re: Konversation",
       "customerEmailNotFound": "E-Mail kann nicht gesendet werden: Kunden-E-Mail nicht gefunden",
@@ -2471,30 +1657,6 @@
       "deleteSuccess": "Konversation erfolgreich gelöscht.",
       "deleteFailed": "Konversation konnte nicht gelöscht werden.",
       "showEarlierMessages": "{count} frühere {count, plural, one {Nachricht} other {Nachrichten}} anzeigen"
-    },
-    "filters": {
-      "title": "Filter",
-      "type": "Typ",
-      "priority": "Priorität",
-      "typeOptions": {
-        "productRecommendation": "Produktempfehlung",
-        "serviceRequest": "Serviceanfrage",
-        "churnSurvey": "Abwanderungsumfrage",
-        "general": "Allgemein",
-        "spam": "Spam"
-      },
-      "priorityOptions": {
-        "low": "Niedrig",
-        "medium": "Mittel",
-        "high": "Hoch"
-      },
-      "badges": {
-        "search": "Suche: \"{query}\"",
-        "applyingFilters": "Filter werden angewendet...",
-        "lowPriority": "Niedrige Priorität",
-        "mediumPriority": "Mittlere Priorität",
-        "highPriority": "Hohe Priorität"
-      }
     },
     "list": {
       "empty": "Keine Konversationen in diesem Tab"
@@ -2515,11 +1677,9 @@
     "openMenu": "Composer-Menü öffnen",
     "addFiles": "Fotos & Dateien hinzufügen",
     "modeHeader": "Modi",
-    "standardMode": "Standard",
     "capabilityHeader": "Fähigkeiten",
     "capabilityDisable": "{name} deaktivieren",
-    "requiresIntegration": "Benötigt {name}",
-    "connectInSettings": "In Einstellungen → Integrationen verbinden"
+    "requiresIntegration": "Benötigt {name}"
   },
   "todoList": {
     "title": "Recherche-Plan",
@@ -2528,11 +1688,6 @@
     "failedCount": "{count} fehlgeschlagen",
     "collapse": "Einklappen",
     "expand": "Ausklappen",
-    "statusPending": "Offen",
-    "statusInProgress": "In Bearbeitung",
-    "statusDone": "Erledigt",
-    "statusFailed": "Fehlgeschlagen",
-    "statusCancelled": "Abgebrochen",
     "paneClose": "Plan schließen",
     "paneMinimize": "Plan minimieren",
     "paneResizeHandle": "Planbereich vergrößern",
@@ -2548,7 +1703,6 @@
     "respondedByAt": "Beantwortet von {name} am {date}",
     "stopWorkflow": "Stopp",
     "stopWorkflowTooltip": "Den laufenden Workflow stoppen",
-    "formFieldRequired": "Erforderlich",
     "errorFillRequiredFields": "Bitte fülle alle erforderlichen Felder aus",
     "errorSelectRequired": "Bitte triff eine Auswahl",
     "errorFeedbackRequired": "Bitte gib dein Feedback ein",
@@ -2616,8 +1770,6 @@
     "rejectTooltip": "Workflow-Ausführung abbrechen",
     "statusExecuting": "Wird ausgeführt...",
     "statusCompleted": "Abgeschlossen",
-    "statusCompletedSuccess": "Workflow-Ausführung erfolgreich gestartet.",
-    "statusCompletedFailed": "Workflow-Ausführung wurde genehmigt, konnte aber nicht gestartet werden.",
     "statusRejected": "Abgelehnt",
     "showParameters": "Parameter anzeigen",
     "hideParameters": "Parameter ausblenden",
@@ -2632,10 +1784,8 @@
     "hideOutput": "Ausgabe ausblenden",
     "stopExecution": "Stopp",
     "stopTooltip": "Workflow-Ausführung stoppen",
-    "statusPending": "Ausstehend",
     "errorRunFailed": "Workflow konnte nicht ausgeführt werden",
     "errorStopFailed": "Ausführung konnte nicht gestoppt werden",
-    "humanInputPlaceholder": "Antwort eingeben...",
     "submitResponse": "Antwort absenden",
     "copyQuestions": "Fragen kopieren",
     "pushback": "Anders antworten",
@@ -2657,7 +1807,6 @@
     "rejectTooltipBatch": "Alle Dokumentspeicherungen ablehnen",
     "savedSuccessfully": "In deinen Dokumenten gespeichert",
     "savedPartially": "{success} von {total} Dateien erfolgreich gespeichert",
-    "fileFailed": "Speichern fehlgeschlagen",
     "statusExecuting": "Dokumente werden gespeichert...",
     "statusCompletedFailed": "Dieses Dokument wurde genehmigt, konnte aber nicht gespeichert werden.",
     "statusCompletedSuccess": "Dieses Dokument wurde in deinen Dokumenten gespeichert.",
@@ -2685,7 +1834,6 @@
     "backToActions": "Zurück"
   },
   "chat": {
-    "title": "Chat",
     "imagePreview": "Bildvorschau",
     "previousImage": "Vorheriges Bild",
     "nextImage": "Nächstes Bild",
@@ -2694,7 +1842,6 @@
     "moreActions": "Weitere Aktionen",
     "deleteChat": "Chat löschen",
     "deleteConfirmation": "Möchtest du {title} wirklich löschen?",
-    "deleteArchiveMessage": "Dieser Chat wird archiviert und erscheint nicht mehr in deinem Chatverlauf.",
     "deletePermanentMessage": "Diese Aktion kann nicht rückgängig gemacht werden. Der Chat wird dauerhaft gelöscht.",
     "deleteFailed": "Chat konnte nicht gelöscht werden",
     "archive": "Archivieren",
@@ -2704,44 +1851,19 @@
     "unarchiveSuccess": "Chat dearchiviert",
     "unarchiveFailed": "Chat konnte nicht dearchiviert werden",
     "archived": {
-      "title": "Archiviert",
-      "empty": "Keine archivierten Chats"
+      "title": "Archiviert"
     },
-    "welcome": "Woran arbeitest du?",
     "welcomeEmpty": "Wie kann ich dir helfen?",
     "welcomeSuffix": "hier, woran arbeiten wir?",
-    "suggestions": {
-      "admin": [
-        "Einen Projektvorschlag für Q4 entwerfen",
-        "Umsatztrends des letzten Monats analysieren",
-        "Eine Folge-E-Mail an den Kunden schreiben",
-        "Unsere neuesten Produktupdates zusammenfassen"
-      ],
-      "editor": [
-        "Einen Blogbeitrag über unser neues Feature schreiben",
-        "Diesen Inhaltsentwurf prüfen und verbessern",
-        "Eine Produktbeschreibung für den Katalog erstellen",
-        "Die wichtigsten Punkte aus diesem Dokument zusammenfassen"
-      ],
-      "developer": [
-        "Hilf mir, dieses Problem zu debuggen",
-        "Diesen Code auf Best Practices prüfen",
-        "Unit-Tests für diese Funktion schreiben",
-        "Erklären, wie diese Integration funktioniert"
-      ],
-      "member": [
-        "Eine E-Mail an einen Kunden entwerfen",
-        "Unsere neuesten Produktupdates zusammenfassen",
-        "Hilf mir bei der Vorbereitung auf ein Meeting",
-        "Eine Frage zu unseren Produkten beantworten"
-      ]
-    },
     "toast": {
-      "generateFailed": "Antwort konnte nicht generiert werden",
       "sendFailed": "Nachricht konnte nicht gesendet werden",
       "piiBlocked": "Nachricht durch PII-Richtlinie blockiert",
+      "policyViolation": "Nachricht durch Inhaltsrichtlinie blockiert",
       "modelAccessDenied": "Modell nicht verfügbar",
       "budgetExceeded": "Nutzungslimit erreicht"
+    },
+    "blockedNotice": {
+      "body": "Diese Antwort wurde durch die Inhaltsrichtlinie deiner Organisation blockiert."
     },
     "thinking": {
       "default": "Denkt nach",
@@ -2774,37 +1896,9 @@
     "agentSelector": {
       "label": "Agent auswählen",
       "defaultAgent": "Assistent",
-      "defaultAgentDescription": "Allgemeiner KI-Assistent",
-      "usingAgent": "Verwendet {name}",
       "searchPlaceholder": "Agents suchen",
       "noResults": "Keine Agents gefunden",
-      "addAgent": "Agent hinzufügen",
-      "builtinAgents": {
-        "chat": {
-          "name": "Assistent",
-          "description": "Allgemeiner KI-Assistent"
-        },
-        "web": {
-          "name": "Suche",
-          "description": "Durchsucht das Web nach aktuellen Informationen"
-        },
-        "crm": {
-          "name": "Vertrieb",
-          "description": "Sucht Kunden- und Produktinformationen"
-        },
-        "document": {
-          "name": "Dokumente",
-          "description": "Liest und erstellt Dokumente (PDF, Word, Excel usw.)"
-        },
-        "integration": {
-          "name": "Verbinden",
-          "description": "Verbindet und arbeitet mit externen Systemen"
-        },
-        "workflow": {
-          "name": "Automatisieren",
-          "description": "Erstellt automatisierte Workflows"
-        }
-      }
+      "addAgent": "Agent hinzufügen"
     },
     "modelSelector": {
       "label": "Modell auswählen",
@@ -2812,41 +1906,19 @@
       "noResults": "Keine Modelle gefunden",
       "auto": "Auto",
       "autoDescription": "Wählt automatisch das beste verfügbare Modell mit Fallback",
-      "noModelsAvailable": "Keine Modelle verfügbar",
-      "tags": {
-        "chat": "Chat",
-        "vision": "Vision",
-        "embedding": "Embedding",
-        "imageGeneration": "Bildgenerierung",
-        "imageEdit": "Bildbearbeitung",
-        "transcription": "Transkription"
-      }
+      "noModelsAvailable": "Keine Modelle verfügbar"
     },
     "searchChat": "Chat durchsuchen",
     "hideSearch": "Suche ausblenden",
     "showHistory": "Verlauf anzeigen",
     "hideHistory": "Verlauf ausblenden",
     "chatHistory": "Chatverlauf",
-    "searchPlaceholder": "Chats suchen",
-    "messagePlaceholder": "Nachricht eingeben...",
     "typeMessageHere": "Gib hier deine Nachricht ein...",
     "send": "Nachricht senden",
     "stopGenerating": "Generierung stoppen",
     "generationStopped": "Generierung gestoppt",
-    "errorDetails": "Fehlerdetails",
     "errorGenerating": "Etwas ist schiefgelaufen",
-    "errorGeneratingDescription": "Beim Generieren einer Antwort ist ein Fehler aufgetreten. Bitte versuche es erneut.",
     "retryGeneration": "Erneut versuchen",
-    "errorHintMissingApiKey": "Für diese Organisation ist noch kein API-Schlüssel konfiguriert. Öffne Einstellungen → KI-Anbieter und füge einen hinzu, um den Chat zu starten.",
-    "errorHintCreditExhausted": "Das Guthaben des KI-Anbieters wurde überschritten. Kontaktiere deinen Administrator, um Guthaben aufzuladen.",
-    "errorHintTokenLimit": "Das Token-Limit des Modells wurde überschritten. Versuche eine kürzere Anfrage oder bitte deinen Administrator, die Modelleinstellungen anzupassen.",
-    "errorHintContextLength": "Die Konversation ist zu lang für das Kontextfenster des Modells. Versuche, einen neuen Chat zu starten.",
-    "errorHintRateLimited": "Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.",
-    "errorHintContentFilter": "Die Nachricht wurde vom Inhaltsfilter markiert. Versuche, deine Nachricht umzuformulieren.",
-    "errorHintToolFailure": "Der Agent hat beim Datenzugriff einen Fehler festgestellt. Versuche, deine Anfrage umzuformulieren oder weniger Daten anzufordern.",
-    "errorHintAuthError": "Der API-Schlüssel ist ungültig oder hat keinen Zugriff auf dieses Modell. Kontaktiere deinen Administrator.",
-    "errorHintModelNotFound": "Das ausgewählte Modell wurde nicht gefunden oder ist nicht verfügbar. Kontaktiere deinen Administrator.",
-    "errorHintProviderError": "Der KI-Anbieter hat vorübergehend technische Probleme. Bitte versuche es in einem Moment erneut.",
     "showMore": "Mehr anzeigen",
     "showLess": "Weniger anzeigen",
     "editMessage": "Nachricht bearbeiten",
@@ -2865,7 +1937,6 @@
     "placeholder": "Frag zu Kunden, Produkten oder Dokumenten...",
     "searchConversations": "Konversationen durchsuchen",
     "invalidFiles": "Ungültige Dateien",
-    "filesNotSupported": "Einige Dateien sind zu groß (>100 MB) oder werden nicht unterstützt. Unterstützt: Bilder, PDF, Word-Dokumente, Textdateien.",
     "fileSizeExceededMultiple": "{names} überschreitet das Dateigrößenlimit von {maxSize} MB.",
     "audioDurationExceeded": "{names}: Audio länger als das Limit von {maxHours} Stunden. Bitte in kürzere Segmente aufteilen.",
     "fileTypeNotAllowed": "{names}: Dateityp nicht erlaubt laut Upload-Richtlinie.",
@@ -2884,17 +1955,12 @@
     "indexing": "Indizierung...",
     "indexingFailed": "Indizierung fehlgeschlagen",
     "viewImage": "Bild anzeigen",
-    "dropFilesToAdd": "Dateien hier ablegen, um sie zum Chat hinzuzufügen",
     "fileTypes": {
       "image": "IMG",
       "pdf": "PDF",
       "doc": "DOC",
       "pptx": "PPTX",
       "txt": "TXT",
-      "code": "CODE",
-      "config": "CONFIG",
-      "data": "DATA",
-      "markup": "MARKUP",
       "xlsx": "XLSX",
       "csv": "CSV",
       "audio": "AUDIO",
@@ -2909,22 +1975,17 @@
       "transcribed": "Transkribiert",
       "indexingFailed": "Indizierung fehlgeschlagen",
       "couldNotTranscribe": "Konnte nicht transkribiert werden",
-      "skip": "Transkription überspringen",
-      "retry": "Transkription wiederholen",
       "viewTranscript": "Transkript anzeigen",
       "previewSubtitle": "{seconds}s transkribiert"
     },
     "fallback": {
       "image": "Bild",
-      "file": "Datei",
-      "attachment": "Anhang",
-      "imageAttachment": "Bildanhang"
+      "file": "Datei"
     },
     "imageEdit": {
       "editThis": "Dieses Bild bearbeiten",
       "previewReference": "Referenzbild in Vollbild anzeigen",
       "editingLatest": "Letztes Bild bearbeiten",
-      "editing": "Bearbeiten",
       "dismiss": "Dieses Bild nicht referenzieren",
       "change": "Ändern",
       "placeholder": "Beschreibe die Bearbeitung…",
@@ -2934,9 +1995,6 @@
       "noOtherImages": "Keine weiteren Bilder in diesem Thread."
     },
     "downloadFile": "Datei herunterladen",
-    "toolStatus": {
-      "ragSearch": "Wissensdatenbank wird durchsucht"
-    },
     "messageInfo": {
       "title": "Nachrichteninformation",
       "description": "Details zu dieser KI-Antwort",
@@ -3023,10 +2081,8 @@
       "title": "Chat teilen",
       "button": "Teilen",
       "description": "Teile diesen Chat per Link mit anderen in deiner Organisation.",
-      "enable": "Diesen Chat teilen",
       "enableSharing": "Teilen aktivieren",
       "enableSharingDescription": "Jeder in deiner Organisation mit dem Link kann diesen Chat sehen.",
-      "disable": "Teilen beenden",
       "copyLink": "Link kopieren",
       "copied": "Link kopiert",
       "copyFailed": "Link konnte nicht kopiert werden",
@@ -3035,17 +2091,12 @@
       "preview": "Vorschau",
       "shareFailed": "Chat konnte nicht geteilt werden",
       "unshareFailed": "Teilen konnte nicht beendet werden",
-      "sharedBy": "Geteilt von {name}",
       "sharedChat": "Geteilter Chat",
       "forkChat": "Diesen Chat forken",
-      "forked": "Chat erfolgreich geforkt",
       "forkSuccess": "Chat erfolgreich geforkt",
       "forkFailed": "Chat konnte nicht geforkt werden",
-      "readOnly": "Dies ist ein geteilter Chat (schreibgeschützt)",
       "readOnlyBanner": "Du siehst einen geteilten Chat im Lesemodus",
       "sharedIndicator": "Geteilt",
-      "viewingShared": "Geteilten Chat ansehen",
-      "orgAccessDenied": "Dieser geteilte Chat ist nicht verfügbar.",
       "notFound": "Dieser geteilte Chat ist nicht mehr verfügbar.",
       "backToChat": "Zurück zum Chat",
       "inputPlaceholder": "Nachricht senden, um diese Unterhaltung fortzusetzen...",
@@ -3065,7 +2116,6 @@
       "assistant": "Assistent"
     },
     "arena": {
-      "title": "Arena-Modus",
       "label": "Arena-Modus",
       "enable": "Arena-Modus aktivieren",
       "disable": "Arena-Modus deaktivieren",
@@ -3073,7 +2123,6 @@
       "modelB": "Modell B",
       "modelALabel": "Modell A",
       "modelBLabel": "Modell B",
-      "selectModels": "Zwei Modelle zum Vergleichen auswählen",
       "selectModel": "Modell auswählen",
       "vs": "vs",
       "verdictLabel": "Bewertung auswählen",
@@ -3085,7 +2134,6 @@
       "verdictError": "Bewertung konnte nicht gespeichert werden"
     },
     "canvas": {
-      "title": "Canvas",
       "openInCanvas": "In Canvas öffnen",
       "close": "Canvas schließen",
       "edit": "Bearbeiten",
@@ -3097,7 +2145,21 @@
       "resizeHandle": "Canvas-Größe ändern",
       "apply": "Änderungen übernehmen",
       "applied": "Änderungen übernommen",
-      "applyFailed": "Änderungen konnten nicht übernommen werden"
+      "applyFailed": "Änderungen konnten nicht übernommen werden",
+      "enterFullscreen": "Vollbild",
+      "exitFullscreen": "Vollbild verlassen",
+      "codeEditor": "Code-Editor",
+      "markdownEditor": "Markdown-Editor",
+      "mermaidEditor": "Mermaid-Editor"
+    },
+    "branchNavigator": {
+      "previous": "Vorheriger Zweig",
+      "next": "Nächster Zweig"
+    },
+    "skeleton": {
+      "loadingWelcome": "Willkommen wird geladen",
+      "loadingSuggestion": "Vorschlag wird geladen",
+      "loadingMessage": "Nachricht wird geladen"
     },
     "promptLibrary": "Prompt-Bibliothek",
     "savePrompt": "Prompt speichern",
@@ -3108,10 +2170,7 @@
     "unsavePromptAction": "Entfernen"
   },
   "documents": {
-    "title": "Dokumente",
     "searchPlaceholder": "Dokumente suchen",
-    "addButton": "Dokument hinzufügen",
-    "deleteDocument": "Dokument löschen",
     "deleteFolder": {
       "title": "Ordner löschen",
       "confirmation": "Möchtest du den Ordner {name} wirklich löschen?",
@@ -3143,12 +2202,7 @@
       "title": "Noch keine Dokumente",
       "description": "Lade Dokumente hoch, um deinen KI-Assistenten zu trainieren"
     },
-    "searchEmptyState": {
-      "title": "Keine Elemente gefunden",
-      "description": "Keine Elemente entsprechen deiner Suche."
-    },
     "actions": {
-      "deleteDocument": "Dokument löschen",
       "deleteSyncFolder": "Synchronisierungsordner löschen",
       "deleteFolderFailed": "Ordner konnte nicht gelöscht werden",
       "deleteFileFailed": "Beim Löschen der Datei ist ein unerwarteter Fehler aufgetreten.",
@@ -3174,7 +2228,6 @@
       "noTeamsTitle": "Noch keine Teams",
       "noTeamsDescription": "Erstelle Teams in den Einstellungen, um zu steuern, welche Gruppen auf dieses Element zugreifen können.",
       "goToSettings": "Zu Einstellungen",
-      "hint": "Elemente ohne Teams sind für alle Organisationsmitglieder zugänglich.",
       "orgWide": "Organisationsweit"
     },
     "deleteFile": {
@@ -3186,8 +2239,7 @@
     "breadcrumb": {
       "navigation": "Brotkrumennavigation",
       "documents": "Dokumente",
-      "oneDrive": "OneDrive",
-      "uploads": "Uploads"
+      "oneDrive": "OneDrive"
     },
     "aria": {
       "openFolder": "Ordner {name} öffnen",
@@ -3195,13 +2247,6 @@
       "navigateToFolder": "Zum Ordner {name} navigieren"
     },
     "folderNotFound": "Ordner nicht gefunden oder nicht mehr zugänglich",
-    "sourceType": {
-      "oneDriveSynced": "OneDrive (synchronisiert)",
-      "oneDrive": "OneDrive",
-      "sharePointSynced": "SharePoint (synchronisiert)",
-      "sharePoint": "SharePoint",
-      "uploaded": "Upload"
-    },
     "filter": {
       "ragStatus": {
         "indexed": "Indexiert",
@@ -3229,9 +2274,9 @@
       "notAvailableDescription": "Dieser Dateityp kann nicht in der Vorschau angezeigt werden. Bitte lade die Datei herunter, um den Inhalt anzuzeigen.",
       "downloading": "Wird heruntergeladen...",
       "download": "Herunterladen",
-      "unknownError": "Unbekannter Fehler",
       "document": "Dokument",
       "title": "Dokumentvorschau",
+      "dragToolbar": "Werkzeugleiste verschieben",
       "sidebar": {
         "document": "Dokument",
         "size": "Größe",
@@ -3247,29 +2292,23 @@
       }
     },
     "upload": {
-      "fromComputer": "Vom Computer",
-      "fromComputerDescription": "Direkt von deinem Gerät hochladen",
-      "uploading": "Dateien werden hochgeladen...",
       "cancelUpload": "Upload abbrechen",
       "importDocuments": "Dokumente hochladen",
       "fromYourDevice": "Von deinem Gerät",
       "fromMicrosoft365": "Von Microsoft 365",
       "uploadInProgress": "Upload läuft",
+      "uploadingFileNamed": "{fileName} wird hochgeladen",
+      "failedFileName": "{fileName} — Fehlgeschlagen",
       "pleaseWaitForUpload": "Bitte warte, bis der aktuelle Upload abgeschlossen ist",
       "noFilesSelected": "Keine Dateien ausgewählt",
       "fileTooLarge": "Datei zu groß",
       "fileSizeExceeded": "Datei {name} überschreitet das Limit von {maxSize} MB. Aktuelle Größe: {currentSize} MB",
-      "uploadStarted": "Upload gestartet",
-      "uploadingCount": "{count} {count, plural, one {Datei} other {Dateien}} werden hochgeladen...",
-      "uploadSuccessful": "Upload erfolgreich",
-      "filesUploadedSuccessfully": "{count} {count, plural, one {Datei} other {Dateien}} erfolgreich hochgeladen",
       "uploadCancelled": "Upload abgebrochen",
       "uploadFailed": "Upload fehlgeschlagen",
       "uploadFailedRetry": "Upload fehlgeschlagen. Bitte prüfe deine Verbindung und versuche es erneut.",
       "filesCompletedSummary": "{completed} von {total} Dateien abgeschlossen",
       "filesCompletedWithFailures": "{completed} von {total} Dateien abgeschlossen - {failed} fehlgeschlagen",
       "selectTeams": "Teams zuweisen",
-      "selectTeamsPlaceholder": "Teams auswählen...",
       "selectTeamsDescription": "Wähle, welchem Team die hochgeladenen Dokumente zugeordnet werden",
       "noTeamsAvailable": "Du bist kein Mitglied eines Teams",
       "allMembersHint": "Organisationsweite Dokumente sind für alle in der Organisation zugänglich.",
@@ -3285,35 +2324,22 @@
       "uploadDocuments": "Hochladen"
     },
     "ocr": {
-      "available": "OCR verfügbar",
       "unavailable": "OCR nicht verfügbar",
-      "processingWithOcr": "Dokument mit OCR verarbeitet",
-      "noVisionModelWarning": "Kein Vision-Modell konfiguriert — gescannte Dokumente und Bilder werden nicht verarbeitet"
-    },
-    "import": {
-      "noResponseBody": "Kein Antwortinhalt erhalten"
+      "processingWithOcr": "Dokument mit OCR verarbeitet"
     },
     "microsoft365": {
       "title": "Von Microsoft 365 importieren",
       "myOneDrive": "Mein OneDrive",
       "sharePointSites": "SharePoint-Websites",
       "selectDescription": "Wähle Dateien oder Ordner zum Importieren",
-      "selectSite": "SharePoint-Website auswählen",
-      "selectLibrary": "Dokumentbibliothek auswählen",
       "noSites": "Keine SharePoint-Websites gefunden",
       "noSitesDescription": "Du hast keinen Zugriff auf SharePoint-Websites oder die Websites konnten nicht geladen werden.",
       "noDrives": "Keine Dokumentbibliotheken gefunden",
       "noDrivesDescription": "Diese Website hat keine Dokumentbibliotheken.",
-      "loadingSites": "SharePoint-Websites werden geladen...",
-      "loadingDrives": "Dokumentbibliotheken werden geladen...",
-      "backToSites": "Zurück zu Websites",
-      "backToDrives": "Zurück zu Bibliotheken",
       "siteUrl": "Website-URL",
       "driveType": "Typ"
     },
     "onedrive": {
-      "selectFiles": "Dateien oder Ordner auswählen",
-      "selectDescription": "Wähle, welche OneDrive-Dateien oder -Ordner importiert werden sollen",
       "importSettings": "Importeinstellungen",
       "settingsDescription": "Wähle, wie deine {count} ausgewählten {count, plural, one {Element} other {Elemente}} importiert werden sollen.",
       "microsoftNotConnected": "Microsoft-Konto nicht verbunden",
@@ -3325,7 +2351,6 @@
       "syncImport": "Synchronisierungsimport",
       "syncDescription": "Dateien automatisch synchronisiert halten",
       "importCount": "Importieren ({count})",
-      "importItem": "{type, select, oneTime {Importieren} other {Synchronisieren}} {count} {count, plural, one {Element} other {Elemente}}",
       "importing": "Wird importiert...",
       "syncing": "Wird synchronisiert...",
       "importStarted": "Import gestartet",
@@ -3334,8 +2359,6 @@
       "syncingItems": "{count} Elemente werden in den Speicher synchronisiert...",
       "importCompleted": "Import abgeschlossen",
       "syncCompleted": "Synchronisierung abgeschlossen",
-      "filesImported": "Dateien erfolgreich importiert",
-      "filesSynced": "Dateien erfolgreich synchronisiert",
       "filesImportedCount": "{count} von {total} Dateien erfolgreich importiert",
       "filesSyncedCount": "{count} von {total} Dateien erfolgreich synchronisiert",
       "importFailed": "Import fehlgeschlagen",
@@ -3345,20 +2368,14 @@
     },
     "rag": {
       "status": {
-        "pending": "Ausstehend",
         "queued": "In Warteschlange",
         "indexing": "Wird indexiert",
         "indexed": "Indexiert",
         "failed": "Fehlgeschlagen",
         "notIndexed": "Nicht indexiert",
         "needsReindex": "Neuindexierung nötig",
-        "stale": "Veraltet",
         "unknown": "Unbekannt"
       },
-      "index": "Indexieren",
-      "indexing": "Wird indexiert...",
-      "reindex": "Neu indexieren",
-      "reindexing": "Wird neu indexiert...",
       "retryIndexing": "Indexierung erneut versuchen",
       "toast": {
         "documentIdRequired": "Dokument-ID ist für den erneuten Versuch erforderlich",
@@ -3381,48 +2398,17 @@
           "unknownError": "Unbekannter Fehler aufgetreten"
         }
       }
-    },
-    "sync": {
-      "title": "OneDrive-zu-Speicher-Synchronisierung",
-      "syncingToStorage": "Dateien werden in den Speicher synchronisiert...",
-      "pleaseWait": "Bitte warte, während die Dateien verarbeitet werden...",
-      "processingFiles": "Dateien werden verarbeitet ({count} gesamt):",
-      "error": "Fehler",
-      "syncCompleted": "Synchronisierung abgeschlossen",
-      "syncCompletedWithErrors": "Synchronisierung mit Fehlern abgeschlossen",
-      "filesProcessed": "{count} Dateien verarbeitet",
-      "successfullySynced": "Erfolgreich synchronisiert ({count})",
-      "failedToSync": "Synchronisierung fehlgeschlagen ({count})",
-      "storageLocation": "Speicherort",
-      "storageDescription": "Dateien wurden in deinen Speicher synchronisiert. Du kannst über das Speicher-Dashboard oder die API darauf zugreifen.",
-      "syncError": "Synchronisierungsfehler",
-      "retryFailedFiles": "Fehlgeschlagene Dateien erneut versuchen"
     }
   },
   "products": {
     "title": "Produkte",
-    "searchPlaceholder": "Produkte suchen",
     "addButton": "Produkt hinzufügen",
-    "editProduct": "Produkt bearbeiten",
-    "deleteProduct": "Produkt löschen",
     "importMenu": {
-      "importProducts": "Produkte importieren",
       "fromDevice": "Von deinem Gerät",
-      "manualEntry": "Manuelle Eingabe",
-      "fromShopify": "Von Shopify",
-      "fromCirculy": "Von Circuly"
+      "manualEntry": "Manuelle Eingabe"
     },
     "noValidData": "Keine gültigen Produktdaten gefunden",
     "noneImported": "Es wurden keine Produkte importiert",
-    "noMatchingProducts": "Keine passenden Produkte gefunden",
-    "emptyState": {
-      "title": "Noch keine Produkte",
-      "description": "Importiere deine Produkte, damit deine KI den Kontext versteht"
-    },
-    "searchEmptyState": {
-      "title": "Keine Produkte gefunden",
-      "description": "Keine Produkte entsprechen deinen Suchkriterien"
-    },
     "edit": {
       "title": "Produkt bearbeiten",
       "description": "Produktinformationen aktualisieren. Pflichtfelder sind mit * gekennzeichnet",
@@ -3443,9 +2429,6 @@
         "category": "Kategorie",
         "status": "Status"
       },
-      "validation": {
-        "nameRequired": "Produktname ist erforderlich"
-      },
       "toast": {
         "success": "Produkt erfolgreich aktualisiert",
         "error": "Produkt konnte nicht aktualisiert werden"
@@ -3462,31 +2445,13 @@
         "error": "Produkt konnte nicht erstellt werden"
       }
     },
-    "translations": {
-      "title": "Produktübersetzungen bearbeiten",
-      "enterTranslation": "{language}-Übersetzung eingeben...",
-      "originalProductName": "Originaler Produktname",
-      "englishTranslation": "Englische Übersetzung",
-      "germanTranslation": "Deutsche Übersetzung",
-      "frenchTranslation": "Französische Übersetzung",
-      "toast": {
-        "success": "Produktübersetzungen aktualisiert",
-        "error": "Übersetzungen konnten nicht aktualisiert werden"
-      }
-    },
     "import": {
       "uploadProducts": "Produkte hochladen",
       "uploadFile": "Bitte lade eine Datei hoch",
       "success": "Import erfolgreich",
       "successDescription": "{success} Produkte erfolgreich importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
       "error": "Produkte konnten nicht importiert werden",
-      "errorCodes": {
-        "unknown": "Ein unerwarteter Fehler ist aufgetreten"
-      },
-      "dropzoneAriaLabel": "Datei hochladen - klicken oder Enter drücken, um eine Datei auszuwählen, oder Datei hierher ziehen",
       "clickToUpload": "Klicken zum Hochladen",
-      "or": "oder",
-      "dragAndDrop": "Datei hierher ziehen",
       "supportedFormats": ".xlsx, .xls oder .csv",
       "expectedColumns": "Erwartete Spalten: name, description, imageUrl, stock, price, currency, category, status",
       "draftStatusNote": "Importierte Produkte werden standardmässig mit dem Status \"Entwurf\" erstellt."
@@ -3518,9 +2483,7 @@
   },
   "customers": {
     "title": "Kunden",
-    "searchPlaceholder": "Kunden suchen",
     "filter": {
-      "title": "Filter",
       "source": {
         "manual": "Manuell",
         "upload": "Upload",
@@ -3532,9 +2495,6 @@
         "churned": "Abgewandert"
       }
     },
-    "addButton": "Kunde hinzufügen",
-    "addCustomers": "Kunden hinzufügen",
-    "uploadCustomers": "Kunden hochladen",
     "importForm": {
       "circuly": "Circuly",
       "manualEntry": "Manuelle Eingabe",
@@ -3548,23 +2508,14 @@
     },
     "editCustomer": "Kunde bearbeiten",
     "deleteCustomer": "Kunde löschen",
-    "viewDetails": "Details anzeigen",
-    "viewSubscriptions": "Abonnements anzeigen",
     "importMenu": {
       "importCustomers": "Kunden importieren",
       "fromDevice": "Von deinem Gerät",
-      "fromCirculy": "Von Circuly",
       "manualEntry": "Manuelle Eingabe"
     },
-    "noValidData": "Keine gültigen Kundendaten gefunden",
-    "noneImported": "Es wurden keine Kunden importiert",
-    "deleteError": "Kunde konnte nicht gelöscht werden",
-    "deleteConfirmation": "Möchtest du {name} wirklich löschen?",
     "thisCustomer": "diesen Kunden",
-    "deleteWarning": "Diese Aktion kann nicht rückgängig gemacht werden.",
     "updateSuccess": "Kunde erfolgreich aktualisiert",
     "updateError": "Kunde konnte nicht aktualisiert werden",
-    "updateCustomer": "Kunde aktualisieren",
     "name": "Name",
     "namePlaceholder": "Kundenname eingeben",
     "email": "E-Mail",
@@ -3580,23 +2531,15 @@
       "noValidData": "Keine gültigen Kundendaten gefunden",
       "success": "Import erfolgreich",
       "successDescription": "{success} Kunden erfolgreich importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
-      "failed": "fehlgeschlagen",
       "noneImported": "Es wurden keine Kunden importiert",
       "error": "Importfehler",
       "addCustomers": "Kunden hinzufügen",
       "uploadCustomers": "Kunden hochladen",
-      "import": "Importieren",
-      "errorCodes": {
-        "duplicate_email": "Ein Kunde mit dieser E-Mail existiert bereits",
-        "duplicate_external_id": "Ein Kunde mit dieser externen ID existiert bereits",
-        "unknown": "Ein unerwarteter Fehler ist aufgetreten"
-      }
+      "import": "Importieren"
     }
   },
   "vendors": {
     "title": "Lieferanten",
-    "searchPlaceholder": "Lieferanten suchen",
-    "addButton": "Lieferant hinzufügen",
     "addVendors": "Lieferanten hinzufügen",
     "uploadVendors": "Lieferanten hochladen",
     "importForm": {
@@ -3607,7 +2550,6 @@
     },
     "editVendor": "Lieferant bearbeiten",
     "deleteVendor": "Lieferant löschen",
-    "viewDetails": "Details anzeigen",
     "importMenu": {
       "importVendors": "Lieferanten importieren",
       "fromDevice": "Von deinem Gerät",
@@ -3616,27 +2558,15 @@
     "noValidData": "Keine gültigen Lieferantendaten gefunden",
     "noneImported": "Es wurden keine Lieferanten importiert",
     "name": "Name",
-    "noEmail": "Keine E-Mail",
-    "source": "Quelle",
-    "unknown": "Unbekannt",
-    "created": "Erstellt",
-    "actions": "Aktionen",
-    "noVendorsYet": "Noch keine Lieferanten",
-    "uploadFirstVendor": "Lade deinen ersten Lieferanten hoch, um loszulegen",
-    "deleteError": "Lieferant konnte nicht gelöscht werden",
-    "deleteConfirmation": "Möchtest du {name} wirklich löschen?",
     "thisVendor": "diesen Lieferanten",
-    "deleteWarning": "Diese Aktion kann nicht rückgängig gemacht werden.",
     "updateSuccess": "Lieferant erfolgreich aktualisiert",
     "updateError": "Lieferant konnte nicht aktualisiert werden",
-    "updateVendor": "Lieferant aktualisieren",
     "namePlaceholder": "Lieferantenname eingeben",
     "email": "E-Mail",
     "emailPlaceholder": "E-Mail-Adresse eingeben",
     "locale": "Sprache",
     "localePlaceholder": "z. B. en-US",
     "filter": {
-      "title": "Filter",
       "source": {
         "manual": "Manueller Import",
         "upload": "Datei-Upload",
@@ -3648,26 +2578,14 @@
       "provideData": "Bitte gib Lieferantendaten ein",
       "success": "Import erfolgreich",
       "successDescription": "{success} Lieferanten erfolgreich importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
-      "failed": "Import fehlgeschlagen",
-      "error": "Lieferanten konnten nicht importiert werden",
-      "errorCodes": {
-        "duplicate_email": "Ein Lieferant mit dieser E-Mail existiert bereits",
-        "duplicate_external_id": "Ein Lieferant mit dieser externen ID existiert bereits",
-        "unknown": "Ein unerwarteter Fehler ist aufgetreten"
-      }
+      "error": "Lieferanten konnten nicht importiert werden"
     }
   },
   "websites": {
     "title": "Websites",
-    "searchPlaceholder": "Website suchen",
     "addButton": "Website hinzufügen",
     "addWebsite": "Website hinzufügen",
     "editWebsite": "Website bearbeiten",
-    "deleteWebsite": "Website löschen",
-    "delete": {
-      "title": "Website löschen",
-      "confirmation": "Möchtest du diese Website wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
-    },
     "urlPlaceholder": "example.com",
     "scanIntervalPlaceholder": "Scan-Intervall auswählen",
     "domain": "Domain",
@@ -3683,7 +2601,6 @@
     },
     "validation": {
       "domainRequired": "Domain ist erforderlich",
-      "validUrl": "Muss eine gültige URL sein",
       "validDomain": "Gib eine gültige Domain ein (z. B. example.com)",
       "scanIntervalRequired": "Scan-Intervall ist erforderlich"
     },
@@ -3693,12 +2610,10 @@
       "addErrorDuplicate": "Diese Website wurde bereits hinzugefügt",
       "updateSuccess": "Website erfolgreich aktualisiert",
       "updateError": "Website konnte nicht aktualisiert werden",
-      "deleteError": "Website konnte nicht gelöscht werden",
       "fetchPagesError": "Seiten konnten nicht geladen werden",
       "searchError": "Suche fehlgeschlagen"
     },
     "adding": "Wird hinzugefügt...",
-    "saving": "Wird gespeichert...",
     "viewDialog": {
       "title": "Website-Details",
       "domain": "Domain",
@@ -3709,15 +2624,11 @@
       "titleField": "Titel",
       "description": "Beschreibung",
       "created": "Erstellt",
-      "unknown": "Unbekannt",
-      "errorReason": "Fehlergrund"
+      "unknown": "Unbekannt"
     },
     "viewPages": "Seiten anzeigen",
     "indexed": "Indexiert",
     "indexedTooltip": "{percentage} % – {crawled} von {total} Seiten",
-    "pageCount": "{count} Seiten",
-    "pageCountOne": "{count} Seite",
-    "pageCountProgress": "{crawled}/{total} Seiten",
     "pagesDialog": {
       "title": "Website-Seiten",
       "noPages": "Noch keine Seiten gecrawlt",
@@ -3729,8 +2640,7 @@
       "noSearchResults": "Keine Ergebnisse gefunden",
       "noChunks": "Keine Chunks für diese Seite indexiert",
       "chunkIndex": "Chunk {index}",
-      "searchResultScore": "Score: {score}",
-      "searchResultSource": "Quelle: {url}"
+      "searchResultScore": "Score: {score}"
     },
     "filter": {
       "status": {
@@ -3799,8 +2709,6 @@
       "backupCodeSuccess": "Backup-Code verwendet. Erwäge, die Backup-Codes in den Einstellungen neu zu erzeugen."
     },
     "lowBackupCodes": {
-      "titleOne": "Nur noch 1 Backup-Code übrig",
-      "titleOther": "Nur noch {count} Backup-Codes übrig",
       "body": "Erzeuge einen neuen Satz, damit du dein Konto wiederherstellen kannst, falls du deine Authenticator-App verlierst.",
       "regenerateLink": "Jetzt neu erzeugen"
     },
@@ -3809,24 +2717,19 @@
       "description": "Deine Organisation verlangt Zwei-Faktor-Authentifizierung, um fortzufahren."
     },
     "grace": {
-      "titleOne": "Zwei-Faktor-Authentifizierung in {days} Tag erforderlich",
-      "titleOther": "Zwei-Faktor-Authentifizierung in {days} Tagen erforderlich",
       "body": "Deine Organisation wird von allen Mitgliedern einen zweiten Faktor verlangen. Richte ihn jetzt ein, um Unterbrechungen zu vermeiden.",
       "setupLink": "Jetzt einrichten"
     },
     "admin": {
       "resetButton": "Zwei-Faktor zurücksetzen",
       "confirmTitle": "Zwei-Faktor-Authentifizierung zurücksetzen?",
-      "confirmDescription": "Dies deaktiviert Zwei-Faktor für {name} und beendet alle aktiven Sitzungen. Beim nächsten Anmelden ist eine neue Einrichtung erforderlich.",
-      "resetSuccess": "Zwei-Faktor-Authentifizierung zurückgesetzt",
-      "resetFailed": "Zwei-Faktor-Authentifizierung konnte nicht zurückgesetzt werden"
+      "confirmDescription": "Dies deaktiviert Zwei-Faktor für {name} und beendet alle aktiven Sitzungen. Beim nächsten Anmelden ist eine neue Einrichtung erforderlich."
     },
     "errors": {
       "enableFailed": "Einrichtung der Zwei-Faktor-Authentifizierung fehlgeschlagen. Bitte erneut versuchen.",
       "disableFailed": "Zwei-Faktor-Authentifizierung konnte nicht deaktiviert werden.",
       "regenerateFailed": "Neue Backup-Codes konnten nicht erzeugt werden.",
-      "invalidCode": "Ungültiger oder abgelaufener Code. Bitte erneut versuchen.",
-      "sessionExpired": "Deine Sitzung ist abgelaufen. Bitte erneut anmelden."
+      "invalidCode": "Ungültiger oder abgelaufener Code. Bitte erneut versuchen."
     }
   },
   "accessDenied": {
@@ -3834,14 +2737,12 @@
     "automations": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf Automatisierungen zuzugreifen.",
     "integrations": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die Integrationseinstellungen zuzugreifen.",
     "apiKeys": "Du benötigst Admin- oder Entwickler-Berechtigungen, um API-Schlüssel zu verwalten.",
-    "apiDocs": "Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die API-Dokumentation zuzugreifen.",
     "organization": "Du benötigst Admin-Berechtigungen, um auf die Organisationseinstellungen zuzugreifen.",
     "teams": "Du benötigst Admin-Berechtigungen, um auf die Team-Einstellungen zuzugreifen.",
     "agents": "Du benötigst Admin- oder Entwickler-Berechtigungen, um Agents zu verwalten.",
     "mcpServers": "Du benötigst Admin- oder Entwickler-Berechtigungen, um MCP-Server zu verwalten.",
     "branding": "Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen zuzugreifen.",
     "knowledge": "Dein Konto hat keine Berechtigung, auf Wissen zuzugreifen.",
-    "noMembership": "Du bist kein Mitglied dieses Workspace. Bitte kontaktiere einen Administrator für Zugriff.",
     "workspaceNotFound": "Der gesuchte Workspace existiert nicht oder wurde möglicherweise entfernt.",
     "disabled": "Dein Konto wurde deaktiviert. Kontaktiere den Support für Unterstützung."
   },
@@ -4007,15 +2908,14 @@
   },
   "governance": {
     "title": "Richtlinien",
-    "description": "Konfigurieren Sie organisationsweite Richtlinien und Kontrollen.",
+    "toastSavedTitle": "Änderungen erfolgreich gespeichert",
+    "toastSaveFailedTitle": "Änderungen konnten nicht gespeichert werden",
     "systemPrompt": {
       "title": "System-Prompt",
       "description": "Legen Sie einen verbindlichen System-Prompt fest, der auf alle Agents angewendet wird und nicht von Benutzern überschrieben werden kann.",
-      "prefix": "Präfix (wird vor Agent-Anweisungen eingefügt)",
       "prefixLabel": "Verbindliches Präfix",
       "prefixDescription": "Dieser Text wird vor die Anweisungen jedes Agents gestellt und kann nicht überschrieben werden.",
       "prefixPlaceholder": "Verbindliches Prompt-Präfix eingeben...",
-      "suffix": "Suffix (wird nach Agent-Anweisungen angehängt)",
       "suffixLabel": "Verbindliches Suffix",
       "suffixDescription": "Dieser Text wird nach die Anweisungen jedes Agents angehängt und kann nicht überschrieben werden.",
       "suffixPlaceholder": "Verbindliches Prompt-Suffix eingeben...",
@@ -4023,7 +2923,7 @@
       "charLimitExceeded": "Zeichenlimit überschritten",
       "save": "Speichern",
       "saving": "Wird gespeichert...",
-      "saved": "System-Prompt gespeichert",
+      "saved": "System-Prompt wurde aktualisiert",
       "saveFailed": "System-Prompt konnte nicht gespeichert werden"
     },
     "budgets": {
@@ -4037,7 +2937,6 @@
       "period": "Zeitraum",
       "tokenLimit": "Max. Token",
       "tokenLimitHelp": "Gesamte Ein- und Ausgabe-Token. 1M Token ~ 750K Wörter.",
-      "costLimitEur": "Kostenlimit (EUR)",
       "costLimitUsd": "Max. Kosten (USD)",
       "costLimitHelp": "Feste Ausgabengrenze in USD. GPT-4o ~ $10/1M Token.",
       "maxCost": "Max. Kosten",
@@ -4048,12 +2947,15 @@
       "orgScopeTarget": "Gesamte Organisation",
       "allUsers": "Alle Benutzer",
       "overrideHint": "Spezifischere Bereiche überschreiben allgemeinere: Benutzer > Team > Rolle > Standard. Org-Limits gelten immer zusätzlich.",
-      "noRules": "Keine Budgetregeln konfiguriert. Füge eine Regel hinzu, um Limits durchzusetzen.",
+      "noRulesTitle": "Keine Budgetregeln konfiguriert",
+      "noRulesDescription": "Füge eine Regel hinzu, um Limits durchzusetzen.",
       "editRuleAriaLabel": "Regel {index} bearbeiten",
       "removeRuleAriaLabel": "Regel {index} entfernen",
+      "removeRuleConfirmTitle": "Budgetregel entfernen?",
+      "removeRuleConfirmDescription": "Diese Regel setzt keine Budgetlimits mehr durch. Du kannst sie später jederzeit neu erstellen.",
+      "removeRuleConfirmAction": "Entfernen",
       "actions": "Aktionen",
       "confirm": "Bestätigen",
-      "enabled": "Aktiviert",
       "role": "Rolle",
       "user": "Benutzer",
       "team": "Team",
@@ -4065,28 +2967,28 @@
       "searchTeams": "Teams suchen...",
       "noTeamsFound": "Keine Teams gefunden",
       "selectTeamAriaLabel": "Team auswählen",
-      "daily": "Täglich",
-      "weekly": "Wöchentlich",
-      "monthly": "Monatlich",
-      "saved": "Budgetregeln gespeichert"
+      "saved": "Budgetregeln wurden aktualisiert"
     },
     "defaultModels": {
       "title": "Standardmodelle",
       "description": "Standardmodelle für bestimmte Benutzergruppen oder Rollen festlegen.",
-      "addMapping": "Modellzuordnung hinzufügen",
-      "saved": "Standardmodell-Konfiguration gespeichert",
+      "saved": "Standardmodell-Konfiguration wurde aktualisiert",
       "addRule": "Regel hinzufügen",
       "addRuleTitle": "Standardmodell-Regel hinzufügen",
       "editRuleTitle": "Standardmodell-Regel bearbeiten",
       "editRule": "Regel {index} bearbeiten",
       "removeRule": "Regel {index} entfernen",
+      "removeRuleConfirmTitle": "Standardmodell-Regel entfernen?",
+      "removeRuleConfirmDescription": "Diese Regel weist den passenden Benutzern kein Standardmodell mehr zu. Du kannst sie später jederzeit neu erstellen.",
+      "removeRuleConfirmAction": "Entfernen",
       "scope": "Geltungsbereich",
       "target": "Ziel",
       "provider": "Anbieter",
       "model": "Modell",
       "role": "Rolle",
       "actions": "Aktionen",
-      "noRules": "Keine Standardmodell-Regeln konfiguriert. Füge eine Regel hinzu, um Team- oder Rollen-Standards festzulegen.",
+      "noRulesTitle": "Keine Regeln konfiguriert",
+      "noRulesDescription": "Füge eine Regel hinzu, um Standardmodelle pro Bereich festzulegen.",
       "allUsers": "Alle Benutzer",
       "selectProvider": "Anbieter auswählen...",
       "selectModel": "Modell auswählen...",
@@ -4097,12 +2999,7 @@
       "noProvidersFound": "Keine Anbieter gefunden",
       "noModelsFound": "Keine Modelle gefunden",
       "noTeamsFound": "Keine Teams gefunden",
-      "enabled": "Aktiviert",
-      "confirm": "Bestätigen",
-      "allowlistConflictWarningTitle": "Modell nicht in Allowlist",
-      "allowlistConflictWarning": "Dieses Modell ist derzeit nicht durch die Allowlist der Modellzugriffsrichtlinie für diesen Geltungsbereich zugelassen. Betroffene Benutzer weichen auf ein erlaubtes Modell aus.",
-      "blocklistConflictWarningTitle": "Modell ist blockiert",
-      "blocklistConflictWarning": "Dieses Modell ist derzeit durch die Modellzugriffsrichtlinie für diesen Geltungsbereich blockiert. Betroffene Benutzer weichen auf ein erlaubtes Modell aus."
+      "confirm": "Bestätigen"
     },
     "uploadPolicy": {
       "title": "Upload-Richtlinie",
@@ -4117,19 +3014,62 @@
       "mimeTypePlaceholder": "image/*, application/pdf",
       "mbUnit": "MB",
       "gbUnit": "GB",
-      "policyDisabledHint": "Aktiviere die Richtlinie, um Upload-Beschränkungen durchzusetzen.",
-      "saved": "Upload-Richtlinie gespeichert",
+      "saved": "Upload-Richtlinie wurde aktualisiert",
       "saveFailed": "Upload-Richtlinie konnte nicht gespeichert werden"
     },
     "retentionPolicy": {
-      "title": "Aufbewahrungsrichtlinie",
-      "description": "Automatische Löschung hochgeladener Dateien nach einem bestimmten Zeitraum konfigurieren.",
-      "enabled": "Aufbewahrungsrichtlinie aktivieren",
-      "retentionDays": "Aufbewahrungszeitraum (Tage)",
-      "retentionDaysHint": "Dokumente, die älter als dieser Zeitraum sind, werden unwiderruflich gelöscht. Dies kann nicht rückgängig gemacht werden.",
-      "scope": "Anwenden auf",
-      "tempFileRetentionHours": "Aufbewahrung temporärer Dateien (Stunden)",
-      "saved": "Aufbewahrungsrichtlinie gespeichert"
+      "saved": "Aufbewahrungsrichtlinie wurde aktualisiert",
+      "enabled": "Aktiviert",
+      "retentionDays": "Aufbewahrungstage",
+      "retentionHours": "Aufbewahrungsstunden",
+      "chatHistory": {
+        "title": "Chat-Verlauf",
+        "description": "Konversationen mit Agents (Chat-Threads), die älter als die Aufbewahrungsfrist sind, automatisch löschen. Nachrichteninhalte in der Agent-Komponente werden archiviert. Die Löschung ist unumkehrbar.",
+        "placeholder": "z. B. 90",
+        "helper": "Chat-Threads, die (gemessen am letzten Aktualisierungszeitpunkt) älter sind, werden gelöscht."
+      },
+      "documents": {
+        "title": "Aufbewahrung von Dokumenten",
+        "description": "Dokumente, die die Aufbewahrungsfrist überschreiten, automatisch löschen. Mit Vorsicht verwenden — gelöschte Dokumente können nicht wiederhergestellt werden.",
+        "placeholder": "z. B. 90",
+        "helper": "Dokumente, die älter sind, werden gelöscht."
+      },
+      "userTemp": {
+        "title": "Bereinigung temporärer Nutzerdateien",
+        "description": "Dateien, die von Nutzern hochgeladen, aber nie in einem Dokument gespeichert wurden (z. B. Chat-Anhänge, abgebrochene Uploads), automatisch löschen.",
+        "placeholder": "z. B. 24",
+        "helper": "Temporäre Dateien, die älter sind, werden gelöscht."
+      },
+      "agentTemp": {
+        "title": "Bereinigung temporärer Agent-Dateien",
+        "description": "Dateien, die von Agents erzeugt, aber nie in einem Dokument gespeichert wurden (z. B. Zwischenresultate, Wissensdateien), automatisch löschen.",
+        "placeholder": "z. B. 24",
+        "helper": "Temporäre Dateien, die älter sind, werden gelöscht."
+      },
+      "workflowLogs": {
+        "title": "Workflow-Ausführungsprotokolle",
+        "description": "Workflow-Ausführungseinträge und Trigger-Logs, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Schließt pro Ausführung gespeicherte Variablen-/Output-Blobs ein.",
+        "placeholder": "z. B. 30",
+        "helper": "Workflow-Läufe, die älter sind, werden gelöscht (1–365 Tage)."
+      },
+      "auditLogs": {
+        "title": "Audit-Logs",
+        "description": "Audit-Log-Einträge, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Hinweis: Audit-Logs sind unveränderliche historische Aufzeichnungen für Compliance-Zwecke; halte die Aufbewahrungsfrist lang genug, um deine Audit-/Compliance-Anforderungen zu erfüllen.",
+        "placeholder": "z. B. 90",
+        "helper": "Audit-Log-Einträge, die älter sind, werden gelöscht (30–365 Tage)."
+      },
+      "usageLedger": {
+        "title": "Nutzungsbuch",
+        "description": "Zeilen des Token-Nutzungsbuchs, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Achtung: Eine kürzere Aufbewahrung schneidet historische Auswertungen ab (Budgets/Berichte stützen sich auf diese Zeilen).",
+        "placeholder": "z. B. 365",
+        "helper": "Nutzungsbuch-Zeilen, die älter sind, werden gelöscht (30–3650 Tage)."
+      },
+      "loginAttempts": {
+        "title": "Anmeldeversuche",
+        "description": "Aufzeichnungen fehlgeschlagener Anmeldungen (loginAttempts, stündliche Sperrzähler), die älter als die Aufbewahrungsfrist sind, automatisch löschen. Hinweis: Diese Tabellen gelten deployment-weit — der strengste (kürzeste) Wert über alle Organisationen hinweg wird verwendet.",
+        "placeholder": "z. B. 90",
+        "helper": "Einträge zu Anmeldeversuchen, die älter sind, werden gelöscht (7–365 Tage)."
+      }
     },
     "passwordPolicy": {
       "title": "Passwort-Richtlinie",
@@ -4145,7 +3085,7 @@
       "rotationDaysHint": "Benutzer müssen ihr Passwort nach dieser Anzahl von Tagen ändern. Das Kulanzfenster beginnt mit der erstmaligen Aktivierung der Rotation, bestehende Benutzer werden also nicht sofort zur Änderung gezwungen.",
       "invalidMinLength": "Mindestlänge muss eine ganze Zahl zwischen 6 und 128 sein.",
       "invalidRotationDays": "Rotationszeitraum muss eine ganze Zahl zwischen 1 und 3650 sein.",
-      "saved": "Passwort-Richtlinie gespeichert",
+      "saved": "Passwort-Richtlinie wurde aktualisiert",
       "saveFailed": "Speichern der Passwort-Richtlinie fehlgeschlagen"
     },
     "twoFactorPolicy": {
@@ -4158,14 +3098,13 @@
       "exemptSsoUsers": "Nur-SSO-Benutzer ausnehmen",
       "exemptSsoUsersHint": "Benutzer, deren einziges Konto eine föderierte Identität ist (z. B. Microsoft Entra ID), verlassen sich auf MFA im vorgelagerten IdP.",
       "invalidGrace": "Die Übergangsfrist muss eine ganze Zahl zwischen 0 und 30 sein.",
-      "saved": "Zwei-Faktor-Richtlinie gespeichert",
+      "saved": "Zwei-Faktor-Richtlinie wurde aktualisiert",
       "saveFailed": "Speichern der Zwei-Faktor-Richtlinie fehlgeschlagen"
     },
     "loginPolicy": {
       "title": "Anmeldeversuch-Limits",
       "description": "Konten nach wiederholten fehlgeschlagenen Anmeldungen sperren und die Wartezeit zwischen Versuchen verlängern.",
       "enabled": "Anmeldeversuch-Limits aktivieren",
-      "policyDisabledHint": "Solange diese Richtlinie deaktiviert ist, werden fehlgeschlagene Anmeldungen nicht gedrosselt.",
       "maxAttempts": "Fehlversuche bis zur Sperre",
       "maxAttemptsHint": "Anzahl aufeinanderfolgender Falscheingaben des Passworts, bevor das Konto vorübergehend gesperrt wird.",
       "backoffSchedule": "Backoff-Zeitplan (Sekunden)",
@@ -4175,22 +3114,12 @@
       "invalidAttempts": "Schwellenwert muss eine ganze Zahl zwischen 1 und 50 sein.",
       "invalidSchedule": "Backoff-Zeitplan muss eine komma-getrennte Liste nicht-negativer Zahlen sein.",
       "invalidProxies": "Vertrauenswürdige Proxies müssen eine komma-getrennte Liste aus IPs, CIDRs oder Schlüsselwörtern sein (max. 32).",
-      "saved": "Anmelderichtlinie gespeichert",
+      "saved": "Anmelderichtlinie wurde aktualisiert",
       "saveFailed": "Anmelderichtlinie konnte nicht gespeichert werden"
-    },
-    "tabs": {
-      "systemPrompt": "System-Prompt",
-      "budgets": "Budgets",
-      "usage": "Nutzung",
-      "pii": "PII-Schutz",
-      "featureControls": "Feature-Steuerung",
-      "modelAccess": "Modellzugriff",
-      "retention": "Aufbewahrung"
     },
     "featureFlags": {
       "title": "Feature-Steuerung",
       "description": "Funktionen pro Benutzer, Team oder Rolle aktivieren oder deaktivieren.",
-      "enabled": "Feature-Steuerung aktivieren",
       "webSearch": "Websuche",
       "codeExecution": "Code-Ausführung",
       "fileUpload": "Datei-Upload",
@@ -4202,8 +3131,12 @@
       "addRule": "Regel hinzufügen",
       "editRule": "Regel bearbeiten",
       "deleteRule": "Regel löschen",
-      "noRules": "Keine Feature-Regeln konfiguriert. Füge eine Regel hinzu, um Funktionen pro Benutzer, Team oder Rolle zu steuern.",
-      "saved": "Feature-Steuerung gespeichert",
+      "removeRuleConfirmTitle": "Feature-Regel löschen?",
+      "removeRuleConfirmDescription": "Diese Regel gilt nicht mehr für die passenden Benutzer. Du kannst sie später jederzeit neu erstellen.",
+      "removeRuleConfirmAction": "Löschen",
+      "noRulesTitle": "Keine Feature-Regeln konfiguriert",
+      "noRulesDescription": "Füge eine Regel hinzu, um Funktionen pro Benutzer, Team oder Rolle zu steuern.",
+      "saved": "Feature-Steuerung wurde aktualisiert",
       "saveFailed": "Feature-Steuerung konnte nicht gespeichert werden",
       "actions": "Aktionen",
       "role": "Rolle",
@@ -4230,7 +3163,6 @@
       "title": "PII-Schutz",
       "description": "Personenbezogene Daten erkennen und maskieren oder blockieren, bevor sie an KI-Modelle gesendet werden.",
       "enableLabel": "PII-Schutz aktivieren",
-      "enableDescription": "Wenn aktiviert, werden Nachrichten vor dem Senden an KI-Modelle auf personenbezogene Daten geprüft.",
       "modeLabel": "Erkennungsmodus",
       "modeMask": "Maskieren (durch Platzhalter ersetzen)",
       "modeBlock": "Blockieren (Nachricht ablehnen)",
@@ -4245,7 +3177,8 @@
         "dateOfBirth": "Geburtsdaten",
         "address": "Straßenadressen",
         "iban": "IBAN-Nummern",
-        "germanId": "Personalausweisnummern"
+        "germanId": "Personalausweisnummern",
+        "cvc": "Kartenprüfziffern (CVC/CVV)"
       },
       "customPatternsTitle": "Benutzerdefinierte Regex-Regeln",
       "customPatternsDescription": "Füge benutzerdefinierte Regex-Muster hinzu, um weitere Arten personenbezogener Daten zu erkennen.",
@@ -4263,50 +3196,289 @@
       "testNoResults": "Keine PII in der Testeingabe erkannt.",
       "testButton": "Testen",
       "addCustomPattern": "Benutzerdefiniertes Muster hinzufügen",
-      "saved": "PII-Konfiguration gespeichert",
-      "saveFailed": "PII-Konfiguration konnte nicht gespeichert werden",
-      "blocked": "Nachricht blockiert: personenbezogene Daten erkannt",
-      "detectedTypes": "Erkannt: {types}"
+      "saved": "PII-Konfiguration wurde aktualisiert",
+      "saveFailed": "PII-Konfiguration konnte nicht gespeichert werden"
+    },
+    "guardrailsOverview": {
+      "title": "Guardrails-Übersicht",
+      "description": "Schreibgeschützter Snapshot der drei Filterschichten. Jede läuft pro Nachricht in der Reihenfolge: chat_filter → PII → moderation_provider.",
+      "statusCards": {
+        "contentSafety": {
+          "title": "Inhaltssicherheit",
+          "description": "Wortlisten und vom Admin bereitgestellte Regex-Muster.",
+          "disabled": "Deaktiviert — füge eine Kategorie hinzu und aktiviere sie, um zu filtern.",
+          "appliesTo": "Gilt für: {targets}",
+          "categories": "Kategorien: {count}",
+          "maskReplacement": "Maskierungsersatz: {value}"
+        },
+        "pii": {
+          "title": "PII-Erkennung",
+          "description": "Integrierte Muster für E-Mails, Telefonnummern, IDs usw.",
+          "disabled": "Deaktiviert — PII-Erkennung ist für diese Organisation aus.",
+          "mode": "Modus: {mode}",
+          "patterns": "Muster: {builtIn} integriert + {custom} benutzerdefiniert"
+        },
+        "moderation": {
+          "title": "Moderations-Anbieter",
+          "description": "Externer Klassifikator (OpenAI / Azure / Perspective / benutzerdefiniert).",
+          "disabled": "Deaktiviert — keine externe Moderations-API konfiguriert.",
+          "provider": "Anbieter: {value}",
+          "appliesTo": "Gilt für: {targets}",
+          "mappings": "Zuordnungen: {count}",
+          "failBehavior": "Fehlerverhalten: Eingabe={input}, Ausgabe={output}"
+        }
+      },
+      "filterNames": {
+        "pii": "PII",
+        "chatFilter": "Inhaltssicherheit",
+        "moderation": "Moderation"
+      },
+      "recentEvents": {
+        "title": "Aktuelle Ereignisse",
+        "description": "Die letzten 50 Erkennungen / Blockierungen / Anbieter-Fehler dieser Organisation. Treffertext wird nie gespeichert.",
+        "filterAll": "Alle Filter",
+        "filterPii": "PII",
+        "filterChatFilter": "Inhaltssicherheit",
+        "filterModeration": "Moderation",
+        "kindAll": "Alle Arten",
+        "kindDetected": "Erkannt",
+        "kindBlocked": "Blockiert",
+        "kindStepError": "Schritt-Fehler",
+        "kindCircuitOpen": "Circuit offen",
+        "columnTime": "Zeit",
+        "columnFilter": "Filter",
+        "columnDirection": "Richtung",
+        "columnKind": "Art",
+        "columnCategories": "Kategorien",
+        "columnMatches": "Treffer",
+        "empty": "Noch keine Ereignisse. Erkennungen aus den Modi flag / mask / block erscheinen hier, sobald Chat-Traffic beginnt.",
+        "viewEventAria": "Ereignis {id} anzeigen"
+      },
+      "eventDetails": {
+        "title": "Ereignisdetails",
+        "description": "Vollständige Metadaten zu einem Guardrails-Ereignis. Treffertext wird nie gespeichert.",
+        "filter": "Filter",
+        "direction": "Richtung",
+        "kind": "Art",
+        "categories": "Kategorien",
+        "matches": "Treffer",
+        "truncated": "Gekürzt",
+        "truncatedValue": "Ja — Nachricht hat die Scan-Längengrenze überschritten",
+        "errorClass": "Fehlerklasse",
+        "httpStatus": "HTTP-Status",
+        "duration": "Dauer",
+        "durationValue": "{ms} ms",
+        "attempt": "Versuch",
+        "sanitizationRun": "Sanitization-Lauf",
+        "sanitizationRunCopyLabel": "Sanitization-Lauf-ID",
+        "thread": "Thread",
+        "threadCopyLabel": "Thread-ID",
+        "message": "Nachricht",
+        "messageCopyLabel": "Nachrichten-ID",
+        "agent": "Agent",
+        "actorType": "Akteurstyp",
+        "timestamp": "Zeitstempel",
+        "categoryDeleted": "(gelöscht)",
+        "copied": "{label} kopiert",
+        "copyFailed": "Kopieren fehlgeschlagen",
+        "close": "Schließen"
+      }
+    },
+    "contentSafety": {
+      "title": "Inhaltssicherheit",
+      "description": "Wortlisten und benutzerdefinierte Regex-Muster werden auf Chat-Nachrichten angewendet. Alle drei Modi (block / mask / flag) werden nacheinander ausgeführt und zu einem einzigen Audit-Ereignis pro Nachricht zusammengefasst.",
+      "cannotManage": "Du benötigst Admin-Rechte, um die Richtlinie für Inhaltssicherheit zu bearbeiten.",
+      "enabled": "Aktiviert",
+      "enableLabel": "Inhaltssicherheit aktivieren",
+      "applyTo": "Anwenden auf",
+      "applyToDescription": "Input filtert Nachrichten der Nutzer:innen, bevor sie das Modell erreichen. Output filtert die Antwort des Assistenten; kann Latenz pro Chunk erhöhen.",
+      "userInput": "Nutzer-Eingabe",
+      "modelOutput": "Modell-Ausgabe",
+      "maskReplacement": "Maskierungsersatz",
+      "preferNonStreaming": "Non-Streaming bevorzugen, wenn Output-Filter aktiv ist",
+      "preferNonStreamingDescription": "Warte auf die komplette Antwort, bevor etwas angezeigt wird. Verhindert das kurze Aufblitzen ungefilterter Inhalte — im Austausch für höhere gefühlte Latenz.",
+      "categoriesTitle": "Kategorien",
+      "categoriesDescription": "Jede Kategorie hat ihren eigenen Modus. block schlägt mask schlägt flag bei mehreren Treffern.",
+      "categoriesEmpty": "Keine Kategorien konfiguriert. Füge eine hinzu, um mit dem Filtern zu beginnen.",
+      "addCategory": "Kategorie hinzufügen",
+      "editCategory": "Kategorie bearbeiten",
+      "categorySheetDescription": "Konfiguriere eine Kategorie für Inhaltssicherheit, ihren Durchsetzungsmodus und ihre Wortliste.",
+      "categoryEditorDescription": "block schlägt mask schlägt flag, wenn mehrere Kategorien dieselbe Nachricht treffen.",
+      "categoryLabel": "Bezeichnung",
+      "categoryLabelPlaceholder": "z. B. Hassrede",
+      "categoryMode": "Modus",
+      "categoryModeDescription": "Block lehnt die Nachricht ab. Mask ersetzt Treffer durch den konfigurierten Platzhalter. Flag protokolliert die Erkennung, lässt die Nachricht aber passieren.",
+      "modeBlock": "Block",
+      "modeMask": "Mask",
+      "modeFlag": "Flag",
+      "wordsCount": "Wörter ({count})",
+      "wordsDescription": "Ein Wort oder eine Phrase pro Zeile. Groß-/Kleinschreibung egal. Für CJK/Thai/Laotisch wird automatisch Teilstring-Matching verwendet; andere Schriften nutzen Unicode-basierte Wortgrenzen.",
+      "importTxt": ".txt importieren",
+      "exportTxt": ".txt exportieren",
+      "columnLabel": "Bezeichnung",
+      "columnMode": "Modus",
+      "columnEnabled": "Aktiviert",
+      "columnWords": "Wörter",
+      "columnPatterns": "Muster",
+      "enableAria": "{label} aktivieren",
+      "editAria": "{label} bearbeiten",
+      "deleteAria": "{label} löschen",
+      "newCategoryDefault": "Neue Kategorie",
+      "deleteConfirmTitle": "Kategorie löschen?",
+      "deleteConfirmAction": "Löschen",
+      "deleteConfirm": "Kategorie \"{label}\" löschen? Dies entfernt ihre {words} Wörter und {patterns} Muster.",
+      "importReplaceConfirm": "{existing} vorhandene Wörter durch {incoming} Wörter aus \"{filename}\" ersetzen?",
+      "wordsPlaceholder": "verboten\nforbidden\ninterdit",
+      "saved": "Inhaltssicherheit gespeichert",
+      "saveFailed": "Speichern fehlgeschlagen"
+    },
+    "moderationProvider": {
+      "title": "Moderations-Anbieter",
+      "description": "Sende Chat-Nachrichten an einen externen Klassifikator (OpenAI Moderation, Azure Content Safety, Perspective oder einen beliebigen benutzerdefinierten HTTPS-Endpunkt). Füge den API-Schlüssel unten in den Abschnitt „API-Schlüssel“ ein — er wird serverseitig AES-verschlüsselt — und referenziere ihn in einem beliebigen Header-Wert als `{secretPlaceholder}`.",
+      "cannotManage": "Du benötigst Admin-Rechte, um den Moderations-Anbieter zu konfigurieren.",
+      "enabled": "Aktiviert",
+      "enableLabel": "Moderations-Anbieter aktivieren",
+      "applyTo": "Anwenden auf",
+      "userInput": "Nutzer-Eingabe",
+      "modelOutput": "Modell-Ausgabe",
+      "failBehavior": "Fehlerverhalten",
+      "failBehaviorDescription": "Was tun, wenn der Anbieter ein Timeout hat, Fehler wirft oder der Circuit Breaker offen ist. Input-Default ist fail-open (Nachricht durchlassen); Output-Default ist fail-closed (Antwort blockieren), da unreviewte Modell-Ausgabe höhere Haftung birgt.",
+      "input": "Eingabe",
+      "output": "Ausgabe",
+      "failOpen": "Fail open (durchlassen)",
+      "failClosed": "Fail closed (blockieren)",
+      "provider": "Anbieter",
+      "providerDescription": "Wähle ein integriertes Preset — URL, Header, Request-Template und Response-Parser werden für dich ausgefüllt. Der API-Schlüssel selbst wird unten im Abschnitt „API-Schlüssel“ eingegeben (und verschlüsselt), niemals in der Policy-Config. Wähle „Custom JSONPath“ für jede andere HTTPS-Moderations-API, die du anbinden willst.",
+      "presetCustomJsonPath": "Custom JSONPath",
+      "presetCustomJsonPathActive": "Custom JSONPath",
+      "presetApplied": "Preset angewendet",
+      "presetAppliedMappings": "{count} Standard-Kategorie-Zuordnungen hinzugefügt (alle im flag-Modus — unten feinjustieren).",
+      "customJsonPathHint": "Öffne unten „Endpoint“, trage deine HTTPS-URL, das Request-Body-Template und den JSONPath für Kategorien ein. Der Schalter bleibt nicht gespeichert, bis diese Felder gesetzt sind.",
+      "apiKey": "API-Schlüssel",
+      "apiKeyDescription": "Hier eingefügt, serverseitig mit AES-256-GCM verschlüsselt und in `governanceSecrets` gespeichert. Der Klartextwert ersetzt `{secretPlaceholder}` in deinen Endpoint-Headern zur Request-Zeit. Verwende den vollständigen Header-Wert für Authorization-Header (z. B. 'Bearer sk-…'); den reinen Schlüssel für Azures `Ocp-Apim-Subscription-Key`.",
+      "apiKeyPlaceholder": "Bearer sk-... oder reiner API-Schlüssel",
+      "apiKeySaved": "API-Schlüssel gespeichert",
+      "apiKeyLoading": "Lade…",
+      "apiKeyNotConfigured": "Nicht konfiguriert",
+      "replaceKey": "Ersetzen",
+      "setKey": "Schlüssel setzen",
+      "endpoint": "Endpoint",
+      "endpointDescription": "HTTPS-URL, Header, Request-Template und Timeout für den externen Aufruf.",
+      "endpointUrlLabel": "URL",
+      "endpointHeadersLabel": "Header",
+      "endpointTimeoutLabel": "Timeout",
+      "endpointUrlNotSet": "Nicht gesetzt",
+      "endpointTimeoutValue": "{ms} ms",
+      "editEndpointTitle": "Endpoint bearbeiten",
+      "editEndpointDescription": "URL, Header und Request-Template werden serverseitig validiert. Die Platzhalter {textPlaceholder} und {directionPlaceholder} sind JSON-sicher; {secretPlaceholder} ist nur in Header-Werten erlaubt.",
+      "endpointUrlField": "Endpoint-URL",
+      "endpointUrlFieldDescription": "Vollständige HTTPS-URL der Moderations-API (HTTP ist für interne / localhost-Mocks erlaubt). Nur dieser Host wird kontaktiert — Redirects zu anderen Hosts werden aus SSRF-Sicherheitsgründen abgelehnt.",
+      "endpointUrlPlaceholder": "https://api.example.com/v1/moderate",
+      "headersTitle": "Header",
+      "headerNameAria": "Header-Name",
+      "headerNamePlaceholder": "Authorization",
+      "headerValueAria": "Header-Wert",
+      "headerValuePlaceholder": "Bearer {secretPlaceholder}",
+      "removeHeaderAria": "Header entfernen",
+      "addHeader": "Header hinzufügen",
+      "requestTemplateLabel": "Request-Body-Template",
+      "requestTemplateDescription": "JSON mit den Platzhaltern {textPlaceholder} und optional {directionPlaceholder}. Substitution ist JSON-sicher; Secrets sind im Body NICHT erlaubt, nur in Headern.",
+      "timeoutLabel": "Timeout (ms)",
+      "parseResponseLabel": "Anbieter-Antwort parsen",
+      "parseResponseDescription": "Sag uns, wie die JSON-Antwort des Anbieters aussieht, damit wir die markierten Kategorien extrahieren können. Wenn du unsicher bist, ruf den Anbieter einmal im Terminal (curl) auf und übertrage die Antwortstruktur in die Felder unten.",
+      "shapeStepTitle": "1. Response-Struktur wählen",
+      "shapeStepDescription": "Welches Format verwendet der Anbieter für seine Kategorie-Flags?",
+      "shapeRecordBool": "Objekt aus Booleans",
+      "shapeRecordScore": "Objekt aus Scores",
+      "shapeArray": "Array aus Namen",
+      "pathStepTitle": "2. Pfad zu den Kategorien",
+      "pathStepRequired": "*erforderlich",
+      "pathStepDescription": "Wo die obige Struktur in der Antwort steht. Ein Dollarzeichen ist die Wurzel; Punkte durchlaufen Objekte; Zahlen in eckigen Klammern indizieren Arrays.",
+      "pathExampleTitle": "Beispiel-Antwort, auf die dieser Pfad passt:",
+      "pathExampleExplanation": "Der Pfad wählt den hervorgehobenen Teil aus.",
+      "showAdvanced": "Erweitert anzeigen (Gesamt-Flagged-Pfad)",
+      "flaggedPathLabel": "Gesamt-Flagged-Pfad",
+      "flaggedPathOptional": "(optional)",
+      "flaggedPathDescription": "Manche Anbieter liefern zusätzlich einen einzelnen Top-Level-Boolean — z. B. OpenAIs $.results[0].flagged. Wenn gesetzt, verhindert `false` hier die Kategorie-Prüfung und die Nachricht passiert. Leer lassen, wenn der Anbieter dieses Feld nicht hat.",
+      "categoryMappings": "Kategorie-Zuordnungen",
+      "categoryMappingsDescription": "Mappe Anbieter-Kategorien (z. B. OpenAIs `hate/threatening`) auf eine interne Bezeichnung, einen Durchsetzungsmodus und einen optionalen Score-Schwellenwert. block schlägt mask schlägt flag.",
+      "mappingsEmpty": "Keine Kategorie-Zuordnungen konfiguriert. Füge eine hinzu, um die Ergebnisse dieses Anbieters durchzusetzen.",
+      "mappingsWarning": "Keine Kategorie-Zuordnungen konfiguriert. Der Anbieter wird bei jeder Nachricht aufgerufen, aber nichts wird je geflaggt, maskiert oder blockiert — nur zugeordnete Kategorien erzeugen Ereignisse. Füge unten mindestens eine Zuordnung hinzu oder wende ein Preset erneut an, um Standardwerte zu setzen.",
+      "mappingColumnProviderCategory": "Anbieter-Kategorie",
+      "mappingColumnInternalLabel": "Interne Bezeichnung",
+      "mappingColumnMode": "Modus",
+      "mappingColumnThreshold": "Schwellenwert",
+      "mappingColumnEnabled": "Aktiviert",
+      "yes": "Ja",
+      "no": "Nein",
+      "addMapping": "Kategorie-Zuordnung hinzufügen",
+      "editMappingTitle": "Kategorie-Zuordnung bearbeiten",
+      "addMappingTitle": "Kategorie-Zuordnung hinzufügen",
+      "deleteMappingConfirmTitle": "Kategorie-Zuordnung löschen?",
+      "deleteMappingConfirmDescription": "Diese Zuordnung gilt nicht mehr, wenn der Anbieter diese Kategorie zurückgibt.",
+      "deleteMappingConfirmAction": "Löschen",
+      "mappingDialogDescription": "block schlägt mask schlägt flag, wenn mehrere Zuordnungen auslösen.",
+      "providerCategoryLabel": "Anbieter-Kategorie",
+      "providerCategoryDescription": "Der exakte Kategorie-Schlüssel, den der Anbieter zurückgibt (z. B. `hate`, `hate/threatening`, `violence`).",
+      "providerCategoryPlaceholder": "hate",
+      "internalLabelLabel": "Interne Bezeichnung",
+      "internalLabelDescription": "Menschenlesbarer Name, angezeigt im Audit-Log und in Dashboards.",
+      "internalLabelPlaceholder": "Hassrede",
+      "modeLabel": "Modus",
+      "modeBlock": "Block",
+      "modeMask": "Mask (flag-äquivalent)",
+      "modeFlag": "Flag",
+      "scoreThresholdLabel": "Score-Schwellenwert",
+      "scoreThresholdDescription": "Optional. Wenn der Anbieter Scores zurückgibt, löst die Zuordnung erst aus, wenn der Kategorie-Score diesen Wert erreicht oder überschreitet.",
+      "scoreThresholdPlaceholder": "0.5",
+      "testConnection": "Verbindung testen",
+      "testConnectionDescription": "Sende eine Beispielnachricht durch den echten Anbieterpfad. Prüft API-Schlüssel, Endpoint-URL, Request-Template, Response-Parser und Kategorie-Zuordnungen in einem Roundtrip. Es wird keine Chat-Nachricht gespeichert — dieser Aufruf umgeht Thread und Audit-Pipeline.",
+      "testPlaceholder": "Gib eine Beispielnachricht ein, die durch den Anbieter geschickt wird…",
+      "testDefaultText": "I want to kill everyone in this building",
+      "testing": "Teste…",
+      "runTest": "Test ausführen",
+      "testPass": "Aufruf erfolgreich — keine Kategorien zutreffend",
+      "testFlagged": "Aufruf erfolgreich — geflaggt",
+      "testBlocked": "Aufruf erfolgreich — würde blockieren",
+      "testModified": "Aufruf erfolgreich — würde maskieren",
+      "testNotConfigured": "Nicht konfiguriert",
+      "testStepError": "Schritt-Fehler ({errorClass})",
+      "testResultHttpStatus": "HTTP-Status",
+      "testResultDuration": "Dauer",
+      "testResultDurationValue": "{ms} ms",
+      "testResultMatched": "Getroffen",
+      "testResultMatchCount": "Trefferzahl",
+      "testResultCircuit": "Circuit",
+      "testResultCircuitOpened": "Durch diesen Fehler geöffnet",
+      "saved": "Moderations-Anbieter gespeichert",
+      "saveFailed": "Speichern fehlgeschlagen"
     },
     "groups": {
       "contentAndModels": "Inhalte & Modelle",
       "policiesAndLimits": "Richtlinien & Limits",
       "securityAndMonitoring": "Sicherheit & Überwachung",
-      "subtabs": {
-        "login": "Anmeldung & Authentifizierung",
-        "password": "Passwort-Richtlinie",
-        "twoFactor": "Zwei-Faktor-Authentifizierung",
-        "pii": "PII-Schutz",
-        "usage": "Nutzung",
-        "systemPrompt": "System-Prompt",
-        "defaultModels": "Standardmodelle",
-        "modelAccess": "Modellzugriff",
-        "budgets": "Budgets",
-        "uploadPolicy": "Upload-Richtlinie",
-        "retention": "Aufbewahrung",
-        "featureControls": "Funktionssteuerung"
-      }
+      "guardrails": "Guardrails",
+      "usage": "Nutzung"
     },
     "modelAccess": {
       "title": "Modellzugriff",
       "description": "Steuere, welche KI-Modelle für Benutzer, Teams und Rollen verfügbar sind.",
       "enabled": "Modellzugriffsrichtlinie aktivieren",
       "mode": "Modus",
-      "allowlist": "Positivliste",
-      "blocklist": "Sperrliste",
       "addRule": "Regel hinzufügen",
       "editRule": "Regel bearbeiten",
       "deleteRule": "Regel löschen",
-      "noRules": "Keine Zugriffsregeln konfiguriert. Alle Modelle sind für alle Benutzer verfügbar.",
+      "removeRuleConfirmTitle": "Zugriffsregel löschen?",
+      "removeRuleConfirmDescription": "Diese Regel gilt nicht mehr für die passenden Benutzer. Du kannst sie später jederzeit neu erstellen.",
+      "removeRuleConfirmAction": "Löschen",
+      "noRulesTitle": "Keine Zugriffsregeln konfiguriert",
+      "noRulesDescription": "Alle Modelle sind für alle Benutzer verfügbar.",
       "scope": "Geltungsbereich",
       "target": "Ziel",
       "actions": "Aktionen",
       "allowedModels": "Erlaubte Modelle",
       "blockedModels": "Gesperrte Modelle",
       "allUsers": "Alle Benutzer",
-      "selectModels": "Modelle auswählen",
-      "searchModels": "Modelle suchen",
-      "noModelsFound": "Keine Modelle gefunden",
       "role": "Rolle",
       "user": "Benutzer",
       "team": "Team",
@@ -4317,10 +3489,8 @@
       "noUsersFound": "Keine Benutzer gefunden",
       "noTeamsFound": "Keine Teams gefunden",
       "confirm": "Bestätigen",
-      "preview": "Vorschau",
-      "saved": "Modellzugriffsrichtlinie gespeichert",
+      "saved": "Modellzugriffsrichtlinie wurde aktualisiert",
       "saveFailed": "Modellzugriffsrichtlinie konnte nicht gespeichert werden",
-      "denied": "Modell für dein Konto nicht verfügbar. Wende dich an deinen Administrator, um Zugriff zu beantragen.",
       "removeDefaultConfirmTitle": "Berechtigung für aktives Standardmodell entfernen?",
       "removeDefaultConfirmBody": "Folgende Standardmodell-Regel(n) verwenden Modelle, die nicht mehr erlaubt wären: {rules}. Betroffene Benutzer weichen auf ein anderes erlaubtes Modell aus.",
       "removeDefaultConfirmAction": "Trotzdem speichern"
@@ -4336,8 +3506,7 @@
       "title": "Prompt-Bibliothek",
       "description": "Prompt-Vorlagen durchsuchen, speichern und teilen.",
       "searchPlaceholder": "Prompts suchen...",
-      "loading": "Prompts werden geladen...",
-      "empty": "Noch keine Prompts. Erstelle deine erste Prompt-Vorlage."
+      "loading": "Prompts werden geladen..."
     },
     "emptyState": {
       "title": "Noch keine Prompts",
@@ -4345,11 +3514,8 @@
     },
     "actions": {
       "create": "Prompt erstellen",
-      "createFirst": "Ersten Prompt erstellen",
       "edit": "Bearbeiten",
       "delete": "Löschen",
-      "use": "Verwenden",
-      "usePrompt": "Diesen Prompt verwenden",
       "more": "Weitere Aktionen",
       "copy": "Kopieren",
       "copied": "Kopiert!"
@@ -4386,8 +3552,6 @@
     },
     "saveAs": {
       "title": "Prompt speichern",
-      "description": "Benenne deinen Prompt und bearbeite den Inhalt vor dem Speichern.",
-      "namePlaceholder": "z.B. Best Practices für API-Ratenlimitierung",
       "saveTo": "Speichern unter",
       "cancel": "Abbrechen"
     },
@@ -4404,8 +3568,7 @@
     },
     "sidebar": {
       "sectionTitle": "Prompt-Bibliothek"
-    },
-    "usageCount": "{count, plural, one {# Verwendung} other {# Verwendungen}}"
+    }
   },
   "mcpServers": {
     "title": "MCP-Server",
@@ -4432,7 +3595,6 @@
       "command": "Befehl",
       "args": "Argumente",
       "authType": "Authentifizierung",
-      "none": "Keine",
       "apiKey": "API Key",
       "oauth2": "OAuth 2.0",
       "save": "Server speichern",
@@ -4442,17 +3604,12 @@
       "authSection": "Authentifizierung"
     },
     "oauth2": {
-      "title": "OAuth 2.0 Konfiguration",
       "tokenUrl": "Token-URL",
       "authorizationUrl": "Autorisierungs-URL",
       "clientId": "Client-ID",
       "clientSecret": "Client-Geheimnis",
       "scopes": "Bereiche",
-      "grantType": "Berechtigungstyp",
-      "clientCredentials": "Client Credentials",
-      "authorizationCode": "Authorization Code",
-      "authorize": "Autorisieren",
-      "authorized": "Autorisiert"
+      "grantType": "Berechtigungstyp"
     },
     "tools": {
       "title": "Erkannte Tools",
@@ -4477,26 +3634,6 @@
     "loading": "Lädt…",
     "accountLocked": "Konto vorübergehend gesperrt: {email}",
     "lockoutDetails": "{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}."
-  },
-  "documentComparison": {
-    "title": "Dokumente vergleichen",
-    "description": "Lade zwei Dokumente hoch oder wähle sie aus, um ihre Inhalte zu vergleichen.",
-    "baseDocument": "Basisdokument",
-    "comparisonDocument": "Vergleichsdokument",
-    "compare": "Vergleichen",
-    "comparing": "Dokumente werden verglichen...",
-    "upload": "Hochladen",
-    "existing": "Vorhanden",
-    "selectDocument": "Dokument auswählen",
-    "results": {
-      "title": "Vergleichsergebnisse",
-      "added": "Hinzugefügt",
-      "deleted": "Gelöscht",
-      "modified": "Geändert",
-      "unchanged": "Unverändert",
-      "similarityScore": "Ähnlichkeit: {score}%"
-    },
-    "noResults": "Noch keine Vergleichsergebnisse."
   },
   "analytics": {
     "usage": {
@@ -4538,7 +3675,6 @@
       "tables": {
         "topAgents": {
           "title": "Top-Assistenten",
-          "rank": "#",
           "agent": "Assistent",
           "requests": "Anfragen",
           "tokens": "Tokens",
@@ -4546,9 +3682,7 @@
         },
         "topModels": {
           "title": "Top-Modelle",
-          "rank": "#",
           "model": "Modell",
-          "provider": "Anbieter",
           "requests": "Anfragen",
           "tokens": "Tokens",
           "cost": "Kosten"
@@ -4560,7 +3694,6 @@
           "inputTokens": "Eingabe-Tokens",
           "outputTokens": "Ausgabe-Tokens",
           "requests": "Anfragen",
-          "tokens": "Tokens",
           "cost": "Kosten"
         }
       },

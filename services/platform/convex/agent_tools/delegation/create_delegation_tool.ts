@@ -18,6 +18,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
+import { narrowBcp47 } from '../../../lib/shared/utils/narrow-bcp47';
 import { internal } from '../../_generated/api';
 import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
 import { checkBudget } from '../sub_agents/helpers/check_budget';
@@ -140,24 +141,63 @@ Pass the user's request in natural language. The agent will handle it and return
 }
 
 /**
+ * Localized scaffold text wrapping the delegate list. The locale is the
+ * org's `defaultLocale`; unknown locales fall through to English.
+ */
+const DELEGATION_SCAFFOLD: Record<
+  string,
+  { header: string; intro: string; outro: string }
+> = {
+  en: {
+    header: 'DELEGATION AGENTS',
+    intro: 'You can delegate tasks to these specialized agents:',
+    outro:
+      "Call the appropriate delegation tool with the user's request. Preserve the user's full intent.",
+  },
+  de: {
+    header: 'DELEGATIONS-AGENTEN',
+    intro: 'Du kannst Aufgaben an diese spezialisierten Agenten delegieren:',
+    outro:
+      'Rufe das passende Delegations-Werkzeug mit der Anfrage des Nutzers auf. Bewahre die volle Absicht des Nutzers.',
+  },
+  fr: {
+    header: 'AGENTS DE DÉLÉGATION',
+    intro: 'Vous pouvez déléguer des tâches à ces agents spécialisés :',
+    outro:
+      "Appelez l'outil de délégation approprié avec la requête de l'utilisateur. Préservez l'intention complète de l'utilisateur.",
+  },
+};
+
+/**
  * Build a section to append to an agent's system instructions
  * describing its available delegate agents.
  */
 export function buildDelegationInstructionsSection(
   delegates: DelegateAgentMeta[],
+  locale?: string,
 ): string {
   if (delegates.length === 0) return '';
+
+  // Same narrowing rule as resolveAgentLocale: direct → narrowed base → en.
+  // Keeps the scaffold header/intro/outro in lockstep with the delegate
+  // chrome text when the org locale is a region-qualified BCP-47 tag
+  // (e.g. fr-CH falls back to fr, not directly to English).
+  const base = narrowBcp47(locale);
+  const scaffold =
+    (locale ? DELEGATION_SCAFFOLD[locale] : undefined) ??
+    (base ? DELEGATION_SCAFFOLD[base] : undefined) ??
+    DELEGATION_SCAFFOLD.en;
 
   const delegateLines = delegates
     .map((d) => `- **delegate_${d.name}**: ${d.displayName} — ${d.description}`)
     .join('\n');
 
   return `\n\n====================
-DELEGATION AGENTS
+${scaffold.header}
 ====================
 
-You can delegate tasks to these specialized agents:
+${scaffold.intro}
 ${delegateLines}
 
-Call the appropriate delegation tool with the user's request. Preserve the user's full intent.`;
+${scaffold.outro}`;
 }

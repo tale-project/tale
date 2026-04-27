@@ -18,7 +18,10 @@ import { v } from 'convex/values';
 import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
 import { internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
-import { scrubPii, type PiiConfig } from '../governance/pii';
+import {
+  loadGuardrailsSnapshot,
+  sanitizeMessage,
+} from '../governance/sanitize';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { readJsonFile } from '../lib/file_io';
 import { applyModelOverride, toSerializableConfig } from './config';
@@ -97,10 +100,8 @@ export const chatWithAgent = action({
     // resolution are independent — run them in parallel to reduce TTFT.
     // Agent config is read directly from the filesystem (inlined) instead of
     // dispatching a separate resolveAgentConfig action, saving ~100-300ms.
-    const [piiPolicy, governanceDefault, configResult] = await Promise.all([
-      ctx.runQuery(internal.governance.internal_queries.getPiiConfigInternal, {
-        organizationId: args.organizationId,
-      }),
+    const [guardrails, governanceDefault, configResult] = await Promise.all([
+      loadGuardrailsSnapshot(ctx, args.organizationId),
       !args.modelId
         ? ctx.runQuery(
             internal.governance.internal_queries.resolveDefaultModelInternal,
@@ -190,42 +191,33 @@ export const chatWithAgent = action({
         { threadId: args.threadId, streamId: preAllocatedStreamId },
       );
 
-    // PII scrubbing must still happen before startChat (modifies message)
-    let message = args.message;
-    if (piiPolicy?.enabled && piiPolicy.config) {
-      const piiConfig: PiiConfig = {
-        enabled: true,
-        mode: piiPolicy.config.mode,
-        enabledPatterns: piiPolicy.config.enabledPatterns,
-        customPatterns: piiPolicy.config.customPatterns,
-      };
-
-      const result = scrubPii(message, piiConfig);
-      message = result.text;
-
-      if (result.matchCount > 0) {
-        await ctx.runMutation(
-          internal.audit_logs.internal_mutations.createAuditLog,
-          {
-            organizationId: args.organizationId,
-            actorId: authUserId,
-            actorEmail: authUserEmail,
-            actorType: 'user',
-            action: 'pii.detected_in_chat',
-            category: 'security',
-            resourceType: 'chat_message',
-            resourceId: args.threadId,
-            status: 'success',
-            metadata: {
-              detectedTypes: result.detectedTypes,
-              matchCount: result.matchCount,
-              mode: piiConfig.mode,
-              agentSlug: args.agentSlug,
-            },
-          },
-        );
-      }
+    // Guardrails: chat_filter → PII → moderation_provider (see sanitize.ts).
+    // Blocked outcomes throw ConvexError with structured `data` for the UI
+    // and a legacy substring in `.message` for older client bundles.
+    // Roll back the generating flag on any throw so the spinner doesn't
+    // strand for ~35 min (the isThreadGenerating stale threshold).
+    let sanitized;
+    try {
+      sanitized = await sanitizeMessage(
+        ctx,
+        args.message,
+        'input',
+        guardrails,
+        {
+          organizationId: args.organizationId,
+          orgSlug: args.orgSlug,
+          threadId: args.threadId,
+          agentSlug: args.agentSlug,
+          actorId: authUserId,
+          actorEmail: authUserEmail,
+          actorType: 'user',
+        },
+      );
+    } catch (err) {
+      await rollbackGenerating();
+      throw err;
     }
+    const message = sanitized.text;
 
     // Model access RBAC: check if the user is allowed to use the requested model.
     // Strip any provider qualifier so governance policies (which store plain
@@ -269,23 +261,31 @@ export const chatWithAgent = action({
     // Delegate to the internal mutation for transactional chat start.
     // Pass preAllocatedStreamId so startAgentChat reuses the stream
     // created by markGenerating (avoids redundant stream + status patch).
+    // Roll back the generating flag if startChat throws (thread not found,
+    // etc.) so the spinner doesn't strand for ~35 min.
     console.log(`[chatWithAgent] calling startChat threadId=${args.threadId}`);
-    const result = await ctx.runMutation(internal.agents.start_chat.startChat, {
-      threadId: args.threadId,
-      organizationId: args.organizationId,
-      userId: authUserId,
-      userEmail: authUserEmail,
-      userName: authUserName,
-      message,
-      maxSteps: args.maxSteps,
-      attachments: args.attachments,
-      additionalContext: args.additionalContext,
-      userContext: args.userContext,
-      agentConfig,
-      agentSlug: args.agentSlug,
-      preAllocatedStreamId,
-      capabilityBindings: args.capabilityBindings,
-    });
+    let result;
+    try {
+      result = await ctx.runMutation(internal.agents.start_chat.startChat, {
+        threadId: args.threadId,
+        organizationId: args.organizationId,
+        userId: authUserId,
+        userEmail: authUserEmail,
+        userName: authUserName,
+        message,
+        maxSteps: args.maxSteps,
+        attachments: args.attachments,
+        additionalContext: args.additionalContext,
+        userContext: args.userContext,
+        agentConfig,
+        agentSlug: args.agentSlug,
+        preAllocatedStreamId,
+        capabilityBindings: args.capabilityBindings,
+      });
+    } catch (err) {
+      await rollbackGenerating();
+      throw err;
+    }
     console.log(
       `[chatWithAgent] DONE threadId=${args.threadId} messageAlreadyExists=${result.messageAlreadyExists}`,
     );
@@ -314,24 +314,29 @@ async function resolveAgentConfigInline(
     organizationId: string;
     modelId?: string;
   },
-): Promise<InlineConfigResult> {
+): Promise<InlineConfigResult & { orgLocale: string }> {
   const filePath = resolveAgentFilePath(args.orgSlug, args.agentSlug);
-  const result = await readJsonFile<AgentJsonConfig>(
-    filePath,
-    MAX_FILE_SIZE_BYTES,
-    parseAgentJson,
-  );
+
+  // Parallelize JSON read, binding lookup, and org-locale lookup to preserve
+  // the TTFT savings the inlined path was designed for.
+  const [result, binding, orgLocale] = await Promise.all([
+    readJsonFile<AgentJsonConfig>(
+      filePath,
+      MAX_FILE_SIZE_BYTES,
+      parseAgentJson,
+    ),
+    ctx.runQuery(internal.agents.internal_queries.getBindingByAgent, {
+      organizationId: args.organizationId,
+      agentSlug: args.agentSlug,
+    }),
+    ctx.runQuery(
+      internal.organizations.internal_queries.getOrganizationDefaultLocale,
+      { organizationId: args.organizationId },
+    ),
+  ]);
   if (!result.ok) {
     throw new Error(`Agent not found: ${args.agentSlug} — ${result.message}`);
   }
-
-  const binding = await ctx.runQuery(
-    internal.agents.internal_queries.getBindingByAgent,
-    {
-      organizationId: args.organizationId,
-      agentSlug: args.agentSlug,
-    },
-  );
 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- binding shape guaranteed by getBindingByAgent query; returns v.any()
   const typedBinding = binding as {
@@ -350,11 +355,12 @@ async function resolveAgentConfigInline(
           knowledgeFiles: typedBinding.knowledgeFiles ?? undefined,
         }
       : undefined,
+    orgLocale,
   );
 
   if (args.modelId) {
     applyModelOverride(config, args.modelId, result.data.supportedModels);
   }
 
-  return { config, supportedModels: result.data.supportedModels };
+  return { config, supportedModels: result.data.supportedModels, orgLocale };
 }

@@ -127,20 +127,6 @@ export const handleOAuth2Callback = internalAction({
       },
     );
 
-    // Self-heal: keep config.installed in sync with credential activation so
-    // the composer/engine readiness gates agree with the DB, even if a git
-    // checkout reset the tracked seed file back to installed:false.
-    console.log(
-      `[Integrations] oauth2_token_exchange: running ensureInstalled (orgSlug=${orgSlug} slug=${credential.slug})`,
-    );
-    const ensureResult = await ctx.runAction(
-      internal.integrations.file_actions.ensureInstalledInternal,
-      { orgSlug, slug: credential.slug },
-    );
-    console.log(
-      `[Integrations] oauth2_token_exchange: ensureInstalled result changed=${ensureResult.changed}`,
-    );
-
     debugLog(
       `OAuth2 token exchange successful for credential ${args.credentialId}`,
     );

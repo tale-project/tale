@@ -1,6 +1,6 @@
 /**
  * Read the current user's `lastActiveOrganizationId` — the persistent
- * preference set by `recordOrgSwitch` whenever the user enters an org.
+ * preference set by `recordOrgSwitch` whenever the user signs in to an org.
  *
  * Unlike Better Auth's `session.activeOrganizationId` (which is wiped on
  * logout), this value lives on the user record and survives logout/login,
