@@ -162,7 +162,7 @@ export function MobileNavigation({ organizationId }: MobileNavigationProps) {
               ))}
             </NavigationMenuList>
           </div>
-          <div className="border-border flex flex-shrink-0 flex-col gap-1 border-t px-4 py-2">
+          <div className="border-border flex flex-shrink-0 flex-col gap-1 border-t px-4 py-3">
             <UserButton label={tNav('account')} />
             <OrganizationButton label={tNav('orgSwitcher.label')} />
           </div>

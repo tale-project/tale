@@ -423,7 +423,7 @@ export function ChatHistorySidebar({
           >
             <ChevronDown
               className={cn(
-                'size-3.5 shrink-0 transition-transform duration-300 ease-out',
+                'size-3.5 shrink-0 transition-transform duration-300 ease-out motion-reduce:transition-none',
                 !archivedExpanded && '-rotate-90',
               )}
               aria-hidden
@@ -441,12 +441,13 @@ export function ChatHistorySidebar({
           </button>
           <div
             className={cn(
-              'grid transition-[grid-template-rows,opacity] duration-300 ease-out',
+              'grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none',
               archivedExpanded
                 ? 'grid-rows-[1fr] opacity-100'
-                : 'grid-rows-[0fr] opacity-0',
+                : 'pointer-events-none grid-rows-[0fr] opacity-0',
             )}
             aria-hidden={!archivedExpanded}
+            inert={!archivedExpanded}
           >
             <Stack
               gap={1}

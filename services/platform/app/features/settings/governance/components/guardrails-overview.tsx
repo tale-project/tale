@@ -9,7 +9,6 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Select } from '@/app/components/ui/forms/select';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -88,11 +87,12 @@ function StatusCard({
           ))}
         </ul>
       ) : (
-        <Tooltip content={disabledReason}>
-          <Badge variant="outline" icon={Info} className="mt-auto cursor-help">
+        <div className="space-y-2">
+          <Badge variant="outline" icon={Info} className="mt-auto">
             {tCommon('status.disabled')}
           </Badge>
-        </Tooltip>
+          <p className="text-muted-foreground text-xs">{disabledReason}</p>
+        </div>
       )}
     </div>
   );

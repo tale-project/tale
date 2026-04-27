@@ -234,12 +234,9 @@ export function UserButton({
       },
     ]);
 
+    const localeBase = locale.split('-')[0];
     const currentLocaleValue =
-      locale === 'en' || locale.startsWith('en-')
-        ? 'en'
-        : locale.startsWith('de')
-          ? 'de'
-          : 'fr';
+      localeBase === 'de' ? 'de' : localeBase === 'fr' ? 'fr' : 'en';
 
     groups.push([
       {

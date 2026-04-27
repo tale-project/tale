@@ -189,9 +189,9 @@ export function OrganizationListPanel({
                     });
                   }}
                   className={cn(
-                    'absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 transition-opacity',
+                    'absolute top-1/2 right-2 flex size-11 -translate-y-1/2 items-center justify-center rounded transition-opacity sm:size-8',
                     'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
-                    'opacity-0 group-hover/org:opacity-100 focus-visible:opacity-100',
+                    'opacity-100 sm:opacity-0 sm:group-hover/org:opacity-100 sm:focus-visible:opacity-100',
                   )}
                 >
                   <Trash2 className="size-3.5" />

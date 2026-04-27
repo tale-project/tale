@@ -48,8 +48,12 @@ export function OrganizationButton({
 
   if (!user) return null;
 
+  const accessibleLabel = tooltipText ?? tNav('orgSwitcher.label');
+
   const triggerContent = (
     <div
+      role="button"
+      aria-label={label ? undefined : accessibleLabel}
       className={cn(
         'relative flex items-center rounded-lg transition-colors hover:bg-muted cursor-pointer',
         label ? 'gap-3 px-3 py-2 w-full' : 'justify-center p-2',
@@ -91,7 +95,7 @@ export function OrganizationButton({
           sideOffset={4}
           className="bg-foreground text-background animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
         >
-          {tooltipText ?? tNav('orgSwitcher.label')}
+          {accessibleLabel}
         </TooltipPrimitive.Content>
       </TooltipPrimitive.Root>
     </TooltipPrimitive.Provider>

@@ -170,7 +170,11 @@ export function ChatFilterConfigView({
     const index = deletingIndex;
     const next = categories.filter((_, i) => i !== index);
     setCategories(next);
-    setEditorIndex((prev) => (prev === index ? null : prev));
+    setEditorIndex((prev) => {
+      if (prev === null || prev === 'new') return prev;
+      if (prev === index) return null;
+      return prev > index ? prev - 1 : prev;
+    });
     setDeletingIndex(null);
     void saveWith(buildConfig({ categories: next }));
   }, [buildConfig, categories, deletingIndex, saveWith]);
