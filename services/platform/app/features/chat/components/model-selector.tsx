@@ -11,6 +11,7 @@ import {
 } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import {
   SearchableSelect,
   type SearchableSelectOption,
@@ -43,8 +44,9 @@ function getModelShortName(modelId: string): string {
 export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const { t } = useT('chat');
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
-  const { agents } = useChatAgents(organizationId);
-  const { providers } = useListProviders('default');
+  const { agents, isLoading: agentsLoading } = useChatAgents(organizationId);
+  const { providers, isLoading: providersLoading } =
+    useListProviders('default');
   const { selectedModelOverrides, setSelectedModelOverride } = useChatLayout();
   const [open, setOpen] = useState(false);
 
@@ -206,6 +208,12 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
     },
     [effectiveAgent?.name, setSelectedModelOverride],
   );
+
+  const isLoading = agentsLoading || providersLoading;
+
+  if (isLoading) {
+    return <Skeleton className="h-6 w-24" label={t('modelSelector.label')} />;
+  }
 
   if (!filteredModels.length) {
     return (

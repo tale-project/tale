@@ -5,6 +5,7 @@ import { Link, useLocation } from '@tanstack/react-router';
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { isConvexTransientError } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
+import { OrganizationButton } from '@/app/components/organization-button';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { UserButton } from '@/app/components/user-button';
@@ -125,7 +126,6 @@ export interface NavigationProps {
 }
 
 export function Navigation({ organizationId }: NavigationProps) {
-  const { t } = useT('navigation');
   const { t: tCommon } = useT('common');
   const navigationItems = useNavigationItems(organizationId);
 
@@ -158,7 +158,8 @@ export function Navigation({ organizationId }: NavigationProps) {
         >
           <NotificationBell organizationId={organizationId} />
         </ErrorBoundaryBase>
-        <UserButton tooltipText={t('settingsAndMore')} />
+        <OrganizationButton />
+        <UserButton />
       </div>
     </NavigationMenu>
   );

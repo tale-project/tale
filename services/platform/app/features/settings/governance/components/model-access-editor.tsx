@@ -359,6 +359,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [dialogRule, setDialogRule] = useState(emptyRule());
+  const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
 
   // Pending save + affected-defaults confirmation state.
   const [pendingSave, setPendingSave] = useState<{
@@ -440,17 +441,14 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     [attemptSaveConfig, enabled, mode, rules],
   );
 
-  const removeRule = useCallback(
-    (index: number) => {
-      const prev = rules;
-      const newRules = rules.filter((_, i) => i !== index);
-      setRules(newRules);
-      attemptSaveConfig({ enabled, mode, rules: newRules }, () =>
-        setRules(prev),
-      );
-    },
-    [rules, enabled, mode, attemptSaveConfig],
-  );
+  const confirmRemoveRule = useCallback(() => {
+    if (deletingIndex === null) return;
+    const prev = rules;
+    const newRules = rules.filter((_, i) => i !== deletingIndex);
+    setRules(newRules);
+    setDeletingIndex(null);
+    attemptSaveConfig({ enabled, mode, rules: newRules }, () => setRules(prev));
+  }, [deletingIndex, rules, enabled, mode, attemptSaveConfig]);
 
   const openAddDialog = useCallback(() => {
     setEditingIndex(null);
@@ -645,7 +643,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => removeRule(index)}
+                              onClick={() => setDeletingIndex(index)}
                               disabled={cannotManage}
                               aria-label={t('modelAccess.deleteRule')}
                             >
@@ -691,6 +689,18 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
           mode={mode}
         />
       )}
+
+      <ConfirmDialog
+        open={deletingIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingIndex(null);
+        }}
+        title={t('modelAccess.removeRuleConfirmTitle')}
+        description={t('modelAccess.removeRuleConfirmDescription')}
+        confirmText={t('modelAccess.removeRuleConfirmAction')}
+        variant="destructive"
+        onConfirm={confirmRemoveRule}
+      />
 
       <ConfirmDialog
         open={pendingSave !== null}
