@@ -3766,8 +3766,9 @@
       "description": "Token consumption, requests, and active users over time.",
       "cappedNotice": "Results are capped because the time range contains too many records. Narrow the range for complete data.",
       "activeUsersTooltip": "Users who made AI requests during this period.",
-      "unknownAgent": "Unknown assistant",
-      "unknownModel": "Unknown model",
+      "directApi": "Direct API",
+      "integration": "Integration",
+      "transcription": "Transcription",
       "period": {
         "label": "Period",
         "last7Days": "Last 7 days",
@@ -3831,6 +3832,10 @@
       "empty": {
         "title": "No usage yet",
         "description": "No AI usage has been recorded for the selected period."
+      },
+      "emptyModels": {
+        "title": "No model usage yet",
+        "description": "No LLM calls have been recorded for the selected period. Integration and transcription usage is shown under Top Assistants."
       }
     }
   },

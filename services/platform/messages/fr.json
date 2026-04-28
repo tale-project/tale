@@ -3773,8 +3773,9 @@
       "description": "Consommation de tokens, requêtes et utilisateurs actifs au fil du temps.",
       "cappedNotice": "Les résultats sont limités car la plage temporelle contient trop d'enregistrements. Réduisez la plage pour obtenir des données complètes.",
       "activeUsersTooltip": "Utilisateurs ayant effectué des requêtes IA durant cette période.",
-      "unknownAgent": "Assistant inconnu",
-      "unknownModel": "Modèle inconnu",
+      "directApi": "Appel API direct",
+      "integration": "Intégration",
+      "transcription": "Transcription",
       "period": {
         "label": "Période",
         "last7Days": "7 derniers jours",
@@ -3838,6 +3839,10 @@
       "empty": {
         "title": "Aucune utilisation pour l'instant",
         "description": "Aucune utilisation IA n'a été enregistrée pour la période sélectionnée."
+      },
+      "emptyModels": {
+        "title": "Aucune utilisation de modèle",
+        "description": "Aucun appel LLM n'a été enregistré pour la période sélectionnée. L'utilisation des intégrations et des transcriptions est affichée dans Top assistants."
       }
     }
   }

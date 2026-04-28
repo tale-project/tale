@@ -9,6 +9,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
+import { INTEGRATION_SLUG } from '../../../lib/shared/constants/usage';
 import { getBoolean, isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { wrapUntrusted } from '../../lib/untrusted_content';
@@ -177,7 +178,12 @@ Write operations create approval cards. When telling the user an approval card i
 
         const userId = readStringContextField(ctx, 'userId');
         const teamId = readStringContextField(ctx, 'teamId');
-        const agentSlug = readStringContextField(ctx, 'agentSlug');
+        // Public chat entrypoints always populate agentSlug, so the fallback
+        // only kicks in for agentless callers (scheduled jobs, internal
+        // tooling). Use the sentinel so the row gets attributed to the
+        // "Integration" bucket rather than collapsing under "Direct API".
+        const agentSlug =
+          readStringContextField(ctx, 'agentSlug') ?? INTEGRATION_SLUG;
         if (userId) {
           await ctx.runMutation(
             internal.governance.internal_mutations.recordIntegrationUsage,
