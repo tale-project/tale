@@ -6,6 +6,10 @@ import { Hono } from 'hono';
 import { NONCE, secureHeaders } from 'hono/secure-headers';
 
 import { convexMetricsResponse } from './convex-metrics';
+import {
+  CANVAS_PREVIEW_CSP,
+  wrapCanvasPreviewHtml,
+} from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
 import { initTelemetry, metricsResponse } from './telemetry';
 
@@ -182,39 +186,58 @@ function isLoopbackSite(env: EnvConfig): boolean {
 export function createApp(env: EnvConfig = getEnvConfig()): Hono {
   const app = new Hono();
 
-  app.use(
-    '*',
-    secureHeaders({
-      contentSecurityPolicy: buildContentSecurityPolicy(env),
-      // 180 days. No `includeSubDomains`, no `preload` — self-deployed
-      // operators run on varied domains and don't own preload submission.
-      strictTransportSecurity: isHttpsSite(env) ? 'max-age=15552000' : false,
-      xContentTypeOptions: 'nosniff',
-      xFrameOptions: 'DENY',
-      referrerPolicy: 'strict-origin-when-cross-origin',
-      permissionsPolicy: {
-        camera: [],
-        microphone: ['self'],
-        // Active features: location-request approval card uses geolocation;
-        // copy-to-clipboard hook is wired into many UI surfaces.
-        geolocation: ['self'],
-        clipboardWrite: ['self'],
-        clipboardRead: [],
-        usb: [],
-        payment: [],
-        bluetooth: [],
-        midi: [],
-        hid: [],
-        serial: [],
-      },
-      // Defaults that would interfere with same-origin embeds and OAuth
-      // popups; we explicitly lean on CSP `frame-ancestors` and
-      // `frame-src` instead.
-      crossOriginEmbedderPolicy: false,
-      crossOriginOpenerPolicy: false,
-      crossOriginResourcePolicy: false,
-    }),
+  const secure = secureHeaders({
+    contentSecurityPolicy: buildContentSecurityPolicy(env),
+    // 180 days. No `includeSubDomains`, no `preload` — self-deployed
+    // operators run on varied domains and don't own preload submission.
+    strictTransportSecurity: isHttpsSite(env) ? 'max-age=15552000' : false,
+    xContentTypeOptions: 'nosniff',
+    xFrameOptions: 'DENY',
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    permissionsPolicy: {
+      camera: [],
+      microphone: ['self'],
+      // Active features: location-request approval card uses geolocation;
+      // copy-to-clipboard hook is wired into many UI surfaces.
+      geolocation: ['self'],
+      clipboardWrite: ['self'],
+      clipboardRead: [],
+      usb: [],
+      payment: [],
+      bluetooth: [],
+      midi: [],
+      hid: [],
+      serial: [],
+    },
+    // Defaults that would interfere with same-origin embeds and OAuth
+    // popups; we explicitly lean on CSP `frame-ancestors` and
+    // `frame-src` instead.
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: false,
+  });
+  // `secureHeaders` unconditionally rewrites `Content-Security-Policy`
+  // after handlers run, so per-route permissive CSP cannot be set just by
+  // header overrides. The Canvas preview shell needs its own permissive
+  // CSP; bypass `secureHeaders` for that single path explicitly. Path
+  // guard, not registration order — the latter is fragile to refactors.
+  app.use('*', async (c, next) =>
+    c.req.path === '/canvas-preview' ? next() : secure(c, next),
   );
+
+  app.post('/canvas-preview', async (c) => {
+    const body = await c.req.parseBody();
+    const userHtml = typeof body.html === 'string' ? body.html : '';
+    return new Response(wrapCanvasPreviewHtml(userHtml), {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Security-Policy': CANVAS_PREVIEW_CSP,
+        'X-Frame-Options': 'SAMEORIGIN',
+        // Per-request bespoke HTML — no caching.
+        'Cache-Control': 'no-store',
+      },
+    });
+  });
 
   app.get('/api/health', (c) => {
     if (existsSync(SHUTDOWN_MARKER)) {
