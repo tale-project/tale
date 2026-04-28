@@ -9,11 +9,12 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Text } from '@/app/components/ui/typography/text';
 import { useListAgents } from '@/app/features/agents/hooks/queries';
 import { useT } from '@/lib/i18n/client';
+import { isDirectApiSlug } from '@/lib/shared/constants/usage';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 
 export interface TopAgentRow {
-  agentSlug: string | null;
+  agentSlug: string;
   requests: number;
   tokens: number;
   costCents: number;
@@ -56,8 +57,8 @@ export function TopAgentsTable({
   }, [agents, locale]);
 
   const resolveName = useCallback(
-    (slug: string | null): string => {
-      if (!slug) return t('usage.unknownAgent');
+    (slug: string): string => {
+      if (isDirectApiSlug(slug)) return t('usage.directApi');
       return displayNameMap.get(slug) ?? slug;
     },
     [displayNameMap, t],
@@ -65,7 +66,8 @@ export function TopAgentsTable({
 
   const handleRowClick = useCallback(
     (row: Row<TopAgentRow>) => {
-      if (row.original.agentSlug) onSelectAgent(row.original.agentSlug);
+      const slug = row.original.agentSlug;
+      if (!isDirectApiSlug(slug)) onSelectAgent(slug);
     },
     [onSelectAgent],
   );
@@ -136,7 +138,7 @@ export function TopAgentsTable({
       <DataTable
         columns={columns}
         data={rows}
-        getRowId={(row) => row.agentSlug ?? '__unknown__'}
+        getRowId={(row) => row.agentSlug}
         isLoading={isLoading}
         approxRowCount={isLoading ? 5 : rows.length}
         onRowClick={handleRowClick}

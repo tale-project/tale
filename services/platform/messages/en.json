@@ -3766,8 +3766,7 @@
       "description": "Token consumption, requests, and active users over time.",
       "cappedNotice": "Results are capped because the time range contains too many records. Narrow the range for complete data.",
       "activeUsersTooltip": "Users who made AI requests during this period.",
-      "unknownAgent": "Unknown assistant",
-      "unknownModel": "Unknown model",
+      "directApi": "Direct API",
       "period": {
         "label": "Period",
         "last7Days": "Last 7 days",

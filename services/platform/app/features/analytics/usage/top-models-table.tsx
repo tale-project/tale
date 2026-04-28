@@ -11,8 +11,8 @@ import { useT } from '@/lib/i18n/client';
 import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 
 export interface TopModelRow {
-  provider: string | null;
-  model: string | null;
+  provider: string;
+  model: string;
   requests: number;
   tokens: number;
   costCents: number;
@@ -33,7 +33,7 @@ export function TopModelsTable({
 
   const handleRowClick = useCallback(
     (row: Row<TopModelRow>) => {
-      if (row.original.model) onSelectModel(row.original.model);
+      onSelectModel(row.original.model);
     },
     [onSelectModel],
   );
@@ -50,11 +50,9 @@ export function TopModelsTable({
               variant="label"
               className="block flex-1 truncate text-sm"
             >
-              {row.original.model ?? t('usage.unknownModel')}
+              {row.original.model}
             </Text>
-            {row.original.provider ? (
-              <Badge variant="outline">{row.original.provider}</Badge>
-            ) : null}
+            <Badge variant="outline">{row.original.provider}</Badge>
           </div>
         ),
         size: 260,
@@ -109,9 +107,7 @@ export function TopModelsTable({
       <DataTable
         columns={columns}
         data={rows}
-        getRowId={(row) =>
-          `${row.provider ?? '_'}::${row.model ?? '__unknown__'}`
-        }
+        getRowId={(row) => `${row.provider}::${row.model}`}
         isLoading={isLoading}
         approxRowCount={isLoading ? 5 : rows.length}
         onRowClick={handleRowClick}

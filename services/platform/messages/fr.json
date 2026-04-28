@@ -3773,8 +3773,7 @@
       "description": "Consommation de tokens, requêtes et utilisateurs actifs au fil du temps.",
       "cappedNotice": "Les résultats sont limités car la plage temporelle contient trop d'enregistrements. Réduisez la plage pour obtenir des données complètes.",
       "activeUsersTooltip": "Utilisateurs ayant effectué des requêtes IA durant cette période.",
-      "unknownAgent": "Assistant inconnu",
-      "unknownModel": "Modèle inconnu",
+      "directApi": "Appel API direct",
       "period": {
         "label": "Période",
         "last7Days": "7 derniers jours",

@@ -1,3 +1,4 @@
+import { DIRECT_API_SLUG } from '../../lib/shared/constants/usage';
 import type { QueryCtx } from '../_generated/server';
 import { getUserNamesBatch } from '../documents/get_user_names_batch';
 import { buildPeriodKeyFromTimestamp } from './helpers';
@@ -28,15 +29,18 @@ export interface UsageSeriesPoint {
 }
 
 export interface UsageTopAgent {
-  agentSlug: string | null;
+  // Either a real agent slug or the DIRECT_API_SLUG sentinel for OpenAI-compat
+  // direct-model calls (no assistant context). Never null — every ledger row
+  // resolves to one of these two precise categories.
+  agentSlug: string;
   requests: number;
   tokens: number;
   costCents: number;
 }
 
 export interface UsageTopModel {
-  provider: string | null;
-  model: string | null;
+  provider: string;
+  model: string;
   requests: number;
   tokens: number;
   costCents: number;
@@ -178,36 +182,43 @@ export async function getOrgUsageMetrics(
     totalCostCents += row.costEstimate;
     if (row.requestCount > 0) activeUserIds.add(row.userId);
 
-    const agentKey = row.agentSlug ?? '__unknown__';
-    let agentBucket = agentBuckets.get(agentKey);
+    // Bucket under the real agent slug, or under the DIRECT_API_SLUG sentinel
+    // for LLM rows that came from the OpenAI-compat direct-model endpoint
+    // (no assistant context). Integration rows always carry agentSlug.
+    const agentSlugForBucket = row.agentSlug ?? DIRECT_API_SLUG;
+    let agentBucket = agentBuckets.get(agentSlugForBucket);
     if (!agentBucket) {
       agentBucket = {
-        agentSlug: row.agentSlug ?? null,
+        agentSlug: agentSlugForBucket,
         requests: 0,
         tokens: 0,
         costCents: 0,
       };
-      agentBuckets.set(agentKey, agentBucket);
+      agentBuckets.set(agentSlugForBucket, agentBucket);
     }
     agentBucket.requests += row.requestCount;
     agentBucket.tokens += row.totalTokens;
     agentBucket.costCents += row.costEstimate;
 
-    const modelKey = `${row.provider ?? '__unknown__'}::${row.model ?? '__unknown__'}`;
-    let modelBucket = modelBuckets.get(modelKey);
-    if (!modelBucket) {
-      modelBucket = {
-        provider: row.provider ?? null,
-        model: row.model ?? null,
-        requests: 0,
-        tokens: 0,
-        costCents: 0,
-      };
-      modelBuckets.set(modelKey, modelBucket);
+    // Top Models is LLM-only. Integration rows have no model by design — their
+    // cost is still attributed to the calling agent above.
+    if (row.model !== undefined && row.provider !== undefined) {
+      const modelKey = `${row.provider}::${row.model}`;
+      let modelBucket = modelBuckets.get(modelKey);
+      if (!modelBucket) {
+        modelBucket = {
+          provider: row.provider,
+          model: row.model,
+          requests: 0,
+          tokens: 0,
+          costCents: 0,
+        };
+        modelBuckets.set(modelKey, modelBucket);
+      }
+      modelBucket.requests += row.requestCount;
+      modelBucket.tokens += row.totalTokens;
+      modelBucket.costCents += row.costEstimate;
     }
-    modelBucket.requests += row.requestCount;
-    modelBucket.tokens += row.totalTokens;
-    modelBucket.costCents += row.costEstimate;
 
     const userKey = `${row.userId}::${row.teamId ?? ''}`;
     let userBucket = userBuckets.get(userKey);

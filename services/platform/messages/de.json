@@ -3766,8 +3766,7 @@
       "description": "Tokenverbrauch, Anfragen und aktive Benutzer im Zeitverlauf.",
       "cappedNotice": "Ergebnisse sind begrenzt, weil der Zeitraum zu viele Datensätze enthält. Verringere den Zeitraum für vollständige Daten.",
       "activeUsersTooltip": "Benutzer, die in diesem Zeitraum KI-Anfragen gestellt haben.",
-      "unknownAgent": "Unbekannter Assistent",
-      "unknownModel": "Unbekanntes Modell",
+      "directApi": "Direkter API-Aufruf",
       "period": {
         "label": "Zeitraum",
         "last7Days": "Letzte 7 Tage",
