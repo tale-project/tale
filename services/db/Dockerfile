@@ -55,8 +55,7 @@ LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.licenses="MIT"
 
 # Create required directories
-RUN mkdir -p /docker-entrypoint-initdb.d \
-             /etc/postgresql/conf.d \
+RUN mkdir -p /etc/postgresql/conf.d \
              /var/lib/postgresql/backup
 
 # Copy initialization scripts (create databases, extensions, schema namespaces,

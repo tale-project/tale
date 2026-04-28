@@ -69,6 +69,6 @@ BEGIN
     ALTER DEFAULT PRIVILEGES IN SCHEMA public_web        GRANT ALL ON SEQUENCES TO tale;
     ALTER DEFAULT PRIVILEGES IN SCHEMA private_knowledge GRANT ALL ON SEQUENCES TO tale;
 EXCEPTION WHEN unique_violation THEN
-    RAISE NOTICE 'pg_default_acl already populated, skipping ALTER DEFAULT PRIVILEGES';
+    RAISE NOTICE 'pg_default_acl already populated, skipping ALTER DEFAULT PRIVILEGES (% / %)', SQLSTATE, SQLERRM;
 END;
 $$;
