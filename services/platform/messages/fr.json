@@ -1093,6 +1093,7 @@
       "forgotPassword": "Les utilisateurs qui oublient leur mot de passe doivent contacter un administrateur."
     },
     "roles": {
+      "owner": "Propriétaire",
       "admin": "Admin",
       "developer": "Développeur",
       "editor": "Éditeur",

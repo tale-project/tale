@@ -1093,6 +1093,7 @@
       "forgotPassword": "Benutzer, die ihr Passwort vergessen, sollten sich an einen Admin wenden."
     },
     "roles": {
+      "owner": "Inhaber",
       "admin": "Admin",
       "developer": "Entwickler",
       "editor": "Redakteur",
