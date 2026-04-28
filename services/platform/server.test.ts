@@ -84,6 +84,59 @@ describe('security headers', () => {
   });
 });
 
+describe('POST /canvas-preview', () => {
+  test('echoes the form-posted html with permissive CSP and no nonce', async () => {
+    const app = createApp(baseEnv);
+    const res = await app.fetch(
+      new Request('http://localhost/canvas-preview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'html=' + encodeURIComponent('<h1>hi</h1><script>1+1</script>'),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const csp = res.headers.get('content-security-policy') ?? '';
+    // Load-bearing: AI HTML's inline `<script>` and `onclick=` must run.
+    expect(csp).toContain("'unsafe-inline'");
+    expect(csp).toContain("'unsafe-eval'");
+    // The SPA's nonce-based policy must NOT survive on this route — that
+    // would silently reproduce the bug from commit be2eb56be.
+    expect(csp).not.toMatch(/nonce-/);
+    // Egress is locked down per the air-gap policy in
+    // buildContentSecurityPolicy's comment block.
+    expect(csp).toContain("connect-src 'self'");
+    expect(csp).not.toMatch(/connect-src[^;]*\*/);
+    // Defense-in-depth framing controls.
+    expect(csp).toContain("frame-ancestors 'self'");
+    expect(res.headers.get('x-frame-options')).toBe('SAMEORIGIN');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    const text = await res.text();
+    expect(text).toContain('<!doctype html>');
+    expect(text).toContain('<h1>hi</h1>');
+    expect(text).toContain('<script>1+1</script>');
+  });
+
+  test('returns an empty document body when the html field is missing', async () => {
+    const app = createApp(baseEnv);
+    const res = await app.fetch(
+      new Request('http://localhost/canvas-preview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: '',
+      }),
+    );
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain('<!doctype html>');
+    // Body region between <body> and </body> should be empty.
+    expect(text).toMatch(/<body>\s*<\/body>/);
+  });
+});
+
 describe('SSE /events/file', () => {
   test('preserves text/event-stream content type and no-cache', async () => {
     const app = createApp(baseEnv);

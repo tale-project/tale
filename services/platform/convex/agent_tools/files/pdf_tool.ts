@@ -27,15 +27,18 @@ interface GeneratePdfResult {
 export const pdfTool = {
   name: 'pdf' as const,
   tool: createTool({
-    description: `PDF tool for generating PDF files as persistent artifacts — files that need to be saved to storage, attached to email, or handed off to a downstream tool or agent.
+    description: `Generate a downloadable .pdf file. **Default: do NOT call this tool.**
 
-IMPORTANT: Only call this tool when the user explicitly asks for a PDF *file* — e.g., "download this as a PDF", "email me a PDF report", "save this as a PDF attachment". Do NOT call this tool for:
-  • "demo page", "comparison page", "interactive page", "visualization", "dashboard"
-  • Content the user will read inline in chat
-  • Mockups, drafts, or previews
-  • Any request where a file download is not the user's actual goal
+GATE — only call when the user has explicitly asked for a .pdf *file deliverable*. Trigger phrases: "download as PDF", "email me a PDF report", "save this as a PDF attachment", "export to PDF". If the user asks for a page, document, deck, report, mockup, draft, preview, or visual without saying "PDF" or "file", this tool is NOT the right answer — even if the content would look fine as a PDF.
 
-For interactive or visual content, output an HTML (or Mermaid / SVG / Markdown) code block instead — the chat's Canvas preview pane renders those automatically. Only use this PDF tool when persistence as a downloadable file is the explicit requirement.
+IF NOT ELIGIBLE — emit a fenced \`\`\`html / \`\`\`svg / \`\`\`mermaid / \`\`\`markdown code block in your reply instead. The chat's Canvas pane renders these automatically; that is the product's intended UI for:
+  • demo pages, comparison pages, interactive pages
+  • visualizations, dashboards
+  • slide decks / presentations (reveal.js via CDN works well)
+  • mockups, drafts, previews
+  • anything the user will read inline in chat rather than download
+
+Do NOT call this tool for any of the above.
 
 TO READ PDF FILE CONTENT: Do NOT use this tool. Instead use the rag_search tool:
 • To get the full content of a PDF file: use rag_search with operation='retrieve' and the fileId

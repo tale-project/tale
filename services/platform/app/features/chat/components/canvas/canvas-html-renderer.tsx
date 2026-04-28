@@ -1,7 +1,8 @@
 'use client';
 
-import { memo, useMemo } from 'react';
+import { memo, useId, useLayoutEffect, useRef } from 'react';
 
+import { getEnv } from '@/lib/env';
 import { cn } from '@/lib/utils/cn';
 
 interface CanvasHtmlRendererProps {
@@ -15,22 +16,31 @@ function CanvasHtmlRendererComponent({
   isEditing,
   onContentChange,
 }: CanvasHtmlRendererProps) {
-  const srcDoc = useMemo(
-    () =>
-      `<!DOCTYPE html>
-<html>
-<head>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:; img-src * data: blob:; style-src * 'unsafe-inline'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src *;" />
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body { font-family: system-ui, -apple-system, sans-serif; margin: 16px; color: #1a1a1a; }
-  </style>
-</head>
-<body>${html}</body>
-</html>`,
-    [html],
-  );
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const htmlInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Each renderer instance gets a unique iframe `name` so the form's
+  // `target` resolves to this iframe and not some other frame on the page.
+  const iframeName = `canvas-preview-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
+
+  // Submit the html to /canvas-preview as a form POST. The server returns
+  // the html wrapped in a doctype with a permissive CSP header, the iframe
+  // navigates to the response, and we get a fresh Document AND a fresh JS
+  // realm — so user-script `let X = …` on render N never collides with
+  // render N+1's `let X`. (See lib/canvas-preview-shell.ts header for the
+  // full why-not-srcdoc / why-not-document.write rationale.)
+  //
+  // `useLayoutEffect` (not `useEffect`) submits before paint, so the iframe
+  // doesn't briefly show stale content on edit-apply or content swap.
+  useLayoutEffect(() => {
+    if (isEditing) return;
+    const form = formRef.current;
+    const input = htmlInputRef.current;
+    if (!form || !input) return;
+    input.value = html;
+    form.submit();
+  }, [html, isEditing]);
 
   if (isEditing) {
     return (
@@ -47,13 +57,28 @@ function CanvasHtmlRendererComponent({
     );
   }
 
+  const action = `${getEnv('BASE_PATH')}/canvas-preview`;
+
   return (
-    <iframe
-      srcDoc={srcDoc}
-      sandbox="allow-scripts"
-      title="HTML preview"
-      className="h-full w-full border-0 bg-white"
-    />
+    <>
+      <form
+        ref={formRef}
+        method="post"
+        action={action}
+        target={iframeName}
+        encType="application/x-www-form-urlencoded"
+        hidden
+      >
+        <textarea ref={htmlInputRef} name="html" defaultValue="" />
+      </form>
+      <iframe
+        ref={iframeRef}
+        name={iframeName}
+        sandbox="allow-scripts"
+        title="HTML preview"
+        className="h-full w-full border-0 bg-white"
+      />
+    </>
   );
 }
 
