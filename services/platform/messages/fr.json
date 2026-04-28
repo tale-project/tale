@@ -278,11 +278,21 @@
       "duration": "Durée",
       "triggeredBy": "Déclenché par",
       "teams": "Équipes",
-      "uploadedBy": "Téléversé par"
+      "uploadedBy": "Téléversé par",
+      "actions": "Actions",
+      "created": "Créé",
+      "description": "Description",
+      "email": "E-mail",
+      "product": "Produit",
+      "scanned": "Analysé",
+      "stock": "Stock",
+      "title": "Titre",
+      "website": "Site web"
     },
     "cells": {
       "unknown": "Inconnu",
-      "empty": "-"
+      "empty": "-",
+      "noEmail": "Aucun e-mail"
     }
   },
   "toast": {
@@ -432,7 +442,9 @@
     },
     "forcedChange": {
       "title": "Changement de mot de passe requis",
-      "submit": "Mettre à jour le mot de passe"
+      "submit": "Mettre à jour le mot de passe",
+      "description": "Ton mot de passe a expiré selon la politique de rotation de l'organisation. Définis un nouveau mot de passe pour continuer.",
+      "descriptionAdminSet": "Ton mot de passe a été défini par un administrateur. Choisis un nouveau mot de passe pour continuer."
     },
     "setPassword": {
       "title": "Définir un mot de passe",
@@ -531,7 +543,8 @@
       "saveChanges": "Enregistrer les modifications",
       "loadingMembers": "Chargement...",
       "unknownMember": "Inconnu",
-      "memberChecklistHint": "Un membre peut appartenir à plusieurs équipes. Si personne n'est sélectionné, tu seras ajouté automatiquement."
+      "memberChecklistHint": "Un membre peut appartenir à plusieurs équipes. Si personne n'est sélectionné, tu seras ajouté automatiquement.",
+      "description": "Crée et gère des équipes au sein de ton organisation pour un contrôle d'accès granulaire"
     },
     "agents": {
       "title": "Agents",
@@ -901,7 +914,8 @@
         "disconnectConfirmDescription": "Es-tu sûr de vouloir déconnecter cette intégration ? Tu pourras la reconnecter ultérieurement.",
         "deleteConfirmTitle": "Supprimer l'intégration",
         "deleteConfirmDescription": "Es-tu sûr de vouloir supprimer cette intégration ? Cette action est irréversible.",
-        "deleteIntegration": "Supprimer l'intégration"
+        "deleteIntegration": "Supprimer l'intégration",
+        "saveChanges": "Enregistrer les modifications"
       },
       "authMethods": {
         "api_key": "Clé API",
@@ -937,7 +951,31 @@
         "roleDeveloper": "Développeur",
         "roleEditor": "Éditeur",
         "roleMember": "Membre",
-        "roleDisabled": "Désactivé"
+        "roleDisabled": "Désactivé",
+        "autoProvisionRoleHelp": "Attribuer automatiquement des rôles en fonction de l'intitulé de poste ou des rôles d'application depuis Entra ID",
+        "autoProvisionRoleLabel": "Provisionnement automatique des rôles",
+        "autoProvisionTeamHelp": "Synchroniser automatiquement les appartenances aux équipes depuis les groupes Entra ID",
+        "autoProvisionTeamLabel": "Provisionnement automatique des équipes",
+        "clientIdHelp": "L'ID d'application (client) depuis l'inscription d'application Azure",
+        "clientIdLabel": "ID client",
+        "clientSecretHelp": "Le secret client depuis l'inscription d'application Azure",
+        "clientSecretLabel": "Secret client",
+        "configuring": "Configuration...",
+        "connectedToEntra": "Connecté à Microsoft Entra ID",
+        "defaultRoleHelp": "Rôle attribué lorsqu'aucune règle de correspondance ne s'applique",
+        "defaultRoleHelpNoAutoProvision": "Rôle attribué à tous les utilisateurs SSO",
+        "defaultRoleLabel": "Rôle par défaut",
+        "excludeGroupsHelp": "Liste de groupes Entra séparés par des virgules à exclure de la synchronisation des équipes",
+        "excludeGroupsLabel": "Exclure des groupes",
+        "issuerHelp": "L'URL de l'émetteur OIDC pour ton locataire Entra ID",
+        "issuerLabel": "URL de l'émetteur",
+        "oneDriveAccessHelp": "Permettre aux utilisateurs d'accéder aux fichiers OneDrive et SharePoint en utilisant leurs identifiants SSO",
+        "oneDriveAccessLabel": "Activer l'accès OneDrive/SharePoint",
+        "testConnection": "Tester la connexion",
+        "testPassed": "Valide",
+        "testing": "Test en cours...",
+        "title": "Configuration SSO",
+        "updating": "Mise à jour..."
       }
     },
     "providers": {
@@ -1038,7 +1076,11 @@
       "modelApiKeyOverrideIndicator": "Clé personnalisée",
       "deleteModelApiKey": "Supprimer",
       "undoRemoveKey": "Annuler",
-      "costHelp": "Utilisé pour le suivi du budget. Laisse vide pour utiliser les estimations par défaut."
+      "costHelp": "Utilisé pour le suivi du budget. Laisse vide pour utiliser les estimations par défaut.",
+      "description": "Description",
+      "tagImageEdit": "Édition d'images",
+      "tagImageGeneration": "Génération d'images",
+      "tagTranscription": "Transcription"
     },
     "form": {
       "name": "Nom",
@@ -1090,7 +1132,9 @@
           "never": "Jamais"
         }
       },
-      "neverUsed": "Jamais utilisée"
+      "neverUsed": "Jamais utilisée",
+      "description": "Gérer les clés API pour les intégrations externes",
+      "title": "Clés API"
     },
     "apiDocs": {
       "openDocs": "Documentation API"
@@ -1671,6 +1715,16 @@
       "all": "Tous",
       "read": "Lus",
       "unread": "Non lus"
+    },
+    "category": {
+      "churnSurvey": "Enquête de désabonnement",
+      "productRecommendation": "Recommandation de produit",
+      "serviceRequest": "Demande de service"
+    },
+    "priority": {
+      "high": "Haute",
+      "low": "Basse",
+      "medium": "Moyenne"
     }
   },
   "composer": {
@@ -1693,7 +1747,12 @@
     "paneResizeHandle": "Redimensionner le panneau de plan",
     "stripOpen": "Ouvrir le plan de recherche",
     "showMoreSources": "Afficher {count} sources de plus",
-    "hideSources": "Masquer les sources supplémentaires"
+    "hideSources": "Masquer les sources supplémentaires",
+    "statusCancelled": "Annulé",
+    "statusDone": "Terminé",
+    "statusFailed": "Échoué",
+    "statusInProgress": "En cours",
+    "statusPending": "En attente"
   },
   "humanInputRequest": {
     "questionTitle": "Question",
@@ -1906,7 +1965,15 @@
       "noResults": "Aucun modèle trouvé",
       "auto": "Auto",
       "autoDescription": "Sélectionne automatiquement le meilleur modèle disponible avec repli",
-      "noModelsAvailable": "Aucun modèle disponible"
+      "noModelsAvailable": "Aucun modèle disponible",
+      "tags": {
+        "chat": "Chat",
+        "embedding": "Embedding",
+        "imageEdit": "Édition d'images",
+        "imageGeneration": "Génération d'images",
+        "transcription": "Transcription",
+        "vision": "Vision"
+      }
     },
     "searchChat": "Rechercher dans le chat",
     "hideSearch": "Masquer la recherche",
@@ -2167,7 +2234,18 @@
     "savePromptMenu": "Options d'enregistrement",
     "unsavePrompt": "Retirer le prompt",
     "unsavePromptConfirm": "Le prompt enregistré sera supprimé. Tu pourras toujours le sauvegarder à nouveau plus tard.",
-    "unsavePromptAction": "Retirer"
+    "unsavePromptAction": "Retirer",
+    "errorGeneratingDescription": "Une erreur est survenue lors de la génération de la réponse. Merci de réessayer.",
+    "errorHintAuthError": "La clé API est invalide ou n'a pas accès à ce modèle. Contacte ton administrateur.",
+    "errorHintContentFilter": "Le message a été signalé par le filtre de contenu. Essaie de reformuler ton message.",
+    "errorHintContextLength": "La conversation est trop longue pour la fenêtre de contexte du modèle. Essaie de démarrer un nouveau chat.",
+    "errorHintCreditExhausted": "Le plafond de crédits du fournisseur d'IA a été dépassé. Contacte ton administrateur pour ajouter des crédits.",
+    "errorHintMissingApiKey": "Aucune clé API n'est encore configurée pour cette organisation. Ouvre Paramètres → Fournisseurs d'IA et ajoute-en une pour commencer à discuter.",
+    "errorHintModelNotFound": "Le modèle sélectionné est introuvable ou indisponible. Contacte ton administrateur.",
+    "errorHintProviderError": "Le fournisseur d'IA rencontre temporairement des problèmes. Merci de réessayer dans un instant.",
+    "errorHintRateLimited": "Trop de requêtes. Merci de patienter un moment et réessayer.",
+    "errorHintTokenLimit": "La limite de tokens en sortie du modèle a été dépassée. Essaie une requête plus courte ou demande à ton administrateur d'ajuster les paramètres du modèle.",
+    "errorHintToolFailure": "L'agent a rencontré une erreur lors de l'accès aux données. Essaie de reformuler ta demande ou de demander un ensemble de données plus restreint."
   },
   "documents": {
     "searchPlaceholder": "Rechercher des documents",
@@ -2398,6 +2476,13 @@
           "unknownError": "Erreur inconnue survenue"
         }
       }
+    },
+    "sourceType": {
+      "oneDrive": "OneDrive",
+      "oneDriveSynced": "OneDrive (synchronisé)",
+      "sharePoint": "SharePoint",
+      "sharePointSynced": "SharePoint (synchronisé)",
+      "uploaded": "Téléversement"
     }
   },
   "products": {
@@ -2454,7 +2539,10 @@
       "clickToUpload": "Clique pour téléverser",
       "supportedFormats": ".xlsx, .xls ou .csv",
       "expectedColumns": "Colonnes attendues : name, description, imageUrl, stock, price, currency, category, status",
-      "draftStatusNote": "Les produits importés sont créés avec le statut « brouillon » par défaut."
+      "draftStatusNote": "Les produits importés sont créés avec le statut « brouillon » par défaut.",
+      "errorCodes": {
+        "unknown": "Une erreur inattendue s'est produite"
+      }
     },
     "actions": {
       "deleteFailed": "Échec de la suppression du produit",
@@ -2535,8 +2623,16 @@
       "error": "Erreur d'importation",
       "addCustomers": "Ajouter des clients",
       "uploadCustomers": "Téléverser des clients",
-      "import": "Importer"
-    }
+      "import": "Importer",
+      "errorCodes": {
+        "duplicate_email": "Un client avec cette adresse e-mail existe déjà",
+        "duplicate_external_id": "Un client avec cet identifiant externe existe déjà",
+        "unknown": "Une erreur inattendue s'est produite"
+      }
+    },
+    "deleteConfirmation": "Es-tu sûr de vouloir supprimer {name} ?",
+    "deleteError": "Échec de la suppression du client",
+    "deleteWarning": "Cette action est irréversible."
   },
   "vendors": {
     "title": "Fournisseurs",
@@ -2578,8 +2674,15 @@
       "provideData": "Fournis les données du fournisseur",
       "success": "Importation réussie",
       "successDescription": "Importation réussie de {success} fournisseurs{failed, select, 0 {} other {, {failed} échoué(s)}}",
-      "error": "Échec de l'importation des fournisseurs"
-    }
+      "error": "Échec de l'importation des fournisseurs",
+      "errorCodes": {
+        "duplicate_email": "Un fournisseur avec cette adresse e-mail existe déjà",
+        "duplicate_external_id": "Un fournisseur avec cet identifiant externe existe déjà",
+        "unknown": "Une erreur inattendue s'est produite"
+      }
+    },
+    "deleteConfirmation": "Es-tu sûr de vouloir supprimer {name} ?",
+    "deleteError": "Échec de la suppression du fournisseur"
   },
   "websites": {
     "title": "Sites web",
@@ -2611,7 +2714,8 @@
       "updateSuccess": "Site web mis à jour avec succès",
       "updateError": "Échec de la mise à jour du site web",
       "fetchPagesError": "Échec du chargement des pages",
-      "searchError": "La recherche a échoué"
+      "searchError": "La recherche a échoué",
+      "deleteError": "Échec de la suppression du site web"
     },
     "adding": "Ajout en cours...",
     "viewDialog": {
@@ -2659,6 +2763,10 @@
         "7d": "Tous les 7 jours",
         "30d": "Tous les 30 jours"
       }
+    },
+    "delete": {
+      "confirmation": "Es-tu sûr de vouloir supprimer ce site web ? Cette action est irréversible.",
+      "title": "Supprimer le site web"
     }
   },
   "accessDenied": {
@@ -2673,7 +2781,8 @@
     "branding": "Tu dois disposer des permissions Admin pour accéder aux paramètres de marque.",
     "knowledge": "Ton compte n'a pas l'autorisation d'accéder à la base de connaissances.",
     "workspaceNotFound": "L'espace de travail que tu recherches n'existe pas ou a été supprimé.",
-    "disabled": "Ton compte a été désactivé. Contacte le support pour obtenir de l'aide."
+    "disabled": "Ton compte a été désactivé. Contacte le support pour obtenir de l'aide.",
+    "noMembership": "Tu n'es pas membre de cet espace de travail. Merci de contacter un administrateur pour obtenir l'accès."
   },
   "metadata": {
     "suffix": "Tale",
@@ -2928,7 +3037,11 @@
       "noProvidersFound": "Aucun fournisseur trouvé",
       "noModelsFound": "Aucun modèle trouvé",
       "noTeamsFound": "Aucune équipe trouvée",
-      "confirm": "Confirmer"
+      "confirm": "Confirmer",
+      "allowlistConflictWarning": "Ce modèle n'est actuellement pas autorisé par la politique d'accès aux modèles pour cette portée. Les utilisateurs concernés basculeront vers un modèle autorisé.",
+      "allowlistConflictWarningTitle": "Modèle absent de la liste d'autorisation",
+      "blocklistConflictWarning": "Ce modèle est actuellement bloqué par la politique d'accès aux modèles pour cette portée. Les utilisateurs concernés basculeront vers un modèle autorisé.",
+      "blocklistConflictWarningTitle": "Modèle bloqué"
     },
     "uploadPolicy": {
       "title": "Politique de téléversement",
@@ -3367,7 +3480,15 @@
       "testResultCircuit": "Circuit",
       "testResultCircuitOpened": "Ouvert par cet échec",
       "saved": "Fournisseur de modération enregistré",
-      "saveFailed": "Échec de l'enregistrement"
+      "saveFailed": "Échec de l'enregistrement",
+      "presetAzure": "Utiliser Azure Content Safety",
+      "presetAzureActive": "Azure Content Safety",
+      "presetAzureNote": "Remplace le sous-domaine par le nom de ta propre ressource Azure.",
+      "presetOpenai": "Utiliser OpenAI Moderation",
+      "presetOpenaiActive": "OpenAI Moderation",
+      "presetPerspective": "Utiliser Perspective API",
+      "presetPerspectiveActive": "Perspective API",
+      "presetPerspectiveNote": "Perspective s'authentifie via un paramètre de requête URL, pas un header. Après avoir appliqué le preset, ouvre « Endpoint » et ajoute ?key=TA_CLE_PERSPECTIVE à l'URL. (Le champ de clé API chiffrée ci-dessous n'est pas utilisé par Perspective.)"
     },
     "groups": {
       "contentAndModels": "Contenu et modèles",
@@ -3620,7 +3741,9 @@
     },
     "lowBackupCodes": {
       "body": "Génère un nouveau lot afin de pouvoir récupérer ton compte en cas de perte de ton application d'authentification.",
-      "regenerateLink": "Régénérer maintenant"
+      "regenerateLink": "Régénérer maintenant",
+      "titleOne": "Il ne reste qu'1 code de secours",
+      "titleOther": "Il ne reste que {count} codes de secours"
     },
     "enroll": {
       "title": "Double facteur requis",
@@ -3628,7 +3751,9 @@
     },
     "grace": {
       "body": "Ton organisation exigera bientôt que tous les membres utilisent un second facteur. Active-le maintenant pour éviter toute interruption.",
-      "setupLink": "Configurer maintenant"
+      "setupLink": "Configurer maintenant",
+      "titleOne": "Authentification à double facteur requise dans {days} jour",
+      "titleOther": "Authentification à double facteur requise dans {days} jours"
     },
     "admin": {
       "resetButton": "Réinitialiser le double facteur",
@@ -3648,8 +3773,9 @@
       "description": "Consommation de tokens, requêtes et utilisateurs actifs au fil du temps.",
       "cappedNotice": "Les résultats sont limités car la plage temporelle contient trop d'enregistrements. Réduisez la plage pour obtenir des données complètes.",
       "activeUsersTooltip": "Utilisateurs ayant effectué des requêtes IA durant cette période.",
-      "unknownAgent": "Assistant inconnu",
-      "unknownModel": "Modèle inconnu",
+      "directApi": "Appel API direct",
+      "integration": "Intégration",
+      "transcription": "Transcription",
       "period": {
         "label": "Période",
         "last7Days": "7 derniers jours",
@@ -3713,6 +3839,10 @@
       "empty": {
         "title": "Aucune utilisation pour l'instant",
         "description": "Aucune utilisation IA n'a été enregistrée pour la période sélectionnée."
+      },
+      "emptyModels": {
+        "title": "Aucune utilisation de modèle",
+        "description": "Aucun appel LLM n'a été enregistré pour la période sélectionnée. L'utilisation des intégrations et des transcriptions est affichée dans Top assistants."
       }
     }
   }

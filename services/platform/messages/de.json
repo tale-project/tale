@@ -278,11 +278,21 @@
       "duration": "Dauer",
       "triggeredBy": "Ausgelöst von",
       "teams": "Teams",
-      "uploadedBy": "Hochgeladen von"
+      "uploadedBy": "Hochgeladen von",
+      "actions": "Aktionen",
+      "created": "Erstellt",
+      "description": "Beschreibung",
+      "email": "E-Mail",
+      "product": "Produkt",
+      "scanned": "Gescannt",
+      "stock": "Bestand",
+      "title": "Titel",
+      "website": "Website"
     },
     "cells": {
       "unknown": "Unbekannt",
-      "empty": "-"
+      "empty": "-",
+      "noEmail": "Keine E-Mail"
     }
   },
   "toast": {
@@ -432,7 +442,9 @@
     },
     "forcedChange": {
       "title": "Passwortänderung erforderlich",
-      "submit": "Passwort aktualisieren"
+      "submit": "Passwort aktualisieren",
+      "description": "Dein Passwort ist gemäß der Rotationsrichtlinie der Organisation abgelaufen. Lege ein neues Passwort fest, um fortzufahren.",
+      "descriptionAdminSet": "Dein Passwort wurde von einem Administrator festgelegt. Bitte wähle ein neues Passwort, um fortzufahren."
     },
     "setPassword": {
       "title": "Passwort festlegen",
@@ -531,7 +543,8 @@
       "saveChanges": "Änderungen speichern",
       "loadingMembers": "Wird geladen...",
       "unknownMember": "Unbekannt",
-      "memberChecklistHint": "Ein Mitglied kann mehreren Teams angehören. Wenn niemand ausgewählt wird, wirst du automatisch hinzugefügt."
+      "memberChecklistHint": "Ein Mitglied kann mehreren Teams angehören. Wenn niemand ausgewählt wird, wirst du automatisch hinzugefügt.",
+      "description": "Teams innerhalb deiner Organisation erstellen und verwalten für granulare Zugriffskontrolle"
     },
     "agents": {
       "title": "Agents",
@@ -901,7 +914,8 @@
         "disconnectConfirmDescription": "Möchtest du diese Integration wirklich trennen? Du kannst sie später erneut verbinden.",
         "deleteConfirmTitle": "Integration löschen",
         "deleteConfirmDescription": "Möchtest du diese Integration wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-        "deleteIntegration": "Integration löschen"
+        "deleteIntegration": "Integration löschen",
+        "saveChanges": "Änderungen speichern"
       },
       "authMethods": {
         "api_key": "API-Schlüssel",
@@ -937,7 +951,31 @@
         "roleDeveloper": "Entwickler",
         "roleEditor": "Redakteur",
         "roleMember": "Mitglied",
-        "roleDisabled": "Deaktiviert"
+        "roleDisabled": "Deaktiviert",
+        "autoProvisionRoleHelp": "Rollen automatisch basierend auf Jobtitel oder App-Rollen aus Entra ID zuweisen",
+        "autoProvisionRoleLabel": "Rollen automatisch zuweisen",
+        "autoProvisionTeamHelp": "Team-Mitgliedschaften automatisch aus Entra ID-Gruppen synchronisieren",
+        "autoProvisionTeamLabel": "Teams automatisch bereitstellen",
+        "clientIdHelp": "Die Anwendungs-ID (Client-ID) aus der Azure-App-Registrierung",
+        "clientIdLabel": "Client-ID",
+        "clientSecretHelp": "Das Client-Secret aus der Azure-App-Registrierung",
+        "clientSecretLabel": "Client-Secret",
+        "configuring": "Wird konfiguriert...",
+        "connectedToEntra": "Verbunden mit Microsoft Entra ID",
+        "defaultRoleHelp": "Rolle, die zugewiesen wird, wenn keine Zuordnungsregeln zutreffen",
+        "defaultRoleHelpNoAutoProvision": "Rolle, die allen SSO-Benutzern zugewiesen wird",
+        "defaultRoleLabel": "Standardrolle",
+        "excludeGroupsHelp": "Kommagetrennte Liste von Entra-Gruppen, die von der Team-Synchronisierung ausgeschlossen werden",
+        "excludeGroupsLabel": "Gruppen ausschließen",
+        "issuerHelp": "Die OIDC-Aussteller-URL für deinen Entra ID-Mandanten",
+        "issuerLabel": "Aussteller-URL",
+        "oneDriveAccessHelp": "Benutzern erlauben, mit ihren SSO-Zugangsdaten auf OneDrive- und SharePoint-Dateien zuzugreifen",
+        "oneDriveAccessLabel": "OneDrive/SharePoint-Zugriff aktivieren",
+        "testConnection": "Verbindung testen",
+        "testPassed": "Gültig",
+        "testing": "Wird getestet...",
+        "title": "SSO-Konfiguration",
+        "updating": "Wird aktualisiert..."
       }
     },
     "providers": {
@@ -1038,7 +1076,11 @@
       "modelApiKeyOverrideIndicator": "Eigener Key",
       "deleteModelApiKey": "Entfernen",
       "undoRemoveKey": "Rückgängig",
-      "costHelp": "Wird für die Budgetverfolgung verwendet. Leer lassen für Standardschätzungen."
+      "costHelp": "Wird für die Budgetverfolgung verwendet. Leer lassen für Standardschätzungen.",
+      "description": "Beschreibung",
+      "tagImageEdit": "Bildbearbeitung",
+      "tagImageGeneration": "Bildgenerierung",
+      "tagTranscription": "Transkription"
     },
     "form": {
       "name": "Name",
@@ -1090,7 +1132,9 @@
           "never": "Nie"
         }
       },
-      "neverUsed": "Nie verwendet"
+      "neverUsed": "Nie verwendet",
+      "description": "API-Schlüssel für externe Integrationen verwalten",
+      "title": "API-Schlüssel"
     },
     "apiDocs": {
       "openDocs": "API-Dokumentation"
@@ -1671,6 +1715,16 @@
       "all": "Alle",
       "read": "Gelesen",
       "unread": "Ungelesen"
+    },
+    "category": {
+      "churnSurvey": "Abwanderungsumfrage",
+      "productRecommendation": "Produktempfehlung",
+      "serviceRequest": "Serviceanfrage"
+    },
+    "priority": {
+      "high": "Hoch",
+      "low": "Niedrig",
+      "medium": "Mittel"
     }
   },
   "composer": {
@@ -1693,7 +1747,12 @@
     "paneResizeHandle": "Planbereich vergrößern",
     "stripOpen": "Recherche-Plan öffnen",
     "showMoreSources": "{count} weitere Quellen anzeigen",
-    "hideSources": "Zusätzliche Quellen ausblenden"
+    "hideSources": "Zusätzliche Quellen ausblenden",
+    "statusCancelled": "Abgebrochen",
+    "statusDone": "Erledigt",
+    "statusFailed": "Fehlgeschlagen",
+    "statusInProgress": "In Bearbeitung",
+    "statusPending": "Offen"
   },
   "humanInputRequest": {
     "questionTitle": "Frage",
@@ -1906,7 +1965,15 @@
       "noResults": "Keine Modelle gefunden",
       "auto": "Auto",
       "autoDescription": "Wählt automatisch das beste verfügbare Modell mit Fallback",
-      "noModelsAvailable": "Keine Modelle verfügbar"
+      "noModelsAvailable": "Keine Modelle verfügbar",
+      "tags": {
+        "chat": "Chat",
+        "embedding": "Embedding",
+        "imageEdit": "Bildbearbeitung",
+        "imageGeneration": "Bildgenerierung",
+        "transcription": "Transkription",
+        "vision": "Vision"
+      }
     },
     "searchChat": "Chat durchsuchen",
     "hideSearch": "Suche ausblenden",
@@ -2167,7 +2234,18 @@
     "savePromptMenu": "Speicheroptionen",
     "unsavePrompt": "Prompt entfernen",
     "unsavePromptConfirm": "Der gespeicherte Prompt wird entfernt. Du kannst ihn jederzeit erneut speichern.",
-    "unsavePromptAction": "Entfernen"
+    "unsavePromptAction": "Entfernen",
+    "errorGeneratingDescription": "Beim Generieren einer Antwort ist ein Fehler aufgetreten. Bitte versuche es erneut.",
+    "errorHintAuthError": "Der API-Schlüssel ist ungültig oder hat keinen Zugriff auf dieses Modell. Kontaktiere deinen Administrator.",
+    "errorHintContentFilter": "Die Nachricht wurde vom Inhaltsfilter markiert. Versuche, deine Nachricht umzuformulieren.",
+    "errorHintContextLength": "Die Konversation ist zu lang für das Kontextfenster des Modells. Versuche, einen neuen Chat zu starten.",
+    "errorHintCreditExhausted": "Das Guthaben des KI-Anbieters wurde überschritten. Kontaktiere deinen Administrator, um Guthaben aufzuladen.",
+    "errorHintMissingApiKey": "Für diese Organisation ist noch kein API-Schlüssel konfiguriert. Öffne Einstellungen → KI-Anbieter und füge einen hinzu, um den Chat zu starten.",
+    "errorHintModelNotFound": "Das ausgewählte Modell wurde nicht gefunden oder ist nicht verfügbar. Kontaktiere deinen Administrator.",
+    "errorHintProviderError": "Der KI-Anbieter hat vorübergehend technische Probleme. Bitte versuche es in einem Moment erneut.",
+    "errorHintRateLimited": "Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.",
+    "errorHintTokenLimit": "Das Token-Limit des Modells wurde überschritten. Versuche eine kürzere Anfrage oder bitte deinen Administrator, die Modelleinstellungen anzupassen.",
+    "errorHintToolFailure": "Der Agent hat beim Datenzugriff einen Fehler festgestellt. Versuche, deine Anfrage umzuformulieren oder weniger Daten anzufordern."
   },
   "documents": {
     "searchPlaceholder": "Dokumente suchen",
@@ -2398,6 +2476,13 @@
           "unknownError": "Unbekannter Fehler aufgetreten"
         }
       }
+    },
+    "sourceType": {
+      "oneDrive": "OneDrive",
+      "oneDriveSynced": "OneDrive (synchronisiert)",
+      "sharePoint": "SharePoint",
+      "sharePointSynced": "SharePoint (synchronisiert)",
+      "uploaded": "Upload"
     }
   },
   "products": {
@@ -2454,7 +2539,10 @@
       "clickToUpload": "Klicken zum Hochladen",
       "supportedFormats": ".xlsx, .xls oder .csv",
       "expectedColumns": "Erwartete Spalten: name, description, imageUrl, stock, price, currency, category, status",
-      "draftStatusNote": "Importierte Produkte werden standardmässig mit dem Status \"Entwurf\" erstellt."
+      "draftStatusNote": "Importierte Produkte werden standardmässig mit dem Status \"Entwurf\" erstellt.",
+      "errorCodes": {
+        "unknown": "Ein unerwarteter Fehler ist aufgetreten"
+      }
     },
     "actions": {
       "deleteFailed": "Produkt konnte nicht gelöscht werden",
@@ -2535,8 +2623,16 @@
       "error": "Importfehler",
       "addCustomers": "Kunden hinzufügen",
       "uploadCustomers": "Kunden hochladen",
-      "import": "Importieren"
-    }
+      "import": "Importieren",
+      "errorCodes": {
+        "duplicate_email": "Ein Kunde mit dieser E-Mail existiert bereits",
+        "duplicate_external_id": "Ein Kunde mit dieser externen ID existiert bereits",
+        "unknown": "Ein unerwarteter Fehler ist aufgetreten"
+      }
+    },
+    "deleteConfirmation": "Möchtest du {name} wirklich löschen?",
+    "deleteError": "Kunde konnte nicht gelöscht werden",
+    "deleteWarning": "Diese Aktion kann nicht rückgängig gemacht werden."
   },
   "vendors": {
     "title": "Lieferanten",
@@ -2578,8 +2674,15 @@
       "provideData": "Bitte gib Lieferantendaten ein",
       "success": "Import erfolgreich",
       "successDescription": "{success} Lieferanten erfolgreich importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
-      "error": "Lieferanten konnten nicht importiert werden"
-    }
+      "error": "Lieferanten konnten nicht importiert werden",
+      "errorCodes": {
+        "duplicate_email": "Ein Lieferant mit dieser E-Mail existiert bereits",
+        "duplicate_external_id": "Ein Lieferant mit dieser externen ID existiert bereits",
+        "unknown": "Ein unerwarteter Fehler ist aufgetreten"
+      }
+    },
+    "deleteConfirmation": "Möchtest du {name} wirklich löschen?",
+    "deleteError": "Lieferant konnte nicht gelöscht werden"
   },
   "websites": {
     "title": "Websites",
@@ -2611,7 +2714,8 @@
       "updateSuccess": "Website erfolgreich aktualisiert",
       "updateError": "Website konnte nicht aktualisiert werden",
       "fetchPagesError": "Seiten konnten nicht geladen werden",
-      "searchError": "Suche fehlgeschlagen"
+      "searchError": "Suche fehlgeschlagen",
+      "deleteError": "Website konnte nicht gelöscht werden"
     },
     "adding": "Wird hinzugefügt...",
     "viewDialog": {
@@ -2659,6 +2763,10 @@
         "7d": "Alle 7 Tage",
         "30d": "Alle 30 Tage"
       }
+    },
+    "delete": {
+      "confirmation": "Möchtest du diese Website wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "title": "Website löschen"
     }
   },
   "twoFactor": {
@@ -2710,7 +2818,9 @@
     },
     "lowBackupCodes": {
       "body": "Erzeuge einen neuen Satz, damit du dein Konto wiederherstellen kannst, falls du deine Authenticator-App verlierst.",
-      "regenerateLink": "Jetzt neu erzeugen"
+      "regenerateLink": "Jetzt neu erzeugen",
+      "titleOne": "Nur noch 1 Backup-Code übrig",
+      "titleOther": "Nur noch {count} Backup-Codes übrig"
     },
     "enroll": {
       "title": "Zwei-Faktor erforderlich",
@@ -2718,7 +2828,9 @@
     },
     "grace": {
       "body": "Deine Organisation wird von allen Mitgliedern einen zweiten Faktor verlangen. Richte ihn jetzt ein, um Unterbrechungen zu vermeiden.",
-      "setupLink": "Jetzt einrichten"
+      "setupLink": "Jetzt einrichten",
+      "titleOne": "Zwei-Faktor-Authentifizierung in {days} Tag erforderlich",
+      "titleOther": "Zwei-Faktor-Authentifizierung in {days} Tagen erforderlich"
     },
     "admin": {
       "resetButton": "Zwei-Faktor zurücksetzen",
@@ -2744,7 +2856,8 @@
     "branding": "Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen zuzugreifen.",
     "knowledge": "Dein Konto hat keine Berechtigung, auf Wissen zuzugreifen.",
     "workspaceNotFound": "Der gesuchte Workspace existiert nicht oder wurde möglicherweise entfernt.",
-    "disabled": "Dein Konto wurde deaktiviert. Kontaktiere den Support für Unterstützung."
+    "disabled": "Dein Konto wurde deaktiviert. Kontaktiere den Support für Unterstützung.",
+    "noMembership": "Du bist kein Mitglied dieses Workspace. Bitte kontaktiere einen Administrator für Zugriff."
   },
   "metadata": {
     "suffix": "Tale",
@@ -2999,7 +3112,11 @@
       "noProvidersFound": "Keine Anbieter gefunden",
       "noModelsFound": "Keine Modelle gefunden",
       "noTeamsFound": "Keine Teams gefunden",
-      "confirm": "Bestätigen"
+      "confirm": "Bestätigen",
+      "allowlistConflictWarning": "Dieses Modell ist derzeit nicht durch die Allowlist der Modellzugriffsrichtlinie für diesen Geltungsbereich zugelassen. Betroffene Benutzer weichen auf ein erlaubtes Modell aus.",
+      "allowlistConflictWarningTitle": "Modell nicht in Allowlist",
+      "blocklistConflictWarning": "Dieses Modell ist derzeit durch die Modellzugriffsrichtlinie für diesen Geltungsbereich blockiert. Betroffene Benutzer weichen auf ein erlaubtes Modell aus.",
+      "blocklistConflictWarningTitle": "Modell ist blockiert"
     },
     "uploadPolicy": {
       "title": "Upload-Richtlinie",
@@ -3451,7 +3568,15 @@
       "testResultCircuit": "Circuit",
       "testResultCircuitOpened": "Durch diesen Fehler geöffnet",
       "saved": "Moderations-Anbieter gespeichert",
-      "saveFailed": "Speichern fehlgeschlagen"
+      "saveFailed": "Speichern fehlgeschlagen",
+      "presetAzure": "Azure Content Safety verwenden",
+      "presetAzureActive": "Azure Content Safety",
+      "presetAzureNote": "Ersetze die Subdomain durch den Namen deiner eigenen Azure-Ressource.",
+      "presetOpenai": "OpenAI Moderation verwenden",
+      "presetOpenaiActive": "OpenAI Moderation",
+      "presetPerspective": "Perspective API verwenden",
+      "presetPerspectiveActive": "Perspective API",
+      "presetPerspectiveNote": "Perspective authentifiziert per URL-Query-Parameter, nicht per Header. Nach dem Anwenden des Presets öffne „Endpoint“ und hänge ?key=DEIN_PERSPECTIVE_KEY an die URL an. (Das unten verschlüsselte API-Schlüsselfeld wird von Perspective nicht verwendet.)"
     },
     "groups": {
       "contentAndModels": "Inhalte & Modelle",
@@ -3641,8 +3766,9 @@
       "description": "Tokenverbrauch, Anfragen und aktive Benutzer im Zeitverlauf.",
       "cappedNotice": "Ergebnisse sind begrenzt, weil der Zeitraum zu viele Datensätze enthält. Verringere den Zeitraum für vollständige Daten.",
       "activeUsersTooltip": "Benutzer, die in diesem Zeitraum KI-Anfragen gestellt haben.",
-      "unknownAgent": "Unbekannter Assistent",
-      "unknownModel": "Unbekanntes Modell",
+      "directApi": "Direkter API-Aufruf",
+      "integration": "Integration",
+      "transcription": "Transkription",
       "period": {
         "label": "Zeitraum",
         "last7Days": "Letzte 7 Tage",
@@ -3706,6 +3832,10 @@
       "empty": {
         "title": "Noch keine Nutzung",
         "description": "Für den ausgewählten Zeitraum wurde keine KI-Nutzung erfasst."
+      },
+      "emptyModels": {
+        "title": "Noch keine Modellnutzung",
+        "description": "Für den ausgewählten Zeitraum wurden keine LLM-Aufrufe erfasst. Integrations- und Transkriptionsnutzung wird unter Top-Assistenten angezeigt."
       }
     }
   },

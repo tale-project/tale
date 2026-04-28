@@ -9,11 +9,17 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Text } from '@/app/components/ui/typography/text';
 import { useListAgents } from '@/app/features/agents/hooks/queries';
 import { useT } from '@/lib/i18n/client';
+import {
+  isDirectApiSlug,
+  isIntegrationSlug,
+  isSyntheticAgentSlug,
+  isTranscriptionSlug,
+} from '@/lib/shared/constants/usage';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 
 export interface TopAgentRow {
-  agentSlug: string | null;
+  agentSlug: string;
   requests: number;
   tokens: number;
   costCents: number;
@@ -56,8 +62,10 @@ export function TopAgentsTable({
   }, [agents, locale]);
 
   const resolveName = useCallback(
-    (slug: string | null): string => {
-      if (!slug) return t('usage.unknownAgent');
+    (slug: string): string => {
+      if (isDirectApiSlug(slug)) return t('usage.directApi');
+      if (isIntegrationSlug(slug)) return t('usage.integration');
+      if (isTranscriptionSlug(slug)) return t('usage.transcription');
       return displayNameMap.get(slug) ?? slug;
     },
     [displayNameMap, t],
@@ -65,9 +73,22 @@ export function TopAgentsTable({
 
   const handleRowClick = useCallback(
     (row: Row<TopAgentRow>) => {
-      if (row.original.agentSlug) onSelectAgent(row.original.agentSlug);
+      const slug = row.original.agentSlug;
+      if (!isSyntheticAgentSlug(slug)) onSelectAgent(slug);
     },
     [onSelectAgent],
+  );
+
+  // Suppress the pointer/hover affordance on synthetic rows — clicking them
+  // is a no-op (no real agent to drill into), so the row should not look
+  // clickable. tailwind-merge resolves cursor-default over the row-wide
+  // cursor-pointer applied by DataTable when onRowClick is set.
+  const rowClassName = useCallback(
+    (row: Row<TopAgentRow>) =>
+      isSyntheticAgentSlug(row.original.agentSlug)
+        ? 'cursor-default hover:bg-transparent'
+        : '',
+    [],
   );
 
   const columns = useMemo<ColumnDef<TopAgentRow>[]>(
@@ -136,10 +157,11 @@ export function TopAgentsTable({
       <DataTable
         columns={columns}
         data={rows}
-        getRowId={(row) => row.agentSlug ?? '__unknown__'}
+        getRowId={(row) => row.agentSlug}
         isLoading={isLoading}
         approxRowCount={isLoading ? 5 : rows.length}
         onRowClick={handleRowClick}
+        rowClassName={rowClassName}
         emptyState={{
           icon: BarChart3,
           title: t('usage.empty.title'),
