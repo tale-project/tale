@@ -63,7 +63,15 @@ RUN mkdir -p /docker-entrypoint-initdb.d \
 # grants). Service-specific tables live in per-service dbmate migrations at
 # services/<service>/migrations/ and are applied at each service's startup —
 # not here.
-COPY services/db/init-scripts/ /docker-entrypoint-initdb.d/
+#
+# Scripts live ONLY under /etc/postgresql/init-scripts/ — the entrypoint
+# wrapper runs them idempotently on every container start (see
+# docker-entrypoint-wrapper.sh). They must NOT be placed in
+# /docker-entrypoint-initdb.d/: the upstream entrypoint runs that directory
+# against a temporary local-only server during initdb, while the wrapper's
+# background loop probes the same socket and races in to run them too —
+# producing concurrent ALTER DEFAULT PRIVILEGES that collide on
+# pg_default_acl's unique key.
 COPY services/db/init-scripts/ /etc/postgresql/init-scripts/
 
 # Copy custom PostgreSQL configuration
