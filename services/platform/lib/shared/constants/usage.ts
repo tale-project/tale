@@ -2,16 +2,16 @@
 // owning the call. The governance/usage aggregation buckets each kind under
 // its own sentinel so the Top Assistants table renders precise labels
 // instead of collapsing everything into a single fallback.
-export const DIRECT_API_SLUG = '__direct_api__';
+const DIRECT_API_SLUG = '__direct_api__';
 export const INTEGRATION_SLUG = '__integration__';
 export const TRANSCRIPTION_SLUG = '__transcription__';
 
-export type UsageRowKind = 'llm' | 'integration' | 'transcription';
+type UsageRowKind = 'llm' | 'integration' | 'transcription';
 
 // Subset of usageLedger fields needed to classify a row by kind. Kept
 // intentionally narrow so client and server code can share the helper without
 // pulling in Convex schema types.
-export interface UsageLedgerDiscriminators {
+interface UsageLedgerDiscriminators {
   agentSlug?: string;
   model?: string;
   provider?: string;
