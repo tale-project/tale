@@ -57,7 +57,18 @@ GRANT ALL ON ALL TABLES IN SCHEMA public_web TO tale;
 GRANT ALL ON ALL TABLES IN SCHEMA private_knowledge TO tale;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public_web TO tale;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA private_knowledge TO tale;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public_web GRANT ALL ON TABLES TO tale;
-ALTER DEFAULT PRIVILEGES IN SCHEMA private_knowledge GRANT ALL ON TABLES TO tale;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public_web GRANT ALL ON SEQUENCES TO tale;
-ALTER DEFAULT PRIVILEGES IN SCHEMA private_knowledge GRANT ALL ON SEQUENCES TO tale;
+-- Wrap in a DO/EXCEPTION block so concurrent or repeated invocations don't
+-- abort the script with a unique_violation on pg_default_acl. SetDefaultACL
+-- is an UPSERT, but two transactions racing on the same (role, schema,
+-- objtype) can both see "no row" via syscache and both INSERT — the second
+-- then fails on pg_default_acl_role_nsp_obj_index. Treat that as success.
+DO $$
+BEGIN
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public_web        GRANT ALL ON TABLES    TO tale;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA private_knowledge GRANT ALL ON TABLES    TO tale;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public_web        GRANT ALL ON SEQUENCES TO tale;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA private_knowledge GRANT ALL ON SEQUENCES TO tale;
+EXCEPTION WHEN unique_violation THEN
+    RAISE NOTICE 'pg_default_acl already populated, skipping ALTER DEFAULT PRIVILEGES (% / %)', SQLSTATE, SQLERRM;
+END;
+$$;
