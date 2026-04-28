@@ -1,4 +1,7 @@
-import { DIRECT_API_SLUG } from '../../lib/shared/constants/usage';
+import {
+  bucketAgentSlug,
+  classifyUsageRow,
+} from '../../lib/shared/constants/usage';
 import type { QueryCtx } from '../_generated/server';
 import { getUserNamesBatch } from '../documents/get_user_names_batch';
 import { buildPeriodKeyFromTimestamp } from './helpers';
@@ -29,9 +32,11 @@ export interface UsageSeriesPoint {
 }
 
 export interface UsageTopAgent {
-  // Either a real agent slug or the DIRECT_API_SLUG sentinel for OpenAI-compat
-  // direct-model calls (no assistant context). Never null — every ledger row
-  // resolves to one of these two precise categories.
+  // Real agent slug, or one of DIRECT_API_SLUG / INTEGRATION_SLUG /
+  // TRANSCRIPTION_SLUG when the row has no owning assistant (direct-model
+  // API call, agentless integration call, or file-pipeline transcription).
+  // Never null — every ledger row resolves to exactly one bucket via
+  // bucketAgentSlug() so the UI can render a precise label.
   agentSlug: string;
   requests: number;
   tokens: number;
@@ -182,10 +187,11 @@ export async function getOrgUsageMetrics(
     totalCostCents += row.costEstimate;
     if (row.requestCount > 0) activeUserIds.add(row.userId);
 
-    // Bucket under the real agent slug, or under the DIRECT_API_SLUG sentinel
-    // for LLM rows that came from the OpenAI-compat direct-model endpoint
-    // (no assistant context). Integration rows always carry agentSlug.
-    const agentSlugForBucket = row.agentSlug ?? DIRECT_API_SLUG;
+    // Classify by schema discriminator (integrationName / audioDurationSec /
+    // model) so integration and transcription rows route to their own buckets
+    // instead of collapsing under the LLM "Direct API" sentinel.
+    const kind = classifyUsageRow(row);
+    const agentSlugForBucket = bucketAgentSlug(row, kind);
     let agentBucket = agentBuckets.get(agentSlugForBucket);
     if (!agentBucket) {
       agentBucket = {
@@ -200,9 +206,14 @@ export async function getOrgUsageMetrics(
     agentBucket.tokens += row.totalTokens;
     agentBucket.costCents += row.costEstimate;
 
-    // Top Models is LLM-only. Integration rows have no model by design — their
-    // cost is still attributed to the calling agent above.
-    if (row.model !== undefined && row.provider !== undefined) {
+    // Top Models is LLM-only — integration rows lack a model and transcription
+    // rows have model+provider but tokens=0 (billed per audio minute), so
+    // including them would render misleading "0 tokens" entries.
+    if (
+      kind === 'llm' &&
+      row.model !== undefined &&
+      row.provider !== undefined
+    ) {
       const modelKey = `${row.provider}::${row.model}`;
       let modelBucket = modelBuckets.get(modelKey);
       if (!modelBucket) {
@@ -241,18 +252,37 @@ export async function getOrgUsageMetrics(
     userBucket.requests += row.requestCount;
   }
 
+  // Sort by cost descending — it's the only metric that compares fairly across
+  // mixed row kinds. Token-desc penalises non-LLM activity: transcription rows
+  // are billed per audio minute (tokens=0) and image-generation models use
+  // prompt-token counts that are tiny relative to per-image cost. Cost-desc
+  // matches what admins actually care about ($$ ranking). Tokens and slug
+  // serve as deterministic tiebreakers so Top-N stays stable across calls.
   const topAgents: UsageTopAgent[] = [...agentBuckets.values()]
-    .sort((a, b) => b.tokens - a.tokens)
+    .sort(
+      (a, b) =>
+        b.costCents - a.costCents ||
+        b.tokens - a.tokens ||
+        a.agentSlug.localeCompare(b.agentSlug),
+    )
     .slice(0, TOP_N);
 
   const topModels: UsageTopModel[] = [...modelBuckets.values()]
-    .sort((a, b) => b.tokens - a.tokens)
+    .sort(
+      (a, b) =>
+        b.costCents - a.costCents ||
+        b.tokens - a.tokens ||
+        `${a.provider}::${a.model}`.localeCompare(`${b.provider}::${b.model}`),
+    )
     .slice(0, TOP_N);
 
   // Full user list (no Top-N cap) — admins need to see every user's usage
   // for team/budget drill-down, matching the pre-analytics UsageDashboard.
   const sortedUsers = [...userBuckets.values()].sort(
-    (a, b) => b.tokens - a.tokens,
+    (a, b) =>
+      b.costCents - a.costCents ||
+      b.tokens - a.tokens ||
+      a.userId.localeCompare(b.userId),
   );
   const userNameMap = await getUserNamesBatch(
     ctx,

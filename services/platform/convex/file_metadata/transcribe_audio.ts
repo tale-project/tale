@@ -2,6 +2,7 @@
 
 import { v } from 'convex/values';
 
+import { TRANSCRIPTION_SLUG } from '../../lib/shared/constants/usage';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
@@ -518,6 +519,10 @@ export const transcribeAudio = internalAction({
           {
             organizationId: args.organizationId,
             userId,
+            // File-pipeline transcription has no invoking agent; the sentinel
+            // routes the row to the "Transcription" bucket in Top Assistants
+            // and keeps the writer's required-agentSlug invariant intact.
+            agentSlug: TRANSCRIPTION_SLUG,
             model: modelData.modelId,
             provider: modelData.providerName,
             audioDurationSec: totalDurationSec,

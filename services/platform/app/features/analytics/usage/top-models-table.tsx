@@ -113,8 +113,8 @@ export function TopModelsTable({
         onRowClick={handleRowClick}
         emptyState={{
           icon: BarChart3,
-          title: t('usage.empty.title'),
-          description: t('usage.empty.description'),
+          title: t('usage.emptyModels.title'),
+          description: t('usage.emptyModels.description'),
         }}
       />
     </div>

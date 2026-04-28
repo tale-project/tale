@@ -269,7 +269,10 @@ export const recordIntegrationUsage = internalMutation({
     organizationId: v.string(),
     userId: v.string(),
     teamId: v.optional(v.string()),
-    agentSlug: v.optional(v.string()),
+    // Required: callers must pass either the calling agent's slug or
+    // INTEGRATION_SLUG when invoked outside an agent context. Enforces the
+    // attribution invariant the analytics aggregator relies on.
+    agentSlug: v.string(),
     integrationName: v.string(),
     integrationOperation: v.string(),
     costEstimateCents: v.number(),
@@ -342,7 +345,9 @@ export const recordTranscriptionUsage = internalMutation({
     organizationId: v.string(),
     userId: v.string(),
     teamId: v.optional(v.string()),
-    agentSlug: v.optional(v.string()),
+    // Required: callers must pass either the invoking agent's slug or
+    // TRANSCRIPTION_SLUG when running from the file pipeline (no agent ctx).
+    agentSlug: v.string(),
     model: v.string(),
     provider: v.string(),
     audioDurationSec: v.number(),
