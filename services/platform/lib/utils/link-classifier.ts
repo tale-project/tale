@@ -1,4 +1,4 @@
-export type LinkKind =
+type LinkKind =
   | { kind: 'internal'; to: string }
   | { kind: 'external'; href: string }
   | { kind: 'hash'; href: string }
