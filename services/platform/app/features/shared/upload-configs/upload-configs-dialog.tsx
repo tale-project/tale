@@ -192,6 +192,7 @@ function UploadConfigsDialogContent({
           <Button
             type="button"
             variant="secondary"
+            className="gap-2"
             onClick={() => filesInputRef.current?.click()}
             disabled={isImporting}
           >
@@ -201,6 +202,7 @@ function UploadConfigsDialogContent({
           <Button
             type="button"
             variant="secondary"
+            className="gap-2"
             onClick={() => folderInputRef.current?.click()}
             disabled={isImporting}
           >
@@ -210,6 +212,7 @@ function UploadConfigsDialogContent({
           <Button
             type="button"
             variant="secondary"
+            className="gap-2"
             onClick={() => zipInputRef.current?.click()}
             disabled={isImporting}
           >
