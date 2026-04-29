@@ -469,6 +469,7 @@
     "organization": {
       "title": "Organization (optional)",
       "organizationId": "Organization ID",
+      "organizationIdHelp": "Used for API integrations",
       "membersTitle": "Organization members",
       "membersEntityLabel": "members",
       "manageAccess": "Manage access to the organization",
@@ -1141,6 +1142,8 @@
       "openDocs": "API docs"
     },
     "logs": {
+      "heading": "Logs",
+      "subheading": "View and manage system logs.",
       "auditLogs": "Audit logs",
       "activityLogs": "Activity logs",
       "errorLogs": "Error logs",
@@ -1149,13 +1152,20 @@
       "blockCounters": {
         "tabLabel": "Sign-in blocks",
         "description": "Hourly counters of sign-in attempts rejected at the gate (account lockout or per-IP flood guard). Last 7 days.",
+        "tableCaption": "Sign-in block activity",
         "empty": "No rejected sign-in attempts in the last 7 days.",
+        "emptyTitle": "No sign-in blocks",
+        "footerCount": "Showing {count, plural, one {# result} other {# results}}",
         "columns": {
-          "window": "Hour",
-          "email": "Account",
-          "lockout": "Lockout",
-          "ipLimit": "IP limit",
-          "lastIp": "Last IP"
+          "timestamp": "Timestamp",
+          "user": "User",
+          "ipAddress": "IP Address",
+          "lockOut": "Lock Out",
+          "ipLimit": "IP Limit"
+        },
+        "values": {
+          "yes": "Yes",
+          "no": "No"
         }
       },
       "audit": {
@@ -1164,7 +1174,7 @@
         "emptyDescription": "Audit logs will appear here as actions are performed in your organization.",
         "detailTitle": "Audit log details",
         "columns": {
-          "timestamp": "Time",
+          "timestamp": "Timestamp",
           "action": "Action",
           "actor": "User",
           "actorId": "User ID",

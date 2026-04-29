@@ -101,7 +101,7 @@ export function Tabs({
               <TabsPrimitive.Content
                 key={item.value}
                 value={item.value}
-                className="ring-offset-background focus-visible:ring-ring mt-2 flex min-h-0 flex-1 flex-col focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                className="ring-offset-background focus-visible:ring-ring mt-5 flex min-h-0 flex-1 flex-col focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
               >
                 {item.content}
               </TabsPrimitive.Content>

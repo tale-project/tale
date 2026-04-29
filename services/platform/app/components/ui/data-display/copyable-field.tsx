@@ -3,9 +3,8 @@
 import { Check, Copy } from 'lucide-react';
 import * as React from 'react';
 
-import { Input } from '@/app/components/ui/forms/input';
+import { Label } from '@/app/components/ui/forms/label';
 import { HStack } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -17,9 +16,9 @@ interface CopyableFieldProps {
   label?: string;
   /** Whether to show the value in a monospace font */
   mono?: boolean;
-  /** Additional className for the input */
+  /** Additional className for the pill container */
   inputClassName?: string;
-  /** Additional className for the container */
+  /** Additional className for the outer wrapper */
   className?: string;
   /** Duration in ms to show the copied state (default: 2000) */
   copiedDuration?: number;
@@ -32,8 +31,8 @@ interface CopyableFieldProps {
 }
 
 /**
- * An input field with a copy-to-clipboard button.
- * Shows a check icon briefly after successful copy.
+ * A read-only "ID field" pill: a single bordered container that shows a value
+ * and an inline copy affordance. Matches the design-system ID Field pattern.
  */
 export const CopyableField = React.memo(function CopyableField({
   value,
@@ -47,6 +46,9 @@ export const CopyableField = React.memo(function CopyableField({
   onCopyError,
 }: CopyableFieldProps) {
   const { t: tCommon } = useT('common');
+  const reactId = React.useId();
+  const valueId = `${reactId}-value`;
+  const statusId = `${reactId}-status`;
   const { copied, onClick } = useCopyButton(value, {
     copiedDuration,
     onSuccess: onCopy,
@@ -54,38 +56,46 @@ export const CopyableField = React.memo(function CopyableField({
   });
 
   return (
-    <HStack gap={2} className={className}>
-      <Input
-        value={value}
-        readOnly
-        label={label}
-        wrapperClassName="flex-1"
-        className={cn(mono && 'font-mono text-sm', inputClassName)}
-        aria-describedby={copied ? 'copy-status' : undefined}
-      />
-      <Button
+    <div className={cn('flex flex-col gap-1.5', className)}>
+      {label && <Label htmlFor={valueId}>{label}</Label>}
+      <button
+        id={valueId}
         type="button"
-        variant="ghost"
-        size="icon"
-        className={cn('p-1 shrink-0', label && 'mt-6')}
         onClick={onClick}
         aria-label={copyAriaLabel || tCommon('actions.copy')}
+        aria-describedby={copied ? statusId : undefined}
+        className={cn(
+          'ring-border bg-muted/40 hover:bg-muted/60',
+          'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
+          'flex w-full cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.25 text-left transition-colors',
+          inputClassName,
+        )}
       >
+        <span
+          className={cn(
+            'text-muted-foreground flex-1 truncate text-sm',
+            mono && 'font-mono',
+          )}
+          title={value}
+        >
+          {value}
+        </span>
         {copied ? (
           <Check
-            className="size-4 text-green-600 dark:text-green-400"
+            className="size-4 shrink-0 text-green-600 dark:text-green-400"
             aria-hidden="true"
           />
         ) : (
-          <Copy className="size-4" aria-hidden="true" />
+          <Copy
+            className="text-muted-foreground size-4 shrink-0"
+            aria-hidden="true"
+          />
         )}
-      </Button>
-      {copied && (
-        <span id="copy-status" className="sr-only">
-          {tCommon('actions.copied')}
-        </span>
-      )}
-    </HStack>
+      </button>
+      <span id={statusId} className="sr-only" role="status" aria-live="polite">
+        {copied ? tCommon('actions.copied') : ''}
+      </span>
+    </div>
   );
 });
 

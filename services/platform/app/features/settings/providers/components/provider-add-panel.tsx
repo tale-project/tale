@@ -587,7 +587,6 @@ export function ProviderAddPanel({
                     />
                     <div className="min-w-0 flex-1">
                       <SearchInput
-                        className="h-9"
                         value={modelSearch}
                         onChange={(e) => setModelSearch(e.target.value)}
                         placeholder={t('providers.searchModels')}

@@ -5,8 +5,7 @@ import { Plus } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
-import { CopyableText } from '@/app/components/ui/data-display/copyable-field';
-import { Field } from '@/app/components/ui/forms/field';
+import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
@@ -207,12 +206,17 @@ export function OrganizationSettings({
       </Form>
 
       {organization && (
-        <Field label={tSettings('organization.organizationId')}>
-          <CopyableText
-            value={organization._id}
-            className="min-w-0 [&>span]:truncate"
-          />
-        </Field>
+        <div className="mt-4 max-w-sm space-y-2">
+          <Stack gap={1}>
+            <span className="text-foreground text-sm font-medium">
+              {tSettings('organization.organizationId')}
+            </span>
+            <span className="text-muted-foreground text-xs">
+              {tSettings('organization.organizationIdHelp')}
+            </span>
+          </Stack>
+          <CopyableField value={organization._id} />
+        </div>
       )}
 
       <PageSection
@@ -225,11 +229,10 @@ export function OrganizationSettings({
             placeholder={tSettings('organization.searchMember')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8"
             wrapperClassName="flex-1 max-w-sm"
           />
           {memberContext?.isAdmin && (
-            <Button size="sm" onClick={() => setIsAddMemberDialogOpen(true)}>
+            <Button onClick={() => setIsAddMemberDialogOpen(true)}>
               <Plus className="mr-2 size-4" />
               {tSettings('organization.addMember')}
             </Button>

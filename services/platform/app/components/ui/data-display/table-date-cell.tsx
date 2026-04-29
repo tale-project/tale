@@ -11,6 +11,8 @@ interface TableDateCellProps {
   date: number | Date | string | null | undefined;
   /** Format preset: 'short', 'long', 'relative', 'time', 'medium' */
   preset?: DatePreset;
+  /** Custom dayjs format string. Overrides preset when set. */
+  customFormat?: string;
   /** Additional className */
   className?: string;
   /** Text to show when date is null/undefined */
@@ -38,6 +40,7 @@ interface TableDateCellProps {
 export const TableDateCell = React.memo(function TableDateCell({
   date,
   preset = 'short',
+  customFormat,
   className,
   emptyText = '—',
   alignRight = false,
@@ -63,7 +66,9 @@ export const TableDateCell = React.memo(function TableDateCell({
       ? new Date(date)
       : date;
 
-  const formatted = formatDate(dateObj, preset);
+  const formatted = customFormat
+    ? formatDate(dateObj, preset, { customFormat })
+    : formatDate(dateObj, preset);
   // Use formatDate for title to ensure SSR/CSR consistency
   const titleText = formatDate(dateObj, 'long');
 
