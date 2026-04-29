@@ -114,7 +114,7 @@ Map the JSON to this tool's schema: top-level fields → workflowConfig, steps a
 
 **APPROVAL:**
 When this tool returns { requiresApproval: true }, do NOT call this tool again.
-Inform the user the update is ready for review in the chat UI. Do not reference the card's position (no "above" / "below") — just say the approval card has been created.`,
+Inform the user the update is ready for review. Only say the approval card has been created — never describe where it appears, how to find it, or its direction relative to the chat (no "above"/"below"/"上方"/"下方"/"oben"/"unten"/equivalents).`,
     inputSchema: z.object({
       workflowConfig: workflowConfigSchema,
       stepsConfig: z
