@@ -443,7 +443,6 @@ import type * as lib_response_cache_internal_mutations from "../lib/response_cac
 import type * as lib_response_cache_internal_queries from "../lib/response_cache/internal_queries.js";
 import type * as lib_response_cache_normalize from "../lib/response_cache/normalize.js";
 import type * as lib_response_cache_semantic_cache from "../lib/response_cache/semantic_cache.js";
-import type * as lib_response_cache_tool_cacheability from "../lib/response_cache/tool_cacheability.js";
 import type * as lib_rest_helpers from "../lib/rest/helpers.js";
 import type * as lib_rls_auth_check_org_membership from "../lib/rls/auth/check_org_membership.js";
 import type * as lib_rls_auth_get_auth_user_identity from "../lib/rls/auth/get_auth_user_identity.js";
@@ -838,6 +837,7 @@ import type * as workflow_engine_helpers_engine_dynamic_workflow_handler from ".
 import type * as workflow_engine_helpers_engine_execute_step_handler from "../workflow_engine/helpers/engine/execute_step_handler.js";
 import type * as workflow_engine_helpers_engine_index from "../workflow_engine/helpers/engine/index.js";
 import type * as workflow_engine_helpers_engine_load_file_workflow from "../workflow_engine/helpers/engine/load_file_workflow.js";
+import type * as workflow_engine_helpers_engine_merge_workflow_llm_models from "../workflow_engine/helpers/engine/merge_workflow_llm_models.js";
 import type * as workflow_engine_helpers_engine_on_workflow_complete from "../workflow_engine/helpers/engine/on_workflow_complete.js";
 import type * as workflow_engine_helpers_engine_serialize_and_complete_execution_handler from "../workflow_engine/helpers/engine/serialize_and_complete_execution_handler.js";
 import type * as workflow_engine_helpers_engine_shard from "../workflow_engine/helpers/engine/shard.js";
@@ -1447,7 +1447,6 @@ declare const fullApi: ApiFromModules<{
   "lib/response_cache/internal_queries": typeof lib_response_cache_internal_queries;
   "lib/response_cache/normalize": typeof lib_response_cache_normalize;
   "lib/response_cache/semantic_cache": typeof lib_response_cache_semantic_cache;
-  "lib/response_cache/tool_cacheability": typeof lib_response_cache_tool_cacheability;
   "lib/rest/helpers": typeof lib_rest_helpers;
   "lib/rls/auth/check_org_membership": typeof lib_rls_auth_check_org_membership;
   "lib/rls/auth/get_auth_user_identity": typeof lib_rls_auth_get_auth_user_identity;
@@ -1842,6 +1841,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/engine/execute_step_handler": typeof workflow_engine_helpers_engine_execute_step_handler;
   "workflow_engine/helpers/engine/index": typeof workflow_engine_helpers_engine_index;
   "workflow_engine/helpers/engine/load_file_workflow": typeof workflow_engine_helpers_engine_load_file_workflow;
+  "workflow_engine/helpers/engine/merge_workflow_llm_models": typeof workflow_engine_helpers_engine_merge_workflow_llm_models;
   "workflow_engine/helpers/engine/on_workflow_complete": typeof workflow_engine_helpers_engine_on_workflow_complete;
   "workflow_engine/helpers/engine/serialize_and_complete_execution_handler": typeof workflow_engine_helpers_engine_serialize_and_complete_execution_handler;
   "workflow_engine/helpers/engine/shard": typeof workflow_engine_helpers_engine_shard;

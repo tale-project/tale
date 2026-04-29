@@ -39,6 +39,7 @@ export function loadFileWorkflow(
           timeout: config.config.timeout,
           retryPolicy: config.config.retryPolicy,
           variables: config.config.variables,
+          models: config.config.models,
         }
       : undefined,
   };

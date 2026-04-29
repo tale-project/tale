@@ -44,6 +44,9 @@ export const wfDefinitionsTable = defineTable({
           }),
         ),
       ),
+      // Workflow-level fallback chain inherited by every LLM step that
+      // defines neither `model` nor `models`. Step-level overrides win.
+      models: v.optional(v.array(v.string())),
     }),
   ),
   rootVersionId: v.optional(v.id('wfDefinitions')),

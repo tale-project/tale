@@ -61,6 +61,19 @@ export interface LLMNodeConfig {
    */
   model?: string;
 
+  /**
+   * Optional ordered fallback chain. Each entry is a model ref
+   * (`provider:modelId` or unqualified `modelId`), tried in order until one
+   * resolves. Entries whose `provider:modelId` has its circuit breaker open
+   * are skipped on the primary pass and retried as a secondary tier. After
+   * the chain exhausts, the step fails with the last error — no implicit
+   * tag-based widening.
+   *
+   * Mutually exclusive with `model`. When `noFallback: true`, only the first
+   * entry is tried.
+   */
+  models?: string[];
+
   // Core prompts
   systemPrompt: string; // The system instructions/role definition
   userPrompt?: string; // The user task prompt (can also be in step config)
@@ -86,9 +99,6 @@ export interface LLMNodeConfig {
 
   // Custom variables and context
   contextVariables?: Record<string, unknown>;
-
-  /** When true, disable model fallback for this step (default: false) */
-  noFallback?: boolean;
 }
 
 // =============================================================================
@@ -161,6 +171,9 @@ export const llmNodeConfigValidator = v.object({
   // field is optional and, if provided, is ignored by execution.
   // Temperature is auto-determined based on outputFormat (json→0.2, text→0.5).
   model: v.optional(v.string()),
+  // Ordered fallback chain. Mutually exclusive with `model` — see
+  // `LLMNodeConfig.models` for semantics.
+  models: v.optional(v.array(v.string())),
   systemPrompt: v.string(),
   userPrompt: v.optional(v.string()),
   tools: v.optional(v.array(v.string())),
@@ -174,7 +187,6 @@ export const llmNodeConfigValidator = v.object({
       v.union(v.string(), v.number(), v.boolean(), v.null()),
     ),
   ),
-  noFallback: v.optional(v.boolean()),
 
   // ==========================================================================
   // DEPRECATED FIELDS (kept for backward compatibility during migration)
@@ -185,6 +197,10 @@ export const llmNodeConfigValidator = v.object({
   temperature: v.optional(v.number()),
   maxTokens: v.optional(v.number()),
   maxSteps: v.optional(v.number()),
+  // `noFallback` was a per-step opt-out for resolve-time fallback. Removed in
+  // favor of explicit `models[]` chain semantics — write a single-element
+  // chain or just `model: "..."` if you want strict pinning.
+  noFallback: v.optional(v.boolean()),
 });
 
 export const conditionNodeConfigValidator = v.object({

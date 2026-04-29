@@ -34,6 +34,7 @@ export class FileWorkflowDataSource implements WorkflowDataSource {
             timeout: this.config.config.timeout,
             retryPolicy: this.config.config.retryPolicy,
             variables: this.config.config.variables,
+            models: this.config.config.models,
           }
         : undefined,
     };

@@ -103,7 +103,6 @@ const serializableAgentConfigValidator = v.object({
   outputReserve: v.optional(v.number()),
   responseCacheEnabled: v.optional(v.boolean()),
   responseCacheTtlMs: v.optional(v.number()),
-  noCacheToolNames: v.optional(v.array(v.string())),
   fallbackModels: v.optional(v.array(v.string())),
 });
 
@@ -436,7 +435,6 @@ export const runAgentGeneration = internalAction({
                 agentConfig.structuredResponsesEnabled,
               responseCacheEnabled: agentConfig.responseCacheEnabled,
               responseCacheTtlMs: agentConfig.responseCacheTtlMs,
-              noCacheToolNames: agentConfig.noCacheToolNames,
               maxContextTokens,
               instructions: finalInstructions,
               toolsSummary,

@@ -72,7 +72,7 @@
       "pickZip": "Choose zip",
       "summary": "{total} entries · {saved} saved · {queued} pending",
       "conflictHeading": "{count, plural, one {# entry already exists} other {# entries already exist}}",
-      "conflictHint": "Existing entries will be skipped unless you allow overwrites. Overwriting saves the previous version to history.",
+      "conflictHint": "Existing entries will be overwritten. The previous version is saved to history. Uncheck below to skip them instead.",
       "overwriteToggle": "Overwrite existing entries",
       "statusExists": "Already exists — will be skipped",
       "willOverwrite": "Already exists — will overwrite",
@@ -619,7 +619,9 @@
         "sectionAdvanced": "Advanced",
         "sectionAdvancedDescription": "Fine-tune agent execution behavior.",
         "timeoutMinutes": "Execution timeout (minutes)",
-        "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations."
+        "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations.",
+        "responseCache": "Cache responses",
+        "responseCacheHelp": "When the same prompt is sent again under similar context, return the previously generated response instead of re-running the model. Saves cost and latency at the price of freshness."
       },
       "conversationStarters": {
         "title": "Conversation starters",
@@ -745,10 +747,7 @@
         "webModeContextDescription": "Automatically inject relevant web results into every response",
         "webModeBothDescription": "Auto-inject web results and allow on-demand search",
         "webSearchHint": "Web search only searches content from websites added to your organization.",
-        "webSearchHintLink": "Manage websites",
-        "cacheExclusions": "Cache exclusions",
-        "cacheExclusionsDescription": "When any of these tools are invoked, the response will not be cached",
-        "noCacheToolsEmpty": "Enable response caching tools to configure exclusions"
+        "webSearchHintLink": "Manage websites"
       },
       "webhook": {
         "title": "Webhook",
