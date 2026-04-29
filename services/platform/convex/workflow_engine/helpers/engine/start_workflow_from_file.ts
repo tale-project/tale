@@ -56,7 +56,12 @@ export const startWorkflowFromFile = internalAction({
 
     const config = result.config;
 
-    // Step 2: Check if workflow is installed and enabled
+    // Step 2: Check if workflow is installed and enabled.
+    // Manual test runs from the editor bypass the `enabled` gate so a draft
+    // workflow can be validated before publishing. The `installed` gate still
+    // applies — an unregistered workflow shouldn't run from any source.
+    const isManualTestRun = args.triggeredBy === 'test';
+
     if (!config.installed) {
       debugLog('startWorkflowFromFile Workflow is not installed, skipping', {
         workflowSlug: args.workflowSlug,
@@ -64,9 +69,10 @@ export const startWorkflowFromFile = internalAction({
       return null;
     }
 
-    if (!config.enabled) {
+    if (!config.enabled && !isManualTestRun) {
       debugLog('startWorkflowFromFile Workflow is disabled, skipping', {
         workflowSlug: args.workflowSlug,
+        triggeredBy: args.triggeredBy,
       });
       return null;
     }

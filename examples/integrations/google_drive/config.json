@@ -1,0 +1,73 @@
+{
+  "title": "Google Drive",
+  "description": "Sync files from Google Drive folders into Tale documents and RAG.",
+  "version": 1,
+  "authMethod": "oauth2",
+  "supportedAuthMethods": ["oauth2"],
+  "secretBindings": ["accessToken"],
+  "allowedHosts": ["www.googleapis.com"],
+  "oauth2Config": {
+    "authorizationUrl": "https://accounts.google.com/o/oauth2/v2/auth",
+    "tokenUrl": "https://oauth2.googleapis.com/token",
+    "scopes": ["https://www.googleapis.com/auth/drive.readonly"]
+  },
+  "operations": [
+    {
+      "name": "list_files",
+      "title": "List Files in Folder",
+      "description": "List files in a Google Drive folder, optionally filtered by mime type.",
+      "operationType": "read",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "folderId": {
+            "type": "string",
+            "description": "Drive folder ID. The folder ID is the last path segment of the Drive URL (e.g. https://drive.google.com/drive/folders/<folderId>).",
+            "required": true
+          },
+          "mimeTypes": {
+            "type": "array",
+            "description": "Mime types to include (e.g. [\"application/pdf\"]). Empty/omitted returns all non-folder files.",
+            "required": false
+          },
+          "pageToken": {
+            "type": "string",
+            "description": "Page token from a previous list_files call for pagination.",
+            "required": false
+          }
+        }
+      }
+    },
+    {
+      "name": "download_file",
+      "title": "Download File",
+      "description": "Download a single binary file by Drive fileId and store it in Convex storage. Native Google Workspace formats (Docs/Sheets/Slides) are not supported by this operation.",
+      "operationType": "read",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "description": "Drive file ID returned by list_files.",
+            "required": true
+          },
+          "fileName": {
+            "type": "string",
+            "description": "Filename to use when storing the downloaded file.",
+            "required": true
+          },
+          "contentType": {
+            "type": "string",
+            "description": "Mime type to record alongside the stored file.",
+            "required": false
+          }
+        }
+      }
+    }
+  ],
+  "capabilities": {
+    "canSync": true,
+    "syncFrequency": "0 */6 * * *"
+  },
+  "setupGuide": "1. In the [Google Cloud Console](https://console.cloud.google.com/), create or select a project, then [enable the Google Drive API](https://console.cloud.google.com/apis/library/drive.googleapis.com).\n2. On the [OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent), add the scope `https://www.googleapis.com/auth/drive.readonly`. (This is a *restricted* scope — Google may require app verification for production use.)\n3. On [Credentials](https://console.cloud.google.com/apis/credentials), create an **OAuth 2.0 Client ID** (Application type: *Web application*). Add an **Authorized redirect URI** that points to this deployment's `/api/integrations/oauth2/callback` path. The path is the same in every environment — only the origin changes:\n   - Local dev: `http://localhost:3000/api/integrations/oauth2/callback`\n   - Production: `https://<your-domain>/api/integrations/oauth2/callback` (Google requires `https` for production)\n   - Sub-path deploy (`BASE_PATH=/tale`): `https://<your-domain>/tale/api/integrations/oauth2/callback`\n\n   You can register all environments you use on the same OAuth client to avoid reconfiguring when switching.\n4. Paste the Client ID and Client Secret below, then click **Connect** to start the OAuth flow.\n5. Copy the folder ID from the Drive URL (`https://drive.google.com/drive/folders/<folderId>`) when configuring a sync."
+}

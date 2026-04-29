@@ -48,6 +48,16 @@ const workflowStepSchema = z.object({
   nextSteps: z.record(z.string(), z.string()).default({}),
 });
 
+const integrationDependencySchema = z.object({
+  name: z.string().min(1),
+  operations: z.array(z.string().min(1)).optional(),
+  minVersion: z.number().int().positive().optional(),
+});
+
+const requiresSchema = z.object({
+  integrations: z.array(integrationDependencySchema).default([]),
+});
+
 export const workflowJsonSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
@@ -56,9 +66,13 @@ export const workflowJsonSchema = z.object({
   enabled: z.boolean().default(false),
   config: workflowConfigSchema.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
+  requires: requiresSchema.optional(),
   steps: z.array(workflowStepSchema).default([]),
 });
 
 export type WorkflowJsonConfig = z.infer<typeof workflowJsonSchema>;
 export type WorkflowStep = z.infer<typeof workflowStepSchema>;
+export type WorkflowIntegrationDependency = z.infer<
+  typeof integrationDependencySchema
+>;
 export type StepType = z.infer<typeof stepTypeSchema>;

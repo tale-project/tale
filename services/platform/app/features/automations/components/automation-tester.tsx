@@ -8,7 +8,7 @@ import {
   AlertCircle,
   ArrowRight,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
@@ -20,6 +20,8 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useStartWorkflowFromFile } from '../hooks/file-mutations';
+import { useReadWorkflow } from '../hooks/file-queries';
+import { buildInputTemplateFromSchema } from '../utils/input-schema-template';
 
 interface AutomationTesterProps {
   organizationId: string;
@@ -52,7 +54,30 @@ export function AutomationTester({
   onTestComplete,
 }: AutomationTesterProps) {
   const { t } = useT('automations');
+
+  const { data: workflowRead } = useReadWorkflow('default', workflowSlug);
+
+  const inputTemplate = useMemo(() => {
+    if (!workflowRead?.ok) return '{}';
+    const startStep = workflowRead.config.steps?.find(
+      (s) => s.stepType === 'start',
+    );
+    const startConfig = startStep?.config as
+      | { inputSchema?: Parameters<typeof buildInputTemplateFromSchema>[0] }
+      | undefined;
+    return buildInputTemplateFromSchema(startConfig?.inputSchema);
+  }, [workflowRead]);
+
   const [testInput, setTestInput] = useState('{}');
+  const [hasUserEdited, setHasUserEdited] = useState(false);
+
+  // Pre-fill from inputSchema once the workflow loads, but never overwrite
+  // edits the user has already typed.
+  useEffect(() => {
+    if (hasUserEdited) return;
+    setTestInput(inputTemplate);
+  }, [inputTemplate, hasUserEdited]);
+
   const [isDryRunning, setIsDryRunning] = useState(false);
   const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
 
@@ -129,7 +154,8 @@ export function AutomationTester({
         description: t('tester.toast.executionId', { id: executionId }),
       });
 
-      setTestInput('{}');
+      setTestInput(inputTemplate);
+      setHasUserEdited(false);
       setDryRunResult(null);
       onTestComplete?.();
     } catch (error) {
@@ -170,6 +196,7 @@ export function AutomationTester({
           value={testInput}
           onChange={(value) => {
             setTestInput(value);
+            setHasUserEdited(true);
             setDryRunResult(null);
           }}
           label={t('tester.inputLabel')}

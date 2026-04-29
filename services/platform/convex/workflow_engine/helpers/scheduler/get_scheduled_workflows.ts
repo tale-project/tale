@@ -5,6 +5,7 @@
 
 import type { Id } from '../../../_generated/dataModel';
 import { QueryCtx } from '../../../_generated/server';
+import type { ConvexJsonRecord } from '../../../lib/validators/json';
 
 export interface ScheduledWorkflow {
   workflowSlug: string;
@@ -13,6 +14,7 @@ export interface ScheduledWorkflow {
   schedule: string;
   timezone: string;
   scheduleId: Id<'wfSchedules'>;
+  variables?: ConvexJsonRecord;
 }
 
 export async function getScheduledWorkflows(
@@ -33,6 +35,7 @@ export async function getScheduledWorkflows(
       schedule: sched.cronExpression,
       timezone: sched.timezone,
       scheduleId: sched._id,
+      variables: sched.variables,
     });
   }
 

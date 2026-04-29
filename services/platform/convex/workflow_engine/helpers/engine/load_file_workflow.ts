@@ -32,7 +32,10 @@ export function loadFileWorkflow(
     name: config.name,
     description: config.description,
     version: config.version ?? '1.0.0',
-    status: config.enabled ? 'active' : 'inactive',
+    // `enabled: false` maps to 'draft' (not 'inactive') so manual test runs
+    // from the editor can execute. Auto-triggers (schedule/webhook/api/event)
+    // are gated separately in start_workflow_from_file.ts.
+    status: config.enabled ? 'active' : 'draft',
     workflowType: 'predefined',
     config: config.config
       ? {

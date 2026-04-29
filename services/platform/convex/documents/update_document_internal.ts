@@ -15,7 +15,7 @@ export type UpdateDocumentInternalArgs = {
   fileId?: Id<'_storage'>;
   mimeType?: string;
   extension?: string;
-  sourceProvider?: 'onedrive' | 'upload' | 'sharepoint' | 'agent';
+  sourceProvider?: string;
   externalItemId?: string;
   contentHash?: string;
   teamId?: string;

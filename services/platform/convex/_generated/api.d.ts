@@ -910,6 +910,7 @@ import type * as workflow_engine_helpers_validation_validate_action_parameters f
 import type * as workflow_engine_helpers_validation_validate_next_steps_ports from "../workflow_engine/helpers/validation/validate_next_steps_ports.js";
 import type * as workflow_engine_helpers_validation_validate_step_config from "../workflow_engine/helpers/validation/validate_step_config.js";
 import type * as workflow_engine_helpers_validation_validate_workflow_definition from "../workflow_engine/helpers/validation/validate_workflow_definition.js";
+import type * as workflow_engine_helpers_validation_validate_workflow_dependencies from "../workflow_engine/helpers/validation/validate_workflow_dependencies.js";
 import type * as workflow_engine_helpers_validation_validate_workflow_input from "../workflow_engine/helpers/validation/validate_workflow_input.js";
 import type * as workflow_engine_helpers_validation_validate_workflow_steps from "../workflow_engine/helpers/validation/validate_workflow_steps.js";
 import type * as workflow_engine_helpers_validation_variables_action_schemas from "../workflow_engine/helpers/validation/variables/action_schemas.js";
@@ -1910,6 +1911,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/validation/validate_next_steps_ports": typeof workflow_engine_helpers_validation_validate_next_steps_ports;
   "workflow_engine/helpers/validation/validate_step_config": typeof workflow_engine_helpers_validation_validate_step_config;
   "workflow_engine/helpers/validation/validate_workflow_definition": typeof workflow_engine_helpers_validation_validate_workflow_definition;
+  "workflow_engine/helpers/validation/validate_workflow_dependencies": typeof workflow_engine_helpers_validation_validate_workflow_dependencies;
   "workflow_engine/helpers/validation/validate_workflow_input": typeof workflow_engine_helpers_validation_validate_workflow_input;
   "workflow_engine/helpers/validation/validate_workflow_steps": typeof workflow_engine_helpers_validation_validate_workflow_steps;
   "workflow_engine/helpers/validation/variables/action_schemas": typeof workflow_engine_helpers_validation_variables_action_schemas;

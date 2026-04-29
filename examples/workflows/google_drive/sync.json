@@ -1,0 +1,171 @@
+{
+  "name": "Google Drive Sync",
+  "description": "Sync files from a Google Drive folder into Tale documents. Each scheduled run lists the files in the configured folder, downloads any that are new or changed, and upserts documents by external ID. RAG indexing is then handled by the document-rag-sync workflow.",
+  "version": "1.0.0",
+  "installed": true,
+  "enabled": false,
+  "config": {
+    "timeout": 600000,
+    "retryPolicy": {
+      "maxRetries": 2,
+      "backoffMs": 2000
+    },
+    "variables": {
+      "workflowId": "google_drive_sync"
+    }
+  },
+  "requires": {
+    "integrations": [
+      {
+        "name": "google_drive",
+        "operations": ["list_files", "download_file"]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {
+        "inputSchema": {
+          "properties": {
+            "folderId": {
+              "type": "string",
+              "description": "Google Drive folder ID. Copy from the Drive URL: https://drive.google.com/drive/folders/<folderId>"
+            },
+            "mimeTypeFilter": {
+              "type": "array",
+              "description": "Mime types to include (e.g. [\"application/pdf\"]). Leave empty to sync all files.",
+              "items": { "type": "string" }
+            },
+            "targetFolderPath": {
+              "type": "string",
+              "description": "Tale documents path where synced files land. Supports nested folders via slashes (e.g. \"Google Drive/Marketing\"). Defaults to \"Google Drive\" if omitted."
+            }
+          },
+          "required": ["folderId"]
+        }
+      },
+      "nextSteps": {
+        "success": "list_files"
+      }
+    },
+    {
+      "stepSlug": "list_files",
+      "name": "List Drive Files",
+      "stepType": "action",
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "google_drive",
+          "operation": "list_files",
+          "params": {
+            "folderId": "{{input.folderId}}",
+            "mimeTypes": "{{input.mimeTypeFilter}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "loop_files"
+      }
+    },
+    {
+      "stepSlug": "loop_files",
+      "name": "Loop Through Files",
+      "stepType": "loop",
+      "config": {
+        "items": "{{steps.list_files.output.data.result.data.files}}",
+        "itemVariable": "file",
+        "continueOnError": true
+      },
+      "nextSteps": {
+        "loop": "download_file",
+        "done": "noop"
+      }
+    },
+    {
+      "stepSlug": "download_file",
+      "name": "Download File from Drive",
+      "stepType": "action",
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "google_drive",
+          "operation": "download_file",
+          "params": {
+            "fileId": "{{loop.item.id}}",
+            "fileName": "{{loop.item.name}}",
+            "contentType": "{{loop.item.mimeType}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "create_document"
+      }
+    },
+    {
+      "stepSlug": "create_document",
+      "name": "Create or Update Document",
+      "stepType": "action",
+      "config": {
+        "type": "document",
+        "parameters": {
+          "operation": "create",
+          "fileId": "{{steps.download_file.output.data.result.data.fileId}}",
+          "title": "{{loop.item.name}}",
+          "folderPath": "{{input.targetFolderPath || 'Google Drive'}}",
+          "sourceProvider": "google_drive",
+          "externalItemId": "{{loop.item.id}}",
+          "contentHash": "{{loop.item.md5Checksum}}",
+          "metadata": {
+            "googleDriveFileId": "{{loop.item.id}}",
+            "googleDriveFolderId": "{{input.folderId}}",
+            "mimeType": "{{loop.item.mimeType}}",
+            "size": "{{loop.item.size}}",
+            "sourceModifiedAt": "{{loop.item.modifiedTime}}",
+            "syncedAt": "{{now}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "check_doc_changed"
+      }
+    },
+    {
+      "stepSlug": "check_doc_changed",
+      "name": "Skip RAG If Unchanged",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.create_document.output.data.action != 'skipped'",
+        "description": "Skip RAG re-indexing when the document was unchanged (same content hash)."
+      },
+      "nextSteps": {
+        "true": "index_in_rag",
+        "false": "loop_files"
+      }
+    },
+    {
+      "stepSlug": "index_in_rag",
+      "name": "Index in RAG",
+      "stepType": "action",
+      "config": {
+        "type": "document",
+        "parameters": {
+          "operation": "index_in_rag",
+          "documentId": "{{steps.create_document.output.data.documentId}}"
+        }
+      },
+      "nextSteps": {
+        "success": "loop_files"
+      }
+    },
+    {
+      "stepSlug": "noop",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}

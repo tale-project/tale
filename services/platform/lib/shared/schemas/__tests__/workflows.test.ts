@@ -52,4 +52,41 @@ describe('workflowJsonSchema', () => {
       expect(result.data.steps[0]?.nextSteps).toEqual({});
     }
   });
+
+  it('parses a config with requires.integrations', () => {
+    const result = workflowJsonSchema.safeParse({
+      name: 'Drive Sync',
+      installed: true,
+      enabled: true,
+      requires: {
+        integrations: [
+          { name: 'google_drive', operations: ['list_files', 'download_file'] },
+        ],
+      },
+      steps: [],
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.requires?.integrations).toHaveLength(1);
+      expect(result.data.requires?.integrations[0]?.name).toBe('google_drive');
+      expect(result.data.requires?.integrations[0]?.operations).toEqual([
+        'list_files',
+        'download_file',
+      ]);
+    }
+  });
+
+  it('omits requires when not declared', () => {
+    const result = workflowJsonSchema.safeParse({
+      name: 'No deps',
+      installed: true,
+      enabled: false,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.requires).toBeUndefined();
+    }
+  });
 });

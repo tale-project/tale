@@ -10,14 +10,11 @@ export const documentsTable = defineTable({
   fileId: v.optional(v.id('_storage')),
   mimeType: v.optional(v.string()),
   extension: v.optional(v.string()),
-  sourceProvider: v.optional(
-    v.union(
-      v.literal('onedrive'),
-      v.literal('upload'),
-      v.literal('sharepoint'),
-      v.literal('agent'),
-    ),
-  ),
+  // Open string. Equal to the integration slug for integration-sourced docs
+  // (`onedrive`, `sharepoint`, `google_drive`, …); reserved values `upload` and
+  // `agent` cover non-integration sources. New integrations require no schema
+  // change.
+  sourceProvider: v.optional(v.string()),
   externalItemId: v.optional(v.string()),
   siteId: v.optional(v.string()),
   driveId: v.optional(v.string()),

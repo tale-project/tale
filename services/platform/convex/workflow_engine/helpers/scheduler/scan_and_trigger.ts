@@ -7,6 +7,7 @@ import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
+import type { ConvexJsonRecord } from '../../../lib/validators/json';
 import { resolveOrgSlug } from '../../../organizations/resolve_org_slug';
 import { shouldTriggerWorkflow } from './should_trigger_workflow';
 
@@ -19,6 +20,7 @@ interface ScheduledWorkflow {
   schedule: string;
   timezone: string;
   scheduleId: Id<'wfSchedules'>;
+  variables?: ConvexJsonRecord;
 }
 
 export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
@@ -55,6 +57,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
       schedule,
       timezone,
       scheduleId,
+      variables,
     } of scheduled) {
       try {
         if (runningExecutionsObj[workflowSlug]) {
@@ -85,7 +88,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
               organizationId,
               orgSlug,
               workflowSlug,
-              input: {},
+              input: variables ?? {},
               triggeredBy: 'schedule',
               triggerData: {
                 triggerType: 'schedule',
