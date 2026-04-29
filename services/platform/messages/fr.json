@@ -70,7 +70,13 @@
       "pickFiles": "Choisir des fichiers",
       "pickFolder": "Choisir un dossier",
       "pickZip": "Choisir un zip",
-      "summary": "{total} entrées · {saved} enregistrées · {queued} en attente"
+      "summary": "{total} entrées · {saved} enregistrées · {queued} en attente",
+      "conflictHeading": "{count, plural, one {# entrée existe déjà} other {# entrées existent déjà}}",
+      "conflictHint": "Les entrées existantes seront ignorées sauf si tu autorises l'écrasement. L'écrasement enregistre la version précédente dans l'historique.",
+      "overwriteToggle": "Écraser les entrées existantes",
+      "statusExists": "Existe déjà — sera ignorée",
+      "willOverwrite": "Existe déjà — sera écrasée",
+      "statusSkipped": "Ignorée"
     },
     "labels": {
       "name": "Nom",

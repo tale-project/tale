@@ -2,7 +2,9 @@
 
 import {
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
+  CircleSlash,
   File as FileIcon,
   FolderUp,
   Loader2,
@@ -11,6 +13,7 @@ import {
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -23,11 +26,19 @@ import {
   parseUploadedConfigs,
 } from './parse-uploaded-configs';
 
-type RowStatus = 'queued' | 'saving' | 'saved' | 'failed' | 'invalid';
+type RowStatus =
+  | 'queued'
+  | 'queued-overwrite'
+  | 'saving'
+  | 'saved'
+  | 'skipped'
+  | 'failed'
+  | 'invalid';
 
 interface Row extends ParsedEntry {
   status: RowStatus;
   message?: string;
+  conflicts: boolean;
 }
 
 export interface UploadConfigsDialogProps {
@@ -36,13 +47,33 @@ export interface UploadConfigsDialogProps {
   title: string;
   description?: string;
   /**
-   * Save a single parsed entry. Throw to mark the row as failed; the thrown
-   * error's message is shown inline.
+   * Set of identifiers (slugs / agent names) that already exist on disk.
+   * Used to mark colliding uploads so the user can decide whether to
+   * overwrite. Defaults to an empty set.
    */
-  onSaveOne: (entry: ParsedEntry) => Promise<void>;
+  existingKeys?: ReadonlySet<string>;
+  /**
+   * Map a parsed entry to the identifier that determines collision against
+   * `existingKeys`. Defaults to `entry.relPath` minus `.json`.
+   */
+  getKey?: (entry: ParsedEntry) => string;
+  /**
+   * Save a single parsed entry. Throw to mark the row as failed; the thrown
+   * error's message is shown inline. The second argument tells the callback
+   * whether the row was queued explicitly as an overwrite of an existing
+   * entry — useful for actions whose semantics depend on the distinction
+   * (e.g. agents pass `isNew: !overwrite`).
+   */
+  onSaveOne: (
+    entry: ParsedEntry,
+    opts: { overwrite: boolean },
+  ) => Promise<void>;
   /** Optional callback fired after a successful save so callers can refresh. */
   onAfterAllSaved?: () => void;
 }
+
+const defaultGetKey = (entry: ParsedEntry) =>
+  entry.relPath.replace(/\.json$/i, '');
 
 export function UploadConfigsDialog(props: UploadConfigsDialogProps) {
   if (!props.open) return null;
@@ -54,6 +85,8 @@ function UploadConfigsDialogContent({
   onOpenChange,
   title,
   description,
+  existingKeys,
+  getKey = defaultGetKey,
   onSaveOne,
   onAfterAllSaved,
 }: UploadConfigsDialogProps) {
@@ -64,27 +97,34 @@ function UploadConfigsDialogContent({
 
   const [rows, setRows] = useState<Row[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [overwriteConflicts, setOverwriteConflicts] = useState(false);
 
-  const handleFilesPicked = useCallback(async (files: File[]) => {
-    if (files.length === 0) return;
-    const parsed = await parseUploadedConfigs(files);
-    setRows((current) => {
-      const existing = new Set(current.map((r) => r.relPath));
-      const added: Row[] = [];
-      for (const entry of parsed) {
-        if (existing.has(entry.relPath)) continue;
-        added.push({
-          relPath: entry.relPath,
-          baseName: entry.baseName,
-          json: entry.json,
-          error: entry.error,
-          status: entry.error ? 'invalid' : 'queued',
-          message: entry.error,
-        });
-      }
-      return [...current, ...added];
-    });
-  }, []);
+  const handleFilesPicked = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+      const parsed = await parseUploadedConfigs(files);
+      setRows((current) => {
+        const existing = new Set(current.map((r) => r.relPath));
+        const added: Row[] = [];
+        for (const entry of parsed) {
+          if (existing.has(entry.relPath)) continue;
+          const key = getKey(entry);
+          const conflicts = !entry.error && !!existingKeys?.has(key);
+          added.push({
+            relPath: entry.relPath,
+            baseName: entry.baseName,
+            json: entry.json,
+            error: entry.error,
+            conflicts,
+            status: entry.error ? 'invalid' : 'queued',
+            message: entry.error,
+          });
+        }
+        return [...current, ...added];
+      });
+    },
+    [existingKeys, getKey],
+  );
 
   const handleFilesInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,12 +139,28 @@ function UploadConfigsDialogContent({
 
   const handleImport = useCallback(async () => {
     if (isImporting) return;
-    const queued = rows.filter((r) => r.status === 'queued');
-    if (queued.length === 0) return;
+    const importable = rows.filter(
+      (r) => r.status === 'queued' && (overwriteConflicts || !r.conflicts),
+    );
+    const toSkip = rows.filter(
+      (r) => r.status === 'queued' && r.conflicts && !overwriteConflicts,
+    );
+    if (importable.length === 0 && toSkip.length === 0) return;
 
     setIsImporting(true);
+
+    if (toSkip.length > 0) {
+      setRows((current) =>
+        current.map((r) =>
+          r.status === 'queued' && r.conflicts && !overwriteConflicts
+            ? { ...r, status: 'skipped' as const, message: undefined }
+            : r,
+        ),
+      );
+    }
+
     let successes = 0;
-    for (const row of queued) {
+    for (const row of importable) {
       setRows((current) =>
         current.map((r) =>
           r.relPath === row.relPath
@@ -113,11 +169,14 @@ function UploadConfigsDialogContent({
         ),
       );
       try {
-        await onSaveOne({
-          relPath: row.relPath,
-          baseName: row.baseName,
-          json: row.json,
-        });
+        await onSaveOne(
+          {
+            relPath: row.relPath,
+            baseName: row.baseName,
+            json: row.json,
+          },
+          { overwrite: row.conflicts },
+        );
         successes += 1;
         setRows((current) =>
           current.map((r) =>
@@ -139,11 +198,12 @@ function UploadConfigsDialogContent({
     }
     setIsImporting(false);
     if (successes > 0) onAfterAllSaved?.();
-  }, [isImporting, rows, onSaveOne, onAfterAllSaved]);
+  }, [isImporting, rows, overwriteConflicts, onSaveOne, onAfterAllSaved]);
 
   const handleClose = useCallback(() => {
     if (isImporting) return;
     setRows([]);
+    setOverwriteConflicts(false);
     onOpenChange(false);
   }, [isImporting, onOpenChange]);
 
@@ -153,6 +213,10 @@ function UploadConfigsDialogContent({
   );
   const savedCount = useMemo(
     () => rows.filter((r) => r.status === 'saved').length,
+    [rows],
+  );
+  const conflictCount = useMemo(
+    () => rows.filter((r) => r.status === 'queued' && r.conflicts).length,
     [rows],
   );
 
@@ -252,6 +316,30 @@ function UploadConfigsDialogContent({
           onChange={handleFilesInputChange}
         />
 
+        {conflictCount > 0 && (
+          <div className="bg-warning/10 border-warning/40 flex items-start gap-3 rounded-md border p-3">
+            <AlertTriangle className="text-warning mt-0.5 size-4 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <Text className="text-sm font-medium">
+                {t('upload.conflictHeading', { count: conflictCount })}
+              </Text>
+              <Text variant="caption" className="mt-0.5">
+                {t('upload.conflictHint')}
+              </Text>
+              <div className="mt-2">
+                <Checkbox
+                  checked={overwriteConflicts}
+                  onCheckedChange={(value) =>
+                    setOverwriteConflicts(value === true)
+                  }
+                  disabled={isImporting}
+                  label={t('upload.overwriteToggle')}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {rows.length > 0 && (
           <div className="border-border max-h-[40vh] overflow-y-auto rounded-md border">
             <ul className="divide-border divide-y">
@@ -263,18 +351,12 @@ function UploadConfigsDialogContent({
                   <RowStatusIcon status={row.status} />
                   <div className="min-w-0 flex-1">
                     <Text className="truncate font-medium">{row.relPath}</Text>
-                    {row.message && (
-                      <Text
-                        variant={
-                          row.status === 'failed' || row.status === 'invalid'
-                            ? 'error'
-                            : 'muted'
-                        }
-                        className="truncate text-xs"
-                      >
-                        {row.message}
-                      </Text>
-                    )}
+                    <Text
+                      variant={rowMessageVariant(row.status)}
+                      className="truncate text-xs"
+                    >
+                      {rowMessage(row, overwriteConflicts, t) ?? ''}
+                    </Text>
                   </div>
                 </li>
               ))}
@@ -325,7 +407,31 @@ function RowStatusIcon({ status }: { status: RowStatus }) {
   if (status === 'failed' || status === 'invalid') {
     return <AlertCircle className="text-destructive size-4 shrink-0" />;
   }
+  if (status === 'skipped') {
+    return <CircleSlash className="text-muted-foreground size-4 shrink-0" />;
+  }
   return <FileIcon className="text-muted-foreground size-4 shrink-0" />;
+}
+
+function rowMessageVariant(status: RowStatus): 'error' | 'muted' | 'caption' {
+  if (status === 'failed' || status === 'invalid') return 'error';
+  if (status === 'skipped') return 'caption';
+  return 'muted';
+}
+
+function rowMessage(
+  row: Row,
+  overwriteConflicts: boolean,
+  t: (key: string) => string,
+): string | undefined {
+  if (row.message) return row.message;
+  if (row.status === 'skipped') return t('upload.statusSkipped');
+  if (row.status === 'queued' && row.conflicts) {
+    return overwriteConflicts
+      ? t('upload.willOverwrite')
+      : t('upload.statusExists');
+  }
+  return undefined;
 }
 
 function extractErrorMessage(err: unknown): string {

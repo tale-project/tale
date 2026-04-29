@@ -70,7 +70,13 @@
       "pickFiles": "Choose files",
       "pickFolder": "Choose folder",
       "pickZip": "Choose zip",
-      "summary": "{total} entries · {saved} saved · {queued} pending"
+      "summary": "{total} entries · {saved} saved · {queued} pending",
+      "conflictHeading": "{count, plural, one {# entry already exists} other {# entries already exist}}",
+      "conflictHint": "Existing entries will be skipped unless you allow overwrites. Overwriting saves the previous version to history.",
+      "overwriteToggle": "Overwrite existing entries",
+      "statusExists": "Already exists — will be skipped",
+      "willOverwrite": "Already exists — will overwrite",
+      "statusSkipped": "Skipped"
     },
     "labels": {
       "name": "Name",

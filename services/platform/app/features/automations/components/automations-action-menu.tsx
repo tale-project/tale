@@ -16,6 +16,7 @@ import {
   useInvalidateWorkflows,
   useSaveWorkflow,
 } from '../hooks/file-mutations';
+import { useListWorkflows } from '../hooks/file-queries';
 import { CreateAutomationDialog } from './automation-create-dialog';
 
 export interface AutomationsActionMenuProps {
@@ -36,6 +37,11 @@ export function AutomationsActionMenu({
   const { mutateAsync: saveWorkflow } = useSaveWorkflow();
   const { mutateAsync: installWorkflow } = useInstallWorkflow();
   const invalidateWorkflows = useInvalidateWorkflows();
+  const { workflows } = useListWorkflows(organizationId);
+  const existingSlugs = useMemo(
+    () => collectStringField(workflows, 'slug'),
+    [workflows],
+  );
 
   const menuItems = useMemo<DataTableActionMenuItem[]>(
     () => [
@@ -86,6 +92,10 @@ export function AutomationsActionMenu({
         onOpenChange={setUploadOpen}
         title={tAutomations('uploadDialog.title')}
         description={tAutomations('uploadDialog.description')}
+        existingKeys={existingSlugs}
+        getKey={(entry) =>
+          entry.relPath.replace(/\.json$/i, '').replace(/\\/g, '/')
+        }
         onSaveOne={async (entry) => {
           const workflowSlug = entry.relPath
             .replace(/\.json$/i, '')
@@ -118,4 +128,16 @@ function withFallbackName(json: unknown, fallback: string): unknown {
   if (typeof existing === 'string' && existing.trim().length > 0) return obj;
   obj.name = fallback;
   return obj;
+}
+
+function collectStringField(items: unknown, field: string): Set<string> {
+  const set = new Set<string>();
+  if (!Array.isArray(items)) return set;
+  for (const item of items) {
+    if (!item || typeof item !== 'object') continue;
+    for (const [k, v] of Object.entries(item)) {
+      if (k === field && typeof v === 'string' && v.length > 0) set.add(v);
+    }
+  }
+  return set;
 }

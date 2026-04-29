@@ -70,7 +70,13 @@
       "pickFiles": "Dateien wählen",
       "pickFolder": "Ordner wählen",
       "pickZip": "ZIP wählen",
-      "summary": "{total} Einträge · {saved} gespeichert · {queued} ausstehend"
+      "summary": "{total} Einträge · {saved} gespeichert · {queued} ausstehend",
+      "conflictHeading": "{count, plural, one {# Eintrag existiert bereits} other {# Einträge existieren bereits}}",
+      "conflictHint": "Bestehende Einträge werden übersprungen, sofern du das Überschreiben nicht erlaubst. Beim Überschreiben wird die vorherige Version in der Historie gesichert.",
+      "overwriteToggle": "Bestehende Einträge überschreiben",
+      "statusExists": "Existiert bereits — wird übersprungen",
+      "willOverwrite": "Existiert bereits — wird überschrieben",
+      "statusSkipped": "Übersprungen"
     },
     "labels": {
       "name": "Name",
