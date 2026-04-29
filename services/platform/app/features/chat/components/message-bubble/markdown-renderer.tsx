@@ -1,10 +1,12 @@
 'use client';
 
+import { useRouter } from '@tanstack/react-router';
 import {
   Children,
   ComponentPropsWithoutRef,
   isValidElement,
   memo,
+  MouseEvent,
   ReactNode,
   useState,
 } from 'react';
@@ -20,6 +22,7 @@ import {
 } from '@/app/components/ui/data-display/table';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { classifyLink } from '@/lib/utils/link-classifier';
 
 import { useCitationsContext } from '../../context/citations-context';
 import { CitationLink } from '../citation-link';
@@ -114,6 +117,65 @@ const markdownImageComponent = ({
 }: { node?: unknown } & React.ImgHTMLAttributes<HTMLImageElement>) => (
   <MarkdownImage {...props} />
 );
+
+function MarkdownAnchor({
+  href,
+  children,
+  ...rest
+}: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
+  const router = useRouter();
+  const classified = classifyLink(href);
+
+  if (!classified) {
+    return (
+      <a {...rest} href={href}>
+        {children}
+      </a>
+    );
+  }
+
+  if (classified.kind === 'internal') {
+    const to = classified.to;
+    const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      event.preventDefault();
+      void router.navigate({ to });
+    };
+    return (
+      <a {...rest} href={href} onClick={handleClick}>
+        {children}
+      </a>
+    );
+  }
+
+  if (classified.kind === 'external') {
+    return (
+      <a
+        {...rest}
+        href={classified.href}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <a {...rest} href={classified.href}>
+      {children}
+    </a>
+  );
+}
 
 function MarkdownParagraph({ children }: { children?: ReactNode }) {
   const childArray = Children.toArray(children);
@@ -233,12 +295,9 @@ export const markdownComponents = {
   img: markdownImageComponent,
   a: ({
     node: _node,
-    children,
     ...props
   }: { node?: unknown } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-    <a {...props} target="_blank" rel="noopener noreferrer">
-      {children}
-    </a>
+    <MarkdownAnchor {...props} />
   ),
   cite: function InlineCitation({
     'data-n': dataN,
