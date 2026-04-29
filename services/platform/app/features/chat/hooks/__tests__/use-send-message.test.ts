@@ -27,6 +27,11 @@ vi.mock('@/app/hooks/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
 
+const mockConvexAction = vi.fn();
+vi.mock('@/app/hooks/use-convex-client', () => ({
+  useConvexClient: () => ({ action: mockConvexAction }),
+}));
+
 vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
 }));
@@ -59,6 +64,7 @@ describe('useSendMessage — error handling', () => {
       messageAlreadyExists: false,
       streamId: 'stream_1',
     });
+    mockConvexAction.mockResolvedValue({ blocked: false });
   });
 
   it('calls clearChatState and resetGlobalFreeze on error', async () => {
@@ -129,6 +135,28 @@ describe('useSendMessage — error handling', () => {
 
     expect(mockChatWithAgent).not.toHaveBeenCalled();
     expect(params.setPendingMessage).not.toHaveBeenCalled();
+  });
+
+  it('shows toast every time precheck blocks (does not wedge sendingRef)', async () => {
+    mockConvexAction.mockResolvedValue({
+      blocked: true,
+      code: 'pii.blocked',
+      categoryIds: ['ssn'],
+      categoryLabels: ['SSN'],
+    });
+
+    const params = createParams();
+    const { result } = renderHook(() => useSendMessage(params));
+
+    await act(async () => {
+      await result.current.sendMessage('My SSN is 123-45-6789');
+    });
+    await act(async () => {
+      await result.current.sendMessage('My SSN is 987-65-4321');
+    });
+
+    expect(mockToast).toHaveBeenCalledTimes(2);
+    expect(mockChatWithAgent).not.toHaveBeenCalled();
   });
 
   it('allows sending a new message after a previous error', async () => {

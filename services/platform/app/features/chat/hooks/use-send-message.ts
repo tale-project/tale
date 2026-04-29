@@ -170,6 +170,7 @@ export function useSendMessage({
           const description =
             labels && labels.length > 0 ? labels.join(', ') : undefined;
           toast({ title, description, variant: 'destructive' });
+          sendingRef.current = false;
           return;
         }
         if (precheck.maskedText !== undefined) {
