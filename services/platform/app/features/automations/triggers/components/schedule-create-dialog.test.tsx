@@ -25,6 +25,10 @@ vi.mock('../hooks/actions', () => ({
   useGenerateCron: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
+vi.mock('../../hooks/file-queries', () => ({
+  useReadWorkflow: () => ({ data: undefined, isLoading: false }),
+}));
+
 describe('ScheduleCreateDialog', () => {
   afterEach(cleanup);
 

@@ -24,6 +24,13 @@ vi.mock('../../governance/pii', () => ({
 }));
 
 vi.mock('../../_generated/api', () => ({
+  components: {
+    betterAuth: {
+      adapter: {
+        findOne: 'betterAuth.adapter.findOne',
+      },
+    },
+  },
   internal: {
     governance: {
       internal_queries: {

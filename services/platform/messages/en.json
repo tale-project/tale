@@ -50,10 +50,7 @@
       "import": "Import",
       "importing": "Importing...",
       "openMenu": "Open menu",
-      "publish": "Publish",
       "rename": "Rename",
-      "deactivate": "Deactivate",
-      "deactivating": "Deactivating...",
       "deleteSelected": "Delete selected"
     },
     "bulkActions": {

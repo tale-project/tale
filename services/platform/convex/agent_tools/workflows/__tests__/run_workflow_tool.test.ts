@@ -8,6 +8,9 @@ vi.mock('../../../_generated/api', () => ({
       file_actions: {
         readWorkflowForExecution: 'mock-readWorkflowForExecution',
       },
+      installations: {
+        getInstallationInternal: 'mock-getInstallationInternal',
+      },
     },
     agent_tools: {
       workflows: {
@@ -38,7 +41,7 @@ function createMockCtx(overrides?: Record<string, unknown>) {
     userId: 'user1',
     threadId: 'thread-current',
     messageId: 'msg-123',
-    runQuery: vi.fn(),
+    runQuery: vi.fn().mockResolvedValue({ _id: 'installation-1' }),
     runAction: vi.fn(),
     runMutation: vi.fn(),
     ...overrides,
@@ -120,18 +123,17 @@ describe('run_workflow tool handler', () => {
     expect(result.message).toContain('not found');
   });
 
-  it('returns failure when workflow is disabled', async () => {
+  it('returns failure when workflow is not installed', async () => {
     const handler = await getHandler();
     const ctx = createMockCtx({
-      runAction: vi
-        .fn()
-        .mockResolvedValue(createMockFileResult({ enabled: false })),
+      runAction: vi.fn().mockResolvedValue(createMockFileResult()),
+      runQuery: vi.fn().mockResolvedValue(null),
     });
 
     const result = await handler(ctx, { workflowSlug: 'test-workflow' });
 
     expect(result.success).toBe(false);
-    expect(result.message).toContain('disabled');
+    expect(result.message).toContain('not installed');
   });
 
   it('forwards parameters to approval mutation', async () => {
