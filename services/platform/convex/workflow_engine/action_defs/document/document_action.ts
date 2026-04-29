@@ -125,6 +125,11 @@ type DocumentActionParams =
   | {
       operation: 'index_in_rag';
       documentId: string;
+    }
+  | {
+      operation: 'find_by_external_id';
+      externalItemId: string;
+      folderPath?: string;
     };
 
 export const documentAction: ActionDefinition<DocumentActionParams> = {
@@ -200,6 +205,11 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
     v.object({
       operation: v.literal('index_in_rag'),
       documentId: v.string(),
+    }),
+    v.object({
+      operation: v.literal('find_by_external_id'),
+      externalItemId: v.string(),
+      folderPath: v.optional(v.string()),
     }),
   ),
 
@@ -597,6 +607,67 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         return {
           success: true,
           documentId: params.documentId,
+        };
+      }
+
+      case 'find_by_external_id': {
+        // Cheap pre-flight lookup used by sync workflows to skip the download
+        // step when the source file's hash hasn't changed. Scoped by folder
+        // when `folderPath` is provided so the same external file synced to
+        // two different Tale folders stays distinct.
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+
+        if (!organizationId) {
+          throw new Error(
+            'organizationId is required in workflow variables to look up a document',
+          );
+        }
+
+        let folderId: string | null = null;
+        if (params.folderPath) {
+          folderId = await ctx.runMutation(
+            internal.folders.internal_mutations.getOrCreateFolderPath,
+            {
+              organizationId,
+              pathSegments: params.folderPath.split('/').filter(Boolean),
+              createdBy:
+                typeof _variables.userId === 'string'
+                  ? _variables.userId
+                  : undefined,
+            },
+          );
+        }
+
+        const lookupFolderId = folderId
+          ? toId<'folders'>(folderId)
+          : params.folderPath
+            ? null
+            : undefined;
+
+        const existing = await ctx.runQuery(
+          internal.documents.internal_queries.findDocumentByExternalId,
+          {
+            organizationId,
+            externalItemId: params.externalItemId,
+            ...(lookupFolderId !== undefined
+              ? { folderId: lookupFolderId }
+              : {}),
+          },
+        );
+
+        if (!existing) {
+          return { exists: false };
+        }
+
+        return {
+          exists: true,
+          documentId: existing._id,
+          contentHash: existing.contentHash,
+          externalItemId: existing.externalItemId,
+          fileId: existing.fileId,
         };
       }
 

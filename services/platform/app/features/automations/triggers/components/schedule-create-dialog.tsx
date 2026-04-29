@@ -10,12 +10,15 @@ import * as z from 'zod';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
+import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
+import { useReadWorkflow } from '../../hooks/file-queries';
+import { buildInputTemplateFromSchema } from '../../utils/input-schema-template';
 import { useGenerateCron } from '../hooks/actions';
 import { useCreateSchedule, useUpdateSchedule } from '../hooks/slug-mutations';
 
@@ -23,6 +26,7 @@ interface ScheduleData {
   _id: string;
   cronExpression: string;
   timezone: string;
+  variables?: Record<string, unknown> | null;
 }
 
 interface ScheduleCreateDialogProps {
@@ -52,7 +56,7 @@ export function ScheduleCreateDialog({
   onOpenChange,
   workflowRootId: _workflowRootId,
   organizationId,
-  orgSlug: _orgSlug,
+  orgSlug,
   workflowSlug,
   schedule,
 }: ScheduleCreateDialogProps) {
@@ -70,6 +74,32 @@ export function ScheduleCreateDialog({
   const [cronDescription, setCronDescription] = useState('');
   const [generateError, setGenerateError] = useState('');
   const isEdit = !!schedule;
+
+  // Pull the workflow's start-node inputSchema so we can pre-fill the variables
+  // editor with the expected shape — same pattern as the test panel.
+  const { data: workflowRead } = useReadWorkflow(orgSlug, workflowSlug);
+  const inputTemplate = useMemo(() => {
+    if (!workflowRead?.ok) return '{}';
+    const startStep = workflowRead.config.steps?.find(
+      (s) => s.stepType === 'start',
+    );
+    const startConfig = startStep?.config as
+      | { inputSchema?: Parameters<typeof buildInputTemplateFromSchema>[0] }
+      | undefined;
+    return buildInputTemplateFromSchema(startConfig?.inputSchema);
+  }, [workflowRead]);
+
+  const hasInputSchema = inputTemplate !== '{}';
+
+  const initialVariablesJson = useMemo(() => {
+    if (schedule?.variables && Object.keys(schedule.variables).length > 0) {
+      return JSON.stringify(schedule.variables, null, 2);
+    }
+    return inputTemplate;
+  }, [schedule, inputTemplate]);
+
+  const [variablesJson, setVariablesJson] = useState(initialVariablesJson);
+  const [variablesError, setVariablesError] = useState('');
 
   const schema = useMemo(
     () =>
@@ -113,8 +143,10 @@ export function ScheduleCreateDialog({
       setNaturalLanguage('');
       setCronDescription('');
       setGenerateError('');
+      setVariablesJson(initialVariablesJson);
+      setVariablesError('');
     }
-  }, [open, schedule, reset]);
+  }, [open, schedule, reset, initialVariablesJson]);
 
   const handleGenerate = useCallback(async () => {
     if (!naturalLanguage.trim() || isGenerating) return;
@@ -136,12 +168,33 @@ export function ScheduleCreateDialog({
   }, [naturalLanguage, isGenerating, generateCron, setValue, t]);
 
   const onSubmit = async (data: ScheduleFormData) => {
+    let parsedVariables: Record<string, unknown> | undefined;
+    if (variablesJson.trim() && variablesJson.trim() !== '{}') {
+      try {
+        const parsed: unknown = JSON.parse(variablesJson);
+        if (
+          parsed === null ||
+          typeof parsed !== 'object' ||
+          Array.isArray(parsed)
+        ) {
+          throw new Error('not an object');
+        }
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime guard above narrows to non-null, non-array object
+        parsedVariables = parsed as Record<string, unknown>;
+      } catch {
+        setVariablesError(t('triggers.schedules.form.variablesInvalid'));
+        return;
+      }
+    }
+    setVariablesError('');
+
     try {
       if (isEdit && schedule) {
         await updateSchedule({
           scheduleId: toId<'wfSchedules'>(schedule._id),
           cronExpression: data.cronExpression,
           timezone: 'UTC',
+          variables: parsedVariables,
         });
         toast({
           title: t('triggers.schedules.toast.updated'),
@@ -153,6 +206,7 @@ export function ScheduleCreateDialog({
           workflowSlug,
           cronExpression: data.cronExpression,
           timezone: 'UTC',
+          variables: parsedVariables,
         });
         toast({
           title: t('triggers.schedules.toast.created'),
@@ -255,6 +309,22 @@ export function ScheduleCreateDialog({
             ))}
           </div>
         </FormSection>
+
+        {hasInputSchema && (
+          <FormSection>
+            <JsonInput
+              value={variablesJson}
+              onChange={(value) => {
+                setVariablesJson(value);
+                setVariablesError('');
+              }}
+              label={t('triggers.schedules.form.variablesLabel')}
+              description={t('triggers.schedules.form.variablesDescription')}
+              rows={6}
+              errorMessage={variablesError}
+            />
+          </FormSection>
+        )}
       </FormSection>
     </FormDialog>
   );

@@ -1352,6 +1352,9 @@
           "cronExpression": "Expression cron",
           "cronPlaceholder": "0 * * * *",
           "cronHelp": "Format cron standard à 5 champs : minute heure jour mois jour_semaine",
+          "variablesLabel": "Variables du workflow",
+          "variablesDescription": "Paramètres d'entrée transmis à chaque exécution planifiée. Pré-remplis depuis le schéma d'entrée du workflow.",
+          "variablesInvalid": "Les variables doivent être un objet JSON valide",
           "presets": {
             "every5Minutes": "Toutes les 5 minutes",
             "hourly": "Toutes les heures",

@@ -4,6 +4,7 @@ import type { Id } from '../../_generated/dataModel';
 import { mutation } from '../../_generated/server';
 import { authComponent } from '../../auth';
 import { getOrganizationMember } from '../../lib/rls';
+import { jsonRecordValidator } from '../../lib/validators/json';
 import { isValidEventType } from './event_types';
 import { generateToken } from './helpers/crypto';
 
@@ -20,6 +21,7 @@ export const createScheduleBySlug = mutation({
     workflowSlug: v.string(),
     cronExpression: v.string(),
     timezone: v.string(),
+    variables: v.optional(jsonRecordValidator),
   },
   returns: v.id('wfSchedules'),
   handler: async (ctx, args): Promise<Id<'wfSchedules'>> => {
@@ -44,6 +46,7 @@ export const createScheduleBySlug = mutation({
       isActive: true,
       createdAt: Date.now(),
       createdBy: authUser.email ?? String(authUser._id),
+      variables: args.variables,
     });
   },
 });
@@ -77,6 +80,7 @@ export const updateScheduleBySlug = mutation({
     scheduleId: v.id('wfSchedules'),
     cronExpression: v.string(),
     timezone: v.string(),
+    variables: v.optional(jsonRecordValidator),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -95,6 +99,7 @@ export const updateScheduleBySlug = mutation({
     await ctx.db.patch(args.scheduleId, {
       cronExpression: args.cronExpression,
       timezone: args.timezone,
+      variables: args.variables,
     });
     return null;
   },

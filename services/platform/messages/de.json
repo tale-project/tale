@@ -1352,6 +1352,9 @@
           "cronExpression": "Cron-Ausdruck",
           "cronPlaceholder": "0 * * * *",
           "cronHelp": "Standard 5-Feld Cron-Format: Minute Stunde Tag Monat Wochentag",
+          "variablesLabel": "Workflow-Variablen",
+          "variablesDescription": "Eingabeparameter, die bei jedem geplanten Lauf übergeben werden. Vorausgefüllt aus dem Eingabeschema des Workflows.",
+          "variablesInvalid": "Variablen müssen ein gültiges JSON-Objekt sein",
           "presets": {
             "every5Minutes": "Alle 5 Minuten",
             "hourly": "Jede Stunde",

@@ -6,6 +6,9 @@
   "supportedAuthMethods": ["oauth2"],
   "secretBindings": ["accessToken"],
   "allowedHosts": ["www.googleapis.com"],
+  "connectionConfig": {
+    "timeout": 300000
+  },
   "oauth2Config": {
     "authorizationUrl": "https://accounts.google.com/o/oauth2/v2/auth",
     "tokenUrl": "https://oauth2.googleapis.com/token",
