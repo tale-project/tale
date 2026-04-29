@@ -87,30 +87,6 @@ export const HighlightedCode = memo(function HighlightedCode({
  * sub-pixel rounding and lets the user be a few px off and still auto-follow. */
 const STICK_TO_BOTTOM_THRESHOLD_PX = 24;
 
-/** Tracks messageIds that have already auto-opened Canvas once. Prevents
- * re-opening on re-renders and ensures only the first renderable block in
- * a message claims the slot. Survives across re-renders but not reloads. */
-const autoOpenedMessages = new Set<string>();
-
-/** Extract the first fenced code block whose language maps to a renderable
- * CanvasContentType. Reads from the full markdown source (messageContent)
- * rather than the DOM so the result is complete even while the typewriter
- * is still progressively revealing the block. */
-function extractFirstRenderableBlock(
-  markdown: string,
-): { content: string; lang: string; type: CanvasContentType } | null {
-  const regex = /```([\w-]*)\n([\s\S]*?)\n```/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(markdown)) !== null) {
-    const lang = match[1] || '';
-    const type = resolveCanvasType(lang);
-    if (type !== 'code') {
-      return { content: match[2], lang, type };
-    }
-  }
-  return null;
-}
-
 export function CodeBlock({
   lang,
   children,
@@ -188,28 +164,6 @@ export function CodeBlock({
         : undefined,
     );
   }, [canvasContext, lang, messageContext]);
-
-  useEffect(() => {
-    if (!canvasContext) return;
-    if (!messageContext?.messageId) return;
-    if (messageContext.isStreaming) return;
-    if (resolveCanvasType(lang) === 'code') return;
-    if (autoOpenedMessages.has(messageContext.messageId)) return;
-    const block = extractFirstRenderableBlock(messageContext.messageContent);
-    if (!block) return;
-    autoOpenedMessages.add(messageContext.messageId);
-    canvasContext.openCanvas(
-      block.content,
-      block.type,
-      block.lang || 'code',
-      block.lang,
-      {
-        messageId: messageContext.messageId,
-        messageContent: messageContext.messageContent,
-        threadId: messageContext.threadId,
-      },
-    );
-  }, [canvasContext, messageContext, lang]);
 
   return (
     <div className="border-border bg-background my-4 overflow-hidden rounded-lg border">
