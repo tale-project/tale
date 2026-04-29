@@ -65,7 +65,12 @@
       "clickToUpload": "Clique pour téléverser",
       "supportedFormats": ".xlsx, .xls ou .csv",
       "pickADate": "Choisir une date",
-      "dropFilesHere": "Dépose les fichiers ici pour téléverser"
+      "dropFilesHere": "Dépose les fichiers ici pour téléverser",
+      "acceptHint": "Fichiers JSON, dossiers ou archives .zip",
+      "pickFiles": "Choisir des fichiers",
+      "pickFolder": "Choisir un dossier",
+      "pickZip": "Choisir un zip",
+      "summary": "{total} entrées · {saved} enregistrées · {queued} en attente"
     },
     "labels": {
       "name": "Nom",
@@ -594,6 +599,12 @@
         "modelPlaceholder": "Sélectionner un modèle",
         "modelSearch": "Rechercher des modèles…",
         "modelEmpty": "Aucun modèle trouvé"
+      },
+      "uploadDialog": {
+        "menuItem": "Téléverser depuis un fichier…",
+        "title": "Téléverser des agents",
+        "description": "Importe des fichiers JSON d'agent, des dossiers ou des archives .zip. Chaque fichier .json s'installe comme un agent distinct.",
+        "toastSuccess": "Agents importés"
       },
       "general": {
         "visibleInChat": "Visible dans le chat",
@@ -1443,6 +1454,12 @@
       "descriptionPlaceholder": "Décris ce que fait cette automatisation...",
       "creating": "Création...",
       "continue": "Continuer"
+    },
+    "uploadDialog": {
+      "menuItem": "Téléverser depuis un fichier…",
+      "title": "Téléverser des automatisations",
+      "description": "Importe des fichiers JSON de workflow, des dossiers ou des archives .zip. Chaque fichier .json s'installe comme une automatisation distincte.",
+      "toastSuccess": "Automatisations importées"
     },
     "templates": {
       "description": "Choisis un modèle pour démarrer avec des étapes préconfigurées.",
