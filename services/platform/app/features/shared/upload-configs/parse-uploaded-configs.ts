@@ -2,9 +2,11 @@ import JSZip from 'jszip';
 
 export interface ParsedEntry {
   /**
-   * Relative path of the entry as it appears in the upload, without the
-   * leading folder prefix that some browsers prepend for `webkitdirectory`.
-   * Example: `general/conversation-sync.json`.
+   * Relative path of the entry as it appears in the upload. For folder picks
+   * (`webkitdirectory`) this includes the chosen folder name as the first
+   * segment so the resulting slug groups files under that folder. Zip
+   * archives strip a single common root folder if every entry shares one.
+   * Example: `contracts/red-flag-dd.json`.
    */
   relPath: string;
   /** Last path segment with the `.json` extension stripped. */
@@ -29,18 +31,6 @@ function lastSegment(relPath: string): string {
 function trimRoot(path: string): string {
   const segments = path.split('/').filter(Boolean);
   return segments.join('/');
-}
-
-/**
- * Drop the leading directory segment that `webkitdirectory` prepends with
- * the chosen folder's name. A user who picks a folder called `workflows/`
- * containing `general/foo.json` should produce a slug of `general/foo`, not
- * `workflows/general/foo` (which would also exceed the 2-level slug limit).
- */
-function stripFolderPrefix(path: string): string {
-  const segments = path.split('/').filter(Boolean);
-  if (segments.length <= 1) return segments.join('/');
-  return segments.slice(1).join('/');
 }
 
 async function parseJsonFile(
@@ -162,6 +152,6 @@ export async function parseUploadedConfigs(
 function getRelPath(file: File): string {
   const fromDir = (file as File & { webkitRelativePath?: string })
     .webkitRelativePath;
-  if (fromDir && fromDir.length > 0) return stripFolderPrefix(fromDir);
+  if (fromDir && fromDir.length > 0) return trimRoot(fromDir);
   return file.name;
 }

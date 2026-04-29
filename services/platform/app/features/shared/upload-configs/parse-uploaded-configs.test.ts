@@ -54,15 +54,15 @@ describe('parseUploadedConfigs', () => {
     expect(result[0].error).toMatch(/unsupported/i);
   });
 
-  it('preserves nested folder structure from webkitRelativePath but strips the picked-folder prefix', async () => {
+  it('preserves the picked folder as the first segment of relPath', async () => {
     const file = makeJsonFile(
       'sync.json',
       { name: 'Sync' },
-      'workflows/google_drive/sync.json',
+      'contracts/sync.json',
     );
     const result = await parseUploadedConfigs([file]);
     expect(result).toHaveLength(1);
-    expect(result[0].relPath).toBe('google_drive/sync.json');
+    expect(result[0].relPath).toBe('contracts/sync.json');
     expect(result[0].baseName).toBe('sync');
   });
 
@@ -105,6 +105,7 @@ describe('parseUploadedConfigs', () => {
       { id: 'folder-foo' },
       'pickedfolder/foo.json',
     );
+    // pickedfolder is preserved as the first slug segment
     const zip = await makeZip({ 'inside.json': { id: 'inside' } });
     const result = await parseUploadedConfigs([flat, folderFile, zip]);
     const ids = result.map((r) => (r.json as { id: string }).id).sort();
