@@ -33,7 +33,6 @@ import { EventCreateDialog } from './event-create-dialog';
 interface EventsSectionProps {
   workflowRootId: string;
   organizationId: string;
-  orgSlug: string;
   workflowSlug: string;
 }
 
@@ -42,14 +41,13 @@ type EventSubscription = WfEventSubscription;
 export function EventsSection({
   workflowRootId,
   organizationId,
-  orgSlug,
   workflowSlug,
 }: EventsSectionProps) {
   const { t } = useT('automations');
   const { toast } = useToast();
   const { subscriptions } = useEventSubscriptions(organizationId, workflowSlug);
 
-  const { workflows } = useListWorkflows('default');
+  const { workflows } = useListWorkflows(organizationId);
 
   const workflowNameMap = useMemo(() => {
     const map = new Map();
@@ -288,7 +286,6 @@ export function EventsSection({
         }}
         workflowRootId={workflowRootId}
         organizationId={organizationId}
-        orgSlug={orgSlug}
         workflowSlug={workflowSlug}
         existingEventTypes={
           subscriptions?.map((s: WfEventSubscription) => s.eventType) ?? []

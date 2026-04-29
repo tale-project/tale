@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import type { Id } from '../../_generated/dataModel';
-import { mutation } from '../../_generated/server';
+import { mutation, type MutationCtx } from '../../_generated/server';
 import { authComponent } from '../../auth';
 import { getOrganizationMember } from '../../lib/rls';
 import { jsonRecordValidator } from '../../lib/validators/json';
@@ -13,6 +13,22 @@ const WORKFLOW_SLUG_REGEX =
 
 function validateWorkflowSlug(slug: string): boolean {
   return WORKFLOW_SLUG_REGEX.test(slug) && slug.length <= 128;
+}
+
+async function assertWorkflowInstalled(
+  ctx: MutationCtx,
+  organizationId: string,
+  workflowSlug: string,
+): Promise<void> {
+  const installation = await ctx.db
+    .query('wfInstallations')
+    .withIndex('by_org_slug', (q) =>
+      q.eq('organizationId', organizationId).eq('workflowSlug', workflowSlug),
+    )
+    .first();
+  if (!installation) {
+    throw new Error('Workflow is not installed');
+  }
 }
 
 export const createScheduleBySlug = mutation({
@@ -37,6 +53,8 @@ export const createScheduleBySlug = mutation({
       email: authUser.email,
       name: authUser.name,
     });
+
+    await assertWorkflowInstalled(ctx, args.organizationId, args.workflowSlug);
 
     return await ctx.db.insert('wfSchedules', {
       organizationId: args.organizationId,
@@ -69,6 +87,14 @@ export const toggleScheduleBySlug = mutation({
       email: authUser.email,
       name: authUser.name,
     });
+
+    if (args.isActive && schedule.workflowSlug) {
+      await assertWorkflowInstalled(
+        ctx,
+        schedule.organizationId,
+        schedule.workflowSlug,
+      );
+    }
 
     await ctx.db.patch(args.scheduleId, { isActive: args.isActive });
     return null;
@@ -152,6 +178,8 @@ export const createWebhookBySlug = mutation({
       name: authUser.name,
     });
 
+    await assertWorkflowInstalled(ctx, args.organizationId, args.workflowSlug);
+
     const token = generateToken();
 
     const webhookId = await ctx.db.insert('wfWebhooks', {
@@ -185,6 +213,14 @@ export const toggleWebhookBySlug = mutation({
       email: authUser.email,
       name: authUser.name,
     });
+
+    if (args.isActive && webhook.workflowSlug) {
+      await assertWorkflowInstalled(
+        ctx,
+        webhook.organizationId,
+        webhook.workflowSlug,
+      );
+    }
 
     await ctx.db.patch(args.webhookId, { isActive: args.isActive });
     return null;
@@ -237,6 +273,8 @@ export const createEventSubscriptionBySlug = mutation({
     if (!isValidEventType(args.eventType)) {
       throw new Error(`Invalid event type: ${String(args.eventType)}`);
     }
+
+    await assertWorkflowInstalled(ctx, args.organizationId, args.workflowSlug);
 
     const existing = await ctx.db
       .query('wfEventSubscriptions')
@@ -293,6 +331,10 @@ export const toggleEventSubscriptionBySlug = mutation({
       email: authUser.email,
       name: authUser.name,
     });
+
+    if (args.isActive && sub.workflowSlug) {
+      await assertWorkflowInstalled(ctx, sub.organizationId, sub.workflowSlug);
+    }
 
     await ctx.db.patch(args.subscriptionId, { isActive: args.isActive });
     return null;

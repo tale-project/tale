@@ -55,7 +55,7 @@ export function AutomationTester({
 }: AutomationTesterProps) {
   const { t } = useT('automations');
 
-  const { data: workflowRead } = useReadWorkflow('default', workflowSlug);
+  const { data: workflowRead } = useReadWorkflow(organizationId, workflowSlug);
 
   const inputTemplate = useMemo(() => {
     if (!workflowRead?.ok) return '{}';

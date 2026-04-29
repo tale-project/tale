@@ -185,6 +185,16 @@ export const wfExecutionsTable = defineTable({
   .index('by_component_workflow', ['componentWorkflowId'])
   .index('by_org_workflowSlug', ['organizationId', 'workflowSlug']);
 
+export const wfInstallationsTable = defineTable({
+  organizationId: v.string(),
+  workflowSlug: v.string(),
+  installedAt: v.number(),
+  installedBy: v.string(),
+  contentHash: v.string(),
+})
+  .index('by_org', ['organizationId'])
+  .index('by_org_slug', ['organizationId', 'workflowSlug']);
+
 export const workflowProcessingRecordsTable = defineTable({
   organizationId: v.string(),
   tableName: v.string(),

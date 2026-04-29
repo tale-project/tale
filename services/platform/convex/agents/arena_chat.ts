@@ -15,7 +15,6 @@ export const arenaChat = action({
   args: {
     agentSlug: v.string(),
     organizationId: v.string(),
-    orgSlug: v.string(),
     threadIdA: v.string(),
     threadIdB: v.string(),
     message: v.string(),
@@ -63,7 +62,6 @@ export const arenaChat = action({
     const sharedArgs = {
       agentSlug: args.agentSlug,
       organizationId: args.organizationId,
-      orgSlug: args.orgSlug,
       message: args.message,
       attachments: args.attachments,
       userContext: args.userContext,

@@ -62,8 +62,6 @@ export const workflowJsonSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
   version: z.string().optional(),
-  installed: z.boolean().default(false),
-  enabled: z.boolean().default(false),
   config: workflowConfigSchema.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   requires: requiresSchema.optional(),

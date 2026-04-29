@@ -517,6 +517,7 @@ import type * as migrations_backfill_folder_path from "../migrations/backfill_fo
 import type * as migrations_backfill_folders from "../migrations/backfill_folders.js";
 import type * as migrations_backfill_ledger_granularity from "../migrations/backfill_ledger_granularity.js";
 import type * as migrations_backfill_thread_metadata from "../migrations/backfill_thread_metadata.js";
+import type * as migrations_backfill_wf_installations from "../migrations/backfill_wf_installations.js";
 import type * as migrations_backfill_workflow_schedules from "../migrations/backfill_workflow_schedules.js";
 import type * as migrations_merge_audit_retention from "../migrations/merge_audit_retention.js";
 import type * as migrations_migrate_org_creators from "../migrations/migrate_org_creators.js";
@@ -954,6 +955,7 @@ import type * as workflows_executions_validators from "../workflows/executions/v
 import type * as workflows_file_actions from "../workflows/file_actions.js";
 import type * as workflows_file_utils from "../workflows/file_utils.js";
 import type * as workflows_helpers from "../workflows/helpers.js";
+import type * as workflows_installations from "../workflows/installations.js";
 import type * as workflows_processing_records_ast_helpers_extract_comparison from "../workflows/processing_records/ast_helpers/extract_comparison.js";
 import type * as workflows_processing_records_ast_helpers_extract_literal_value from "../workflows/processing_records/ast_helpers/extract_literal_value.js";
 import type * as workflows_processing_records_ast_helpers_get_full_field_path from "../workflows/processing_records/ast_helpers/get_full_field_path.js";
@@ -1518,6 +1520,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/backfill_folders": typeof migrations_backfill_folders;
   "migrations/backfill_ledger_granularity": typeof migrations_backfill_ledger_granularity;
   "migrations/backfill_thread_metadata": typeof migrations_backfill_thread_metadata;
+  "migrations/backfill_wf_installations": typeof migrations_backfill_wf_installations;
   "migrations/backfill_workflow_schedules": typeof migrations_backfill_workflow_schedules;
   "migrations/merge_audit_retention": typeof migrations_merge_audit_retention;
   "migrations/migrate_org_creators": typeof migrations_migrate_org_creators;
@@ -1955,6 +1958,7 @@ declare const fullApi: ApiFromModules<{
   "workflows/file_actions": typeof workflows_file_actions;
   "workflows/file_utils": typeof workflows_file_utils;
   "workflows/helpers": typeof workflows_helpers;
+  "workflows/installations": typeof workflows_installations;
   "workflows/processing_records/ast_helpers/extract_comparison": typeof workflows_processing_records_ast_helpers_extract_comparison;
   "workflows/processing_records/ast_helpers/extract_literal_value": typeof workflows_processing_records_ast_helpers_extract_literal_value;
   "workflows/processing_records/ast_helpers/get_full_field_path": typeof workflows_processing_records_ast_helpers_get_full_field_path;

@@ -2,8 +2,6 @@
   "name": "Google Drive Sync",
   "description": "Sync files from a Google Drive folder into Tale documents. Each scheduled run lists the files in the configured folder, downloads any that are new or changed, and upserts documents by external ID. RAG indexing is then handled by the document-rag-sync workflow.",
   "version": "1.0.0",
-  "installed": true,
-  "enabled": true,
   "config": {
     "timeout": 600000,
     "retryPolicy": {

@@ -28,7 +28,7 @@ export const Route = createFileRoute(
 });
 
 function ConfigurationPage() {
-  const { amId } = Route.useParams();
+  const { id: organizationId, amId } = Route.useParams();
   const workflowSlug = urlParamToSlug(amId);
 
   const { t: tAutomations } = useT('automations');
@@ -39,7 +39,7 @@ function ConfigurationPage() {
     data: readResult,
     isLoading,
     refetch,
-  } = useReadWorkflow('default', workflowSlug);
+  } = useReadWorkflow(organizationId, workflowSlug);
   const { mutateAsync: saveWorkflow, isPending: isSaving } = useSaveWorkflow();
 
   const [name, setName] = useState('');
@@ -122,7 +122,7 @@ function ConfigurationPage() {
       }
 
       await saveWorkflow({
-        orgSlug: 'default',
+        organizationId,
         workflowSlug,
         config: {
           ...config,

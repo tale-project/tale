@@ -122,8 +122,6 @@ export const executeApprovedWorkflowCreation = internalAction({
         name: metadata.workflowConfig.name,
         description: metadata.workflowConfig.description,
         version: metadata.workflowConfig.version,
-        installed: true,
-        enabled: false,
         config: metadata.workflowConfig.config,
         steps: metadata.stepsConfig.map((step, index) => ({
           stepSlug: step.stepSlug,
@@ -143,6 +141,16 @@ export const executeApprovedWorkflowCreation = internalAction({
           orgSlug,
           workflowSlug,
           config,
+        },
+      );
+
+      await ctx.runMutation(
+        internal.workflows.installations.upsertInstallation,
+        {
+          organizationId: approval.organizationId,
+          workflowSlug,
+          installedBy: 'agent',
+          contentHash: '',
         },
       );
 

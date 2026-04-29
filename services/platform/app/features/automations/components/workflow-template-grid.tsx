@@ -16,17 +16,19 @@ import {
 import { useListWorkflows } from '../hooks/file-queries';
 
 interface WorkflowTemplateGridProps {
+  organizationId: string;
   integrationName?: string;
   onTemplateInstalled: (slug: string) => void;
 }
 
 export function WorkflowTemplateGrid({
+  organizationId,
   integrationName,
   onTemplateInstalled,
 }: WorkflowTemplateGridProps) {
   const { t } = useT('automations');
   const { workflows, isLoading: isLoadingTemplates } = useListWorkflows(
-    'default',
+    organizationId,
     'templates',
   );
   const { mutateAsync: installWorkflow } = useInstallWorkflow();
@@ -36,9 +38,26 @@ export function WorkflowTemplateGrid({
 
   const filteredTemplates = useMemo(() => {
     if (!workflows) return [];
-    const valid = workflows.filter(
-      (w): w is NonNullable<typeof w> & { name: string } => !!w && 'name' in w,
-    );
+    const valid: { slug: string; name: string; description?: string }[] = [];
+    for (const w of workflows) {
+      if (
+        w &&
+        typeof w === 'object' &&
+        'slug' in w &&
+        'name' in w &&
+        typeof w.slug === 'string' &&
+        typeof w.name === 'string'
+      ) {
+        valid.push({
+          slug: w.slug,
+          name: w.name,
+          description:
+            'description' in w && typeof w.description === 'string'
+              ? w.description
+              : undefined,
+        });
+      }
+    }
     if (!integrationName) return valid;
     return valid.filter((w) => {
       const category = w.slug.includes('/') ? w.slug.split('/')[0] : '';
@@ -54,8 +73,11 @@ export function WorkflowTemplateGrid({
       setInstallingSlug(slug);
 
       try {
-        await installWorkflow({ orgSlug: 'default', workflowSlug: slug });
-        await invalidateWorkflows('default');
+        await installWorkflow({
+          organizationId,
+          workflowSlug: slug,
+        });
+        await invalidateWorkflows(organizationId);
         window.dispatchEvent(new Event('workflow-updated'));
         onTemplateInstalled(slug);
       } catch (err) {
@@ -67,7 +89,13 @@ export function WorkflowTemplateGrid({
         setInstallingSlug(null);
       }
     },
-    [installWorkflow, invalidateWorkflows, onTemplateInstalled, t],
+    [
+      installWorkflow,
+      invalidateWorkflows,
+      onTemplateInstalled,
+      organizationId,
+      t,
+    ],
   );
 
   if (isLoadingTemplates) {

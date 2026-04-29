@@ -13,7 +13,6 @@ export type WorkflowSummary = {
   slug: string;
   name: string;
   description?: string;
-  enabled: boolean;
   version?: string;
   stepCount?: number;
 };

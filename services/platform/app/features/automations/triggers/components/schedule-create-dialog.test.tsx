@@ -36,7 +36,6 @@ describe('ScheduleCreateDialog', () => {
           onOpenChange={vi.fn()}
           workflowRootId="wf-root-1"
           organizationId="test-org-id"
-          orgSlug="default"
           workflowSlug="my-workflow"
         />,
       );
@@ -50,7 +49,6 @@ describe('ScheduleCreateDialog', () => {
           onOpenChange={vi.fn()}
           workflowRootId="wf-root-1"
           organizationId="test-org-id"
-          orgSlug="default"
           workflowSlug="my-workflow"
           schedule={{
             _id: 'schedule-1',

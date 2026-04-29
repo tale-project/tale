@@ -34,7 +34,6 @@ interface ScheduleCreateDialogProps {
   onOpenChange: (open: boolean) => void;
   workflowRootId: string;
   organizationId: string;
-  orgSlug: string;
   workflowSlug: string;
   schedule?: ScheduleData | null;
 }
@@ -56,7 +55,6 @@ export function ScheduleCreateDialog({
   onOpenChange,
   workflowRootId: _workflowRootId,
   organizationId,
-  orgSlug,
   workflowSlug,
   schedule,
 }: ScheduleCreateDialogProps) {
@@ -77,7 +75,7 @@ export function ScheduleCreateDialog({
 
   // Pull the workflow's start-node inputSchema so we can pre-fill the variables
   // editor with the expected shape — same pattern as the test panel.
-  const { data: workflowRead } = useReadWorkflow(orgSlug, workflowSlug);
+  const { data: workflowRead } = useReadWorkflow(organizationId, workflowSlug);
   const inputTemplate = useMemo(() => {
     if (!workflowRead?.ok) return '{}';
     const startStep = workflowRead.config.steps?.find(

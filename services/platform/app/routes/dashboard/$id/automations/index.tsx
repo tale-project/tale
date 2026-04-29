@@ -29,7 +29,8 @@ function AutomationsPage() {
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
-  const { columns, searchPlaceholder } = useAutomationsTableConfig();
+  const { columns, searchPlaceholder } =
+    useAutomationsTableConfig(organizationId);
 
   if (abilityLoading) {
     return (

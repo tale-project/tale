@@ -7,8 +7,6 @@ describe('workflowJsonSchema', () => {
     const result = workflowJsonSchema.safeParse({
       name: 'Blank',
       description: '',
-      installed: true,
-      enabled: false,
     });
 
     expect(result.success).toBe(true);
@@ -20,8 +18,6 @@ describe('workflowJsonSchema', () => {
   it('parses a config with explicit empty steps', () => {
     const result = workflowJsonSchema.safeParse({
       name: 'Blank',
-      installed: true,
-      enabled: false,
       steps: [],
     });
 
@@ -34,8 +30,6 @@ describe('workflowJsonSchema', () => {
   it('parses a config with one step', () => {
     const result = workflowJsonSchema.safeParse({
       name: 'One step',
-      installed: true,
-      enabled: false,
       steps: [
         {
           stepSlug: 'start',
@@ -56,8 +50,6 @@ describe('workflowJsonSchema', () => {
   it('parses a config with requires.integrations', () => {
     const result = workflowJsonSchema.safeParse({
       name: 'Drive Sync',
-      installed: true,
-      enabled: true,
       requires: {
         integrations: [
           { name: 'google_drive', operations: ['list_files', 'download_file'] },
@@ -80,8 +72,6 @@ describe('workflowJsonSchema', () => {
   it('omits requires when not declared', () => {
     const result = workflowJsonSchema.safeParse({
       name: 'No deps',
-      installed: true,
-      enabled: false,
     });
 
     expect(result.success).toBe(true);

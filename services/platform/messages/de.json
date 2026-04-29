@@ -94,7 +94,6 @@
       "completed": "Abgeschlossen",
       "failed": "Fehlgeschlagen",
       "waitingForInput": "Wartet auf Eingabe",
-      "published": "Veröffentlicht",
       "draft": "Entwurf",
       "enabled": "Aktiviert",
       "disabled": "Deaktiviert",
@@ -307,8 +306,6 @@
       "existingUserAdded": "Bestehender Benutzer zur Organisation hinzugefügt",
       "automationDuplicated": "Automatisierung erfolgreich dupliziert",
       "automationRenamed": "Automatisierung erfolgreich umbenannt",
-      "automationDeactivated": "Automatisierung erfolgreich deaktiviert",
-      "automationPublished": "Automatisierung erfolgreich veröffentlicht",
       "brandingUpdated": "Branding erfolgreich aktualisiert"
     },
     "error": {
@@ -320,9 +317,7 @@
       "addMemberFailed": "Mitglied konnte nicht hinzugefügt werden",
       "automationDuplicateFailed": "Automatisierung konnte nicht dupliziert werden",
       "automationRenameFailed": "Automatisierung konnte nicht umbenannt werden",
-      "automationDeleteFailed": "Automatisierung konnte nicht gelöscht werden",
-      "automationDeactivateFailed": "Automatisierung konnte nicht deaktiviert werden",
-      "automationPublishFailed": "Automatisierung konnte nicht veröffentlicht werden"
+      "automationDeleteFailed": "Automatisierung konnte nicht gelöscht werden"
     }
   },
   "dialogs": {
@@ -1288,13 +1283,6 @@
     "search": {
       "placeholder": "Automatisierungen suchen"
     },
-    "deactivateDialog": {
-      "title": "Automatisierung deaktivieren",
-      "description": "Möchtest du \"{name}\" wirklich deaktivieren? Alle Trigger werden gestoppt, bis du sie erneut aktivierst."
-    },
-    "activeToggle": {
-      "ariaLabel": "Automatisierung-Aktivstatus umschalten"
-    },
     "createWithAI": "Automatisierung mit KI erstellen",
     "navigation": {
       "editor": "Editor",
@@ -1474,8 +1462,7 @@
         "apiNotWired": "Öffentliche APIs zum Bearbeiten von Workflow-Schritten sind noch nicht verbunden."
       },
       "banners": {
-        "draftNotPublished": "Diese Automatisierung ist noch nicht veröffentlicht",
-        "activeCannotModify": "Diese Automatisierung ist veröffentlicht und kann nicht geändert werden. Erstelle eine neue Version, um Änderungen vorzunehmen."
+        "hasActiveTriggers": "Diese Automatisierung hat aktive Trigger — Änderungen werden sofort wirksam."
       },
       "toolbar": {
         "focus": "Fokus",
@@ -1558,8 +1545,7 @@
       "fallbackFile": "Datei",
       "loading": "Wird geladen...",
       "notFound": "Automatisierung nicht gefunden.",
-      "welcomeDraft": "Hallo! Ich bin dein Automatisierungsassistent. Ich kann dir helfen, diese Automatisierung zu erstellen und zu bearbeiten. Beschreibe einfach, was du automatisieren möchtest, und ich baue es für dich!",
-      "welcomeActive": "Hallo! Ich bin dein Automatisierungsassistent. Ich kann dir helfen, diese Automatisierung zu verstehen und zu besprechen. Was möchtest du wissen?",
+      "welcome": "Hallo! Ich bin dein Automatisierungsassistent. Ich kann dir helfen, diese Automatisierung zu erstellen, zu bearbeiten und zu besprechen. Was möchtest du tun?",
       "errorMessage": "Es tut mir leid, ein Fehler ist aufgetreten. Bitte versuche es erneut oder prüfe die Konsole für Details.",
       "thinking": {
         "thinking": "Denkt nach",

@@ -24,6 +24,7 @@ import {
 } from '../governance/sanitize';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { readJsonFile } from '../lib/file_io';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { applyModelOverride, toSerializableConfig } from './config';
 import {
   resolveAgentFilePath,
@@ -38,7 +39,6 @@ export const chatWithAgent = action({
     agentSlug: v.string(),
     threadId: v.string(),
     organizationId: v.string(),
-    orgSlug: v.string(),
     message: v.string(),
     maxSteps: v.optional(v.number()),
     attachments: v.optional(
@@ -96,6 +96,8 @@ export const chatWithAgent = action({
       `[chatWithAgent] markGenerating OK threadId=${args.threadId} streamId=${preAllocatedStreamId} userId=${authUserId}`,
     );
 
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+
     // PII query, governance default model resolution, and agent config
     // resolution are independent — run them in parallel to reduce TTFT.
     // Agent config is read directly from the filesystem (inlined) instead of
@@ -114,7 +116,7 @@ export const chatWithAgent = action({
           )
         : null,
       resolveAgentConfigInline(ctx, {
-        orgSlug: args.orgSlug,
+        orgSlug,
         agentSlug: args.agentSlug,
         organizationId: args.organizationId,
         modelId: args.modelId,
@@ -205,7 +207,7 @@ export const chatWithAgent = action({
         guardrails,
         {
           organizationId: args.organizationId,
-          orgSlug: args.orgSlug,
+          orgSlug,
           threadId: args.threadId,
           agentSlug: args.agentSlug,
           actorId: authUserId,

@@ -91,7 +91,7 @@ export function AutomationNavigation({
     try {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex action returns HistoryEntry[]
       const entries = (await listHistoryAction.mutateAsync({
-        orgSlug: 'default',
+        organizationId,
         workflowSlug,
       })) as HistoryEntry[];
       setHistoryEntries(entries);
@@ -104,13 +104,13 @@ export function AutomationNavigation({
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [listHistoryAction, workflowSlug, t]);
+  }, [listHistoryAction, organizationId, workflowSlug, t]);
 
   const handleSelectEntry = useCallback(
     async (entry: HistoryEntry) => {
       try {
         const result = await readHistoryAction.mutateAsync({
-          orgSlug: 'default',
+          organizationId,
           workflowSlug,
           timestamp: entry.timestamp,
         });
@@ -135,7 +135,7 @@ export function AutomationNavigation({
         });
       }
     },
-    [readHistoryAction, workflowSlug, t],
+    [readHistoryAction, organizationId, workflowSlug, t],
   );
 
   const handleRestore = useCallback(async () => {
@@ -143,7 +143,7 @@ export function AutomationNavigation({
     setIsRestoring(true);
     try {
       await restoreAction.mutateAsync({
-        orgSlug: 'default',
+        organizationId,
         workflowSlug,
         timestamp: selectedEntry.timestamp,
       });
@@ -165,7 +165,14 @@ export function AutomationNavigation({
     } finally {
       setIsRestoring(false);
     }
-  }, [onRefetch, restoreAction, selectedEntry, workflowSlug, t]);
+  }, [
+    onRefetch,
+    restoreAction,
+    selectedEntry,
+    organizationId,
+    workflowSlug,
+    t,
+  ]);
 
   const historyMenuItems = useMemo(() => {
     if (historyEntries.length === 0) {

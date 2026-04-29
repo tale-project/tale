@@ -19,10 +19,6 @@ vi.mock('@/app/hooks/use-toast', () => ({
 vi.mock('../hooks/file-mutations', () => ({
   useDuplicateWorkflowFile: () => ({ mutate: vi.fn() }),
   useDeleteWorkflowFile: () => ({ mutate: vi.fn(), isPending: false }),
-  useToggleWorkflowEnabled: () => ({
-    mutate: vi.fn(),
-    isPending: false,
-  }),
   useRenameWorkflow: () => ({ mutateAsync: vi.fn() }),
 }));
 
@@ -33,10 +29,10 @@ describe('AutomationRowActions', () => {
     it('passes axe audit', async () => {
       const { container } = render(
         <AutomationRowActions
+          organizationId="org-123"
           automation={{
             _id: 'wf-1',
             name: 'Test Automation',
-            status: 'active',
           }}
         />,
       );

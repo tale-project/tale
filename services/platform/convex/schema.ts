@@ -57,6 +57,7 @@ import { websitesTable } from './websites/schema';
 import {
   wfDefinitionsTable,
   wfExecutionsTable,
+  wfInstallationsTable,
   wfStepAuditLogsTable,
   wfStepDefsTable,
   workflowProcessingRecordsTable,
@@ -118,6 +119,7 @@ export default defineSchema({
   wfDefinitions: wfDefinitionsTable,
   wfEventSubscriptions: wfEventSubscriptionsTable,
   wfExecutions: wfExecutionsTable,
+  wfInstallations: wfInstallationsTable,
   wfSchedules: wfSchedulesTable,
   wfStepAuditLogs: wfStepAuditLogsTable,
   wfStepDefs: wfStepDefsTable,

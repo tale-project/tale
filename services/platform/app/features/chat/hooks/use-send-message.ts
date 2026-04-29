@@ -313,7 +313,6 @@ export function useSendMessage({
           // Start both models generating (split view shows "Thinking")
           await arenaChatRef.current({
             agentSlug: selectedAgent.name,
-            orgSlug: 'default',
             threadIdA: tIdA,
             threadIdB: tIdB,
             organizationId,
@@ -396,7 +395,6 @@ export function useSendMessage({
 
           await chatWithAgent({
             agentSlug: selectedAgent.name,
-            orgSlug: 'default',
             threadId: currentThreadId,
             organizationId,
             message: messageToSend,

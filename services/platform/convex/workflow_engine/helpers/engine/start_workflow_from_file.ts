@@ -56,23 +56,20 @@ export const startWorkflowFromFile = internalAction({
 
     const config = result.config;
 
-    // Step 2: Check if workflow is installed and enabled.
-    // Manual test runs from the editor bypass the `enabled` gate so a draft
-    // workflow can be validated before publishing. The `installed` gate still
-    // applies — an unregistered workflow shouldn't run from any source.
-    const isManualTestRun = args.triggeredBy === 'test';
+    // Step 2: Check the workflow is installed in this deployment for this org.
+    // The DB row in `wfInstallations` is the single source of truth for
+    // "deployed and runnable" — the JSON file no longer carries that flag.
+    const installed = await ctx.runQuery(
+      internal.workflows.installations.getInstallationInternal,
+      {
+        organizationId: args.organizationId,
+        workflowSlug: args.workflowSlug,
+      },
+    );
 
-    if (!config.installed) {
+    if (!installed) {
       debugLog('startWorkflowFromFile Workflow is not installed, skipping', {
         workflowSlug: args.workflowSlug,
-      });
-      return null;
-    }
-
-    if (!config.enabled && !isManualTestRun) {
-      debugLog('startWorkflowFromFile Workflow is disabled, skipping', {
-        workflowSlug: args.workflowSlug,
-        triggeredBy: args.triggeredBy,
       });
       return null;
     }
