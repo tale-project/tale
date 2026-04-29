@@ -5,81 +5,58 @@ import { api } from '@/convex/_generated/api';
 
 export function useInvalidateWorkflows() {
   const queryClient = useQueryClient();
-  return (orgSlug: string) =>
+  return (organizationId: string) =>
     queryClient.invalidateQueries({
-      queryKey: ['config', 'workflows', orgSlug],
+      queryKey: ['config', 'workflows', organizationId],
     });
 }
 
 export function useSaveWorkflow() {
   const invalidate = useInvalidateWorkflows();
   return useConvexAction(api.workflows.file_actions.saveWorkflowWithSnapshot, {
-    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
 
 export function useInstallWorkflow() {
   const invalidate = useInvalidateWorkflows();
   return useConvexAction(api.workflows.file_actions.installWorkflow, {
-    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
 
-export function useToggleWorkflowEnabled() {
-  const readAction = useConvexAction(api.workflows.file_actions.readWorkflow);
-  const saveAction = useConvexAction(
-    api.workflows.file_actions.saveWorkflowWithSnapshot,
-  );
+export function useUninstallWorkflow() {
   const invalidate = useInvalidateWorkflows();
-
-  return {
-    mutate: async (args: { orgSlug: string; workflowSlug: string }) => {
-      const result = await readAction.mutateAsync(args);
-      if (!result.ok) {
-        throw new Error(`Cannot read workflow: ${result.message}`);
-      }
-      const updatedConfig = {
-        ...result.config,
-        enabled: !result.config.enabled,
-      };
-      const saveResult = await saveAction.mutateAsync({
-        orgSlug: args.orgSlug,
-        workflowSlug: args.workflowSlug,
-        config: updatedConfig,
-        expectedHash: result.hash,
-      });
-      void invalidate(args.orgSlug);
-      return saveResult;
-    },
-    isPending: readAction.isPending || saveAction.isPending,
-  };
+  return useConvexAction(api.workflows.file_actions.uninstallWorkflow, {
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
+  });
 }
 
 export function useDeleteWorkflowFile() {
   const invalidate = useInvalidateWorkflows();
   return useConvexAction(api.workflows.file_actions.deleteWorkflow, {
-    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
 
 export function useDuplicateWorkflowFile() {
   const invalidate = useInvalidateWorkflows();
   return useConvexAction(api.workflows.file_actions.duplicateWorkflow, {
-    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
 
 export function useRenameWorkflow() {
   const invalidate = useInvalidateWorkflows();
   return useConvexAction(api.workflows.file_actions.renameWorkflow, {
-    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
 
 export function useRestoreFromHistory() {
   const invalidate = useInvalidateWorkflows();
   return useConvexAction(api.workflows.file_actions.restoreFromHistory, {
-    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+    onSuccess: (_data, variables) => invalidate(variables.organizationId),
   });
 }
 

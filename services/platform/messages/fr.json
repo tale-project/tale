@@ -50,10 +50,7 @@
       "import": "Importer",
       "importing": "Importation...",
       "openMenu": "Ouvrir le menu",
-      "publish": "Publier",
       "rename": "Renommer",
-      "deactivate": "Désactiver",
-      "deactivating": "Désactivation...",
       "deleteSelected": "Supprimer la sélection"
     },
     "bulkActions": {
@@ -94,7 +91,6 @@
       "completed": "Terminé",
       "failed": "Échoué",
       "waitingForInput": "En attente de saisie",
-      "published": "Publié",
       "draft": "Brouillon",
       "enabled": "Activé",
       "disabled": "Désactivé",
@@ -307,8 +303,6 @@
       "existingUserAdded": "Utilisateur existant ajouté à l'organisation",
       "automationDuplicated": "Automatisation dupliquée avec succès",
       "automationRenamed": "Automatisation renommée avec succès",
-      "automationDeactivated": "Automatisation désactivée avec succès",
-      "automationPublished": "Automatisation publiée avec succès",
       "brandingUpdated": "Image de marque mise à jour avec succès"
     },
     "error": {
@@ -320,9 +314,7 @@
       "addMemberFailed": "Échec de l'ajout du membre",
       "automationDuplicateFailed": "Échec de la duplication de l'automatisation",
       "automationRenameFailed": "Échec du renommage de l'automatisation",
-      "automationDeleteFailed": "Échec de la suppression de l'automatisation",
-      "automationDeactivateFailed": "Échec de la désactivation de l'automatisation",
-      "automationPublishFailed": "Échec de la publication de l'automatisation"
+      "automationDeleteFailed": "Échec de la suppression de l'automatisation"
     }
   },
   "dialogs": {
@@ -1288,13 +1280,6 @@
     "search": {
       "placeholder": "Rechercher des automatisations"
     },
-    "deactivateDialog": {
-      "title": "Désactiver l'automatisation",
-      "description": "Es-tu sûr de vouloir désactiver « {name} » ? Tous les déclencheurs cesseront de fonctionner jusqu'à ce que tu la réactives."
-    },
-    "activeToggle": {
-      "ariaLabel": "Activer ou désactiver l'automatisation"
-    },
     "createWithAI": "Créer une automatisation avec l'IA",
     "navigation": {
       "editor": "Éditeur",
@@ -1352,6 +1337,9 @@
           "cronExpression": "Expression cron",
           "cronPlaceholder": "0 * * * *",
           "cronHelp": "Format cron standard à 5 champs : minute heure jour mois jour_semaine",
+          "variablesLabel": "Variables du workflow",
+          "variablesDescription": "Paramètres d'entrée transmis à chaque exécution planifiée. Pré-remplis depuis le schéma d'entrée du workflow.",
+          "variablesInvalid": "Les variables doivent être un objet JSON valide",
           "presets": {
             "every5Minutes": "Toutes les 5 minutes",
             "hourly": "Toutes les heures",
@@ -1471,8 +1459,7 @@
         "apiNotWired": "Les API publiques pour la modification des étapes de workflow ne sont pas encore connectées."
       },
       "banners": {
-        "draftNotPublished": "Cette automatisation n'est pas encore publiée",
-        "activeCannotModify": "Cette automatisation est publiée et ne peut pas être modifiée. Crée une nouvelle version pour apporter des modifications."
+        "hasActiveTriggers": "Cette automatisation a des déclencheurs actifs — les modifications prennent effet immédiatement."
       },
       "toolbar": {
         "focus": "Focus",
@@ -1555,8 +1542,7 @@
       "fallbackFile": "Fichier",
       "loading": "Chargement...",
       "notFound": "Automatisation introuvable.",
-      "welcomeDraft": "Bonjour ! Je suis ton assistant d'automatisation. Je peux t'aider à créer et modifier cette automatisation. Décris simplement ce que tu souhaites automatiser, et je le construirai pour toi !",
-      "welcomeActive": "Bonjour ! Je suis ton assistant d'automatisation. Je peux t'aider à comprendre et discuter de cette automatisation. Que souhaites-tu savoir ?",
+      "welcome": "Bonjour ! Je suis ton assistant d'automatisation. Je peux t'aider à créer, modifier et discuter de cette automatisation. Que souhaites-tu faire ?",
       "errorMessage": "Je suis désolé, j'ai rencontré une erreur. Merci de réessayer ou de consulter la console pour plus de détails.",
       "thinking": {
         "thinking": "Réflexion",

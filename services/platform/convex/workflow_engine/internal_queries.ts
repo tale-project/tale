@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { internalQuery } from '../_generated/server';
+import { jsonRecordValidator } from '../lib/validators/json';
 import * as SchedulerHelpers from './helpers/scheduler';
 
 const scheduledWorkflowValidator = v.object({
@@ -10,6 +11,7 @@ const scheduledWorkflowValidator = v.object({
   schedule: v.string(),
   timezone: v.string(),
   scheduleId: v.id('wfSchedules'),
+  variables: v.optional(jsonRecordValidator),
 });
 
 export const getScheduledWorkflows = internalQuery({

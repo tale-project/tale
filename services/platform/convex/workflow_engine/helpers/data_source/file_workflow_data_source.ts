@@ -27,7 +27,7 @@ export class FileWorkflowDataSource implements WorkflowDataSource {
       name: this.config.name,
       description: this.config.description,
       version: this.config.version ?? '1.0.0',
-      status: this.config.enabled ? 'active' : 'inactive',
+      status: 'active',
       workflowType: 'predefined',
       config: this.config.config
         ? {

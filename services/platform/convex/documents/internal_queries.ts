@@ -37,6 +37,9 @@ export const findDocumentByExternalId = internalQuery({
   args: {
     organizationId: v.string(),
     externalItemId: v.string(),
+    // When provided, scopes the lookup to a specific target folder (`null`
+    // means the root). Omit to match across all folders (legacy behavior).
+    folderId: v.optional(v.union(v.id('folders'), v.null())),
   },
   handler: async (ctx, args) => {
     return await DocumentsHelpers.findDocumentByExternalId(ctx, args);

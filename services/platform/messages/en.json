@@ -50,10 +50,7 @@
       "import": "Import",
       "importing": "Importing...",
       "openMenu": "Open menu",
-      "publish": "Publish",
       "rename": "Rename",
-      "deactivate": "Deactivate",
-      "deactivating": "Deactivating...",
       "deleteSelected": "Delete selected"
     },
     "bulkActions": {
@@ -94,7 +91,6 @@
       "completed": "Completed",
       "failed": "Failed",
       "waitingForInput": "Waiting for input",
-      "published": "Published",
       "draft": "Draft",
       "enabled": "Enabled",
       "disabled": "Disabled",
@@ -307,8 +303,6 @@
       "existingUserAdded": "Existing user added to organization",
       "automationDuplicated": "Automation duplicated successfully",
       "automationRenamed": "Automation renamed successfully",
-      "automationDeactivated": "Automation deactivated successfully",
-      "automationPublished": "Automation published successfully",
       "brandingUpdated": "Branding updated successfully"
     },
     "error": {
@@ -320,9 +314,7 @@
       "addMemberFailed": "Failed to add member",
       "automationDuplicateFailed": "Failed to duplicate automation",
       "automationRenameFailed": "Failed to rename automation",
-      "automationDeleteFailed": "Failed to delete automation",
-      "automationDeactivateFailed": "Failed to deactivate automation",
-      "automationPublishFailed": "Failed to publish automation"
+      "automationDeleteFailed": "Failed to delete automation"
     }
   },
   "dialogs": {
@@ -1288,13 +1280,6 @@
     "search": {
       "placeholder": "Search automations"
     },
-    "deactivateDialog": {
-      "title": "Deactivate automation",
-      "description": "Are you sure you want to deactivate \"{name}\"? All triggers will stop firing until you activate it again."
-    },
-    "activeToggle": {
-      "ariaLabel": "Toggle automation active state"
-    },
     "createWithAI": "Create automation with AI",
     "navigation": {
       "editor": "Editor",
@@ -1352,6 +1337,9 @@
           "cronExpression": "Cron expression",
           "cronPlaceholder": "0 * * * *",
           "cronHelp": "Standard 5-field cron format: minute hour day month weekday",
+          "variablesLabel": "Workflow variables",
+          "variablesDescription": "Input parameters passed to each scheduled run. Pre-filled from the workflow's input schema.",
+          "variablesInvalid": "Variables must be valid JSON object",
           "presets": {
             "every5Minutes": "Every 5 minutes",
             "hourly": "Every hour",
@@ -1471,8 +1459,7 @@
         "apiNotWired": "Public APIs for editing workflow steps are not wired up yet."
       },
       "banners": {
-        "draftNotPublished": "This automation is not yet published",
-        "activeCannotModify": "This automation is published and cannot be modified. Create a new version to make changes."
+        "hasActiveTriggers": "This automation has active triggers — edits take effect immediately."
       },
       "toolbar": {
         "focus": "Focus",
@@ -1555,8 +1542,7 @@
       "fallbackFile": "File",
       "loading": "Loading...",
       "notFound": "Automation not found.",
-      "welcomeDraft": "Hi! I'm your automation assistant. I can help you create and edit this automation. Just describe what you want to automate, and I'll build it for you!",
-      "welcomeActive": "Hi! I'm your automation assistant. I can help you understand and discuss this automation. What would you like to know?",
+      "welcome": "Hi! I'm your automation assistant. I can help you create, edit, and discuss this automation. What would you like to do?",
       "errorMessage": "I'm sorry, I encountered an error. Please try again or check the console for details.",
       "thinking": {
         "thinking": "Thinking",

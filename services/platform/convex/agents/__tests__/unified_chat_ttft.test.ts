@@ -24,6 +24,13 @@ vi.mock('../../governance/pii', () => ({
 }));
 
 vi.mock('../../_generated/api', () => ({
+  components: {
+    betterAuth: {
+      adapter: {
+        findOne: 'betterAuth.adapter.findOne',
+      },
+    },
+  },
   internal: {
     governance: {
       internal_queries: {
@@ -170,6 +177,11 @@ describe('chatWithAgent — TTFT parallelization', () => {
             (args as { modelIds?: string[] } | undefined)?.modelIds ?? [],
           );
         }
+        if (
+          (args as { model?: string } | undefined)?.model === 'organization'
+        ) {
+          return Promise.resolve({ slug: 'default' });
+        }
         return Promise.resolve(null);
       }),
       runAction: vi.fn().mockResolvedValue({
@@ -220,6 +232,9 @@ describe('chatWithAgent — TTFT parallelization', () => {
           (args as { modelIds?: string[] } | undefined)?.modelIds ?? [],
         );
       }
+      if ((args as { model?: string } | undefined)?.model === 'organization') {
+        return Promise.resolve({ slug: 'default' });
+      }
       return Promise.resolve(null);
     });
 
@@ -250,7 +265,6 @@ describe('chatWithAgent — TTFT parallelization', () => {
       agentSlug: 'test-agent',
       threadId: 'thread_1',
       organizationId: 'org_1',
-      orgSlug: 'default',
       message: 'hello',
     });
     const elapsed = Date.now() - start;
@@ -277,7 +291,6 @@ describe('chatWithAgent — TTFT parallelization', () => {
       agentSlug: 'test-agent',
       threadId: 'thread_1',
       organizationId: 'org_1',
-      orgSlug: 'default',
       message: 'user@example.com',
     });
 
@@ -308,7 +321,6 @@ describe('chatWithAgent — TTFT parallelization', () => {
       agentSlug: 'test-agent',
       threadId: 'thread_1',
       organizationId: 'org_1',
-      orgSlug: 'default',
       message: 'hello',
     });
 

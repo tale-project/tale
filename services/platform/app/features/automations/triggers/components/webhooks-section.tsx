@@ -29,7 +29,6 @@ import { SecretRevealDialog } from './secret-reveal-dialog';
 interface WebhooksSectionProps {
   workflowRootId: string;
   organizationId: string;
-  orgSlug: string;
   workflowSlug: string;
 }
 
@@ -38,7 +37,6 @@ type WebhookRow = WfWebhook;
 export function WebhooksSection({
   workflowRootId: _workflowRootId,
   organizationId,
-  orgSlug: _orgSlug,
   workflowSlug,
 }: WebhooksSectionProps) {
   const { t } = useT('automations');

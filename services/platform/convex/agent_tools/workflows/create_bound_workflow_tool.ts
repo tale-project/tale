@@ -216,10 +216,14 @@ export function createBoundWorkflowTool(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- readWorkflowForExecution returns v.any() but ok=true guarantees WorkflowJsonConfig
       const config = result.config as WorkflowJsonConfig;
 
-      if (!config.enabled) {
+      const installation = await ctx.runQuery(
+        internal.workflows.installations.getInstallationInternal,
+        { organizationId, workflowSlug: wfDefinition.workflowSlug },
+      );
+      if (!installation) {
         return {
           success: false,
-          message: `Workflow "${wfDefinition.name}" is disabled and cannot be executed.`,
+          message: `Workflow "${wfDefinition.name}" is not installed in this deployment.`,
         };
       }
 

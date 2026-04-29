@@ -107,10 +107,14 @@ This tool creates an approval card. The user must click "Run Workflow" to confir
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- readWorkflowForExecution returns v.any() but ok=true guarantees WorkflowJsonConfig
       const config = result.config as WorkflowJsonConfig;
 
-      if (!config.enabled) {
+      const installation = await ctx.runQuery(
+        internal.workflows.installations.getInstallationInternal,
+        { organizationId, workflowSlug: args.workflowSlug },
+      );
+      if (!installation) {
         return {
           success: false,
-          message: `Workflow "${config.name}" is disabled and cannot be executed. Enable it first.`,
+          message: `Workflow "${config.name}" is not installed in this deployment.`,
         };
       }
 

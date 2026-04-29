@@ -3,6 +3,7 @@
 import { ExternalLink, Loader2 } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { CollapsibleGuide } from '@/app/components/ui/data-display/collapsible-guide';
 import {
   type StatGridItem,
   StatGrid,
@@ -185,6 +186,13 @@ export function IntegrationActiveView({
           result={testResult}
           onDismiss={onDismissTestResult}
           closeLabel={tCommon('aria.close')}
+        />
+      )}
+
+      {typeof integration.setupGuide === 'string' && (
+        <CollapsibleGuide
+          label={t('integrations.manageDialog.setupGuide')}
+          content={integration.setupGuide}
         />
       )}
     </Stack>

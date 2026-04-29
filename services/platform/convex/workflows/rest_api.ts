@@ -156,6 +156,13 @@ export const postWorkflow = withRestAuth('rest:api', async (rc, request) => {
 
   if (resource === 'schedules') {
     const body = await request.json();
+
+    const workflowRead = await rc.ctx.runAction(
+      internal.workflows.file_actions.readWorkflowForExecution,
+      { orgSlug: rc.org.orgSlug, workflowSlug: slug },
+    );
+    const requires = workflowRead.ok ? workflowRead.config.requires : undefined;
+
     const scheduleId = await rc.ctx.runMutation(
       internal.workflows.triggers.internal_mutations.createScheduleInternal,
       {
@@ -164,6 +171,8 @@ export const postWorkflow = withRestAuth('rest:api', async (rc, request) => {
         cronExpression: body.cronExpression,
         timezone: body.timezone,
         createdBy: rc.user.email,
+        variables: body.variables,
+        requires,
       },
     );
     return jsonCreated({ id: scheduleId });
@@ -220,6 +229,7 @@ export const patchWorkflow = withRestAuth('rest:api', async (rc, request) => {
         cronExpression: body.cronExpression,
         timezone: body.timezone,
         isActive: body.isActive,
+        variables: body.variables,
       },
     );
     return jsonNoContent();

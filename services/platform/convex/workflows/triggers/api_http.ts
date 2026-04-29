@@ -69,6 +69,19 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
     return jsonResponse({ error: 'API key has expired' }, 403);
   }
 
+  if (apiKeyRecord.workflowSlug) {
+    const installation = await ctx.runQuery(
+      internal.workflows.installations.getInstallationInternal,
+      {
+        organizationId: apiKeyRecord.organizationId,
+        workflowSlug: apiKeyRecord.workflowSlug,
+      },
+    );
+    if (!installation) {
+      return jsonResponse({ error: 'Workflow is not installed' }, 403);
+    }
+  }
+
   // Parse request body
   let body: {
     workflowRootId?: string;

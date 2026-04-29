@@ -9,32 +9,38 @@ import { api } from '@/convex/_generated/api';
 
 type WorkflowFilter = 'installed' | 'templates' | 'all';
 
-export function useListWorkflows(orgSlug: string, filter?: WorkflowFilter) {
+export function useListWorkflows(
+  organizationId: string,
+  filter?: WorkflowFilter,
+) {
   const { data, isLoading, error, refetch } = useActionQuery(
-    ['config', 'workflows', orgSlug, '_list', filter],
+    ['config', 'workflows', organizationId, '_list', filter],
     api.workflows.file_actions.listWorkflows,
-    { orgSlug, filter },
+    { organizationId, filter },
   );
   return { workflows: data, isLoading, error, refetch };
 }
 
 export function useReadWorkflow(
-  orgSlug: string,
+  organizationId: string,
   workflowSlug: string | undefined,
 ) {
   return useActionQuery(
-    configKeys.detail('workflows', orgSlug, workflowSlug ?? ''),
+    configKeys.detail('workflows', organizationId, workflowSlug ?? ''),
     api.workflows.file_actions.readWorkflow,
-    { orgSlug, workflowSlug: workflowSlug ?? '' },
+    { organizationId, workflowSlug: workflowSlug ?? '' },
     { enabled: !!workflowSlug },
   );
 }
 
-export function useWorkflowHistory(orgSlug: string, workflowSlug: string) {
+export function useWorkflowHistory(
+  organizationId: string,
+  workflowSlug: string,
+) {
   const { data, isLoading, error, refetch } = useActionQuery(
-    configKeys.history('workflows', orgSlug, workflowSlug),
+    configKeys.history('workflows', organizationId, workflowSlug),
     api.workflows.file_actions.listHistory,
-    { orgSlug, workflowSlug },
+    { organizationId, workflowSlug },
   );
   return { history: data, isLoading, error, refetch };
 }

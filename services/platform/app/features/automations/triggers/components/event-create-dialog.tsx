@@ -34,7 +34,6 @@ interface EventCreateDialogProps {
   onOpenChange: (open: boolean) => void;
   workflowRootId: string;
   organizationId: string;
-  orgSlug: string;
   workflowSlug: string;
   existingEventTypes: string[];
   editing?: EditingSubscription | null;
@@ -45,7 +44,6 @@ export function EventCreateDialog({
   onOpenChange,
   workflowRootId,
   organizationId,
-  orgSlug: _orgSlug,
   workflowSlug,
   existingEventTypes,
   editing,
@@ -79,7 +77,7 @@ export function EventCreateDialog({
     [selectedEventType],
   );
 
-  const { workflows: rawWorkflows } = useListWorkflows('default');
+  const { workflows: rawWorkflows } = useListWorkflows(organizationId);
   const workflows = useMemo(() => {
     const result: { _id: string; name: string }[] = [];
     for (const w of rawWorkflows ?? []) {

@@ -32,7 +32,7 @@ export function loadFileWorkflow(
     name: config.name,
     description: config.description,
     version: config.version ?? '1.0.0',
-    status: config.enabled ? 'active' : 'inactive',
+    status: 'active',
     workflowType: 'predefined',
     config: config.config
       ? {
