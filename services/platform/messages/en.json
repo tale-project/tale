@@ -65,7 +65,18 @@
       "clickToUpload": "Click to upload",
       "supportedFormats": ".xlsx, .xls or .csv",
       "pickADate": "Pick a date",
-      "dropFilesHere": "Drop files here to upload"
+      "dropFilesHere": "Drop files here to upload",
+      "acceptHint": "JSON files, folders, or .zip archives",
+      "pickFiles": "Choose files",
+      "pickFolder": "Choose folder",
+      "pickZip": "Choose zip",
+      "summary": "{total} entries · {saved} saved · {queued} pending",
+      "conflictHeading": "{count, plural, one {# entry already exists} other {# entries already exist}}",
+      "conflictHint": "Existing entries will be skipped unless you allow overwrites. Overwriting saves the previous version to history.",
+      "overwriteToggle": "Overwrite existing entries",
+      "statusExists": "Already exists — will be skipped",
+      "willOverwrite": "Already exists — will overwrite",
+      "statusSkipped": "Skipped"
     },
     "labels": {
       "name": "Name",
@@ -595,6 +606,12 @@
         "modelPlaceholder": "Select a model",
         "modelSearch": "Search models…",
         "modelEmpty": "No models found"
+      },
+      "uploadDialog": {
+        "menuItem": "Upload from file…",
+        "title": "Upload agents",
+        "description": "Import agent JSON files, folders, or .zip archives. Each .json file installs as a separate agent.",
+        "toastSuccess": "Agents imported"
       },
       "general": {
         "visibleInChat": "Visible in chat",
@@ -1443,6 +1460,12 @@
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
       "continue": "Continue"
+    },
+    "uploadDialog": {
+      "menuItem": "Upload from file…",
+      "title": "Upload automations",
+      "description": "Import workflow JSON files, folders, or .zip archives. Each .json file installs as a separate automation.",
+      "toastSuccess": "Automations imported"
     },
     "templates": {
       "description": "Choose a template to get started with pre-configured steps.",

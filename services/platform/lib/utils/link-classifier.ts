@@ -4,6 +4,17 @@ type LinkKind =
   | { kind: 'hash'; href: string }
   | { kind: 'special'; href: string };
 
+// Backend-proxied path prefixes: served by Caddy/Vite via reverse-proxy to
+// Convex or the platform server. They are NOT TanStack Router routes, so
+// `router.navigate` against them is a silent no-op (left-click does nothing).
+const BACKEND_PREFIXES = ['/api/', '/http_api/', '/ws_api/', '/metrics/'];
+
+function isBackendPath(pathname: string): boolean {
+  return BACKEND_PREFIXES.some(
+    (p) => pathname === p.slice(0, -1) || pathname.startsWith(p),
+  );
+}
+
 export function classifyLink(href: string | undefined): LinkKind | null {
   if (!href) return null;
   const trimmed = href.trim();
@@ -16,7 +27,9 @@ export function classifyLink(href: string | undefined): LinkKind | null {
   }
 
   if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
-    return { kind: 'internal', to: trimmed };
+    return isBackendPath(trimmed)
+      ? { kind: 'external', href: trimmed }
+      : { kind: 'internal', to: trimmed };
   }
 
   if (typeof window === 'undefined') {
@@ -26,7 +39,9 @@ export function classifyLink(href: string | undefined): LinkKind | null {
   try {
     const url = new URL(trimmed, window.location.href);
     if (url.origin === window.location.origin) {
-      return { kind: 'internal', to: url.pathname + url.search + url.hash };
+      return isBackendPath(url.pathname)
+        ? { kind: 'external', href: url.toString() }
+        : { kind: 'internal', to: url.pathname + url.search + url.hash };
     }
     return { kind: 'external', href: url.toString() };
   } catch {

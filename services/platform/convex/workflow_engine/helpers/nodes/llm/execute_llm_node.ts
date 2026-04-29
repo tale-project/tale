@@ -8,12 +8,11 @@
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 import { resolveOrgSlug } from '../../../../organizations/resolve_org_slug';
-import { resolveLanguageModelWithFallback } from '../../../../providers/failover';
-import { resolveLanguageModel } from '../../../../providers/resolve_model';
 import type { StepExecutionResult, LLMNodeConfig } from '../../../types';
 import { executeAgentWithTools } from './execute_agent_with_tools';
 import { createLLMResult } from './utils/create_llm_result';
 import { processPrompts } from './utils/process_prompts';
+import { assertChatTag, resolveChatModel } from './utils/resolve_chat_model';
 import { resolveKnowledgeFileIds } from './utils/resolve_knowledge_file_ids';
 import { validateAndNormalizeConfig } from './utils/validate_and_normalize_config';
 
@@ -38,13 +37,16 @@ export async function executeLLMNode(
   threadId?: string,
   stepSlug?: string,
 ): Promise<StepExecutionResult> {
-  // 1. Resolve default model from provider files, then validate and normalize config.
-  // Use fallback-aware resolution unless the step explicitly disables it.
-  // orgSlug ensures the workflow uses its owning org's providers / API keys.
+  // 1. Resolve the chat model. When the step pins `config.model`, route to that
+  // exact ref (with model-level failover unless `noFallback` is set);
+  // otherwise resolve via the org's `defaults.chat` tag-based path.
   const orgSlug = await resolveOrgSlug(ctx, organizationId);
-  const { languageModel, modelData: chatModelData } = config.noFallback
-    ? await resolveLanguageModel(ctx, { tag: 'chat', orgSlug })
-    : await resolveLanguageModelWithFallback(ctx, { tag: 'chat', orgSlug });
+  const { languageModel, modelData: chatModelData } = await resolveChatModel(
+    ctx,
+    config,
+    orgSlug,
+  );
+  assertChatTag(chatModelData, config.model);
   const normalizedConfig = validateAndNormalizeConfig(
     config,
     chatModelData.modelId,

@@ -65,7 +65,18 @@
       "clickToUpload": "Klicken zum Hochladen",
       "supportedFormats": ".xlsx, .xls oder .csv",
       "pickADate": "Datum auswählen",
-      "dropFilesHere": "Dateien hier ablegen zum Hochladen"
+      "dropFilesHere": "Dateien hier ablegen zum Hochladen",
+      "acceptHint": "JSON-Dateien, Ordner oder .zip-Archive",
+      "pickFiles": "Dateien wählen",
+      "pickFolder": "Ordner wählen",
+      "pickZip": "ZIP wählen",
+      "summary": "{total} Einträge · {saved} gespeichert · {queued} ausstehend",
+      "conflictHeading": "{count, plural, one {# Eintrag existiert bereits} other {# Einträge existieren bereits}}",
+      "conflictHint": "Bestehende Einträge werden übersprungen, sofern du das Überschreiben nicht erlaubst. Beim Überschreiben wird die vorherige Version in der Historie gesichert.",
+      "overwriteToggle": "Bestehende Einträge überschreiben",
+      "statusExists": "Existiert bereits — wird übersprungen",
+      "willOverwrite": "Existiert bereits — wird überschrieben",
+      "statusSkipped": "Übersprungen"
     },
     "labels": {
       "name": "Name",
@@ -595,6 +606,12 @@
         "modelPlaceholder": "Modell auswählen",
         "modelSearch": "Modelle suchen…",
         "modelEmpty": "Keine Modelle gefunden"
+      },
+      "uploadDialog": {
+        "menuItem": "Aus Datei hochladen…",
+        "title": "Agents hochladen",
+        "description": "Importiere Agent-JSON-Dateien, Ordner oder .zip-Archive. Jede .json-Datei wird als eigener Agent installiert.",
+        "toastSuccess": "Agents importiert"
       },
       "general": {
         "visibleInChat": "Im Chat sichtbar",
@@ -1443,6 +1460,12 @@
       "descriptionPlaceholder": "Beschreibe, was diese Automatisierung tut...",
       "creating": "Wird erstellt...",
       "continue": "Weiter"
+    },
+    "uploadDialog": {
+      "menuItem": "Aus Datei hochladen…",
+      "title": "Automatisierungen hochladen",
+      "description": "Importiere Workflow-JSON-Dateien, Ordner oder .zip-Archive. Jede .json-Datei wird als eigene Automatisierung installiert.",
+      "toastSuccess": "Automatisierungen importiert"
     },
     "templates": {
       "description": "Wähle eine Vorlage mit vorkonfigurierten Schritten.",

@@ -305,7 +305,8 @@ function buildDescription(
 
   lines.push(
     '',
-    'This creates an approval card. Do NOT mention its position. The user must approve before execution begins.',
+    'This creates an approval card rendered separately by the UI. The user must approve before execution begins.',
+    'When telling the user the card is ready, only say it has been created — never describe where it appears, how to find it, or its direction relative to the chat (no "above"/"below"/"上方"/"下方"/"oben"/"unten"/equivalents).',
   );
 
   return lines.join('\n');

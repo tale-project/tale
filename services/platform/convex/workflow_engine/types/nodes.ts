@@ -48,12 +48,17 @@ export interface LLMNodeConfig {
   name: string;
   description?: string;
 
-  // Model configuration (provider-agnostic; any OpenAI-compatible model id)
-  // Model is resolved from provider configuration files and cannot be
-  // customized per step.
-  // Temperature is automatically determined based on outputFormat:
-  // - json → 0.2 (more deterministic for structured output)
-  // - text → 0.5 (balanced creativity)
+  /**
+   * Optional explicit model ref for this step. Format: `provider:modelId`
+   * (e.g. `openrouter:deepseek/deepseek-v4-flash`) or unqualified `modelId`
+   * (resolved against the org's providers; first match wins). When unset,
+   * the step uses the org's `defaults.chat`. The resolved model must carry
+   * the `chat` tag.
+   *
+   * Temperature is automatically determined based on outputFormat:
+   * - json → 0.2 (more deterministic for structured output)
+   * - text → 0.5 (balanced creativity)
+   */
   model?: string;
 
   // Core prompts
