@@ -1151,7 +1151,6 @@
       "errorComingSoon": "Fehlerprotokolle sind bald verfügbar.",
       "blockCounters": {
         "tabLabel": "Anmeldeblockaden",
-        "description": "Stündliche Zähler abgelehnter Anmeldeversuche (Kontosperre oder IP-Flutschutz). Letzte 7 Tage.",
         "tableCaption": "Anmeldeblockaden",
         "empty": "Keine abgelehnten Anmeldeversuche in den letzten 7 Tagen.",
         "emptyTitle": "Keine Anmeldeblockaden",

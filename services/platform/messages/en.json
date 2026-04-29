@@ -1151,7 +1151,6 @@
       "errorComingSoon": "Error logs are coming soon.",
       "blockCounters": {
         "tabLabel": "Sign-in blocks",
-        "description": "Hourly counters of sign-in attempts rejected at the gate (account lockout or per-IP flood guard). Last 7 days.",
         "tableCaption": "Sign-in block activity",
         "empty": "No rejected sign-in attempts in the last 7 days.",
         "emptyTitle": "No sign-in blocks",

@@ -1151,7 +1151,6 @@
       "errorComingSoon": "Les journaux d'erreurs seront bientôt disponibles.",
       "blockCounters": {
         "tabLabel": "Blocages de connexion",
-        "description": "Compteurs horaires des tentatives de connexion rejetées (verrouillage de compte ou protection contre les inondations par IP). 7 derniers jours.",
         "tableCaption": "Activité des blocages de connexion",
         "empty": "Aucune tentative de connexion rejetée au cours des 7 derniers jours.",
         "emptyTitle": "Aucun blocage de connexion",
