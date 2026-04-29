@@ -9,6 +9,7 @@ import {
 import type { ModelMessage } from 'ai';
 import type { FunctionHandle } from 'convex/server';
 import { v } from 'convex/values';
+import { snakeCase } from 'lodash';
 
 import { parseModelRef } from '../../../lib/shared/utils/model-ref';
 import {
@@ -28,10 +29,7 @@ import { fetchOperationsWithSchema } from '../../agent_tools/integrations/fetch_
 import { createBoundMcpTool } from '../../agent_tools/mcp/create_bound_mcp_tool';
 import { TOOL_NAMES, type ToolName } from '../../agent_tools/tool_names';
 import { getToolRegistryMap } from '../../agent_tools/tool_registry';
-import {
-  createBoundWorkflowTool,
-  sanitizeWorkflowName,
-} from '../../agent_tools/workflows/create_bound_workflow_tool';
+import { createBoundWorkflowTool } from '../../agent_tools/workflows/create_bound_workflow_tool';
 import { extractInputSchema } from '../../agent_tools/workflows/helpers/extract_input_schema';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { recordFailure } from '../../providers/circuit_breaker';
@@ -820,18 +818,13 @@ async function buildWorkflowTools(
       const config = result.config as {
         name: string;
         description?: string;
-        enabled?: boolean;
         steps: Array<{ stepType: string; config?: unknown }>;
       };
-
-      if (!config.enabled) {
-        return null;
-      }
 
       const startStep = config.steps.find((s) => s.stepType === 'start');
       const inputSchema = extractInputSchema(startStep?.config);
 
-      const toolKey = `workflow_${sanitizeWorkflowName(config.name)}_${slug}`;
+      const toolKey = `workflow_${snakeCase(slug)}`;
       return {
         key: toolKey,
         tool: createBoundWorkflowTool(
