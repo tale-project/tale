@@ -72,7 +72,7 @@
       "pickZip": "ZIP wählen",
       "summary": "{total} Einträge · {saved} gespeichert · {queued} ausstehend",
       "conflictHeading": "{count, plural, one {# Eintrag existiert bereits} other {# Einträge existieren bereits}}",
-      "conflictHint": "Bestehende Einträge werden übersprungen, sofern du das Überschreiben nicht erlaubst. Beim Überschreiben wird die vorherige Version in der Historie gesichert.",
+      "conflictHint": "Bestehende Einträge werden überschrieben. Die vorherige Version wird in der Historie gesichert. Häkchen entfernen, um sie stattdessen zu überspringen.",
       "overwriteToggle": "Bestehende Einträge überschreiben",
       "statusExists": "Existiert bereits — wird übersprungen",
       "willOverwrite": "Existiert bereits — wird überschrieben",
@@ -619,7 +619,9 @@
         "sectionAdvanced": "Erweitert",
         "sectionAdvancedDescription": "Ausführungsverhalten des Agents feinabstimmen.",
         "timeoutMinutes": "Ausführungs-Timeout (Minuten)",
-        "timeoutMinutesHelp": "Maximale Laufzeit des Agents pro Nachricht. Erhöhe den Wert für Aufgaben mit vielen Dateioperationen oder Sub-Agent-Delegationen."
+        "timeoutMinutesHelp": "Maximale Laufzeit des Agents pro Nachricht. Erhöhe den Wert für Aufgaben mit vielen Dateioperationen oder Sub-Agent-Delegationen.",
+        "responseCache": "Antworten zwischenspeichern",
+        "responseCacheHelp": "Wenn dieselbe Anfrage in ähnlichem Kontext erneut gestellt wird, die zuvor generierte Antwort zurückgeben statt das Modell erneut auszuführen. Spart Kosten und Latenz auf Kosten der Aktualität."
       },
       "conversationStarters": {
         "title": "Gesprächseinstiege",
@@ -745,10 +747,7 @@
         "webModeContextDescription": "Automatisch relevante Webergebnisse in jede Antwort einfügen",
         "webModeBothDescription": "Webergebnisse automatisch einfügen und Suche bei Bedarf ermöglichen",
         "webSearchHint": "Die Websuche durchsucht nur Inhalte von Websites, die deiner Organisation hinzugefügt wurden.",
-        "webSearchHintLink": "Websites verwalten",
-        "cacheExclusions": "Cache-Ausschlüsse",
-        "cacheExclusionsDescription": "Wenn eines dieser Tools aufgerufen wird, wird die Antwort nicht zwischengespeichert",
-        "noCacheToolsEmpty": "Aktiviere Response-Caching-Tools, um Ausschlüsse zu konfigurieren"
+        "webSearchHintLink": "Websites verwalten"
       },
       "webhook": {
         "title": "Webhook",

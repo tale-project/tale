@@ -5,19 +5,11 @@ import type { ActionCtx } from '../../../../../../_generated/server';
 import type { LLMNodeConfig } from '../../../../../types';
 import { assertChatTag, resolveChatModel } from '../resolve_chat_model';
 
-vi.mock('../../../../../../providers/resolve_model', () => ({
-  resolveLanguageModel: vi.fn(),
-  resolveLanguageModelById: vi.fn(),
-}));
 vi.mock('../../../../../../providers/failover', () => ({
   resolveLanguageModelWithFallback: vi.fn(),
 }));
 
 import { resolveLanguageModelWithFallback } from '../../../../../../providers/failover';
-import {
-  resolveLanguageModel,
-  resolveLanguageModelById,
-} from '../../../../../../providers/resolve_model';
 
 const ctx = {} as ActionCtx;
 const orgSlug = 'acme';
@@ -40,8 +32,6 @@ const stubResolved = (modelId = 'm', providerName = 'p') => ({
 });
 
 beforeEach(() => {
-  vi.mocked(resolveLanguageModel).mockReset();
-  vi.mocked(resolveLanguageModelById).mockReset();
   vi.mocked(resolveLanguageModelWithFallback).mockReset();
 });
 
@@ -55,18 +45,6 @@ describe('resolveChatModel', () => {
       tag: 'chat',
       orgSlug,
     });
-    expect(resolveLanguageModel).not.toHaveBeenCalled();
-    expect(resolveLanguageModelById).not.toHaveBeenCalled();
-  });
-
-  it('uses resolveLanguageModel (no failover) when model is unset and noFallback is true', async () => {
-    vi.mocked(resolveLanguageModel).mockResolvedValue(stubResolved());
-    await resolveChatModel(ctx, { ...baseConfig, noFallback: true }, orgSlug);
-    expect(resolveLanguageModel).toHaveBeenCalledWith(ctx, {
-      tag: 'chat',
-      orgSlug,
-    });
-    expect(resolveLanguageModelWithFallback).not.toHaveBeenCalled();
   });
 
   it('routes a qualified explicit model ref through the failover resolver', async () => {
@@ -84,8 +62,6 @@ describe('resolveChatModel', () => {
       tag: 'chat',
       orgSlug,
     });
-    expect(resolveLanguageModel).not.toHaveBeenCalled();
-    expect(resolveLanguageModelById).not.toHaveBeenCalled();
   });
 
   it('routes an unqualified explicit model ref (no provider) through the failover resolver', async () => {
@@ -99,25 +75,6 @@ describe('resolveChatModel', () => {
       tag: 'chat',
       orgSlug,
     });
-  });
-
-  it('uses resolveLanguageModelById (no failover) when explicit model + noFallback', async () => {
-    vi.mocked(resolveLanguageModelById).mockResolvedValue(stubResolved());
-    await resolveChatModel(
-      ctx,
-      {
-        ...baseConfig,
-        model: 'openrouter:deepseek/deepseek-v4-flash',
-        noFallback: true,
-      },
-      orgSlug,
-    );
-    expect(resolveLanguageModelById).toHaveBeenCalledWith(ctx, {
-      modelId: 'deepseek/deepseek-v4-flash',
-      providerName: 'openrouter',
-      orgSlug,
-    });
-    expect(resolveLanguageModelWithFallback).not.toHaveBeenCalled();
   });
 
   it('treats whitespace-only model as unset', async () => {

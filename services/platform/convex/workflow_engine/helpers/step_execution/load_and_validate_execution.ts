@@ -84,6 +84,7 @@ export async function loadAndValidateExecution(
           string,
           { kind: 'inlineEncrypted'; cipherText: string; keyId?: string }
         >;
+        models?: string[];
       };
     },
   };

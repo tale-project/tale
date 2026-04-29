@@ -162,7 +162,6 @@ function buildBlockedReturn(
   };
 }
 import { computeCacheKey } from '../response_cache/cache_key';
-import { areAllToolsCacheable } from '../response_cache/tool_cacheability';
 import { resolveTemplateVariables } from './resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
 import type {
@@ -456,8 +455,8 @@ export async function generateAgentResponse(
     agentTeamIds,
     knowledgeFileIds,
     structuredResponsesEnabled,
+    responseCacheEnabled,
     responseCacheTtlMs,
-    noCacheToolNames,
     instructions,
     toolsSummary,
   } = config;
@@ -933,17 +932,22 @@ export async function generateAgentResponse(
       : structuredThreadContext.threadContext;
 
     // ── Response cache lookup ──
-    // Multimodal prompts (ModelMessage[]) must contribute a stable fingerprint
-    // to the key, otherwise two requests with identical text but different
-    // images would collide on an empty-string user-message slot.
-    const cacheKey = computeCacheKey({
-      agentName: agentType,
-      model,
-      instructions: instructions ?? '',
-      threadContext: structuredThreadContext.threadContext,
-      userMessage: fingerprintPrompt(promptToSend),
-      generationParams,
-    });
+    // Cache is opt-in: only compute a key when the agent explicitly sets
+    // `responseCacheEnabled: true`. Multimodal prompts (ModelMessage[]) must
+    // contribute a stable fingerprint to the key, otherwise two requests with
+    // identical text but different images would collide on an empty-string
+    // user-message slot.
+    const cacheKey =
+      responseCacheEnabled === true
+        ? computeCacheKey({
+            agentName: agentType,
+            model,
+            instructions: instructions ?? '',
+            threadContext: structuredThreadContext.threadContext,
+            userMessage: fingerprintPrompt(promptToSend),
+            generationParams,
+          })
+        : null;
 
     if (cacheKey) {
       const exactLookupStart = Date.now();
@@ -1897,33 +1901,32 @@ export async function generateAgentResponse(
       toolCitations.length > 0 ? toolCitations : contextCitations;
 
     // ── Response cache store ──
+    // `cacheKey` is non-null only when responseCacheEnabled === true; the
+    // gate at the top of the function is the single source of truth.
     if (cacheKey && result.text?.trim()) {
-      const calledToolNames = toolCalls.map((tc) => tc.toolName);
-      if (areAllToolsCacheable(calledToolNames, noCacheToolNames)) {
-        try {
-          await ctx.runMutation(
-            internal.lib.response_cache.internal_mutations.storeCache,
-            {
-              cacheKey,
-              responseText: result.text,
-              model: result.response?.modelId ?? model,
-              provider,
-              usage: result.usage
-                ? {
-                    inputTokens: result.usage.inputTokens,
-                    outputTokens: result.usage.outputTokens,
-                    totalTokens: result.usage.totalTokens,
-                  }
-                : undefined,
-              organizationId,
-              agentSlug: agentType,
-              ttlMs: responseCacheTtlMs,
-            },
-          );
-          debugLog('CACHE_STORE', { cacheKey, threadId });
-        } catch (err) {
-          debugLog('CACHE_STORE_ERROR', { error: String(err), cacheKey });
-        }
+      try {
+        await ctx.runMutation(
+          internal.lib.response_cache.internal_mutations.storeCache,
+          {
+            cacheKey,
+            responseText: result.text,
+            model: result.response?.modelId ?? model,
+            provider,
+            usage: result.usage
+              ? {
+                  inputTokens: result.usage.inputTokens,
+                  outputTokens: result.usage.outputTokens,
+                  totalTokens: result.usage.totalTokens,
+                }
+              : undefined,
+            organizationId,
+            agentSlug: agentType,
+            ttlMs: responseCacheTtlMs,
+          },
+        );
+        debugLog('CACHE_STORE', { cacheKey, threadId });
+      } catch (err) {
+        debugLog('CACHE_STORE_ERROR', { error: String(err), cacheKey });
       }
     }
 

@@ -20,6 +20,7 @@ import { initializeExecutionVariables } from '../step_execution/initialize_execu
 import { loadAndValidateExecution } from '../step_execution/load_and_validate_execution';
 import { persistExecutionResult } from '../step_execution/persist_execution_result';
 import { buildWorkflowUserProfile } from './build_workflow_user_profile';
+import { mergeWorkflowLevelLLMModels } from './merge_workflow_llm_models';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -188,7 +189,17 @@ export async function handleExecuteStep(
     });
   }
 
-  const processedStepDef = { ...stepDef, config: processedConfig };
+  // For LLM steps, inherit workflow-level `config.models` when the step
+  // defines neither `model` nor `models`. Mirrors retryPolicy inheritance.
+  const finalConfig =
+    args.stepType === 'llm'
+      ? mergeWorkflowLevelLLMModels(
+          processedConfig,
+          workflowConfig.config?.models,
+        )
+      : processedConfig;
+
+  const processedStepDef = { ...stepDef, config: finalConfig };
 
   // 6. Execute step by type
   const result = await executeStepByType(

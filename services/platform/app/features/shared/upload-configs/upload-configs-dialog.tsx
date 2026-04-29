@@ -97,7 +97,11 @@ function UploadConfigsDialogContent({
 
   const [rows, setRows] = useState<Row[]>([]);
   const [isImporting, setIsImporting] = useState(false);
-  const [overwriteConflicts, setOverwriteConflicts] = useState(false);
+  // Default to overwrite: when files exist, the user almost always intends
+  // to update them in-place. Backends are non-destructive (history is
+  // preserved on overwrite); the warning banner still surfaces the action so
+  // users can opt out per-upload by unchecking the toggle.
+  const [overwriteConflicts, setOverwriteConflicts] = useState(true);
 
   const handleFilesPicked = useCallback(
     async (files: File[]) => {
@@ -203,7 +207,7 @@ function UploadConfigsDialogContent({
   const handleClose = useCallback(() => {
     if (isImporting) return;
     setRows([]);
-    setOverwriteConflicts(false);
+    setOverwriteConflicts(true);
     onOpenChange(false);
   }, [isImporting, onOpenChange]);
 

@@ -26,6 +26,9 @@ const workflowConfigSchema = z.object({
   retryPolicy: retryPolicySchema.optional(),
   variables: z.record(z.string(), z.unknown()).optional(),
   secrets: z.record(z.string(), secretRefSchema).optional(),
+  // Workflow-level fallback chain inherited by every LLM step that defines
+  // neither `model` nor `models`. Step-level overrides win.
+  models: z.array(z.string()).optional(),
 });
 
 const stepTypeSchema = z.enum([

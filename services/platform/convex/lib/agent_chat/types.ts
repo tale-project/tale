@@ -60,12 +60,10 @@ export interface SerializableAgentConfig {
   outputReserve?: number;
   /** Ordered fallback model IDs (tried in sequence when primary fails) */
   fallbackModels?: string[];
-  /** Whether response caching is enabled (default true) */
+  /** Whether response caching is enabled. Default false (opt-in). */
   responseCacheEnabled?: boolean;
   /** Cache TTL in milliseconds (default 24 hours) */
   responseCacheTtlMs?: number;
-  /** Tool names whose invocation should prevent caching the response */
-  noCacheToolNames?: string[];
 }
 
 /**
