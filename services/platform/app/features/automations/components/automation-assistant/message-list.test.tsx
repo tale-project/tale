@@ -89,7 +89,7 @@ function createCreationApproval(
 const defaultProps = {
   isLoading: false,
   isWaitingForResponse: false,
-  workflow: { status: 'active' },
+  workflow: { name: 'Test Workflow' },
   organizationId: 'org-1',
   onImagePreview: vi.fn(),
   workflowRunApprovals: [],

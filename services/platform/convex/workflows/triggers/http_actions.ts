@@ -57,6 +57,19 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     return jsonResponse({ error: 'Webhook is disabled' }, 403);
   }
 
+  if (webhook.workflowSlug) {
+    const installation = await ctx.runQuery(
+      internal.workflows.installations.getInstallationInternal,
+      {
+        organizationId: webhook.organizationId,
+        workflowSlug: webhook.workflowSlug,
+      },
+    );
+    if (!installation) {
+      return jsonResponse({ error: 'Workflow is not installed' }, 403);
+    }
+  }
+
   let bodyText: string;
   try {
     bodyText = await req.text();

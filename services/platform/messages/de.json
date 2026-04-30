@@ -50,10 +50,7 @@
       "import": "Importieren",
       "importing": "Wird importiert...",
       "openMenu": "Menü öffnen",
-      "publish": "Veröffentlichen",
       "rename": "Umbenennen",
-      "deactivate": "Deaktivieren",
-      "deactivating": "Wird deaktiviert...",
       "deleteSelected": "Ausgewählte löschen"
     },
     "bulkActions": {
@@ -68,7 +65,18 @@
       "clickToUpload": "Klicken zum Hochladen",
       "supportedFormats": ".xlsx, .xls oder .csv",
       "pickADate": "Datum auswählen",
-      "dropFilesHere": "Dateien hier ablegen zum Hochladen"
+      "dropFilesHere": "Dateien hier ablegen zum Hochladen",
+      "acceptHint": "JSON-Dateien, Ordner oder .zip-Archive",
+      "pickFiles": "Dateien wählen",
+      "pickFolder": "Ordner wählen",
+      "pickZip": "ZIP wählen",
+      "summary": "{total} Einträge · {saved} gespeichert · {queued} ausstehend",
+      "conflictHeading": "{count, plural, one {# Eintrag existiert bereits} other {# Einträge existieren bereits}}",
+      "conflictHint": "Bestehende Einträge werden überschrieben. Die vorherige Version wird in der Historie gesichert. Häkchen entfernen, um sie stattdessen zu überspringen.",
+      "overwriteToggle": "Bestehende Einträge überschreiben",
+      "statusExists": "Existiert bereits — wird übersprungen",
+      "willOverwrite": "Existiert bereits — wird überschrieben",
+      "statusSkipped": "Übersprungen"
     },
     "labels": {
       "name": "Name",
@@ -94,7 +102,6 @@
       "completed": "Abgeschlossen",
       "failed": "Fehlgeschlagen",
       "waitingForInput": "Wartet auf Eingabe",
-      "published": "Veröffentlicht",
       "draft": "Entwurf",
       "enabled": "Aktiviert",
       "disabled": "Deaktiviert",
@@ -307,8 +314,6 @@
       "existingUserAdded": "Bestehender Benutzer zur Organisation hinzugefügt",
       "automationDuplicated": "Automatisierung erfolgreich dupliziert",
       "automationRenamed": "Automatisierung erfolgreich umbenannt",
-      "automationDeactivated": "Automatisierung erfolgreich deaktiviert",
-      "automationPublished": "Automatisierung erfolgreich veröffentlicht",
       "brandingUpdated": "Branding erfolgreich aktualisiert"
     },
     "error": {
@@ -320,9 +325,7 @@
       "addMemberFailed": "Mitglied konnte nicht hinzugefügt werden",
       "automationDuplicateFailed": "Automatisierung konnte nicht dupliziert werden",
       "automationRenameFailed": "Automatisierung konnte nicht umbenannt werden",
-      "automationDeleteFailed": "Automatisierung konnte nicht gelöscht werden",
-      "automationDeactivateFailed": "Automatisierung konnte nicht deaktiviert werden",
-      "automationPublishFailed": "Automatisierung konnte nicht veröffentlicht werden"
+      "automationDeleteFailed": "Automatisierung konnte nicht gelöscht werden"
     }
   },
   "dialogs": {
@@ -469,6 +472,8 @@
     "organization": {
       "title": "Organisation (optional)",
       "organizationId": "Organisations-ID",
+      "organizationIdHelp": "Wird für API-Integrationen verwendet",
+      "copyOrganizationId": "Organisations-ID kopieren",
       "membersTitle": "Organisationsmitglieder",
       "membersEntityLabel": "Mitglieder",
       "manageAccess": "Zugriff auf die Organisation verwalten",
@@ -604,13 +609,21 @@
         "modelSearch": "Modelle suchen…",
         "modelEmpty": "Keine Modelle gefunden"
       },
+      "uploadDialog": {
+        "menuItem": "Aus Datei hochladen…",
+        "title": "Agents hochladen",
+        "description": "Importiere Agent-JSON-Dateien, Ordner oder .zip-Archive. Jede .json-Datei wird als eigener Agent installiert.",
+        "toastSuccess": "Agents importiert"
+      },
       "general": {
         "visibleInChat": "Im Chat sichtbar",
         "visibleInChatHelp": "Wenn aktiviert, erscheint dieser Agent auf der Chat-Seite zur Auswahl. Wenn deaktiviert, kann der Agent nur durch Delegation von anderen Agents verwendet werden.",
         "sectionAdvanced": "Erweitert",
         "sectionAdvancedDescription": "Ausführungsverhalten des Agents feinabstimmen.",
         "timeoutMinutes": "Ausführungs-Timeout (Minuten)",
-        "timeoutMinutesHelp": "Maximale Laufzeit des Agents pro Nachricht. Erhöhe den Wert für Aufgaben mit vielen Dateioperationen oder Sub-Agent-Delegationen."
+        "timeoutMinutesHelp": "Maximale Laufzeit des Agents pro Nachricht. Erhöhe den Wert für Aufgaben mit vielen Dateioperationen oder Sub-Agent-Delegationen.",
+        "responseCache": "Antworten zwischenspeichern",
+        "responseCacheHelp": "Wenn dieselbe Anfrage in ähnlichem Kontext erneut gestellt wird, die zuvor generierte Antwort zurückgeben statt das Modell erneut auszuführen. Spart Kosten und Latenz auf Kosten der Aktualität."
       },
       "conversationStarters": {
         "title": "Gesprächseinstiege",
@@ -736,10 +749,7 @@
         "webModeContextDescription": "Automatisch relevante Webergebnisse in jede Antwort einfügen",
         "webModeBothDescription": "Webergebnisse automatisch einfügen und Suche bei Bedarf ermöglichen",
         "webSearchHint": "Die Websuche durchsucht nur Inhalte von Websites, die deiner Organisation hinzugefügt wurden.",
-        "webSearchHintLink": "Websites verwalten",
-        "cacheExclusions": "Cache-Ausschlüsse",
-        "cacheExclusionsDescription": "Wenn eines dieser Tools aufgerufen wird, wird die Antwort nicht zwischengespeichert",
-        "noCacheToolsEmpty": "Aktiviere Response-Caching-Tools, um Ausschlüsse zu konfigurieren"
+        "webSearchHintLink": "Websites verwalten"
       },
       "webhook": {
         "title": "Webhook",
@@ -1093,6 +1103,7 @@
       "forgotPassword": "Benutzer, die ihr Passwort vergessen, sollten sich an einen Admin wenden."
     },
     "roles": {
+      "owner": "Inhaber",
       "admin": "Admin",
       "developer": "Entwickler",
       "editor": "Redakteur",
@@ -1140,6 +1151,8 @@
       "openDocs": "API-Dokumentation"
     },
     "logs": {
+      "heading": "Protokolle",
+      "subheading": "Systemprotokolle anzeigen und verwalten.",
       "auditLogs": "Audit-Protokolle",
       "activityLogs": "Aktivitätsprotokolle",
       "errorLogs": "Fehlerprotokolle",
@@ -1147,14 +1160,20 @@
       "errorComingSoon": "Fehlerprotokolle sind bald verfügbar.",
       "blockCounters": {
         "tabLabel": "Anmeldeblockaden",
-        "description": "Stündliche Zähler abgelehnter Anmeldeversuche (Kontosperre oder IP-Flutschutz). Letzte 7 Tage.",
+        "tableCaption": "Anmeldeblockaden",
         "empty": "Keine abgelehnten Anmeldeversuche in den letzten 7 Tagen.",
+        "emptyTitle": "Keine Anmeldeblockaden",
+        "footerCount": "{count, plural, one {# Ergebnis} other {# Ergebnisse}} angezeigt",
         "columns": {
-          "window": "Stunde",
-          "email": "Konto",
-          "lockout": "Sperre",
-          "ipLimit": "IP-Limit",
-          "lastIp": "Letzte IP"
+          "timestamp": "Zeitstempel",
+          "user": "Benutzer",
+          "ipAddress": "IP-Adresse",
+          "lockOut": "Sperre",
+          "ipLimit": "IP-Limit"
+        },
+        "values": {
+          "yes": "Ja",
+          "no": "Nein"
         }
       },
       "audit": {
@@ -1163,7 +1182,7 @@
         "emptyDescription": "Audit-Protokolle werden hier angezeigt, sobald Aktionen in deiner Organisation durchgeführt werden.",
         "detailTitle": "Audit-Protokoll-Details",
         "columns": {
-          "timestamp": "Zeit",
+          "timestamp": "Zeitstempel",
           "action": "Aktion",
           "actor": "Benutzer",
           "actorId": "Benutzer-ID",
@@ -1287,13 +1306,6 @@
     "search": {
       "placeholder": "Automatisierungen suchen"
     },
-    "deactivateDialog": {
-      "title": "Automatisierung deaktivieren",
-      "description": "Möchtest du \"{name}\" wirklich deaktivieren? Alle Trigger werden gestoppt, bis du sie erneut aktivierst."
-    },
-    "activeToggle": {
-      "ariaLabel": "Automatisierung-Aktivstatus umschalten"
-    },
     "createWithAI": "Automatisierung mit KI erstellen",
     "navigation": {
       "editor": "Editor",
@@ -1351,6 +1363,9 @@
           "cronExpression": "Cron-Ausdruck",
           "cronPlaceholder": "0 * * * *",
           "cronHelp": "Standard 5-Feld Cron-Format: Minute Stunde Tag Monat Wochentag",
+          "variablesLabel": "Workflow-Variablen",
+          "variablesDescription": "Eingabeparameter, die bei jedem geplanten Lauf übergeben werden. Vorausgefüllt aus dem Eingabeschema des Workflows.",
+          "variablesInvalid": "Variablen müssen ein gültiges JSON-Objekt sein",
           "presets": {
             "every5Minutes": "Alle 5 Minuten",
             "hourly": "Jede Stunde",
@@ -1455,6 +1470,12 @@
       "creating": "Wird erstellt...",
       "continue": "Weiter"
     },
+    "uploadDialog": {
+      "menuItem": "Aus Datei hochladen…",
+      "title": "Automatisierungen hochladen",
+      "description": "Importiere Workflow-JSON-Dateien, Ordner oder .zip-Archive. Jede .json-Datei wird als eigene Automatisierung installiert.",
+      "toastSuccess": "Automatisierungen importiert"
+    },
     "templates": {
       "description": "Wähle eine Vorlage mit vorkonfigurierten Schritten.",
       "installFailed": "Automatisierung konnte nicht aus Vorlage erstellt werden",
@@ -1470,8 +1491,7 @@
         "apiNotWired": "Öffentliche APIs zum Bearbeiten von Workflow-Schritten sind noch nicht verbunden."
       },
       "banners": {
-        "draftNotPublished": "Diese Automatisierung ist noch nicht veröffentlicht",
-        "activeCannotModify": "Diese Automatisierung ist veröffentlicht und kann nicht geändert werden. Erstelle eine neue Version, um Änderungen vorzunehmen."
+        "hasActiveTriggers": "Diese Automatisierung hat aktive Trigger — Änderungen werden sofort wirksam."
       },
       "toolbar": {
         "focus": "Fokus",
@@ -1554,8 +1574,7 @@
       "fallbackFile": "Datei",
       "loading": "Wird geladen...",
       "notFound": "Automatisierung nicht gefunden.",
-      "welcomeDraft": "Hallo! Ich bin dein Automatisierungsassistent. Ich kann dir helfen, diese Automatisierung zu erstellen und zu bearbeiten. Beschreibe einfach, was du automatisieren möchtest, und ich baue es für dich!",
-      "welcomeActive": "Hallo! Ich bin dein Automatisierungsassistent. Ich kann dir helfen, diese Automatisierung zu verstehen und zu besprechen. Was möchtest du wissen?",
+      "welcome": "Hallo! Ich bin dein Automatisierungsassistent. Ich kann dir helfen, diese Automatisierung zu erstellen, zu bearbeiten und zu besprechen. Was möchtest du tun?",
       "errorMessage": "Es tut mir leid, ein Fehler ist aufgetreten. Bitte versuche es erneut oder prüfe die Konsole für Details.",
       "thinking": {
         "thinking": "Denkt nach",

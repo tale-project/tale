@@ -588,6 +588,64 @@ export const getAllModelIds = internalAction({
 });
 
 /**
+ * Like getAllModelIds but reads provider JSON configs directly without
+ * requiring secrets. For config-time validation paths (e.g. saveAgent)
+ * where reference validity must be decoupled from runtime API-key
+ * availability — a provider config existing without an API key yet is a
+ * legitimate state, not a missing reference.
+ */
+export const getAllConfiguredModelIds = internalAction({
+  args: { orgSlug: v.optional(v.string()) },
+  returns: v.array(
+    v.object({
+      id: v.string(),
+      tags: v.array(v.string()),
+      providerName: v.string(),
+      displayName: v.optional(v.string()),
+    }),
+  ),
+  handler: async (_ctx, args) => {
+    const orgSlug = args.orgSlug ?? 'default';
+    const dir = resolveProvidersDir(orgSlug);
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch {
+      return [];
+    }
+    const jsonFiles = entries.filter(
+      (e) =>
+        e.endsWith('.json') &&
+        !e.startsWith('.') &&
+        !e.endsWith('.secrets.json'),
+    );
+    const models: Array<{
+      id: string;
+      tags: string[];
+      providerName: string;
+      displayName?: string;
+    }> = [];
+    await Promise.all(
+      jsonFiles.map(async (fileName) => {
+        const name = providerNameFromFileName(fileName);
+        if (!validateProviderName(name)) return;
+        const result = await readProviderFile(orgSlug, name);
+        if (!result.ok) return;
+        for (const m of result.config.models) {
+          models.push({
+            id: m.id,
+            tags: [...m.tags],
+            providerName: name,
+            displayName: m.displayName,
+          });
+        }
+      }),
+    );
+    return models;
+  },
+});
+
+/**
  * Get all provider configs (public data only, no secrets).
  */
 export const getAllProviderConfigs = action({

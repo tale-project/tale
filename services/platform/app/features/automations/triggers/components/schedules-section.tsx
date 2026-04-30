@@ -23,7 +23,6 @@ import { ScheduleCreateDialog } from './schedule-create-dialog';
 interface SchedulesSectionProps {
   workflowRootId: string;
   organizationId: string;
-  orgSlug: string;
   workflowSlug: string;
 }
 
@@ -32,7 +31,6 @@ type Schedule = WfSchedule;
 export function SchedulesSection({
   workflowRootId,
   organizationId,
-  orgSlug,
   workflowSlug,
 }: SchedulesSectionProps) {
   const { t } = useT('automations');
@@ -220,7 +218,6 @@ export function SchedulesSection({
         }}
         workflowRootId={workflowRootId}
         organizationId={organizationId}
-        orgSlug={orgSlug}
         workflowSlug={workflowSlug}
         schedule={editSchedule}
       />

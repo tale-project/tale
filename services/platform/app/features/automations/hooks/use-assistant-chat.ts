@@ -103,12 +103,11 @@ export function useAssistantChat({
   const { mutateAsync: chatWithAgent } = useUnifiedChatWithAgent();
   const { mutateAsync: createChatThread } = useCreateThread();
 
-  const { data: readResult } = useReadWorkflow('default', workflowSlug);
+  const { data: readResult } = useReadWorkflow(organizationId, workflowSlug);
   const workflow = useMemo(() => {
     if (!readResult || !readResult.ok) return null;
     return {
       name: readResult.config.name,
-      status: readResult.config.enabled ? 'active' : 'draft',
       metadata: readResult.config.metadata,
     };
   }, [readResult]);
@@ -426,7 +425,6 @@ export function useAssistantChat({
 
       await chatWithAgent({
         agentSlug: workflowAgentSlug,
-        orgSlug: 'default',
         threadId: currentThreadId,
         organizationId,
         message: messageContent || analyzeAttachmentsText,

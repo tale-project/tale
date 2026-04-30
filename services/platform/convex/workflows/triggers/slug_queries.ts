@@ -92,6 +92,63 @@ export const getEventSubscriptionsBySlug = query({
   },
 });
 
+export const getTriggerActivityBySlug = query({
+  args: {
+    organizationId: v.string(),
+    workflowSlug: v.string(),
+  },
+  returns: v.object({
+    hasActiveTrigger: v.boolean(),
+    totalTriggers: v.number(),
+    activeTriggers: v.number(),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    hasActiveTrigger: boolean;
+    totalTriggers: number;
+    activeTriggers: number;
+  }> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
+    let totalTriggers = 0;
+    let activeTriggers = 0;
+
+    const tables = [
+      'wfSchedules',
+      'wfWebhooks',
+      'wfEventSubscriptions',
+      'wfApiKeys',
+    ] as const;
+
+    for (const table of tables) {
+      for await (const row of ctx.db
+        .query(table)
+        .withIndex('by_workflowSlug', (q) =>
+          q.eq('workflowSlug', args.workflowSlug),
+        )) {
+        if (row.organizationId !== args.organizationId) continue;
+        totalTriggers += 1;
+        if (row.isActive) activeTriggers += 1;
+      }
+    }
+
+    return {
+      hasActiveTrigger: activeTriggers > 0,
+      totalTriggers,
+      activeTriggers,
+    };
+  },
+});
+
 export const getTriggerLogsBySlug = query({
   args: {
     organizationId: v.string(),

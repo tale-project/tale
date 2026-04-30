@@ -56,16 +56,19 @@ export const startWorkflowFromFile = internalAction({
 
     const config = result.config;
 
-    // Step 2: Check if workflow is installed and enabled
-    if (!config.installed) {
-      debugLog('startWorkflowFromFile Workflow is not installed, skipping', {
+    // Step 2: Check the workflow is installed in this deployment for this org.
+    // The DB row in `wfInstallations` is the single source of truth for
+    // "deployed and runnable" — the JSON file no longer carries that flag.
+    const installed = await ctx.runQuery(
+      internal.workflows.installations.getInstallationInternal,
+      {
+        organizationId: args.organizationId,
         workflowSlug: args.workflowSlug,
-      });
-      return null;
-    }
+      },
+    );
 
-    if (!config.enabled) {
-      debugLog('startWorkflowFromFile Workflow is disabled, skipping', {
+    if (!installed) {
+      debugLog('startWorkflowFromFile Workflow is not installed, skipping', {
         workflowSlug: args.workflowSlug,
       });
       return null;

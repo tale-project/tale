@@ -6,6 +6,9 @@ vi.mock('../../../_generated/api', () => ({
       file_actions: {
         readWorkflowForExecution: 'mock-readWorkflowForExecution',
       },
+      installations: {
+        getInstallationInternal: 'mock-getInstallationInternal',
+      },
     },
     agent_tools: {
       workflows: {
@@ -43,7 +46,7 @@ function createMockCtx(overrides?: Record<string, unknown>) {
     userId: 'user1',
     threadId: 'thread-current',
     messageId: 'msg-123',
-    runQuery: vi.fn(),
+    runQuery: vi.fn().mockResolvedValue({ _id: 'installation-1' }),
     runAction: vi.fn(),
     runMutation: vi.fn(),
     ...overrides,
@@ -181,7 +184,7 @@ describe('createBoundWorkflowTool', () => {
     expect(result.message).toContain('Not found');
   });
 
-  it('returns failure when workflow is disabled', async () => {
+  it('returns failure when workflow is not installed', async () => {
     const tool = createBoundWorkflowTool(
       { workflowSlug: 'test-workflow', name: 'Test Workflow' },
       undefined,
@@ -189,15 +192,16 @@ describe('createBoundWorkflowTool', () => {
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
     const handler = (tool as unknown as { _handler: Function })._handler;
-    const fileConfig = createMockFileConfig({ enabled: false });
+    const fileConfig = createMockFileConfig();
     const ctx = createMockCtx({
       runAction: vi.fn().mockResolvedValue(fileConfig),
+      runQuery: vi.fn().mockResolvedValue(null),
     });
 
     const result = await handler(ctx, {});
 
     expect(result.success).toBe(false);
-    expect(result.message).toContain('disabled');
+    expect(result.message).toContain('not installed');
   });
 
   it('forwards parameters to approval mutation', async () => {

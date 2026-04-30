@@ -21,17 +21,15 @@ describe('CopyableField', () => {
       await checkAccessibility(container);
     });
 
-    it('copy button has aria-label', () => {
-      render(<CopyableField value="abc-123" />);
-      const buttons = screen.getAllByRole('button');
-      const copyButton = buttons.find((btn) => btn.getAttribute('aria-label'));
-      expect(copyButton).toHaveAttribute('aria-label');
+    it('copy button has an accessible name', () => {
+      render(<CopyableField value="abc-123" label="Key" />);
+      const button = screen.getByRole('button');
+      expect(button).toHaveAccessibleName(/Key.*abc-123/);
     });
 
-    it('input is read-only', () => {
+    it('renders the value as text', () => {
       render(<CopyableField value="abc-123" label="Key" />);
-      const input = screen.getByDisplayValue('abc-123');
-      expect(input).toHaveAttribute('readonly');
+      expect(screen.getByText('abc-123')).toBeInTheDocument();
     });
   });
 });

@@ -21,7 +21,6 @@ function TriggersPage() {
     <Triggers
       automationId={amId}
       organizationId={organizationId}
-      orgSlug="default"
       workflowSlug={workflowSlug}
     />
   );

@@ -7,7 +7,7 @@ import {
 
 export interface QueryDocumentsArgs {
   organizationId: string;
-  sourceProvider?: 'onedrive' | 'upload' | 'sharepoint' | 'agent';
+  sourceProvider?: string;
   paginationOpts: {
     numItems: number;
     cursor: string | null;

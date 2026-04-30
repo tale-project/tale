@@ -18,6 +18,7 @@ import { useT } from '@/lib/i18n/client';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import {
+  useInstallWorkflow,
   useInvalidateWorkflows,
   useSaveWorkflow,
 } from '../hooks/file-mutations';
@@ -64,6 +65,7 @@ function BlankTabContent({
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
   const { mutateAsync: saveWorkflow } = useSaveWorkflow();
+  const { mutateAsync: installWorkflow } = useInstallWorkflow();
   const invalidateWorkflows = useInvalidateWorkflows();
 
   const formSchema = useMemo(
@@ -96,13 +98,11 @@ function BlankTabContent({
 
       try {
         await saveWorkflow({
-          orgSlug: 'default',
+          organizationId,
           workflowSlug,
           config: {
             name: data.name,
             description: data.description ?? '',
-            installed: true,
-            enabled: false,
             steps: [
               {
                 stepSlug: 'start',
@@ -113,7 +113,12 @@ function BlankTabContent({
           },
         });
 
-        await invalidateWorkflows('default');
+        await installWorkflow({
+          organizationId,
+          workflowSlug,
+        });
+
+        await invalidateWorkflows(organizationId);
         window.dispatchEvent(new Event('workflow-updated'));
         toast({
           title: t('toast.created'),
@@ -138,7 +143,15 @@ function BlankTabContent({
         });
       }
     },
-    [saveWorkflow, invalidateWorkflows, organizationId, t, navigate, setError],
+    [
+      saveWorkflow,
+      installWorkflow,
+      invalidateWorkflows,
+      organizationId,
+      t,
+      navigate,
+      setError,
+    ],
   );
 
   return (
@@ -209,6 +222,7 @@ function TemplateTabContent({
   return (
     <Stack gap={4}>
       <WorkflowTemplateGrid
+        organizationId={organizationId}
         integrationName={integrationName}
         onTemplateInstalled={handleTemplateInstalled}
       />

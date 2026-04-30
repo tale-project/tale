@@ -75,11 +75,22 @@ export async function processEventHandler(
 
   for await (const sub of subscriptions) {
     if (!sub.isActive) continue;
-    if (!sub.workflowSlug) continue;
+    const workflowSlug = sub.workflowSlug;
+    if (!workflowSlug) continue;
 
-    if (isSelfTrigger(args.eventType, eventData, sub.workflowSlug)) continue;
+    if (isSelfTrigger(args.eventType, eventData, workflowSlug)) continue;
 
     if (!matchesFilter(eventData, sub.eventFilter)) continue;
+
+    const installation = await ctx.db
+      .query('wfInstallations')
+      .withIndex('by_org_slug', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('workflowSlug', workflowSlug),
+      )
+      .first();
+    if (!installation) continue;
 
     if (cachedOrgSlug === null) {
       cachedOrgSlug = await resolveOrgSlug(ctx, args.organizationId);
@@ -92,7 +103,7 @@ export async function processEventHandler(
       {
         organizationId: args.organizationId,
         orgSlug: cachedOrgSlug,
-        workflowSlug: sub.workflowSlug,
+        workflowSlug,
         input: args.eventData ?? {},
         triggeredBy: 'event',
         triggerData: {
@@ -111,7 +122,7 @@ export async function processEventHandler(
       {
         organizationId: args.organizationId,
         workflowRootId: sub.workflowRootId,
-        workflowSlug: sub.workflowSlug,
+        workflowSlug,
         triggerType: 'event',
         status: 'accepted',
       },

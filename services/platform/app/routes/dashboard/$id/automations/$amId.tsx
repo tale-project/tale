@@ -28,6 +28,7 @@ import {
   WorkflowConfigProvider,
   useWorkflowConfig,
 } from '@/app/features/automations/hooks/use-workflow-config-context';
+import { useWorkflowActivity } from '@/app/features/automations/triggers/hooks/queries';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -129,7 +130,7 @@ function AutomationDetailLayout() {
     data: readResult,
     isLoading,
     refetch,
-  } = useReadWorkflow('default', workflowSlug);
+  } = useReadWorkflow(organizationId, workflowSlug);
 
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -242,6 +243,10 @@ function AutomationDetailInner({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const { config } = useWorkflowConfig();
+  const { hasActiveTrigger } = useWorkflowActivity(
+    organizationId,
+    workflowSlug,
+  );
   const [isAIChatOpen, setIsAIChatOpen] = useState(true);
   const [panelWidth, setPanelWidth] = useState(384);
 
@@ -293,13 +298,13 @@ function AutomationDetailInner({
               <span className="hidden md:inline">/&nbsp;&nbsp;</span>
               {config.name}
             </Heading>
-            {config.enabled ? (
+            {hasActiveTrigger ? (
               <Badge variant="green" className="ml-2">
-                {tCommon('status.published')}
+                {tCommon('status.active')}
               </Badge>
             ) : (
               <Badge variant="outline" className="ml-2">
-                {tCommon('status.draft')}
+                {tCommon('status.inactive')}
               </Badge>
             )}
             {config.version && (
@@ -323,7 +328,7 @@ function AutomationDetailInner({
           {isExactAutomationPage ? (
             <Suspense fallback={<AutomationStepsSkeleton />}>
               <AutomationSteps
-                status={config.enabled ? 'active' : 'draft'}
+                hasActiveTrigger={hasActiveTrigger}
                 className="flex-1"
                 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to Doc shape; component only reads display fields
                 steps={steps as Doc<'wfStepDefs'>[]}

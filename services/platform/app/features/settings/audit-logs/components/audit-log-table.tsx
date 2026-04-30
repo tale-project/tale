@@ -1,8 +1,7 @@
 'use client';
 
-import { useNavigate } from '@tanstack/react-router';
 import type { UsePaginatedQueryResult } from 'convex/react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -19,19 +18,14 @@ import { useAuditLogTableConfig } from '../hooks/use-audit-log-table-config';
 type AuditLog = Doc<'auditLogs'>;
 
 interface AuditLogTableProps {
-  organizationId: string;
   paginatedResult: UsePaginatedQueryResult<AuditLog>;
-  category?: string;
   userEmailMap?: Map<string, string>;
 }
 
 export function AuditLogTable({
-  organizationId,
   paginatedResult,
-  category,
   userEmailMap,
 }: AuditLogTableProps) {
-  const navigate = useNavigate();
   const { formatDate } = useFormatDate();
   const { t } = useT('settings');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
@@ -46,53 +40,6 @@ export function AuditLogTable({
     resolveEmail,
   });
 
-  const handleCategoryChange = useCallback(
-    (values: string[]) => {
-      void navigate({
-        to: '/dashboard/$id/settings/logs',
-        params: { id: organizationId },
-        search: (prev) => ({
-          ...prev,
-          category: values[0] || undefined,
-        }),
-      });
-    },
-    [navigate, organizationId],
-  );
-
-  const handleClearFilters = useCallback(() => {
-    void navigate({
-      to: '/dashboard/$id/settings/logs',
-      params: { id: organizationId },
-      search: {},
-    });
-  }, [navigate, organizationId]);
-
-  const filterConfigs = useMemo(
-    () => [
-      {
-        key: 'category',
-        title: t('logs.audit.columns.category'),
-        options: [
-          { value: 'auth', label: t('logs.audit.categories.auth') },
-          { value: 'member', label: t('logs.audit.categories.member') },
-          { value: 'data', label: t('logs.audit.categories.data') },
-          {
-            value: 'integration',
-            label: t('logs.audit.categories.integration'),
-          },
-          { value: 'workflow', label: t('logs.audit.categories.workflow') },
-          { value: 'security', label: t('logs.audit.categories.security') },
-          { value: 'admin', label: t('logs.audit.categories.admin') },
-          { value: 'ai', label: t('logs.audit.categories.ai') },
-        ],
-        selectedValues: category ? [category] : [],
-        onChange: handleCategoryChange,
-      },
-    ],
-    [category, t, handleCategoryChange],
-  );
-
   const list = useListPage<AuditLog>({
     dataSource: {
       type: 'paginated',
@@ -102,10 +49,6 @@ export function AuditLogTable({
       isLoading: paginatedResult.isLoading,
     },
     pageSize,
-    filters: {
-      configs: filterConfigs,
-      onClear: handleClearFilters,
-    },
   });
 
   return (

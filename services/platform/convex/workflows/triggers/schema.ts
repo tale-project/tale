@@ -1,6 +1,8 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { jsonRecordValidator } from '../../lib/validators/json';
+
 export const wfSchedulesTable = defineTable({
   organizationId: v.string(),
   /** @deprecated — Use workflowSlug for file-based workflows. Kept for legacy DB-backed triggers. */
@@ -12,6 +14,7 @@ export const wfSchedulesTable = defineTable({
   lastTriggeredAt: v.optional(v.number()),
   createdAt: v.number(),
   createdBy: v.string(),
+  variables: v.optional(jsonRecordValidator),
 })
   .index('by_org', ['organizationId'])
   .index('by_workflowRoot', ['workflowRootId'])

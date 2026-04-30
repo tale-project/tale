@@ -443,7 +443,6 @@ import type * as lib_response_cache_internal_mutations from "../lib/response_cac
 import type * as lib_response_cache_internal_queries from "../lib/response_cache/internal_queries.js";
 import type * as lib_response_cache_normalize from "../lib/response_cache/normalize.js";
 import type * as lib_response_cache_semantic_cache from "../lib/response_cache/semantic_cache.js";
-import type * as lib_response_cache_tool_cacheability from "../lib/response_cache/tool_cacheability.js";
 import type * as lib_rest_helpers from "../lib/rest/helpers.js";
 import type * as lib_rls_auth_check_org_membership from "../lib/rls/auth/check_org_membership.js";
 import type * as lib_rls_auth_get_auth_user_identity from "../lib/rls/auth/get_auth_user_identity.js";
@@ -517,6 +516,7 @@ import type * as migrations_backfill_folder_path from "../migrations/backfill_fo
 import type * as migrations_backfill_folders from "../migrations/backfill_folders.js";
 import type * as migrations_backfill_ledger_granularity from "../migrations/backfill_ledger_granularity.js";
 import type * as migrations_backfill_thread_metadata from "../migrations/backfill_thread_metadata.js";
+import type * as migrations_backfill_wf_installations from "../migrations/backfill_wf_installations.js";
 import type * as migrations_backfill_workflow_schedules from "../migrations/backfill_workflow_schedules.js";
 import type * as migrations_merge_audit_retention from "../migrations/merge_audit_retention.js";
 import type * as migrations_migrate_org_creators from "../migrations/migrate_org_creators.js";
@@ -837,6 +837,7 @@ import type * as workflow_engine_helpers_engine_dynamic_workflow_handler from ".
 import type * as workflow_engine_helpers_engine_execute_step_handler from "../workflow_engine/helpers/engine/execute_step_handler.js";
 import type * as workflow_engine_helpers_engine_index from "../workflow_engine/helpers/engine/index.js";
 import type * as workflow_engine_helpers_engine_load_file_workflow from "../workflow_engine/helpers/engine/load_file_workflow.js";
+import type * as workflow_engine_helpers_engine_merge_workflow_llm_models from "../workflow_engine/helpers/engine/merge_workflow_llm_models.js";
 import type * as workflow_engine_helpers_engine_on_workflow_complete from "../workflow_engine/helpers/engine/on_workflow_complete.js";
 import type * as workflow_engine_helpers_engine_serialize_and_complete_execution_handler from "../workflow_engine/helpers/engine/serialize_and_complete_execution_handler.js";
 import type * as workflow_engine_helpers_engine_shard from "../workflow_engine/helpers/engine/shard.js";
@@ -861,6 +862,7 @@ import type * as workflow_engine_helpers_nodes_llm_utils_create_llm_result from 
 import type * as workflow_engine_helpers_nodes_llm_utils_extract_tool_diagnostics from "../workflow_engine/helpers/nodes/llm/utils/extract_tool_diagnostics.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_process_agent_result from "../workflow_engine/helpers/nodes/llm/utils/process_agent_result.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_process_prompts from "../workflow_engine/helpers/nodes/llm/utils/process_prompts.js";
+import type * as workflow_engine_helpers_nodes_llm_utils_resolve_chat_model from "../workflow_engine/helpers/nodes/llm/utils/resolve_chat_model.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_resolve_knowledge_file_ids from "../workflow_engine/helpers/nodes/llm/utils/resolve_knowledge_file_ids.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_validate_and_normalize_config from "../workflow_engine/helpers/nodes/llm/utils/validate_and_normalize_config.js";
 import type * as workflow_engine_helpers_nodes_loop_execute_loop_node from "../workflow_engine/helpers/nodes/loop/execute_loop_node.js";
@@ -910,6 +912,7 @@ import type * as workflow_engine_helpers_validation_validate_action_parameters f
 import type * as workflow_engine_helpers_validation_validate_next_steps_ports from "../workflow_engine/helpers/validation/validate_next_steps_ports.js";
 import type * as workflow_engine_helpers_validation_validate_step_config from "../workflow_engine/helpers/validation/validate_step_config.js";
 import type * as workflow_engine_helpers_validation_validate_workflow_definition from "../workflow_engine/helpers/validation/validate_workflow_definition.js";
+import type * as workflow_engine_helpers_validation_validate_workflow_dependencies from "../workflow_engine/helpers/validation/validate_workflow_dependencies.js";
 import type * as workflow_engine_helpers_validation_validate_workflow_input from "../workflow_engine/helpers/validation/validate_workflow_input.js";
 import type * as workflow_engine_helpers_validation_validate_workflow_steps from "../workflow_engine/helpers/validation/validate_workflow_steps.js";
 import type * as workflow_engine_helpers_validation_variables_action_schemas from "../workflow_engine/helpers/validation/variables/action_schemas.js";
@@ -953,6 +956,7 @@ import type * as workflows_executions_validators from "../workflows/executions/v
 import type * as workflows_file_actions from "../workflows/file_actions.js";
 import type * as workflows_file_utils from "../workflows/file_utils.js";
 import type * as workflows_helpers from "../workflows/helpers.js";
+import type * as workflows_installations from "../workflows/installations.js";
 import type * as workflows_processing_records_ast_helpers_extract_comparison from "../workflows/processing_records/ast_helpers/extract_comparison.js";
 import type * as workflows_processing_records_ast_helpers_extract_literal_value from "../workflows/processing_records/ast_helpers/extract_literal_value.js";
 import type * as workflows_processing_records_ast_helpers_get_full_field_path from "../workflows/processing_records/ast_helpers/get_full_field_path.js";
@@ -1443,7 +1447,6 @@ declare const fullApi: ApiFromModules<{
   "lib/response_cache/internal_queries": typeof lib_response_cache_internal_queries;
   "lib/response_cache/normalize": typeof lib_response_cache_normalize;
   "lib/response_cache/semantic_cache": typeof lib_response_cache_semantic_cache;
-  "lib/response_cache/tool_cacheability": typeof lib_response_cache_tool_cacheability;
   "lib/rest/helpers": typeof lib_rest_helpers;
   "lib/rls/auth/check_org_membership": typeof lib_rls_auth_check_org_membership;
   "lib/rls/auth/get_auth_user_identity": typeof lib_rls_auth_get_auth_user_identity;
@@ -1517,6 +1520,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/backfill_folders": typeof migrations_backfill_folders;
   "migrations/backfill_ledger_granularity": typeof migrations_backfill_ledger_granularity;
   "migrations/backfill_thread_metadata": typeof migrations_backfill_thread_metadata;
+  "migrations/backfill_wf_installations": typeof migrations_backfill_wf_installations;
   "migrations/backfill_workflow_schedules": typeof migrations_backfill_workflow_schedules;
   "migrations/merge_audit_retention": typeof migrations_merge_audit_retention;
   "migrations/migrate_org_creators": typeof migrations_migrate_org_creators;
@@ -1837,6 +1841,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/engine/execute_step_handler": typeof workflow_engine_helpers_engine_execute_step_handler;
   "workflow_engine/helpers/engine/index": typeof workflow_engine_helpers_engine_index;
   "workflow_engine/helpers/engine/load_file_workflow": typeof workflow_engine_helpers_engine_load_file_workflow;
+  "workflow_engine/helpers/engine/merge_workflow_llm_models": typeof workflow_engine_helpers_engine_merge_workflow_llm_models;
   "workflow_engine/helpers/engine/on_workflow_complete": typeof workflow_engine_helpers_engine_on_workflow_complete;
   "workflow_engine/helpers/engine/serialize_and_complete_execution_handler": typeof workflow_engine_helpers_engine_serialize_and_complete_execution_handler;
   "workflow_engine/helpers/engine/shard": typeof workflow_engine_helpers_engine_shard;
@@ -1861,6 +1866,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/nodes/llm/utils/extract_tool_diagnostics": typeof workflow_engine_helpers_nodes_llm_utils_extract_tool_diagnostics;
   "workflow_engine/helpers/nodes/llm/utils/process_agent_result": typeof workflow_engine_helpers_nodes_llm_utils_process_agent_result;
   "workflow_engine/helpers/nodes/llm/utils/process_prompts": typeof workflow_engine_helpers_nodes_llm_utils_process_prompts;
+  "workflow_engine/helpers/nodes/llm/utils/resolve_chat_model": typeof workflow_engine_helpers_nodes_llm_utils_resolve_chat_model;
   "workflow_engine/helpers/nodes/llm/utils/resolve_knowledge_file_ids": typeof workflow_engine_helpers_nodes_llm_utils_resolve_knowledge_file_ids;
   "workflow_engine/helpers/nodes/llm/utils/validate_and_normalize_config": typeof workflow_engine_helpers_nodes_llm_utils_validate_and_normalize_config;
   "workflow_engine/helpers/nodes/loop/execute_loop_node": typeof workflow_engine_helpers_nodes_loop_execute_loop_node;
@@ -1910,6 +1916,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/validation/validate_next_steps_ports": typeof workflow_engine_helpers_validation_validate_next_steps_ports;
   "workflow_engine/helpers/validation/validate_step_config": typeof workflow_engine_helpers_validation_validate_step_config;
   "workflow_engine/helpers/validation/validate_workflow_definition": typeof workflow_engine_helpers_validation_validate_workflow_definition;
+  "workflow_engine/helpers/validation/validate_workflow_dependencies": typeof workflow_engine_helpers_validation_validate_workflow_dependencies;
   "workflow_engine/helpers/validation/validate_workflow_input": typeof workflow_engine_helpers_validation_validate_workflow_input;
   "workflow_engine/helpers/validation/validate_workflow_steps": typeof workflow_engine_helpers_validation_validate_workflow_steps;
   "workflow_engine/helpers/validation/variables/action_schemas": typeof workflow_engine_helpers_validation_variables_action_schemas;
@@ -1953,6 +1960,7 @@ declare const fullApi: ApiFromModules<{
   "workflows/file_actions": typeof workflows_file_actions;
   "workflows/file_utils": typeof workflows_file_utils;
   "workflows/helpers": typeof workflows_helpers;
+  "workflows/installations": typeof workflows_installations;
   "workflows/processing_records/ast_helpers/extract_comparison": typeof workflows_processing_records_ast_helpers_extract_comparison;
   "workflows/processing_records/ast_helpers/extract_literal_value": typeof workflows_processing_records_ast_helpers_extract_literal_value;
   "workflows/processing_records/ast_helpers/get_full_field_path": typeof workflows_processing_records_ast_helpers_get_full_field_path;

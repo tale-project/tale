@@ -38,7 +38,6 @@ vi.mock('../hooks/file-queries', () => ({
         slug: 'my-workflow',
         name: 'My Workflow',
         description: 'A test workflow',
-        enabled: true,
         version: '1.0',
         stepCount: 3,
         hash: 'abc123',
@@ -52,10 +51,6 @@ vi.mock('../hooks/file-queries', () => ({
 vi.mock('../hooks/file-mutations', () => ({
   useDuplicateWorkflowFile: () => ({ mutate: vi.fn() }),
   useDeleteWorkflowFile: () => ({ mutate: vi.fn(), isPending: false }),
-  useToggleWorkflowEnabled: () => ({
-    mutate: vi.fn(),
-    isPending: false,
-  }),
   useRenameWorkflow: () => ({ mutateAsync: vi.fn() }),
   useSaveWorkflow: () => ({ mutateAsync: vi.fn() }),
   useInvalidateWorkflows: () => vi.fn(),

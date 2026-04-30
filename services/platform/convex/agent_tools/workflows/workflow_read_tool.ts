@@ -30,12 +30,6 @@ const workflowReadArgs = z.discriminatedUnion('operation', [
   }),
   z.object({
     operation: z.literal('list_all'),
-    enabledOnly: z
-      .boolean()
-      .optional()
-      .describe(
-        'If true, only return enabled workflows (default: false, returns all).',
-      ),
   }),
 ]);
 
@@ -46,7 +40,7 @@ export const workflowReadTool: ToolDefinition = {
 
 OPERATIONS:
 • 'get_structure': Get the complete structure of a workflow including all steps and configuration. Use this to understand the current workflow before making modifications. Takes a workflowSlug parameter.
-• 'list_all': List all workflows for the organization. Returns workflow summaries (slug, name, description, enabled, version, stepCount). Use this to get an overview of all available workflows.
+• 'list_all': List all installed workflows for the organization. Returns workflow summaries (slug, name, description, version, stepCount). Use this to get an overview of all available workflows.
 
 BEST PRACTICES:
 • Use 'list_all' to get an overview of all workflows in the organization.
@@ -85,9 +79,7 @@ BEST PRACTICES:
         });
       }
 
-      return readAllWorkflows(ctx, {
-        enabledOnly: args.enabledOnly,
-      });
+      return readAllWorkflows(ctx, {});
     },
   }),
 } as const;

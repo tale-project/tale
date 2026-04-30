@@ -51,6 +51,11 @@ export interface WorkflowDefinition {
       backoffMs: number;
     };
     variables?: Record<string, unknown>;
+    /**
+     * Workflow-level fallback chain inherited by every LLM step that defines
+     * neither `model` nor `models`. Step-level overrides win.
+     */
+    models?: string[];
   };
   metadata?: unknown;
 }

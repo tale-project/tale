@@ -53,6 +53,11 @@ export interface WorkflowConfig {
       maxRetries: number;
       backoffMs: number;
     };
+    /**
+     * Workflow-level fallback chain inherited by every LLM step that defines
+     * neither `model` nor `models`. Step-level overrides win.
+     */
+    models?: string[];
   };
 }
 

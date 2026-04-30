@@ -170,6 +170,7 @@ export function useSendMessage({
           const description =
             labels && labels.length > 0 ? labels.join(', ') : undefined;
           toast({ title, description, variant: 'destructive' });
+          sendingRef.current = false;
           return;
         }
         if (precheck.maskedText !== undefined) {
@@ -312,7 +313,6 @@ export function useSendMessage({
           // Start both models generating (split view shows "Thinking")
           await arenaChatRef.current({
             agentSlug: selectedAgent.name,
-            orgSlug: 'default',
             threadIdA: tIdA,
             threadIdB: tIdB,
             organizationId,
@@ -395,7 +395,6 @@ export function useSendMessage({
 
           await chatWithAgent({
             agentSlug: selectedAgent.name,
-            orgSlug: 'default',
             threadId: currentThreadId,
             organizationId,
             message: messageToSend,

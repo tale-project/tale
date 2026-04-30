@@ -27,13 +27,14 @@ export class FileWorkflowDataSource implements WorkflowDataSource {
       name: this.config.name,
       description: this.config.description,
       version: this.config.version ?? '1.0.0',
-      status: this.config.enabled ? 'active' : 'inactive',
+      status: 'active',
       workflowType: 'predefined',
       config: this.config.config
         ? {
             timeout: this.config.config.timeout,
             retryPolicy: this.config.config.retryPolicy,
             variables: this.config.config.variables,
+            models: this.config.config.models,
           }
         : undefined,
     };

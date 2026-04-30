@@ -60,7 +60,7 @@ export const runWorkflowTool = {
 • Updating workflow steps — use update_workflow_step instead
 
 **APPROVAL REQUIRED:**
-This tool creates an approval card. The user must click "Run Workflow" to confirm execution. The workflow will NOT start until approved. When telling the user the card is ready, do not reference its position (no "above" / "below") — just say the approval card has been created.
+This tool creates an approval card rendered separately by the UI. The user must click "Run Workflow" to confirm execution; the workflow will NOT start until approved. When telling the user the card is ready, only say it has been created — never describe where it appears, how to find it, or its direction relative to the chat (no "above"/"below"/"上方"/"下方"/"oben"/"unten"/equivalents).
 
 **PARAMETERS:**
 • workflowSlug (required): The workflow file slug (e.g., "conversation-sync")
@@ -107,10 +107,14 @@ This tool creates an approval card. The user must click "Run Workflow" to confir
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- readWorkflowForExecution returns v.any() but ok=true guarantees WorkflowJsonConfig
       const config = result.config as WorkflowJsonConfig;
 
-      if (!config.enabled) {
+      const installation = await ctx.runQuery(
+        internal.workflows.installations.getInstallationInternal,
+        { organizationId, workflowSlug: args.workflowSlug },
+      );
+      if (!installation) {
         return {
           success: false,
-          message: `Workflow "${config.name}" is disabled and cannot be executed. Enable it first.`,
+          message: `Workflow "${config.name}" is not installed in this deployment.`,
         };
       }
 

@@ -1,9 +1,10 @@
 import { v } from 'convex/values';
 
 import type { Id } from '../../_generated/dataModel';
-import { mutation } from '../../_generated/server';
+import { mutation, type MutationCtx } from '../../_generated/server';
 import { authComponent } from '../../auth';
 import { getOrganizationMember } from '../../lib/rls';
+import { jsonRecordValidator } from '../../lib/validators/json';
 import { isValidEventType } from './event_types';
 import { generateToken } from './helpers/crypto';
 
@@ -14,12 +15,29 @@ function validateWorkflowSlug(slug: string): boolean {
   return WORKFLOW_SLUG_REGEX.test(slug) && slug.length <= 128;
 }
 
+async function assertWorkflowInstalled(
+  ctx: MutationCtx,
+  organizationId: string,
+  workflowSlug: string,
+): Promise<void> {
+  const installation = await ctx.db
+    .query('wfInstallations')
+    .withIndex('by_org_slug', (q) =>
+      q.eq('organizationId', organizationId).eq('workflowSlug', workflowSlug),
+    )
+    .first();
+  if (!installation) {
+    throw new Error('Workflow is not installed');
+  }
+}
+
 export const createScheduleBySlug = mutation({
   args: {
     organizationId: v.string(),
     workflowSlug: v.string(),
     cronExpression: v.string(),
     timezone: v.string(),
+    variables: v.optional(jsonRecordValidator),
   },
   returns: v.id('wfSchedules'),
   handler: async (ctx, args): Promise<Id<'wfSchedules'>> => {
@@ -36,6 +54,8 @@ export const createScheduleBySlug = mutation({
       name: authUser.name,
     });
 
+    await assertWorkflowInstalled(ctx, args.organizationId, args.workflowSlug);
+
     return await ctx.db.insert('wfSchedules', {
       organizationId: args.organizationId,
       workflowSlug: args.workflowSlug,
@@ -44,6 +64,7 @@ export const createScheduleBySlug = mutation({
       isActive: true,
       createdAt: Date.now(),
       createdBy: authUser.email ?? String(authUser._id),
+      variables: args.variables,
     });
   },
 });
@@ -67,6 +88,14 @@ export const toggleScheduleBySlug = mutation({
       name: authUser.name,
     });
 
+    if (args.isActive && schedule.workflowSlug) {
+      await assertWorkflowInstalled(
+        ctx,
+        schedule.organizationId,
+        schedule.workflowSlug,
+      );
+    }
+
     await ctx.db.patch(args.scheduleId, { isActive: args.isActive });
     return null;
   },
@@ -77,6 +106,7 @@ export const updateScheduleBySlug = mutation({
     scheduleId: v.id('wfSchedules'),
     cronExpression: v.string(),
     timezone: v.string(),
+    variables: v.optional(jsonRecordValidator),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -95,6 +125,7 @@ export const updateScheduleBySlug = mutation({
     await ctx.db.patch(args.scheduleId, {
       cronExpression: args.cronExpression,
       timezone: args.timezone,
+      variables: args.variables,
     });
     return null;
   },
@@ -147,6 +178,8 @@ export const createWebhookBySlug = mutation({
       name: authUser.name,
     });
 
+    await assertWorkflowInstalled(ctx, args.organizationId, args.workflowSlug);
+
     const token = generateToken();
 
     const webhookId = await ctx.db.insert('wfWebhooks', {
@@ -180,6 +213,14 @@ export const toggleWebhookBySlug = mutation({
       email: authUser.email,
       name: authUser.name,
     });
+
+    if (args.isActive && webhook.workflowSlug) {
+      await assertWorkflowInstalled(
+        ctx,
+        webhook.organizationId,
+        webhook.workflowSlug,
+      );
+    }
 
     await ctx.db.patch(args.webhookId, { isActive: args.isActive });
     return null;
@@ -232,6 +273,8 @@ export const createEventSubscriptionBySlug = mutation({
     if (!isValidEventType(args.eventType)) {
       throw new Error(`Invalid event type: ${String(args.eventType)}`);
     }
+
+    await assertWorkflowInstalled(ctx, args.organizationId, args.workflowSlug);
 
     const existing = await ctx.db
       .query('wfEventSubscriptions')
@@ -288,6 +331,10 @@ export const toggleEventSubscriptionBySlug = mutation({
       email: authUser.email,
       name: authUser.name,
     });
+
+    if (args.isActive && sub.workflowSlug) {
+      await assertWorkflowInstalled(ctx, sub.organizationId, sub.workflowSlug);
+    }
 
     await ctx.db.patch(args.subscriptionId, { isActive: args.isActive });
     return null;

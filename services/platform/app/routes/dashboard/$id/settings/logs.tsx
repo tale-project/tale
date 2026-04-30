@@ -1,8 +1,10 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Download } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
@@ -33,6 +35,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/logs')({
 function LogsPage() {
   const { id: organizationId } = Route.useParams();
   const search = Route.useSearch();
+  const navigate = useNavigate();
   const { t } = useT('settings');
   const { t: tAccess } = useT('accessDenied');
 
@@ -57,6 +60,53 @@ function LogsPage() {
     }
     return map;
   }, [membersQuery.data]);
+
+  const handleCategoryChange = useCallback(
+    (values: string[]) => {
+      void navigate({
+        to: '/dashboard/$id/settings/logs',
+        params: { id: organizationId },
+        search: (prev) => ({
+          ...prev,
+          category: values[0] || undefined,
+        }),
+      });
+    },
+    [navigate, organizationId],
+  );
+
+  const handleClearFilters = useCallback(() => {
+    void navigate({
+      to: '/dashboard/$id/settings/logs',
+      params: { id: organizationId },
+      search: {},
+    });
+  }, [navigate, organizationId]);
+
+  const auditFilterConfigs = useMemo(
+    () => [
+      {
+        key: 'category',
+        title: t('logs.audit.columns.category'),
+        options: [
+          { value: 'auth', label: t('logs.audit.categories.auth') },
+          { value: 'member', label: t('logs.audit.categories.member') },
+          { value: 'data', label: t('logs.audit.categories.data') },
+          {
+            value: 'integration',
+            label: t('logs.audit.categories.integration'),
+          },
+          { value: 'workflow', label: t('logs.audit.categories.workflow') },
+          { value: 'security', label: t('logs.audit.categories.security') },
+          { value: 'admin', label: t('logs.audit.categories.admin') },
+          { value: 'ai', label: t('logs.audit.categories.ai') },
+        ],
+        selectedValues: search.category ? [search.category] : [],
+        onChange: handleCategoryChange,
+      },
+    ],
+    [search.category, t, handleCategoryChange],
+  );
 
   const { toast } = useToast();
 
@@ -94,15 +144,22 @@ function LogsPage() {
   }
 
   return (
-    <Tabs
-      defaultValue="audit"
-      className="flex min-h-0 flex-1 flex-col"
-      actions={
-        isAdminUser ? (
+    <div className="flex min-h-0 flex-1 flex-col gap-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-foreground text-base font-semibold tracking-tight">
+            {t('logs.heading')}
+          </h1>
+          <Text variant="muted" className="text-sm">
+            {t('logs.subheading')}
+          </Text>
+        </div>
+        {isAdminUser && (
           <div className="flex items-center gap-2">
             <Button
               variant="secondary"
               size="sm"
+              icon={Download}
               onClick={() => handleExport('csv')}
               disabled={exportAction.isPending}
               aria-label={t('logs.audit.export.csvLabel')}
@@ -114,6 +171,7 @@ function LogsPage() {
             <Button
               variant="secondary"
               size="sm"
+              icon={Download}
               onClick={() => handleExport('json')}
               disabled={exportAction.isPending}
               aria-label={t('logs.audit.export.jsonLabel')}
@@ -123,45 +181,53 @@ function LogsPage() {
                 : t('logs.audit.export.json')}
             </Button>
           </div>
-        ) : undefined
-      }
-      items={[
-        {
-          value: 'audit',
-          label: t('logs.auditLogs'),
-          content: (
-            <AuditLogTable
-              organizationId={organizationId}
-              paginatedResult={paginatedResult}
-              category={search.category}
-              userEmailMap={userEmailMap}
-            />
-          ),
-        },
-        {
-          value: 'blocks',
-          label: t('logs.blockCounters.tabLabel'),
-          content: <BlockCountersTable organizationId={organizationId} />,
-        },
-        {
-          value: 'activity',
-          label: t('logs.activityLogs'),
-          content: (
-            <Text variant="muted" className="text-sm">
-              {t('logs.activityComingSoon')}
-            </Text>
-          ),
-        },
-        {
-          value: 'errors',
-          label: t('logs.errorLogs'),
-          content: (
-            <Text variant="muted" className="text-sm">
-              {t('logs.errorComingSoon')}
-            </Text>
-          ),
-        },
-      ]}
-    />
+        )}
+      </div>
+      <Tabs
+        defaultValue="audit"
+        className="flex min-h-0 flex-1 flex-col"
+        actions={
+          <DataTableFilters
+            filters={auditFilterConfigs}
+            onClearAll={handleClearFilters}
+          />
+        }
+        items={[
+          {
+            value: 'audit',
+            label: t('logs.auditLogs'),
+            content: (
+              <AuditLogTable
+                paginatedResult={paginatedResult}
+                userEmailMap={userEmailMap}
+              />
+            ),
+          },
+          {
+            value: 'blocks',
+            label: t('logs.blockCounters.tabLabel'),
+            content: <BlockCountersTable organizationId={organizationId} />,
+          },
+          {
+            value: 'activity',
+            label: t('logs.activityLogs'),
+            content: (
+              <Text variant="muted" className="text-sm">
+                {t('logs.activityComingSoon')}
+              </Text>
+            ),
+          },
+          {
+            value: 'errors',
+            label: t('logs.errorLogs'),
+            content: (
+              <Text variant="muted" className="text-sm">
+                {t('logs.errorComingSoon')}
+              </Text>
+            ),
+          },
+        ]}
+      />
+    </div>
   );
 }

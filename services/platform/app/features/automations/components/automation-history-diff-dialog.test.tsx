@@ -18,16 +18,12 @@ vi.mock('@/app/hooks/use-format-date', () => ({
 const baseConfig: WorkflowJsonConfig = {
   name: 'Test Workflow',
   description: 'A test workflow',
-  installed: true,
-  enabled: true,
   steps: [],
 };
 
 const snapshotConfig: WorkflowJsonConfig = {
   name: 'Test Workflow',
   description: 'An older version',
-  installed: true,
-  enabled: false,
   steps: [],
 };
 

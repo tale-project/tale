@@ -104,7 +104,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             data-form-type="other"
             readOnly={isReadOnly}
             className={cn(
-              'pl-10',
+              'pl-10 max-w-70 h-9',
               hasError && 'border-destructive focus-visible:ring-destructive',
               showShake && 'animate-shake',
               className,

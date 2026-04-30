@@ -67,7 +67,7 @@ type DocumentActionParams =
       mimeType?: string;
       extension?: string;
       metadata?: Record<string, unknown>;
-      sourceProvider?: 'onedrive' | 'upload';
+      sourceProvider?: string;
     }
   | {
       operation: 'retrieve';
@@ -99,6 +99,10 @@ type DocumentActionParams =
       fileId: string;
       title?: string;
       folderPath?: string;
+      sourceProvider?: string;
+      externalItemId?: string;
+      contentHash?: string;
+      metadata?: Record<string, unknown>;
     }
   | {
       operation: 'extract_docx_structured';
@@ -117,6 +121,15 @@ type DocumentActionParams =
       operation: 'list';
       folderPath?: string;
       extension?: string;
+    }
+  | {
+      operation: 'index_in_rag';
+      documentId: string;
+    }
+  | {
+      operation: 'find_by_external_id';
+      externalItemId: string;
+      folderPath?: string;
     };
 
 export const documentAction: ActionDefinition<DocumentActionParams> = {
@@ -134,9 +147,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       mimeType: v.optional(v.string()),
       extension: v.optional(v.string()),
       metadata: v.optional(jsonRecordValidator),
-      sourceProvider: v.optional(
-        v.union(v.literal('onedrive'), v.literal('upload')),
-      ),
+      sourceProvider: v.optional(v.string()),
     }),
     v.object({
       operation: v.literal('retrieve'),
@@ -160,6 +171,10 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       fileId: v.string(),
       title: v.optional(v.string()),
       folderPath: v.optional(v.string()),
+      sourceProvider: v.optional(v.string()),
+      externalItemId: v.optional(v.string()),
+      contentHash: v.optional(v.string()),
+      metadata: v.optional(jsonRecordValidator),
     }),
     v.object({
       operation: v.literal('compare'),
@@ -186,6 +201,15 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       operation: v.literal('list'),
       folderPath: v.optional(v.string()),
       extension: v.optional(v.string()),
+    }),
+    v.object({
+      operation: v.literal('index_in_rag'),
+      documentId: v.string(),
+    }),
+    v.object({
+      operation: v.literal('find_by_external_id'),
+      externalItemId: v.string(),
+      folderPath: v.optional(v.string()),
     }),
   ),
 
@@ -343,16 +367,89 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           );
         }
 
-        await ctx.runMutation(
+        const sourceProvider = params.sourceProvider ?? 'agent';
+        const folderIdPatch = folderId
+          ? { folderId: toId<'folders'>(folderId) }
+          : {};
+        const metadataPatch = params.metadata
+          ? { metadata: toConvexJsonRecord(params.metadata) }
+          : {};
+
+        if (params.externalItemId) {
+          // Scope dedup to the target folder. The same external file synced to
+          // two different Tale folders should produce two document rows — not
+          // ping-pong between folders on each run.
+          const lookupFolderId = folderId
+            ? toId<'folders'>(folderId)
+            : params.folderPath
+              ? null // folderPath was given but resolved empty → root
+              : undefined; // no folderPath given → match across all folders
+
+          const existing = await ctx.runQuery(
+            internal.documents.internal_queries.findDocumentByExternalId,
+            {
+              organizationId,
+              externalItemId: params.externalItemId,
+              ...(lookupFolderId !== undefined
+                ? { folderId: lookupFolderId }
+                : {}),
+            },
+          );
+
+          if (existing) {
+            if (
+              params.contentHash &&
+              existing.contentHash === params.contentHash
+            ) {
+              return {
+                success: true,
+                fileId: params.fileId,
+                title: docTitle,
+                folderPath: params.folderPath ?? null,
+                documentId: existing._id,
+                action: 'skipped',
+              };
+            }
+
+            await ctx.runMutation(
+              internal.documents.internal_mutations.updateDocument,
+              {
+                documentId: existing._id,
+                title: docTitle,
+                fileId: storageId,
+                mimeType: fileMetadata.contentType,
+                sourceProvider,
+                externalItemId: params.externalItemId,
+                contentHash: params.contentHash,
+                ...folderIdPatch,
+                ...metadataPatch,
+              },
+            );
+
+            return {
+              success: true,
+              fileId: params.fileId,
+              title: docTitle,
+              folderPath: params.folderPath ?? null,
+              documentId: existing._id,
+              action: 'updated',
+            };
+          }
+        }
+
+        const documentId = await ctx.runMutation(
           internal.documents.internal_mutations.createDocument,
           {
             organizationId,
             title: docTitle,
             fileId: storageId,
             mimeType: fileMetadata.contentType,
-            sourceProvider: 'agent',
+            sourceProvider,
+            externalItemId: params.externalItemId,
+            contentHash: params.contentHash,
             createdBy: userId,
-            ...(folderId ? { folderId: toId<'folders'>(folderId) } : {}),
+            ...folderIdPatch,
+            ...metadataPatch,
           },
         );
 
@@ -361,6 +458,8 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           fileId: params.fileId,
           title: docTitle,
           folderPath: params.folderPath ?? null,
+          documentId,
+          action: 'created',
         };
       }
 
@@ -490,6 +589,85 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         return {
           documents: allDocuments,
           totalCount: allDocuments.length,
+        };
+      }
+
+      case 'index_in_rag': {
+        // Wraps the canonical RAG indexing flow: upload to RAG service, mark
+        // the document `ragInfo.status='queued'`, and schedule status polling
+        // (which flips it to 'completed' or 'failed'). Without this wrapper,
+        // a workflow that calls `rag.upload_document` directly would push the
+        // file to RAG but leave `ragInfo` untouched — so the UI still shows
+        // "Not indexed".
+        await ctx.runAction(
+          internal.documents.internal_actions.uploadDocumentToRag,
+          { documentId: toId<'documents'>(params.documentId) },
+        );
+
+        return {
+          success: true,
+          documentId: params.documentId,
+        };
+      }
+
+      case 'find_by_external_id': {
+        // Cheap pre-flight lookup used by sync workflows to skip the download
+        // step when the source file's hash hasn't changed. Scoped by folder
+        // when `folderPath` is provided so the same external file synced to
+        // two different Tale folders stays distinct.
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+
+        if (!organizationId) {
+          throw new Error(
+            'organizationId is required in workflow variables to look up a document',
+          );
+        }
+
+        let folderId: string | null = null;
+        if (params.folderPath) {
+          folderId = await ctx.runMutation(
+            internal.folders.internal_mutations.getOrCreateFolderPath,
+            {
+              organizationId,
+              pathSegments: params.folderPath.split('/').filter(Boolean),
+              createdBy:
+                typeof _variables.userId === 'string'
+                  ? _variables.userId
+                  : undefined,
+            },
+          );
+        }
+
+        const lookupFolderId = folderId
+          ? toId<'folders'>(folderId)
+          : params.folderPath
+            ? null
+            : undefined;
+
+        const existing = await ctx.runQuery(
+          internal.documents.internal_queries.findDocumentByExternalId,
+          {
+            organizationId,
+            externalItemId: params.externalItemId,
+            ...(lookupFolderId !== undefined
+              ? { folderId: lookupFolderId }
+              : {}),
+          },
+        );
+
+        if (!existing) {
+          return { exists: false };
+        }
+
+        return {
+          exists: true,
+          documentId: existing._id,
+          contentHash: existing.contentHash,
+          externalItemId: existing.externalItemId,
+          fileId: existing.fileId,
         };
       }
 
