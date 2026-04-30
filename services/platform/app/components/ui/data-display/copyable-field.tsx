@@ -47,7 +47,9 @@ export const CopyableField = React.memo(function CopyableField({
 }: CopyableFieldProps) {
   const { t: tCommon } = useT('common');
   const reactId = React.useId();
+  const labelId = `${reactId}-label`;
   const valueId = `${reactId}-value`;
+  const valueTextId = `${reactId}-value-text`;
   const statusId = `${reactId}-status`;
   const { copied, onClick } = useCopyButton(value, {
     copiedDuration,
@@ -57,12 +59,13 @@ export const CopyableField = React.memo(function CopyableField({
 
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
-      {label && <Label htmlFor={valueId}>{label}</Label>}
+      {label && <Label id={labelId}>{label}</Label>}
       <button
         id={valueId}
         type="button"
         onClick={onClick}
-        aria-label={copyAriaLabel || tCommon('actions.copy')}
+        aria-labelledby={label ? `${labelId} ${valueTextId}` : valueTextId}
+        aria-label={copyAriaLabel}
         aria-describedby={copied ? statusId : undefined}
         className={cn(
           'ring-border bg-muted/40 hover:bg-muted/60',
@@ -72,6 +75,7 @@ export const CopyableField = React.memo(function CopyableField({
         )}
       >
         <span
+          id={valueTextId}
           className={cn(
             'text-muted-foreground flex-1 truncate text-sm',
             mono && 'font-mono',

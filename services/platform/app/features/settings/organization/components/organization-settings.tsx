@@ -215,7 +215,10 @@ export function OrganizationSettings({
               {tSettings('organization.organizationIdHelp')}
             </span>
           </Stack>
-          <CopyableField value={organization._id} />
+          <CopyableField
+            value={organization._id}
+            copyAriaLabel={tSettings('organization.copyOrganizationId')}
+          />
         </div>
       )}
 

@@ -470,6 +470,7 @@
       "title": "Organisation (optional)",
       "organizationId": "Organisations-ID",
       "organizationIdHelp": "Wird für API-Integrationen verwendet",
+      "copyOrganizationId": "Organisations-ID kopieren",
       "membersTitle": "Organisationsmitglieder",
       "membersEntityLabel": "Mitglieder",
       "manageAccess": "Zugriff auf die Organisation verwalten",

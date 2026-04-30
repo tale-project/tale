@@ -470,6 +470,7 @@
       "title": "Organization (optional)",
       "organizationId": "Organization ID",
       "organizationIdHelp": "Used for API integrations",
+      "copyOrganizationId": "Copy organization ID",
       "membersTitle": "Organization members",
       "membersEntityLabel": "members",
       "manageAccess": "Manage access to the organization",
@@ -1158,9 +1159,9 @@
         "columns": {
           "timestamp": "Timestamp",
           "user": "User",
-          "ipAddress": "IP Address",
-          "lockOut": "Lock Out",
-          "ipLimit": "IP Limit"
+          "ipAddress": "IP address",
+          "lockOut": "Lock out",
+          "ipLimit": "IP limit"
         },
         "values": {
           "yes": "Yes",

@@ -470,6 +470,7 @@
       "title": "Organisation (facultatif)",
       "organizationId": "ID de l'organisation",
       "organizationIdHelp": "Utilisé pour les intégrations API",
+      "copyOrganizationId": "Copier l'ID de l'organisation",
       "membersTitle": "Membres de l'organisation",
       "membersEntityLabel": "membres",
       "manageAccess": "Gérer l'accès à l'organisation",
@@ -1143,7 +1144,7 @@
     },
     "logs": {
       "heading": "Journaux",
-      "subheading": "Consultez et gérez les journaux système.",
+      "subheading": "Consulte et gère les journaux système.",
       "auditLogs": "Journaux d'audit",
       "activityLogs": "Journaux d'activité",
       "errorLogs": "Journaux d'erreurs",

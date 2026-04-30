@@ -28,6 +28,7 @@ export function BlockCountersTable({
   organizationId,
 }: BlockCountersTableProps) {
   const { t } = useT('settings');
+  const { t: tTables } = useT('tables');
   const { data, isLoading } = useConvexQuery(
     api.login_attempts.queries.listBlockCounters,
     { organizationId, limit: 200 },
@@ -63,7 +64,7 @@ export function BlockCountersTable({
         size: 160,
         cell: ({ row }) => (
           <Text as="span" variant="muted">
-            {row.original.lastIp ?? '—'}
+            {row.original.lastIp ?? tTables('cells.empty')}
           </Text>
         ),
       },
@@ -98,7 +99,7 @@ export function BlockCountersTable({
         ),
       },
     ],
-    [t],
+    [t, tTables],
   );
 
   return (

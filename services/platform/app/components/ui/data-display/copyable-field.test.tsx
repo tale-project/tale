@@ -21,10 +21,10 @@ describe('CopyableField', () => {
       await checkAccessibility(container);
     });
 
-    it('copy button has aria-label', () => {
-      render(<CopyableField value="abc-123" />);
+    it('copy button has an accessible name', () => {
+      render(<CopyableField value="abc-123" label="Key" />);
       const button = screen.getByRole('button');
-      expect(button).toHaveAttribute('aria-label');
+      expect(button).toHaveAccessibleName(/Key.*abc-123/);
     });
 
     it('renders the value as text', () => {
