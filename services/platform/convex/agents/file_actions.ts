@@ -179,8 +179,11 @@ export const saveAgent = action({
     // Cross-validate supportedModels against provider model lists.
     // Qualified entries ("provider:model") must resolve strictly;
     // unqualified entries that match multiple providers produce a soft warning.
+    // Use the secrets-free configured-models list: a provider config existing
+    // without an API key yet is a legitimate state and shouldn't block save.
+    // Runtime invocation enforces key availability separately.
     const allModels = await ctx.runAction(
-      internal.providers.file_actions.getAllModelIds,
+      internal.providers.file_actions.getAllConfiguredModelIds,
       { orgSlug: args.orgSlug },
     );
     const byProvider = new Map<string, Set<string>>();
