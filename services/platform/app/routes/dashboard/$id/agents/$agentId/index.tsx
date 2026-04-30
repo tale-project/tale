@@ -376,6 +376,17 @@ function GeneralTab() {
             step={1}
           />
         </FormSection>
+
+        <FormSection>
+          <Switch
+            checked={config.responseCacheEnabled === true}
+            onCheckedChange={(value) =>
+              updateConfig({ responseCacheEnabled: value })
+            }
+            label={t('agents.general.responseCache')}
+            description={t('agents.general.responseCacheHelp')}
+          />
+        </FormSection>
       </PageSection>
     </ContentArea>
   );

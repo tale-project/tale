@@ -2,8 +2,20 @@ import { v } from 'convex/values';
 
 import type { Id } from '../../_generated/dataModel';
 import { internalMutation } from '../../_generated/server';
+import { jsonRecordValidator } from '../../lib/validators/json';
+import { validateWorkflowDependencies } from '../../workflow_engine/helpers/validation/validate_workflow_dependencies';
 import { generateToken } from './helpers/crypto';
 import { processEventHandler } from './process_event';
+
+const integrationDependencyValidator = v.object({
+  name: v.string(),
+  operations: v.optional(v.array(v.string())),
+  minVersion: v.optional(v.number()),
+});
+
+const requiresValidator = v.object({
+  integrations: v.optional(v.array(integrationDependencyValidator)),
+});
 
 export const updateScheduleLastTriggered = internalMutation({
   args: {
@@ -131,9 +143,19 @@ export const createScheduleInternal = internalMutation({
     cronExpression: v.string(),
     timezone: v.string(),
     createdBy: v.string(),
+    variables: v.optional(jsonRecordValidator),
+    requires: v.optional(requiresValidator),
   },
   returns: v.id('wfSchedules'),
   handler: async (ctx, args): Promise<Id<'wfSchedules'>> => {
+    if (args.requires) {
+      await validateWorkflowDependencies(ctx, {
+        organizationId: args.organizationId,
+        workflowSlug: args.workflowSlug,
+        requires: args.requires,
+      });
+    }
+
     return await ctx.db.insert('wfSchedules', {
       organizationId: args.organizationId,
       workflowSlug: args.workflowSlug,
@@ -142,6 +164,7 @@ export const createScheduleInternal = internalMutation({
       isActive: true,
       createdAt: Date.now(),
       createdBy: args.createdBy,
+      variables: args.variables,
     });
   },
 });
@@ -152,6 +175,7 @@ export const updateScheduleInternal = internalMutation({
     cronExpression: v.optional(v.string()),
     timezone: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
+    variables: v.optional(jsonRecordValidator),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -161,6 +185,7 @@ export const updateScheduleInternal = internalMutation({
       updates.cronExpression = patch.cronExpression;
     if (patch.timezone !== undefined) updates.timezone = patch.timezone;
     if (patch.isActive !== undefined) updates.isActive = patch.isActive;
+    if (patch.variables !== undefined) updates.variables = patch.variables;
     if (Object.keys(updates).length > 0) {
       await ctx.db.patch(scheduleId, updates);
     }

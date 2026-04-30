@@ -9,14 +9,12 @@ import { WebhooksSection } from './components/webhooks-section';
 interface TriggersProps {
   automationId: string;
   organizationId: string;
-  orgSlug: string;
   workflowSlug: string;
 }
 
 export function Triggers({
   automationId,
   organizationId,
-  orgSlug,
   workflowSlug,
 }: TriggersProps) {
   return (
@@ -24,19 +22,16 @@ export function Triggers({
       <SchedulesSection
         workflowRootId={automationId}
         organizationId={organizationId}
-        orgSlug={orgSlug}
         workflowSlug={workflowSlug}
       />
       <WebhooksSection
         workflowRootId={automationId}
         organizationId={organizationId}
-        orgSlug={orgSlug}
         workflowSlug={workflowSlug}
       />
       <EventsSection
         workflowRootId={automationId}
         organizationId={organizationId}
-        orgSlug={orgSlug}
         workflowSlug={workflowSlug}
       />
     </ContentArea>

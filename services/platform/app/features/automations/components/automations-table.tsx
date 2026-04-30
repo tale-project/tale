@@ -22,7 +22,6 @@ export interface WorkflowItem {
   slug: string;
   name: string;
   description?: string;
-  enabled: boolean;
   version?: string;
   stepCount: number;
   hash: string;
@@ -48,7 +47,6 @@ function toWorkflowItem(
         slug: string;
         name: string;
         description?: string;
-        enabled: boolean;
         version?: string;
         stepCount: number;
         hash: string;
@@ -72,10 +70,11 @@ export function AutomationsTable({
   const [searchQuery, setSearchQuery] = useState('');
 
   const { workflows, isLoading, refetch } = useListWorkflows(
-    'default',
+    organizationId,
     'installed',
   );
-  const { columns, searchPlaceholder } = useAutomationsTableConfig();
+  const { columns, searchPlaceholder } =
+    useAutomationsTableConfig(organizationId);
 
   useEffect(() => {
     const handleWorkflowUpdated = () => void refetch();

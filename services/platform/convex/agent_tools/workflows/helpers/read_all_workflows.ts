@@ -7,7 +7,7 @@ import type { WorkflowReadListAllResult, WorkflowSummary } from './types';
 
 export async function readAllWorkflows(
   ctx: ToolCtx,
-  args: { enabledOnly?: boolean },
+  _args: Record<string, never>,
 ): Promise<WorkflowReadListAllResult> {
   const { organizationId } = ctx;
 
@@ -25,7 +25,7 @@ export async function readAllWorkflows(
     const orgSlug = await resolveOrgSlug(ctx, organizationId);
     const rawResults: unknown = await ctx.runAction(
       internal.workflows.file_actions.listWorkflowsForAgent,
-      { orgSlug },
+      { orgSlug, organizationId },
     );
 
     if (!Array.isArray(rawResults)) {
@@ -41,15 +41,11 @@ export async function readAllWorkflows(
     for (const item of rawResults) {
       if (!isRecord(item) || typeof item.slug !== 'string') continue;
 
-      const enabled = typeof item.enabled === 'boolean' ? item.enabled : false;
-      if (args.enabledOnly && !enabled) continue;
-
       workflows.push({
         slug: item.slug,
         name: typeof item.name === 'string' ? item.name : item.slug,
         description:
           typeof item.description === 'string' ? item.description : undefined,
-        enabled,
         version: typeof item.version === 'string' ? item.version : undefined,
         stepCount:
           typeof item.stepCount === 'number' ? item.stepCount : undefined,

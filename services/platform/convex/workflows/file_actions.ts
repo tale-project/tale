@@ -16,6 +16,7 @@ import { v } from 'convex/values';
 
 import type { WorkflowJsonConfig } from '../../lib/shared/schemas/workflows';
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
+import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
 import { authComponent } from '../auth';
 import {
@@ -28,6 +29,7 @@ import {
   sha256,
   verifyPathWithinBase,
 } from '../lib/file_io';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import type { WorkflowReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
@@ -67,31 +69,34 @@ async function readWorkflowFile(
 
 export const readWorkflow = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     workflowSlug: v.string(),
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<WorkflowReadResult> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
-    return readWorkflowFile(args.orgSlug, args.workflowSlug);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    return readWorkflowFile(orgSlug, args.workflowSlug);
   },
 });
 
 export const listWorkflows = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     filter: v.optional(
       v.union(v.literal('installed'), v.literal('templates'), v.literal('all')),
     ),
   },
   returns: v.any(),
-  handler: async (ctx, args) => {
+  // oxlint-disable-next-line typescript/no-explicit-any -- listWorkflows returns heterogeneous shapes; v.any() at API boundary
+  handler: async (ctx, args): Promise<any[]> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const filterMode = args.filter ?? 'all';
-    const dir = resolveWorkflowsDir(args.orgSlug);
+    const dir = resolveWorkflowsDir(orgSlug);
     let entries: { name: string; parentPath: string; isDirectory: boolean }[];
     try {
       const raw = await readdir(dir, { recursive: true, withFileTypes: true });
@@ -118,6 +123,12 @@ export const listWorkflows = action({
         !e.parentPath.includes('.history'),
     );
 
+    const installedRaw: string[] = await ctx.runQuery(
+      internal.workflows.installations.listInstalledSlugs,
+      { organizationId: args.organizationId },
+    );
+    const installedSlugs = new Set<string>(installedRaw);
+
     const results = await Promise.all(
       jsonFiles.map(async (entry) => {
         const relativePath = path
@@ -127,9 +138,9 @@ export const listWorkflows = action({
 
         if (!validateWorkflowSlug(slug)) return null;
 
-        const result = await readWorkflowFile(args.orgSlug, slug);
+        const result = await readWorkflowFile(orgSlug, slug);
         if (result.ok) {
-          const installed = result.config.installed ?? false;
+          const installed = installedSlugs.has(slug);
           if (filterMode === 'installed' && !installed) return null;
           if (filterMode === 'templates' && installed) return null;
 
@@ -138,7 +149,6 @@ export const listWorkflows = action({
             name: result.config.name,
             description: result.config.description,
             installed,
-            enabled: result.config.enabled,
             version: result.config.version,
             stepCount: result.config.steps.length,
             hash: result.hash,
@@ -162,7 +172,7 @@ export const listWorkflows = action({
  */
 export const saveWorkflowWithSnapshot = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     workflowSlug: v.string(),
     config: v.any(),
     expectedHash: v.optional(v.string()),
@@ -176,14 +186,13 @@ export const saveWorkflowWithSnapshot = action({
       throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
     }
 
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const config = workflowJsonSchema.parse(args.config);
     const newContent = serializeWorkflowJson(config);
-    const filePath = resolveWorkflowFilePath(args.orgSlug, args.workflowSlug);
+    const filePath = resolveWorkflowFilePath(orgSlug, args.workflowSlug);
 
-    // Read current file for snapshot and CAS check
     const currentContent = await readFileSafe(filePath);
 
-    // Compare-and-swap: reject if file changed since client last read it
     if (args.expectedHash && currentContent) {
       const currentHash = sha256(currentContent);
       if (currentHash !== args.expectedHash) {
@@ -193,9 +202,8 @@ export const saveWorkflowWithSnapshot = action({
       }
     }
 
-    // Snapshot current content to history before overwriting
     if (currentContent) {
-      const historyDir = resolveHistoryDir(args.orgSlug, args.workflowSlug);
+      const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
       await mkdir(historyDir, { recursive: true });
       const timestamp = generateHistoryTimestamp();
       await atomicWrite(
@@ -205,7 +213,6 @@ export const saveWorkflowWithSnapshot = action({
       await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
     }
 
-    // Write new content atomically
     await atomicWrite(filePath, newContent);
 
     return { hash: sha256(newContent) };
@@ -214,7 +221,7 @@ export const saveWorkflowWithSnapshot = action({
 
 export const deleteWorkflow = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     workflowSlug: v.string(),
   },
   returns: v.null(),
@@ -226,8 +233,9 @@ export const deleteWorkflow = action({
       throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
     }
 
-    const filePath = resolveWorkflowFilePath(args.orgSlug, args.workflowSlug);
-    const historyDir = resolveHistoryDir(args.orgSlug, args.workflowSlug);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const filePath = resolveWorkflowFilePath(orgSlug, args.workflowSlug);
+    const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
 
     await unlink(filePath).catch((err) => {
       if (err instanceof Error && 'code' in err && err.code !== 'ENOENT') {
@@ -236,13 +244,18 @@ export const deleteWorkflow = action({
     });
     await rm(historyDir, { recursive: true, force: true });
 
+    await ctx.runMutation(internal.workflows.installations.deleteInstallation, {
+      organizationId: args.organizationId,
+      workflowSlug: args.workflowSlug,
+    });
+
     return null;
   },
 });
 
 export const installWorkflow = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     workflowSlug: v.string(),
   },
   returns: v.object({ hash: v.string() }),
@@ -254,45 +267,49 @@ export const installWorkflow = action({
       throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
     }
 
-    const result = await readWorkflowFile(args.orgSlug, args.workflowSlug);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const result = await readWorkflowFile(orgSlug, args.workflowSlug);
     if (!result.ok) {
       throw new Error(`Cannot install workflow: ${result.message}`);
     }
 
-    if (result.config.installed) {
-      return { hash: result.hash };
+    await ctx.runMutation(internal.workflows.installations.upsertInstallation, {
+      organizationId: args.organizationId,
+      workflowSlug: args.workflowSlug,
+      installedBy: authUser.email ?? String(authUser._id),
+      contentHash: result.hash,
+    });
+
+    return { hash: result.hash };
+  },
+});
+
+export const uninstallWorkflow = action({
+  args: {
+    organizationId: v.string(),
+    workflowSlug: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    if (!validateWorkflowSlug(args.workflowSlug)) {
+      throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
     }
 
-    const updatedConfig: WorkflowJsonConfig = {
-      ...result.config,
-      installed: true,
-      enabled: false,
-    };
+    await ctx.runMutation(internal.workflows.installations.deleteInstallation, {
+      organizationId: args.organizationId,
+      workflowSlug: args.workflowSlug,
+    });
 
-    const newContent = serializeWorkflowJson(updatedConfig);
-    const filePath = resolveWorkflowFilePath(args.orgSlug, args.workflowSlug);
-
-    const historyDir = resolveHistoryDir(args.orgSlug, args.workflowSlug);
-    await mkdir(historyDir, { recursive: true });
-    const currentContent = await readFileSafe(filePath);
-    if (currentContent) {
-      const timestamp = generateHistoryTimestamp();
-      await atomicWrite(
-        path.join(historyDir, `${timestamp}.json`),
-        currentContent,
-      );
-      await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
-    }
-
-    await atomicWrite(filePath, newContent);
-
-    return { hash: sha256(newContent) };
+    return null;
   },
 });
 
 export const duplicateWorkflow = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     workflowSlug: v.string(),
   },
   returns: v.object({ newSlug: v.string() }),
@@ -300,18 +317,17 @@ export const duplicateWorkflow = action({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const source = await readWorkflowFile(args.orgSlug, args.workflowSlug);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const source = await readWorkflowFile(orgSlug, args.workflowSlug);
     if (!source.ok) {
       throw new Error(`Cannot duplicate: ${source.message}`);
     }
 
-    // Determine the folder prefix and base name
     const parts = args.workflowSlug.split('/');
     const baseName = parts.pop() ?? args.workflowSlug;
     const folderPrefix = parts.length > 0 ? parts.join('/') + '/' : '';
 
-    // Find a unique name
-    const dir = resolveWorkflowsDir(args.orgSlug);
+    const dir = resolveWorkflowsDir(orgSlug);
     const targetDir = folderPrefix.length > 0 ? path.join(dir, ...parts) : dir;
     const existingFiles = await readdirSafe(targetDir);
     const existingNames = new Set(
@@ -331,13 +347,18 @@ export const duplicateWorkflow = action({
     const newConfig: WorkflowJsonConfig = {
       ...source.config,
       name: `${source.config.name} (Copy)`,
-      installed: true,
-      enabled: false,
     };
 
     const content = serializeWorkflowJson(newConfig);
-    const filePath = resolveWorkflowFilePath(args.orgSlug, newSlug);
+    const filePath = resolveWorkflowFilePath(orgSlug, newSlug);
     await atomicWrite(filePath, content);
+
+    await ctx.runMutation(internal.workflows.installations.upsertInstallation, {
+      organizationId: args.organizationId,
+      workflowSlug: newSlug,
+      installedBy: authUser.email ?? String(authUser._id),
+      contentHash: sha256(content),
+    });
 
     return { newSlug };
   },
@@ -345,7 +366,7 @@ export const duplicateWorkflow = action({
 
 export const renameWorkflow = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     oldSlug: v.string(),
     newSlug: v.string(),
   },
@@ -361,14 +382,14 @@ export const renameWorkflow = action({
       throw new Error(`Invalid new slug: ${args.newSlug}`);
     }
 
-    const oldPath = resolveWorkflowFilePath(args.orgSlug, args.oldSlug);
-    const newPath = resolveWorkflowFilePath(args.orgSlug, args.newSlug);
-    const baseDir = resolveWorkflowsDir(args.orgSlug);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const oldPath = resolveWorkflowFilePath(orgSlug, args.oldSlug);
+    const newPath = resolveWorkflowFilePath(orgSlug, args.newSlug);
+    const baseDir = resolveWorkflowsDir(orgSlug);
 
     await verifyPathWithinBase(oldPath, baseDir);
     await verifyPathWithinBase(newPath, baseDir);
 
-    // Read, validate, then write to new location
     const content = await readFileSafe(oldPath);
     if (!content) throw new Error('Workflow not found');
     parseWorkflowJson(content);
@@ -377,15 +398,40 @@ export const renameWorkflow = action({
     await atomicWrite(newPath, content);
     await unlink(oldPath);
 
-    // Move history directory
-    const oldHistoryDir = resolveHistoryDir(args.orgSlug, args.oldSlug);
-    const newHistoryDir = resolveHistoryDir(args.orgSlug, args.newSlug);
+    const oldHistoryDir = resolveHistoryDir(orgSlug, args.oldSlug);
+    const newHistoryDir = resolveHistoryDir(orgSlug, args.newSlug);
     try {
       await mkdir(path.dirname(newHistoryDir), { recursive: true });
       const { rename: fsRename } = await import('node:fs/promises');
       await fsRename(oldHistoryDir, newHistoryDir);
-    } catch {
-      // History migration is best-effort
+    } catch (err) {
+      console.warn('[renameWorkflow] history move failed', err);
+    }
+
+    const existingInstallation = await ctx.runQuery(
+      internal.workflows.installations.getInstallationInternal,
+      {
+        organizationId: args.organizationId,
+        workflowSlug: args.oldSlug,
+      },
+    );
+    if (existingInstallation) {
+      await ctx.runMutation(
+        internal.workflows.installations.deleteInstallation,
+        {
+          organizationId: args.organizationId,
+          workflowSlug: args.oldSlug,
+        },
+      );
+      await ctx.runMutation(
+        internal.workflows.installations.upsertInstallation,
+        {
+          organizationId: args.organizationId,
+          workflowSlug: args.newSlug,
+          installedBy: existingInstallation.installedBy,
+          contentHash: existingInstallation.contentHash,
+        },
+      );
     }
 
     return null;
@@ -394,7 +440,7 @@ export const renameWorkflow = action({
 
 export const listHistory = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     workflowSlug: v.string(),
   },
   returns: v.any(),
@@ -402,7 +448,8 @@ export const listHistory = action({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const historyDir = resolveHistoryDir(args.orgSlug, args.workflowSlug);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
     const entries = await readdirSafe(historyDir);
 
     return entries
@@ -421,7 +468,7 @@ export const listHistory = action({
 
 export const readHistoryEntry = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     workflowSlug: v.string(),
     timestamp: v.string(),
   },
@@ -430,7 +477,8 @@ export const readHistoryEntry = action({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const historyDir = resolveHistoryDir(args.orgSlug, args.workflowSlug);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
     const filePath = path.join(historyDir, `${args.timestamp}.json`);
 
     const resolved = path.resolve(filePath);
@@ -458,7 +506,7 @@ export const readHistoryEntry = action({
 
 export const restoreFromHistory = action({
   args: {
-    orgSlug: v.string(),
+    organizationId: v.string(),
     workflowSlug: v.string(),
     timestamp: v.string(),
   },
@@ -467,12 +515,10 @@ export const restoreFromHistory = action({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const historyDir = resolveHistoryDir(args.orgSlug, args.workflowSlug);
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const historyDir = resolveHistoryDir(orgSlug, args.workflowSlug);
     const historyPath = path.join(historyDir, `${args.timestamp}.json`);
-    const workflowPath = resolveWorkflowFilePath(
-      args.orgSlug,
-      args.workflowSlug,
-    );
+    const workflowPath = resolveWorkflowFilePath(orgSlug, args.workflowSlug);
 
     const resolved = path.resolve(historyPath);
     if (!resolved.startsWith(path.resolve(historyDir))) {
@@ -557,9 +603,11 @@ export const readWorkflowForExecution = internalAction({
 export const listWorkflowsForAgent = internalAction({
   args: {
     orgSlug: v.string(),
+    organizationId: v.string(),
   },
   returns: v.any(),
-  handler: async (_ctx, args) => {
+  // oxlint-disable-next-line typescript/no-explicit-any -- v.any() at API boundary
+  handler: async (ctx, args): Promise<any[]> => {
     const dir = resolveWorkflowsDir(args.orgSlug);
     let raw;
     try {
@@ -576,6 +624,12 @@ export const listWorkflowsForAgent = internalAction({
         !(e.parentPath ?? '').includes('.history'),
     );
 
+    const installedRaw: string[] = await ctx.runQuery(
+      internal.workflows.installations.listInstalledSlugs,
+      { organizationId: args.organizationId },
+    );
+    const installedSlugs = new Set<string>(installedRaw);
+
     const results = await Promise.all(
       jsonFiles.map(async (entry) => {
         const parentPath = entry.parentPath ?? '';
@@ -585,14 +639,14 @@ export const listWorkflowsForAgent = internalAction({
         const slug = workflowSlugFromRelativePath(relativePath);
 
         if (!validateWorkflowSlug(slug)) return null;
+        if (!installedSlugs.has(slug)) return null;
 
         const result = await readWorkflowFile(args.orgSlug, slug);
-        if (result.ok && result.config.installed) {
+        if (result.ok) {
           return {
             slug,
             name: result.config.name,
             description: result.config.description,
-            enabled: result.config.enabled,
             stepCount: result.config.steps.length,
           };
         }
@@ -615,11 +669,12 @@ export const getAvailableWorkflows = action({
       description: v.optional(v.string()),
     }),
   ),
-  handler: async (ctx, _args) => {
+  handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) return [];
 
-    const dir = resolveWorkflowsDir('default');
+    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+    const dir = resolveWorkflowsDir(orgSlug);
     let raw;
     try {
       raw = await readdir(dir, { recursive: true, withFileTypes: true });
@@ -635,6 +690,12 @@ export const getAvailableWorkflows = action({
         !(e.parentPath ?? '').includes('.history'),
     );
 
+    const installedRaw: string[] = await ctx.runQuery(
+      internal.workflows.installations.listInstalledSlugs,
+      { organizationId: args.organizationId },
+    );
+    const installedSlugs = new Set<string>(installedRaw);
+
     const workflows: Array<{
       id: string;
       name: string;
@@ -649,9 +710,10 @@ export const getAvailableWorkflows = action({
       const slug = workflowSlugFromRelativePath(relativePath);
 
       if (!validateWorkflowSlug(slug)) continue;
+      if (!installedSlugs.has(slug)) continue;
 
-      const result = await readWorkflowFile('default', slug);
-      if (result.ok && result.config.installed && result.config.enabled) {
+      const result = await readWorkflowFile(orgSlug, slug);
+      if (result.ok) {
         workflows.push({
           id: slug,
           name: result.config.name,

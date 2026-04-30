@@ -17,7 +17,6 @@ import {
 } from '@xyflow/react';
 import {
   TestTubeDiagonal,
-  Info,
   X,
   Scan,
   Sparkles,
@@ -55,7 +54,7 @@ interface AutomationStepsProps {
   className?: string;
   organizationId: string;
   automationId: string;
-  status: 'draft' | 'active' | 'inactive' | 'archived';
+  hasActiveTrigger: boolean;
   onStepCreated?: () => void;
   onOpenAIChat?: () => void;
 }
@@ -108,13 +107,11 @@ function AutomationStepsInner({
   className: _className,
   organizationId,
   automationId,
-  status,
+  hasActiveTrigger,
   onStepCreated: _onStepCreated,
   onOpenAIChat,
 }: AutomationStepsProps) {
   const { t } = useT('automations');
-  const isDraft = status === 'draft';
-  const isActive = status === 'active';
   const hasSteps = steps && steps.length > 0;
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- without explicit Edge, TS infers never[]
@@ -155,7 +152,7 @@ function AutomationStepsInner({
     sourceId: string;
     targetId: string;
   } | null>(null);
-  const [showDraftBanner, setShowDraftBanner] = useState(true);
+  const [showActivityBanner, setShowActivityBanner] = useState(true);
   const [minimapDimensions, setMinimapDimensions] = useState({
     width: 192,
     height: 128,
@@ -346,10 +343,10 @@ function AutomationStepsInner({
           <ReactFlow
             nodes={nodes}
             edges={edges}
-            onNodesChange={isActive ? undefined : onNodesChange}
-            onEdgesChange={isActive ? undefined : onEdgesChange}
-            onConnect={isActive ? undefined : onConnect}
-            onEdgesDelete={isActive ? undefined : onEdgesDelete}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onEdgesDelete={onEdgesDelete}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             connectionLineType={ConnectionLineType.SmoothStep}
@@ -367,11 +364,11 @@ function AutomationStepsInner({
               style: { strokeWidth: 2 },
               zIndex: 0,
             }}
-            deleteKeyCode={isActive ? null : ['Backspace', 'Delete']}
-            nodesDraggable={!isActive}
-            nodesConnectable={!isActive}
-            nodesFocusable={!isActive}
-            edgesFocusable={!isActive}
+            deleteKeyCode={['Backspace', 'Delete']}
+            nodesDraggable
+            nodesConnectable
+            nodesFocusable
+            edgesFocusable
             multiSelectionKeyCode={['Meta', 'Ctrl']}
             proOptions={{ hideAttribution: true }}
           >
@@ -407,32 +404,21 @@ function AutomationStepsInner({
               </div>
             )}
 
-            {showDraftBanner && isDraft && (
-              <Panel position="top-center" className="mx-4 mt-4 w-full px-8">
-                <div className="mx-auto flex max-w-xl items-center gap-2.5 rounded-lg bg-blue-50 px-4 py-3 shadow-sm ring-1 ring-blue-200">
-                  <Info className="size-5 shrink-0 text-blue-600" />
-                  <Text className="text-sm text-blue-600">
-                    {t('steps.banners.draftNotPublished')}
-                  </Text>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="ml-auto size-6 shrink-0 p-1 text-blue-600 hover:bg-blue-100 hover:text-blue-700"
-                    onClick={() => setShowDraftBanner(false)}
-                  >
-                    <X className="size-4" />
-                  </Button>
-                </div>
-              </Panel>
-            )}
-
-            {isActive && (
+            {showActivityBanner && hasActiveTrigger && (
               <Panel position="top-center" className="mx-4 mt-4 w-full px-4">
                 <div className="mx-auto flex max-w-3xl items-center gap-2.5 rounded-lg bg-amber-50 px-4 py-3 shadow-sm ring-1 ring-amber-200">
                   <AlertTriangle className="size-5 shrink-0 text-amber-600" />
                   <Text className="text-sm text-amber-600">
-                    {t('steps.banners.activeCannotModify')}
+                    {t('steps.banners.hasActiveTriggers')}
                   </Text>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="ml-auto size-6 shrink-0 p-1 text-amber-600 hover:bg-amber-100 hover:text-amber-700"
+                    onClick={() => setShowActivityBanner(false)}
+                  >
+                    <X className="size-4" />
+                  </Button>
                 </div>
               </Panel>
             )}
@@ -472,7 +458,6 @@ function AutomationStepsInner({
                     variant="secondary"
                     title={t('steps.toolbar.addStep')}
                     onClick={() => setIsCreateStepDialogOpen(true)}
-                    disabled={isActive}
                   >
                     <Plus className="size-4" />
                   </Button>

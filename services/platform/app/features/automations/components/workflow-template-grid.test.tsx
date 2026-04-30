@@ -38,6 +38,7 @@ vi.mock('../hooks/file-queries', () => ({
 
 describe('WorkflowTemplateGrid', () => {
   const defaultProps = {
+    organizationId: 'org-123',
     onTemplateInstalled: vi.fn(),
   };
 
@@ -63,7 +64,7 @@ describe('WorkflowTemplateGrid', () => {
 
     await waitFor(() => {
       expect(mockInstallWorkflow).toHaveBeenCalledWith({
-        orgSlug: 'default',
+        organizationId: 'org-123',
         workflowSlug: 'general/welcome',
       });
     });

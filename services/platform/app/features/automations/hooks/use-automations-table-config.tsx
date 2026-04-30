@@ -11,9 +11,8 @@ import { useT } from '@/lib/i18n/client';
 import { AutomationRowActions } from '../components/automation-row-actions';
 import type { AutomationTableItem } from '../components/automations-table';
 
-export function useAutomationsTableConfig() {
+export function useAutomationsTableConfig(organizationId: string) {
   const { t: tTables } = useT('tables');
-  const { t: tCommon } = useT('common');
   const { t: tAutomations } = useT('automations');
 
   const columns = useMemo<ColumnDef<AutomationTableItem>[]>(
@@ -42,28 +41,6 @@ export function useAutomationsTableConfig() {
                 {row.original.name}
               </Text>
             </div>
-          );
-        },
-      },
-      {
-        id: 'status',
-        header: tTables('headers.status'),
-        size: 120,
-        meta: { skeleton: { type: 'badge' } },
-        cell: ({ row }) => {
-          if (row.original.type === 'folder') {
-            return (
-              <Text as="span" variant="muted">
-                —
-              </Text>
-            );
-          }
-          return (
-            <Badge dot variant={row.original.enabled ? 'green' : 'outline'}>
-              {row.original.enabled
-                ? tCommon('status.published')
-                : tCommon('status.draft')}
-            </Badge>
           );
         },
       },
@@ -105,10 +82,10 @@ export function useAutomationsTableConfig() {
               onKeyDown={(e) => e.stopPropagation()}
             >
               <AutomationRowActions
+                organizationId={organizationId}
                 automation={{
                   _id: row.original.slug,
                   name: row.original.name,
-                  status: row.original.enabled ? 'active' : 'archived',
                 }}
               />
             </div>
@@ -116,7 +93,7 @@ export function useAutomationsTableConfig() {
         },
       },
     ],
-    [tTables, tCommon],
+    [tTables, organizationId],
   );
 
   return {

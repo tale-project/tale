@@ -32,7 +32,7 @@ interface MessageListProps {
   displayMessages: Message[];
   isLoading: boolean;
   isWaitingForResponse: boolean;
-  workflow: { status?: string } | null | undefined;
+  workflow: { name: string } | null | undefined;
   organizationId: string;
   workflowUpdateApprovals: WorkflowUpdateApproval[];
   workflowCreationApprovals: WorkflowCreationApproval[];
@@ -127,11 +127,7 @@ export function MessageList({
             ) : workflow === null ? (
               <Text variant="caption">{t('assistant.notFound')}</Text>
             ) : (
-              <Text variant="body-sm">
-                {workflow.status === 'draft'
-                  ? t('assistant.welcomeDraft')
-                  : t('assistant.welcomeActive')}
-              </Text>
+              <Text variant="body-sm">{t('assistant.welcome')}</Text>
             )}
           </div>
         </div>

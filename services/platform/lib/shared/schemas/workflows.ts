@@ -26,6 +26,9 @@ const workflowConfigSchema = z.object({
   retryPolicy: retryPolicySchema.optional(),
   variables: z.record(z.string(), z.unknown()).optional(),
   secrets: z.record(z.string(), secretRefSchema).optional(),
+  // Workflow-level fallback chain inherited by every LLM step that defines
+  // neither `model` nor `models`. Step-level overrides win.
+  models: z.array(z.string()).optional(),
 });
 
 const stepTypeSchema = z.enum([
@@ -48,17 +51,29 @@ const workflowStepSchema = z.object({
   nextSteps: z.record(z.string(), z.string()).default({}),
 });
 
+const integrationDependencySchema = z.object({
+  name: z.string().min(1),
+  operations: z.array(z.string().min(1)).optional(),
+  minVersion: z.number().int().positive().optional(),
+});
+
+const requiresSchema = z.object({
+  integrations: z.array(integrationDependencySchema).default([]),
+});
+
 export const workflowJsonSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
   version: z.string().optional(),
-  installed: z.boolean().default(false),
-  enabled: z.boolean().default(false),
   config: workflowConfigSchema.optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
+  requires: requiresSchema.optional(),
   steps: z.array(workflowStepSchema).default([]),
 });
 
 export type WorkflowJsonConfig = z.infer<typeof workflowJsonSchema>;
 export type WorkflowStep = z.infer<typeof workflowStepSchema>;
+export type WorkflowIntegrationDependency = z.infer<
+  typeof integrationDependencySchema
+>;
 export type StepType = z.infer<typeof stepTypeSchema>;

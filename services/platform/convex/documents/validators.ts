@@ -6,12 +6,18 @@ import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../lib/validators/json';
 
-export const sourceProviderValidator = v.union(
-  v.literal('onedrive'),
-  v.literal('upload'),
-  v.literal('sharepoint'),
-  v.literal('agent'),
-);
+/**
+ * Source provider for a document.
+ *
+ * Open string by design — for integration-sourced documents this is the
+ * integration slug (e.g. `onedrive`, `sharepoint`, `google_drive`). New
+ * integrations don't require platform code changes.
+ *
+ * Reserved (non-integration) values:
+ * - `upload` — user-uploaded file with no integration backing
+ * - `agent` — created by an AI agent
+ */
+export const sourceProviderValidator = v.string();
 
 export const sourceModeValidator = v.union(
   v.literal('auto'),

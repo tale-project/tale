@@ -87,7 +87,7 @@ export const createWorkflowTool = {
   name: 'create_workflow' as const,
   tool: createTool({
     description: `Create a new workflow definition with all steps.
-Requires user approval — an approval card will be created. When telling the user the card is ready, do not reference its position (no "above" / "below") — just say the approval card has been created.
+Requires user approval — an approval card rendered separately by the UI will be created. When telling the user the card is ready, only say it has been created — never describe where it appears, how to find it, or its direction relative to the chat (no "above"/"below"/"上方"/"下方"/"oben"/"unten"/equivalents).
 
 **⭐ IF THE USER PROVIDED A WORKFLOW JSON CONFIG:**
 Use the provided configuration DIRECTLY — do NOT recreate or rewrite it.

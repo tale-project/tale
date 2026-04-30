@@ -37,7 +37,23 @@ export function CollapsibleGuide({
           'max-w-none border-t border-border px-3 py-2 text-xs leading-relaxed',
         )}
       >
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            a: ({ href, children, ...rest }) => (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                {...rest}
+              >
+                {children}
+              </a>
+            ),
+          }}
+        >
+          {content}
+        </ReactMarkdown>
       </div>
     </details>
   );

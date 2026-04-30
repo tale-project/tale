@@ -216,10 +216,14 @@ export function createBoundWorkflowTool(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- readWorkflowForExecution returns v.any() but ok=true guarantees WorkflowJsonConfig
       const config = result.config as WorkflowJsonConfig;
 
-      if (!config.enabled) {
+      const installation = await ctx.runQuery(
+        internal.workflows.installations.getInstallationInternal,
+        { organizationId, workflowSlug: wfDefinition.workflowSlug },
+      );
+      if (!installation) {
         return {
           success: false,
-          message: `Workflow "${wfDefinition.name}" is disabled and cannot be executed.`,
+          message: `Workflow "${wfDefinition.name}" is not installed in this deployment.`,
         };
       }
 
@@ -301,7 +305,8 @@ function buildDescription(
 
   lines.push(
     '',
-    'This creates an approval card. Do NOT mention its position. The user must approve before execution begins.',
+    'This creates an approval card rendered separately by the UI. The user must approve before execution begins.',
+    'When telling the user the card is ready, only say it has been created — never describe where it appears, how to find it, or its direction relative to the chat (no "above"/"below"/"上方"/"下方"/"oben"/"unten"/equivalents).',
   );
 
   return lines.join('\n');

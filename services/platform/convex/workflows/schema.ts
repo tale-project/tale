@@ -44,6 +44,9 @@ export const wfDefinitionsTable = defineTable({
           }),
         ),
       ),
+      // Workflow-level fallback chain inherited by every LLM step that
+      // defines neither `model` nor `models`. Step-level overrides win.
+      models: v.optional(v.array(v.string())),
     }),
   ),
   rootVersionId: v.optional(v.id('wfDefinitions')),
@@ -184,6 +187,16 @@ export const wfExecutionsTable = defineTable({
   .index('by_org_triggeredBy', ['organizationId', 'triggeredBy'])
   .index('by_component_workflow', ['componentWorkflowId'])
   .index('by_org_workflowSlug', ['organizationId', 'workflowSlug']);
+
+export const wfInstallationsTable = defineTable({
+  organizationId: v.string(),
+  workflowSlug: v.string(),
+  installedAt: v.number(),
+  installedBy: v.string(),
+  contentHash: v.string(),
+})
+  .index('by_org', ['organizationId'])
+  .index('by_org_slug', ['organizationId', 'workflowSlug']);
 
 export const workflowProcessingRecordsTable = defineTable({
   organizationId: v.string(),

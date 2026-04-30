@@ -50,10 +50,7 @@
       "import": "Import",
       "importing": "Importing...",
       "openMenu": "Open menu",
-      "publish": "Publish",
       "rename": "Rename",
-      "deactivate": "Deactivate",
-      "deactivating": "Deactivating...",
       "deleteSelected": "Delete selected"
     },
     "bulkActions": {
@@ -68,7 +65,18 @@
       "clickToUpload": "Click to upload",
       "supportedFormats": ".xlsx, .xls or .csv",
       "pickADate": "Pick a date",
-      "dropFilesHere": "Drop files here to upload"
+      "dropFilesHere": "Drop files here to upload",
+      "acceptHint": "JSON files, folders, or .zip archives",
+      "pickFiles": "Choose files",
+      "pickFolder": "Choose folder",
+      "pickZip": "Choose zip",
+      "summary": "{total} entries · {saved} saved · {queued} pending",
+      "conflictHeading": "{count, plural, one {# entry already exists} other {# entries already exist}}",
+      "conflictHint": "Existing entries will be overwritten. The previous version is saved to history. Uncheck below to skip them instead.",
+      "overwriteToggle": "Overwrite existing entries",
+      "statusExists": "Already exists — will be skipped",
+      "willOverwrite": "Already exists — will overwrite",
+      "statusSkipped": "Skipped"
     },
     "labels": {
       "name": "Name",
@@ -94,7 +102,6 @@
       "completed": "Completed",
       "failed": "Failed",
       "waitingForInput": "Waiting for input",
-      "published": "Published",
       "draft": "Draft",
       "enabled": "Enabled",
       "disabled": "Disabled",
@@ -307,8 +314,6 @@
       "existingUserAdded": "Existing user added to organization",
       "automationDuplicated": "Automation duplicated successfully",
       "automationRenamed": "Automation renamed successfully",
-      "automationDeactivated": "Automation deactivated successfully",
-      "automationPublished": "Automation published successfully",
       "brandingUpdated": "Branding updated successfully"
     },
     "error": {
@@ -320,9 +325,7 @@
       "addMemberFailed": "Failed to add member",
       "automationDuplicateFailed": "Failed to duplicate automation",
       "automationRenameFailed": "Failed to rename automation",
-      "automationDeleteFailed": "Failed to delete automation",
-      "automationDeactivateFailed": "Failed to deactivate automation",
-      "automationPublishFailed": "Failed to publish automation"
+      "automationDeleteFailed": "Failed to delete automation"
     }
   },
   "dialogs": {
@@ -606,13 +609,21 @@
         "modelSearch": "Search models…",
         "modelEmpty": "No models found"
       },
+      "uploadDialog": {
+        "menuItem": "Upload from file…",
+        "title": "Upload agents",
+        "description": "Import agent JSON files, folders, or .zip archives. Each .json file installs as a separate agent.",
+        "toastSuccess": "Agents imported"
+      },
       "general": {
         "visibleInChat": "Visible in chat",
         "visibleInChatHelp": "When enabled, this agent appears in the chat page for users to select. When disabled, the agent can only be used through delegation from other agents.",
         "sectionAdvanced": "Advanced",
         "sectionAdvancedDescription": "Fine-tune agent execution behavior.",
         "timeoutMinutes": "Execution timeout (minutes)",
-        "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations."
+        "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations.",
+        "responseCache": "Cache responses",
+        "responseCacheHelp": "When the same prompt is sent again under similar context, return the previously generated response instead of re-running the model. Saves cost and latency at the price of freshness."
       },
       "conversationStarters": {
         "title": "Conversation starters",
@@ -738,10 +749,7 @@
         "webModeContextDescription": "Automatically inject relevant web results into every response",
         "webModeBothDescription": "Auto-inject web results and allow on-demand search",
         "webSearchHint": "Web search only searches content from websites added to your organization.",
-        "webSearchHintLink": "Manage websites",
-        "cacheExclusions": "Cache exclusions",
-        "cacheExclusionsDescription": "When any of these tools are invoked, the response will not be cached",
-        "noCacheToolsEmpty": "Enable response caching tools to configure exclusions"
+        "webSearchHintLink": "Manage websites"
       },
       "webhook": {
         "title": "Webhook",
@@ -1298,13 +1306,6 @@
     "search": {
       "placeholder": "Search automations"
     },
-    "deactivateDialog": {
-      "title": "Deactivate automation",
-      "description": "Are you sure you want to deactivate \"{name}\"? All triggers will stop firing until you activate it again."
-    },
-    "activeToggle": {
-      "ariaLabel": "Toggle automation active state"
-    },
     "createWithAI": "Create automation with AI",
     "navigation": {
       "editor": "Editor",
@@ -1362,6 +1363,9 @@
           "cronExpression": "Cron expression",
           "cronPlaceholder": "0 * * * *",
           "cronHelp": "Standard 5-field cron format: minute hour day month weekday",
+          "variablesLabel": "Workflow variables",
+          "variablesDescription": "Input parameters passed to each scheduled run. Pre-filled from the workflow's input schema.",
+          "variablesInvalid": "Variables must be valid JSON object",
           "presets": {
             "every5Minutes": "Every 5 minutes",
             "hourly": "Every hour",
@@ -1466,6 +1470,12 @@
       "creating": "Creating...",
       "continue": "Continue"
     },
+    "uploadDialog": {
+      "menuItem": "Upload from file…",
+      "title": "Upload automations",
+      "description": "Import workflow JSON files, folders, or .zip archives. Each .json file installs as a separate automation.",
+      "toastSuccess": "Automations imported"
+    },
     "templates": {
       "description": "Choose a template to get started with pre-configured steps.",
       "installFailed": "Unable to create automation from template",
@@ -1481,8 +1491,7 @@
         "apiNotWired": "Public APIs for editing workflow steps are not wired up yet."
       },
       "banners": {
-        "draftNotPublished": "This automation is not yet published",
-        "activeCannotModify": "This automation is published and cannot be modified. Create a new version to make changes."
+        "hasActiveTriggers": "This automation has active triggers — edits take effect immediately."
       },
       "toolbar": {
         "focus": "Focus",
@@ -1565,8 +1574,7 @@
       "fallbackFile": "File",
       "loading": "Loading...",
       "notFound": "Automation not found.",
-      "welcomeDraft": "Hi! I'm your automation assistant. I can help you create and edit this automation. Just describe what you want to automate, and I'll build it for you!",
-      "welcomeActive": "Hi! I'm your automation assistant. I can help you understand and discuss this automation. What would you like to know?",
+      "welcome": "Hi! I'm your automation assistant. I can help you create, edit, and discuss this automation. What would you like to do?",
       "errorMessage": "I'm sorry, I encountered an error. Please try again or check the console for details.",
       "thinking": {
         "thinking": "Thinking",

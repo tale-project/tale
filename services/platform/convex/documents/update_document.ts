@@ -21,7 +21,7 @@ export async function updateDocument(
     fileId?: Id<'_storage'>;
     mimeType?: string;
     extension?: string;
-    sourceProvider?: 'onedrive' | 'upload' | 'sharepoint' | 'agent';
+    sourceProvider?: string;
     externalItemId?: string;
     teamIds?: string[];
     userId?: string;

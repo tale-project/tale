@@ -1,0 +1,200 @@
+{
+  "name": "Google Drive Sync",
+  "description": "Sync files from a Google Drive folder into Tale documents. Each scheduled run lists the files in the configured folder, downloads any that are new or changed, and upserts documents by external ID. RAG indexing is then handled by the document-rag-sync workflow.",
+  "version": "1.0.0",
+  "config": {
+    "timeout": 600000,
+    "retryPolicy": {
+      "maxRetries": 2,
+      "backoffMs": 2000
+    },
+    "variables": {
+      "workflowId": "google_drive_sync"
+    }
+  },
+  "requires": {
+    "integrations": [
+      {
+        "name": "google_drive",
+        "operations": ["list_files", "download_file"]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {
+        "inputSchema": {
+          "properties": {
+            "folderId": {
+              "description": "Google Drive folder ID. Copy from the Drive URL: https://drive.google.com/drive/folders/<folderId>",
+              "type": "string"
+            },
+            "mimeTypeFilter": {
+              "description": "Mime types to include (e.g. [\"application/pdf\"]). Leave empty to sync all files.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "targetFolderPath": {
+              "description": "Tale documents path where synced files land. Supports nested folders via slashes (e.g. \"Google Drive/Marketing\"). Defaults to \"Google Drive\" if omitted.",
+              "type": "string"
+            }
+          },
+          "required": ["folderId"]
+        }
+      },
+      "nextSteps": {
+        "success": "list_files"
+      }
+    },
+    {
+      "stepSlug": "list_files",
+      "name": "List Drive Files",
+      "stepType": "action",
+      "config": {
+        "parameters": {
+          "name": "google_drive",
+          "operation": "list_files",
+          "params": {
+            "folderId": "{{input.folderId}}",
+            "mimeTypes": "{{input.mimeTypeFilter}}"
+          }
+        },
+        "type": "integration"
+      },
+      "nextSteps": {
+        "success": "loop_files"
+      }
+    },
+    {
+      "stepSlug": "loop_files",
+      "name": "Loop Through Files",
+      "stepType": "loop",
+      "config": {
+        "continueOnError": true,
+        "itemVariable": "file",
+        "items": "{{steps.list_files.output.data.result.data.files}}"
+      },
+      "nextSteps": {
+        "done": "noop",
+        "loop": "lookup_existing"
+      }
+    },
+    {
+      "stepSlug": "lookup_existing",
+      "name": "Look Up Existing Document",
+      "stepType": "action",
+      "config": {
+        "type": "document",
+        "parameters": {
+          "operation": "find_by_external_id",
+          "externalItemId": "{{loop.item.id}}",
+          "folderPath": "{{input.targetFolderPath || 'Google Drive'}}"
+        }
+      },
+      "nextSteps": {
+        "success": "check_unchanged"
+      }
+    },
+    {
+      "stepSlug": "check_unchanged",
+      "name": "Skip If Unchanged",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.lookup_existing.output.data.exists == true && steps.lookup_existing.output.data.contentHash == loop.item.md5Checksum",
+        "description": "If a document with the same external id and md5 already exists in the target folder, skip the download entirely."
+      },
+      "nextSteps": {
+        "true": "loop_files",
+        "false": "download_file"
+      }
+    },
+    {
+      "stepSlug": "download_file",
+      "name": "Download File from Drive",
+      "stepType": "action",
+      "config": {
+        "parameters": {
+          "name": "google_drive",
+          "operation": "download_file",
+          "params": {
+            "contentType": "{{loop.item.mimeType}}",
+            "fileId": "{{loop.item.id}}",
+            "fileName": "{{loop.item.name}}"
+          }
+        },
+        "type": "integration"
+      },
+      "nextSteps": {
+        "success": "create_document"
+      }
+    },
+    {
+      "stepSlug": "create_document",
+      "name": "Create or Update Document",
+      "stepType": "action",
+      "config": {
+        "parameters": {
+          "contentHash": "{{loop.item.md5Checksum}}",
+          "externalItemId": "{{loop.item.id}}",
+          "fileId": "{{steps.download_file.output.data.result.data.fileId}}",
+          "folderPath": "{{input.targetFolderPath || 'Google Drive'}}",
+          "metadata": {
+            "googleDriveFileId": "{{loop.item.id}}",
+            "googleDriveFolderId": "{{input.folderId}}",
+            "mimeType": "{{loop.item.mimeType}}",
+            "size": "{{loop.item.size}}",
+            "sourceModifiedAt": "{{loop.item.modifiedTime}}",
+            "syncedAt": "{{now}}"
+          },
+          "operation": "create",
+          "sourceProvider": "google_drive",
+          "title": "{{loop.item.name}}"
+        },
+        "type": "document"
+      },
+      "nextSteps": {
+        "success": "check_doc_changed"
+      }
+    },
+    {
+      "stepSlug": "check_doc_changed",
+      "name": "Skip RAG If Unchanged",
+      "stepType": "condition",
+      "config": {
+        "description": "Skip RAG re-indexing when the document was unchanged (same content hash).",
+        "expression": "steps.create_document.output.data.action != 'skipped'"
+      },
+      "nextSteps": {
+        "false": "loop_files",
+        "true": "index_in_rag"
+      }
+    },
+    {
+      "stepSlug": "index_in_rag",
+      "name": "Index in RAG",
+      "stepType": "action",
+      "config": {
+        "parameters": {
+          "documentId": "{{steps.create_document.output.data.documentId}}",
+          "operation": "index_in_rag"
+        },
+        "type": "document"
+      },
+      "nextSteps": {
+        "success": "loop_files"
+      }
+    },
+    {
+      "stepSlug": "noop",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}

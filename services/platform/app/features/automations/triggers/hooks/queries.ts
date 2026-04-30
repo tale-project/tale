@@ -52,3 +52,20 @@ export function useEventSubscriptions(
     isLoading,
   };
 }
+
+export function useWorkflowActivity(
+  organizationId: string,
+  workflowSlug: string,
+) {
+  const { data, isLoading } = useConvexQuery(
+    api.workflows.triggers.slug_queries.getTriggerActivityBySlug,
+    { organizationId, workflowSlug },
+  );
+
+  return {
+    hasActiveTrigger: data?.hasActiveTrigger ?? false,
+    activeTriggers: data?.activeTriggers ?? 0,
+    totalTriggers: data?.totalTriggers ?? 0,
+    isLoading,
+  };
+}

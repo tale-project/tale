@@ -13,7 +13,12 @@ export interface DocumentItem {
   type: 'file' | 'folder';
   size?: number;
   folderId?: string;
-  sourceProvider?: 'onedrive' | 'upload' | 'sharepoint';
+  /**
+   * Source provider — integration slug for integration-sourced docs
+   * (`onedrive`, `sharepoint`, `google_drive`, …) or reserved values
+   * `upload` (user upload) / `agent` (AI-created).
+   */
+  sourceProvider?: string;
   sourceMode?: 'auto' | 'manual';
   sourceCreatedAt?: number;
   sourceModifiedAt?: number;
