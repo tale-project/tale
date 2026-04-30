@@ -44,7 +44,7 @@ export function useAuditLogTableConfig(
         cell: ({ row }) => (
           <TableDateCell
             date={row.original.timestamp}
-            preset="relative"
+            customFormat="MMM D, YYYY HH:mm"
             alignRight
           />
         ),

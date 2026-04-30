@@ -472,6 +472,8 @@
     "organization": {
       "title": "Organisation (optional)",
       "organizationId": "Organisations-ID",
+      "organizationIdHelp": "Wird für API-Integrationen verwendet",
+      "copyOrganizationId": "Organisations-ID kopieren",
       "membersTitle": "Organisationsmitglieder",
       "membersEntityLabel": "Mitglieder",
       "manageAccess": "Zugriff auf die Organisation verwalten",
@@ -1149,6 +1151,8 @@
       "openDocs": "API-Dokumentation"
     },
     "logs": {
+      "heading": "Protokolle",
+      "subheading": "Systemprotokolle anzeigen und verwalten.",
       "auditLogs": "Audit-Protokolle",
       "activityLogs": "Aktivitätsprotokolle",
       "errorLogs": "Fehlerprotokolle",
@@ -1156,14 +1160,20 @@
       "errorComingSoon": "Fehlerprotokolle sind bald verfügbar.",
       "blockCounters": {
         "tabLabel": "Anmeldeblockaden",
-        "description": "Stündliche Zähler abgelehnter Anmeldeversuche (Kontosperre oder IP-Flutschutz). Letzte 7 Tage.",
+        "tableCaption": "Anmeldeblockaden",
         "empty": "Keine abgelehnten Anmeldeversuche in den letzten 7 Tagen.",
+        "emptyTitle": "Keine Anmeldeblockaden",
+        "footerCount": "{count, plural, one {# Ergebnis} other {# Ergebnisse}} angezeigt",
         "columns": {
-          "window": "Stunde",
-          "email": "Konto",
-          "lockout": "Sperre",
-          "ipLimit": "IP-Limit",
-          "lastIp": "Letzte IP"
+          "timestamp": "Zeitstempel",
+          "user": "Benutzer",
+          "ipAddress": "IP-Adresse",
+          "lockOut": "Sperre",
+          "ipLimit": "IP-Limit"
+        },
+        "values": {
+          "yes": "Ja",
+          "no": "Nein"
         }
       },
       "audit": {
@@ -1172,7 +1182,7 @@
         "emptyDescription": "Audit-Protokolle werden hier angezeigt, sobald Aktionen in deiner Organisation durchgeführt werden.",
         "detailTitle": "Audit-Protokoll-Details",
         "columns": {
-          "timestamp": "Zeit",
+          "timestamp": "Zeitstempel",
           "action": "Aktion",
           "actor": "Benutzer",
           "actorId": "Benutzer-ID",

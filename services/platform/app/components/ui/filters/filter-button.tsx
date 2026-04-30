@@ -24,7 +24,7 @@ export function FilterButton({
       variant="secondary"
       aria-label={t('labels.filter')}
       className={cn(
-        'hover:bg-muted relative gap-2',
+        'hover:bg-muted relative gap-2 h-9',
         hasActiveFilters && 'border-primary',
         isLoading && 'opacity-75',
         className,

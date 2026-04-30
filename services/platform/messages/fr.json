@@ -472,6 +472,8 @@
     "organization": {
       "title": "Organisation (facultatif)",
       "organizationId": "ID de l'organisation",
+      "organizationIdHelp": "Utilisé pour les intégrations API",
+      "copyOrganizationId": "Copier l'ID de l'organisation",
       "membersTitle": "Membres de l'organisation",
       "membersEntityLabel": "membres",
       "manageAccess": "Gérer l'accès à l'organisation",
@@ -1149,6 +1151,8 @@
       "openDocs": "Documentation API"
     },
     "logs": {
+      "heading": "Journaux",
+      "subheading": "Consulte et gère les journaux système.",
       "auditLogs": "Journaux d'audit",
       "activityLogs": "Journaux d'activité",
       "errorLogs": "Journaux d'erreurs",
@@ -1156,14 +1160,20 @@
       "errorComingSoon": "Les journaux d'erreurs seront bientôt disponibles.",
       "blockCounters": {
         "tabLabel": "Blocages de connexion",
-        "description": "Compteurs horaires des tentatives de connexion rejetées (verrouillage de compte ou protection contre les inondations par IP). 7 derniers jours.",
+        "tableCaption": "Activité des blocages de connexion",
         "empty": "Aucune tentative de connexion rejetée au cours des 7 derniers jours.",
+        "emptyTitle": "Aucun blocage de connexion",
+        "footerCount": "{count, plural, one {# résultat affiché} other {# résultats affichés}}",
         "columns": {
-          "window": "Heure",
-          "email": "Compte",
-          "lockout": "Verrouillage",
-          "ipLimit": "Limite IP",
-          "lastIp": "Dernière IP"
+          "timestamp": "Horodatage",
+          "user": "Utilisateur",
+          "ipAddress": "Adresse IP",
+          "lockOut": "Verrouillage",
+          "ipLimit": "Limite IP"
+        },
+        "values": {
+          "yes": "Oui",
+          "no": "Non"
         }
       },
       "audit": {
@@ -1172,7 +1182,7 @@
         "emptyDescription": "Les journaux d'audit apparaîtront ici à mesure que des actions sont effectuées dans ton organisation.",
         "detailTitle": "Détails du journal d'audit",
         "columns": {
-          "timestamp": "Heure",
+          "timestamp": "Horodatage",
           "action": "Action",
           "actor": "Utilisateur",
           "actorId": "ID utilisateur",
