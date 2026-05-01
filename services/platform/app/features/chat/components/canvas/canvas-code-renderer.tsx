@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { useTheme } from '@/app/components/theme/theme-provider';
 import { useT } from '@/lib/i18n/client';
@@ -15,6 +16,10 @@ interface CanvasCodeRendererProps {
    * Drives the trailing caret and stick-to-bottom; patch streams keep this
    * false because the source is unchanged during the stream window. */
   isStreaming?: boolean;
+  /** When provided (patch streams), each entry is a `search` snippet the
+   * model has emitted so far. The renderer wraps the first occurrence of
+   * each in `<mark>` so the user sees which regions are about to change. */
+  highlightTargets?: readonly string[];
   onContentChange: (content: string) => void;
 }
 
@@ -27,11 +32,56 @@ function extractShikiCodeContent(html: string): string {
   return codeMatch ? codeMatch[1] : html;
 }
 
+/**
+ * Wrap the first non-overlapping occurrence of each target in <mark>.
+ * Plain-text rendering — used during patch streams when we want to surface
+ * which regions are about to change, in lieu of syntax highlighting which
+ * cannot accept overlay marks without re-parsing the shiki output.
+ */
+function renderWithHighlights(
+  code: string,
+  targets: readonly string[],
+): ReactNode[] {
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (const target of targets) {
+    if (!target) continue;
+    const idx = code.indexOf(target);
+    if (idx === -1) continue;
+    const start = idx;
+    const end = idx + target.length;
+    // Skip if this range overlaps an already-claimed one. First-write-wins
+    // keeps the visualisation deterministic when the model emits patches
+    // whose `search` snippets happen to nest.
+    const overlaps = ranges.some((r) => !(end <= r.start || start >= r.end));
+    if (!overlaps) ranges.push({ start, end });
+  }
+  if (ranges.length === 0) return [code];
+  ranges.sort((a, b) => a.start - b.start);
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  for (let i = 0; i < ranges.length; i += 1) {
+    const r = ranges[i];
+    if (cursor < r.start) parts.push(code.slice(cursor, r.start));
+    parts.push(
+      <mark
+        key={`mark-${r.start}`}
+        className="bg-warning/20 ring-warning/40 rounded-sm px-0.5 ring-1 ring-inset"
+      >
+        {code.slice(r.start, r.end)}
+      </mark>,
+    );
+    cursor = r.end;
+  }
+  if (cursor < code.length) parts.push(code.slice(cursor));
+  return parts;
+}
+
 function CanvasCodeRendererComponent({
   code,
   language = 'plaintext',
   isEditing,
   isStreaming = false,
+  highlightTargets,
   onContentChange,
 }: CanvasCodeRendererProps) {
   const { t } = useT('chat');
@@ -102,6 +152,22 @@ function CanvasCodeRendererComponent({
       className="bg-foreground/80 ml-0.5 inline-block h-3 w-[2px] animate-pulse align-middle"
     />
   ) : null;
+
+  // Patch streaming: surface the search snippets the model has emitted as
+  // <mark> ranges over the static settled source. We render plain text in
+  // this branch because the shiki HTML output cannot host overlay marks
+  // without re-parsing token boundaries — the trade-off (no syntax colour
+  // for the few seconds of patch streaming) is worth the explicit signal.
+  if (highlightTargets && highlightTargets.length > 0) {
+    return (
+      <pre ref={preRef} className="bg-muted h-full overflow-auto p-4">
+        <code className="text-xs leading-relaxed">
+          {renderWithHighlights(code, highlightTargets)}
+          {caret}
+        </code>
+      </pre>
+    );
+  }
 
   if (!html) {
     return (

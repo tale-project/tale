@@ -120,6 +120,7 @@ export const finalizeStreamedCreate = internalMutation({
       language: args.language,
       content: args.content,
       streamingContent: undefined,
+      streamingPatchTargets: undefined,
       liveStreamMode: undefined,
       liveStreamStartedAt: undefined,
       updatedAt: now,
@@ -194,6 +195,7 @@ export const applyToolPatches = internalMutation({
       revision: nextRevision,
       lastEditedByMessageId: args.editedByMessageId,
       streamingContent: undefined,
+      streamingPatchTargets: undefined,
       liveStreamMode: undefined,
       liveStreamStartedAt: undefined,
       updatedAt: now,
@@ -252,6 +254,7 @@ export const rewriteArtifact = internalMutation({
       revision: nextRevision,
       lastEditedByMessageId: args.editedByMessageId,
       streamingContent: undefined,
+      streamingPatchTargets: undefined,
       liveStreamMode: undefined,
       liveStreamStartedAt: undefined,
       updatedAt: now,
@@ -283,6 +286,7 @@ export const beginEditStream = internalMutation({
       liveStreamMode: args.liveStreamMode,
       liveStreamStartedAt: Date.now(),
       streamingContent: args.liveStreamMode === 'rewrite' ? '' : undefined,
+      streamingPatchTargets: args.liveStreamMode === 'patch' ? [] : undefined,
     });
     return null;
   },
@@ -294,6 +298,10 @@ export const beginEditStream = internalMutation({
  * a mid-stream crash cannot corrupt the previously-settled `content`. The
  * title and language fields are also patched here as they grow during
  * streaming — titles are short enough that throttling them isn't worth it.
+ *
+ * For `mode: 'patch'` streams, `streamingPatchTargets` is populated with the
+ * partial list of `search` snippets so the Canvas pane can highlight which
+ * regions are about to change.
  */
 export const updateStreamingContent = internalMutation({
   args: {
@@ -301,6 +309,7 @@ export const updateStreamingContent = internalMutation({
     streamingContent: v.optional(v.string()),
     title: v.optional(v.string()),
     language: v.optional(v.string()),
+    streamingPatchTargets: v.optional(v.array(v.string())),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -313,6 +322,9 @@ export const updateStreamingContent = internalMutation({
     }
     if (args.title !== undefined) patch.title = args.title;
     if (args.language !== undefined) patch.language = args.language;
+    if (args.streamingPatchTargets !== undefined) {
+      patch.streamingPatchTargets = args.streamingPatchTargets;
+    }
     if (Object.keys(patch).length === 0) return null;
     // Refresh the liveness timestamp on every flush — `liveStreamStartedAt`
     // is the watchdog input for `cleanupStaleStreams`. Without this refresh
@@ -334,6 +346,7 @@ export const abortStream = internalMutation({
   handler: async (ctx, { artifactId }) => {
     await ctx.db.patch(artifactId, {
       streamingContent: undefined,
+      streamingPatchTargets: undefined,
       liveStreamMode: undefined,
       liveStreamStartedAt: undefined,
     });
@@ -363,6 +376,7 @@ export const cleanupStaleStreams = internalMutation({
       ) {
         await ctx.db.patch(row._id, {
           streamingContent: undefined,
+          streamingPatchTargets: undefined,
           liveStreamMode: undefined,
           liveStreamStartedAt: undefined,
         });

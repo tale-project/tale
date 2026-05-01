@@ -18,6 +18,7 @@ import type { ToolExecutionOptions } from 'ai';
 import { parsePartialJson } from 'ai';
 import { z } from 'zod/v4';
 
+import { getString, isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { toId } from '../../lib/type_cast_helpers';
 import type { ToolDefinition } from '../types';
@@ -26,7 +27,9 @@ import {
   getState,
   initState,
   markFlushed,
+  markFlushedPatchTargets,
   shouldFlush,
+  shouldFlushPatchTargets,
 } from './stream_state';
 
 const patchEntry = z.object({
@@ -212,6 +215,37 @@ export const artifactEditTool = {
           },
         );
         markFlushed(state, obj.content.length);
+      }
+
+      if (
+        state.resolvedMode === 'patch' &&
+        state.artifactId !== undefined &&
+        Array.isArray(obj.patches)
+      ) {
+        // Surface the partial `search` snippets the model has emitted so
+        // far. The Canvas pane uses these to highlight which regions of
+        // the (still settled) source are about to change. We only push
+        // *complete* search strings — entries where `search` is missing
+        // or empty mean the model is mid-token on that patch and the
+        // partial substring would mark the wrong range.
+        const targets: string[] = [];
+        for (const item of obj.patches as readonly unknown[]) {
+          if (!isRecord(item)) continue;
+          const search = getString(item, 'search');
+          if (search !== undefined && search.length > 0) {
+            targets.push(search);
+          }
+        }
+        if (shouldFlushPatchTargets(state, targets)) {
+          await ctx.runMutation(
+            internal.artifacts.internal_mutations.updateStreamingContent,
+            {
+              artifactId: state.artifactId,
+              streamingPatchTargets: targets,
+            },
+          );
+          markFlushedPatchTargets(state, targets);
+        }
       }
     },
     execute: async (

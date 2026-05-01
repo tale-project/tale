@@ -496,6 +496,11 @@ function CanvasPaneComponent() {
             language={streamingHighlightLang}
             isEditing={false}
             isStreaming={isContentStreaming}
+            highlightTargets={
+              liveStreamMode === 'patch'
+                ? artifact?.streamingPatchTargets
+                : undefined
+            }
             onContentChange={onContentChange}
           />
         )}
