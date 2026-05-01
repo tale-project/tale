@@ -11,8 +11,16 @@ interface CanvasCodeRendererProps {
   code: string;
   language?: string;
   isEditing: boolean;
+  /** True only while the LLM is actively appending tokens (create/rewrite).
+   * Drives the trailing caret and stick-to-bottom; patch streams keep this
+   * false because the source is unchanged during the stream window. */
+  isStreaming?: boolean;
   onContentChange: (content: string) => void;
 }
+
+/** Pixel tolerance for considering the pre "at the bottom". Mirrors the
+ * inline code-block in message-bubble so the two feel consistent. */
+const STICK_TO_BOTTOM_THRESHOLD_PX = 24;
 
 function extractShikiCodeContent(html: string): string {
   const codeMatch = html.match(/<code[^>]*>([\s\S]*?)<\/code>/);
@@ -23,6 +31,7 @@ function CanvasCodeRendererComponent({
   code,
   language = 'plaintext',
   isEditing,
+  isStreaming = false,
   onContentChange,
 }: CanvasCodeRendererProps) {
   const { t } = useT('chat');
@@ -30,6 +39,8 @@ function CanvasCodeRendererComponent({
   const { resolvedTheme } = useTheme();
   const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const preRef = useRef<HTMLPreElement>(null);
+  const stickToBottomRef = useRef(true);
 
   useEffect(() => {
     if (isEditing) return undefined;
@@ -43,6 +54,31 @@ function CanvasCodeRendererComponent({
       cancelled = true;
     };
   }, [code, language, shikiTheme, isEditing]);
+
+  useEffect(() => {
+    const pre = preRef.current;
+    if (!pre) return undefined;
+    const onScroll = () => {
+      const distanceFromBottom =
+        pre.scrollHeight - pre.scrollTop - pre.clientHeight;
+      stickToBottomRef.current =
+        distanceFromBottom <= STICK_TO_BOTTOM_THRESHOLD_PX;
+    };
+    pre.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      pre.removeEventListener('scroll', onScroll);
+    };
+  }, []);
+
+  // Auto-follow the trailing edge while content grows. If the user scrolls
+  // up to read earlier output, stickToBottomRef goes false and we leave them
+  // alone until they scroll back near the bottom.
+  useEffect(() => {
+    const pre = preRef.current;
+    if (pre && stickToBottomRef.current) {
+      pre.scrollTop = pre.scrollHeight;
+    }
+  }, [code, html]);
 
   if (isEditing) {
     return (
@@ -60,20 +96,30 @@ function CanvasCodeRendererComponent({
     );
   }
 
+  const caret = isStreaming ? (
+    <span
+      aria-hidden="true"
+      className="bg-foreground/80 ml-0.5 inline-block h-3 w-[2px] animate-pulse align-middle"
+    />
+  ) : null;
+
   if (!html) {
     return (
-      <pre className="bg-muted h-full overflow-auto p-4">
-        <code className="text-xs leading-relaxed">{code}</code>
+      <pre ref={preRef} className="bg-muted h-full overflow-auto p-4">
+        <code className="text-xs leading-relaxed">
+          {code}
+          {caret}
+        </code>
       </pre>
     );
   }
 
   return (
-    <pre className="bg-muted h-full overflow-auto p-4">
-      <code
-        className="text-xs leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+    <pre ref={preRef} className="bg-muted h-full overflow-auto p-4">
+      <code className="text-xs leading-relaxed">
+        <span dangerouslySetInnerHTML={{ __html: html }} />
+        {caret}
+      </code>
     </pre>
   );
 }

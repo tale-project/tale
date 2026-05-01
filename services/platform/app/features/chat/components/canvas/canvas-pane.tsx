@@ -200,6 +200,11 @@ function CanvasPaneComponent() {
   const streamingContent = artifact?.streamingContent;
   const isStreaming = artifact?.liveStreamMode !== undefined;
   const liveStreamMode = artifact?.liveStreamMode;
+  // create/rewrite stream tokens into streamingContent; patch leaves the
+  // source static. Only the former should drive the trailing caret in the
+  // code renderer — a blinking caret on unchanging source is misleading.
+  const isContentStreaming =
+    liveStreamMode === 'create' || liveStreamMode === 'rewrite';
   const previewContent =
     isStreaming && streamingContent !== undefined
       ? streamingContent
@@ -490,6 +495,7 @@ function CanvasPaneComponent() {
             code={displayedContent}
             language={streamingHighlightLang}
             isEditing={false}
+            isStreaming={isContentStreaming}
             onContentChange={onContentChange}
           />
         )}
