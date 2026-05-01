@@ -1,27 +1,30 @@
 'use client';
 
+import { useMutation, useQuery } from 'convex/react';
 import {
-  X,
-  Copy,
   Check,
-  Download,
-  Pencil,
-  Eye,
   Code,
+  Copy,
+  Download,
+  Eye,
   FileText,
-  Globe,
   GitBranch,
+  Globe,
   Image,
-  Save,
   Loader2,
   Maximize2,
   Minimize2,
+  Pencil,
+  Save,
+  X,
 } from 'lucide-react';
-import { useState, useCallback, useRef, useEffect, memo } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useToast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
@@ -73,23 +76,21 @@ const DEFAULT_WIDTH = 480;
 
 function CanvasPaneComponent() {
   const { t } = useT('chat');
-  const {
-    isCanvasOpen,
-    canvasContent,
-    canvasType,
-    canvasTitle,
-    canvasLanguage,
-    closeCanvas,
-    updateCanvasContent,
-    applyCanvasContent,
-    canApply,
-    isApplying,
-  } = useCanvas();
+  const { toast } = useToast();
+  const { isCanvasOpen, artifactId, editBuffer, closeCanvas, setEditBuffer } =
+    useCanvas();
+
+  const artifact = useQuery(
+    api.artifacts.queries.getById,
+    artifactId ? { artifactId } : 'skip',
+  );
+  const userEditMutation = useMutation(api.artifacts.mutations.userEdit);
 
   const [isEditing, setIsEditing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const [isApplying, setIsApplying] = useState(false);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resizeRef = useRef<HTMLDivElement>(null);
@@ -117,9 +118,7 @@ function CanvasPaneComponent() {
   useEffect(() => {
     if (!isFullscreen) return undefined;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsFullscreen(false);
-      }
+      if (e.key === 'Escape') setIsFullscreen(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -152,18 +151,35 @@ function CanvasPaneComponent() {
     document.addEventListener('mouseup', handleMouseUp);
   }, []);
 
+  // Read content reactively. Streaming-aware: while the artifact is being
+  // written by the LLM, prefer `streamingContent`; once settled, use `content`.
+  const settledContent = artifact?.content ?? '';
+  const streamingContent = artifact?.streamingContent;
+  const isStreaming = artifact?.liveStreamMode !== undefined;
+  const liveStreamMode = artifact?.liveStreamMode;
+  const previewContent =
+    isStreaming && streamingContent !== undefined
+      ? streamingContent
+      : settledContent;
+  const editorContent = editBuffer ?? settledContent;
+  const displayedContent = isEditing ? editorContent : previewContent;
+  const canvasType: CanvasContentType = artifact?.type ?? 'code';
+  const canvasTitle = artifact?.title ?? '';
+  const canvasLanguage = artifact?.language;
+
+  const isDirty = editBuffer !== undefined && editBuffer !== settledContent;
+  const canApply = isDirty && !!artifactId && !isStreaming;
+
   const handleCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(canvasContent);
+      await navigator.clipboard.writeText(displayedContent);
       setIsCopied(true);
-      if (copyTimeoutRef.current) {
-        clearTimeout(copyTimeoutRef.current);
-      }
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
       copyTimeoutRef.current = setTimeout(() => setIsCopied(false), 2000);
-    } catch {
-      // Clipboard write failed
+    } catch (err) {
+      console.error('Failed to copy artifact:', err);
     }
-  }, [canvasContent]);
+  }, [displayedContent]);
 
   const handleDownload = useCallback(() => {
     const extensions: Record<CanvasContentType, string> = {
@@ -181,24 +197,55 @@ function CanvasPaneComponent() {
       svg: 'image/svg+xml',
       markdown: 'text/markdown',
     };
-    const blob = new Blob([canvasContent], { type: mimeTypes[canvasType] });
+    const blob = new Blob([displayedContent], { type: mimeTypes[canvasType] });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${canvasTitle || 'canvas'}.${ext}`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [canvasContent, canvasType, canvasTitle, canvasLanguage]);
+  }, [displayedContent, canvasType, canvasTitle, canvasLanguage]);
 
   const toggleEdit = useCallback(() => {
-    setIsEditing((prev) => !prev);
-  }, []);
+    setIsEditing((prev) => {
+      const next = !prev;
+      // Entering edit: seed buffer from current settled content if the user
+      // hasn't typed anything yet. Exiting edit without applying: discard the
+      // buffer so re-opening doesn't surface stale typing.
+      if (next && editBuffer === undefined) setEditBuffer(settledContent);
+      if (!next) setEditBuffer(undefined);
+      return next;
+    });
+  }, [editBuffer, settledContent, setEditBuffer]);
 
   const toggleFullscreen = useCallback(() => {
     setIsFullscreen((prev) => !prev);
   }, []);
 
-  if (!isCanvasOpen) return null;
+  const onContentChange = useCallback(
+    (next: string) => {
+      setEditBuffer(next);
+    },
+    [setEditBuffer],
+  );
+
+  const handleApply = useCallback(async () => {
+    if (!artifactId || editBuffer === undefined) return;
+    setIsApplying(true);
+    try {
+      await userEditMutation({ artifactId, content: editBuffer });
+      setEditBuffer(undefined);
+      setIsEditing(false);
+      toast({ title: t('canvas.applied'), variant: 'success' });
+    } catch (err) {
+      console.error('Failed to apply canvas edit:', err);
+      toast({ title: t('canvas.applyFailed'), variant: 'destructive' });
+    } finally {
+      setIsApplying(false);
+    }
+  }, [artifactId, editBuffer, userEditMutation, setEditBuffer, t, toast]);
+
+  if (!isCanvasOpen || !artifactId) return null;
 
   const TypeIcon = TYPE_ICONS[canvasType];
 
@@ -248,6 +295,19 @@ function CanvasPaneComponent() {
           <Badge variant="outline" className="shrink-0 text-xs">
             {TYPE_LABELS[canvasType]}
           </Badge>
+          {isStreaming && (
+            <Badge
+              variant="outline"
+              className="shrink-0 gap-1 text-xs"
+              role="status"
+              aria-live="polite"
+            >
+              <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+              {liveStreamMode === 'patch'
+                ? t('canvas.streamingPatch')
+                : t('canvas.streamingWriting')}
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-1">
@@ -260,6 +320,7 @@ function CanvasPaneComponent() {
               size="icon"
               className="size-7"
               onClick={toggleEdit}
+              disabled={isStreaming}
               aria-label={isEditing ? t('canvas.preview') : t('canvas.edit')}
             >
               {isEditing ? (
@@ -276,7 +337,7 @@ function CanvasPaneComponent() {
                 variant="ghost"
                 size="icon"
                 className="size-7"
-                onClick={applyCanvasContent}
+                onClick={handleApply}
                 disabled={isApplying}
                 aria-label={t('canvas.apply')}
               >
@@ -364,38 +425,38 @@ function CanvasPaneComponent() {
       <div className="min-h-0 flex-1 overflow-hidden">
         {canvasType === 'code' && (
           <CanvasCodeRenderer
-            code={canvasContent}
+            code={displayedContent}
             language={canvasLanguage}
             isEditing={isEditing}
-            onContentChange={updateCanvasContent}
+            onContentChange={onContentChange}
           />
         )}
         {canvasType === 'html' && (
           <CanvasHtmlRenderer
-            html={canvasContent}
+            html={displayedContent}
             isEditing={isEditing}
-            onContentChange={updateCanvasContent}
+            onContentChange={onContentChange}
           />
         )}
         {canvasType === 'svg' && (
           <CanvasHtmlRenderer
-            html={canvasContent}
+            html={displayedContent}
             isEditing={isEditing}
-            onContentChange={updateCanvasContent}
+            onContentChange={onContentChange}
           />
         )}
         {canvasType === 'mermaid' && (
           <CanvasMermaidRenderer
-            code={canvasContent}
+            code={displayedContent}
             isEditing={isEditing}
-            onContentChange={updateCanvasContent}
+            onContentChange={onContentChange}
           />
         )}
         {canvasType === 'markdown' && (
           <CanvasMarkdownRenderer
-            content={canvasContent}
+            content={displayedContent}
             isEditing={isEditing}
-            onContentChange={updateCanvasContent}
+            onContentChange={onContentChange}
           />
         )}
       </div>

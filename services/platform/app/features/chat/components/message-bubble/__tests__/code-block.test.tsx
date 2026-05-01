@@ -1,11 +1,8 @@
-import { render, act, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { type ReactNode } from 'react';
+import { render, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
 
-import { CanvasProvider } from '../../canvas/canvas-context';
 import { CodeBlock, HighlightedCode } from '../code-block';
 
 vi.mock('convex/react', () => ({
@@ -37,7 +34,6 @@ vi.mock('@/lib/i18n/client', () => ({
       const translations: Record<string, string> = {
         'actions.copy': 'Copy',
         'actions.copied': 'Copied',
-        'canvas.openInCanvas': 'Open in Canvas',
       };
       return translations[key] ?? key;
     },
@@ -47,10 +43,6 @@ vi.mock('@/lib/i18n/client', () => ({
 import { highlightCode } from '@/lib/utils/shiki';
 
 const DEBOUNCE_MS = 150;
-
-function WithCanvas({ children }: { children: ReactNode }) {
-  return <CanvasProvider>{children}</CanvasProvider>;
-}
 
 describe('HighlightedCode', () => {
   beforeEach(() => {
@@ -163,95 +155,8 @@ describe('HighlightedCode', () => {
 });
 
 describe('CodeBlock', () => {
-  describe('Open in Canvas button', () => {
-    it('renders the button when wrapped in CanvasProvider', () => {
-      render(
-        <WithCanvas>
-          <CodeBlock lang="javascript">
-            <code>const x = 1;</code>
-          </CodeBlock>
-        </WithCanvas>,
-      );
-
-      expect(
-        screen.getByRole('button', { name: 'Open in Canvas' }),
-      ).toBeInTheDocument();
-    });
-
-    it('does not render the button when outside CanvasProvider', () => {
-      render(
-        <CodeBlock lang="javascript">
-          <code>const x = 1;</code>
-        </CodeBlock>,
-      );
-
-      expect(
-        screen.queryByRole('button', { name: 'Open in Canvas' }),
-      ).not.toBeInTheDocument();
-    });
-
-    it('calls openCanvas with type "html" for html language', async () => {
-      const user = userEvent.setup();
-      render(
-        <WithCanvas>
-          <CodeBlock lang="html">
-            <code>{'<div>Hello</div>'}</code>
-          </CodeBlock>
-        </WithCanvas>,
-      );
-
-      const button = screen.getByRole('button', { name: 'Open in Canvas' });
-      await user.click(button);
-
-      // The canvas should now be open — verify by checking that the context updated
-      // (CanvasPane would render, but we don't render it here; we trust the context call)
-      expect(button).toBeInTheDocument();
-    });
-
-    it('calls openCanvas with type "mermaid" for mermaid language', async () => {
-      const user = userEvent.setup();
-      render(
-        <WithCanvas>
-          <CodeBlock lang="mermaid">
-            <code>graph TD; A--&gt;B;</code>
-          </CodeBlock>
-        </WithCanvas>,
-      );
-
-      const button = screen.getByRole('button', { name: 'Open in Canvas' });
-      await user.click(button);
-      expect(button).toBeInTheDocument();
-    });
-
-    it('calls openCanvas with type "code" for other languages', async () => {
-      const user = userEvent.setup();
-      render(
-        <WithCanvas>
-          <CodeBlock lang="python">
-            <code>print("hello")</code>
-          </CodeBlock>
-        </WithCanvas>,
-      );
-
-      const button = screen.getByRole('button', { name: 'Open in Canvas' });
-      await user.click(button);
-      expect(button).toBeInTheDocument();
-    });
-  });
-
   describe('accessibility', () => {
-    it('passes axe audit for code block with canvas button', async () => {
-      const { container } = render(
-        <WithCanvas>
-          <CodeBlock lang="javascript">
-            <code>const x = 1;</code>
-          </CodeBlock>
-        </WithCanvas>,
-      );
-      await checkAccessibility(container);
-    });
-
-    it('passes axe audit for code block without canvas', async () => {
+    it('passes axe audit for code block', async () => {
       const { container } = render(
         <CodeBlock lang="javascript">
           <code>const x = 1;</code>

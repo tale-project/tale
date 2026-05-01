@@ -10,6 +10,7 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Button } from '@/app/components/ui/primitives/button';
 import { ArenaModeProvider } from '@/app/features/chat/components/arena/arena-mode-context';
 import { BudgetBanner } from '@/app/features/chat/components/budget-banner';
+import { ArtifactBar } from '@/app/features/chat/components/canvas/artifact-bar';
 import { CanvasProvider } from '@/app/features/chat/components/canvas/canvas-context';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
@@ -258,6 +259,9 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <BudgetBanner organizationId={organizationId} />
+          {threadId && (
+            <ArtifactBar organizationId={organizationId} threadId={threadId} />
+          )}
           <LayoutErrorBoundary organizationId={organizationId}>
             <ThreadGate
               organizationId={organizationId}

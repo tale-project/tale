@@ -1,15 +1,38 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { type ReactNode } from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import type { Doc, Id } from '@/convex/_generated/dataModel';
 import { checkAccessibility } from '@/test/utils/a11y';
 
 import { CanvasProvider, useCanvas } from '../canvas-context';
 import { CanvasPane } from '../canvas-pane';
 
+const FAKE_ARTIFACT_ID = 'k123fakeartifactid000000000000' as Id<'artifacts'>;
+
+const FAKE_ARTIFACT: Doc<'artifacts'> = {
+  _id: FAKE_ARTIFACT_ID,
+  _creationTime: 0,
+  organizationId: 'org_test',
+  threadId: 'thread_test',
+  type: 'code',
+  title: 'test.js',
+  language: 'javascript',
+  content: 'const x = 1;',
+  revision: 1,
+  createdByMessageId: 'msg_test',
+  lastEditedByMessageId: 'msg_test',
+  createdAt: 0,
+  updatedAt: 0,
+};
+
 vi.mock('convex/react', () => ({
   useMutation: () => vi.fn(),
+  useQuery: (_query: unknown, args: unknown) => {
+    if (args === 'skip') return undefined;
+    return FAKE_ARTIFACT;
+  },
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({
@@ -21,7 +44,6 @@ vi.mock('@/lib/i18n/client', () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
         'canvas.title': 'Canvas',
-        'canvas.openInCanvas': 'Open in Canvas',
         'canvas.close': 'Close canvas',
         'canvas.edit': 'Edit',
         'canvas.preview': 'Preview',
@@ -32,6 +54,8 @@ vi.mock('@/lib/i18n/client', () => ({
         'canvas.mermaidError': 'Failed to render diagram',
         'canvas.enterFullscreen': 'Fullscreen',
         'canvas.exitFullscreen': 'Exit fullscreen',
+        'canvas.streamingWriting': 'AI is writing…',
+        'canvas.streamingPatch': 'AI is editing…',
       };
       return translations[key] ?? key;
     },
@@ -49,12 +73,7 @@ vi.mock('@/lib/utils/shiki', () => ({
 function OpenCanvasButton() {
   const { openCanvas } = useCanvas();
   return (
-    <button
-      type="button"
-      onClick={() =>
-        openCanvas('const x = 1;', 'code', 'test.js', 'javascript')
-      }
-    >
+    <button type="button" onClick={() => openCanvas(FAKE_ARTIFACT_ID)}>
       Open
     </button>
   );

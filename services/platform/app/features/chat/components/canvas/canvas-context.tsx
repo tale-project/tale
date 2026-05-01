@@ -1,20 +1,15 @@
 'use client';
 
-import { useMutation } from 'convex/react';
 import {
   createContext,
-  useContext,
-  useState,
   useCallback,
+  useContext,
   useMemo,
+  useState,
   type ReactNode,
 } from 'react';
 
-import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import { useT } from '@/lib/i18n/client';
-
-import { replaceCodeBlock } from '../../utils/replace-code-block';
+import type { Id } from '@/convex/_generated/dataModel';
 
 export type CanvasContentType =
   | 'code'
@@ -23,36 +18,16 @@ export type CanvasContentType =
   | 'svg'
   | 'markdown';
 
-export interface CanvasSource {
-  messageId: string;
-  messageContent: string;
-  threadId?: string;
-}
-
 interface CanvasState {
   isCanvasOpen: boolean;
-  canvasContent: string;
-  canvasType: CanvasContentType;
-  canvasTitle: string;
-  canvasLanguage?: string;
-  originalCanvasContent: string;
-  source?: CanvasSource;
+  artifactId?: Id<'artifacts'>;
+  editBuffer?: string;
 }
 
 interface CanvasContextType extends CanvasState {
-  openCanvas: (
-    content: string,
-    type: CanvasContentType,
-    title: string,
-    language?: string,
-    source?: CanvasSource,
-  ) => void;
+  openCanvas: (artifactId: Id<'artifacts'>) => void;
   closeCanvas: () => void;
-  updateCanvasContent: (content: string) => void;
-  applyCanvasContent: () => Promise<void>;
-  isDirty: boolean;
-  canApply: boolean;
-  isApplying: boolean;
+  setEditBuffer: (content: string | undefined) => void;
 }
 
 const CanvasContext = createContext<CanvasContextType | null>(null);
@@ -75,114 +50,41 @@ interface CanvasProviderProps {
 
 const INITIAL_STATE: CanvasState = {
   isCanvasOpen: false,
-  canvasContent: '',
-  canvasType: 'code',
-  canvasTitle: '',
-  canvasLanguage: undefined,
-  originalCanvasContent: '',
-  source: undefined,
+  artifactId: undefined,
+  editBuffer: undefined,
 };
 
 export function CanvasProvider({ children }: CanvasProviderProps) {
-  const { t } = useT('chat');
-  const { toast } = useToast();
   const [state, setState] = useState(INITIAL_STATE);
-  const [isApplying, setIsApplying] = useState(false);
-  const updateMessage = useMutation(api.threads.mutations.updateMessageContent);
 
-  const isDirty = state.canvasContent !== state.originalCanvasContent;
-  const canApply = isDirty && !!state.source?.messageId;
-
-  const openCanvas = useCallback(
-    (
-      content: string,
-      type: CanvasContentType,
-      title: string,
-      language?: string,
-      source?: CanvasSource,
-    ) => {
-      setState({
-        isCanvasOpen: true,
-        canvasContent: content,
-        canvasType: type,
-        canvasTitle: title,
-        canvasLanguage: language,
-        originalCanvasContent: content,
-        source,
-      });
-    },
-    [],
-  );
+  const openCanvas = useCallback((artifactId: Id<'artifacts'>) => {
+    setState({
+      isCanvasOpen: true,
+      artifactId,
+      editBuffer: undefined,
+    });
+  }, []);
 
   const closeCanvas = useCallback(() => {
-    setState((prev) => ({ ...prev, isCanvasOpen: false }));
+    setState((prev) => ({
+      ...prev,
+      isCanvasOpen: false,
+      editBuffer: undefined,
+    }));
   }, []);
 
-  const updateCanvasContent = useCallback((content: string) => {
-    setState((prev) => ({ ...prev, canvasContent: content }));
+  const setEditBuffer = useCallback((content: string | undefined) => {
+    setState((prev) => ({ ...prev, editBuffer: content }));
   }, []);
-
-  const applyCanvasContent = useCallback(async () => {
-    if (!state.source?.messageId || !state.source.messageContent) return;
-    if (state.canvasContent === state.originalCanvasContent) return;
-
-    setIsApplying(true);
-    try {
-      const { markdown: updatedMarkdown, replaced } = replaceCodeBlock(
-        state.source.messageContent,
-        state.originalCanvasContent,
-        state.canvasContent,
-      );
-
-      if (!replaced) {
-        toast({ title: t('canvas.applyFailed'), variant: 'destructive' });
-        return;
-      }
-
-      await updateMessage({
-        messageId: state.source.messageId,
-        content: updatedMarkdown,
-      });
-
-      // Only update state on success
-      setState((prev) => ({
-        ...prev,
-        originalCanvasContent: prev.canvasContent,
-        source: prev.source
-          ? { ...prev.source, messageContent: updatedMarkdown }
-          : undefined,
-      }));
-
-      toast({ title: t('canvas.applied'), variant: 'success' });
-    } catch (err) {
-      console.error('Failed to apply canvas content:', err);
-      toast({ title: t('canvas.applyFailed'), variant: 'destructive' });
-    } finally {
-      setIsApplying(false);
-    }
-  }, [state, updateMessage, t, toast]);
 
   const value = useMemo(
     () => ({
       ...state,
       openCanvas,
       closeCanvas,
-      updateCanvasContent,
-      applyCanvasContent,
-      isDirty,
-      canApply,
-      isApplying,
+      setEditBuffer,
     }),
-    [
-      state,
-      openCanvas,
-      closeCanvas,
-      updateCanvasContent,
-      applyCanvasContent,
-      isDirty,
-      canApply,
-      isApplying,
-    ],
+    [state, openCanvas, closeCanvas, setEditBuffer],
   );
 
   return (
