@@ -2220,7 +2220,6 @@
       "verdictError": "Bewertung konnte nicht gespeichert werden"
     },
     "canvas": {
-      "openInCanvas": "In Canvas öffnen",
       "close": "Canvas schließen",
       "edit": "Bearbeiten",
       "preview": "Vorschau",
@@ -2236,7 +2235,14 @@
       "exitFullscreen": "Vollbild verlassen",
       "codeEditor": "Code-Editor",
       "markdownEditor": "Markdown-Editor",
-      "mermaidEditor": "Mermaid-Editor"
+      "mermaidEditor": "Mermaid-Editor",
+      "streamingWriting": "KI schreibt…",
+      "streamingPatch": "KI bearbeitet…"
+    },
+    "artifacts": {
+      "barLabel": "Artefakte in diesem Thread",
+      "barTitle": "Artefakte",
+      "openCard": "Artefakt öffnen: {title}"
     },
     "branchNavigator": {
       "previous": "Vorheriger Zweig",

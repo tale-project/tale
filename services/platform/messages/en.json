@@ -2220,7 +2220,6 @@
       "verdictError": "Failed to record verdict"
     },
     "canvas": {
-      "openInCanvas": "Open in Canvas",
       "close": "Close canvas",
       "edit": "Edit",
       "preview": "Preview",
@@ -2236,7 +2235,14 @@
       "exitFullscreen": "Exit fullscreen",
       "codeEditor": "Code editor",
       "markdownEditor": "Markdown editor",
-      "mermaidEditor": "Mermaid editor"
+      "mermaidEditor": "Mermaid editor",
+      "streamingWriting": "AI is writing…",
+      "streamingPatch": "AI is editing…"
+    },
+    "artifacts": {
+      "barLabel": "Artifacts in this thread",
+      "barTitle": "Artifacts",
+      "openCard": "Open artifact: {title}"
     },
     "branchNavigator": {
       "previous": "Previous branch",

@@ -2220,7 +2220,6 @@
       "verdictError": "Échec de l'enregistrement du verdict"
     },
     "canvas": {
-      "openInCanvas": "Ouvrir dans le canevas",
       "close": "Fermer le canevas",
       "edit": "Modifier",
       "preview": "Aperçu",
@@ -2236,7 +2235,14 @@
       "exitFullscreen": "Quitter le plein écran",
       "codeEditor": "Éditeur de code",
       "markdownEditor": "Éditeur Markdown",
-      "mermaidEditor": "Éditeur Mermaid"
+      "mermaidEditor": "Éditeur Mermaid",
+      "streamingWriting": "L'IA écrit…",
+      "streamingPatch": "L'IA modifie…"
+    },
+    "artifacts": {
+      "barLabel": "Artéfacts dans ce fil",
+      "barTitle": "Artéfacts",
+      "openCard": "Ouvrir l'artéfact : {title}"
     },
     "branchNavigator": {
       "previous": "Branche précédente",
