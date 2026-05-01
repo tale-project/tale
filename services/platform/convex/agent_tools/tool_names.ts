@@ -10,6 +10,8 @@
  */
 
 export const TOOL_NAMES = [
+  'artifact_create',
+  'artifact_edit',
   'customer_read',
   'product_read',
   'rag_search',
