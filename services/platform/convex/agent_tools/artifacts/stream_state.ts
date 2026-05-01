@@ -31,10 +31,15 @@ export interface ArtifactStreamState {
   // mutation on every delta when nothing changed.
   lastFlushedTitle?: string;
   lastFlushedLanguage?: string;
-  // Stable signature of the last `streamingPatchTargets` flushed (for
-  // patch mode). Cheap join-string compare; cheaper than deep-equal.
-  lastFlushedPatchTargetsKey?: string;
-  lastPatchTargetsFlushAt: number;
+  // Stable signature of the last `streamingPatches` flushed (for patch
+  // mode). JSON-encoded so equal pairs always compare equal cheaply.
+  lastFlushedPatchesKey?: string;
+  lastPatchesFlushAt: number;
+}
+
+export interface StreamingPatchPair {
+  readonly search: string;
+  readonly replace: string;
 }
 
 const STATE = new Map<string, ArtifactStreamState>();
@@ -49,7 +54,7 @@ export function initState(
     accumulator: '',
     lastFlushedContentLength: 0,
     lastFlushAt: 0,
-    lastPatchTargetsFlushAt: 0,
+    lastPatchesFlushAt: 0,
     rowInitialized: false,
   };
   STATE.set(toolCallId, next);
@@ -89,30 +94,33 @@ export function markFlushed(
   state.lastFlushAt = Date.now();
 }
 
-/** Stable change-detection signature for a patch-targets list. JSON encoding
- * sidesteps any in-content separator hazards (control characters, multi-line
- * search blocks, etc.) without us having to reason about which byte is safe.
- * Throwaway string — only used for === comparison, never persisted. */
-export function patchTargetsKey(targets: readonly string[]): string {
-  return JSON.stringify(targets);
+/** Stable change-detection signature for a streaming patches list. JSON
+ * encoding sidesteps any in-content separator hazards (control characters,
+ * multi-line search/replace blocks, etc.) without us having to reason about
+ * which byte is safe. Throwaway string — only `===` comparison, never
+ * persisted. */
+export function streamingPatchesKey(
+  patches: readonly StreamingPatchPair[],
+): string {
+  return JSON.stringify(patches);
 }
 
-/** Flush only when the targets list has changed AND the throttle window has
- * elapsed. Patch targets grow slowly (one per emitted patch), so we don't
- * need a byte-delta gate — just dedupe-by-signature plus a time floor. */
-export function shouldFlushPatchTargets(
+/** Flush only when the patches list has changed AND the throttle window has
+ * elapsed. The list grows / mutates slowly during a patch stream (one
+ * patch entry per ~hundreds of ms), so we don't need a byte-delta gate. */
+export function shouldFlushStreamingPatches(
   state: ArtifactStreamState,
-  targets: readonly string[],
+  patches: readonly StreamingPatchPair[],
 ): boolean {
-  const key = patchTargetsKey(targets);
-  if (state.lastFlushedPatchTargetsKey === key) return false;
-  return Date.now() - state.lastPatchTargetsFlushAt >= STREAM_FLUSH_INTERVAL_MS;
+  const key = streamingPatchesKey(patches);
+  if (state.lastFlushedPatchesKey === key) return false;
+  return Date.now() - state.lastPatchesFlushAt >= STREAM_FLUSH_INTERVAL_MS;
 }
 
-export function markFlushedPatchTargets(
+export function markFlushedStreamingPatches(
   state: ArtifactStreamState,
-  targets: readonly string[],
+  patches: readonly StreamingPatchPair[],
 ): void {
-  state.lastFlushedPatchTargetsKey = patchTargetsKey(targets);
-  state.lastPatchTargetsFlushAt = Date.now();
+  state.lastFlushedPatchesKey = streamingPatchesKey(patches);
+  state.lastPatchesFlushAt = Date.now();
 }

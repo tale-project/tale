@@ -38,9 +38,9 @@ export const liveStreamModeValidator = v.union(
  * partial content the LLM has emitted so far — kept off `content` so a
  * crashed write cannot corrupt the previously-settled revision. For
  * `patch` mode, `streamingContent` stays empty (the row's content does
- * not change until execute settles atomically) and the partial patch
- * `search` snippets are mirrored to `streamingPatchTargets` so the UI
- * can highlight which regions are about to change.
+ * not change until execute settles atomically) and the partial patches
+ * are mirrored to `streamingPatches` so the UI can render an inline diff
+ * preview of the regions about to change.
  */
 export const artifactsTable = defineTable({
   organizationId: v.string(),
@@ -60,12 +60,12 @@ export const artifactsTable = defineTable({
   liveStreamStartedAt: v.optional(v.number()),
   streamingContent: v.optional(v.string()),
   // While `liveStreamMode === 'patch'`, the partial patches array parsed
-  // from the LLM's tool input is mirrored here as the list of `search`
-  // snippets the model has emitted so far. The Canvas pane uses these to
-  // highlight the regions about to change inside the (still settled)
-  // source — patch mode never writes `streamingContent`, so this is the
-  // only signal users have during the stream window.
-  streamingPatchTargets: v.optional(v.array(v.string())),
+  // from the LLM's tool input is mirrored here as {search, replace} pairs
+  // (only entries with a complete `search`; `replace` may still be
+  // streaming in). The Canvas pane uses these to render an inline diff
+  // preview over the (still settled) source — patch mode never writes
+  // `streamingContent`, so this is the only mid-stream signal users have.
+  streamingPatches: v.optional(v.array(artifactPatchValidator)),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_thread', ['organizationId', 'threadId'])

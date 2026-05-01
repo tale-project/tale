@@ -496,9 +496,9 @@ function CanvasPaneComponent() {
             language={streamingHighlightLang}
             isEditing={false}
             isStreaming={isContentStreaming}
-            highlightTargets={
+            highlightPatches={
               liveStreamMode === 'patch'
-                ? artifact?.streamingPatchTargets
+                ? artifact?.streamingPatches
                 : undefined
             }
             onContentChange={onContentChange}

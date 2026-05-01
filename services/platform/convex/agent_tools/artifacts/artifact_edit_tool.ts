@@ -23,13 +23,14 @@ import { internal } from '../../_generated/api';
 import { toId } from '../../lib/type_cast_helpers';
 import type { ToolDefinition } from '../types';
 import {
+  type StreamingPatchPair,
   clearState,
   getState,
   initState,
   markFlushed,
-  markFlushedPatchTargets,
+  markFlushedStreamingPatches,
   shouldFlush,
-  shouldFlushPatchTargets,
+  shouldFlushStreamingPatches,
 } from './stream_state';
 
 const patchEntry = z.object({
@@ -222,29 +223,30 @@ export const artifactEditTool = {
         state.artifactId !== undefined &&
         Array.isArray(obj.patches)
       ) {
-        // Surface the partial `search` snippets the model has emitted so
-        // far. The Canvas pane uses these to highlight which regions of
-        // the (still settled) source are about to change. We only push
-        // *complete* search strings — entries where `search` is missing
-        // or empty mean the model is mid-token on that patch and the
-        // partial substring would mark the wrong range.
-        const targets: string[] = [];
+        // Surface the partial patches as {search, replace} pairs so the
+        // Canvas pane can render an inline diff preview. We only push
+        // entries with a non-empty `search` — without that we cannot
+        // anchor the diff anywhere in the source. `replace` may still be
+        // streaming in (empty or partial); the renderer downgrades to a
+        // strikethrough-only mark in that case and upgrades to full diff
+        // once the replacement text arrives.
+        const pairs: StreamingPatchPair[] = [];
         for (const item of obj.patches as readonly unknown[]) {
           if (!isRecord(item)) continue;
           const search = getString(item, 'search');
-          if (search !== undefined && search.length > 0) {
-            targets.push(search);
-          }
+          if (search === undefined || search.length === 0) continue;
+          const replace = getString(item, 'replace') ?? '';
+          pairs.push({ search, replace });
         }
-        if (shouldFlushPatchTargets(state, targets)) {
+        if (shouldFlushStreamingPatches(state, pairs)) {
           await ctx.runMutation(
             internal.artifacts.internal_mutations.updateStreamingContent,
             {
               artifactId: state.artifactId,
-              streamingPatchTargets: targets,
+              streamingPatches: pairs,
             },
           );
-          markFlushedPatchTargets(state, targets);
+          markFlushedStreamingPatches(state, pairs);
         }
       }
     },

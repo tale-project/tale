@@ -16,10 +16,11 @@ interface CanvasCodeRendererProps {
    * Drives the trailing caret and stick-to-bottom; patch streams keep this
    * false because the source is unchanged during the stream window. */
   isStreaming?: boolean;
-  /** When provided (patch streams), each entry is a `search` snippet the
-   * model has emitted so far. The renderer wraps the first occurrence of
-   * each in `<mark>` so the user sees which regions are about to change. */
-  highlightTargets?: readonly string[];
+  /** When provided (patch streams), each entry pairs the model's `search`
+   * snippet with its (potentially still-streaming) `replace`. The renderer
+   * locates the search in the source and renders a strikethrough + insert
+   * preview so the user sees the diff that is about to land. */
+  highlightPatches?: readonly { search: string; replace: string }[];
   onContentChange: (content: string) => void;
 }
 
@@ -32,28 +33,37 @@ function extractShikiCodeContent(html: string): string {
   return codeMatch ? codeMatch[1] : html;
 }
 
+interface DiffRange {
+  start: number;
+  end: number;
+  replace: string;
+}
+
 /**
- * Wrap the first non-overlapping occurrence of each target in <mark>.
- * Plain-text rendering — used during patch streams when we want to surface
- * which regions are about to change, in lieu of syntax highlighting which
- * cannot accept overlay marks without re-parsing the shiki output.
+ * Render the source with each patch's `search` block struck through and the
+ * incoming `replace` text shown alongside as an addition. Plain-text
+ * rendering — used during patch streams in lieu of shiki, since shiki HTML
+ * cannot host overlay marks without re-tokenising. The trade-off (no syntax
+ * colour for a few seconds) is worth the explicit "this becomes that"
+ * signal. When `replace` is still empty (model mid-typing the replacement)
+ * we render only the strikethrough; the addition appears once any
+ * replacement text arrives.
  */
-function renderWithHighlights(
+function renderWithDiff(
   code: string,
-  targets: readonly string[],
+  patches: readonly { search: string; replace: string }[],
 ): ReactNode[] {
-  const ranges: Array<{ start: number; end: number }> = [];
-  for (const target of targets) {
-    if (!target) continue;
-    const idx = code.indexOf(target);
+  const ranges: DiffRange[] = [];
+  for (const patch of patches) {
+    if (!patch.search) continue;
+    const idx = code.indexOf(patch.search);
     if (idx === -1) continue;
     const start = idx;
-    const end = idx + target.length;
-    // Skip if this range overlaps an already-claimed one. First-write-wins
-    // keeps the visualisation deterministic when the model emits patches
-    // whose `search` snippets happen to nest.
+    const end = idx + patch.search.length;
+    // Skip overlap with an already-claimed range. First-write-wins keeps
+    // the visualisation deterministic when search snippets happen to nest.
     const overlaps = ranges.some((r) => !(end <= r.start || start >= r.end));
-    if (!overlaps) ranges.push({ start, end });
+    if (!overlaps) ranges.push({ start, end, replace: patch.replace });
   }
   if (ranges.length === 0) return [code];
   ranges.sort((a, b) => a.start - b.start);
@@ -63,13 +73,23 @@ function renderWithHighlights(
     const r = ranges[i];
     if (cursor < r.start) parts.push(code.slice(cursor, r.start));
     parts.push(
-      <mark
-        key={`mark-${r.start}`}
-        className="bg-warning/20 ring-warning/40 rounded-sm px-0.5 ring-1 ring-inset"
+      <del
+        key={`del-${r.start}`}
+        className="bg-destructive/15 text-destructive/90 decoration-destructive/60 rounded-sm decoration-2"
       >
         {code.slice(r.start, r.end)}
-      </mark>,
+      </del>,
     );
+    if (r.replace.length > 0) {
+      parts.push(
+        <ins
+          key={`ins-${r.start}`}
+          className="bg-success/15 text-success-foreground rounded-sm px-0.5 no-underline"
+        >
+          {r.replace}
+        </ins>,
+      );
+    }
     cursor = r.end;
   }
   if (cursor < code.length) parts.push(code.slice(cursor));
@@ -81,7 +101,7 @@ function CanvasCodeRendererComponent({
   language = 'plaintext',
   isEditing,
   isStreaming = false,
-  highlightTargets,
+  highlightPatches,
   onContentChange,
 }: CanvasCodeRendererProps) {
   const { t } = useT('chat');
@@ -135,23 +155,23 @@ function CanvasCodeRendererComponent({
   }, [code, html, isStreaming]);
 
   // When the first patch target appears, scroll the matched region into view
-  // so the user actually sees the highlight — patch streams don't trigger
-  // the auto-follow above (no content growth) and the source might be long.
-  const targetsCount = highlightTargets?.length ?? 0;
+  // so the user actually sees the diff — patch streams don't trigger the
+  // auto-follow above (no content growth) and the source might be long.
+  const patchesCount = highlightPatches?.length ?? 0;
   const previouslyHighlightedRef = useRef(false);
   useEffect(() => {
-    if (targetsCount === 0) {
+    if (patchesCount === 0) {
       previouslyHighlightedRef.current = false;
       return;
     }
     if (previouslyHighlightedRef.current) return;
     previouslyHighlightedRef.current = true;
     const pre = preRef.current;
-    const firstMark = pre?.querySelector('mark');
-    if (firstMark instanceof HTMLElement) {
-      firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const firstDel = pre?.querySelector('del');
+    if (firstDel instanceof HTMLElement) {
+      firstDel.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [targetsCount]);
+  }, [patchesCount]);
 
   if (isEditing) {
     return (
@@ -176,16 +196,15 @@ function CanvasCodeRendererComponent({
     />
   ) : null;
 
-  // Patch streaming: surface the search snippets the model has emitted as
-  // <mark> ranges over the static settled source. We render plain text in
-  // this branch because the shiki HTML output cannot host overlay marks
-  // without re-parsing token boundaries — the trade-off (no syntax colour
-  // for the few seconds of patch streaming) is worth the explicit signal.
-  if (highlightTargets && highlightTargets.length > 0) {
+  // Patch streaming: render an inline diff preview — each patch's `search`
+  // is struck through and the `replace` (when present) is rendered as an
+  // addition next to it. Plain-text fallback for shiki's sake; see
+  // renderWithDiff for the trade-off discussion.
+  if (highlightPatches && highlightPatches.length > 0) {
     return (
       <pre ref={preRef} className="bg-muted h-full overflow-auto p-4">
         <code className="text-xs leading-relaxed">
-          {renderWithHighlights(code, highlightTargets)}
+          {renderWithDiff(code, highlightPatches)}
           {caret}
         </code>
       </pre>
