@@ -210,16 +210,14 @@ function CanvasPaneComponent() {
   const canvasTitle = artifact?.title ?? '';
   const canvasLanguage = artifact?.language;
 
-  // While the AI is mid-stream of a create/rewrite, the partial content is
-  // continuously growing on the artifact (`streamingContent`), so source
-  // view lets the user watch it appear. Half-emitted HTML would also break
-  // the iframe, so source is the safer choice. Patch mode is different:
-  // `streamingContent` is never written during a patch stream, so showing
-  // source view would just freeze the *old* source — useless. Keep the
-  // settled preview during patch streams; the change lands atomically when
-  // `execute` runs.
-  const showStreamingSource =
-    !isEditing && (liveStreamMode === 'create' || liveStreamMode === 'rewrite');
+  // While "AI is editing…" is on screen, the user expects a view that
+  // matches that promise; staring at an unchanging preview while the badge
+  // claims an edit is in progress feels broken. So we switch to source view
+  // for any stream mode, including patch — even though patch's source is
+  // also static during the stream window (streamingContent is only written
+  // for create/rewrite). The settle pulse below + automatic return to
+  // preview when liveStreamMode clears handle the closing transition.
+  const showStreamingSource = !isEditing && isStreaming;
   const streamingHighlightLang =
     canvasType === 'code' ? canvasLanguage : canvasType;
 
