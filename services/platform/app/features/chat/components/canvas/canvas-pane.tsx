@@ -101,6 +101,7 @@ function CanvasPaneComponent() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [isApplying, setIsApplying] = useState(false);
+  const [justSettled, setJustSettled] = useState(false);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resizeRef = useRef<HTMLDivElement>(null);
@@ -120,6 +121,25 @@ function CanvasPaneComponent() {
       setIsFullscreen(false);
     }
   }, [isCanvasOpen]);
+
+  // Pulse the content area when an AI stream finishes settling. Patch in
+  // particular is an instant transition (content was unchanged during the
+  // stream, then changed at execute), so a brief visual signal tells the
+  // user "something just landed" — without trying to surface what changed
+  // at the range level (which would need renderer-specific overlays).
+  const prevLiveStreamModeRef =
+    useRef<NonNullable<typeof artifact>['liveStreamMode']>(undefined);
+  useEffect(() => {
+    const prev = prevLiveStreamModeRef.current;
+    const next = artifact?.liveStreamMode;
+    prevLiveStreamModeRef.current = next;
+    if (prev !== undefined && next === undefined && artifact) {
+      setJustSettled(true);
+      const id = setTimeout(() => setJustSettled(false), 1200);
+      return () => clearTimeout(id);
+    }
+    return undefined;
+  }, [artifact]);
 
   // Notify the user once when a stream starts on top of an open edit. The
   // edit buffer is preserved; they can keep typing or hit Cancel to discard.
@@ -190,11 +210,14 @@ function CanvasPaneComponent() {
   const canvasTitle = artifact?.title ?? '';
   const canvasLanguage = artifact?.language;
 
-  // While the AI is mid-stream of a create/rewrite, half-emitted HTML
-  // renders as a blank or broken iframe. Show the source code instead;
-  // the preview takes over once `liveStreamMode` clears. Patch mode is
-  // safe — patches apply atomically when execute returns, so the
-  // previously-settled content stays valid in the iframe.
+  // While the AI is mid-stream of a create/rewrite, the partial content is
+  // continuously growing on the artifact (`streamingContent`), so source
+  // view lets the user watch it appear. Half-emitted HTML would also break
+  // the iframe, so source is the safer choice. Patch mode is different:
+  // `streamingContent` is never written during a patch stream, so showing
+  // source view would just freeze the *old* source — useless. Keep the
+  // settled preview during patch streams; the change lands atomically when
+  // `execute` runs.
   const showStreamingSource =
     !isEditing && (liveStreamMode === 'create' || liveStreamMode === 'rewrite');
   const streamingHighlightLang =
@@ -458,7 +481,12 @@ function CanvasPaneComponent() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div
+        className={cn(
+          'min-h-0 flex-1 overflow-hidden transition-shadow duration-700',
+          justSettled && 'ring-success/40 ring-2 ring-inset',
+        )}
+      >
         {showStreamingSource && (
           <CanvasCodeRenderer
             code={displayedContent}
