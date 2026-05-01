@@ -74,6 +74,12 @@ const TYPE_LABELS: Record<CanvasContentType, string> = {
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 900;
 const DEFAULT_WIDTH = 480;
+/** Minimum total time the source view stays up across a stream + post-stream
+ * dwell. A fast patch (sub-second emit) would otherwise flick into source
+ * view, show a diff for a heartbeat, then yank back to preview before the
+ * user can read anything. This ensures the user has a chance to read the
+ * diff regardless of how quick the model is. */
+const MIN_SOURCE_VIEW_MS = 10_000;
 
 // Wrapper so the spinning Loader2 can be passed to Badge's `icon` slot,
 // which renders it inline with the label instead of nesting it inside
@@ -102,6 +108,7 @@ function CanvasPaneComponent() {
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [isApplying, setIsApplying] = useState(false);
   const [justSettled, setJustSettled] = useState(false);
+  const [keepSourceLock, setKeepSourceLock] = useState(false);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resizeRef = useRef<HTMLDivElement>(null);
@@ -129,10 +136,24 @@ function CanvasPaneComponent() {
   // at the range level (which would need renderer-specific overlays).
   const prevLiveStreamModeRef =
     useRef<NonNullable<typeof artifact>['liveStreamMode']>(undefined);
+  // Stream start anchor + frozen pre-settle snapshot. The snapshot lets us
+  // keep the diff visible after the server clears `streamingPatches` — see
+  // the "10s minimum dwell" block below.
+  const streamStartedAtRef = useRef<number | null>(null);
+  const lastPatchSnapshotRef = useRef<{
+    code: string;
+    patches: readonly { search: string; replace: string }[];
+  } | null>(null);
   useEffect(() => {
     const prev = prevLiveStreamModeRef.current;
     const next = artifact?.liveStreamMode;
     prevLiveStreamModeRef.current = next;
+    if (prev === undefined && next !== undefined) {
+      // Stream just started — anchor the dwell timer and engage the lock.
+      streamStartedAtRef.current = Date.now();
+      lastPatchSnapshotRef.current = null;
+      setKeepSourceLock(true);
+    }
     if (prev !== undefined && next === undefined && artifact) {
       setJustSettled(true);
       const id = setTimeout(() => setJustSettled(false), 1200);
@@ -140,6 +161,40 @@ function CanvasPaneComponent() {
     }
     return undefined;
   }, [artifact]);
+
+  // While a patch stream is alive, snapshot the (still pre-settle) source
+  // and the latest emitted patches. Once the server clears
+  // `streamingPatches` at execute time the live data evaporates, but the
+  // snapshot lets the renderer keep showing the diff for the dwell window.
+  useEffect(() => {
+    if (
+      artifact?.liveStreamMode === 'patch' &&
+      artifact.streamingPatches &&
+      artifact.streamingPatches.length > 0
+    ) {
+      lastPatchSnapshotRef.current = {
+        code: artifact.content,
+        patches: artifact.streamingPatches,
+      };
+    }
+  }, [artifact?.liveStreamMode, artifact?.streamingPatches, artifact?.content]);
+
+  // Release the source-view lock once the dwell window has passed. Anchored
+  // at stream start so a 5s stream gets ~5s of additional viewing while a
+  // 30s stream releases the lock immediately on settle.
+  useEffect(() => {
+    if (artifact?.liveStreamMode !== undefined) return undefined;
+    if (!keepSourceLock) return undefined;
+    const startedAt = streamStartedAtRef.current ?? Date.now();
+    const elapsed = Date.now() - startedAt;
+    const remaining = Math.max(0, MIN_SOURCE_VIEW_MS - elapsed);
+    const id = setTimeout(() => {
+      setKeepSourceLock(false);
+      streamStartedAtRef.current = null;
+      lastPatchSnapshotRef.current = null;
+    }, remaining);
+    return () => clearTimeout(id);
+  }, [artifact?.liveStreamMode, keepSourceLock]);
 
   // Notify the user once when a stream starts on top of an open edit. The
   // edit buffer is preserved; they can keep typing or hit Cancel to discard.
@@ -216,13 +271,24 @@ function CanvasPaneComponent() {
   const canvasLanguage = artifact?.language;
 
   // While "AI is editing…" is on screen, the user expects a view that
-  // matches that promise; staring at an unchanging preview while the badge
-  // claims an edit is in progress feels broken. So we switch to source view
-  // for any stream mode, including patch — even though patch's source is
-  // also static during the stream window (streamingContent is only written
-  // for create/rewrite). The settle pulse below + automatic return to
-  // preview when liveStreamMode clears handle the closing transition.
-  const showStreamingSource = !isEditing && isStreaming;
+  // matches that promise. We also keep the source view up for a minimum
+  // dwell window after the stream ends (`keepSourceLock`) so a fast patch
+  // does not flick through the diff faster than a human can read it. The
+  // settle pulse + delayed return to preview handle the closing transition.
+  const showStreamingSource = !isEditing && (isStreaming || keepSourceLock);
+  // After the server clears `streamingPatches` at execute time we still
+  // want the diff visible for the dwell window. Fall back to the snapshot
+  // taken just before settle (frozen pre-patch source + final patches).
+  const lockedSnapshot =
+    !isStreaming && keepSourceLock ? lastPatchSnapshotRef.current : null;
+  const sourceCode = lockedSnapshot ? lockedSnapshot.code : displayedContent;
+  const sourcePatches:
+    | readonly { search: string; replace: string }[]
+    | undefined = lockedSnapshot
+    ? lockedSnapshot.patches
+    : liveStreamMode === 'patch'
+      ? artifact?.streamingPatches
+      : undefined;
   const streamingHighlightLang =
     canvasType === 'code' ? canvasLanguage : canvasType;
 
@@ -492,15 +558,11 @@ function CanvasPaneComponent() {
       >
         {showStreamingSource && (
           <CanvasCodeRenderer
-            code={displayedContent}
+            code={sourceCode}
             language={streamingHighlightLang}
             isEditing={false}
             isStreaming={isContentStreaming}
-            highlightPatches={
-              liveStreamMode === 'patch'
-                ? artifact?.streamingPatches
-                : undefined
-            }
+            highlightPatches={sourcePatches}
             onContentChange={onContentChange}
           />
         )}
