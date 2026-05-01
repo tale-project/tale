@@ -61,7 +61,7 @@ Siehe [Arena mode](/de/platform/chat/arena-mode) für alle Details.
 
 ## Canvas
 
-Wenn die KI einen Code-Block, ein HTML-Snippet, ein Mermaid-Diagramm oder Markdown erzeugt, klicke auf **In Canvas öffnen**, um den Inhalt in einem eigenen Seitenbereich zu öffnen. Canvas bietet Syntax-Highlighting, Live-Vorschau, Bearbeitung und Export. Du kannst Inhalte ändern und wieder in die Konversation zurückschreiben.
+Wenn die KI lauffähiges HTML, ein SVG, ein Mermaid-Diagramm, ein Markdown-Dokument oder ein Code-Snippet erzeugt, legt sie ein **Artefakt** an, das als Karte in der Artefakte-Leiste über dem Chat erscheint und automatisch im Canvas-Bereich aufgeht. Canvas bietet Live-Vorschau, Quellcode-Bearbeitung und Export. Die KI kann das Artefakt über mehrere Schritte direkt überarbeiten — kleine Korrekturen erfordern keine erneute Generierung des ganzen Dokuments.
 
 Siehe [Canvas](/de/platform/workspace/canvas) für alle Details.
 

@@ -61,7 +61,7 @@ See [Arena mode](/platform/chat/arena-mode) for full details.
 
 ## Canvas
 
-When the AI generates a code block, HTML snippet, Mermaid diagram, or markdown, click **Open in Canvas** to view it in a dedicated side pane. Canvas provides syntax highlighting, live preview, editing, and export. You can edit content and apply changes back to the conversation.
+When the AI generates a runnable HTML page, an SVG, a Mermaid diagram, a markdown document, or a code snippet, it creates an **artifact** that appears as a card in the Artifacts bar above the chat and auto-opens in the Canvas pane. Canvas provides live preview, source editing, and export. The AI can revise the artifact in place across turns — small fixes don't require re-generating the whole document.
 
 See [Canvas](/platform/workspace/canvas) for full details.
 

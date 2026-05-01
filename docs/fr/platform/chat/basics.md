@@ -61,7 +61,7 @@ Voir [Mode Arène](/fr/platform/chat/arena-mode) pour tous les détails.
 
 ## Canevas
 
-Quand l'IA génère un bloc de code, un snippet HTML, un diagramme Mermaid ou du Markdown, clique **Ouvrir dans le canevas** pour l'ouvrir dans un panneau latéral dédié. Le canevas offre coloration syntaxique, aperçu en direct, édition et export. Tu peux modifier puis réappliquer dans la conversation.
+Quand l'IA génère du HTML exécutable, un SVG, un diagramme Mermaid, un document Markdown ou un snippet de code, elle crée un **artéfact** qui apparaît comme une carte dans la barre d'artéfacts au-dessus du chat et s'ouvre automatiquement dans le panneau canevas. Le canevas offre aperçu en direct, édition de la source et export. L'IA peut réviser l'artéfact en place sur plusieurs tours — les petites corrections n'imposent pas de regénérer tout le document.
 
 Voir [Canevas](/fr/platform/workspace/canvas) pour tous les détails.
 

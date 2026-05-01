@@ -31,9 +31,9 @@ Die erste Antwort ist selten die endgültige. Nutze kurze Nachfragen zum Einenge
 
 Wenn du auf ein Ergebnis triffst, das du wiederverwenden willst, speichere es in der [Prompt-Bibliothek](/de/platform/workspace/prompt-library) — beim nächsten Mal ist derselbe Startpunkt einen Klick entfernt.
 
-## Schritt 5 — Ergebnisse in Canvas öffnen, wenn es mehr als Text ist
+## Schritt 5 — Artefakte in Canvas anschauen, wenn es mehr als Text ist
 
-Wenn der Agent ein längeres Dokument, eine Tabelle, einen Code-Block oder ein Mermaid-Diagramm zurückgibt, klicke **In Canvas öffnen** über der Nachricht. Canvas gibt dir einen Seitenbereich mit Syntax-Highlighting, Live-Vorschau und Export — deutlich lesbarer als eine rollende Chat-Bubble. Siehe [Canvas](/de/platform/workspace/canvas) für alle Aktionen.
+Wenn der Agent lauffähiges HTML, ein SVG, ein Mermaid-Diagramm oder ein längeres Markdown-Dokument zurückgibt, legt er ein **Artefakt** an, das automatisch im Canvas-Seitenbereich öffnet und in der Artefakte-Leiste über dem Chat erscheint. Canvas gibt dir Live-Vorschau, Quellcode-Bearbeitung und Export — deutlich lesbarer als eine rollende Chat-Bubble, und die KI kann das Artefakt direkt überarbeiten, wenn du um Korrekturen bittest. Siehe [Canvas](/de/platform/workspace/canvas) für alle Aktionen.
 
 ## Weiter
 
