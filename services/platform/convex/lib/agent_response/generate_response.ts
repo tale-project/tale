@@ -54,6 +54,7 @@ import {
   RECOVERY_TIMEOUT_MS,
   estimateTokens,
 } from '../context_management';
+import { buildArtifactsContext } from '../context_management/build_artifacts_context';
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 
@@ -825,6 +826,9 @@ export async function generateAgentResponse(
     }
 
     const contextBuildStart = Date.now();
+    const artifactsContext = organizationId
+      ? await buildArtifactsContext(ctx, organizationId, threadId)
+      : undefined;
     structuredThreadContext = await buildStructuredContext({
       ctx,
       threadId,
@@ -833,6 +837,7 @@ export async function generateAgentResponse(
       maxHistoryTokens: effectiveMaxHistoryTokens,
       ragContext: knowledgeContextResult?.text ?? hookData?.ragContext,
       webContext: webContextResult?.text,
+      artifactsContext,
       promptMessageId,
     });
     const contextBuildMs = Date.now() - contextBuildStart;
@@ -1456,6 +1461,9 @@ export async function generateAgentResponse(
             stepsCount: result.steps?.length ?? 0,
           });
 
+          const continueArtifactsContext = organizationId
+            ? await buildArtifactsContext(ctx, organizationId, threadId)
+            : undefined;
           const continueContext = await buildStructuredContext({
             ctx,
             threadId,
@@ -1463,6 +1471,7 @@ export async function generateAgentResponse(
             parentThreadId,
             maxHistoryTokens: effectiveMaxHistoryTokens,
             ragContext: hookData?.ragContext,
+            artifactsContext: continueArtifactsContext,
             promptMessageId,
           });
 

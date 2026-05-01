@@ -222,6 +222,21 @@ export function formatWebContext(content: string): string {
 }
 
 /**
+ * Format the artifacts available in the current thread (collapsible).
+ * The body is *not* HTML-escaped because it is a structured XML-like
+ * block the LLM is expected to read verbatim — escaping would force the
+ * model to mentally un-escape every character of HTML/code content.
+ */
+export function formatArtifactsContext(content: string): string {
+  return `<details>
+<summary>🧩 Artifacts</summary>
+
+${content}
+
+</details>`;
+}
+
+/**
  * Format task description (just prefixed user message for sub-agents)
  */
 export function formatTaskDescription(description: string): string {

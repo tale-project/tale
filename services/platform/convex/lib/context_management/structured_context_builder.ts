@@ -102,6 +102,8 @@ export interface BuildStructuredContextParams {
   threadId: string;
   ragContext?: string;
   webContext?: string;
+  /** Pre-built artifacts XML block to inject (from buildArtifactsContext). */
+  artifactsContext?: string;
   /** Token budget for conversation history. Conversational messages (user/assistant/system)
    * are loaded first; remaining budget is filled with tool messages (newest first). */
   maxHistoryTokens?: number;
@@ -134,6 +136,7 @@ export async function buildStructuredContext(
     threadId,
     ragContext,
     webContext,
+    artifactsContext,
     maxHistoryTokens = DEFAULT_MAX_HISTORY_TOKENS,
     additionalContext,
     parentThreadId,
@@ -169,6 +172,10 @@ export async function buildStructuredContext(
 
   if (webContext) {
     contextParts.push(fmt.formatWebContext(webContext));
+  }
+
+  if (artifactsContext) {
+    contextParts.push(fmt.formatArtifactsContext(artifactsContext));
   }
 
   // 4. Format messages with approvals interleaved
