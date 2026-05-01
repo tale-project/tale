@@ -226,6 +226,8 @@ export function formatWebContext(content: string): string {
  * The body is *not* HTML-escaped because it is a structured XML-like
  * block the LLM is expected to read verbatim — escaping would force the
  * model to mentally un-escape every character of HTML/code content.
+ * `buildArtifactsContext` is responsible for defusing the only delimiters
+ * (`</artifact>`, `</details>`) that could break out of these wrappers.
  */
 export function formatArtifactsContext(content: string): string {
   return `<details>

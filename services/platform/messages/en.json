@@ -2222,7 +2222,6 @@
     "canvas": {
       "close": "Close canvas",
       "edit": "Edit",
-      "preview": "Preview",
       "copy": "Copy",
       "download": "Download",
       "copied": "Copied!",
@@ -2237,12 +2236,15 @@
       "markdownEditor": "Markdown editor",
       "mermaidEditor": "Mermaid editor",
       "streamingWriting": "AI is writing…",
-      "streamingPatch": "AI is editing…"
+      "streamingPatch": "AI is editing…",
+      "cancel": "Cancel edit",
+      "streamingDuringEdit": "Agent is updating this artifact — your draft is saved. Cancel to discard."
     },
     "artifacts": {
       "barLabel": "Artifacts in this thread",
       "barTitle": "Artifacts",
-      "openCard": "Open artifact: {title}"
+      "openCard": "Open artifact: {title}",
+      "touchedByMessage": "{title} (revision {revision})"
     },
     "branchNavigator": {
       "previous": "Previous branch",

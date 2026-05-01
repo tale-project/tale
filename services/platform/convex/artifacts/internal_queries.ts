@@ -3,9 +3,30 @@ import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 
 export const getById = internalQuery({
-  args: { artifactId: v.id('artifacts') },
-  handler: async (ctx, { artifactId }) => {
-    return await ctx.db.get(artifactId);
+  args: {
+    artifactId: v.id('artifacts'),
+    expectedOrganizationId: v.optional(v.string()),
+    expectedThreadId: v.optional(v.string()),
+  },
+  handler: async (
+    ctx,
+    { artifactId, expectedOrganizationId, expectedThreadId },
+  ) => {
+    const artifact = await ctx.db.get(artifactId);
+    if (!artifact) return null;
+    if (
+      expectedOrganizationId !== undefined &&
+      artifact.organizationId !== expectedOrganizationId
+    ) {
+      return null;
+    }
+    if (
+      expectedThreadId !== undefined &&
+      artifact.threadId !== expectedThreadId
+    ) {
+      return null;
+    }
+    return artifact;
   },
 });
 

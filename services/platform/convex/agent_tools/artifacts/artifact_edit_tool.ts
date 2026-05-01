@@ -150,13 +150,13 @@ export const artifactEditTool = {
         const artifactId = toId<'artifacts'>(artifactIdStr);
         const artifact = await ctx.runQuery(
           internal.artifacts.internal_queries.getById,
-          { artifactId },
+          {
+            artifactId,
+            expectedOrganizationId: ctx.organizationId,
+            expectedThreadId: ctx.threadId,
+          },
         );
-        if (
-          !artifact ||
-          (ctx.organizationId !== undefined &&
-            artifact.organizationId !== ctx.organizationId)
-        ) {
+        if (!artifact) {
           // Defer error reporting to execute — avoids silently no-oping
           // when the LLM passes a bad ID; the tool result will explain.
           return;
@@ -198,28 +198,23 @@ export const artifactEditTool = {
       args: ArtifactEditInput,
       options: ToolExecutionOptions,
     ): Promise<ArtifactEditResult> => {
-      const { organizationId, messageId } = ctx;
+      const { messageId } = ctx;
       const editedByMessageId = messageId ?? '';
       const state = getState(options.toolCallId);
       try {
         const artifactId = toId<'artifacts'>(args.artifactId);
         const artifact = await ctx.runQuery(
           internal.artifacts.internal_queries.getById,
-          { artifactId },
+          {
+            artifactId,
+            expectedOrganizationId: ctx.organizationId,
+            expectedThreadId: ctx.threadId,
+          },
         );
         if (!artifact) {
           return {
             success: false,
-            message: `Artifact ${args.artifactId} not found.`,
-          };
-        }
-        if (
-          organizationId !== undefined &&
-          artifact.organizationId !== organizationId
-        ) {
-          return {
-            success: false,
-            message: `Artifact ${args.artifactId} does not belong to the current organization.`,
+            message: `Artifact ${args.artifactId} not found in this thread.`,
           };
         }
 
@@ -230,6 +225,7 @@ export const artifactEditTool = {
               artifactId,
               patches: args.patches,
               editedByMessageId,
+              expectedRevision: artifact.revision,
             },
           );
           if (!result.success) {
@@ -239,7 +235,9 @@ export const artifactEditTool = {
             );
             return {
               success: false,
-              message: `Patch ${result.failedIndex + 1} failed: ${result.error}`,
+              message: result.stale
+                ? result.error
+                : `Patch ${result.failedIndex + 1} failed: ${result.error}`,
               failedIndex: result.failedIndex,
             };
           }
@@ -259,8 +257,16 @@ export const artifactEditTool = {
             artifactId,
             content: args.content,
             editedByMessageId,
+            expectedRevision: artifact.revision,
           },
         );
+        if (!result.success) {
+          await ctx.runMutation(
+            internal.artifacts.internal_mutations.abortStream,
+            { artifactId },
+          );
+          return { success: false, message: result.error };
+        }
         return {
           success: true,
           artifactId: args.artifactId,

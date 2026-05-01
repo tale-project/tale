@@ -58,9 +58,11 @@ export const artifactsTable = defineTable({
   liveStreamStartedAt: v.optional(v.number()),
   streamingContent: v.optional(v.string()),
 })
-  .index('by_thread', ['threadId'])
   .index('by_organizationId', ['organizationId'])
-  .index('by_organizationId_and_thread', ['organizationId', 'threadId']);
+  .index('by_organizationId_and_thread', ['organizationId', 'threadId'])
+  // Sparse-by-construction: rows where `liveStreamMode` is undefined are
+  // excluded from this index, so the cleanup cron only walks live streams.
+  .index('by_liveStreamMode', ['liveStreamMode']);
 
 /**
  * Append-only revision history for `artifacts`. One row per write — including

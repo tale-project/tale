@@ -59,6 +59,42 @@ describe('applySinglePatch', () => {
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.content).toContain('a + b + 1');
   });
+
+  it('flags self-overlapping search as ambiguous (the "aa" in "aaa" case)', () => {
+    const result = applySinglePatch('aaa', { search: 'aa', replace: 'X' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('more than once');
+  });
+
+  it('treats CRLF and LF as distinct (LF search misses CRLF content)', () => {
+    const result = applySinglePatch('a\r\nb', { search: 'a\nb', replace: 'X' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('0 times');
+  });
+
+  it('deletes the matched range when replace is empty', () => {
+    const result = applySinglePatch('hello, world', {
+      search: ', world',
+      replace: '',
+    });
+    expect(result).toEqual({ ok: true, content: 'hello' });
+  });
+
+  it('matches at the start of the content', () => {
+    const result = applySinglePatch('start middle end', {
+      search: 'start',
+      replace: 'begin',
+    });
+    expect(result).toEqual({ ok: true, content: 'begin middle end' });
+  });
+
+  it('matches at the very end of the content', () => {
+    const result = applySinglePatch('start middle end', {
+      search: 'end',
+      replace: 'finish',
+    });
+    expect(result).toEqual({ ok: true, content: 'start middle finish' });
+  });
 });
 
 describe('applyPatches', () => {
@@ -100,5 +136,17 @@ describe('applyPatches', () => {
     const result = applyPatches('foo foo', [{ search: 'foo', replace: 'bar' }]);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.failedIndex).toBe(0);
+  });
+
+  it('does not re-scan a replacement that creates a new match', () => {
+    // The first patch turns "a" into "aa". The second pass walks forward
+    // from the post-replace cursor in `applyPatches`, but `applySinglePatch`
+    // is invoked fresh for each patch — so matching "aa" against "aa" is
+    // unique and should succeed.
+    const result = applyPatches('a', [
+      { search: 'a', replace: 'aa' },
+      { search: 'aa', replace: 'b' },
+    ]);
+    expect(result).toEqual({ ok: true, content: 'b' });
   });
 });

@@ -5,7 +5,7 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
-import { isOrgMember } from '../lib/rls/auth/check_org_membership';
+import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { getThreadMessages as getThreadMessagesHelper } from './get_thread_messages';
 import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
 import { listArchivedThreads as listArchivedThreadsHelper } from './list_archived_threads';
@@ -150,24 +150,8 @@ export const getThreadMessagesStreaming = query({
       };
     }
 
-    const metadata = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
-
-    const isOwner = metadata?.userId === authUser.userId;
-
-    // Non-owner: check if thread is shared and user is in the same org
-    let isSharedAccess = false;
-    if (metadata && !isOwner && metadata.isShared && metadata.organizationId) {
-      isSharedAccess = await isOrgMember(
-        ctx,
-        authUser.userId,
-        metadata.organizationId,
-      );
-    }
-
-    if (!metadata || (!isOwner && !isSharedAccess)) {
+    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    if (!metadata) {
       return {
         page: [],
         isDone: true,
@@ -223,31 +207,15 @@ export const getThreadStatus = query({
       return null;
     }
 
-    const metadata = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
-
+    const metadata = await canAccessThread(ctx, args.threadId, authUser);
     if (!metadata) return null;
 
-    // Owner always gets the real status
+    // Owner always gets the real status; non-owners reach this path only when
+    // the thread is shared, so they get a read-only marker.
     if (metadata.userId === authUser.userId) {
       return metadata.status ?? null;
     }
-
-    // Non-owner: allow read-only access if thread is shared and user is in the same org
-    if (metadata.isShared && metadata.organizationId) {
-      const isMember = await isOrgMember(
-        ctx,
-        authUser.userId,
-        metadata.organizationId,
-      );
-      if (isMember) {
-        return 'shared-readonly';
-      }
-    }
-
-    return null;
+    return 'shared-readonly';
   },
 });
 

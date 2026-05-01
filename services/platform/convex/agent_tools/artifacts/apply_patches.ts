@@ -54,10 +54,10 @@ export function applySinglePatch(
     };
   }
 
-  const secondIndex = content.indexOf(
-    patch.search,
-    firstIndex + patch.search.length,
-  );
+  // Probe at firstIndex + 1 (not + search.length) so a self-overlapping
+  // search string like "aa" inside "aaa" is correctly flagged as ambiguous
+  // — the second match starts at index 1, which the wider stride misses.
+  const secondIndex = content.indexOf(patch.search, firstIndex + 1);
   if (secondIndex !== -1) {
     return {
       ok: false,

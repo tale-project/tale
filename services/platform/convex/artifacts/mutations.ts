@@ -2,9 +2,9 @@ import { v } from 'convex/values';
 import { ConvexError } from 'convex/values';
 
 import { mutation } from '../_generated/server';
-import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
-
-const MAX_USER_EDIT_BYTES = 1_000_000;
+import { getAuthUserIdentity } from '../lib/rls';
+import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
+import { assertContentSize } from './internal_mutations';
 
 export const userEdit = mutation({
   args: {
@@ -27,14 +27,22 @@ export const userEdit = mutation({
         message: 'Artifact not found.',
       });
     }
-    await getOrganizationMember(ctx, artifact.organizationId, authUser);
-
-    if (args.content.length > MAX_USER_EDIT_BYTES) {
+    const metadata = await assertThreadAccess(ctx, artifact.threadId, authUser);
+    if (metadata.organizationId !== artifact.organizationId) {
       throw new ConvexError({
-        code: 'too_large',
-        message: `Artifact content exceeds ${MAX_USER_EDIT_BYTES} bytes.`,
+        code: 'forbidden',
+        message: 'Not authorized to access this thread.',
       });
     }
+
+    if (artifact.liveStreamMode !== undefined) {
+      throw new ConvexError({
+        code: 'streaming',
+        message: 'Cannot edit while the agent is streaming this artifact.',
+      });
+    }
+
+    assertContentSize(args.content);
 
     if (args.content === artifact.content) {
       return { revision: artifact.revision };

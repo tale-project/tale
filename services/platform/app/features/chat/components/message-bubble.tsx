@@ -1,9 +1,15 @@
 'use client';
 
+import { useQuery } from 'convex/react';
 import {
+  Code,
   CopyIcon,
   CheckIcon,
+  FileText,
+  GitBranch,
   GitFork,
+  Globe,
+  Image as ImageIcon,
   Info,
   Pencil,
   Bookmark,
@@ -14,6 +20,7 @@ import {
 } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
+  type ComponentType,
   useRef,
   useState,
   useEffect,
@@ -24,8 +31,10 @@ import {
 } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { Badge } from '@/app/components/ui/feedback/badge';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -41,6 +50,7 @@ import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { injectCitationTags } from '../utils/inject-citation-tags';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
 import { BlockedNotice } from './blocked-notice';
+import { type CanvasContentType, useCanvas } from './canvas/canvas-context';
 import {
   FileAttachmentDisplay,
   FilePartDisplay,
@@ -71,6 +81,82 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   /** Extra content rendered in the user message toolbar (e.g. BranchNavigator). */
   toolbarExtra?: React.ReactNode;
 }
+
+const ARTIFACT_PILL_ICONS: Record<
+  CanvasContentType,
+  ComponentType<{ className?: string }>
+> = {
+  code: Code,
+  html: Globe,
+  mermaid: GitBranch,
+  svg: ImageIcon,
+  markdown: FileText,
+};
+
+interface MessageArtifactPillsProps {
+  organizationId: string;
+  threadId: string;
+  messageId: string;
+}
+
+/**
+ * Inline chips that surface artifact_create / artifact_edit tool calls inside
+ * the assistant bubble — without them, the only signal an artifact was just
+ * touched is the ArtifactBar at the top of the chat, which is easy to miss
+ * mid-conversation. We piggyback on the bar's `listByThread` subscription
+ * (Convex deduplicates identical args) and filter to artifacts whose
+ * created/edited message id matches this bubble.
+ */
+function MessageArtifactPillsComponent({
+  organizationId,
+  threadId,
+  messageId,
+}: MessageArtifactPillsProps) {
+  const { t } = useT('chat');
+  const { openCanvas } = useCanvas();
+  const artifacts = useQuery(api.artifacts.queries.listByThread, {
+    organizationId,
+    threadId,
+  });
+  const matches = useMemo(() => {
+    if (!artifacts) return [];
+    return artifacts.filter(
+      (a) =>
+        a.createdByMessageId === messageId ||
+        a.lastEditedByMessageId === messageId,
+    );
+  }, [artifacts, messageId]);
+
+  if (matches.length === 0) return null;
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {matches.map((artifact) => {
+        const Icon = ARTIFACT_PILL_ICONS[artifact.type];
+        return (
+          <button
+            key={artifact._id}
+            type="button"
+            onClick={() => openCanvas(artifact._id)}
+            className="hover:bg-muted/60 border-border inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors"
+            aria-label={t('artifacts.touchedByMessage', {
+              title: artifact.title,
+              revision: artifact.revision,
+            })}
+          >
+            <Icon className="text-muted-foreground size-3.5" aria-hidden />
+            <span className="max-w-[16rem] truncate">{artifact.title}</span>
+            <Badge variant="outline" className="h-4 px-1 text-[10px]">
+              v{artifact.revision}
+            </Badge>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+const MessageArtifactPills = memo(MessageArtifactPillsComponent);
 
 function useMessageGallery(message: Message) {
   const imageAttachments = useMemo(
@@ -339,6 +425,13 @@ function MessageBubbleComponent({
                     isStreaming={!!isAssistantStreaming}
                     onSendFollowUp={onSendFollowUp}
                   />
+                  {organizationId && message.threadId && (
+                    <MessageArtifactPills
+                      organizationId={organizationId}
+                      threadId={message.threadId}
+                      messageId={message.id}
+                    />
+                  )}
                 </CitationsContext.Provider>
               )}
             </div>

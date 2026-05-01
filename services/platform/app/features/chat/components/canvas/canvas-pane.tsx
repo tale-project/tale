@@ -121,6 +121,19 @@ function CanvasPaneComponent() {
     }
   }, [isCanvasOpen]);
 
+  // Notify the user once when a stream starts on top of an open edit. The
+  // edit buffer is preserved; they can keep typing or hit Cancel to discard.
+  const streamingDuringEditNotifiedRef = useRef(false);
+  useEffect(() => {
+    const liveDuringEdit = isEditing && artifact?.liveStreamMode !== undefined;
+    if (liveDuringEdit && !streamingDuringEditNotifiedRef.current) {
+      streamingDuringEditNotifiedRef.current = true;
+      toast({ title: t('canvas.streamingDuringEdit') });
+    } else if (!liveDuringEdit) {
+      streamingDuringEditNotifiedRef.current = false;
+    }
+  }, [isEditing, artifact?.liveStreamMode, toast, t]);
+
   useEffect(() => {
     setIsHeaderVisible(true);
   }, [isFullscreen]);
@@ -332,7 +345,7 @@ function CanvasPaneComponent() {
 
         <div className="flex items-center gap-1">
           <Tooltip
-            content={isEditing ? t('canvas.preview') : t('canvas.edit')}
+            content={isEditing ? t('canvas.cancel') : t('canvas.edit')}
             side="bottom"
           >
             <Button
@@ -340,8 +353,11 @@ function CanvasPaneComponent() {
               size="icon"
               className="size-7"
               onClick={toggleEdit}
-              disabled={isStreaming}
-              aria-label={isEditing ? t('canvas.preview') : t('canvas.edit')}
+              // Allow exiting edit at any time so a stream that starts mid-edit
+              // does not trap the user; only block *entering* edit while a
+              // stream is in flight (the underlying content is unstable).
+              disabled={!isEditing && isStreaming}
+              aria-label={isEditing ? t('canvas.cancel') : t('canvas.edit')}
             >
               {isEditing ? (
                 <Eye className="size-3.5" />
