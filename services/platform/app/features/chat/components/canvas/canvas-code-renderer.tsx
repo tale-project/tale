@@ -120,15 +120,38 @@ function CanvasCodeRendererComponent({
     };
   }, []);
 
-  // Auto-follow the trailing edge while content grows. If the user scrolls
-  // up to read earlier output, stickToBottomRef goes false and we leave them
-  // alone until they scroll back near the bottom.
+  // Auto-follow the trailing edge while content grows. Gated on isStreaming
+  // so we don't yank the user to the bottom on first mount of static source
+  // (e.g. patch streams, where `code` doesn't grow at all). If the user
+  // scrolls up to read earlier output during a real content stream,
+  // stickToBottomRef goes false and we leave them alone until they scroll
+  // back near the bottom.
   useEffect(() => {
+    if (!isStreaming) return;
     const pre = preRef.current;
     if (pre && stickToBottomRef.current) {
       pre.scrollTop = pre.scrollHeight;
     }
-  }, [code, html]);
+  }, [code, html, isStreaming]);
+
+  // When the first patch target appears, scroll the matched region into view
+  // so the user actually sees the highlight — patch streams don't trigger
+  // the auto-follow above (no content growth) and the source might be long.
+  const targetsCount = highlightTargets?.length ?? 0;
+  const previouslyHighlightedRef = useRef(false);
+  useEffect(() => {
+    if (targetsCount === 0) {
+      previouslyHighlightedRef.current = false;
+      return;
+    }
+    if (previouslyHighlightedRef.current) return;
+    previouslyHighlightedRef.current = true;
+    const pre = preRef.current;
+    const firstMark = pre?.querySelector('mark');
+    if (firstMark instanceof HTMLElement) {
+      firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [targetsCount]);
 
   if (isEditing) {
     return (
