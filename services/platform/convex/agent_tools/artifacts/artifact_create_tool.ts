@@ -132,10 +132,16 @@ USE THIS TOOL when the user asks for a runnable HTML page, an SVG illustration, 
       const { organizationId, threadId, messageId } = ctx;
       if (!organizationId || !threadId) return;
 
+      // Defer the placeholder insert until title has at least one character.
+      // partial-json returns title:"" the moment the parser sees `"title":`,
+      // before the actual characters arrive — inserting then would land an
+      // empty title in the row and we have no good moment later to know
+      // it has finished growing.
       if (
         !state.rowInitialized &&
         type !== undefined &&
         title !== undefined &&
+        title.length > 0 &&
         isValidArtifactType(type)
       ) {
         const inserted = await ctx.runMutation(
@@ -153,24 +159,36 @@ USE THIS TOOL when the user asks for a runnable HTML page, an SVG illustration, 
         );
         state.artifactId = inserted.artifactId;
         state.rowInitialized = true;
+        state.lastFlushedTitle = title;
+        state.lastFlushedLanguage = language;
         if (content !== undefined) markFlushed(state, content.length);
         return;
       }
 
-      if (
-        state.rowInitialized &&
-        state.artifactId !== undefined &&
-        content !== undefined &&
-        shouldFlush(state, content.length)
-      ) {
-        await ctx.runMutation(
-          internal.artifacts.internal_mutations.updateStreamingContent,
-          {
-            artifactId: state.artifactId,
-            streamingContent: content,
-          },
-        );
-        markFlushed(state, content.length);
+      if (state.rowInitialized && state.artifactId !== undefined) {
+        const titleChanged =
+          title !== undefined && title !== state.lastFlushedTitle;
+        const languageChanged =
+          language !== undefined && language !== state.lastFlushedLanguage;
+        const contentShouldFlush =
+          content !== undefined && shouldFlush(state, content.length);
+
+        if (titleChanged || languageChanged || contentShouldFlush) {
+          await ctx.runMutation(
+            internal.artifacts.internal_mutations.updateStreamingContent,
+            {
+              artifactId: state.artifactId,
+              streamingContent: contentShouldFlush ? content : undefined,
+              title: titleChanged ? title : undefined,
+              language: languageChanged ? language : undefined,
+            },
+          );
+          if (titleChanged) state.lastFlushedTitle = title;
+          if (languageChanged) state.lastFlushedLanguage = language;
+          if (contentShouldFlush && content !== undefined) {
+            markFlushed(state, content.length);
+          }
+        }
       }
     },
     execute: async (
@@ -202,6 +220,8 @@ USE THIS TOOL when the user asks for a runnable HTML page, an SVG illustration, 
             internal.artifacts.internal_mutations.finalizeStreamedCreate,
             {
               artifactId: state.artifactId,
+              title: args.title,
+              language: args.language,
               content: args.content,
               editedByMessageId,
             },

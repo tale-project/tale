@@ -27,6 +27,10 @@ export interface ArtifactStreamState {
   // True once we have either inserted the placeholder (create) or marked
   // the existing row (edit). Avoids double-init on rapid deltas.
   rowInitialized: boolean;
+  // Last title / language values written to the row so we don't issue a
+  // mutation on every delta when nothing changed.
+  lastFlushedTitle?: string;
+  lastFlushedLanguage?: string;
 }
 
 const STATE = new Map<string, ArtifactStreamState>();

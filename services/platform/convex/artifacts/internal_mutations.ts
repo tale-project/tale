@@ -63,12 +63,14 @@ export const createArtifact = internalMutation({
 
 /**
  * Settle the streaming-placeholder row inserted by `createArtifact`:
- * move `streamingContent` into `content`, write the initial revision
- * row, and clear streaming flags.
+ * write the canonical title/language/content, drop streamingContent,
+ * write the initial revision row, and clear streaming flags.
  */
 export const finalizeStreamedCreate = internalMutation({
   args: {
     artifactId: v.id('artifacts'),
+    title: v.string(),
+    language: v.optional(v.string()),
     content: v.string(),
     editedByMessageId: v.string(),
   },
@@ -76,6 +78,8 @@ export const finalizeStreamedCreate = internalMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     await ctx.db.patch(args.artifactId, {
+      title: args.title,
+      language: args.language,
       content: args.content,
       streamingContent: undefined,
       liveStreamMode: undefined,
@@ -215,18 +219,27 @@ export const beginEditStream = internalMutation({
 /**
  * Throttled-by-the-caller update of the partial content as the LLM streams
  * its tool-call argument. Writes to the shadow `streamingContent` field so
- * a mid-stream crash cannot corrupt the previously-settled `content`.
+ * a mid-stream crash cannot corrupt the previously-settled `content`. The
+ * title and language fields are also patched here as they grow during
+ * streaming — titles are short enough that throttling them isn't worth it.
  */
 export const updateStreamingContent = internalMutation({
   args: {
     artifactId: v.id('artifacts'),
-    streamingContent: v.string(),
+    streamingContent: v.optional(v.string()),
+    title: v.optional(v.string()),
+    language: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.artifactId, {
-      streamingContent: args.streamingContent,
-    });
+    const patch: Record<string, unknown> = {};
+    if (args.streamingContent !== undefined) {
+      patch.streamingContent = args.streamingContent;
+    }
+    if (args.title !== undefined) patch.title = args.title;
+    if (args.language !== undefined) patch.language = args.language;
+    if (Object.keys(patch).length === 0) return null;
+    await ctx.db.patch(args.artifactId, patch);
     return null;
   },
 });
