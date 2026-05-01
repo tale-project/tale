@@ -136,6 +136,10 @@ function CanvasPaneComponent() {
   // at the range level (which would need renderer-specific overlays).
   const prevLiveStreamModeRef =
     useRef<NonNullable<typeof artifact>['liveStreamMode']>(undefined);
+  // Track the artifact id alongside liveStreamMode so a switch from one
+  // artifact to another doesn't fire a spurious settle pulse / release the
+  // lock as if the previous artifact's stream had ended.
+  const prevArtifactIdRef = useRef<string | undefined>(artifactId);
   // Stream start anchor + frozen pre-settle snapshot. The snapshot lets us
   // keep the diff visible after the server clears `streamingPatches` — see
   // the "10s minimum dwell" block below.
@@ -145,14 +149,34 @@ function CanvasPaneComponent() {
     patches: readonly { search: string; replace: string }[];
   } | null>(null);
   useEffect(() => {
+    const prevId = prevArtifactIdRef.current;
+    prevArtifactIdRef.current = artifactId;
+    if (prevId !== artifactId) {
+      // Artifact swapped under us. Reset stream-tracking state so the new
+      // artifact is observed from a clean slate; otherwise a transition
+      // from "old artifact streaming" to "new artifact static" would look
+      // like a settle event on the new artifact.
+      prevLiveStreamModeRef.current = artifact?.liveStreamMode;
+      streamStartedAtRef.current = null;
+      lastPatchSnapshotRef.current = null;
+      setKeepSourceLock(false);
+      setJustSettled(false);
+      return undefined;
+    }
+
     const prev = prevLiveStreamModeRef.current;
     const next = artifact?.liveStreamMode;
     prevLiveStreamModeRef.current = next;
     if (prev === undefined && next !== undefined) {
-      // Stream just started — anchor the dwell timer and engage the lock.
+      // Stream just started — anchor the dwell timer. Only patch streams
+      // engage the dwell lock: create / rewrite have already been streaming
+      // their content into source view for the user to read, so an extra
+      // pad would just delay the natural switch back to preview. Patch
+      // alone needs the pad because its diff might land in a single
+      // sub-second tool call.
       streamStartedAtRef.current = Date.now();
       lastPatchSnapshotRef.current = null;
-      setKeepSourceLock(true);
+      setKeepSourceLock(next === 'patch');
     }
     if (prev !== undefined && next === undefined && artifact) {
       setJustSettled(true);
@@ -160,7 +184,7 @@ function CanvasPaneComponent() {
       return () => clearTimeout(id);
     }
     return undefined;
-  }, [artifact]);
+  }, [artifact, artifactId]);
 
   // While a patch stream is alive, snapshot the (still pre-settle) source
   // and the latest emitted patches. Once the server clears
