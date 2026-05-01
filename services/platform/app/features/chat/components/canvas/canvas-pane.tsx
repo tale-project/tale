@@ -26,6 +26,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import { useCanvas, type CanvasContentType } from './canvas-context';
@@ -73,6 +74,15 @@ const TYPE_LABELS: Record<CanvasContentType, string> = {
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 900;
 const DEFAULT_WIDTH = 480;
+
+// Wrapper so the spinning Loader2 can be passed to Badge's `icon` slot,
+// which renders it inline with the label instead of nesting it inside
+// the children span (where it would stack above the text).
+function SpinnerIcon({ className }: { className?: string }) {
+  return (
+    <Loader2 className={cn(className, 'animate-spin')} aria-hidden="true" />
+  );
+}
 
 function CanvasPaneComponent() {
   const { t } = useT('chat');
@@ -308,11 +318,11 @@ function CanvasPaneComponent() {
           {isStreaming && (
             <Badge
               variant="outline"
-              className="shrink-0 gap-1 text-xs"
+              icon={SpinnerIcon}
+              className="shrink-0 text-xs"
               role="status"
               aria-live="polite"
             >
-              <Loader2 className="size-3 animate-spin" aria-hidden="true" />
               {liveStreamMode === 'patch'
                 ? t('canvas.streamingPatch')
                 : t('canvas.streamingWriting')}
