@@ -43,23 +43,26 @@ function ArtifactBarComponent({ organizationId, threadId }: ArtifactBarProps) {
     organizationId,
     threadId,
   });
-  const { openCanvas, artifactId: openArtifactId, isCanvasOpen } = useCanvas();
+  const { openCanvas, artifactId: openArtifactId } = useCanvas();
 
-  // Auto-open the most recently updated artifact the first time it appears
-  // in a thread. Subsequent updates don't re-open if the user closed it —
-  // that's intentional, the user already saw it once.
+  // Pull focus to each newly-created artifact exactly once. If the AI calls
+  // artifact_create multiple times in a turn, we follow whichever one
+  // appeared most recently — ChatGPT-Canvas behaviour. We key off
+  // `createdAt` (immutable) so an artifact_edit revision does not
+  // re-trigger the switch; the existing `useQuery` subscription updates
+  // the open canvas in place.
   const autoOpenedRef = useRef(new Set<string>());
   useEffect(() => {
     if (!artifacts || artifacts.length === 0) return;
     const newest = artifacts.reduce<ArtifactRow | undefined>((acc, a) => {
       if (!acc) return a;
-      return a.updatedAt > acc.updatedAt ? a : acc;
+      return a.createdAt > acc.createdAt ? a : acc;
     }, undefined);
     if (!newest) return;
     if (autoOpenedRef.current.has(newest._id)) return;
     autoOpenedRef.current.add(newest._id);
-    if (!isCanvasOpen) openCanvas(newest._id);
-  }, [artifacts, openCanvas, isCanvasOpen]);
+    openCanvas(newest._id);
+  }, [artifacts, openCanvas]);
 
   if (!artifacts || artifacts.length === 0) return null;
 
