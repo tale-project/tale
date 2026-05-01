@@ -1,6 +1,13 @@
 'use client';
 
-import { memo, useEffect, useRef, useState } from 'react';
+import {
+  memo,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { ReactNode } from 'react';
 
 import { useTheme } from '@/app/components/theme/theme-provider';
@@ -112,8 +119,48 @@ function CanvasCodeRendererComponent({
   const preRef = useRef<HTMLPreElement>(null);
   const stickToBottomRef = useRef(true);
 
+  // Defer expensive render inputs so React can commit a previous snapshot
+  // immediately and schedule the heavy work (diff node array spanning the
+  // entire source, plain-text re-render of a 30 KB+ string) at low priority.
+  // Critical effects below — scrollIntoView on first patch, stick-to-bottom
+  // during create/rewrite — keep reading the *real* `code` / `highlightPatches`
+  // so they fire on the actual transition, not the deferred one.
+  const deferredCode = useDeferredValue(code);
+  const deferredHighlightPatches = useDeferredValue(highlightPatches);
+
+  // Memoize the diff node array. During a patch stream the model emits a new
+  // patches snapshot every ~40 ms; without memoization, each render did a
+  // fresh `indexOf` scan of the source for every patch and rebuilt a node
+  // array spanning the whole 30 KB+ string. Cached on (code, patches), the
+  // diff only recomputes when the deferred inputs actually change.
+  const diffNodes = useMemo<ReactNode[] | null>(() => {
+    if (!deferredHighlightPatches || deferredHighlightPatches.length === 0) {
+      return null;
+    }
+    return renderWithDiff(deferredCode, deferredHighlightPatches);
+  }, [deferredCode, deferredHighlightPatches]);
+
+  // Skip shiki during a live stream or while a patch diff is on screen.
+  // Re-tokenising the whole document on every code-grow tick falls behind
+  // fast streams: the cancellation flag turns each result into a no-op so
+  // `html` state never advances, and the user perceives a "burst, silence,
+  // burst" cadence as shiki finally completes a pass during a stream pause.
+  // The plain-text fallback below renders synchronously every render.
+  // Patch streams already render via renderWithDiff (shiki output cannot
+  // host overlay marks), so highlighting there is wasted work.
+  const skipShiki =
+    isStreaming ||
+    (highlightPatches !== undefined && highlightPatches.length > 0);
   useEffect(() => {
     if (isEditing) return undefined;
+    if (skipShiki) {
+      // Drop any prior html so when the stream ends we don't briefly flash
+      // stale highlighted source from a previous pass before the fresh
+      // shiki call lands on the settled content. React bails out if html
+      // is already '' so this is cheap to call unconditionally.
+      setHtml('');
+      return undefined;
+    }
     let cancelled = false;
     void highlightCode(code, language, shikiTheme).then((result) => {
       if (!cancelled && result) {
@@ -123,7 +170,7 @@ function CanvasCodeRendererComponent({
     return () => {
       cancelled = true;
     };
-  }, [code, language, shikiTheme, isEditing]);
+  }, [code, language, shikiTheme, isEditing, skipShiki]);
 
   useEffect(() => {
     const pre = preRef.current;
@@ -145,18 +192,26 @@ function CanvasCodeRendererComponent({
   // (e.g. patch streams, where `code` doesn't grow at all). If the user
   // scrolls up to read earlier output during a real content stream,
   // stickToBottomRef goes false and we leave them alone until they scroll
-  // back near the bottom.
+  // back near the bottom. Keyed on `deferredCode` (not the prop `code`) so
+  // we wait until the deferred re-render has actually flushed the new
+  // characters into the DOM — otherwise `pre.scrollHeight` is read against
+  // the previous (smaller) content and we scroll to a stale bottom.
   useEffect(() => {
     if (!isStreaming) return;
     const pre = preRef.current;
     if (pre && stickToBottomRef.current) {
       pre.scrollTop = pre.scrollHeight;
     }
-  }, [code, html, isStreaming]);
+  }, [deferredCode, html, isStreaming]);
 
   // When the first patch target appears, scroll the matched region into view
   // so the user actually sees the diff — patch streams don't trigger the
   // auto-follow above (no content growth) and the source might be long.
+  // Depend on `diffNodes` as well so we retry on the deferred commit: the
+  // urgent render fires this effect before the `<del>` is in the DOM (the
+  // memoized diff is still null), and only the deferred commit actually
+  // mounts it. The ref guard keeps us from scrolling more than once per
+  // patch session.
   const patchesCount = highlightPatches?.length ?? 0;
   const previouslyHighlightedRef = useRef(false);
   useEffect(() => {
@@ -165,13 +220,12 @@ function CanvasCodeRendererComponent({
       return;
     }
     if (previouslyHighlightedRef.current) return;
-    previouslyHighlightedRef.current = true;
     const pre = preRef.current;
     const firstDel = pre?.querySelector('del');
-    if (firstDel instanceof HTMLElement) {
-      firstDel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [patchesCount]);
+    if (!(firstDel instanceof HTMLElement)) return;
+    previouslyHighlightedRef.current = true;
+    firstDel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [patchesCount, diffNodes]);
 
   if (isEditing) {
     return (
@@ -199,12 +253,14 @@ function CanvasCodeRendererComponent({
   // Patch streaming: render an inline diff preview — each patch's `search`
   // is struck through and the `replace` (when present) is rendered as an
   // addition next to it. Plain-text fallback for shiki's sake; see
-  // renderWithDiff for the trade-off discussion.
+  // renderWithDiff for the trade-off discussion. `diffNodes` is null on the
+  // single render where deferred patches haven't caught up yet — fall back
+  // to plain `code` so we don't flash an empty pre.
   if (highlightPatches && highlightPatches.length > 0) {
     return (
       <pre ref={preRef} className="bg-muted h-full overflow-auto p-4">
         <code className="text-xs leading-relaxed">
-          {renderWithDiff(code, highlightPatches)}
+          {diffNodes ?? deferredCode}
           {caret}
         </code>
       </pre>
@@ -215,7 +271,7 @@ function CanvasCodeRendererComponent({
     return (
       <pre ref={preRef} className="bg-muted h-full overflow-auto p-4">
         <code className="text-xs leading-relaxed">
-          {code}
+          {deferredCode}
           {caret}
         </code>
       </pre>

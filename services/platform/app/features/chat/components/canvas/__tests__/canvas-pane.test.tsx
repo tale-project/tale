@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { type ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Doc, Id } from '@/convex/_generated/dataModel';
 import { checkAccessibility } from '@/test/utils/a11y';
@@ -11,7 +11,7 @@ import { CanvasPane } from '../canvas-pane';
 
 const FAKE_ARTIFACT_ID = 'k123fakeartifactid000000000000' as Id<'artifacts'>;
 
-const FAKE_ARTIFACT: Doc<'artifacts'> = {
+const BASE_ARTIFACT: Doc<'artifacts'> = {
   _id: FAKE_ARTIFACT_ID,
   _creationTime: 0,
   organizationId: 'org_test',
@@ -27,11 +27,17 @@ const FAKE_ARTIFACT: Doc<'artifacts'> = {
   updatedAt: 0,
 };
 
+// Mutable holder so individual tests can override the artifact returned
+// from the Convex `getById` query (e.g. to simulate a live stream).
+const artifactHolder: { current: Doc<'artifacts'> } = {
+  current: BASE_ARTIFACT,
+};
+
 vi.mock('convex/react', () => ({
   useMutation: () => vi.fn(),
   useQuery: (_query: unknown, args: unknown) => {
     if (args === 'skip') return undefined;
-    return FAKE_ARTIFACT;
+    return artifactHolder.current;
   },
 }));
 
@@ -90,6 +96,10 @@ function TestHarness({ children }: { children?: ReactNode }) {
 }
 
 describe('CanvasPane', () => {
+  afterEach(() => {
+    artifactHolder.current = BASE_ARTIFACT;
+  });
+
   it('does not render when canvas is closed', () => {
     render(<TestHarness />);
     expect(screen.queryByText('test.js')).not.toBeInTheDocument();
@@ -175,6 +185,29 @@ describe('CanvasPane', () => {
       screen.getByRole('button', { name: 'Fullscreen' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('separator')).toBeInTheDocument();
+  });
+
+  it('shows the streaming source as plain text during a create stream', async () => {
+    const user = userEvent.setup();
+    artifactHolder.current = {
+      ...BASE_ARTIFACT,
+      content: '',
+      streamingContent: 'const partial = ',
+      liveStreamMode: 'create',
+    };
+    render(<TestHarness />);
+
+    await user.click(screen.getByText('Open'));
+
+    // The streaming badge appears so the source-view branch is active.
+    expect(screen.getByText('AI is writing…')).toBeInTheDocument();
+    // The streaming source view renders the partial content directly,
+    // bypassing shiki to avoid the cancel-storm that makes a fast stream
+    // appear to render in 2-second bursts. The plain code text is in the
+    // DOM as a real text node, not via dangerouslySetInnerHTML.
+    const code = screen.getByText('const partial =', { exact: false });
+    expect(code).toBeInTheDocument();
+    expect(code.tagName).toBe('CODE');
   });
 
   describe('accessibility', () => {

@@ -27,7 +27,9 @@ import {
   getState,
   initState,
   markFlushed,
+  markParsed,
   shouldFlush,
+  shouldParse,
 } from './stream_state';
 
 const artifactCreateArgs = z.object({
@@ -107,7 +109,9 @@ USE THIS TOOL when the user asks for a runnable HTML page, an SVG illustration, 
       if (!state) return;
       state.accumulator += options.inputTextDelta;
 
+      if (!shouldParse(state, state.accumulator.length)) return;
       const parsed = await parsePartialJson(state.accumulator);
+      markParsed(state, state.accumulator.length);
       if (
         parsed.state !== 'successful-parse' &&
         parsed.state !== 'repaired-parse'

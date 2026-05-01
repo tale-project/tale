@@ -29,8 +29,10 @@ import {
   initState,
   markFlushed,
   markFlushedStreamingPatches,
+  markParsed,
   shouldFlush,
   shouldFlushStreamingPatches,
+  shouldParse,
 } from './stream_state';
 
 const patchEntry = z.object({
@@ -130,7 +132,9 @@ export const artifactEditTool = {
       if (!state) return;
       state.accumulator += options.inputTextDelta;
 
+      if (!shouldParse(state, state.accumulator.length)) return;
       const parsed = await parsePartialJson(state.accumulator);
+      markParsed(state, state.accumulator.length);
       if (
         parsed.state !== 'successful-parse' &&
         parsed.state !== 'repaired-parse'
@@ -177,6 +181,7 @@ export const artifactEditTool = {
             return;
           }
           state.artifactId = artifactId;
+          state.baseContentLength = artifact.content.length;
         } catch (err) {
           // Malformed id (e.g. LLM hallucinated a token, or the parsed
           // string is still partial despite the mode-field guard).

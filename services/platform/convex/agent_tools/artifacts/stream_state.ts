@@ -35,6 +35,19 @@ export interface ArtifactStreamState {
   // mode). JSON-encoded so equal pairs always compare equal cheaply.
   lastFlushedPatchesKey?: string;
   lastPatchesFlushAt: number;
+  // Byte length of the existing artifact content at edit time. Set during
+  // artifact_edit preflight; used to slow down the patch-stream flush rate
+  // for large sources, where each tick forces the client to re-render a
+  // diff overlay that spans tens of KB. Unset for artifact_create.
+  baseContentLength?: number;
+  // Length of the accumulator at the last `parsePartialJson` call, plus
+  // the wall-clock timestamp. Used by `shouldParse` to amortise the
+  // O(n)-per-delta parse cost on large accumulators — without this gate
+  // a fast stream re-parses several KB on every ~50-byte delta and the
+  // agent action's event loop stalls, making the flush throttle coarser
+  // than its configured interval.
+  lastParsedLength: number;
+  lastParsedAt: number;
 }
 
 export interface StreamingPatchPair {
@@ -55,6 +68,8 @@ export function initState(
     lastFlushedContentLength: 0,
     lastFlushAt: 0,
     lastPatchesFlushAt: 0,
+    lastParsedLength: 0,
+    lastParsedAt: 0,
     rowInitialized: false,
   };
   STATE.set(toolCallId, next);
@@ -70,10 +85,43 @@ export function clearState(toolCallId: string): void {
 }
 
 /** Minimum elapsed time before another DB write during streaming. */
-export const STREAM_FLUSH_INTERVAL_MS = 250;
+export const STREAM_FLUSH_INTERVAL_MS = 100;
 
 /** Minimum content delta (bytes) before a non-time-based flush. */
-export const STREAM_FLUSH_DELTA_BYTES = 400;
+export const STREAM_FLUSH_DELTA_BYTES = 200;
+
+/** Minimum accumulator growth (bytes) before re-parsing the partial JSON
+ * after the row is initialised. Below this we skip the parse to avoid
+ * O(n²) work over the stream lifetime. */
+export const STREAM_PARSE_DELTA_BYTES = 50;
+
+/** Minimum elapsed time between `parsePartialJson` calls after the row
+ * is initialised. Pairs with `STREAM_PARSE_DELTA_BYTES` so we re-parse
+ * either when enough new bytes have arrived or when enough time has
+ * passed (whichever comes first), but not on every delta. */
+export const STREAM_PARSE_INTERVAL_MS = 40;
+
+/** Above this byte threshold, every DB-write tick triggers a client-side
+ * O(n) render pass (full-document diff overlay, full-string text node
+ * rebuild). Stretch the flush window for large content so the client gets
+ * a smaller number of bigger updates instead of a flood of small ones. */
+const STREAM_LARGE_CONTENT_BYTES = 8192;
+
+/** Multiplier applied to the flush interval once content crosses the
+ * "large" threshold. 2.5× was chosen empirically to keep 30 KB+ artifacts
+ * smooth on mid-range hardware while still feeling responsive (~250 ms
+ * inter-tick latency at the cap, which is well below the perception of
+ * "stuck"). */
+const STREAM_LARGE_CONTENT_FLUSH_MULTIPLIER = 2.5;
+
+function flushIntervalFor(sizeHint: number): number {
+  if (sizeHint > STREAM_LARGE_CONTENT_BYTES) {
+    return Math.round(
+      STREAM_FLUSH_INTERVAL_MS * STREAM_LARGE_CONTENT_FLUSH_MULTIPLIER,
+    );
+  }
+  return STREAM_FLUSH_INTERVAL_MS;
+}
 
 export function shouldFlush(
   state: ArtifactStreamState,
@@ -83,7 +131,7 @@ export function shouldFlush(
   const grew = nextContentLength - state.lastFlushedContentLength;
   if (grew <= 0) return false;
   if (grew >= STREAM_FLUSH_DELTA_BYTES) return true;
-  return now - state.lastFlushAt >= STREAM_FLUSH_INTERVAL_MS;
+  return now - state.lastFlushAt >= flushIntervalFor(nextContentLength);
 }
 
 export function markFlushed(
@@ -92,6 +140,30 @@ export function markFlushed(
 ): void {
   state.lastFlushedContentLength = contentLength;
   state.lastFlushAt = Date.now();
+}
+
+/** Decide whether to call `parsePartialJson(state.accumulator)` for this
+ * delta. Until the placeholder row has been inserted we always parse —
+ * field order from the model isn't guaranteed and we cannot delay seeing
+ * `title`/`mode`/`type`. Once initialised, we only re-parse when both a
+ * meaningful number of new bytes have arrived AND a small time window
+ * has elapsed since the last parse. */
+export function shouldParse(
+  state: ArtifactStreamState,
+  accumulatorLength: number,
+): boolean {
+  if (!state.rowInitialized) return true;
+  const grew = accumulatorLength - state.lastParsedLength;
+  if (grew < STREAM_PARSE_DELTA_BYTES) return false;
+  return Date.now() - state.lastParsedAt >= STREAM_PARSE_INTERVAL_MS;
+}
+
+export function markParsed(
+  state: ArtifactStreamState,
+  accumulatorLength: number,
+): void {
+  state.lastParsedLength = accumulatorLength;
+  state.lastParsedAt = Date.now();
 }
 
 /** Stable change-detection signature for a streaming patches list. JSON
@@ -107,14 +179,20 @@ export function streamingPatchesKey(
 
 /** Flush only when the patches list has changed AND the throttle window has
  * elapsed. The list grows / mutates slowly during a patch stream (one
- * patch entry per ~hundreds of ms), so we don't need a byte-delta gate. */
+ * patch entry per ~hundreds of ms), so we don't need a byte-delta gate.
+ * Throttle scales with the underlying source size: each flush forces the
+ * client to recompute a diff overlay that spans the whole base content,
+ * so a 30 KB source benefits from a slower tick rate. */
 export function shouldFlushStreamingPatches(
   state: ArtifactStreamState,
   patches: readonly StreamingPatchPair[],
 ): boolean {
   const key = streamingPatchesKey(patches);
   if (state.lastFlushedPatchesKey === key) return false;
-  return Date.now() - state.lastPatchesFlushAt >= STREAM_FLUSH_INTERVAL_MS;
+  return (
+    Date.now() - state.lastPatchesFlushAt >=
+    flushIntervalFor(state.baseContentLength ?? 0)
+  );
 }
 
 export function markFlushedStreamingPatches(
