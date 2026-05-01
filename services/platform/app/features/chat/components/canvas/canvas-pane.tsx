@@ -167,6 +167,16 @@ function CanvasPaneComponent() {
   const canvasTitle = artifact?.title ?? '';
   const canvasLanguage = artifact?.language;
 
+  // While the AI is mid-stream of a create/rewrite, half-emitted HTML
+  // renders as a blank or broken iframe. Show the source code instead;
+  // the preview takes over once `liveStreamMode` clears. Patch mode is
+  // safe — patches apply atomically when execute returns, so the
+  // previously-settled content stays valid in the iframe.
+  const showStreamingSource =
+    !isEditing && (liveStreamMode === 'create' || liveStreamMode === 'rewrite');
+  const streamingHighlightLang =
+    canvasType === 'code' ? canvasLanguage : canvasType;
+
   const isDirty = editBuffer !== undefined && editBuffer !== settledContent;
   const canApply = isDirty && !!artifactId && !isStreaming;
 
@@ -423,7 +433,15 @@ function CanvasPaneComponent() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {canvasType === 'code' && (
+        {showStreamingSource && (
+          <CanvasCodeRenderer
+            code={displayedContent}
+            language={streamingHighlightLang}
+            isEditing={false}
+            onContentChange={onContentChange}
+          />
+        )}
+        {!showStreamingSource && canvasType === 'code' && (
           <CanvasCodeRenderer
             code={displayedContent}
             language={canvasLanguage}
@@ -431,28 +449,28 @@ function CanvasPaneComponent() {
             onContentChange={onContentChange}
           />
         )}
-        {canvasType === 'html' && (
+        {!showStreamingSource && canvasType === 'html' && (
           <CanvasHtmlRenderer
             html={displayedContent}
             isEditing={isEditing}
             onContentChange={onContentChange}
           />
         )}
-        {canvasType === 'svg' && (
+        {!showStreamingSource && canvasType === 'svg' && (
           <CanvasHtmlRenderer
             html={displayedContent}
             isEditing={isEditing}
             onContentChange={onContentChange}
           />
         )}
-        {canvasType === 'mermaid' && (
+        {!showStreamingSource && canvasType === 'mermaid' && (
           <CanvasMermaidRenderer
             code={displayedContent}
             isEditing={isEditing}
             onContentChange={onContentChange}
           />
         )}
-        {canvasType === 'markdown' && (
+        {!showStreamingSource && canvasType === 'markdown' && (
           <CanvasMarkdownRenderer
             content={displayedContent}
             isEditing={isEditing}
