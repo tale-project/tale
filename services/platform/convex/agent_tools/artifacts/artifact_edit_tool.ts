@@ -146,22 +146,43 @@ export const artifactEditTool = {
         typeof obj.artifactId === 'string' ? obj.artifactId : undefined;
       const mode = typeof obj.mode === 'string' ? obj.mode : undefined;
 
-      if (state.artifactId === undefined && artifactIdStr) {
-        const artifactId = toId<'artifacts'>(artifactIdStr);
-        const artifact = await ctx.runQuery(
-          internal.artifacts.internal_queries.getById,
-          {
-            artifactId,
-            expectedOrganizationId: ctx.organizationId,
-            expectedThreadId: ctx.threadId,
-          },
-        );
-        if (!artifact) {
-          // Defer error reporting to execute — avoids silently no-oping
-          // when the LLM passes a bad ID; the tool result will explain.
+      // Defer the lookup until `mode` is also in the parsed object —
+      // that's a structural signal the LLM closed the artifactId string
+      // and moved to the next field. Without this guard parsePartialJson
+      // hands back every streaming prefix ("k", "ks", "ks7", ...) and the
+      // Convex `v.id("artifacts")` validator rejects each one as a
+      // NonRetryableError that aborts the whole agent run.
+      if (
+        state.artifactId === undefined &&
+        artifactIdStr &&
+        mode !== undefined
+      ) {
+        try {
+          const artifactId = toId<'artifacts'>(artifactIdStr);
+          const artifact = await ctx.runQuery(
+            internal.artifacts.internal_queries.getById,
+            {
+              artifactId,
+              expectedOrganizationId: ctx.organizationId,
+              expectedThreadId: ctx.threadId,
+            },
+          );
+          if (!artifact) {
+            // Defer error reporting to execute — avoids silently no-oping
+            // when the LLM passes a bad ID; the tool result will explain.
+            return;
+          }
+          state.artifactId = artifactId;
+        } catch (err) {
+          // Malformed id (e.g. LLM hallucinated a token, or the parsed
+          // string is still partial despite the mode-field guard).
+          // Defer to execute for the canonical error message.
+          console.warn('[artifact_edit] preflight getById failed, deferring', {
+            artifactIdStr,
+            error: err instanceof Error ? err.message : String(err),
+          });
           return;
         }
-        state.artifactId = artifactId;
       }
 
       if (
@@ -203,14 +224,28 @@ export const artifactEditTool = {
       const state = getState(options.toolCallId);
       try {
         const artifactId = toId<'artifacts'>(args.artifactId);
-        const artifact = await ctx.runQuery(
-          internal.artifacts.internal_queries.getById,
-          {
-            artifactId,
-            expectedOrganizationId: ctx.organizationId,
-            expectedThreadId: ctx.threadId,
-          },
-        );
+        let artifact;
+        try {
+          artifact = await ctx.runQuery(
+            internal.artifacts.internal_queries.getById,
+            {
+              artifactId,
+              expectedOrganizationId: ctx.organizationId,
+              expectedThreadId: ctx.threadId,
+            },
+          );
+        } catch (err) {
+          // Convex `v.id("artifacts")` rejected the value — most often
+          // because the LLM hallucinated an id that doesn't match the
+          // expected format. Returning a tool-result error keeps the
+          // agent loop alive so the model can recover; throwing would
+          // abort the whole run as a NonRetryableError.
+          const message = err instanceof Error ? err.message : String(err);
+          return {
+            success: false,
+            message: `Artifact id "${args.artifactId}" is malformed: ${message}`,
+          };
+        }
         if (!artifact) {
           return {
             success: false,
