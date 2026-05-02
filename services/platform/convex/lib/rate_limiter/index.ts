@@ -209,6 +209,14 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 1,
     period: HOUR,
   },
+  // Per-(user, org) lazy cleanup of personalization memory rows. Gates
+  // opportunistic GC so it runs at most once per hour per user-org tuple,
+  // independent of how many mutations they fire in that window.
+  'cleanup:personalization': {
+    kind: 'fixed window',
+    rate: 1,
+    period: HOUR,
+  },
 });
 
 export type RateLimitName = Parameters<typeof rateLimiter.limit>[1];

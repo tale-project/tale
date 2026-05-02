@@ -614,6 +614,7 @@ import type * as organizations_resolve_org_slug from "../organizations/resolve_o
 import type * as organizations_scaffold from "../organizations/scaffold.js";
 import type * as organizations_update_organization from "../organizations/update_organization.js";
 import type * as organizations_validators from "../organizations/validators.js";
+import type * as personalization_export_user_data from "../personalization/export_user_data.js";
 import type * as products_bulk_create_products from "../products/bulk_create_products.js";
 import type * as products_create_product from "../products/create_product.js";
 import type * as products_create_product_with_translations from "../products/create_product_with_translations.js";
@@ -737,6 +738,12 @@ import type * as two_factor_internal_queries from "../two_factor/internal_querie
 import type * as two_factor_mutations from "../two_factor/mutations.js";
 import type * as two_factor_queries from "../two_factor/queries.js";
 import type * as user_memories_audit_pseudonym from "../user_memories/audit_pseudonym.js";
+import type * as user_memories_lazy_cleanup from "../user_memories/lazy_cleanup.js";
+import type * as user_memories_mutations from "../user_memories/mutations.js";
+import type * as user_memories_queries from "../user_memories/queries.js";
+import type * as user_memory_audit_log_internal_mutations from "../user_memory_audit_log/internal_mutations.js";
+import type * as user_preferences_mutations from "../user_preferences/mutations.js";
+import type * as user_preferences_queries from "../user_preferences/queries.js";
 import type * as users_add_member_internal from "../users/add_member_internal.js";
 import type * as users_create_member from "../users/create_member.js";
 import type * as users_create_user_without_session from "../users/create_user_without_session.js";
@@ -1635,6 +1642,7 @@ declare const fullApi: ApiFromModules<{
   "organizations/scaffold": typeof organizations_scaffold;
   "organizations/update_organization": typeof organizations_update_organization;
   "organizations/validators": typeof organizations_validators;
+  "personalization/export_user_data": typeof personalization_export_user_data;
   "products/bulk_create_products": typeof products_bulk_create_products;
   "products/create_product": typeof products_create_product;
   "products/create_product_with_translations": typeof products_create_product_with_translations;
@@ -1758,6 +1766,12 @@ declare const fullApi: ApiFromModules<{
   "two_factor/mutations": typeof two_factor_mutations;
   "two_factor/queries": typeof two_factor_queries;
   "user_memories/audit_pseudonym": typeof user_memories_audit_pseudonym;
+  "user_memories/lazy_cleanup": typeof user_memories_lazy_cleanup;
+  "user_memories/mutations": typeof user_memories_mutations;
+  "user_memories/queries": typeof user_memories_queries;
+  "user_memory_audit_log/internal_mutations": typeof user_memory_audit_log_internal_mutations;
+  "user_preferences/mutations": typeof user_preferences_mutations;
+  "user_preferences/queries": typeof user_preferences_queries;
   "users/add_member_internal": typeof users_add_member_internal;
   "users/create_member": typeof users_create_member;
   "users/create_user_without_session": typeof users_create_user_without_session;
