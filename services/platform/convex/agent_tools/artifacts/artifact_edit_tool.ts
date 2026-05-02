@@ -118,6 +118,8 @@ export const artifactEditTool = {
 **ERROR HANDLING:**
 - If a patch fails ("matched 0 times" / "matched more than once"), re-read the current artifact content from the <artifacts> system context, then re-emit the failing patch with a more specific search block. Do not fall back to \`mode: 'rewrite'\` unless the change is genuinely large.
 
+**WHEN ADDING NEW FEATURES TO AN HTML ARTIFACT:** the same constraints from \`artifact_create\` apply — the iframe is offline (no \`fetch\` / WebSocket to any host), only the bundled \`/canvas-libs/*\` libraries are loadable, and features that need runtime intelligence (translate user input, score answers, conversational replies) belong in chat, not in the page. Don't introduce hardcoded lookup tables to fake AI behaviour.
+
 **RESPONSE:** returns the new \`revision\` number, how many patches were applied (\`applied\`), and the artifact's new \`content\` so you can reason about further edits in the same turn.`,
     inputSchema: artifactEditArgs,
     onInputStart: async (_ctx: ToolCtx, options: ToolExecutionOptions) => {

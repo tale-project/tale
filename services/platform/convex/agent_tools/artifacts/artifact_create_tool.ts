@@ -116,6 +116,14 @@ If you need a library that is not in this list, inline its source directly in th
 
 If the design absolutely requires a non-system display face, inline a base64-encoded \`@font-face\` (small subsets only).
 
+**RUNTIME ENVIRONMENT** (only when \`type\` = \`html\`):
+
+The iframe is fully static and offline. There is **no backend, no fetchable API, no WebSocket** — \`fetch()\`, \`XMLHttpRequest\`, \`WebSocket\`, \`EventSource\`, and \`navigator.sendBeacon\` to any host (including \`localhost\`) are blocked by CSP \`connect-src 'self'\`.
+
+Therefore: features that require **runtime intelligence** — translating user input, scoring or correcting user output, conversational replies, language detection, summarisation, recommendation based on what the user just typed — **do not belong in an artifact**. Either handle them as normal chat replies, or redesign the page so it doesn't need a thinking backend at all (static reference content, fixed exercises with predetermined answers, deterministic visualisations / calculators / form layouts).
+
+**Do NOT fake AI features with hardcoded lookup tables or random output.** A "translation tool" backed by 30 baked-in phrases, a "feedback engine" backed by canned responses, a "personalised recommendation" picked at random — these produce hollow, demo-shaped pages that feel impressive at a glance and fall apart on first real use. If the user asks for something that genuinely needs intelligence, prefer to deliver it in chat rather than build a plausible-looking shell.
+
 **RESPONSE:** returns the new \`artifactId\` and \`revision: 1\`. The artifact's content is rendered live in the Canvas pane as you stream it.`,
     inputSchema: artifactCreateArgs,
     onInputStart: async (_ctx: ToolCtx, options: ToolExecutionOptions) => {
