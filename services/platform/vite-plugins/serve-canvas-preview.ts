@@ -1,8 +1,7 @@
 import { createReadStream, statSync } from 'node:fs';
 import { extname, join, normalize, sep } from 'node:path';
 
-import type * as Connect from 'connect';
-import { type Plugin } from 'vite';
+import { type Connect, type Plugin } from 'vite';
 
 import {
   buildCanvasPreviewCsp,

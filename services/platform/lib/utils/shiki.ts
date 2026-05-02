@@ -99,7 +99,7 @@ export function resolveLanguage(langOrExt: string): string {
  * Hunk views call shiki per-hunk (≤ a few KB each), so they sit well below
  * this cap; only the settled-source full-document path can hit it.
  */
-export const MAX_SHIKI_BYTES = 64_000;
+const MAX_SHIKI_BYTES = 64_000;
 
 /**
  * Tokenize `code` into highlighted HTML. Returns `null` when:
