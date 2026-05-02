@@ -405,6 +405,7 @@ import type * as lib_attachments_index from "../lib/attachments/index.js";
 import type * as lib_attachments_process_attachments from "../lib/attachments/process_attachments.js";
 import type * as lib_attachments_register_files from "../lib/attachments/register_files.js";
 import type * as lib_attachments_types from "../lib/attachments/types.js";
+import type * as lib_cascades_personalization_cascade from "../lib/cascades/personalization_cascade.js";
 import type * as lib_context_management_build_artifacts_context from "../lib/context_management/build_artifacts_context.js";
 import type * as lib_context_management_build_prioritized_contexts from "../lib/context_management/build_prioritized_contexts.js";
 import type * as lib_context_management_check_and_summarize from "../lib/context_management/check_and_summarize.js";
@@ -457,6 +458,7 @@ import type * as lib_response_cache_internal_queries from "../lib/response_cache
 import type * as lib_response_cache_normalize from "../lib/response_cache/normalize.js";
 import type * as lib_response_cache_semantic_cache from "../lib/response_cache/semantic_cache.js";
 import type * as lib_rest_helpers from "../lib/rest/helpers.js";
+import type * as lib_rls_auth_assert_self_and_org_member from "../lib/rls/auth/assert_self_and_org_member.js";
 import type * as lib_rls_auth_can_access_thread from "../lib/rls/auth/can_access_thread.js";
 import type * as lib_rls_auth_check_org_membership from "../lib/rls/auth/check_org_membership.js";
 import type * as lib_rls_auth_get_auth_user_identity from "../lib/rls/auth/get_auth_user_identity.js";
@@ -734,6 +736,7 @@ import type * as two_factor_internal_mutations from "../two_factor/internal_muta
 import type * as two_factor_internal_queries from "../two_factor/internal_queries.js";
 import type * as two_factor_mutations from "../two_factor/mutations.js";
 import type * as two_factor_queries from "../two_factor/queries.js";
+import type * as user_memories_audit_pseudonym from "../user_memories/audit_pseudonym.js";
 import type * as users_add_member_internal from "../users/add_member_internal.js";
 import type * as users_create_member from "../users/create_member.js";
 import type * as users_create_user_without_session from "../users/create_user_without_session.js";
@@ -1423,6 +1426,7 @@ declare const fullApi: ApiFromModules<{
   "lib/attachments/process_attachments": typeof lib_attachments_process_attachments;
   "lib/attachments/register_files": typeof lib_attachments_register_files;
   "lib/attachments/types": typeof lib_attachments_types;
+  "lib/cascades/personalization_cascade": typeof lib_cascades_personalization_cascade;
   "lib/context_management/build_artifacts_context": typeof lib_context_management_build_artifacts_context;
   "lib/context_management/build_prioritized_contexts": typeof lib_context_management_build_prioritized_contexts;
   "lib/context_management/check_and_summarize": typeof lib_context_management_check_and_summarize;
@@ -1475,6 +1479,7 @@ declare const fullApi: ApiFromModules<{
   "lib/response_cache/normalize": typeof lib_response_cache_normalize;
   "lib/response_cache/semantic_cache": typeof lib_response_cache_semantic_cache;
   "lib/rest/helpers": typeof lib_rest_helpers;
+  "lib/rls/auth/assert_self_and_org_member": typeof lib_rls_auth_assert_self_and_org_member;
   "lib/rls/auth/can_access_thread": typeof lib_rls_auth_can_access_thread;
   "lib/rls/auth/check_org_membership": typeof lib_rls_auth_check_org_membership;
   "lib/rls/auth/get_auth_user_identity": typeof lib_rls_auth_get_auth_user_identity;
@@ -1752,6 +1757,7 @@ declare const fullApi: ApiFromModules<{
   "two_factor/internal_queries": typeof two_factor_internal_queries;
   "two_factor/mutations": typeof two_factor_mutations;
   "two_factor/queries": typeof two_factor_queries;
+  "user_memories/audit_pseudonym": typeof user_memories_audit_pseudonym;
   "users/add_member_internal": typeof users_add_member_internal;
   "users/create_member": typeof users_create_member;
   "users/create_user_without_session": typeof users_create_user_without_session;

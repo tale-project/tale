@@ -40,6 +40,10 @@ export interface SerializableAgentConfig {
   knowledgeMode?: 'off' | 'tool' | 'context' | 'both';
   /** Web search retrieval mode: tool (agent calls web), context (auto-inject), both, or off */
   webSearchMode?: 'off' | 'tool' | 'context' | 'both';
+  /** Per-user personalization injection mode: 'on' (default) or 'off' (strip user content + propose_memory tool) */
+  personalizationMode?: 'on' | 'off';
+  /** Marks an agent whose outputs have legal/significant effects (GDPR Art 22 / EU AI Act high-risk). Forces personalizationMode='off'. */
+  significantEffectsUseCase?: boolean;
   /** Whether to include team documents in knowledge scope (default true) */
   includeTeamKnowledge?: boolean;
   /** Whether to include org-wide documents in knowledge scope (default false) */

@@ -41,6 +41,11 @@ export const threadMetadataTable = defineTable({
   branchSelections: v.optional(v.string()),
   // Team/workspace assignment
   teamId: v.optional(v.string()),
+  // Personalization opt-out at the thread level. When true, this thread
+  // skips both reads (no user memory injected into system prompt) and
+  // writes (the propose_memory tool is stripped from the agent). Used by
+  // future "Temporary chat" UI; v1 only the schema field is in.
+  disablePersonalization: v.optional(v.boolean()),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [

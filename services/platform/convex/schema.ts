@@ -49,6 +49,9 @@ import { threadTodosTable } from './thread_todos/schema';
 import { threadBranchesTable } from './threads/branch_schema';
 import { threadMetadataTable } from './threads/schema';
 import { twoFactorAttemptsTable } from './two_factor/schema';
+import { userMemoriesTable } from './user_memories/schema';
+import { userMemoryAuditLogTable } from './user_memory_audit_log/schema';
+import { userPreferencesTable } from './user_preferences/schema';
 import {
   userNotificationStateTable,
   userPasswordMetadataTable,
@@ -112,8 +115,11 @@ export default defineSchema({
   threadMetadata: threadMetadataTable,
   threadTodos: threadTodosTable,
   twoFactorAttempts: twoFactorAttemptsTable,
-  userPasswordMetadata: userPasswordMetadataTable,
+  userMemories: userMemoriesTable,
+  userMemoryAuditLog: userMemoryAuditLogTable,
   userNotificationState: userNotificationStateTable,
+  userPasswordMetadata: userPasswordMetadataTable,
+  userPreferences: userPreferencesTable,
   products: productsTable,
   ssoProviders: ssoProvidersTable,
   vendors: vendorsTable,

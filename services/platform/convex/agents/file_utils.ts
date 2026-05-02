@@ -49,6 +49,19 @@ export interface AgentJsonConfig {
   provider?: string;
   knowledgeMode?: 'off' | 'tool' | 'context' | 'both';
   webSearchMode?: 'off' | 'tool' | 'context' | 'both';
+  /**
+   * Per-user personalization (custom instructions + memories) injection mode.
+   * 'on' (default): inject when org/user toggles permit. 'off': never inject
+   * and strip the propose_memory tool. Use 'off' for strict-format workflow
+   * agents whose output shape would be polluted by user tone preferences.
+   */
+  personalizationMode?: 'on' | 'off';
+  /**
+   * Marks an agent whose outputs produce legal or similarly significant
+   * effects on users (GDPR Art 22 / EU AI Act high-risk). When true,
+   * personalization is force-disabled regardless of other toggles.
+   */
+  significantEffectsUseCase?: boolean;
   includeOrgKnowledge?: boolean;
   includeTeamKnowledge?: boolean;
   knowledgeTopK?: number;
