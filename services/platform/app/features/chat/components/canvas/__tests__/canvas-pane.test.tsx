@@ -203,11 +203,14 @@ describe('CanvasPane', () => {
     expect(screen.getByText('AI is writing…')).toBeInTheDocument();
     // The streaming source view renders the partial content directly,
     // bypassing shiki to avoid the cancel-storm that makes a fast stream
-    // appear to render in 2-second bursts. The plain code text is in the
-    // DOM as a real text node, not via dangerouslySetInnerHTML.
-    const code = screen.getByText('const partial =', { exact: false });
-    expect(code).toBeInTheDocument();
-    expect(code.tagName).toBe('CODE');
+    // appear to render in 2-second bursts. The plain code text lives in
+    // the DOM as a real text node (not via dangerouslySetInnerHTML);
+    // it sits inside an `IncrementalText` host span that is itself inside
+    // the `<code>` element, so we walk up to confirm the structural
+    // expectation.
+    const node = screen.getByText('const partial =', { exact: false });
+    expect(node).toBeInTheDocument();
+    expect(node.closest('code')).not.toBeNull();
   });
 
   describe('accessibility', () => {

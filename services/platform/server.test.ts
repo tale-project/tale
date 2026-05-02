@@ -11,6 +11,7 @@ const baseEnv = {
   SENTRY_DSN: undefined,
   SENTRY_TRACES_SAMPLE_RATE: 1,
   TALE_VERSION: undefined,
+  CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: [] as readonly string[],
 };
 
 describe('security headers', () => {
@@ -134,6 +135,72 @@ describe('POST /canvas-preview', () => {
     expect(text).toContain('<!doctype html>');
     // Body region between <body> and </body> should be empty.
     expect(text).toMatch(/<body>\s*<\/body>/);
+  });
+
+  // CSP extras: opt-in escape hatch via CANVAS_PREVIEW_CSP_EXTRA_ORIGINS.
+  // Default empty preserves the byte-identical air-gapped CSP; setting it
+  // appends validated origins to the five fetch directives that an LLM
+  // demo might legitimately need (script/style/font/img/connect).
+
+  async function getCanvasCsp(env: typeof baseEnv): Promise<string> {
+    const app = createApp(env);
+    const res = await app.fetch(
+      new Request('http://localhost/canvas-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: '',
+      }),
+    );
+    return res.headers.get('content-security-policy') ?? '';
+  }
+
+  test('extras default empty preserves the air-gapped CSP', async () => {
+    const csp = await getCanvasCsp(baseEnv);
+    expect(csp).toContain("script-src 'self' 'unsafe-inline' 'unsafe-eval';");
+    expect(csp).toContain("style-src 'self' 'unsafe-inline';");
+    expect(csp).toContain("connect-src 'self';");
+    expect(csp).not.toContain('https://');
+  });
+
+  test('extras: a valid origin appears in five fetch directives', async () => {
+    const csp = await getCanvasCsp({
+      ...baseEnv,
+      CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: ['https://cdn.jsdelivr.net'],
+    });
+    expect(csp).toContain(
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net;",
+    );
+    expect(csp).toContain(
+      "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;",
+    );
+    expect(csp).toContain("font-src 'self' data: https://cdn.jsdelivr.net;");
+    expect(csp).toContain(
+      "img-src 'self' data: blob: https://cdn.jsdelivr.net;",
+    );
+    expect(csp).toContain("connect-src 'self' https://cdn.jsdelivr.net;");
+    // Egress-control directives that should NOT pick up the extras.
+    expect(csp).toContain("frame-ancestors 'self';");
+    expect(csp).not.toMatch(/frame-ancestors[^;]*https:\/\/cdn\.jsdelivr/);
+    expect(csp).toContain("base-uri 'none';");
+    expect(csp).toContain("object-src 'none'");
+  });
+
+  test('extras: malformed entry is dropped, CSP matches no-extras shape', async () => {
+    const cspMalformed = await getCanvasCsp({
+      ...baseEnv,
+      CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: ['not-a-url'],
+    });
+    const cspBaseline = await getCanvasCsp(baseEnv);
+    expect(cspMalformed).toBe(cspBaseline);
+  });
+
+  test('extras: URL with path is dropped (must be bare origin)', async () => {
+    const cspWithPath = await getCanvasCsp({
+      ...baseEnv,
+      CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: ['https://cdn.jsdelivr.net/npm/'],
+    });
+    const cspBaseline = await getCanvasCsp(baseEnv);
+    expect(cspWithPath).toBe(cspBaseline);
   });
 });
 

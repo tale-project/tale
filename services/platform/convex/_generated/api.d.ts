@@ -164,6 +164,7 @@ import type * as artifacts_internal_mutations from "../artifacts/internal_mutati
 import type * as artifacts_internal_queries from "../artifacts/internal_queries.js";
 import type * as artifacts_mutations from "../artifacts/mutations.js";
 import type * as artifacts_queries from "../artifacts/queries.js";
+import type * as artifacts_snapshot_for_branch from "../artifacts/snapshot_for_branch.js";
 import type * as audit_logs_actions from "../audit_logs/actions.js";
 import type * as audit_logs_export_audit_logs from "../audit_logs/export_audit_logs.js";
 import type * as audit_logs_helpers from "../audit_logs/helpers.js";
@@ -1179,6 +1180,7 @@ declare const fullApi: ApiFromModules<{
   "artifacts/internal_queries": typeof artifacts_internal_queries;
   "artifacts/mutations": typeof artifacts_mutations;
   "artifacts/queries": typeof artifacts_queries;
+  "artifacts/snapshot_for_branch": typeof artifacts_snapshot_for_branch;
   "audit_logs/actions": typeof audit_logs_actions;
   "audit_logs/export_audit_logs": typeof audit_logs_export_audit_logs;
   "audit_logs/helpers": typeof audit_logs_helpers;

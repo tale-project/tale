@@ -33,20 +33,67 @@ export function wrapCanvasPreviewHtml(userHtml: string): string {
 // Permissive CSP for the iframe response: AI HTML needs `unsafe-inline` +
 // `unsafe-eval`, but external egress (`connect-src`, external script
 // hosts) is locked to `'self'` per the air-gap policy comment in
-// server.ts. Cross-origin demo libraries (D3, Chart.js etc) are blocked
-// by design; revisit if operators ask.
-export const CANVAS_PREVIEW_CSP =
-  "default-src 'self' data: blob:; " +
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-  "style-src 'self' 'unsafe-inline'; " +
-  "img-src 'self' data: blob:; " +
-  "font-src 'self' data:; " +
-  "connect-src 'self'; " +
-  "frame-ancestors 'self'; " +
-  // No `form-action` directive: 'self' here means the iframe's opaque
-  // origin (since sandbox runs without `allow-same-origin`), which
-  // matches nothing — so any form in user HTML would be blocked. The
-  // sandbox + opaque-origin combo already prevents meaningful
-  // cross-origin form submissions, so this directive is just collateral.
-  "base-uri 'none'; " +
-  "object-src 'none'";
+// server.ts. The high-frequency demo libraries the LLM reaches for
+// (reveal.js, Chart.js, D3, Tailwind Play, GSAP) are vendored under
+// `public/canvas-libs/` and reachable via `'self'`. Operators who need
+// arbitrary external CDNs can opt in with `CANVAS_PREVIEW_CSP_EXTRA_ORIGINS`
+// — the third opt-in exception alongside Sentry and Figma MCP. Each
+// supplied entry is validated to be a bare origin (no path/query/fragment,
+// http or https only) before being appended; malformed entries are
+// dropped with a warning.
+export function buildCanvasPreviewCsp(
+  extraOrigins: readonly string[] = [],
+): string {
+  const validatedExtras = extraOrigins
+    .map(validateExtraOrigin)
+    .filter((o): o is string => o !== null);
+  const extras =
+    validatedExtras.length > 0 ? ' ' + validatedExtras.join(' ') : '';
+  return (
+    "default-src 'self' data: blob:; " +
+    `script-src 'self' 'unsafe-inline' 'unsafe-eval'${extras}; ` +
+    `style-src 'self' 'unsafe-inline'${extras}; ` +
+    `img-src 'self' data: blob:${extras}; ` +
+    `font-src 'self' data:${extras}; ` +
+    `connect-src 'self'${extras}; ` +
+    "frame-ancestors 'self'; " +
+    // No `form-action` directive: 'self' here means the iframe's opaque
+    // origin (since sandbox runs without `allow-same-origin`), which
+    // matches nothing — so any form in user HTML would be blocked. The
+    // sandbox + opaque-origin combo already prevents meaningful
+    // cross-origin form submissions, so this directive is just collateral.
+    "base-uri 'none'; " +
+    "object-src 'none'"
+  );
+}
+
+// Accept exactly `https://host[:port]` or `http://host[:port]` — `URL`
+// considers e.g. `https://cdn.example.com/path` a valid URL but its
+// `.origin` would be `https://cdn.example.com`, so equality with the
+// input is the strictest "this is just an origin" check.
+function validateExtraOrigin(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      console.warn(
+        `CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: dropping non-http(s) entry: ${trimmed}`,
+      );
+      return null;
+    }
+    if (url.origin !== trimmed) {
+      console.warn(
+        `CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: dropping entry with path/query/fragment (use bare origin): ${trimmed}`,
+      );
+      return null;
+    }
+    return url.origin;
+  } catch (err) {
+    console.warn(
+      `CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: dropping unparseable entry "${trimmed}":`,
+      err,
+    );
+    return null;
+  }
+}

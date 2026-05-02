@@ -1,5 +1,7 @@
+import { syncStreams, vStreamArgs } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
+import { components } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
@@ -97,6 +99,40 @@ export const listByThread = query({
       .order('desc')
       .take(cap);
     return newestFirst.toReversed().map(projectListItem);
+  },
+});
+
+/**
+ * Cursor-based subscription to the live tool-input-delta stream for an
+ * artifact's create/edit invocation. Thin wrapper around the agent SDK's
+ * `syncStreams` — we just authorize access to the artifact's thread and
+ * forward the cursor request to the component. The returned `parts` carry
+ * the same `{ type: 'tool-input-delta', toolCallId, inputTextDelta }`
+ * shape the chat UI already consumes; the canvas pane filters down to its
+ * artifact's `toolCallId` and decodes the JSON `content` value
+ * client-side. See plan §3 (eventual-mixing-dawn.md).
+ */
+export const syncArtifactStream = query({
+  args: {
+    artifactId: v.id('artifacts'),
+    streamArgs: vStreamArgs,
+  },
+  handler: async (ctx, { artifactId, streamArgs }) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return undefined;
+    const artifact = await ctx.db.get(artifactId);
+    if (!artifact) return undefined;
+    const metadata = await canAccessThread(ctx, artifact.threadId, authUser);
+    if (!metadata || metadata.organizationId !== artifact.organizationId) {
+      return undefined;
+    }
+    if (metadata.status === 'deleted') return undefined;
+
+    return await syncStreams(ctx, components.agent, {
+      threadId: artifact.threadId,
+      streamArgs,
+      includeStatuses: ['streaming'],
+    });
   },
 });
 

@@ -48,6 +48,17 @@ export interface ArtifactStreamState {
   // than its configured interval.
   lastParsedLength: number;
   lastParsedAt: number;
+  // Coalesced fire-and-forget flush state. Streaming flushes (the
+  // `updateStreamingContent` mutation) are NOT awaited inside
+  // `onInputDelta` because a 30 KB+ payload roundtrip blocks the AI SDK's
+  // event loop, builds buffer pressure, and produces a "wait several
+  // seconds, then dump a big chunk" cadence on screen. Instead we keep
+  // at most one mutation in flight; subsequent flush requests overwrite
+  // `pendingFlush` with the latest payload, and the in-flight callback's
+  // `.finally` drains it. Final consistency is guaranteed by the canonical
+  // settle in `execute()`, which clears streaming flags atomically.
+  flushInFlight: boolean;
+  pendingFlush?: () => Promise<unknown>;
 }
 
 export interface StreamingPatchPair {
@@ -71,9 +82,44 @@ export function initState(
     lastParsedLength: 0,
     lastParsedAt: 0,
     rowInitialized: false,
+    flushInFlight: false,
   };
   STATE.set(toolCallId, next);
   return next;
+}
+
+/**
+ * Hand a streaming-flush mutation off to the background. At most one flush
+ * is in flight at a time; if another request arrives while one is running,
+ * the previous queued payload is replaced (we always want the latest).
+ * The in-flight callback's `.finally` drains any payload that was queued
+ * during its run.
+ *
+ * `runMutation` is a closure provided by the caller — keeping the Convex
+ * api reference out of this module so this file stays import-light.
+ */
+export function scheduleStreamingFlush(
+  state: ArtifactStreamState,
+  runMutation: () => Promise<unknown>,
+): void {
+  state.pendingFlush = runMutation;
+  if (state.flushInFlight) return;
+  drainFlush(state);
+}
+
+function drainFlush(state: ArtifactStreamState): void {
+  if (state.flushInFlight || !state.pendingFlush) return;
+  const next = state.pendingFlush;
+  state.pendingFlush = undefined;
+  state.flushInFlight = true;
+  void next()
+    .catch((err) => {
+      console.error('[artifact streaming] flush failed:', err);
+    })
+    .finally(() => {
+      state.flushInFlight = false;
+      drainFlush(state);
+    });
 }
 
 export function getState(toolCallId: string): ArtifactStreamState | undefined {
@@ -123,6 +169,29 @@ function flushIntervalFor(sizeHint: number): number {
   return STREAM_FLUSH_INTERVAL_MS;
 }
 
+/**
+ * Adaptive parse-gate. `parsePartialJson` is `JSON.parse(fixJson(text))` —
+ * O(N) per call where N is the accumulator size. Calling it on every
+ * 50-byte delta makes the streaming hot path O(N²) over the lifetime of the
+ * stream, so for a 100 KB artifact the action ends up CPU-bound on
+ * re-parsing and the AI SDK queues incoming deltas, which the user
+ * perceives as "wait several seconds, then a big chunk lands" jank.
+ *
+ * Scaling both the byte-delta requirement AND the time interval with
+ * accumulator size keeps total parse work linear in stream size. The cost:
+ * at very large content the UI updates 2-4× per second instead of 25×, but
+ * those updates are smooth and predictable rather than bursty.
+ *
+ * Returned tuple: `[byteDelta, minIntervalMs]`. shouldParse fires only if
+ * BOTH thresholds are met, same as before.
+ */
+function parseGateFor(accumulatorLength: number): [number, number] {
+  if (accumulatorLength > 100_000) return [5_000, 500];
+  if (accumulatorLength > 30_000) return [1_000, 250];
+  if (accumulatorLength > STREAM_LARGE_CONTENT_BYTES) return [200, 100];
+  return [STREAM_PARSE_DELTA_BYTES, STREAM_PARSE_INTERVAL_MS];
+}
+
 export function shouldFlush(
   state: ArtifactStreamState,
   nextContentLength: number,
@@ -145,17 +214,18 @@ export function markFlushed(
 /** Decide whether to call `parsePartialJson(state.accumulator)` for this
  * delta. Until the placeholder row has been inserted we always parse —
  * field order from the model isn't guaranteed and we cannot delay seeing
- * `title`/`mode`/`type`. Once initialised, we only re-parse when both a
- * meaningful number of new bytes have arrived AND a small time window
- * has elapsed since the last parse. */
+ * `title`/`mode`/`type`. Once initialised, the byte-delta and time
+ * interval thresholds both scale with accumulator size (see
+ * `parseGateFor`) so a 100 KB+ stream doesn't pay O(N²) parse cost. */
 export function shouldParse(
   state: ArtifactStreamState,
   accumulatorLength: number,
 ): boolean {
   if (!state.rowInitialized) return true;
   const grew = accumulatorLength - state.lastParsedLength;
-  if (grew < STREAM_PARSE_DELTA_BYTES) return false;
-  return Date.now() - state.lastParsedAt >= STREAM_PARSE_INTERVAL_MS;
+  const [byteDelta, minIntervalMs] = parseGateFor(accumulatorLength);
+  if (grew < byteDelta) return false;
+  return Date.now() - state.lastParsedAt >= minIntervalMs;
 }
 
 export function markParsed(

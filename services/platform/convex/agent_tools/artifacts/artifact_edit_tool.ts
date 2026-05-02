@@ -27,10 +27,9 @@ import {
   clearState,
   getState,
   initState,
-  markFlushed,
   markFlushedStreamingPatches,
   markParsed,
-  shouldFlush,
+  scheduleStreamingFlush,
   shouldFlushStreamingPatches,
   shouldParse,
 } from './stream_state';
@@ -202,26 +201,24 @@ export const artifactEditTool = {
         state.resolvedMode = mode;
         await ctx.runMutation(
           internal.artifacts.internal_mutations.beginEditStream,
-          { artifactId: state.artifactId, liveStreamMode: mode },
+          {
+            artifactId: state.artifactId,
+            liveStreamMode: mode,
+            // Stamp the toolCallId so the canvas can filter
+            // tool-input-deltas to this rewrite's stream. Patch mode also
+            // gets it for symmetry / debugging — patch flushes still go
+            // through `streamingPatches` independently.
+            toolCallId: options.toolCallId,
+          },
         );
         state.rowInitialized = true;
       }
 
-      if (
-        state.resolvedMode === 'rewrite' &&
-        state.artifactId !== undefined &&
-        typeof obj.content === 'string' &&
-        shouldFlush(state, obj.content.length)
-      ) {
-        await ctx.runMutation(
-          internal.artifacts.internal_mutations.updateStreamingContent,
-          {
-            artifactId: state.artifactId,
-            streamingContent: obj.content,
-          },
-        );
-        markFlushed(state, obj.content.length);
-      }
+      // Rewrite-mode partial content used to flush into `streamingContent`
+      // here; we now skip that. The canvas reads the same partial bytes from
+      // the agent SDK's tool-input-delta rows and decodes the JSON `content`
+      // field client-side. The canonical settle in execute() still writes
+      // the final `content` atomically via rewriteArtifact().
 
       if (
         state.resolvedMode === 'patch' &&
@@ -244,14 +241,18 @@ export const artifactEditTool = {
           pairs.push({ search, replace });
         }
         if (shouldFlushStreamingPatches(state, pairs)) {
-          await ctx.runMutation(
-            internal.artifacts.internal_mutations.updateStreamingContent,
-            {
-              artifactId: state.artifactId,
-              streamingPatches: pairs,
-            },
-          );
           markFlushedStreamingPatches(state, pairs);
+          const artifactId = state.artifactId;
+          const flushPairs = pairs;
+          scheduleStreamingFlush(state, () =>
+            ctx.runMutation(
+              internal.artifacts.internal_mutations.updateStreamingContent,
+              {
+                artifactId,
+                streamingPatches: flushPairs,
+              },
+            ),
+          );
         }
       }
     },

@@ -26,9 +26,8 @@ import {
   clearState,
   getState,
   initState,
-  markFlushed,
   markParsed,
-  shouldFlush,
+  scheduleStreamingFlush,
   shouldParse,
 } from './stream_state';
 
@@ -96,6 +95,27 @@ USE THIS TOOL when the user asks for a runnable HTML page, an SVG illustration, 
 - Files the user wants saved to the documents hub — use \`document_write\` (with a file-generation tool first).
 - Tabular data — emit a markdown table inline.
 
+**HTML LIBRARIES & FONTS** (only when \`type\` = \`html\`):
+
+The preview iframe blocks ALL external resources via Content-Security-Policy. Do NOT use any \`https://\` URL inside \`<script>\`, \`<link>\`, \`<img>\`, \`@import\`, or \`url()\`. Specifically blocked: \`cdn.jsdelivr.net\`, \`unpkg.com\`, \`cdnjs.cloudflare.com\`, \`cdn.tailwindcss.com\`, \`fonts.googleapis.com\`, \`fonts.gstatic.com\`, and every other external host. Any reference to them will be blocked and the page will fail to render.
+
+**Use these same-origin local copies for libraries:**
+- reveal.js 5.x — \`/canvas-libs/reveal.js/5.0.5/reveal.js\`, \`/canvas-libs/reveal.js/5.0.5/reveal.css\`, theme \`/canvas-libs/reveal.js/5.0.5/theme/black.css\` (or \`white.css\`, \`league.css\`)
+- Chart.js 4.x — \`/canvas-libs/chart.js/4.4.0/chart.umd.js\`
+- D3 7.x — \`/canvas-libs/d3/7.8.5/d3.min.js\`
+- Tailwind (Play CDN equivalent) — \`/canvas-libs/tailwindcss-browser/4.2.4/tailwindcss.js\`
+- GSAP 3.x — \`/canvas-libs/gsap/3.12.5/gsap.min.js\`
+
+If you need a library that is not in this list, inline its source directly in the artifact.
+
+**For fonts, use system font stacks — never Google Fonts or any web-font CDN.** Modern OSes (macOS, Windows, iOS, Android, ChromeOS) ship CJK (Chinese / Japanese / Korean) fonts natively, so a plain system stack renders Chinese, Japanese, and Korean text correctly without any web font:
+
+- General: \`font-family: system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;\`
+- Chinese-specific (optional refinement): \`font-family: system-ui, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans SC", sans-serif;\`
+- Monospace: \`font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;\`
+
+If the design absolutely requires a non-system display face, inline a base64-encoded \`@font-face\` (small subsets only).
+
 **RESPONSE:** returns the new \`artifactId\` and \`revision: 1\`. The artifact's content is rendered live in the Canvas pane as you stream it.`,
     inputSchema: artifactCreateArgs,
     onInputStart: async (_ctx: ToolCtx, options: ToolExecutionOptions) => {
@@ -105,6 +125,7 @@ USE THIS TOOL when the user asks for a runnable HTML page, an SVG illustration, 
       ctx: ToolCtx,
       options: { inputTextDelta: string } & ToolExecutionOptions,
     ) => {
+      const toolCallId = options.toolCallId;
       const state = getState(options.toolCallId);
       if (!state) return;
       state.accumulator += options.inputTextDelta;
@@ -129,9 +150,10 @@ USE THIS TOOL when the user asks for a runnable HTML page, an SVG illustration, 
       const obj = partial as Record<string, unknown>;
       const type = typeof obj.type === 'string' ? obj.type : undefined;
       const title = typeof obj.title === 'string' ? obj.title : undefined;
-      const content = typeof obj.content === 'string' ? obj.content : undefined;
       const language =
         typeof obj.language === 'string' ? obj.language : undefined;
+      // `content` is intentionally NOT extracted here — the streaming
+      // canvas reads it from the agent SDK's tool-input-delta rows directly.
 
       const { organizationId, threadId, messageId } = ctx;
       if (!organizationId || !threadId) return;
@@ -156,42 +178,48 @@ USE THIS TOOL when the user asks for a runnable HTML page, an SVG illustration, 
             type,
             title,
             language,
-            content: content ?? '',
+            // We no longer push partial content into `streamingContent` — the
+            // canvas reads tool-input-deltas directly from the agent SDK's
+            // streamDeltas, filtered by toolCallId, and decodes the JSON
+            // `content` value client-side. Insert with empty content; the
+            // canonical settle in execute() writes the final value.
+            content: '',
             createdByMessageId: messageId ?? '',
             liveStreamMode: 'create',
+            toolCallId,
           },
         );
         state.artifactId = inserted.artifactId;
         state.rowInitialized = true;
         state.lastFlushedTitle = title;
         state.lastFlushedLanguage = language;
-        if (content !== undefined) markFlushed(state, content.length);
         return;
       }
 
       if (state.rowInitialized && state.artifactId !== undefined) {
+        // Only title / language flushes go through here now — content is
+        // delivered via streamDeltas (no per-chunk mutation from us).
         const titleChanged =
           title !== undefined && title !== state.lastFlushedTitle;
         const languageChanged =
           language !== undefined && language !== state.lastFlushedLanguage;
-        const contentShouldFlush =
-          content !== undefined && shouldFlush(state, content.length);
 
-        if (titleChanged || languageChanged || contentShouldFlush) {
-          await ctx.runMutation(
-            internal.artifacts.internal_mutations.updateStreamingContent,
-            {
-              artifactId: state.artifactId,
-              streamingContent: contentShouldFlush ? content : undefined,
-              title: titleChanged ? title : undefined,
-              language: languageChanged ? language : undefined,
-            },
-          );
+        if (titleChanged || languageChanged) {
           if (titleChanged) state.lastFlushedTitle = title;
           if (languageChanged) state.lastFlushedLanguage = language;
-          if (contentShouldFlush && content !== undefined) {
-            markFlushed(state, content.length);
-          }
+          const artifactId = state.artifactId;
+          const flushTitle = titleChanged ? title : undefined;
+          const flushLanguage = languageChanged ? language : undefined;
+          scheduleStreamingFlush(state, () =>
+            ctx.runMutation(
+              internal.artifacts.internal_mutations.updateStreamingContent,
+              {
+                artifactId,
+                title: flushTitle,
+                language: flushLanguage,
+              },
+            ),
+          );
         }
       }
     },

@@ -14,6 +14,11 @@ export const artifactEditKindValidator = v.union(
   v.literal('patch'),
   v.literal('rewrite'),
   v.literal('user'),
+  // Snapshot taken when a chat branch was forked: the artifact is cloned
+  // from the parent thread at its current state into the new branch's
+  // namespace. The `revision` on this row preserves the parent's revision
+  // number at the fork moment so users see continuous version labels.
+  v.literal('branch'),
 );
 
 export const artifactPatchValidator = v.object({
@@ -58,6 +63,15 @@ export const artifactsTable = defineTable({
   updatedAt: v.number(),
   liveStreamMode: v.optional(liveStreamModeValidator),
   liveStreamStartedAt: v.optional(v.number()),
+  // The AI-SDK toolCallId of the create/edit invocation that produced this
+  // row (or whose latest edit produced it). The Canvas pane uses it to
+  // filter `tool-input-delta` parts in the agent SDK's streamDeltas table
+  // down to this artifact's stream and decode the partial `content` JSON
+  // field client-side — that's how chat-style smooth streaming is
+  // delivered without an extra deltas table on our side. Optional because
+  // pre-existing rows from before this field shipped don't have it; the
+  // canvas falls back to `streamingContent` for those.
+  toolCallId: v.optional(v.string()),
   streamingContent: v.optional(v.string()),
   // While `liveStreamMode === 'patch'`, the partial patches array parsed
   // from the LLM's tool input is mirrored here as {search, replace} pairs

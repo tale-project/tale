@@ -61,4 +61,44 @@ describe('shouldParse', () => {
     expect(state.lastParsedLength).toBe(500);
     expect(state.lastParsedAt).toBe(Date.now());
   });
+
+  it('scales the parse-gate thresholds with accumulator size', () => {
+    // parsePartialJson is O(N) per call. Without scaling the gate, a 100 KB
+    // accumulator would re-parse 25× per second (40 ms gate) and the action
+    // becomes CPU-bound — the AI SDK queues deltas and the user perceives
+    // bursty output. Above 8 KB we widen the byte threshold and the
+    // minimum interval; the bigger the accumulator, the wider the window.
+    // ~9 KB accumulator (just over the 8 KB large-content boundary):
+    // gate is 200 bytes / 100 ms.
+    const small = initState('call_scale_small', 'artifact_create');
+    small.rowInitialized = true;
+    markParsed(small, 9_000);
+    vi.advanceTimersByTime(99); // below 100 ms gate
+    expect(shouldParse(small, 9_000 + 200)).toBe(false);
+    vi.advanceTimersByTime(1); // exactly 100 ms now
+    expect(shouldParse(small, 9_000 + 200)).toBe(true);
+    // 199 bytes is still below the byte threshold even with time elapsed.
+    vi.advanceTimersByTime(1000);
+    expect(shouldParse(small, 9_000 + 199)).toBe(false);
+
+    // ~50 KB accumulator: gate is 1000 bytes / 250 ms.
+    const mid = initState('call_scale_mid', 'artifact_create');
+    mid.rowInitialized = true;
+    markParsed(mid, 50_000);
+    vi.advanceTimersByTime(249);
+    expect(shouldParse(mid, 50_000 + 1_000)).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(shouldParse(mid, 50_000 + 1_000)).toBe(true);
+
+    // ~120 KB accumulator: gate is 5000 bytes / 500 ms.
+    const big = initState('call_scale_big', 'artifact_create');
+    big.rowInitialized = true;
+    markParsed(big, 120_000);
+    vi.advanceTimersByTime(499);
+    expect(shouldParse(big, 120_000 + 5_000)).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(shouldParse(big, 120_000 + 5_000)).toBe(true);
+    vi.advanceTimersByTime(1000);
+    expect(shouldParse(big, 120_000 + 4_999)).toBe(false);
+  });
 });

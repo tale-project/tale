@@ -7,7 +7,7 @@ import { NONCE, secureHeaders } from 'hono/secure-headers';
 
 import { convexMetricsResponse } from './convex-metrics';
 import {
-  CANVAS_PREVIEW_CSP,
+  buildCanvasPreviewCsp,
   wrapCanvasPreviewHtml,
 } from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
@@ -69,6 +69,7 @@ interface EnvConfig {
   SENTRY_DSN: string | undefined;
   SENTRY_TRACES_SAMPLE_RATE: number;
   TALE_VERSION: string | undefined;
+  CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: readonly string[];
 }
 
 const port = process.env.PORT || 3000;
@@ -97,6 +98,14 @@ function getEnvConfig(): EnvConfig {
       process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0',
     ),
     TALE_VERSION: process.env.TALE_VERSION,
+    // Whitespace-separated origin list, e.g.
+    // `CANVAS_PREVIEW_CSP_EXTRA_ORIGINS="https://cdn.jsdelivr.net https://unpkg.com"`.
+    // Validated and appended to the canvas-preview CSP — see the policy
+    // comment block below and `lib/canvas-preview-shell.ts`.
+    CANVAS_PREVIEW_CSP_EXTRA_ORIGINS:
+      process.env.CANVAS_PREVIEW_CSP_EXTRA_ORIGINS?.split(/\s+/).filter(
+        (s) => s.length > 0,
+      ) ?? [],
   };
 }
 
@@ -118,6 +127,15 @@ function getEnvConfig(): EnvConfig {
 //     self-hosted Sentry on custom domains). Only emitted when DSN is set.
 //   - Figma MCP (`mcp.figma.com`): only when SITE_URL is a loopback host
 //     (dev-only; production policy never includes it).
+//   - Canvas preview extras (CANVAS_PREVIEW_CSP_EXTRA_ORIGINS): a
+//     whitespace-separated origin list appended to the *canvas-preview*
+//     route's CSP only — does NOT widen the SPA baseline policy
+//     `buildContentSecurityPolicy` returns. Default empty. Setting it
+//     causes end-user IP/UA/Referer to be sent to those origins on every
+//     preview render, so the operator becomes the controller for that
+//     transfer (lawful basis, DPA, transparency notice are operator's
+//     responsibility). Most operators should leave it empty and rely on
+//     the libraries vendored under `public/canvas-libs/` instead.
 //
 // All Convex traffic — including storage uploads via `generateUploadUrl()`
 // and storage downloads — flows same-origin through Caddy (`/ws_api`,
@@ -231,7 +249,9 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     return new Response(wrapCanvasPreviewHtml(userHtml), {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Content-Security-Policy': CANVAS_PREVIEW_CSP,
+        'Content-Security-Policy': buildCanvasPreviewCsp(
+          env.CANVAS_PREVIEW_CSP_EXTRA_ORIGINS,
+        ),
         'X-Frame-Options': 'SAMEORIGIN',
         // Per-request bespoke HTML — no caching.
         'Cache-Control': 'no-store',

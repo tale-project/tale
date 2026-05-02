@@ -4,6 +4,7 @@ import {
   memo,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -42,6 +43,48 @@ function extractShikiCodeContent(html: string): string {
   return codeMatch ? codeMatch[1] : html;
 }
 
+/**
+ * Renders a (potentially multi-hundred-KB) growing text by appending the
+ * delta to a DOM text node in place — bypassing React's reconciler for the
+ * payload itself. Each Convex push during streaming costs O(delta size)
+ * here, not O(total content size) as it would if React diffed
+ * `{code}` as a child on every render.
+ *
+ * Without this, a 200 KB artifact's render time grows past the inter-push
+ * interval; React batches subsequent updates; the user sees the bursty
+ * "wait, then a big chunk lands" cadence the larger plan was meant to
+ * fix. This component is the last mile.
+ *
+ * Reset semantics: if `code` is no longer a prefix-extension of the
+ * previously rendered text (e.g. the artifact switched, or the stream
+ * was aborted and restarted), we fall back to a single `textContent`
+ * write — still O(N) for that one transition, but rare.
+ */
+function IncrementalText({ code }: { code: string }) {
+  const hostRef = useRef<HTMLSpanElement | null>(null);
+  const renderedRef = useRef('');
+
+  useLayoutEffect(() => {
+    const el = hostRef.current;
+    if (!el) return;
+    const prev = renderedRef.current;
+    if (code === prev) return;
+    if (prev !== '' && code.startsWith(prev)) {
+      const delta = code.slice(prev.length);
+      if (delta.length > 0) {
+        el.appendChild(document.createTextNode(delta));
+      }
+    } else {
+      el.textContent = code;
+    }
+    renderedRef.current = code;
+  }, [code]);
+
+  // First mount: hostRef populates via the layout effect synchronously
+  // before paint, so there's no visible flash of empty content.
+  return <span ref={hostRef} />;
+}
+
 function CanvasCodeRendererComponent({
   code,
   language = 'plaintext',
@@ -60,10 +103,18 @@ function CanvasCodeRendererComponent({
 
   // Defer expensive render inputs so React can commit a previous snapshot
   // immediately and schedule the heavy work (hunk recomputation, plain-text
-  // re-render of a 30 KB+ string for create/rewrite) at low priority.
-  // Critical effects below — stick-to-bottom during create/rewrite — keep
-  // reading the *real* `code` so they fire on the actual transition.
-  const deferredCode = useDeferredValue(code);
+  // re-render of a 30 KB+ string) at low priority.
+  //
+  // EXCEPTION: during create/rewrite streaming we deliberately skip the
+  // defer for `code`. The streaming path now delivers many small chunks
+  // per second from the agent SDK — `useDeferredValue` ends up starving
+  // the deferred render as new updates keep arriving, which the user
+  // perceives as bursty "wait several seconds, then a big chunk" output.
+  // Each render is small (just the bytes added since the last push) so
+  // there is no main-thread blocking concern. Patch-stream `highlightPatches`
+  // and the post-stream settled view still benefit from deferral.
+  const deferredCodeFallback = useDeferredValue(code);
+  const renderedCode = isStreaming ? code : deferredCodeFallback;
   const deferredHighlightPatches = useDeferredValue(highlightPatches);
 
   // Build hunks from the (possibly stale) deferred patch list. Memoized on
@@ -75,9 +126,9 @@ function CanvasCodeRendererComponent({
   const hunks = useMemo(
     () =>
       deferredHighlightPatches && deferredHighlightPatches.length > 0
-        ? buildHunks(deferredCode, deferredHighlightPatches)
+        ? buildHunks(deferredCodeFallback, deferredHighlightPatches)
         : null,
-    [deferredCode, deferredHighlightPatches],
+    [deferredCodeFallback, deferredHighlightPatches],
   );
 
   // Skip shiki during a live stream or while a patch diff is on screen.
@@ -153,7 +204,7 @@ function CanvasCodeRendererComponent({
       }
     });
     return () => cancelAnimationFrame(id);
-  }, [deferredCode, html, isStreaming]);
+  }, [renderedCode, html, isStreaming]);
 
   if (isEditing) {
     // Uncontrolled textarea: `defaultValue` is read once on mount and the DOM
@@ -196,7 +247,7 @@ function CanvasCodeRendererComponent({
     return (
       <pre ref={preRef} className="bg-muted h-full overflow-auto p-4">
         <code className="text-xs leading-relaxed">
-          {deferredCode}
+          <IncrementalText code={renderedCode} />
           {caret}
         </code>
       </pre>
@@ -207,7 +258,7 @@ function CanvasCodeRendererComponent({
     return (
       <pre ref={preRef} className="bg-muted h-full overflow-auto p-4">
         <code className="text-xs leading-relaxed">
-          {deferredCode}
+          <IncrementalText code={renderedCode} />
           {caret}
         </code>
       </pre>

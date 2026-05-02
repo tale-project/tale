@@ -17,7 +17,10 @@ import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
 import { SharedChatView } from '@/app/features/chat/components/shared-chat-view';
 import { WelcomeContentSkeleton } from '@/app/features/chat/components/welcome-content-skeleton';
-import { BranchProvider } from '@/app/features/chat/context/branch-context';
+import {
+  BranchProvider,
+  useBranchContext,
+} from '@/app/features/chat/context/branch-context';
 import {
   ChatLayoutProvider,
   useChatLayout,
@@ -104,18 +107,17 @@ function ThreadGate({
     threadId && !isJustCreated ? { threadId } : 'skip',
   );
 
-  // No threadId or just-created thread → render immediately
+  // No threadId or just-created thread → render immediately. BranchProvider
+  // is mounted up in ChatLayoutContent, so we don't need to wrap here.
   if (!threadId || isJustCreated) {
     return (
-      <BranchProvider threadId={threadId}>
-        <Suspense fallback={<ChatSkeleton />}>
-          <ChatInterface
-            key={`chat-${newChatCount}`}
-            organizationId={organizationId}
-            threadId={threadId}
-          />
-        </Suspense>
-      </BranchProvider>
+      <Suspense fallback={<ChatSkeleton />}>
+        <ChatInterface
+          key={`chat-${newChatCount}`}
+          organizationId={organizationId}
+          threadId={threadId}
+        />
+      </Suspense>
     );
   }
 
@@ -147,31 +149,44 @@ function ThreadGate({
   // Shared read-only access for non-owner org members
   if (threadStatus === 'shared-readonly') {
     return (
-      <BranchProvider threadId={threadId}>
-        <Suspense fallback={<ChatSkeleton />}>
-          <ChatInterface
-            key={`chat-${newChatCount}`}
-            organizationId={organizationId}
-            threadId={threadId}
-            readOnly
-          />
-        </Suspense>
-      </BranchProvider>
-    );
-  }
-
-  // Thread is accessible — render ChatInterface
-  return (
-    <BranchProvider threadId={threadId}>
       <Suspense fallback={<ChatSkeleton />}>
         <ChatInterface
           key={`chat-${newChatCount}`}
           organizationId={organizationId}
           threadId={threadId}
+          readOnly
         />
       </Suspense>
-    </BranchProvider>
+    );
+  }
+
+  // Thread is accessible — render ChatInterface
+  return (
+    <Suspense fallback={<ChatSkeleton />}>
+      <ChatInterface
+        key={`chat-${newChatCount}`}
+        organizationId={organizationId}
+        threadId={threadId}
+      />
+    </Suspense>
   );
+}
+
+/**
+ * Resolves the active branch threadId from `BranchProvider` and feeds it to
+ * `ArtifactBar`. Without this indirection the bar would query the URL's
+ * (root) threadId regardless of which branch the user is viewing — see the
+ * branch / artifact attribution plan.
+ */
+function BranchAwareArtifactBar({
+  organizationId,
+}: {
+  organizationId: string;
+}) {
+  const { activeBranchThreadId, rootThreadId } = useBranchContext();
+  const threadId = activeBranchThreadId ?? rootThreadId;
+  if (!threadId) return null;
+  return <ArtifactBar organizationId={organizationId} threadId={threadId} />;
 }
 
 function ChatLayoutContent({ organizationId }: { organizationId: string }) {
@@ -258,17 +273,24 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
         </AnimatePresence>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <BudgetBanner organizationId={organizationId} />
-          {threadId && (
-            <ArtifactBar organizationId={organizationId} threadId={threadId} />
-          )}
-          <LayoutErrorBoundary organizationId={organizationId}>
-            <ThreadGate
-              organizationId={organizationId}
-              threadId={threadId}
-              newChatCount={newChatCount}
-            />
-          </LayoutErrorBoundary>
+          {/* Single BranchProvider scope so ArtifactBar (and the message bubbles
+              rendered inside ThreadGate) can both observe the active branch
+              and request the right thread's artifacts. Without this, the bar
+              shows the URL's root thread regardless of which branch the user
+              is viewing. */}
+          <BranchProvider threadId={threadId}>
+            <BudgetBanner organizationId={organizationId} />
+            {threadId && (
+              <BranchAwareArtifactBar organizationId={organizationId} />
+            )}
+            <LayoutErrorBoundary organizationId={organizationId}>
+              <ThreadGate
+                organizationId={organizationId}
+                threadId={threadId}
+                newChatCount={newChatCount}
+              />
+            </LayoutErrorBoundary>
+          </BranchProvider>
         </div>
 
         <PlanPane />

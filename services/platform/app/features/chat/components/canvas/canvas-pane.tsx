@@ -29,6 +29,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
+import { useStreamedArtifactContent } from '../../hooks/use-streamed-artifact-content';
 import { useCanvas, type CanvasContentType } from './canvas-context';
 
 const CanvasCodeRenderer = lazyComponent(() =>
@@ -290,20 +291,35 @@ function CanvasPaneComponent() {
   }, []);
 
   // Read content reactively. Streaming-aware: while the artifact is being
-  // written by the LLM, prefer `streamingContent`; once settled, use `content`.
+  // written by the LLM, prefer the live tool-input-delta stream from the
+  // agent SDK (decoded client-side); fall back to the legacy
+  // `streamingContent` field for any in-flight artifact created before
+  // the toolCallId field rolled out; finally fall back to the settled
+  // `content` once the stream completes.
   const settledContent = artifact?.content ?? '';
   const streamingContent = artifact?.streamingContent;
   const isStreaming = artifact?.liveStreamMode !== undefined;
   const liveStreamMode = artifact?.liveStreamMode;
-  // create/rewrite stream tokens into streamingContent; patch leaves the
-  // source static. Only the former should drive the trailing caret in the
-  // code renderer — a blinking caret on unchanging source is misleading.
+  // create/rewrite stream tokens come via the SDK's tool-input-delta
+  // rows; patch leaves the source static. Only the former should drive
+  // the trailing caret in the code renderer — a blinking caret on
+  // unchanging source is misleading.
   const isContentStreaming =
     liveStreamMode === 'create' || liveStreamMode === 'rewrite';
-  const previewContent =
-    isStreaming && streamingContent !== undefined
-      ? streamingContent
-      : settledContent;
+  const { content: streamedContent, hasDeltas } = useStreamedArtifactContent(
+    artifactId,
+    artifact?.toolCallId,
+    isContentStreaming,
+  );
+  // 3-tier fallback. Order matters: live deltas first (chat-like
+  // smoothness); then legacy streamingContent (covers in-flight artifacts
+  // that pre-date this rollout, plus the very first frame before the
+  // agent SDK has flushed any tool-input-delta); finally settledContent.
+  const previewContent = isContentStreaming
+    ? hasDeltas
+      ? streamedContent
+      : (streamingContent ?? settledContent)
+    : settledContent;
   const editorContent = editBuffer ?? settledContent;
   const displayedContent = isEditing ? editorContent : previewContent;
   const canvasType: CanvasContentType = artifact?.type ?? 'code';

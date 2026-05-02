@@ -58,6 +58,10 @@ export const createArtifact = internalMutation({
     content: v.string(),
     createdByMessageId: v.string(),
     liveStreamMode: v.optional(liveStreamModeValidator),
+    // Set by the artifact_create tool so the canvas can filter
+    // `tool-input-delta` rows in the agent SDK's streamDeltas down to this
+    // artifact's stream during the create flow.
+    toolCallId: v.optional(v.string()),
   },
   returns: v.object({ artifactId: v.id('artifacts'), revision: v.number() }),
   handler: async (ctx, args) => {
@@ -79,6 +83,7 @@ export const createArtifact = internalMutation({
       liveStreamMode: args.liveStreamMode,
       liveStreamStartedAt: isStreaming ? now : undefined,
       streamingContent: isStreaming ? args.content : undefined,
+      toolCallId: args.toolCallId,
     });
     if (!isStreaming) {
       await ctx.db.insert('artifactRevisions', {
@@ -136,6 +141,7 @@ export const finalizeStreamedCreate = internalMutation({
       streamingPatches: undefined,
       liveStreamMode: undefined,
       liveStreamStartedAt: undefined,
+      toolCallId: undefined,
       updatedAt: now,
     });
     await ctx.db.insert('artifactRevisions', {
@@ -211,6 +217,7 @@ export const applyToolPatches = internalMutation({
       streamingPatches: undefined,
       liveStreamMode: undefined,
       liveStreamStartedAt: undefined,
+      toolCallId: undefined,
       updatedAt: now,
     });
     await ctx.db.insert('artifactRevisions', {
@@ -270,6 +277,7 @@ export const rewriteArtifact = internalMutation({
       streamingPatches: undefined,
       liveStreamMode: undefined,
       liveStreamStartedAt: undefined,
+      toolCallId: undefined,
       updatedAt: now,
     });
     await ctx.db.insert('artifactRevisions', {
@@ -292,6 +300,11 @@ export const beginEditStream = internalMutation({
   args: {
     artifactId: v.id('artifacts'),
     liveStreamMode: liveStreamModeValidator,
+    // Set by the artifact_edit tool so the canvas can filter
+    // `tool-input-delta` rows down to this edit's stream. Stored on the row
+    // so subscribers can pick up the right toolCallId without a separate
+    // round-trip; cleared at settle alongside the other streaming flags.
+    toolCallId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -300,6 +313,7 @@ export const beginEditStream = internalMutation({
       liveStreamStartedAt: Date.now(),
       streamingContent: args.liveStreamMode === 'rewrite' ? '' : undefined,
       streamingPatches: args.liveStreamMode === 'patch' ? [] : undefined,
+      toolCallId: args.toolCallId,
     });
     return null;
   },
@@ -368,6 +382,7 @@ export const abortStream = internalMutation({
       streamingPatches: undefined,
       liveStreamMode: undefined,
       liveStreamStartedAt: undefined,
+      toolCallId: undefined,
     });
     return null;
   },
@@ -398,6 +413,7 @@ export const cleanupStaleStreams = internalMutation({
           streamingPatches: undefined,
           liveStreamMode: undefined,
           liveStreamStartedAt: undefined,
+          toolCallId: undefined,
         });
         cleared += 1;
       }
