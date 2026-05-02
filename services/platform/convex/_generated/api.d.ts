@@ -78,6 +78,7 @@ import type * as agent_tools_location_mutations from "../agent_tools/location/mu
 import type * as agent_tools_location_request_user_location_tool from "../agent_tools/location/request_user_location_tool.js";
 import type * as agent_tools_mcp_create_bound_mcp_tool from "../agent_tools/mcp/create_bound_mcp_tool.js";
 import type * as agent_tools_mcp_mcp_call_tool from "../agent_tools/mcp/mcp_call_tool.js";
+import type * as agent_tools_memory_propose_memory_tool from "../agent_tools/memory/propose_memory_tool.js";
 import type * as agent_tools_products_helpers_count_products from "../agent_tools/products/helpers/count_products.js";
 import type * as agent_tools_products_helpers_read_product_by_id from "../agent_tools/products/helpers/read_product_by_id.js";
 import type * as agent_tools_products_helpers_read_product_list from "../agent_tools/products/helpers/read_product_list.js";
@@ -741,6 +742,7 @@ import type * as two_factor_internal_queries from "../two_factor/internal_querie
 import type * as two_factor_mutations from "../two_factor/mutations.js";
 import type * as two_factor_queries from "../two_factor/queries.js";
 import type * as user_memories_audit_pseudonym from "../user_memories/audit_pseudonym.js";
+import type * as user_memories_internal_mutations from "../user_memories/internal_mutations.js";
 import type * as user_memories_lazy_cleanup from "../user_memories/lazy_cleanup.js";
 import type * as user_memories_mutations from "../user_memories/mutations.js";
 import type * as user_memories_queries from "../user_memories/queries.js";
@@ -1109,6 +1111,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/location/request_user_location_tool": typeof agent_tools_location_request_user_location_tool;
   "agent_tools/mcp/create_bound_mcp_tool": typeof agent_tools_mcp_create_bound_mcp_tool;
   "agent_tools/mcp/mcp_call_tool": typeof agent_tools_mcp_mcp_call_tool;
+  "agent_tools/memory/propose_memory_tool": typeof agent_tools_memory_propose_memory_tool;
   "agent_tools/products/helpers/count_products": typeof agent_tools_products_helpers_count_products;
   "agent_tools/products/helpers/read_product_by_id": typeof agent_tools_products_helpers_read_product_by_id;
   "agent_tools/products/helpers/read_product_list": typeof agent_tools_products_helpers_read_product_list;
@@ -1772,6 +1775,7 @@ declare const fullApi: ApiFromModules<{
   "two_factor/mutations": typeof two_factor_mutations;
   "two_factor/queries": typeof two_factor_queries;
   "user_memories/audit_pseudonym": typeof user_memories_audit_pseudonym;
+  "user_memories/internal_mutations": typeof user_memories_internal_mutations;
   "user_memories/lazy_cleanup": typeof user_memories_lazy_cleanup;
   "user_memories/mutations": typeof user_memories_mutations;
   "user_memories/queries": typeof user_memories_queries;

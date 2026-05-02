@@ -126,7 +126,7 @@ export async function buildUserPersonalization(
     if (!data.orgEnabled) return EMPTY;
 
     const prefs = data.preferences;
-    if (prefs && prefs.enabled === false) return EMPTY;
+    if (prefs && !prefs.enabled) return EMPTY;
 
     // EU JIT-consent gate: block if the user's language is an EU locale
     // AND we have not yet recorded an explicit consent click. v2 will

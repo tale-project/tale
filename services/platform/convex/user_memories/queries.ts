@@ -72,15 +72,10 @@ export const listPendingMemories = query({
     const authUser = await requireAuthenticatedUser(ctx);
     // Must own the thread to see its pending memories.
     const meta = await canAccessThread(ctx, args.threadId, authUser);
-    if (!meta || meta.userId !== authUser.userId || !meta.organizationId) {
-      return [];
-    }
-    await assertSelfAndOrgMember(
-      ctx,
-      authUser,
-      authUser.userId,
-      meta.organizationId,
-    );
+    if (!meta || meta.userId !== authUser.userId) return [];
+    const orgId = meta.organizationId;
+    if (!orgId) return [];
+    await assertSelfAndOrgMember(ctx, authUser, authUser.userId, orgId);
 
     const now = Date.now();
     const rows = await ctx.db
@@ -88,7 +83,7 @@ export const listPendingMemories = query({
       .withIndex('by_user_org_status_deleted_created', (q) =>
         q
           .eq('userId', authUser.userId)
-          .eq('organizationId', meta.organizationId as string)
+          .eq('organizationId', orgId)
           .eq('status', 'pending'),
       )
       .collect();

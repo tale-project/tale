@@ -23,6 +23,7 @@ import { integrationBatchTool } from './integrations/integration_batch_tool';
 import { integrationIntrospectTool } from './integrations/integration_introspect_tool';
 import { integrationTool } from './integrations/integration_tool';
 import { requestUserLocationTool } from './location/request_user_location_tool';
+import { proposeMemoryTool } from './memory/propose_memory_tool';
 import { productReadTool } from './products/product_read_tool';
 import { ragSearchTool } from './rag/rag_search_tool';
 import type { ToolName } from './tool_names';
@@ -71,6 +72,7 @@ export const TOOL_REGISTRY = [
   requestUserLocationTool,
   conversationReadTool,
   updateTodosTool,
+  proposeMemoryTool,
 ] as const;
 
 /**

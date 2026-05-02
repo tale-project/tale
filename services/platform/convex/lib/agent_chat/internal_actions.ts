@@ -382,26 +382,37 @@ export const runAgentGeneration = internalAction({
             // Drop `image` when the chat model handles images natively.
             const knowledgeMode = agentConfig.knowledgeMode ?? 'off';
             const webSearchMode = agentConfig.webSearchMode ?? 'off';
-            const filteredToolNames = agentConfig.convexToolNames?.filter(
-              (n): n is ToolName => {
-                if (!(TOOL_NAMES as readonly string[]).includes(n))
-                  return false;
-                if (
-                  n === 'rag_search' &&
-                  knowledgeMode !== 'tool' &&
-                  knowledgeMode !== 'both'
-                )
-                  return false;
-                if (
-                  n === 'web' &&
-                  webSearchMode !== 'tool' &&
-                  webSearchMode !== 'both'
-                )
-                  return false;
-                if (n === 'image' && useMultiModal) return false;
-                return true;
-              },
-            );
+            // Auto-include `propose_memory` for any agent where
+            // personalization is on (default), unless it's flagged as a
+            // significant-effects use case (Art 22 / high-risk gate). The
+            // tool itself defends against threadDisablePersonalization at
+            // write time.
+            const personalizationOn =
+              agentConfig.personalizationMode !== 'off' &&
+              agentConfig.significantEffectsUseCase !== true;
+            const baseToolList = agentConfig.convexToolNames ?? [];
+            const withPropose: string[] =
+              personalizationOn && !baseToolList.includes('propose_memory')
+                ? [...baseToolList, 'propose_memory']
+                : baseToolList;
+            const filteredToolNames = withPropose.filter((n): n is ToolName => {
+              if (!(TOOL_NAMES as readonly string[]).includes(n)) return false;
+              if (n === 'propose_memory' && !personalizationOn) return false;
+              if (
+                n === 'rag_search' &&
+                knowledgeMode !== 'tool' &&
+                knowledgeMode !== 'both'
+              )
+                return false;
+              if (
+                n === 'web' &&
+                webSearchMode !== 'tool' &&
+                webSearchMode !== 'both'
+              )
+                return false;
+              if (n === 'image' && useMultiModal) return false;
+              return true;
+            });
             const config = createAgentConfig({
               name: agentConfig.name,
               instructions: finalInstructions,

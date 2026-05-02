@@ -38,6 +38,7 @@ export const TOOL_NAMES = [
   'request_user_location',
   'conversation_read',
   'update_todos',
+  'propose_memory',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];
