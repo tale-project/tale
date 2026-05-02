@@ -70,6 +70,80 @@ describe('canvas-preview storage shim (real opaque-origin iframe)', () => {
     expect(report.crossStore).toBeNull();
   });
 
+  test('print listener: window.print() fires on tale:canvas:print, ignores unrelated messages', async () => {
+    // The shell installs a listener that only acts on
+    // `{ type: 'tale:canvas:print' }`. Patch `window.print` inside the
+    // iframe to record calls, send a tale:canvas:print AND a noise
+    // message, then ask the iframe to report what it saw.
+    const userHtml = `<script>
+      var calls = 0;
+      window.print = function () { calls++; };
+      window.addEventListener('message', function (event) {
+        if (event && event.data && event.data.type === 'tale:report-print-calls') {
+          parent.postMessage({ printCalls: calls }, '*');
+        }
+      });
+      // Tell the parent we are ready to receive print signals.
+      parent.postMessage({ ready: true }, '*');
+    </script>`;
+    const wrapped = wrapCanvasPreviewHtml(userHtml);
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('sandbox', 'allow-scripts allow-modals');
+    iframe.srcdoc = wrapped;
+
+    const ready = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error('iframe never reported ready')),
+        5000,
+      );
+      function onReady(e: MessageEvent) {
+        if (e.source !== iframe.contentWindow) return;
+        const data = e.data as { ready?: boolean };
+        if (data?.ready) {
+          clearTimeout(timer);
+          window.removeEventListener('message', onReady);
+          resolve();
+        }
+      }
+      window.addEventListener('message', onReady);
+    });
+
+    document.body.appendChild(iframe);
+    try {
+      await ready;
+      // Send the real print signal AND a noise message; only the first
+      // should bump the counter.
+      iframe.contentWindow?.postMessage({ type: 'tale:canvas:print' }, '*');
+      iframe.contentWindow?.postMessage({ type: 'something:else' }, '*');
+
+      const report = await new Promise<{ printCalls: number }>(
+        (resolve, reject) => {
+          const timer = setTimeout(
+            () => reject(new Error('iframe never reported print calls')),
+            5000,
+          );
+          function onReport(e: MessageEvent) {
+            if (e.source !== iframe.contentWindow) return;
+            const data = e.data as { printCalls?: number };
+            if (typeof data?.printCalls === 'number') {
+              clearTimeout(timer);
+              window.removeEventListener('message', onReport);
+              resolve({ printCalls: data.printCalls });
+            }
+          }
+          window.addEventListener('message', onReport);
+          iframe.contentWindow?.postMessage(
+            { type: 'tale:report-print-calls' },
+            '*',
+          );
+        },
+      );
+      expect(report.printCalls).toBe(1);
+    } finally {
+      iframe.remove();
+    }
+  });
+
   test('quota cap throws QuotaExceededError inside the iframe', async () => {
     const userHtml = `<script>
       var report = { thrown: false };

@@ -2224,6 +2224,8 @@
       "edit": "Bearbeiten",
       "copy": "Kopieren",
       "download": "Herunterladen",
+      "exportPdf": "Als PDF exportieren",
+      "exportPdfFailed": "PDF-Export fehlgeschlagen",
       "copied": "Kopiert!",
       "mermaidError": "Diagramm konnte nicht gerendert werden",
       "resizeHandle": "Canvas-Größe ändern",

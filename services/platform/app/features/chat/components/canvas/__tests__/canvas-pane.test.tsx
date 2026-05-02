@@ -55,6 +55,8 @@ vi.mock('@/lib/i18n/client', () => ({
         'canvas.preview': 'Preview',
         'canvas.copy': 'Copy',
         'canvas.download': 'Download',
+        'canvas.exportPdf': 'Export as PDF',
+        'canvas.exportPdfFailed': 'Failed to export as PDF',
         'canvas.copied': 'Copied!',
         'canvas.resizeHandle': 'Resize canvas',
         'canvas.mermaidError': 'Failed to render diagram',
@@ -185,6 +187,65 @@ describe('CanvasPane', () => {
       screen.getByRole('button', { name: 'Fullscreen' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('separator')).toBeInTheDocument();
+  });
+
+  it('does not show the PDF export button for code artifacts', async () => {
+    const user = userEvent.setup();
+    render(<TestHarness />);
+    await user.click(screen.getByText('Open'));
+    expect(
+      screen.queryByRole('button', { name: 'Export as PDF' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows the PDF export button for HTML artifacts', async () => {
+    const user = userEvent.setup();
+    artifactHolder.current = {
+      ...BASE_ARTIFACT,
+      type: 'html',
+      title: 'index.html',
+      content: '<p>hi</p>',
+      language: undefined,
+    };
+    render(<TestHarness />);
+    await user.click(screen.getByText('Open'));
+    expect(
+      screen.getByRole('button', { name: 'Export as PDF' }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the PDF export button for markdown artifacts', async () => {
+    const user = userEvent.setup();
+    artifactHolder.current = {
+      ...BASE_ARTIFACT,
+      type: 'markdown',
+      title: 'doc.md',
+      content: '# hello',
+      language: undefined,
+    };
+    render(<TestHarness />);
+    await user.click(screen.getByText('Open'));
+    expect(
+      screen.getByRole('button', { name: 'Export as PDF' }),
+    ).toBeInTheDocument();
+  });
+
+  it('disables the PDF export button while a stream is in flight', async () => {
+    const user = userEvent.setup();
+    artifactHolder.current = {
+      ...BASE_ARTIFACT,
+      type: 'html',
+      title: 'index.html',
+      content: '<p>hi</p>',
+      language: undefined,
+      streamingContent: '<p>partial',
+      liveStreamMode: 'create',
+    };
+    render(<TestHarness />);
+    await user.click(screen.getByText('Open'));
+    expect(
+      screen.getByRole('button', { name: 'Export as PDF' }),
+    ).toBeDisabled();
   });
 
   it('shows the streaming source as plain text during a create stream', async () => {

@@ -1,9 +1,24 @@
 'use client';
 
-import { memo, useId, useLayoutEffect, useRef } from 'react';
+import {
+  forwardRef,
+  memo,
+  useId,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+} from 'react';
 
 import { getEnv } from '@/lib/env';
 import { cn } from '@/lib/utils/cn';
+
+export interface CanvasHtmlRendererHandle {
+  // postMessage `tale:canvas:print` into the iframe; the shell listener
+  // (lib/canvas-preview-shell.ts) calls window.print() on receipt. The
+  // parent cannot call iframe.contentWindow.print() directly — the sandbox
+  // runs without `allow-same-origin`, so cross-realm access throws.
+  requestPrint: () => void;
+}
 
 interface CanvasHtmlRendererProps {
   html: string;
@@ -11,14 +26,26 @@ interface CanvasHtmlRendererProps {
   onContentChange: (content: string) => void;
 }
 
-function CanvasHtmlRendererComponent({
-  html,
-  isEditing,
-  onContentChange,
-}: CanvasHtmlRendererProps) {
+function CanvasHtmlRendererComponent(
+  { html, isEditing, onContentChange }: CanvasHtmlRendererProps,
+  ref: React.Ref<CanvasHtmlRendererHandle>,
+) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const htmlInputRef = useRef<HTMLTextAreaElement>(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      requestPrint: () => {
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: 'tale:canvas:print' },
+          '*',
+        );
+      },
+    }),
+    [],
+  );
 
   // Each renderer instance gets a unique iframe `name` so the form's
   // `target` resolves to this iframe and not some other frame on the page.
@@ -74,7 +101,11 @@ function CanvasHtmlRendererComponent({
       <iframe
         ref={iframeRef}
         name={iframeName}
-        sandbox="allow-scripts"
+        // `allow-modals` is required for `window.print()` to actually open
+        // the print dialog — the spec gates print, alert, confirm, prompt,
+        // and beforeunload modals on this flag. Used by the toolbar's
+        // "Export as PDF" action via `requestPrint()`.
+        sandbox="allow-scripts allow-modals"
         title="HTML preview"
         className="h-full w-full border-0 bg-white"
       />
@@ -82,4 +113,4 @@ function CanvasHtmlRendererComponent({
   );
 }
 
-export const CanvasHtmlRenderer = memo(CanvasHtmlRendererComponent);
+export const CanvasHtmlRenderer = memo(forwardRef(CanvasHtmlRendererComponent));

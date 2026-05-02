@@ -112,12 +112,30 @@ const STORAGE_SHIM = `<script>
 })();
 </script>`;
 
+// Listens for `{ type: 'tale:canvas:print' }` from the embedder and triggers
+// the iframe's own `window.print()`. The parent cannot call `print()` on the
+// iframe directly because the sandbox runs without `allow-same-origin` — the
+// iframe must invoke it itself. Requires `allow-modals` on the sandbox
+// attribute, since `print()` is gated on that flag.
+const PRINT_LISTENER = `<script>
+(function () {
+  window.addEventListener('message', function (event) {
+    if (event && event.data && event.data.type === 'tale:canvas:print') {
+      try { window.print(); } catch (e) {
+        console.warn('canvas-preview: print() failed', e);
+      }
+    }
+  });
+})();
+</script>`;
+
 const HEAD = `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8" />
 <title>Canvas preview</title>
 ${STORAGE_SHIM}
+${PRINT_LISTENER}
 </head>
 <body>`;
 

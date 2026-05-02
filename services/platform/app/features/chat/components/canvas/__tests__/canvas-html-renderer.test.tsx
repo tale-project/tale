@@ -1,8 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { createRef } from 'react';
 import { describe, expect, test, vi } from 'vitest';
 
-import { CanvasHtmlRenderer } from '../canvas-html-renderer';
+import {
+  CanvasHtmlRenderer,
+  type CanvasHtmlRendererHandle,
+} from '../canvas-html-renderer';
 
 describe('CanvasHtmlRenderer', () => {
   test('renders a hidden form pointing at /canvas-preview targeting the iframe', () => {
@@ -21,7 +25,9 @@ describe('CanvasHtmlRenderer', () => {
     expect(iframe.getAttribute('src')).toBeNull();
     // `allow-scripts` without `allow-same-origin` keeps the iframe in an
     // opaque origin so AI HTML cannot reach parent storage / cookies.
-    expect(iframe.getAttribute('sandbox')).toBe('allow-scripts');
+    // `allow-modals` is required so window.print() (PDF export path)
+    // actually opens the print dialog.
+    expect(iframe.getAttribute('sandbox')).toBe('allow-scripts allow-modals');
     expect(iframe.getAttribute('name')).toMatch(/^canvas-preview-/);
 
     const form = iframe.previousElementSibling as HTMLFormElement;
@@ -78,6 +84,30 @@ describe('CanvasHtmlRenderer', () => {
     ) as HTMLTextAreaElement;
     expect(input.value).toBe('<h1>v2</h1>');
     submit.mockRestore();
+  });
+
+  test('requestPrint() postMessages the print signal to the iframe', () => {
+    const ref = createRef<CanvasHtmlRendererHandle>();
+    render(
+      <CanvasHtmlRenderer
+        ref={ref}
+        html="<p>x</p>"
+        isEditing={false}
+        onContentChange={vi.fn()}
+      />,
+    );
+    const iframe = screen.getByTitle('HTML preview') as HTMLIFrameElement;
+    const postMessage = vi.fn();
+    // jsdom gives the iframe a contentWindow; spy on its postMessage.
+    Object.defineProperty(iframe.contentWindow, 'postMessage', {
+      value: postMessage,
+      configurable: true,
+    });
+    ref.current?.requestPrint();
+    expect(postMessage).toHaveBeenCalledWith(
+      { type: 'tale:canvas:print' },
+      '*',
+    );
   });
 
   test('renders the textarea (no iframe / form) in editing mode', async () => {
