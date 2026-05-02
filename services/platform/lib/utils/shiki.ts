@@ -29,6 +29,11 @@ function getHighlighter(): Promise<HighlighterCore> {
 }
 
 const LANG_ALIASES: Record<string, string> = {
+  // Plain text — Shiki's built-in no-highlight grammar is named `text`
+  // (no `langs/text.mjs` file ships); without this alias every undefined-
+  // language render warns about a missing `langs/plaintext.mjs`.
+  plaintext: 'text',
+  txt: 'text',
   // Python
   py: 'python',
   pyi: 'python',
@@ -123,6 +128,19 @@ export async function highlightCode(
   }
 
   const resolvedLang = resolveLanguage(lang);
+
+  // Shiki's `text` grammar is a built-in no-highlight pass — there is no
+  // `shiki/langs/text.mjs` to load. Skip the load attempt entirely; without
+  // this short-circuit we'd hit the catch path and log a spurious warning
+  // for every plaintext render.
+  if (resolvedLang === 'text') {
+    try {
+      return hl.codeToHtml(code, { lang: 'text', theme });
+    } catch (err) {
+      console.warn('[shiki] codeToHtml failed for lang="text":', err);
+      return null;
+    }
+  }
 
   const loadedLangs = hl.getLoadedLanguages();
   if (!loadedLangs.includes(resolvedLang)) {
