@@ -104,6 +104,8 @@ const serializableAgentConfigValidator = v.object({
   responseCacheEnabled: v.optional(v.boolean()),
   responseCacheTtlMs: v.optional(v.number()),
   fallbackModels: v.optional(v.array(v.string())),
+  personalizationMode: v.optional(v.union(v.literal('on'), v.literal('off'))),
+  significantEffectsUseCase: v.optional(v.boolean()),
 });
 
 const hooksConfigValidator = v.object({
@@ -438,6 +440,8 @@ export const runAgentGeneration = internalAction({
               maxContextTokens,
               instructions: finalInstructions,
               toolsSummary,
+              personalizationMode: agentConfig.personalizationMode,
+              significantEffectsUseCase: agentConfig.significantEffectsUseCase,
             },
             {
               ctx,

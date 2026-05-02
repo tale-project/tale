@@ -58,6 +58,10 @@ import { buildArtifactsContext } from '../context_management/build_artifacts_con
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 import { summarizeForLog } from '../log_redact';
+import {
+  buildUserPersonalization,
+  type UserPersonalization,
+} from './build_user_personalization';
 
 const OUTPUT_BLOCKED_SENTINEL = '[blocked by content policy]';
 
@@ -461,6 +465,8 @@ export async function generateAgentResponse(
     responseCacheTtlMs,
     instructions,
     toolsSummary,
+    personalizationMode,
+    significantEffectsUseCase,
   } = config;
   const {
     ctx,
@@ -773,6 +779,18 @@ export async function generateAgentResponse(
       });
     }
 
+    // Per-user personalization (custom instructions + memories) runs in
+    // parallel with knowledge/web so we don't add serial latency to TTFT.
+    let userPersonalizationPromise: Promise<UserPersonalization> | undefined;
+    if (userId && organizationId) {
+      userPersonalizationPromise = buildUserPersonalization(ctx, {
+        userId,
+        organizationId,
+        threadId,
+        agentConfig: { personalizationMode, significantEffectsUseCase },
+      });
+    }
+
     // Call beforeContext hook if provided
     let hookData: BeforeContextResult | undefined;
     if (hooks?.beforeContext) {
@@ -784,10 +802,18 @@ export async function generateAgentResponse(
     }
 
     // Await context injection results
-    const [knowledgeContextResult, webContextResult] = await Promise.all([
-      knowledgeContextPromise ?? Promise.resolve(undefined),
-      webContextPromise ?? Promise.resolve(undefined),
-    ]);
+    const [knowledgeContextResult, webContextResult, userPersonalization] =
+      await Promise.all([
+        knowledgeContextPromise ?? Promise.resolve(undefined),
+        webContextPromise ?? Promise.resolve(undefined),
+        userPersonalizationPromise ??
+          Promise.resolve<UserPersonalization>({
+            text: '',
+            fingerprint: '',
+            injectedMemoryIds: [],
+            tokens: 0,
+          }),
+      ]);
 
     if (knowledgeContextResult) {
       debugLog('Knowledge context injected', {
@@ -933,9 +959,43 @@ export async function generateAgentResponse(
       structuredResponsesEnabled === true
         ? `${resolvedInstructions}\n\n${STRUCTURED_RESPONSE_INSTRUCTIONS}`
         : resolvedInstructions;
-    const systemPrompt = agentInstructions
-      ? `${agentInstructions}\n\n${structuredThreadContext.threadContext}`
-      : structuredThreadContext.threadContext;
+    // System prompt order: agent identity → user personalization (custom
+    // instructions + approved memories) → thread context. Personalization
+    // sits between the stable agent prefix and the volatile thread tail so
+    // it doesn't bust upstream prompt caches when memories don't change.
+    const systemPromptParts: string[] = [];
+    if (agentInstructions) systemPromptParts.push(agentInstructions);
+    if (userPersonalization.text)
+      systemPromptParts.push(userPersonalization.text);
+    if (structuredThreadContext.threadContext)
+      systemPromptParts.push(structuredThreadContext.threadContext);
+    const systemPrompt = systemPromptParts.join('\n\n');
+
+    // Record the injection (one row per turn, with the IDs that were
+    // folded into systemPrompt) so the data subject can later trace which
+    // memories shaped a given response. Fire-and-forget — never blocks
+    // the LLM call.
+    if (
+      userPersonalization.injectedMemoryIds.length > 0 &&
+      organizationId &&
+      userId
+    ) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.user_memory_audit_log.internal_mutations.appendAudit,
+        {
+          organizationId,
+          actorUserId: userId,
+          subjectUserId: userId,
+          action: 'inject',
+          outcome: 'ok',
+          injectedMemoryIds: userPersonalization.injectedMemoryIds,
+          threadId,
+          messageId: promptMessageId ?? undefined,
+          agentSlug: agentSlug ?? undefined,
+        },
+      );
+    }
 
     // ── Response cache lookup ──
     // Cache is opt-in: only compute a key when the agent explicitly sets
@@ -952,6 +1012,7 @@ export async function generateAgentResponse(
             threadContext: structuredThreadContext.threadContext,
             userMessage: fingerprintPrompt(promptToSend),
             generationParams,
+            userPersonalizationFingerprint: userPersonalization.fingerprint,
           })
         : null;
 
