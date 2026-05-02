@@ -117,7 +117,9 @@ function CanvasPaneComponent() {
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resizeRef = useRef<HTMLDivElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
+  const dragRafRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
@@ -267,27 +269,68 @@ function CanvasPaneComponent() {
     e.preventDefault();
     isDraggingRef.current = true;
     const startX = e.clientX;
-    const startWidth =
-      resizeRef.current?.parentElement?.offsetWidth ?? DEFAULT_WIDTH;
+    const startWidth = paneRef.current?.offsetWidth ?? DEFAULT_WIDTH;
+
+    // Drive width via direct DOM writes (rAF-coalesced) instead of React state
+    // during the drag. A `setWidth` per mousemove forces a full CanvasPane
+    // re-render; on a 100KB+ artifact each render is multi-millisecond and
+    // falls behind the input rate, producing visible drag lag. The settled
+    // value is committed to React state once on mouseup so subsequent
+    // re-renders / fullscreen toggles still see the chosen width.
+    let pendingWidth = startWidth;
+
+    // Cover the entire viewport with a transparent overlay during drag. The
+    // canvas hosts a same-origin iframe (HTML preview) that captures pointer
+    // events as soon as the cursor crosses into it — the parent document's
+    // `mousemove` listener stops firing and the divider freezes mid-drag.
+    // Listening on the overlay (which sits above the iframe) routes every
+    // event back to us regardless of what the cursor passes over. This is
+    // the same pattern resize libraries (e.g. react-resizable-panels) use.
+    const overlay = document.createElement('div');
+    overlay.style.cssText =
+      'position:fixed;inset:0;z-index:2147483647;cursor:col-resize;user-select:none;background:transparent';
+    document.body.appendChild(overlay);
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!isDraggingRef.current) return;
       const delta = startX - moveEvent.clientX;
-      const newWidth = Math.min(
+      pendingWidth = Math.min(
         MAX_WIDTH,
         Math.max(MIN_WIDTH, startWidth + delta),
       );
-      setWidth(newWidth);
+      if (dragRafRef.current !== null) return;
+      dragRafRef.current = requestAnimationFrame(() => {
+        dragRafRef.current = null;
+        const pane = paneRef.current;
+        if (pane && isDraggingRef.current) {
+          pane.style.width = `${pendingWidth}px`;
+        }
+      });
     };
 
     const handleMouseUp = () => {
       isDraggingRef.current = false;
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      if (dragRafRef.current !== null) {
+        cancelAnimationFrame(dragRafRef.current);
+        dragRafRef.current = null;
+      }
+      overlay.removeEventListener('mousemove', handleMouseMove);
+      overlay.removeEventListener('mouseup', handleMouseUp);
+      overlay.remove();
+      setWidth(pendingWidth);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    overlay.addEventListener('mousemove', handleMouseMove);
+    overlay.addEventListener('mouseup', handleMouseUp);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (dragRafRef.current !== null) {
+        cancelAnimationFrame(dragRafRef.current);
+        dragRafRef.current = null;
+      }
+    };
   }, []);
 
   // Read content reactively. Streaming-aware: while the artifact is being
@@ -432,6 +475,7 @@ function CanvasPaneComponent() {
 
   return (
     <div
+      ref={paneRef}
       className={
         isFullscreen
           ? 'bg-background fixed inset-0 z-50 flex flex-col'
