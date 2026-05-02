@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { forwardRef, memo, useImperativeHandle, useRef } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -11,18 +11,34 @@ import {
 } from '../message-bubble/markdown-renderer';
 import { TypewriterText } from '../typewriter-text';
 
+export interface CanvasMarkdownRendererHandle {
+  // Returns the live rendered HTML of the article (the same DOM the user is
+  // looking at). Used by the PDF export path so the printed document is
+  // pixel-parity with the on-screen rendering — re-running react-markdown
+  // could drift if components/plugins change.
+  getRenderedHtml: () => string | null;
+}
+
 interface CanvasMarkdownRendererProps {
   content: string;
   isEditing: boolean;
   onContentChange: (content: string) => void;
 }
 
-function CanvasMarkdownRendererComponent({
-  content,
-  isEditing,
-  onContentChange,
-}: CanvasMarkdownRendererProps) {
+function CanvasMarkdownRendererComponent(
+  { content, isEditing, onContentChange }: CanvasMarkdownRendererProps,
+  ref: React.Ref<CanvasMarkdownRendererHandle>,
+) {
   const { t } = useT('chat');
+  const articleRef = useRef<HTMLDivElement>(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      getRenderedHtml: () => articleRef.current?.innerHTML ?? null,
+    }),
+    [],
+  );
 
   if (isEditing) {
     return (
@@ -41,7 +57,7 @@ function CanvasMarkdownRendererComponent({
 
   return (
     <div className="h-full overflow-auto p-4">
-      <div className={cn('text-sm', markdownWrapperStyles)}>
+      <div ref={articleRef} className={cn('text-sm', markdownWrapperStyles)}>
         <TypewriterText
           text={content}
           isStreaming={false}
@@ -52,4 +68,6 @@ function CanvasMarkdownRendererComponent({
   );
 }
 
-export const CanvasMarkdownRenderer = memo(CanvasMarkdownRendererComponent);
+export const CanvasMarkdownRenderer = memo(
+  forwardRef(CanvasMarkdownRendererComponent),
+);

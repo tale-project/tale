@@ -2224,6 +2224,8 @@
       "edit": "Edit",
       "copy": "Copy",
       "download": "Download",
+      "exportPdf": "Export as PDF",
+      "exportPdfFailed": "Failed to export as PDF",
       "copied": "Copied!",
       "mermaidError": "Failed to render diagram",
       "resizeHandle": "Resize canvas",

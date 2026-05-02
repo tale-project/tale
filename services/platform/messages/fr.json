@@ -2224,6 +2224,8 @@
       "edit": "Modifier",
       "copy": "Copier",
       "download": "Télécharger",
+      "exportPdf": "Exporter en PDF",
+      "exportPdfFailed": "Échec de l'export PDF",
       "copied": "Copié !",
       "mermaidError": "Échec du rendu du diagramme",
       "resizeHandle": "Redimensionner le canevas",

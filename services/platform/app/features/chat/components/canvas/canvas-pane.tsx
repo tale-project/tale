@@ -7,6 +7,7 @@ import {
   Copy,
   Download,
   Eye,
+  FileDown,
   FileText,
   GitBranch,
   Globe,
@@ -25,12 +26,16 @@ import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import { useStreamedArtifactContent } from '../../hooks/use-streamed-artifact-content';
 import { useCanvas, type CanvasContentType } from './canvas-context';
+import type { CanvasHtmlRendererHandle } from './canvas-html-renderer';
+import type { CanvasMarkdownRendererHandle } from './canvas-markdown-renderer';
+import { printHtmlInHiddenIframe } from './print-via-iframe';
 
 const CanvasCodeRenderer = lazyComponent(() =>
   import('./canvas-code-renderer').then((m) => ({
@@ -38,7 +43,12 @@ const CanvasCodeRenderer = lazyComponent(() =>
   })),
 );
 
-const CanvasHtmlRenderer = lazyComponent(() =>
+const CanvasHtmlRenderer = lazyComponent<
+  React.ComponentProps<
+    typeof import('./canvas-html-renderer').CanvasHtmlRenderer
+  >,
+  CanvasHtmlRendererHandle
+>(() =>
   import('./canvas-html-renderer').then((m) => ({
     default: m.CanvasHtmlRenderer,
   })),
@@ -50,11 +60,79 @@ const CanvasMermaidRenderer = lazyComponent(() =>
   })),
 );
 
-const CanvasMarkdownRenderer = lazyComponent(() =>
+const CanvasMarkdownRenderer = lazyComponent<
+  React.ComponentProps<
+    typeof import('./canvas-markdown-renderer').CanvasMarkdownRenderer
+  >,
+  CanvasMarkdownRendererHandle
+>(() =>
   import('./canvas-markdown-renderer').then((m) => ({
     default: m.CanvasMarkdownRenderer,
   })),
 );
+
+// Print-friendly typography stylesheet for markdown PDF export. Inlined so
+// we don't need to ship Tailwind's prose styles into the iframe — these
+// rules cover the elements react-markdown emits (headings, paragraphs, code,
+// pre, lists, tables, blockquotes, hr, links). Pixel parity with the
+// on-screen prose styles is a non-goal; "looks good as a printed document"
+// is. The @page margin handles paper margins; @media print hides body
+// margin so the @page margin alone controls spacing.
+const MARKDOWN_PRINT_STYLES = `
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+      'Helvetica Neue', Arial, 'Noto Sans', 'PingFang SC', 'Hiragino Sans GB',
+      'Microsoft YaHei', sans-serif;
+    color: #111;
+    line-height: 1.7;
+    max-width: 760px;
+    margin: 2em auto;
+    padding: 0 1em;
+  }
+  h1, h2, h3, h4, h5, h6 { line-height: 1.25; margin: 1.6em 0 0.6em; }
+  h1 { font-size: 1.9em; }
+  h2 { font-size: 1.5em; border-bottom: 1px solid #eee; padding-bottom: .3em; }
+  h3 { font-size: 1.25em; }
+  p, ul, ol, blockquote, pre, table { margin: 0.8em 0; }
+  ul, ol { padding-left: 1.5em; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: #f4f4f5;
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    font-size: 0.92em;
+  }
+  pre {
+    background: #f4f4f5;
+    padding: 0.9em 1em;
+    border-radius: 4px;
+    overflow-x: auto;
+    line-height: 1.5;
+  }
+  pre code { background: none; padding: 0; font-size: 0.9em; }
+  blockquote {
+    border-left: 3px solid #ddd;
+    padding: 0 1em;
+    color: #555;
+  }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
+  th { background: #f9fafb; }
+  hr { border: none; border-top: 1px solid #eee; margin: 1.5em 0; }
+  a { color: #0366d6; text-decoration: underline; }
+  img { max-width: 100%; }
+  @page { margin: 1in; }
+  @media print {
+    body { margin: 0; max-width: none; padding: 0; }
+    pre, blockquote, table { page-break-inside: avoid; }
+  }
+`;
+
+function buildMarkdownPrintHtml(renderedHtml: string): string {
+  // No title preamble: the markdown's own h1 (if any) lives inside
+  // renderedHtml — re-prepending the artifact title would double-up.
+  return `<style>${MARKDOWN_PRINT_STYLES}</style><article>${renderedHtml}</article>`;
+}
 
 const TYPE_ICONS: Record<CanvasContentType, typeof Code> = {
   code: Code,
@@ -118,6 +196,8 @@ function CanvasPaneComponent() {
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resizeRef = useRef<HTMLDivElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
+  const htmlRendererRef = useRef<CanvasHtmlRendererHandle>(null);
+  const markdownRendererRef = useRef<CanvasMarkdownRendererHandle>(null);
   const isDraggingRef = useRef(false);
   const dragRafRef = useRef<number | null>(null);
 
@@ -430,6 +510,35 @@ function CanvasPaneComponent() {
     URL.revokeObjectURL(url);
   }, [displayedContent, canvasType, canvasTitle, canvasLanguage]);
 
+  // Trigger the browser's "Save as PDF" flow by calling window.print() inside
+  // the artifact's own iframe — fidelity is identical to what's on screen
+  // (Chinese fonts, gradients, complex CSS all rendered by the real browser),
+  // and the print dialog only sees the artifact, not the surrounding chat UI.
+  const handleExportPdf = useCallback(async () => {
+    if (canvasType === 'html') {
+      htmlRendererRef.current?.requestPrint();
+      return;
+    }
+    if (canvasType === 'markdown') {
+      const renderedHtml = markdownRendererRef.current?.getRenderedHtml();
+      if (!renderedHtml) {
+        console.warn('canvas: markdown export requested before render');
+        return;
+      }
+      try {
+        await printHtmlInHiddenIframe({
+          html: buildMarkdownPrintHtml(renderedHtml),
+          basePath: getEnv('BASE_PATH'),
+        });
+      } catch (err) {
+        console.error('canvas: PDF export failed', err);
+        toast({ title: t('canvas.exportPdfFailed'), variant: 'destructive' });
+      }
+    }
+  }, [canvasType, toast, t]);
+
+  const canExportPdf = canvasType === 'html' || canvasType === 'markdown';
+
   const toggleEdit = useCallback(() => {
     setIsEditing((prev) => {
       const next = !prev;
@@ -602,6 +711,21 @@ function CanvasPaneComponent() {
             </Button>
           </Tooltip>
 
+          {canExportPdf && (
+            <Tooltip content={t('canvas.exportPdf')} side="bottom">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={handleExportPdf}
+                disabled={isStreaming}
+                aria-label={t('canvas.exportPdf')}
+              >
+                <FileDown className="size-3.5" />
+              </Button>
+            </Tooltip>
+          )}
+
           <Tooltip content={t('canvas.download')} side="bottom">
             <Button
               variant="ghost"
@@ -681,6 +805,7 @@ function CanvasPaneComponent() {
         )}
         {!showStreamingSource && canvasType === 'html' && (
           <CanvasHtmlRenderer
+            ref={htmlRendererRef}
             html={displayedContent}
             isEditing={isEditing}
             onContentChange={onContentChange}
@@ -702,6 +827,7 @@ function CanvasPaneComponent() {
         )}
         {!showStreamingSource && canvasType === 'markdown' && (
           <CanvasMarkdownRenderer
+            ref={markdownRendererRef}
             content={displayedContent}
             isEditing={isEditing}
             onContentChange={onContentChange}
