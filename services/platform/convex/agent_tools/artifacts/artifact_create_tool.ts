@@ -124,6 +124,8 @@ Therefore: features that require **runtime intelligence** — translating user i
 
 **Do NOT fake AI features with hardcoded lookup tables or random output.** A "translation tool" backed by 30 baked-in phrases, a "feedback engine" backed by canned responses, a "personalised recommendation" picked at random — these produce hollow, demo-shaped pages that feel impressive at a glance and fall apart on first real use. If the user asks for something that genuinely needs intelligence, prefer to deliver it in chat rather than build a plausible-looking shell.
 
+\`localStorage\` and \`sessionStorage\` are available, but **in-memory and per-iframe-load only** — anything saved is lost the next time the artifact is rendered. Do not show "saved" / "remembered" / "记忆已保存" UI copy that implies persistence across sessions; treat storage as transient working memory, not durable state.
+
 **RESPONSE:** returns the new \`artifactId\` and \`revision: 1\`. The artifact's content is rendered live in the Canvas pane as you stream it.`,
     inputSchema: artifactCreateArgs,
     onInputStart: async (_ctx: ToolCtx, options: ToolExecutionOptions) => {

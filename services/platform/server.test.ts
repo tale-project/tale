@@ -1,5 +1,8 @@
+import * as vm from 'node:vm';
+
 import { describe, expect, test } from 'vitest';
 
+import { wrapCanvasPreviewHtml } from './lib/canvas-preview-shell';
 import { createApp } from './server';
 
 const baseEnv = {
@@ -201,6 +204,131 @@ describe('POST /canvas-preview', () => {
     });
     const cspBaseline = await getCanvasCsp(baseEnv);
     expect(cspWithPath).toBe(cspBaseline);
+  });
+});
+
+describe('canvas-preview storage shim', () => {
+  // The iframe runs sandboxed without `allow-same-origin`, so its origin is
+  // opaque ("null") and reading `window.localStorage` throws synchronously
+  // — `try/catch` at the call site can't help. The shim shadows the throwing
+  // platform getter with an in-memory `Storage` impl. These tests evaluate
+  // the shim source against a synthetic `window`; the real opaque-origin
+  // shadowing behavior is a stable browser property and verified manually
+  // (see plan `lockdown-install-js-1-ses-removing-imperative-acorn.md`).
+
+  function extractShimSource(): string {
+    const wrapped = wrapCanvasPreviewHtml('');
+    const match = wrapped.match(/<script>([\s\S]*?)<\/script>/);
+    if (!match) throw new Error('storage shim not found in wrapped HTML');
+    return match[1];
+  }
+
+  function install(): {
+    localStorage: Storage;
+    sessionStorage: Storage;
+  } {
+    const fakeWindow: Record<string, unknown> = {};
+    // Run the shim source in an isolated VM context with `window` bound to
+    // a synthetic record. Using `vm.runInNewContext` instead of `new
+    // Function(...)` avoids the `no-implied-eval` lint and keeps the test
+    // realm separate from the test runner's globals.
+    vm.runInNewContext(extractShimSource(), { window: fakeWindow, console });
+    return {
+      localStorage: fakeWindow.localStorage as Storage,
+      sessionStorage: fakeWindow.sessionStorage as Storage,
+    };
+  }
+
+  test('shim sentinel appears in the canvas-preview response body', async () => {
+    const app = createApp(baseEnv);
+    const res = await app.fetch(
+      new Request('http://localhost/canvas-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: '',
+      }),
+    );
+    const text = await res.text();
+    // Stable substring — small enough not to churn on minor tweaks, specific
+    // enough to fail loudly if the shim ever stops being injected.
+    expect(text).toContain(
+      'Object.defineProperty(window, name, { value: value, configurable: true })',
+    );
+    expect(text).toContain('install("localStorage")');
+    expect(text).toContain('install("sessionStorage")');
+  });
+
+  test('round-trips values via getItem / setItem', () => {
+    const { localStorage } = install();
+    localStorage.setItem('a', '1');
+    expect(localStorage.getItem('a')).toBe('1');
+    expect(localStorage.getItem('missing')).toBeNull();
+  });
+
+  test('bracket notation routes through the same store', () => {
+    const { localStorage } = install();
+    // Write via bracket, read via getItem.
+    (localStorage as unknown as Record<string, string>).foo = 'bar';
+    expect(localStorage.getItem('foo')).toBe('bar');
+    // Write via setItem, read via bracket.
+    localStorage.setItem('baz', 'qux');
+    expect((localStorage as unknown as Record<string, string>).baz).toBe('qux');
+  });
+
+  test('coerces non-string keys and values to strings', () => {
+    const { localStorage } = install();
+    localStorage.setItem(42 as unknown as string, 7 as unknown as string);
+    expect(localStorage.getItem('42')).toBe('7');
+    localStorage.setItem('obj', { a: 1 } as unknown as string);
+    expect(localStorage.getItem('obj')).toBe('[object Object]');
+  });
+
+  test('length, key, removeItem, and clear', () => {
+    const { localStorage } = install();
+    localStorage.setItem('a', '1');
+    localStorage.setItem('b', '2');
+    expect(localStorage.length).toBe(2);
+    expect(['a', 'b']).toContain(localStorage.key(0));
+    localStorage.removeItem('a');
+    expect(localStorage.getItem('a')).toBeNull();
+    expect(localStorage.length).toBe(1);
+    localStorage.clear();
+    expect(localStorage.length).toBe(0);
+  });
+
+  test('exceeding the 5 MiB quota throws QuotaExceededError', () => {
+    const { localStorage } = install();
+    expect(() => {
+      localStorage.setItem('big', 'a'.repeat(6 * 1024 * 1024));
+    }).toThrow(
+      expect.objectContaining({
+        name: 'QuotaExceededError',
+      }) as unknown as Error,
+    );
+  });
+
+  test('localStorage and sessionStorage are independent stores', () => {
+    const { localStorage, sessionStorage } = install();
+    localStorage.setItem('k', 'L');
+    sessionStorage.setItem('k', 'S');
+    expect(localStorage.getItem('k')).toBe('L');
+    expect(sessionStorage.getItem('k')).toBe('S');
+    sessionStorage.clear();
+    expect(localStorage.getItem('k')).toBe('L');
+    expect(sessionStorage.getItem('k')).toBeNull();
+  });
+
+  test('overwriting an existing key updates the byte budget correctly', () => {
+    const { localStorage } = install();
+    // Fill close to the cap, then replace with a smaller value — the new
+    // budget should accept further writes that the naive sum wouldn't.
+    const fourMiB = 'a'.repeat(4 * 1024 * 1024);
+    localStorage.setItem('payload', fourMiB);
+    localStorage.setItem('payload', 'small');
+    // 4 MiB more must fit now that the previous value is released.
+    expect(() => {
+      localStorage.setItem('again', fourMiB);
+    }).not.toThrow();
   });
 });
 

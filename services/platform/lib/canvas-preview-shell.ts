@@ -15,11 +15,109 @@
 //   AND a fresh realm. Form POST is the simplest way to get one without
 //   shipping huge HTML through the URL bar.
 
+// Runs before any <body> script. Installs an in-memory `localStorage` /
+// `sessionStorage` shim on the iframe's `window` so AI-generated artifacts
+// don't crash on `SecurityError: Failed to read the 'localStorage' property`
+// — the iframe is sandboxed without `allow-same-origin`, so its origin is
+// opaque ("null") and the platform getters throw on access. The shim is
+// per-iframe-load (resets on every artifact re-render), capped at 5 MiB,
+// and supports both method-style (`getItem`/`setItem`) and bracket
+// (`localStorage.foo`) access via a Proxy. See plan
+// `lockdown-install-js-1-ses-removing-imperative-acorn.md`.
+const STORAGE_SHIM = `<script>
+(function () {
+  var QUOTA_BYTES = 5 * 1024 * 1024;
+  function makeStorage() {
+    var data = Object.create(null);
+    var bytes = 0;
+    function size(k, v) { return k.length + v.length; }
+    var api = {
+      get length() { return Object.keys(data).length; },
+      key: function (i) {
+        var k = Object.keys(data)[i];
+        return k === undefined ? null : k;
+      },
+      getItem: function (k) {
+        k = String(k);
+        return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null;
+      },
+      setItem: function (k, v) {
+        k = String(k); v = String(v);
+        var prev = Object.prototype.hasOwnProperty.call(data, k) ? size(k, data[k]) : 0;
+        var next = bytes - prev + size(k, v);
+        if (next > QUOTA_BYTES) {
+          var err = new Error("Quota exceeded");
+          err.name = "QuotaExceededError";
+          throw err;
+        }
+        data[k] = v; bytes = next;
+      },
+      removeItem: function (k) {
+        k = String(k);
+        if (Object.prototype.hasOwnProperty.call(data, k)) {
+          bytes -= size(k, data[k]);
+          delete data[k];
+        }
+      },
+      clear: function () {
+        for (var k in data) delete data[k];
+        bytes = 0;
+      }
+    };
+    var methodNames = { length: 1, key: 1, getItem: 1, setItem: 1, removeItem: 1, clear: 1 };
+    return new Proxy(api, {
+      get: function (target, prop) {
+        if (typeof prop === "symbol" || Object.prototype.hasOwnProperty.call(methodNames, prop)) {
+          return target[prop];
+        }
+        return target.getItem(prop);
+      },
+      set: function (target, prop, value) {
+        if (typeof prop === "symbol" || Object.prototype.hasOwnProperty.call(methodNames, prop)) {
+          target[prop] = value;
+          return true;
+        }
+        target.setItem(prop, value);
+        return true;
+      },
+      has: function (target, prop) {
+        if (Object.prototype.hasOwnProperty.call(methodNames, prop)) return true;
+        return target.getItem(prop) !== null;
+      },
+      deleteProperty: function (target, prop) {
+        if (Object.prototype.hasOwnProperty.call(methodNames, prop)) return false;
+        target.removeItem(prop);
+        return true;
+      }
+    });
+  }
+  function install(name) {
+    var value = makeStorage();
+    try {
+      Object.defineProperty(window, name, { value: value, configurable: true });
+      return;
+    } catch (e1) {
+      try {
+        window[name] = value;
+        return;
+      } catch (e2) {
+        var m1 = e1 && e1.message ? e1.message : String(e1);
+        var m2 = e2 && e2.message ? e2.message : String(e2);
+        console.warn("canvas-preview: failed to install " + name + " shim: " + m1 + " / " + m2);
+      }
+    }
+  }
+  install("localStorage");
+  install("sessionStorage");
+})();
+</script>`;
+
 const HEAD = `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8" />
 <title>Canvas preview</title>
+${STORAGE_SHIM}
 </head>
 <body>`;
 
