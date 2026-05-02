@@ -26,6 +26,7 @@ interface CanvasState {
 interface CanvasContextType extends CanvasState {
   openCanvas: (artifactId: Id<'artifacts'>) => void;
   closeCanvas: () => void;
+  resetCanvas: () => void;
 }
 
 const CanvasContext = createContext<CanvasContextType | null>(null);
@@ -68,13 +69,18 @@ export function CanvasProvider({ children }: CanvasProviderProps) {
     }));
   }, []);
 
+  const resetCanvas = useCallback(() => {
+    setState(INITIAL_STATE);
+  }, []);
+
   const value = useMemo(
     () => ({
       ...state,
       openCanvas,
       closeCanvas,
+      resetCanvas,
     }),
-    [state, openCanvas, closeCanvas],
+    [state, openCanvas, closeCanvas, resetCanvas],
   );
 
   return (

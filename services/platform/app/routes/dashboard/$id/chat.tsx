@@ -11,7 +11,10 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { ArenaModeProvider } from '@/app/features/chat/components/arena/arena-mode-context';
 import { BudgetBanner } from '@/app/features/chat/components/budget-banner';
 import { ArtifactBar } from '@/app/features/chat/components/canvas/artifact-bar';
-import { CanvasProvider } from '@/app/features/chat/components/canvas/canvas-context';
+import {
+  CanvasProvider,
+  useCanvas,
+} from '@/app/features/chat/components/canvas/canvas-context';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
@@ -191,6 +194,7 @@ function BranchAwareArtifactBar({
 
 function ChatLayoutContent({ organizationId }: { organizationId: string }) {
   const { isHistoryOpen, clearChatState } = useChatLayout();
+  const { resetCanvas } = useCanvas();
 
   // Read threadId from URL — ChatInterface stays mounted across route changes.
   const threadMatch = useMatch({
@@ -217,9 +221,10 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
     prevHadThreadRef.current = !!threadId;
     if (hadThread && !threadId) {
       clearChatState();
+      resetCanvas();
       setNewChatCount((c) => c + 1);
     }
-  }, [threadId, clearChatState]);
+  }, [threadId, clearChatState, resetCanvas]);
 
   // Render shared chat view when on shared route
   if (shareToken) {
