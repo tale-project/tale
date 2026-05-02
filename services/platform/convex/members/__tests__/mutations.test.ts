@@ -59,7 +59,14 @@ function createMockCtx() {
   return {
     runQuery: vi.fn(),
     runMutation: vi.fn(),
-    db: {},
+    // Stub the minimum surface the personalization cascade hook touches
+    // when a member is removed (collect rows by index, then delete each).
+    db: {
+      query: vi.fn().mockReturnValue({
+        withIndex: vi.fn().mockReturnValue({ collect: async () => [] }),
+      }),
+      delete: vi.fn(),
+    },
     auth: {},
   };
 }

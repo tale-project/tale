@@ -1,3 +1,9 @@
 AGENTS.md
 images/
 tests/
+
+# Internal architecture & engineering reference (not Mintlify content;
+# not shown in the user-facing docs site, no translations required).
+adr/
+permission_model.md
+personalization/
