@@ -5,6 +5,8 @@
  * Array-based registry for type inference, with derived object for O(1) lookups.
  */
 
+import { artifactCreateTool } from './artifacts/artifact_create_tool';
+import { artifactEditTool } from './artifacts/artifact_edit_tool';
 import { conversationReadTool } from './conversations/conversation_read_tool';
 import { customerReadTool } from './customers/customer_read_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
@@ -41,6 +43,8 @@ export { TOOL_NAMES, type ToolName } from './tool_names';
  * Tool registry as array - enables TypeScript to infer tool names
  */
 export const TOOL_REGISTRY = [
+  artifactCreateTool,
+  artifactEditTool,
   customerReadTool,
   productReadTool,
   ragSearchTool,

@@ -71,6 +71,10 @@ vi.mock('../../context_management/message_formatter', () => ({
   wrapInDetails: vi.fn((_title: string, content: string) => content),
 }));
 
+vi.mock('../../context_management/build_artifacts_context', () => ({
+  buildArtifactsContext: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../../debug_log', () => ({
   createDebugLog: () => vi.fn(),
 }));

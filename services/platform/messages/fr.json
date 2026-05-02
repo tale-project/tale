@@ -2220,10 +2220,8 @@
       "verdictError": "Échec de l'enregistrement du verdict"
     },
     "canvas": {
-      "openInCanvas": "Ouvrir dans le canevas",
       "close": "Fermer le canevas",
       "edit": "Modifier",
-      "preview": "Aperçu",
       "copy": "Copier",
       "download": "Télécharger",
       "copied": "Copié !",
@@ -2236,7 +2234,17 @@
       "exitFullscreen": "Quitter le plein écran",
       "codeEditor": "Éditeur de code",
       "markdownEditor": "Éditeur Markdown",
-      "mermaidEditor": "Éditeur Mermaid"
+      "mermaidEditor": "Éditeur Mermaid",
+      "streamingWriting": "L'IA écrit…",
+      "streamingPatch": "L'IA modifie…",
+      "cancel": "Annuler la modification",
+      "streamingDuringEdit": "L'agent met à jour cet artéfact — votre brouillon est conservé. Cliquez sur Annuler pour le rejeter."
+    },
+    "artifacts": {
+      "barLabel": "Artéfacts dans ce fil",
+      "barTitle": "Artéfacts",
+      "openCard": "Ouvrir l'artéfact : {title}",
+      "touchedByMessage": "{title} (révision {revision})"
     },
     "branchNavigator": {
       "previous": "Branche précédente",

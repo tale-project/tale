@@ -10,6 +10,7 @@ import {
   agentWebhookUserThreadsTable,
 } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
+import { artifactRevisionsTable, artifactsTable } from './artifacts/schema';
 import { auditLogsTable } from './audit_logs/schema';
 import {
   brandingBindingsTable,
@@ -72,6 +73,8 @@ import {
 
 export default defineSchema({
   approvals: approvalsTable,
+  artifactRevisions: artifactRevisionsTable,
+  artifacts: artifactsTable,
   auditLogs: auditLogsTable,
   governancePolicies: governancePoliciesTable,
   governanceSecrets: governanceSecretsTable,

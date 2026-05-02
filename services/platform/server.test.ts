@@ -1,5 +1,8 @@
+import * as vm from 'node:vm';
+
 import { describe, expect, test } from 'vitest';
 
+import { wrapCanvasPreviewHtml } from './lib/canvas-preview-shell';
 import { createApp } from './server';
 
 const baseEnv = {
@@ -11,6 +14,7 @@ const baseEnv = {
   SENTRY_DSN: undefined,
   SENTRY_TRACES_SAMPLE_RATE: 1,
   TALE_VERSION: undefined,
+  CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: [] as readonly string[],
 };
 
 describe('security headers', () => {
@@ -134,6 +138,197 @@ describe('POST /canvas-preview', () => {
     expect(text).toContain('<!doctype html>');
     // Body region between <body> and </body> should be empty.
     expect(text).toMatch(/<body>\s*<\/body>/);
+  });
+
+  // CSP extras: opt-in escape hatch via CANVAS_PREVIEW_CSP_EXTRA_ORIGINS.
+  // Default empty preserves the byte-identical air-gapped CSP; setting it
+  // appends validated origins to the five fetch directives that an LLM
+  // demo might legitimately need (script/style/font/img/connect).
+
+  async function getCanvasCsp(env: typeof baseEnv): Promise<string> {
+    const app = createApp(env);
+    const res = await app.fetch(
+      new Request('http://localhost/canvas-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: '',
+      }),
+    );
+    return res.headers.get('content-security-policy') ?? '';
+  }
+
+  test('extras default empty preserves the air-gapped CSP', async () => {
+    const csp = await getCanvasCsp(baseEnv);
+    expect(csp).toContain("script-src 'self' 'unsafe-inline' 'unsafe-eval';");
+    expect(csp).toContain("style-src 'self' 'unsafe-inline';");
+    expect(csp).toContain("connect-src 'self';");
+    expect(csp).not.toContain('https://');
+  });
+
+  test('extras: a valid origin appears in five fetch directives', async () => {
+    const csp = await getCanvasCsp({
+      ...baseEnv,
+      CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: ['https://cdn.jsdelivr.net'],
+    });
+    expect(csp).toContain(
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net;",
+    );
+    expect(csp).toContain(
+      "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;",
+    );
+    expect(csp).toContain("font-src 'self' data: https://cdn.jsdelivr.net;");
+    expect(csp).toContain(
+      "img-src 'self' data: blob: https://cdn.jsdelivr.net;",
+    );
+    expect(csp).toContain("connect-src 'self' https://cdn.jsdelivr.net;");
+    // Egress-control directives that should NOT pick up the extras.
+    expect(csp).toContain("frame-ancestors 'self';");
+    expect(csp).not.toMatch(/frame-ancestors[^;]*https:\/\/cdn\.jsdelivr/);
+    expect(csp).toContain("base-uri 'none';");
+    expect(csp).toContain("object-src 'none'");
+  });
+
+  test('extras: malformed entry is dropped, CSP matches no-extras shape', async () => {
+    const cspMalformed = await getCanvasCsp({
+      ...baseEnv,
+      CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: ['not-a-url'],
+    });
+    const cspBaseline = await getCanvasCsp(baseEnv);
+    expect(cspMalformed).toBe(cspBaseline);
+  });
+
+  test('extras: URL with path is dropped (must be bare origin)', async () => {
+    const cspWithPath = await getCanvasCsp({
+      ...baseEnv,
+      CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: ['https://cdn.jsdelivr.net/npm/'],
+    });
+    const cspBaseline = await getCanvasCsp(baseEnv);
+    expect(cspWithPath).toBe(cspBaseline);
+  });
+});
+
+describe('canvas-preview storage shim', () => {
+  // The iframe runs sandboxed without `allow-same-origin`, so its origin is
+  // opaque ("null") and reading `window.localStorage` throws synchronously
+  // — `try/catch` at the call site can't help. The shim shadows the throwing
+  // platform getter with an in-memory `Storage` impl. These tests evaluate
+  // the shim source against a synthetic `window`; the real opaque-origin
+  // shadowing behavior is a stable browser property and verified manually
+  // (see plan `lockdown-install-js-1-ses-removing-imperative-acorn.md`).
+
+  function extractShimSource(): string {
+    const wrapped = wrapCanvasPreviewHtml('');
+    const match = wrapped.match(/<script>([\s\S]*?)<\/script>/);
+    if (!match) throw new Error('storage shim not found in wrapped HTML');
+    return match[1];
+  }
+
+  function install(): {
+    localStorage: Storage;
+    sessionStorage: Storage;
+  } {
+    const fakeWindow: Record<string, unknown> = {};
+    // Run the shim source in an isolated VM context with `window` bound to
+    // a synthetic record. Using `vm.runInNewContext` instead of `new
+    // Function(...)` avoids the `no-implied-eval` lint and keeps the test
+    // realm separate from the test runner's globals.
+    vm.runInNewContext(extractShimSource(), { window: fakeWindow, console });
+    return {
+      localStorage: fakeWindow.localStorage as Storage,
+      sessionStorage: fakeWindow.sessionStorage as Storage,
+    };
+  }
+
+  test('shim sentinel appears in the canvas-preview response body', async () => {
+    const app = createApp(baseEnv);
+    const res = await app.fetch(
+      new Request('http://localhost/canvas-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: '',
+      }),
+    );
+    const text = await res.text();
+    // Stable substring — small enough not to churn on minor tweaks, specific
+    // enough to fail loudly if the shim ever stops being injected.
+    expect(text).toContain(
+      'Object.defineProperty(window, name, { value: value, configurable: true })',
+    );
+    expect(text).toContain('install("localStorage")');
+    expect(text).toContain('install("sessionStorage")');
+  });
+
+  test('round-trips values via getItem / setItem', () => {
+    const { localStorage } = install();
+    localStorage.setItem('a', '1');
+    expect(localStorage.getItem('a')).toBe('1');
+    expect(localStorage.getItem('missing')).toBeNull();
+  });
+
+  test('bracket notation routes through the same store', () => {
+    const { localStorage } = install();
+    // Write via bracket, read via getItem.
+    (localStorage as unknown as Record<string, string>).foo = 'bar';
+    expect(localStorage.getItem('foo')).toBe('bar');
+    // Write via setItem, read via bracket.
+    localStorage.setItem('baz', 'qux');
+    expect((localStorage as unknown as Record<string, string>).baz).toBe('qux');
+  });
+
+  test('coerces non-string keys and values to strings', () => {
+    const { localStorage } = install();
+    localStorage.setItem(42 as unknown as string, 7 as unknown as string);
+    expect(localStorage.getItem('42')).toBe('7');
+    localStorage.setItem('obj', { a: 1 } as unknown as string);
+    expect(localStorage.getItem('obj')).toBe('[object Object]');
+  });
+
+  test('length, key, removeItem, and clear', () => {
+    const { localStorage } = install();
+    localStorage.setItem('a', '1');
+    localStorage.setItem('b', '2');
+    expect(localStorage.length).toBe(2);
+    expect(['a', 'b']).toContain(localStorage.key(0));
+    localStorage.removeItem('a');
+    expect(localStorage.getItem('a')).toBeNull();
+    expect(localStorage.length).toBe(1);
+    localStorage.clear();
+    expect(localStorage.length).toBe(0);
+  });
+
+  test('exceeding the 5 MiB quota throws QuotaExceededError', () => {
+    const { localStorage } = install();
+    expect(() => {
+      localStorage.setItem('big', 'a'.repeat(6 * 1024 * 1024));
+    }).toThrow(
+      expect.objectContaining({
+        name: 'QuotaExceededError',
+      }) as unknown as Error,
+    );
+  });
+
+  test('localStorage and sessionStorage are independent stores', () => {
+    const { localStorage, sessionStorage } = install();
+    localStorage.setItem('k', 'L');
+    sessionStorage.setItem('k', 'S');
+    expect(localStorage.getItem('k')).toBe('L');
+    expect(sessionStorage.getItem('k')).toBe('S');
+    sessionStorage.clear();
+    expect(localStorage.getItem('k')).toBe('L');
+    expect(sessionStorage.getItem('k')).toBeNull();
+  });
+
+  test('overwriting an existing key updates the byte budget correctly', () => {
+    const { localStorage } = install();
+    // Fill close to the cap, then replace with a smaller value — the new
+    // budget should accept further writes that the naive sum wouldn't.
+    const fourMiB = 'a'.repeat(4 * 1024 * 1024);
+    localStorage.setItem('payload', fourMiB);
+    localStorage.setItem('payload', 'small');
+    // 4 MiB more must fit now that the previous value is released.
+    expect(() => {
+      localStorage.setItem('again', fourMiB);
+    }).not.toThrow();
   });
 });
 

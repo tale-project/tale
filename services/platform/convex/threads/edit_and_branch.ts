@@ -106,6 +106,7 @@ export const editAndBranch = action({
       internal.threads.create_branch_thread.createBranchThread,
       {
         userId,
+        organizationId: args.organizationId,
         sourceThreadId: args.sourceThreadId,
         rootThreadId: args.rootThreadId,
         editedMessageId: args.editedMessageId,

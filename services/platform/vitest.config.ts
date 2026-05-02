@@ -34,7 +34,22 @@ export default defineConfig({
             'app/components/**/*.test.{ts,tsx}',
             'app/features/**/*.test.{ts,tsx}',
             'app/hooks/**/*.test.{ts,tsx}',
+            '**/*.browser.test.{ts,tsx}',
           ],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'browser-e2e',
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright(),
+            instances: [{ browser: 'chromium' }],
+          },
+          include: ['**/*.browser.test.{ts,tsx}'],
+          exclude: ['node_modules', 'dist'],
         },
       },
       {

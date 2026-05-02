@@ -21,6 +21,7 @@
     "test": "bunx vitest --run --project server",
     "test:watch": "bunx vitest --project server",
     "test:coverage": "bunx vitest --coverage --project server",
+    "test:browser-e2e": "bunx vitest --run --project browser-e2e",
     "test:ui": "bunx vitest --run --config vitest.ui.config.ts",
     "test:ui:watch": "bunx vitest --config vitest.ui.config.ts",
     "storybook": "bunx --bun storybook dev -p 6006",

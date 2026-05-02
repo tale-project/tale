@@ -337,32 +337,6 @@ export const createArenaBranchLink = internalMutation({
 });
 
 /**
- * Updates the content of an assistant message in a thread.
- * Used by the Canvas "Apply" feature to write edited content back.
- */
-export const updateMessageContent = mutation({
-  args: {
-    messageId: v.string(),
-    content: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
-      throw new Error('Unauthenticated');
-    }
-
-    await ctx.runMutation(components.agent.messages.updateMessage, {
-      messageId: args.messageId,
-      patch: {
-        message: { role: 'assistant', content: args.content },
-      },
-    });
-    return null;
-  },
-});
-
-/**
  * Clean up arena branch when exiting arena mode.
  * If verdict is 'b_better', wipes Thread A and copies all of Thread B's messages into it.
  * Then deletes Thread B, the branch link, and arena metadata.

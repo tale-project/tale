@@ -65,4 +65,14 @@ crons.cron(
   {},
 );
 
+// Artifact stream watchdog - clear streamingContent / liveStreamMode on rows
+// where the writing tool call went silent past the threshold (covers crashed
+// agent runs that never reached the tool's finally-block).
+crons.cron(
+  'clear stale artifact streams (every 5 min)',
+  '*/5 * * * *',
+  internal.artifacts.internal_mutations.cleanupStaleStreams,
+  {},
+);
+
 export default crons;

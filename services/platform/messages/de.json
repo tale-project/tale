@@ -2220,10 +2220,8 @@
       "verdictError": "Bewertung konnte nicht gespeichert werden"
     },
     "canvas": {
-      "openInCanvas": "In Canvas öffnen",
       "close": "Canvas schließen",
       "edit": "Bearbeiten",
-      "preview": "Vorschau",
       "copy": "Kopieren",
       "download": "Herunterladen",
       "copied": "Kopiert!",
@@ -2236,7 +2234,17 @@
       "exitFullscreen": "Vollbild verlassen",
       "codeEditor": "Code-Editor",
       "markdownEditor": "Markdown-Editor",
-      "mermaidEditor": "Mermaid-Editor"
+      "mermaidEditor": "Mermaid-Editor",
+      "streamingWriting": "KI schreibt…",
+      "streamingPatch": "KI bearbeitet…",
+      "cancel": "Bearbeitung abbrechen",
+      "streamingDuringEdit": "Der Agent aktualisiert dieses Artefakt — dein Entwurf bleibt gespeichert. Klicke auf Abbrechen, um ihn zu verwerfen."
+    },
+    "artifacts": {
+      "barLabel": "Artefakte in diesem Thread",
+      "barTitle": "Artefakte",
+      "openCard": "Artefakt öffnen: {title}",
+      "touchedByMessage": "{title} (Revision {revision})"
     },
     "branchNavigator": {
       "previous": "Vorheriger Zweig",

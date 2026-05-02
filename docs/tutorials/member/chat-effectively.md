@@ -31,9 +31,9 @@ A first answer is rarely the final one. Use short follow-ups to narrow: "summari
 
 When you land on a result worth reusing, save it to the [Prompt library](/platform/workspace/prompt-library) — next time, the same starting point is one click away.
 
-## Step 5 — Open the result in Canvas when it is more than text
+## Step 5 — See artifacts in Canvas when it is more than text
 
-If the agent returns a long document, a table, a code snippet, or a Mermaid diagram, click **Open in Canvas** above the message. Canvas gives you a side pane with syntax highlighting, live preview, and export — much easier to read than a scrolling chat bubble. See [Canvas](/platform/workspace/canvas) for the full set of actions.
+If the agent returns a runnable HTML page, an SVG, a Mermaid diagram, or a long markdown document, it creates an **artifact** that auto-opens in the Canvas side pane and lists in the Artifacts bar above the chat. Canvas gives you live preview, source editing, and export — much easier to read than a scrolling chat bubble, and the AI can revise the artifact in place when you ask for fixes. See [Canvas](/platform/workspace/canvas) for the full set of actions.
 
 ## Next
 

@@ -31,9 +31,9 @@ Une première réponse est rarement la bonne. Utilise des relances courtes pour 
 
 Quand tu atteins un résultat réutilisable, enregistre-le dans la [Bibliothèque de prompts](/fr/platform/workspace/prompt-library) — la prochaine fois, le même point de départ est à un clic.
 
-## Étape 5 — Ouvrir le résultat dans Canevas quand ce n'est pas que du texte
+## Étape 5 — Voir les artéfacts dans le Canevas quand ce n'est pas que du texte
 
-Si l'agent renvoie un long document, un tableau, un bloc de code ou un diagramme Mermaid, clique **Ouvrir dans le Canevas** au-dessus du message. Le Canevas te donne un volet latéral avec coloration syntaxique, prévisualisation en direct et export — bien plus lisible qu'une bulle de chat qui défile. Voir [Canevas](/fr/platform/workspace/canvas) pour la liste complète des actions.
+Si l'agent renvoie du HTML exécutable, un SVG, un diagramme Mermaid ou un long document Markdown, il crée un **artéfact** qui s'ouvre automatiquement dans le volet latéral du Canevas et apparaît dans la barre d'artéfacts au-dessus du chat. Le Canevas te donne aperçu en direct, édition de la source et export — bien plus lisible qu'une bulle de chat qui défile, et l'IA peut réviser l'artéfact en place quand tu demandes des corrections. Voir [Canevas](/fr/platform/workspace/canvas) pour la liste complète des actions.
 
 ## Ensuite
 
