@@ -440,6 +440,7 @@ import type * as lib_helpers_public_storage_url from "../lib/helpers/public_stor
 import type * as lib_helpers_rag_config from "../lib/helpers/rag_config.js";
 import type * as lib_helpers_status_priority from "../lib/helpers/status_priority.js";
 import type * as lib_http_safe_fetch from "../lib/http/safe_fetch.js";
+import type * as lib_log_redact from "../lib/log_redact.js";
 import type * as lib_message_deduplication from "../lib/message_deduplication.js";
 import type * as lib_metadata_get_metadata_string from "../lib/metadata/get_metadata_string.js";
 import type * as lib_moderation_semaphore from "../lib/moderation/semaphore.js";
@@ -1456,6 +1457,7 @@ declare const fullApi: ApiFromModules<{
   "lib/helpers/rag_config": typeof lib_helpers_rag_config;
   "lib/helpers/status_priority": typeof lib_helpers_status_priority;
   "lib/http/safe_fetch": typeof lib_http_safe_fetch;
+  "lib/log_redact": typeof lib_log_redact;
   "lib/message_deduplication": typeof lib_message_deduplication;
   "lib/metadata/get_metadata_string": typeof lib_metadata_get_metadata_string;
   "lib/moderation/semaphore": typeof lib_moderation_semaphore;

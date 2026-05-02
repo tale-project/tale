@@ -90,7 +90,11 @@ export const chatWithAgent = action({
       userName: authUserName,
     } = await ctx.runMutation(
       internal.threads.internal_mutations.markGenerating,
-      { threadId: args.threadId, agentSlug: args.agentSlug },
+      {
+        threadId: args.threadId,
+        organizationId: args.organizationId,
+        agentSlug: args.agentSlug,
+      },
     );
     console.log(
       `[chatWithAgent] markGenerating OK threadId=${args.threadId} streamId=${preAllocatedStreamId} userId=${authUserId}`,

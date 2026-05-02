@@ -47,6 +47,7 @@ export const getOrCreateSubThreadAtomic = internalMutation({
 export const markGenerating = internalMutation({
   args: {
     threadId: v.string(),
+    organizationId: v.string(),
     agentSlug: v.optional(v.string()),
   },
   returns: v.object({
@@ -68,6 +69,12 @@ export const markGenerating = internalMutation({
         `[markGenerating] Thread not found or ownership mismatch: threadId=${args.threadId} metaExists=${!!meta} metaUserId=${meta?.userId} authUserId=${authUser.userId}`,
       );
       throw new Error('Thread not found');
+    }
+    if (meta.organizationId && meta.organizationId !== args.organizationId) {
+      console.error(
+        `[markGenerating] Thread/org mismatch: threadId=${args.threadId} metaOrg=${meta.organizationId} argOrg=${args.organizationId} userId=${authUser.userId}`,
+      );
+      throw new Error('Thread does not belong to the requested organization');
     }
 
     const streamId = await persistentStreaming.createStream(ctx);
