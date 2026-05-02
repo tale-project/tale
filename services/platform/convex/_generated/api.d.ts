@@ -429,6 +429,7 @@ import type * as lib_crypto_internal_actions from "../lib/crypto/internal_action
 import type * as lib_debug_log from "../lib/debug_log.js";
 import type * as lib_error_classification from "../lib/error_classification.js";
 import type * as lib_file_io from "../lib/file_io.js";
+import type * as lib_fnv1a from "../lib/fnv1a.js";
 import type * as lib_fuzzy_match from "../lib/fuzzy_match.js";
 import type * as lib_get_or_throw from "../lib/get_or_throw.js";
 import type * as lib_get_user_teams from "../lib/get_user_teams.js";
@@ -1446,6 +1447,7 @@ declare const fullApi: ApiFromModules<{
   "lib/debug_log": typeof lib_debug_log;
   "lib/error_classification": typeof lib_error_classification;
   "lib/file_io": typeof lib_file_io;
+  "lib/fnv1a": typeof lib_fnv1a;
   "lib/fuzzy_match": typeof lib_fuzzy_match;
   "lib/get_or_throw": typeof lib_get_or_throw;
   "lib/get_user_teams": typeof lib_get_user_teams;
