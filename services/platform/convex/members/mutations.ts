@@ -5,6 +5,7 @@ import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { authComponent } from '../auth';
+import { cascadeOnMemberRemoved } from '../lib/cascades/personalization_cascade';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import type {
   BetterAuthMember,
@@ -173,6 +174,10 @@ export const removeMember = mutation({
         where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
       },
     });
+
+    if (member.userId) {
+      await cascadeOnMemberRemoved(ctx, member.userId, member.organizationId);
+    }
 
     await AuditLogHelpers.logSuccess(ctx, {
       auditCtx: {
