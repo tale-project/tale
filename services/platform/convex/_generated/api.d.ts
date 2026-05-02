@@ -429,6 +429,7 @@ import type * as lib_crypto_internal_actions from "../lib/crypto/internal_action
 import type * as lib_debug_log from "../lib/debug_log.js";
 import type * as lib_error_classification from "../lib/error_classification.js";
 import type * as lib_file_io from "../lib/file_io.js";
+import type * as lib_fnv1a from "../lib/fnv1a.js";
 import type * as lib_fuzzy_match from "../lib/fuzzy_match.js";
 import type * as lib_get_or_throw from "../lib/get_or_throw.js";
 import type * as lib_get_user_teams from "../lib/get_user_teams.js";
@@ -440,6 +441,7 @@ import type * as lib_helpers_public_storage_url from "../lib/helpers/public_stor
 import type * as lib_helpers_rag_config from "../lib/helpers/rag_config.js";
 import type * as lib_helpers_status_priority from "../lib/helpers/status_priority.js";
 import type * as lib_http_safe_fetch from "../lib/http/safe_fetch.js";
+import type * as lib_log_redact from "../lib/log_redact.js";
 import type * as lib_message_deduplication from "../lib/message_deduplication.js";
 import type * as lib_metadata_get_metadata_string from "../lib/metadata/get_metadata_string.js";
 import type * as lib_moderation_semaphore from "../lib/moderation/semaphore.js";
@@ -1445,6 +1447,7 @@ declare const fullApi: ApiFromModules<{
   "lib/debug_log": typeof lib_debug_log;
   "lib/error_classification": typeof lib_error_classification;
   "lib/file_io": typeof lib_file_io;
+  "lib/fnv1a": typeof lib_fnv1a;
   "lib/fuzzy_match": typeof lib_fuzzy_match;
   "lib/get_or_throw": typeof lib_get_or_throw;
   "lib/get_user_teams": typeof lib_get_user_teams;
@@ -1456,6 +1459,7 @@ declare const fullApi: ApiFromModules<{
   "lib/helpers/rag_config": typeof lib_helpers_rag_config;
   "lib/helpers/status_priority": typeof lib_helpers_status_priority;
   "lib/http/safe_fetch": typeof lib_http_safe_fetch;
+  "lib/log_redact": typeof lib_log_redact;
   "lib/message_deduplication": typeof lib_message_deduplication;
   "lib/metadata/get_metadata_string": typeof lib_metadata_get_metadata_string;
   "lib/moderation/semaphore": typeof lib_moderation_semaphore;

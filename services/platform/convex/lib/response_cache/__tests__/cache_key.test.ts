@@ -87,4 +87,49 @@ describe('computeCacheKey', () => {
     });
     expect(key1).toBe(key2);
   });
+
+  // C3: cross-user response leakage prevention via fingerprint
+  describe('userPersonalizationFingerprint', () => {
+    it('omitting fingerprint matches passing empty string (back-compat)', () => {
+      const key1 = computeCacheKey(BASE_PARAMS);
+      const key2 = computeCacheKey({
+        ...BASE_PARAMS,
+        userPersonalizationFingerprint: '',
+      });
+      expect(key1).toBe(key2);
+    });
+
+    it('non-empty fingerprint produces a different key from omitted', () => {
+      const key1 = computeCacheKey(BASE_PARAMS);
+      const key2 = computeCacheKey({
+        ...BASE_PARAMS,
+        userPersonalizationFingerprint: 'fp_user_a',
+      });
+      expect(key1).not.toBe(key2);
+    });
+
+    it('different fingerprints produce different keys', () => {
+      const keyA = computeCacheKey({
+        ...BASE_PARAMS,
+        userPersonalizationFingerprint: 'fp_user_a',
+      });
+      const keyB = computeCacheKey({
+        ...BASE_PARAMS,
+        userPersonalizationFingerprint: 'fp_user_b',
+      });
+      expect(keyA).not.toBe(keyB);
+    });
+
+    it('same fingerprint produces same key', () => {
+      const key1 = computeCacheKey({
+        ...BASE_PARAMS,
+        userPersonalizationFingerprint: 'fp_user_a',
+      });
+      const key2 = computeCacheKey({
+        ...BASE_PARAMS,
+        userPersonalizationFingerprint: 'fp_user_a',
+      });
+      expect(key1).toBe(key2);
+    });
+  });
 });

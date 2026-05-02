@@ -57,6 +57,7 @@ import {
 import { buildArtifactsContext } from '../context_management/build_artifacts_context';
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
+import { summarizeForLog } from '../log_redact';
 
 const OUTPUT_BLOCKED_SENTINEL = '[blocked by content policy]';
 
@@ -1061,8 +1062,8 @@ export async function generateAgentResponse(
       model,
       enableStreaming,
       promptMessageId,
-      system: systemPrompt,
-      prompt: promptToSend,
+      system: summarizeForLog(systemPrompt),
+      prompt: summarizeForLog(promptToSend),
       effectiveTimeoutMs,
       actionDeadline: new Date(actionDeadline).toISOString(),
       elapsedMs: Date.now() - startTime,
