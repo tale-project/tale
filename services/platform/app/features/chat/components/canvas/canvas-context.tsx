@@ -21,13 +21,11 @@ export type CanvasContentType =
 interface CanvasState {
   isCanvasOpen: boolean;
   artifactId?: Id<'artifacts'>;
-  editBuffer?: string;
 }
 
 interface CanvasContextType extends CanvasState {
   openCanvas: (artifactId: Id<'artifacts'>) => void;
   closeCanvas: () => void;
-  setEditBuffer: (content: string | undefined) => void;
 }
 
 const CanvasContext = createContext<CanvasContextType | null>(null);
@@ -51,7 +49,6 @@ interface CanvasProviderProps {
 const INITIAL_STATE: CanvasState = {
   isCanvasOpen: false,
   artifactId: undefined,
-  editBuffer: undefined,
 };
 
 export function CanvasProvider({ children }: CanvasProviderProps) {
@@ -61,7 +58,6 @@ export function CanvasProvider({ children }: CanvasProviderProps) {
     setState({
       isCanvasOpen: true,
       artifactId,
-      editBuffer: undefined,
     });
   }, []);
 
@@ -69,12 +65,7 @@ export function CanvasProvider({ children }: CanvasProviderProps) {
     setState((prev) => ({
       ...prev,
       isCanvasOpen: false,
-      editBuffer: undefined,
     }));
-  }, []);
-
-  const setEditBuffer = useCallback((content: string | undefined) => {
-    setState((prev) => ({ ...prev, editBuffer: content }));
   }, []);
 
   const value = useMemo(
@@ -82,9 +73,8 @@ export function CanvasProvider({ children }: CanvasProviderProps) {
       ...state,
       openCanvas,
       closeCanvas,
-      setEditBuffer,
     }),
-    [state, openCanvas, closeCanvas, setEditBuffer],
+    [state, openCanvas, closeCanvas],
   );
 
   return (

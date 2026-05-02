@@ -93,8 +93,12 @@ function SpinnerIcon({ className }: { className?: string }) {
 function CanvasPaneComponent() {
   const { t } = useT('chat');
   const { toast } = useToast();
-  const { isCanvasOpen, artifactId, editBuffer, closeCanvas, setEditBuffer } =
-    useCanvas();
+  const { isCanvasOpen, artifactId, closeCanvas } = useCanvas();
+  // Edit buffer lives in local state — only this component reads / writes it.
+  // Keeping it in CanvasContext used to fan out a per-keystroke render to
+  // every `useCanvas()` consumer (ArtifactBar, MessageArtifactPills,
+  // PlanPane), which dominated the cost of editing a 200 KB artifact.
+  const [editBuffer, setEditBuffer] = useState<string | undefined>(undefined);
 
   const artifact = useQuery(
     api.artifacts.queries.getById,
@@ -126,8 +130,20 @@ function CanvasPaneComponent() {
     if (!isCanvasOpen) {
       setIsEditing(false);
       setIsFullscreen(false);
+      setEditBuffer(undefined);
     }
   }, [isCanvasOpen]);
+
+  // Reset edit-in-progress state when the user switches to a different
+  // artifact so previous typing doesn't leak across.
+  const prevEditArtifactRef = useRef(artifactId);
+  useEffect(() => {
+    if (prevEditArtifactRef.current !== artifactId) {
+      prevEditArtifactRef.current = artifactId;
+      setIsEditing(false);
+      setEditBuffer(undefined);
+    }
+  }, [artifactId]);
 
   // Pulse the content area when an AI stream finishes settling. Patch in
   // particular is an instant transition (content was unchanged during the
@@ -429,7 +445,12 @@ function CanvasPaneComponent() {
       <div
         className={
           isFullscreen
-            ? `bg-background/95 border-border absolute top-0 right-0 left-0 z-30 flex items-center justify-between border-b p-3 backdrop-blur transition-transform duration-200 ${
+            ? // No `backdrop-blur` here on purpose — it forces the compositor
+              // to re-sample the streaming content beneath every frame, which
+              // is one of the top paint costs at 100KB+ artifact size. The
+              // `bg-background/95` is opaque enough that the blur was barely
+              // visible anyway. See R2-05 in the perf review.
+              `bg-background/95 border-border absolute top-0 right-0 left-0 z-30 flex items-center justify-between border-b p-3 transition-transform duration-200 ${
                 isHeaderVisible ? 'translate-y-0' : '-translate-y-full'
               }`
             : 'border-border flex items-center justify-between border-b p-3'

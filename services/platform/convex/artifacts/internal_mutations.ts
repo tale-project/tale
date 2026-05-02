@@ -9,6 +9,19 @@ import {
 } from './schema';
 
 const STALE_STREAM_THRESHOLD_MS = 60_000;
+/**
+ * Minimum interval between `liveStreamStartedAt` heartbeat refreshes inside
+ * `updateStreamingContent`. The cron janitor (`cleanupStaleStreams`) reaps
+ * any row whose heartbeat is older than `STALE_STREAM_THRESHOLD_MS`, so
+ * refreshing the heartbeat well inside that window is sufficient. Skipping
+ * the redundant patch on every chunk also keeps the doc-level `useQuery`
+ * subscriptions (artifact-bar, MessageArtifactPills) from re-running on
+ * every flush — content-stream flushes happen every ~100-250 ms, but the
+ * subscribed queries only need to invalidate when their projected metadata
+ * (title, revision, liveStreamMode) actually changed. Must stay <<
+ * STALE_STREAM_THRESHOLD_MS.
+ */
+const HEARTBEAT_THROTTLE_MS = 5_000;
 
 /**
  * Hard cap on a stored artifact's content (settled or streaming). Convex's
@@ -326,10 +339,16 @@ export const updateStreamingContent = internalMutation({
       patch.streamingPatches = args.streamingPatches;
     }
     if (Object.keys(patch).length === 0) return null;
-    // Refresh the liveness timestamp on every flush — `liveStreamStartedAt`
-    // is the watchdog input for `cleanupStaleStreams`. Without this refresh
-    // a long stream (>60s of model output) gets reaped mid-flight.
-    patch.liveStreamStartedAt = Date.now();
+    // Refresh the liveness timestamp at most every HEARTBEAT_THROTTLE_MS.
+    // `liveStreamStartedAt` is the watchdog input for `cleanupStaleStreams`;
+    // refreshing inside the threshold window is enough to keep the row alive
+    // and avoids invalidating doc-level Convex subscriptions on every chunk.
+    const existing = await ctx.db.get(args.artifactId);
+    const now = Date.now();
+    const lastBeat = existing?.liveStreamStartedAt ?? 0;
+    if (now - lastBeat >= HEARTBEAT_THROTTLE_MS) {
+      patch.liveStreamStartedAt = now;
+    }
     await ctx.db.patch(args.artifactId, patch);
     return null;
   },

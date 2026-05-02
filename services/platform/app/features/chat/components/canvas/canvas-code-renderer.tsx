@@ -8,12 +8,14 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { ReactNode } from 'react';
 
 import { useTheme } from '@/app/components/theme/theme-provider';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { highlightCode } from '@/lib/utils/shiki';
+
+import { buildHunks } from './build-hunks';
+import { PatchHunkView } from './patch-hunk-view';
 
 interface CanvasCodeRendererProps {
   code: string;
@@ -25,8 +27,8 @@ interface CanvasCodeRendererProps {
   isStreaming?: boolean;
   /** When provided (patch streams), each entry pairs the model's `search`
    * snippet with its (potentially still-streaming) `replace`. The renderer
-   * locates the search in the source and renders a strikethrough + insert
-   * preview so the user sees the diff that is about to land. */
+   * builds focused hunks from these and shows only the changed regions plus
+   * ±3 context lines, instead of materialising the full source per push. */
   highlightPatches?: readonly { search: string; replace: string }[];
   onContentChange: (content: string) => void;
 }
@@ -38,69 +40,6 @@ const STICK_TO_BOTTOM_THRESHOLD_PX = 24;
 function extractShikiCodeContent(html: string): string {
   const codeMatch = html.match(/<code[^>]*>([\s\S]*?)<\/code>/);
   return codeMatch ? codeMatch[1] : html;
-}
-
-interface DiffRange {
-  start: number;
-  end: number;
-  replace: string;
-}
-
-/**
- * Render the source with each patch's `search` block struck through and the
- * incoming `replace` text shown alongside as an addition. Plain-text
- * rendering — used during patch streams in lieu of shiki, since shiki HTML
- * cannot host overlay marks without re-tokenising. The trade-off (no syntax
- * colour for a few seconds) is worth the explicit "this becomes that"
- * signal. When `replace` is still empty (model mid-typing the replacement)
- * we render only the strikethrough; the addition appears once any
- * replacement text arrives.
- */
-function renderWithDiff(
-  code: string,
-  patches: readonly { search: string; replace: string }[],
-): ReactNode[] {
-  const ranges: DiffRange[] = [];
-  for (const patch of patches) {
-    if (!patch.search) continue;
-    const idx = code.indexOf(patch.search);
-    if (idx === -1) continue;
-    const start = idx;
-    const end = idx + patch.search.length;
-    // Skip overlap with an already-claimed range. First-write-wins keeps
-    // the visualisation deterministic when search snippets happen to nest.
-    const overlaps = ranges.some((r) => !(end <= r.start || start >= r.end));
-    if (!overlaps) ranges.push({ start, end, replace: patch.replace });
-  }
-  if (ranges.length === 0) return [code];
-  ranges.sort((a, b) => a.start - b.start);
-  const parts: ReactNode[] = [];
-  let cursor = 0;
-  for (let i = 0; i < ranges.length; i += 1) {
-    const r = ranges[i];
-    if (cursor < r.start) parts.push(code.slice(cursor, r.start));
-    parts.push(
-      <del
-        key={`del-${r.start}`}
-        className="bg-destructive/15 text-destructive/90 decoration-destructive/60 rounded-sm decoration-2"
-      >
-        {code.slice(r.start, r.end)}
-      </del>,
-    );
-    if (r.replace.length > 0) {
-      parts.push(
-        <ins
-          key={`ins-${r.start}`}
-          className="bg-success/15 text-success-foreground rounded-sm px-0.5 no-underline"
-        >
-          {r.replace}
-        </ins>,
-      );
-    }
-    cursor = r.end;
-  }
-  if (cursor < code.length) parts.push(code.slice(cursor));
-  return parts;
 }
 
 function CanvasCodeRendererComponent({
@@ -120,34 +59,36 @@ function CanvasCodeRendererComponent({
   const stickToBottomRef = useRef(true);
 
   // Defer expensive render inputs so React can commit a previous snapshot
-  // immediately and schedule the heavy work (diff node array spanning the
-  // entire source, plain-text re-render of a 30 KB+ string) at low priority.
-  // Critical effects below — scrollIntoView on first patch, stick-to-bottom
-  // during create/rewrite — keep reading the *real* `code` / `highlightPatches`
-  // so they fire on the actual transition, not the deferred one.
+  // immediately and schedule the heavy work (hunk recomputation, plain-text
+  // re-render of a 30 KB+ string for create/rewrite) at low priority.
+  // Critical effects below — stick-to-bottom during create/rewrite — keep
+  // reading the *real* `code` so they fire on the actual transition.
   const deferredCode = useDeferredValue(code);
   const deferredHighlightPatches = useDeferredValue(highlightPatches);
 
-  // Memoize the diff node array. During a patch stream the model emits a new
-  // patches snapshot every ~40 ms; without memoization, each render did a
-  // fresh `indexOf` scan of the source for every patch and rebuilt a node
-  // array spanning the whole 30 KB+ string. Cached on (code, patches), the
-  // diff only recomputes when the deferred inputs actually change.
-  const diffNodes = useMemo<ReactNode[] | null>(() => {
-    if (!deferredHighlightPatches || deferredHighlightPatches.length === 0) {
-      return null;
-    }
-    return renderWithDiff(deferredCode, deferredHighlightPatches);
-  }, [deferredCode, deferredHighlightPatches]);
+  // Build hunks from the (possibly stale) deferred patch list. Memoized on
+  // both inputs so we only re-walk the source when patches actually change.
+  // For typical artifacts (10s of KB), this is a single-digit-ms scan; for
+  // very large artifacts the cost stays linear in source size but materially
+  // smaller than the prior `renderWithDiff` (which produced a ReactNode array
+  // spanning the whole document on every Convex push).
+  const hunks = useMemo(
+    () =>
+      deferredHighlightPatches && deferredHighlightPatches.length > 0
+        ? buildHunks(deferredCode, deferredHighlightPatches)
+        : null,
+    [deferredCode, deferredHighlightPatches],
+  );
 
   // Skip shiki during a live stream or while a patch diff is on screen.
   // Re-tokenising the whole document on every code-grow tick falls behind
   // fast streams: the cancellation flag turns each result into a no-op so
   // `html` state never advances, and the user perceives a "burst, silence,
   // burst" cadence as shiki finally completes a pass during a stream pause.
-  // The plain-text fallback below renders synchronously every render.
-  // Patch streams already render via renderWithDiff (shiki output cannot
-  // host overlay marks), so highlighting there is wasted work.
+  // Patch streams already render via the hunk view (plain-text), so highlighting
+  // the full source there is wasted work. The size guard lives inside
+  // highlightCode itself (see MAX_SHIKI_BYTES) — it returns null for content
+  // larger than the threshold and we fall through to the plain-text branch.
   const skipShiki =
     isStreaming ||
     (highlightPatches !== undefined && highlightPatches.length > 0);
@@ -192,46 +133,41 @@ function CanvasCodeRendererComponent({
   // (e.g. patch streams, where `code` doesn't grow at all). If the user
   // scrolls up to read earlier output during a real content stream,
   // stickToBottomRef goes false and we leave them alone until they scroll
-  // back near the bottom. Keyed on `deferredCode` (not the prop `code`) so
-  // we wait until the deferred re-render has actually flushed the new
-  // characters into the DOM — otherwise `pre.scrollHeight` is read against
-  // the previous (smaller) content and we scroll to a stale bottom.
+  // back near the bottom.
+  //
+  // The actual scroll write is scheduled inside requestAnimationFrame so we
+  // don't force a layout flush in the same tick as the React commit that
+  // mutated the DOM — the prior synchronous version reflowed the whole `<pre>`
+  // twice per stream chunk on large content. The early "already there"
+  // bail-out avoids no-op rAF schedules when the stream is idle.
   useEffect(() => {
-    if (!isStreaming) return;
+    if (!isStreaming) return undefined;
     const pre = preRef.current;
-    if (pre && stickToBottomRef.current) {
-      pre.scrollTop = pre.scrollHeight;
-    }
+    if (!pre || !stickToBottomRef.current) return undefined;
+    const target = pre.scrollHeight - pre.clientHeight;
+    if (pre.scrollTop >= target) return undefined;
+    const id = requestAnimationFrame(() => {
+      const live = preRef.current;
+      if (live && stickToBottomRef.current) {
+        live.scrollTop = live.scrollHeight;
+      }
+    });
+    return () => cancelAnimationFrame(id);
   }, [deferredCode, html, isStreaming]);
 
-  // When the first patch target appears, scroll the matched region into view
-  // so the user actually sees the diff — patch streams don't trigger the
-  // auto-follow above (no content growth) and the source might be long.
-  // Depend on `diffNodes` as well so we retry on the deferred commit: the
-  // urgent render fires this effect before the `<del>` is in the DOM (the
-  // memoized diff is still null), and only the deferred commit actually
-  // mounts it. The ref guard keeps us from scrolling more than once per
-  // patch session.
-  const patchesCount = highlightPatches?.length ?? 0;
-  const previouslyHighlightedRef = useRef(false);
-  useEffect(() => {
-    if (patchesCount === 0) {
-      previouslyHighlightedRef.current = false;
-      return;
-    }
-    if (previouslyHighlightedRef.current) return;
-    const pre = preRef.current;
-    const firstDel = pre?.querySelector('del');
-    if (!(firstDel instanceof HTMLElement)) return;
-    previouslyHighlightedRef.current = true;
-    firstDel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [patchesCount, diffNodes]);
-
   if (isEditing) {
+    // Uncontrolled textarea: `defaultValue` is read once on mount and the DOM
+    // owns the typing state thereafter. The `onChange` still notifies the
+    // parent — the parent stores the latest text in its edit buffer so Apply
+    // / Copy / Download see the freshest content — but React no longer
+    // re-writes a 200 KB `value` attribute on every keystroke (the dominant
+    // cost in the prior controlled version). The textarea unmounts whenever
+    // `isEditing` flips off or `artifactId` changes (parent resets the flag),
+    // so `defaultValue` correctly re-seeds on the next mount.
     return (
       <textarea
         ref={textareaRef}
-        value={code}
+        defaultValue={code}
         onChange={(e) => onContentChange(e.target.value)}
         className={cn(
           'bg-muted text-foreground h-full w-full resize-none p-4 font-mono text-xs leading-relaxed',
@@ -250,17 +186,17 @@ function CanvasCodeRendererComponent({
     />
   ) : null;
 
-  // Patch streaming: render an inline diff preview — each patch's `search`
-  // is struck through and the `replace` (when present) is rendered as an
-  // addition next to it. Plain-text fallback for shiki's sake; see
-  // renderWithDiff for the trade-off discussion. `diffNodes` is null on the
-  // single render where deferred patches haven't caught up yet — fall back
-  // to plain `code` so we don't flash an empty pre.
+  // Patch streaming: render the focused hunk view. Patches whose `search`
+  // doesn't (yet) match anywhere in the source produce zero hunks — fall back
+  // to the plain deferred source so the pane never goes empty.
   if (highlightPatches && highlightPatches.length > 0) {
+    if (hunks && hunks.length > 0) {
+      return <PatchHunkView hunks={hunks} />;
+    }
     return (
       <pre ref={preRef} className="bg-muted h-full overflow-auto p-4">
         <code className="text-xs leading-relaxed">
-          {diffNodes ?? deferredCode}
+          {deferredCode}
           {caret}
         </code>
       </pre>

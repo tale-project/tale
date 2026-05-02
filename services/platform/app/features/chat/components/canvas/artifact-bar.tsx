@@ -14,12 +14,10 @@ import { memo, useEffect, useRef, type ComponentType } from 'react';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Button } from '@/app/components/ui/primitives/button';
 import { api } from '@/convex/_generated/api';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { ArtifactListItem } from '@/convex/artifacts/queries';
 import { useT } from '@/lib/i18n/client';
 
 import { useCanvas, type CanvasContentType } from './canvas-context';
-
-type ArtifactRow = Doc<'artifacts'>;
 
 const TYPE_ICONS: Record<
   CanvasContentType,
@@ -54,7 +52,7 @@ function ArtifactBarComponent({ organizationId, threadId }: ArtifactBarProps) {
   const autoOpenedRef = useRef(new Set<string>());
   useEffect(() => {
     if (!artifacts || artifacts.length === 0) return;
-    const newest = artifacts.reduce<ArtifactRow | undefined>((acc, a) => {
+    const newest = artifacts.reduce<ArtifactListItem | undefined>((acc, a) => {
       if (!acc) return a;
       return a.createdAt > acc.createdAt ? a : acc;
     }, undefined);

@@ -6,7 +6,6 @@
  * Used by chat code blocks and document text preview.
  */
 
-import DOMPurify from 'dompurify';
 import { createHighlighterCore, type HighlighterCore } from 'shiki/core';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
 
@@ -86,12 +85,43 @@ export function resolveLanguage(langOrExt: string): string {
   return LANG_ALIASES[lower] || lower;
 }
 
+/**
+ * Cap on the input size we'll synchronously tokenize on the main thread.
+ * Above this, callers should fall back to a plain-text render — Shiki's
+ * `codeToHtml` is O(n) but blocking, and on a 250 KB document the freeze
+ * runs 300 ms-2 s on a mid-range laptop.
+ *
+ * Hunk views call shiki per-hunk (≤ a few KB each), so they sit well below
+ * this cap; only the settled-source full-document path can hit it.
+ */
+export const MAX_SHIKI_BYTES = 64_000;
+
+/**
+ * Tokenize `code` into highlighted HTML. Returns `null` when:
+ *   - `code.length` exceeds `MAX_SHIKI_BYTES` (caller should plain-text)
+ *   - the underlying highlighter fails to initialize or render
+ *
+ * Note: Shiki's `codeToHtml` produces HTML built from a fixed grammar set
+ * with all user content escaped via innerText — there is no path for user
+ * code to inject HTML attributes or scripts. We deliberately do NOT wrap
+ * the output in `DOMPurify.sanitize`: it costs ~100-400 ms on large
+ * documents while removing nothing Shiki itself emits.
+ */
 export async function highlightCode(
   code: string,
   lang: string,
   theme: 'github-dark' | 'github-light' = 'github-dark',
-): Promise<string> {
-  const hl = await getHighlighter();
+): Promise<string | null> {
+  if (code.length > MAX_SHIKI_BYTES) return null;
+
+  let hl: HighlighterCore;
+  try {
+    hl = await getHighlighter();
+  } catch (err) {
+    console.warn('[shiki] highlighter init failed:', err);
+    return null;
+  }
+
   const resolvedLang = resolveLanguage(lang);
 
   const loadedLangs = hl.getLoadedLanguages();
@@ -102,10 +132,24 @@ export async function highlightCode(
           `shiki/langs/${resolvedLang}.mjs`
         ) as Parameters<HighlighterCore['loadLanguage']>[0],
       );
-    } catch {
-      return DOMPurify.sanitize(hl.codeToHtml(code, { lang: 'text', theme }));
+    } catch (err) {
+      console.warn(
+        `[shiki] language "${resolvedLang}" not loadable, falling back to plaintext:`,
+        err,
+      );
+      try {
+        return hl.codeToHtml(code, { lang: 'text', theme });
+      } catch (htmlErr) {
+        console.warn('[shiki] plaintext fallback failed:', htmlErr);
+        return null;
+      }
     }
   }
 
-  return DOMPurify.sanitize(hl.codeToHtml(code, { lang: resolvedLang, theme }));
+  try {
+    return hl.codeToHtml(code, { lang: resolvedLang, theme });
+  } catch (err) {
+    console.warn(`[shiki] codeToHtml failed for lang="${resolvedLang}":`, err);
+    return null;
+  }
 }
