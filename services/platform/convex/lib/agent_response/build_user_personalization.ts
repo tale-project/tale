@@ -12,38 +12,6 @@ const PER_MEMORY_BUDGET_TOK = 200;
 const MEMORIES_TOTAL_BUDGET_TOK = 600;
 const HARD_TOTAL_BUDGET_TOK = 1500;
 
-// EU-language heuristic — v1 fallback in lieu of a proper region field.
-// Set per the plan: "userPreferences.language 启发式 (de/fr/es/it/nl ...)".
-const EU_LANGUAGE_PREFIXES = new Set([
-  'de',
-  'fr',
-  'es',
-  'it',
-  'nl',
-  'pt',
-  'pl',
-  'sv',
-  'da',
-  'fi',
-  'cs',
-  'sk',
-  'hu',
-  'ro',
-  'bg',
-  'el',
-  'hr',
-  'sl',
-  'et',
-  'lv',
-  'lt',
-]);
-
-function isEuLanguage(language: string | undefined): boolean {
-  if (!language) return false;
-  const head = language.toLowerCase().split('-')[0] ?? language.toLowerCase();
-  return EU_LANGUAGE_PREFIXES.has(head);
-}
-
 function nonce(): string {
   return Math.floor(Math.random() * 0xffffffff)
     .toString(16)
@@ -96,12 +64,13 @@ const EMPTY: UserPersonalization = {
 
 /**
  * Build the user personalization block to inject between agent_instructions
- * and thread_context in the system prompt. Returns empty when any of the
- * four kill switches is engaged or the EU JIT-consent gate is closed.
+ * and thread_context in the system prompt. Returns empty when any kill
+ * switch is engaged.
  *
- * Defense-in-depth: callers also strip the `propose_memory` tool when this
- * returns empty (handled in generate_response.ts). We never want a chat to
- * be able to write memories it cannot read.
+ * Default is OFF: a missing `userPreferences` row, or `enabled !== true`,
+ * returns empty. Org-level feature flag and per-thread disable also
+ * short-circuit. Callers also strip the `propose_memory` tool whenever
+ * this returns empty (handled in generate_response.ts).
  */
 export async function buildUserPersonalization(
   ctx: GenericActionCtx<DataModel>,
@@ -126,20 +95,10 @@ export async function buildUserPersonalization(
     if (!data.orgEnabled) return EMPTY;
 
     const prefs = data.preferences;
-    if (prefs && !prefs.enabled) return EMPTY;
+    // Default-OFF: no row, or row with enabled !== true, blocks injection.
+    if (!prefs || prefs.enabled !== true) return EMPTY;
 
-    // EU JIT-consent gate: block if the user's language is an EU locale
-    // AND we have not yet recorded an explicit consent click. v2 will
-    // replace this with a proper region field on the org/user.
-    if (
-      prefs &&
-      isEuLanguage(prefs.language) &&
-      typeof prefs.consentedAt !== 'number'
-    ) {
-      return EMPTY;
-    }
-
-    const customInstructions = (prefs?.customInstructions ?? '').trim();
+    const customInstructions = (prefs.customInstructions ?? '').trim();
     const customTokens = customInstructions
       ? Math.min(
           estimateTokens(customInstructions),

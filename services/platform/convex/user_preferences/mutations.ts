@@ -4,14 +4,12 @@ import { mutation } from '../_generated/server';
 import { estimateTokens } from '../lib/context_management/estimate_tokens';
 import { assertSelfAndOrgMember } from '../lib/rls/auth/assert_self_and_org_member';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
-
-const CUSTOM_INSTRUCTIONS_MAX_TOKENS = 800;
+import { CUSTOM_INSTRUCTIONS_MAX_TOKENS } from '../user_memories/constants';
 
 export const upsertMyPreferences = mutation({
   args: {
     organizationId: v.string(),
     customInstructions: v.string(),
-    language: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const authUser = await requireAuthenticatedUser(ctx);
@@ -43,60 +41,18 @@ export const upsertMyPreferences = mutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         customInstructions: args.customInstructions,
-        language: args.language ?? existing.language,
         updatedAt: now,
       });
       return existing._id;
     }
+    // Default-OFF: writing custom instructions without explicitly toggling
+    // enabled stores the text but leaves personalization disabled. User
+    // must call `setEnabled({enabled: true})` to activate.
     return await ctx.db.insert('userPreferences', {
       userId: authUser.userId,
       organizationId: args.organizationId,
       customInstructions: args.customInstructions,
-      enabled: true,
-      language: args.language,
-      updatedAt: now,
-    });
-  },
-});
-
-/**
- * Records the EU just-in-time consent click. Idempotent: re-recording does
- * not overwrite the original timestamp.
- */
-export const recordConsent = mutation({
-  args: {
-    organizationId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const authUser = await requireAuthenticatedUser(ctx);
-    await assertSelfAndOrgMember(
-      ctx,
-      authUser,
-      authUser.userId,
-      args.organizationId,
-    );
-
-    const now = Date.now();
-    const existing = await ctx.db
-      .query('userPreferences')
-      .withIndex('by_userId_organizationId', (q) =>
-        q
-          .eq('userId', authUser.userId)
-          .eq('organizationId', args.organizationId),
-      )
-      .first();
-    if (existing) {
-      if (!existing.consentedAt) {
-        await ctx.db.patch(existing._id, { consentedAt: now, updatedAt: now });
-      }
-      return existing._id;
-    }
-    return await ctx.db.insert('userPreferences', {
-      userId: authUser.userId,
-      organizationId: args.organizationId,
-      customInstructions: '',
-      enabled: true,
-      consentedAt: now,
+      enabled: false,
       updatedAt: now,
     });
   },
