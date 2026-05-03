@@ -3,11 +3,12 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
 import { estimateTokens } from '../lib/context_management/estimate_tokens';
+import {
+  ILLEGAL_CONTENT_RE,
+  MEMORY_CONTENT_MAX_TOKENS,
+  PROPOSAL_DAY_WINDOW_MS,
+} from './constants';
 import { maybeRunCleanup } from './lazy_cleanup';
-
-const PROPOSAL_CONTENT_MAX_TOKENS = 200;
-const ILLEGAL_CONTENT_RE = /[\n\r<>` -]/;
-const PROPOSAL_DAY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 interface WriteProposalResult {
   ok: boolean;
@@ -93,11 +94,11 @@ export const writeProposal = internalMutation({
           'brackets, backticks, or control characters).',
       };
     }
-    if (estimateTokens(trimmed) > PROPOSAL_CONTENT_MAX_TOKENS) {
+    if (estimateTokens(trimmed) > MEMORY_CONTENT_MAX_TOKENS) {
       await audit('denied');
       return {
         ok: false,
-        reason: `Memory content exceeds the ${PROPOSAL_CONTENT_MAX_TOKENS} token limit.`,
+        reason: `Memory content exceeds the ${MEMORY_CONTENT_MAX_TOKENS} token limit.`,
       };
     }
 
