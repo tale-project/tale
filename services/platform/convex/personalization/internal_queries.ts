@@ -14,7 +14,7 @@ const MEMORY_INJECTION_LIMIT = 20;
  * Absent / disabled / wrong shape → false (default-off; orgs must
  * explicitly opt in).
  */
-async function isPersonalizationEnabled(
+export async function isPersonalizationEnabled(
   ctx: GenericQueryCtx<DataModel>,
   organizationId: string,
 ): Promise<boolean> {
@@ -30,6 +30,57 @@ async function isPersonalizationEnabled(
   if (!isRecord(config)) return false;
   return config['personalization_v1'] === true;
 }
+
+/**
+ * Single source of truth for the read+write kill-switch. Returns true
+ * only when ALL conditions hold: org has opted in, user prefs exist
+ * with `enabled === true` (default-OFF), and the thread has not been
+ * marked `disablePersonalization`.
+ *
+ * Used by:
+ *  - `buildUserPersonalization` (read-side via getPersonalizationDataForInjection)
+ *  - `internal_actions.ts` (decides whether to attach propose_memory)
+ *  - `writeProposal` (mutation defense-in-depth)
+ *  - `personalization/queries.ts:isPersonalizationActiveForChat`
+ *    (UI subscribes to know whether to render the inline pending card)
+ *
+ * Caller must pass an explicit (userId, organizationId, threadId) — no
+ * client-supplied identity.
+ */
+export async function evaluatePersonalizationGates(
+  ctx: GenericQueryCtx<DataModel>,
+  args: { userId: string; organizationId: string; threadId?: string },
+): Promise<boolean> {
+  if (!(await isPersonalizationEnabled(ctx, args.organizationId))) return false;
+
+  const prefs = await ctx.db
+    .query('userPreferences')
+    .withIndex('by_userId_organizationId', (q) =>
+      q.eq('userId', args.userId).eq('organizationId', args.organizationId),
+    )
+    .first();
+  if (!prefs || prefs.enabled !== true) return false;
+
+  if (args.threadId) {
+    const meta = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId!))
+      .first();
+    if (meta?.disablePersonalization === true) return false;
+  }
+
+  return true;
+}
+
+export const isPersonalizationActiveForChat = internalQuery({
+  args: {
+    userId: v.string(),
+    organizationId: v.string(),
+    threadId: v.string(),
+  },
+  handler: async (ctx, args): Promise<boolean> =>
+    evaluatePersonalizationGates(ctx, args),
+});
 
 interface PersonalizationData {
   orgEnabled: boolean;

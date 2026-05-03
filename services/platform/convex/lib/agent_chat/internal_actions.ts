@@ -374,6 +374,22 @@ export const runAgentGeneration = internalAction({
             });
           }
 
+          // Read+write symmetry: only attach `propose_memory` when ALL
+          // runtime kill-switches agree. Same gate as buildUserPersonalization
+          // (org feature flag, prefs.enabled === true, threadDisablePersonalization).
+          // The agent-level `personalizationMode === 'off'` short-circuits
+          // before we hit the DB.
+          const personalizationActive =
+            userId &&
+            organizationId &&
+            agentConfig.personalizationMode !== 'off'
+              ? await ctx.runQuery(
+                  internal.personalization.internal_queries
+                    .isPersonalizationActiveForChat,
+                  { userId, organizationId, threadId },
+                )
+              : false;
+
           // Create agent factory function from serializable config
           const createAgent = () => {
             // Filter tools: exclude rag_search/web when their retrieval mode
@@ -381,20 +397,15 @@ export const runAgentGeneration = internalAction({
             // Drop `image` when the chat model handles images natively.
             const knowledgeMode = agentConfig.knowledgeMode ?? 'off';
             const webSearchMode = agentConfig.webSearchMode ?? 'off';
-            // Auto-include `propose_memory` for any agent where
-            // personalizationMode is 'on' (default). Use 'off' for
-            // strict-format / regulated agents (GDPR Art 22 / EU AI Act
-            // high-risk). The tool itself defends against
-            // threadDisablePersonalization at write time.
-            const personalizationOn = agentConfig.personalizationMode !== 'off';
             const baseToolList = agentConfig.convexToolNames ?? [];
             const withPropose: string[] =
-              personalizationOn && !baseToolList.includes('propose_memory')
+              personalizationActive && !baseToolList.includes('propose_memory')
                 ? [...baseToolList, 'propose_memory']
                 : baseToolList;
             const filteredToolNames = withPropose.filter((n): n is ToolName => {
               if (!(TOOL_NAMES as readonly string[]).includes(n)) return false;
-              if (n === 'propose_memory' && !personalizationOn) return false;
+              if (n === 'propose_memory' && !personalizationActive)
+                return false;
               if (
                 n === 'rag_search' &&
                 knowledgeMode !== 'tool' &&

@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
 import { estimateTokens } from '../lib/context_management/estimate_tokens';
+import { evaluatePersonalizationGates } from '../personalization/internal_queries';
 import {
   ILLEGAL_CONTENT_RE,
   MEMORY_CONTENT_MAX_TOKENS,
@@ -17,13 +18,15 @@ interface WriteProposalResult {
 }
 
 /**
- * Internal write path for the `propose_memory` agent tool. Bypasses public
- * auth (the caller is the chat action runtime, which has already validated
- * the user) but still enforces:
+ * Internal write path for the `propose_memory` agent tool. Bypasses
+ * public auth (the caller is the chat action runtime, which has already
+ * validated the user) but still enforces:
  *
- *  - Org-membership: rejects if the (userId, organizationId) tuple is no
- *    longer a current member of the org. Defense against a stale agent
- *    runtime context after a member was removed.
+ *  - Same kill-switch gate as the read path: org feature flag,
+ *    `prefs.enabled === true`, and `!threadMetadata.disablePersonalization`.
+ *    Default-OFF: a missing prefs row blocks the write. Membership is
+ *    transitively covered because `cascadeOnMemberRemoved` deletes the
+ *    user's prefs row when they leave the org.
  *  - Content shape: same regex/token caps the public mutations apply.
  *  - Rate limits: per-thread (≤ 3 pending) and per-(user, org) per 24h
  *    (≤ 20 proposals total).
@@ -64,19 +67,22 @@ export const writeProposal = internalMutation({
       );
     };
 
-    // Temp-chat / per-thread opt-out gate. Even if the agent has the tool,
-    // writes against an opted-out thread are rejected — the proposal would
-    // never be visible to the user via listPendingMemories anyway, so we
-    // reject early to avoid orphaned rows.
-    const threadMeta = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
-    if (threadMeta?.disablePersonalization === true) {
+    // Read+write symmetry: same gate as buildUserPersonalization. Blocks
+    // when the org has not opted in, the user has not enabled
+    // personalization (default-OFF), the thread has been opted out, or
+    // (transitively) the user is no longer an org member — the cascade
+    // hook deletes their prefs row on removal.
+    const allowed = await evaluatePersonalizationGates(ctx, {
+      userId: args.userId,
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+    });
+    if (!allowed) {
       await audit('denied');
       return {
         ok: false,
-        reason: 'This thread has personalization disabled.',
+        reason:
+          'Personalization is not enabled for this user, organization, or thread.',
       };
     }
 
