@@ -11,6 +11,14 @@ vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
 }));
 
+vi.mock('convex/react', () => ({
+  useQuery: () => undefined,
+}));
+
+vi.mock('../../hooks/use-personalization-active', () => ({
+  usePersonalizationActiveForThread: () => false,
+}));
+
 vi.mock('../message-bubble', () => ({
   MessageBubble: ({
     message,
