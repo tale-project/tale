@@ -12,11 +12,16 @@ const PER_MEMORY_BUDGET_TOK = 200;
 const MEMORIES_TOTAL_BUDGET_TOK = 600;
 const HARD_TOTAL_BUDGET_TOK = 1500;
 
-function nonce(): string {
-  return Math.floor(Math.random() * 0xffffffff)
-    .toString(16)
-    .padStart(8, '0')
-    .slice(0, 4);
+/**
+ * Deterministic 4-hex nonce derived from (memoryId, content). Marks
+ * each `<memory>` span uniquely without busting upstream prompt caches
+ * when the memory set hasn't changed: identical inputs produce
+ * identical text. The structural defense against prompt-injection is
+ * `escapeForXmlContent` which neutralises `<` / `>` / `&`; the nonce
+ * is just a parsing aid the policy footer references.
+ */
+function nonce(memoryId: string, content: string): string {
+  return fnv1aHash(`${memoryId}␟${content}`).slice(0, 4);
 }
 
 function escapeForXmlContent(s: string): string {
@@ -126,7 +131,7 @@ export async function buildUserPersonalization(
     }
     if (includedMemories.length > 0) {
       const memoryLines = includedMemories.map((m) => {
-        const n = nonce();
+        const n = nonce(String(m._id), m.content);
         const created = new Date(m.createdAt).toISOString();
         return `<memory id="${m._id}" nonce="${n}" created_at="${created}">${escapeForXmlContent(m.content)}</memory>`;
       });
@@ -148,7 +153,7 @@ export async function buildUserPersonalization(
     while (totalTokens > HARD_TOTAL_BUDGET_TOK && includedMemories.length > 0) {
       includedMemories.pop();
       const memoryLines = includedMemories.map((m) => {
-        const n = nonce();
+        const n = nonce(String(m._id), m.content);
         const created = new Date(m.createdAt).toISOString();
         return `<memory id="${m._id}" nonce="${n}" created_at="${created}">${escapeForXmlContent(m.content)}</memory>`;
       });
