@@ -392,6 +392,7 @@ import type * as lib_agent_chat_start_agent_chat from "../lib/agent_chat/start_a
 import type * as lib_agent_chat_types from "../lib/agent_chat/types.js";
 import type * as lib_agent_completion_index from "../lib/agent_completion/index.js";
 import type * as lib_agent_completion_on_agent_complete from "../lib/agent_completion/on_agent_complete.js";
+import type * as lib_agent_response_build_system_prompt from "../lib/agent_response/build_system_prompt.js";
 import type * as lib_agent_response_build_user_personalization from "../lib/agent_response/build_user_personalization.js";
 import type * as lib_agent_response_generate_response from "../lib/agent_response/generate_response.js";
 import type * as lib_agent_response_index from "../lib/agent_response/index.js";
@@ -616,9 +617,8 @@ import type * as organizations_resolve_org_slug from "../organizations/resolve_o
 import type * as organizations_scaffold from "../organizations/scaffold.js";
 import type * as organizations_update_organization from "../organizations/update_organization.js";
 import type * as organizations_validators from "../organizations/validators.js";
-import type * as personalization_export_user_data from "../personalization/export_user_data.js";
-import type * as personalization_feature_flag from "../personalization/feature_flag.js";
 import type * as personalization_internal_queries from "../personalization/internal_queries.js";
+import type * as personalization_queries from "../personalization/queries.js";
 import type * as products_bulk_create_products from "../products/bulk_create_products.js";
 import type * as products_create_product from "../products/create_product.js";
 import type * as products_create_product_with_translations from "../products/create_product_with_translations.js";
@@ -741,7 +741,7 @@ import type * as two_factor_internal_mutations from "../two_factor/internal_muta
 import type * as two_factor_internal_queries from "../two_factor/internal_queries.js";
 import type * as two_factor_mutations from "../two_factor/mutations.js";
 import type * as two_factor_queries from "../two_factor/queries.js";
-import type * as user_memories_audit_pseudonym from "../user_memories/audit_pseudonym.js";
+import type * as user_memories_constants from "../user_memories/constants.js";
 import type * as user_memories_internal_mutations from "../user_memories/internal_mutations.js";
 import type * as user_memories_lazy_cleanup from "../user_memories/lazy_cleanup.js";
 import type * as user_memories_mutations from "../user_memories/mutations.js";
@@ -1425,6 +1425,7 @@ declare const fullApi: ApiFromModules<{
   "lib/agent_chat/types": typeof lib_agent_chat_types;
   "lib/agent_completion/index": typeof lib_agent_completion_index;
   "lib/agent_completion/on_agent_complete": typeof lib_agent_completion_on_agent_complete;
+  "lib/agent_response/build_system_prompt": typeof lib_agent_response_build_system_prompt;
   "lib/agent_response/build_user_personalization": typeof lib_agent_response_build_user_personalization;
   "lib/agent_response/generate_response": typeof lib_agent_response_generate_response;
   "lib/agent_response/index": typeof lib_agent_response_index;
@@ -1649,9 +1650,8 @@ declare const fullApi: ApiFromModules<{
   "organizations/scaffold": typeof organizations_scaffold;
   "organizations/update_organization": typeof organizations_update_organization;
   "organizations/validators": typeof organizations_validators;
-  "personalization/export_user_data": typeof personalization_export_user_data;
-  "personalization/feature_flag": typeof personalization_feature_flag;
   "personalization/internal_queries": typeof personalization_internal_queries;
+  "personalization/queries": typeof personalization_queries;
   "products/bulk_create_products": typeof products_bulk_create_products;
   "products/create_product": typeof products_create_product;
   "products/create_product_with_translations": typeof products_create_product_with_translations;
@@ -1774,7 +1774,7 @@ declare const fullApi: ApiFromModules<{
   "two_factor/internal_queries": typeof two_factor_internal_queries;
   "two_factor/mutations": typeof two_factor_mutations;
   "two_factor/queries": typeof two_factor_queries;
-  "user_memories/audit_pseudonym": typeof user_memories_audit_pseudonym;
+  "user_memories/constants": typeof user_memories_constants;
   "user_memories/internal_mutations": typeof user_memories_internal_mutations;
   "user_memories/lazy_cleanup": typeof user_memories_lazy_cleanup;
   "user_memories/mutations": typeof user_memories_mutations;
