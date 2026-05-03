@@ -1,0 +1,247 @@
+import { v } from 'convex/values';
+
+import { internal } from '../_generated/api';
+import { internalMutation } from '../_generated/server';
+import { estimateTokens } from '../lib/context_management/estimate_tokens';
+import { evaluatePersonalizationGates } from '../personalization/internal_queries';
+import {
+  ILLEGAL_CONTENT_RE,
+  MEMORY_CONTENT_MAX_TOKENS,
+  PROPOSAL_DAY_WINDOW_MS,
+} from './constants';
+import { maybeRunCleanup } from './lazy_cleanup';
+
+interface WriteProposalResult {
+  ok: boolean;
+  reason: string;
+  memoryId?: string;
+}
+
+/**
+ * Internal write path for the `propose_memory` agent tool. Bypasses
+ * public auth (the caller is the chat action runtime, which has already
+ * validated the user) but still enforces:
+ *
+ *  - Same kill-switch gate as the read path: org feature flag,
+ *    `prefs.enabled === true`, and `!threadMetadata.disablePersonalization`.
+ *    Default-OFF: a missing prefs row blocks the write. Membership is
+ *    transitively covered because `cascadeOnMemberRemoved` deletes the
+ *    user's prefs row when they leave the org.
+ *  - Content shape: same regex/token caps the public mutations apply.
+ *  - Rate limits: per-thread (≤ 3 pending) and per-(user, org) per 24h
+ *    (≤ 20 proposals total).
+ *  - Audit: writes one row per outcome (`propose` / ok or `propose` /
+ *    denied with reason; never logs content).
+ */
+export const writeProposal = internalMutation({
+  args: {
+    userId: v.string(),
+    organizationId: v.string(),
+    threadId: v.string(),
+    // Correlation id captured from `ToolExecutionOptions.toolCallId`. The
+    // post-generation hook resolves this to the actual assistant
+    // message id via `resolveProposalMessageIds` once the SDK has saved
+    // the assistant turn.
+    toolCallId: v.optional(v.string()),
+    content: v.string(),
+    pendingTtlMs: v.number(),
+    perThreadCap: v.number(),
+    perDayCap: v.number(),
+  },
+  handler: async (ctx, args): Promise<WriteProposalResult> => {
+    const audit = async (
+      outcome: 'ok' | 'denied' | 'error',
+      memoryId?: string,
+    ): Promise<void> => {
+      await ctx.runMutation(
+        internal.user_memory_audit_log.internal_mutations.appendAudit,
+        {
+          organizationId: args.organizationId,
+          actorUserId: args.userId,
+          subjectUserId: args.userId,
+          action: 'propose',
+          outcome,
+          memoryId: memoryId
+            ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- memoryId comes from ctx.db.insert
+              (memoryId as never)
+            : undefined,
+          threadId: args.threadId,
+        },
+      );
+    };
+
+    // Read+write symmetry: same gate as buildUserPersonalization. Blocks
+    // when the org has not opted in, the user has not enabled
+    // personalization (default-OFF), the thread has been opted out, or
+    // (transitively) the user is no longer an org member — the cascade
+    // hook deletes their prefs row on removal.
+    const allowed = await evaluatePersonalizationGates(ctx, {
+      userId: args.userId,
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+    });
+    if (!allowed) {
+      await audit('denied');
+      return {
+        ok: false,
+        reason:
+          'Personalization is not enabled for this user, organization, or thread.',
+      };
+    }
+
+    const trimmed = args.content.trim();
+    if (!trimmed) {
+      await audit('denied');
+      return { ok: false, reason: 'Memory content is empty.' };
+    }
+    if (ILLEGAL_CONTENT_RE.test(trimmed)) {
+      await audit('denied');
+      return {
+        ok: false,
+        reason:
+          'Memory content contains disallowed characters (newlines, angle ' +
+          'brackets, backticks, or control characters).',
+      };
+    }
+    if (estimateTokens(trimmed) > MEMORY_CONTENT_MAX_TOKENS) {
+      await audit('denied');
+      return {
+        ok: false,
+        reason: `Memory content exceeds the ${MEMORY_CONTENT_MAX_TOKENS} token limit.`,
+      };
+    }
+
+    await maybeRunCleanup(ctx, args.userId, args.organizationId);
+
+    const now = Date.now();
+
+    // Per-thread cap: count current pending rows for this thread.
+    const pendingForThread = await ctx.db
+      .query('userMemories')
+      .withIndex('by_user_org_status_deleted_created', (q) =>
+        q
+          .eq('userId', args.userId)
+          .eq('organizationId', args.organizationId)
+          .eq('status', 'pending'),
+      )
+      .collect();
+    const livePendingForThread = pendingForThread.filter(
+      (m) =>
+        m.sourceThreadId === args.threadId &&
+        typeof m.deletedAt !== 'number' &&
+        (typeof m.pendingExpiresAt !== 'number' || m.pendingExpiresAt > now),
+    );
+    if (livePendingForThread.length >= args.perThreadCap) {
+      await audit('denied');
+      return {
+        ok: false,
+        reason: `Already ${livePendingForThread.length} pending proposals on this thread; resolve some before adding more.`,
+      };
+    }
+
+    // Per-day cap: count `propose` audit rows for this user+org in the
+    // last 24h. Append-only audit means dismissed proposals still count
+    // toward the cap (closing the dismiss-then-propose bypass loop).
+    const dayCutoff = now - PROPOSAL_DAY_WINDOW_MS;
+    const recentAudit = await ctx.db
+      .query('userMemoryAuditLog')
+      .withIndex('by_org_subject_at', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('subjectUserId', args.userId)
+          .gte('createdAt', dayCutoff),
+      )
+      .collect();
+    const proposeAttempts = recentAudit.filter(
+      (r) => r.action === 'propose',
+    ).length;
+    if (proposeAttempts >= args.perDayCap) {
+      await audit('denied');
+      return {
+        ok: false,
+        reason: `Daily memory proposal cap (${args.perDayCap}) reached for this user+org.`,
+      };
+    }
+
+    const memoryId = await ctx.db.insert('userMemories', {
+      userId: args.userId,
+      organizationId: args.organizationId,
+      content: trimmed,
+      source: 'agent_proposed',
+      status: 'pending',
+      sourceThreadId: args.threadId,
+      // We don't yet know the assistant message id (the convex-agent
+      // SDK doesn't expose it on the tool ctx), so we temporarily
+      // stash the AI SDK toolCallId here as a correlation key. The
+      // post-generation hook (`resolveProposalMessageIds`) overwrites
+      // this with the real message id once the SDK saves the
+      // assistant turn. The chat UI only renders cards whose
+      // `sourceMessageId` matches a visible message — toolCallIds
+      // never collide with message ids, so the in-flight value is
+      // simply invisible until the resolver runs.
+      sourceMessageId: args.toolCallId,
+      pendingExpiresAt: now + args.pendingTtlMs,
+      createdAt: now,
+    });
+    await audit('ok', String(memoryId));
+    return { ok: true, reason: '', memoryId: String(memoryId) };
+  },
+});
+
+/**
+ * Patch a batch of pending memory rows with the assistant message id
+ * that contained their corresponding `propose_memory` tool call. Called
+ * once after generation completes from `generate_response.ts`.
+ *
+ * Each mapping pairs a `toolCallId` (captured at tool-execute time and
+ * stashed in `sourceMessageId` by `writeProposal`) with the `messageId`
+ * of the assistant message the SDK persisted for that step. Rows that
+ * have already been resolved (sourceMessageId already replaced with a
+ * real message id) or that don't exist are skipped — defensive
+ * against retries and duplicate post-action runs.
+ *
+ * Auth model: identical to `writeProposal` — internal-only, called
+ * from the chat action runtime which has already validated the user.
+ * `userId` and `organizationId` are required so we can use the
+ * `by_user_org_status_deleted_created` index to scope the lookup.
+ */
+export const resolveProposalMessageIds = internalMutation({
+  args: {
+    userId: v.string(),
+    organizationId: v.string(),
+    threadId: v.string(),
+    mappings: v.array(
+      v.object({
+        toolCallId: v.string(),
+        messageId: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, args): Promise<{ resolved: number }> => {
+    if (args.mappings.length === 0) return { resolved: 0 };
+    const wanted = new Map(
+      args.mappings.map((m) => [m.toolCallId, m.messageId]),
+    );
+
+    const candidates = await ctx.db
+      .query('userMemories')
+      .withIndex('by_user_org_status_deleted_created', (q) =>
+        q
+          .eq('userId', args.userId)
+          .eq('organizationId', args.organizationId)
+          .eq('status', 'pending'),
+      )
+      .collect();
+
+    let resolved = 0;
+    for (const row of candidates) {
+      if (row.sourceThreadId !== args.threadId) continue;
+      if (typeof row.sourceMessageId !== 'string') continue;
+      const messageId = wanted.get(row.sourceMessageId);
+      if (!messageId) continue;
+      await ctx.db.patch(row._id, { sourceMessageId: messageId });
+      resolved += 1;
+    }
+    return { resolved };
+  },
+});

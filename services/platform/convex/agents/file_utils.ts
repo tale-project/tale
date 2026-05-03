@@ -49,6 +49,15 @@ export interface AgentJsonConfig {
   provider?: string;
   knowledgeMode?: 'off' | 'tool' | 'context' | 'both';
   webSearchMode?: 'off' | 'tool' | 'context' | 'both';
+  /**
+   * Per-agent personalization toggle. 'off' suppresses user memory and
+   * customInstructions injection AND strips the propose_memory tool. Use
+   * 'off' for strict-format workflow agents whose output shape would be
+   * polluted by user tone, and for agents whose outputs have legal or
+   * similarly significant effects on users (GDPR Art 22 / EU AI Act
+   * high-risk). Default 'on'.
+   */
+  personalizationMode?: 'on' | 'off';
   includeOrgKnowledge?: boolean;
   includeTeamKnowledge?: boolean;
   knowledgeTopK?: number;

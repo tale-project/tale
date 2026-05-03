@@ -67,6 +67,7 @@ export function toSerializableConfig(
     maxSteps: config.maxSteps,
     knowledgeMode,
     webSearchMode,
+    personalizationMode: config.personalizationMode ?? 'on',
     includeTeamKnowledge: config.includeTeamKnowledge ?? true,
     includeOrgKnowledge: config.includeOrgKnowledge ?? false,
     agentTeamId: binding?.teamId,

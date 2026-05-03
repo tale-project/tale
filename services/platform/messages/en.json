@@ -201,6 +201,7 @@
     "apiKeys": "API keys",
     "branding": "Branding",
     "governance": "Governance",
+    "personalization": "Personalization",
     "account": "Account",
     "logs": "Logs",
     "agents": "Agents",
@@ -2947,6 +2948,10 @@
       "title": "Account",
       "description": "Manage your account settings."
     },
+    "personalization": {
+      "title": "Personalization",
+      "description": "Help the assistant remember things about you across chats."
+    },
     "organization": {
       "title": "Organization",
       "description": "Manage your organization settings."
@@ -3873,6 +3878,58 @@
       "title": "Upgraded to v{version}",
       "description": "See what changed in this release.",
       "action": "View"
+    }
+  },
+  "personalization": {
+    "page": {
+      "title": "Personalization",
+      "description": "Help the assistant remember things about you across chats. Off by default — enable below.",
+      "privacyLink": "Privacy notice",
+      "orgDefault": {
+        "label": "Organization default (admin)",
+        "description": "When on, every member of this organization has personalization enabled by default. Members who explicitly opt out keep their choice.",
+        "toastUpdated": "Organization default updated."
+      },
+      "enable": {
+        "label": "Enable personalization",
+        "description": "When on, the assistant uses your custom instructions and saved memories. Turn off any time to stop injection.",
+        "orgStateOn": "on",
+        "orgStateOff": "off",
+        "followingOrgDefault": "Following organization default ({state}).",
+        "overridingOrgDefault": "Overriding organization default ({state})."
+      },
+      "customInstructions": {
+        "label": "Custom instructions",
+        "description": "Things you want the assistant to keep in mind in every reply. Max 4000 characters.",
+        "placeholder": "e.g. Reply concisely. Default to TypeScript when discussing code.",
+        "save": "Save",
+        "counter": "{count} / 4000"
+      },
+      "memories": {
+        "title": "Saved memories",
+        "empty": "Memories appear here after the assistant proposes them and you save.",
+        "delete": "Delete",
+        "deleteConfirm": "Delete this memory? This can't be undone."
+      },
+      "pending": {
+        "title": "Pending suggestions",
+        "empty": "No suggestions waiting."
+      }
+    },
+    "card": {
+      "label": "Suggested memory",
+      "save": "Save",
+      "edit": "Edit & save",
+      "discard": "Discard"
+    },
+    "errors": {
+      "saveFailed": "Couldn't save. Please try again."
+    },
+    "toasts": {
+      "saved": "Saved.",
+      "discarded": "Discarded.",
+      "deleted": "Deleted.",
+      "preferencesUpdated": "Preferences updated."
     }
   }
 }

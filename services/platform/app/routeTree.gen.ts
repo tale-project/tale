@@ -37,6 +37,7 @@ import { Route as DashboardIdAutomationsIndexRouteImport } from './routes/dashbo
 import { Route as DashboardIdAgentsIndexRouteImport } from './routes/dashboard/$id/agents/index'
 import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard/$id/settings/teams'
 import { Route as DashboardIdSettingsProvidersRouteImport } from './routes/dashboard/$id/settings/providers'
+import { Route as DashboardIdSettingsPersonalizationRouteImport } from './routes/dashboard/$id/settings/personalization'
 import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/dashboard/$id/settings/organization'
 import { Route as DashboardIdSettingsMcpServersRouteImport } from './routes/dashboard/$id/settings/mcp-servers'
 import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs'
@@ -218,6 +219,12 @@ const DashboardIdSettingsProvidersRoute =
   DashboardIdSettingsProvidersRouteImport.update({
     id: '/providers',
     path: '/providers',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any)
+const DashboardIdSettingsPersonalizationRoute =
+  DashboardIdSettingsPersonalizationRouteImport.update({
+    id: '/personalization',
+    path: '/personalization',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any)
 const DashboardIdSettingsOrganizationRoute =
@@ -487,6 +494,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
+  '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute
   '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute
@@ -545,6 +553,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
+  '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute
   '/dashboard/$id/agents': typeof DashboardIdAgentsIndexRoute
   '/dashboard/$id/automations': typeof DashboardIdAutomationsIndexRoute
@@ -613,6 +622,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
+  '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute
   '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute
@@ -681,6 +691,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp-servers'
     | '/dashboard/$id/settings/organization'
+    | '/dashboard/$id/settings/personalization'
     | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/teams'
     | '/dashboard/$id/agents/'
@@ -739,6 +750,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp-servers'
     | '/dashboard/$id/settings/organization'
+    | '/dashboard/$id/settings/personalization'
     | '/dashboard/$id/settings/teams'
     | '/dashboard/$id/agents'
     | '/dashboard/$id/automations'
@@ -806,6 +818,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp-servers'
     | '/dashboard/$id/settings/organization'
+    | '/dashboard/$id/settings/personalization'
     | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/teams'
     | '/dashboard/$id/agents/'
@@ -1039,6 +1052,13 @@ declare module '@tanstack/react-router' {
       path: '/providers'
       fullPath: '/dashboard/$id/settings/providers'
       preLoaderRoute: typeof DashboardIdSettingsProvidersRouteImport
+      parentRoute: typeof DashboardIdSettingsRoute
+    }
+    '/dashboard/$id/settings/personalization': {
+      id: '/dashboard/$id/settings/personalization'
+      path: '/personalization'
+      fullPath: '/dashboard/$id/settings/personalization'
+      preLoaderRoute: typeof DashboardIdSettingsPersonalizationRouteImport
       parentRoute: typeof DashboardIdSettingsRoute
     }
     '/dashboard/$id/settings/organization': {
@@ -1514,6 +1534,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute
   DashboardIdSettingsMcpServersRoute: typeof DashboardIdSettingsMcpServersRoute
   DashboardIdSettingsOrganizationRoute: typeof DashboardIdSettingsOrganizationRoute
+  DashboardIdSettingsPersonalizationRoute: typeof DashboardIdSettingsPersonalizationRoute
   DashboardIdSettingsProvidersRoute: typeof DashboardIdSettingsProvidersRouteWithChildren
   DashboardIdSettingsTeamsRoute: typeof DashboardIdSettingsTeamsRoute
   DashboardIdSettingsIndexRoute: typeof DashboardIdSettingsIndexRoute
@@ -1530,6 +1551,8 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,
   DashboardIdSettingsMcpServersRoute: DashboardIdSettingsMcpServersRoute,
   DashboardIdSettingsOrganizationRoute: DashboardIdSettingsOrganizationRoute,
+  DashboardIdSettingsPersonalizationRoute:
+    DashboardIdSettingsPersonalizationRoute,
   DashboardIdSettingsProvidersRoute:
     DashboardIdSettingsProvidersRouteWithChildren,
   DashboardIdSettingsTeamsRoute: DashboardIdSettingsTeamsRoute,

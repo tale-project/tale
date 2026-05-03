@@ -246,6 +246,7 @@
             "group": "Legal",
             "pages": [
               "legal/privacy-policy",
+              "legal/personalization",
               "legal/terms-of-service",
               "legal/data-processing-agreement"
             ]
@@ -447,6 +448,7 @@
             "group": "Rechtliches",
             "pages": [
               "de/legal/privacy-policy",
+              "de/legal/personalization",
               "de/legal/terms-of-service",
               "de/legal/data-processing-agreement"
             ]
@@ -648,6 +650,7 @@
             "group": "Mentions légales",
             "pages": [
               "fr/legal/privacy-policy",
+              "fr/legal/personalization",
               "fr/legal/terms-of-service",
               "fr/legal/data-processing-agreement"
             ]

@@ -96,6 +96,10 @@ export const forkThread = mutation({
       forkedMessageCount: messages.length,
       lastForkedMessageOrder: lastSavedOrder,
       forkedAt: Date.now(),
+      // Forking another user's shared thread: don't inject the forker's
+      // personalization into a context whose prior messages were authored
+      // by someone else. Mirrors the auto-disable on share.
+      disablePersonalization: true,
       ...(metadata.organizationId && {
         organizationId: metadata.organizationId,
       }),

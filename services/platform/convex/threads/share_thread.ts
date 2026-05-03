@@ -51,6 +51,11 @@ export const shareThread = mutation({
       isShared: true,
       sharedAt: Date.now(),
       sharedBy: String(authUser._id),
+      // Auto-disable personalization while the thread is shared:
+      // future turns by the owner won't inject the owner's memories or
+      // customInstructions into replies that share-link viewers can see.
+      // Owner can opt back in manually after unsharing.
+      disablePersonalization: true,
       // Store organizationId if provided and not already set
       ...(args.organizationId &&
         !metadata.organizationId && {
@@ -95,6 +100,9 @@ export const unshareThread = mutation({
       isShared: false,
       sharedAt: undefined,
       sharedBy: undefined,
+      // Mirror of share-time auto-disable: clear the field so the thread
+      // returns to default (personalization controlled by org/user prefs).
+      disablePersonalization: undefined,
     });
 
     return null;

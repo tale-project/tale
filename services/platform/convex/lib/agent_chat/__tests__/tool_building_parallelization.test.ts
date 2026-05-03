@@ -48,6 +48,11 @@ vi.mock('../../../_generated/api', () => ({
         getOrganizationDefaultLocale: 'mock-getOrganizationDefaultLocale',
       },
     },
+    personalization: {
+      internal_queries: {
+        isPersonalizationActiveForChat: 'mock-isPersonalizationActiveForChat',
+      },
+    },
     lib: {
       response_cache: {
         internal_queries: { lookupCache: 'mock-lookupCache' },

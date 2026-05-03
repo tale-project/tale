@@ -12,6 +12,7 @@ import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { logSuccess } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
+import { cascadeOnOrgDeleted } from '../lib/cascades/personalization_cascade';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { resolveOrgSlug } from './resolve_org_slug';
 
@@ -56,6 +57,11 @@ export const prepareOrganizationDeletion = mutation({
       resourceId: args.organizationId,
       metadata: { slug },
     });
+
+    // Personalization cascade: hard-delete prefs + memories scoped to
+    // this org for every member. Safe to run before Better Auth deletes
+    // the org row — these tables are independent of Better Auth state.
+    await cascadeOnOrgDeleted(ctx, args.organizationId);
 
     // Schedule filesystem cleanup. Runs after Better Auth deletes the
     // org row; safe even if that deletion fails because the scheduled

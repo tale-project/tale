@@ -49,6 +49,8 @@ export interface GenerateResponseConfig {
   responseCacheTtlMs?: number;
   /** Governance-enforced max context tokens (overrides agent config maxHistoryTokens) */
   maxContextTokens?: number;
+  /** Per-agent personalization injection mode: 'on' (default) or 'off' */
+  personalizationMode?: 'on' | 'off';
 }
 
 /**

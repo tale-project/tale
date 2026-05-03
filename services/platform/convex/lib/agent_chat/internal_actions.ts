@@ -104,6 +104,7 @@ const serializableAgentConfigValidator = v.object({
   responseCacheEnabled: v.optional(v.boolean()),
   responseCacheTtlMs: v.optional(v.number()),
   fallbackModels: v.optional(v.array(v.string())),
+  personalizationMode: v.optional(v.union(v.literal('on'), v.literal('off'))),
 });
 
 const hooksConfigValidator = v.object({
@@ -373,6 +374,22 @@ export const runAgentGeneration = internalAction({
             });
           }
 
+          // Read+write symmetry: only attach `propose_memory` when ALL
+          // runtime kill-switches agree. Same gate as buildUserPersonalization
+          // (org feature flag, prefs.enabled === true, threadDisablePersonalization).
+          // The agent-level `personalizationMode === 'off'` short-circuits
+          // before we hit the DB.
+          const personalizationActive =
+            userId &&
+            organizationId &&
+            agentConfig.personalizationMode !== 'off'
+              ? await ctx.runQuery(
+                  internal.personalization.internal_queries
+                    .isPersonalizationActiveForChat,
+                  { userId, organizationId, threadId },
+                )
+              : false;
+
           // Create agent factory function from serializable config
           const createAgent = () => {
             // Filter tools: exclude rag_search/web when their retrieval mode
@@ -380,26 +397,30 @@ export const runAgentGeneration = internalAction({
             // Drop `image` when the chat model handles images natively.
             const knowledgeMode = agentConfig.knowledgeMode ?? 'off';
             const webSearchMode = agentConfig.webSearchMode ?? 'off';
-            const filteredToolNames = agentConfig.convexToolNames?.filter(
-              (n): n is ToolName => {
-                if (!(TOOL_NAMES as readonly string[]).includes(n))
-                  return false;
-                if (
-                  n === 'rag_search' &&
-                  knowledgeMode !== 'tool' &&
-                  knowledgeMode !== 'both'
-                )
-                  return false;
-                if (
-                  n === 'web' &&
-                  webSearchMode !== 'tool' &&
-                  webSearchMode !== 'both'
-                )
-                  return false;
-                if (n === 'image' && useMultiModal) return false;
-                return true;
-              },
-            );
+            const baseToolList = agentConfig.convexToolNames ?? [];
+            const withPropose: string[] =
+              personalizationActive && !baseToolList.includes('propose_memory')
+                ? [...baseToolList, 'propose_memory']
+                : baseToolList;
+            const filteredToolNames = withPropose.filter((n): n is ToolName => {
+              if (!(TOOL_NAMES as readonly string[]).includes(n)) return false;
+              if (n === 'propose_memory' && !personalizationActive)
+                return false;
+              if (
+                n === 'rag_search' &&
+                knowledgeMode !== 'tool' &&
+                knowledgeMode !== 'both'
+              )
+                return false;
+              if (
+                n === 'web' &&
+                webSearchMode !== 'tool' &&
+                webSearchMode !== 'both'
+              )
+                return false;
+              if (n === 'image' && useMultiModal) return false;
+              return true;
+            });
             const config = createAgentConfig({
               name: agentConfig.name,
               instructions: finalInstructions,
@@ -438,6 +459,7 @@ export const runAgentGeneration = internalAction({
               maxContextTokens,
               instructions: finalInstructions,
               toolsSummary,
+              personalizationMode: agentConfig.personalizationMode,
             },
             {
               ctx,
