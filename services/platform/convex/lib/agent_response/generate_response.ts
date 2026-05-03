@@ -58,6 +58,7 @@ import { buildArtifactsContext } from '../context_management/build_artifacts_con
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 import { summarizeForLog } from '../log_redact';
+import { buildSystemPrompt } from './build_system_prompt';
 import {
   buildUserPersonalization,
   type UserPersonalization,
@@ -962,13 +963,11 @@ export async function generateAgentResponse(
     // instructions + approved memories) → thread context. Personalization
     // sits between the stable agent prefix and the volatile thread tail so
     // it doesn't bust upstream prompt caches when memories don't change.
-    const systemPromptParts: string[] = [];
-    if (agentInstructions) systemPromptParts.push(agentInstructions);
-    if (userPersonalization.text)
-      systemPromptParts.push(userPersonalization.text);
-    if (structuredThreadContext.threadContext)
-      systemPromptParts.push(structuredThreadContext.threadContext);
-    const systemPrompt = systemPromptParts.join('\n\n');
+    const systemPrompt = buildSystemPrompt(
+      agentInstructions,
+      userPersonalization,
+      structuredThreadContext.threadContext,
+    );
 
     // Record the injection (one row per turn, with the IDs that were
     // folded into systemPrompt) so the data subject can later trace which
@@ -1538,9 +1537,11 @@ export async function generateAgentResponse(
 
           const continueAgent = createAgent(agentOptions);
 
-          const continueSystemPrompt = agentInstructions
-            ? `${agentInstructions}\n\n${continueContext.threadContext}`
-            : continueContext.threadContext;
+          const continueSystemPrompt = buildSystemPrompt(
+            agentInstructions,
+            userPersonalization,
+            continueContext.threadContext,
+          );
 
           const continuePrompt = hasToolResults
             ? promptMessage
@@ -1769,9 +1770,11 @@ export async function generateAgentResponse(
 
           const recoveryAgent = createAgent(agentOptions);
 
-          const recoverySystemPrompt = agentInstructions
-            ? `${agentInstructions}\n\n${recoveryContext.threadContext}`
-            : recoveryContext.threadContext;
+          const recoverySystemPrompt = buildSystemPrompt(
+            agentInstructions,
+            userPersonalization,
+            recoveryContext.threadContext,
+          );
 
           // Cap recovery timeout by action deadline
           const recoveryPlatformRemainingMs = Math.max(
