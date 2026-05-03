@@ -37,9 +37,12 @@ Major LLM providers run automated abuse-detection over inputs they receive. Cont
 
 ## What Tale does enforce
 
-- Default-OFF: personalization is disabled until you explicitly enable it in `/settings/personalization`. A missing `userPreferences` row, or `enabled !== true`, blocks both read and write paths.
-- `assertSelfAndOrgMember` on every public read/write — admin role does not bypass.
-- Symmetric kill-switch: org feature flag, per-user toggle, and per-thread `disablePersonalization` all gate the read path (`buildUserPersonalization`), the write path (`writeProposal`), AND the chat tool surface (the `propose_memory` tool is stripped from the agent's tool list when any switch is closed).
+- Default-OFF at the system level: with no org policy and no user preference, personalization stays off and both read and write paths short-circuit.
+- Effective state for any (user, org, thread) is the merge of three signals, evaluated in `evaluatePersonalizationGates` and re-checked on the read path (`buildUserPersonalization`), the write path (`writeProposal`), AND the chat tool surface (the `propose_memory` tool is attached/stripped accordingly):
+  - **Org default** (`policyType: 'personalization'`, admin-controlled): when on, members inherit ON; when off or absent, members inherit OFF.
+  - **Per-user override** (`userPreferences.enabled`, tri-state): `undefined` follows the org default; `true`/`false` is an explicit user opt-in/opt-out that beats the org default in either direction.
+  - **Thread-level veto** (`threadMetadata.disablePersonalization`): a hard OFF that overrides everything else (e.g. shared threads).
+- `assertSelfAndOrgMember` on every public read/write — admin role does not bypass another user's row.
 - Sharing a thread auto-disables personalization for that thread (`disablePersonalization=true` on share, cleared on unshare).
 - Cascade hard-delete on member removal and organization deletion. Account-level self-deletion is not yet a product feature; when it ships, the matching cascade hook lands alongside the user-delete plugin.
 - Active GDPR Art 17 erasure for the in-scope cascades is immediate; 30-day soft-delete window before storage is reclaimed via opportunistic cleanup.
