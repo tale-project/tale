@@ -466,7 +466,6 @@ export async function generateAgentResponse(
     instructions,
     toolsSummary,
     personalizationMode,
-    significantEffectsUseCase,
   } = config;
   const {
     ctx,
@@ -787,7 +786,7 @@ export async function generateAgentResponse(
         userId,
         organizationId,
         threadId,
-        agentConfig: { personalizationMode, significantEffectsUseCase },
+        agentConfig: { personalizationMode },
       });
     }
 

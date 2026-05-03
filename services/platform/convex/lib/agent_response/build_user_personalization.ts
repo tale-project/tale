@@ -38,7 +38,6 @@ const POLICY_FOOTER = [
 
 export interface AgentPersonalizationConfig {
   personalizationMode?: 'on' | 'off';
-  significantEffectsUseCase?: boolean;
 }
 
 export interface BuildUserPersonalizationArgs {
@@ -77,8 +76,7 @@ export async function buildUserPersonalization(
   args: BuildUserPersonalizationArgs,
 ): Promise<UserPersonalization> {
   try {
-    // Cheap pre-checks first; thread/org reads happen only if these pass.
-    if (args.agentConfig?.significantEffectsUseCase === true) return EMPTY;
+    // Cheap pre-check first; thread/org reads happen only if it passes.
     if (args.agentConfig?.personalizationMode === 'off') return EMPTY;
 
     const data = await ctx.runQuery(

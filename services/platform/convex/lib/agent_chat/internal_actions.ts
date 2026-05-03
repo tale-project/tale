@@ -105,7 +105,6 @@ const serializableAgentConfigValidator = v.object({
   responseCacheTtlMs: v.optional(v.number()),
   fallbackModels: v.optional(v.array(v.string())),
   personalizationMode: v.optional(v.union(v.literal('on'), v.literal('off'))),
-  significantEffectsUseCase: v.optional(v.boolean()),
 });
 
 const hooksConfigValidator = v.object({
@@ -383,13 +382,11 @@ export const runAgentGeneration = internalAction({
             const knowledgeMode = agentConfig.knowledgeMode ?? 'off';
             const webSearchMode = agentConfig.webSearchMode ?? 'off';
             // Auto-include `propose_memory` for any agent where
-            // personalization is on (default), unless it's flagged as a
-            // significant-effects use case (Art 22 / high-risk gate). The
-            // tool itself defends against threadDisablePersonalization at
-            // write time.
-            const personalizationOn =
-              agentConfig.personalizationMode !== 'off' &&
-              agentConfig.significantEffectsUseCase !== true;
+            // personalizationMode is 'on' (default). Use 'off' for
+            // strict-format / regulated agents (GDPR Art 22 / EU AI Act
+            // high-risk). The tool itself defends against
+            // threadDisablePersonalization at write time.
+            const personalizationOn = agentConfig.personalizationMode !== 'off';
             const baseToolList = agentConfig.convexToolNames ?? [];
             const withPropose: string[] =
               personalizationOn && !baseToolList.includes('propose_memory')
@@ -452,7 +449,6 @@ export const runAgentGeneration = internalAction({
               instructions: finalInstructions,
               toolsSummary,
               personalizationMode: agentConfig.personalizationMode,
-              significantEffectsUseCase: agentConfig.significantEffectsUseCase,
             },
             {
               ctx,

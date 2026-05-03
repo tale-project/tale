@@ -94,6 +94,14 @@ export const agentJsonSchema = z
     visibleInChat: z.boolean().optional(),
     responseCacheEnabled: z.boolean().optional(),
     responseCacheTtlMs: z.number().int().min(1000).max(604_800_000).optional(),
+    /**
+     * Per-agent personalization toggle. 'off' suppresses user memory and
+     * customInstructions injection AND strips the propose_memory tool.
+     * Use 'off' for agents whose outputs have legal/significant effects
+     * (GDPR Art 22 / EU AI Act high-risk use cases) — admin assistants,
+     * compliance bots, etc. Default 'on'.
+     */
+    personalizationMode: z.enum(['on', 'off']).optional(),
     i18n: z
       .record(
         z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
