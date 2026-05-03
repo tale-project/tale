@@ -4,10 +4,10 @@ import { api } from '@/convex/_generated/api';
 
 /**
  * Reactive flag: is personalization active for this thread? Mirrors the
- * server-side `evaluatePersonalizationGates` exactly (org feature flag,
- * `prefs.enabled === true`, `!threadDisablePersonalization`). The chat
- * UI uses this to decide whether to render the inline pending-memory
- * section, keeping read/write/UI behavior in lockstep.
+ * server-side `evaluatePersonalizationGates` exactly (org default,
+ * tri-state user override, thread-level veto). The chat UI uses this to
+ * decide whether to subscribe to pending memory proposals at all,
+ * keeping read/write/UI behavior in lockstep.
  */
 export function usePersonalizationActiveForThread(
   threadId: string | undefined,

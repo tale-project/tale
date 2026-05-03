@@ -3884,9 +3884,18 @@
     "page": {
       "title": "Personnalisation",
       "description": "Aide l'assistant à se souvenir de choses sur toi d'une conversation à l'autre. Désactivé par défaut — active-le ci-dessous.",
+      "orgDefault": {
+        "label": "Valeur par défaut de l'organisation (admin)",
+        "description": "Lorsqu'activée, la personnalisation est activée par défaut pour tous les membres de cette organisation. Les membres qui s'y opposent explicitement conservent leur choix.",
+        "toastUpdated": "Valeur par défaut de l'organisation mise à jour."
+      },
       "enable": {
         "label": "Activer la personnalisation",
-        "description": "Quand activé, l'assistant utilise tes instructions personnalisées et tes souvenirs enregistrés. Désactive à tout moment pour stopper l'injection."
+        "description": "Quand activé, l'assistant utilise tes instructions personnalisées et tes souvenirs enregistrés. Désactive à tout moment pour stopper l'injection.",
+        "orgStateOn": "activé",
+        "orgStateOff": "désactivé",
+        "followingOrgDefault": "Suit la valeur par défaut de l'organisation ({{state}}).",
+        "overridingOrgDefault": "Remplace la valeur par défaut de l'organisation ({{state}})."
       },
       "customInstructions": {
         "label": "Instructions personnalisées",

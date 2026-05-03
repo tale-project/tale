@@ -66,14 +66,14 @@ export const upsertMyPreferences = mutation({
       });
       return existing._id;
     }
-    // Default-OFF: writing custom instructions without explicitly toggling
-    // enabled stores the text but leaves personalization disabled. User
-    // must call `setEnabled({enabled: true})` to activate.
+    // Leave `enabled` undefined: writing custom instructions without
+    // explicitly toggling means the user is still following the org
+    // default. `setEnabled` is the only path that records an explicit
+    // user opt-in/out.
     return await ctx.db.insert('userPreferences', {
       userId: authUser.userId,
       organizationId: args.organizationId,
       customInstructions: args.customInstructions,
-      enabled: false,
       updatedAt: now,
     });
   },

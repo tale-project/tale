@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../_generated/api', () => ({
   internal: {
@@ -14,11 +14,10 @@ vi.mock('../../../_generated/api', () => ({
 import { buildUserPersonalization } from '../build_user_personalization';
 
 interface PersonalizationData {
-  orgEnabled: boolean;
-  threadDisablePersonalization: boolean;
+  effective: boolean;
   preferences: {
     customInstructions: string;
-    enabled: boolean;
+    enabled?: boolean;
   } | null;
   memories: {
     _id: string;
@@ -43,13 +42,12 @@ const ARGS = {
   agentConfig: { personalizationMode: 'on' as const },
 };
 
-describe('buildUserPersonalization kill switches', () => {
+describe('buildUserPersonalization gating', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('returns EMPTY when agent personalizationMode is off (no DB read)', async () => {
     const ctx = createCtx({
-      orgEnabled: true,
-      threadDisablePersonalization: false,
+      effective: true,
       preferences: { customInstructions: 'hi', enabled: true },
       memories: [{ _id: 'm', content: 'x', createdAt: 0 }],
     });
@@ -62,54 +60,47 @@ describe('buildUserPersonalization kill switches', () => {
     expect(ctx.runQuery).not.toHaveBeenCalled();
   });
 
-  it('returns EMPTY when org feature flag is off', async () => {
+  it('returns EMPTY when effective is false (gate closed)', async () => {
     const ctx = createCtx({
-      orgEnabled: false,
-      threadDisablePersonalization: false,
+      effective: false,
       preferences: { customInstructions: 'hi', enabled: true },
-      memories: [],
+      memories: [{ _id: 'm', content: 'x', createdAt: 0 }],
     });
     const result = await buildUserPersonalization(ctx, ARGS);
     expect(result.text).toBe('');
   });
 
-  it('returns EMPTY when thread has disablePersonalization', async () => {
+  it('returns EMPTY when there is no preferences row and no memories', async () => {
     const ctx = createCtx({
-      orgEnabled: true,
-      threadDisablePersonalization: true,
-      preferences: { customInstructions: 'hi', enabled: true },
-      memories: [],
-    });
-    const result = await buildUserPersonalization(ctx, ARGS);
-    expect(result.text).toBe('');
-  });
-
-  it('returns EMPTY when there is no preferences row (default-OFF)', async () => {
-    const ctx = createCtx({
-      orgEnabled: true,
-      threadDisablePersonalization: false,
+      effective: true,
       preferences: null,
-      memories: [{ _id: 'm', content: 'x', createdAt: 0 }],
+      memories: [],
     });
     const result = await buildUserPersonalization(ctx, ARGS);
     expect(result.text).toBe('');
   });
 
-  it('returns EMPTY when prefs.enabled is false', async () => {
+  it('injects memories when effective is true even without a prefs row (org default ON, user untouched)', async () => {
     const ctx = createCtx({
-      orgEnabled: true,
-      threadDisablePersonalization: false,
-      preferences: { customInstructions: 'hi', enabled: false },
-      memories: [{ _id: 'm', content: 'x', createdAt: 0 }],
+      effective: true,
+      preferences: null,
+      memories: [
+        {
+          _id: 'mem_inherit',
+          content: 'likes pizza',
+          createdAt: 1700000000000,
+        },
+      ],
     });
     const result = await buildUserPersonalization(ctx, ARGS);
-    expect(result.text).toBe('');
+    expect(result.text).toContain('<user_memories');
+    expect(result.text).toContain('likes pizza');
+    expect(result.injectedMemoryIds).toEqual(['mem_inherit']);
   });
 
-  it('injects custom instructions and memories when all gates open', async () => {
+  it('injects custom instructions and memories when effective is true', async () => {
     const ctx = createCtx({
-      orgEnabled: true,
-      threadDisablePersonalization: false,
+      effective: true,
       preferences: { customInstructions: 'reply concisely', enabled: true },
       memories: [
         { _id: 'mem_1', content: 'loves chess', createdAt: 1700000000000 },
@@ -125,8 +116,7 @@ describe('buildUserPersonalization kill switches', () => {
 
   it('produces identical output for identical input (deterministic nonce)', async () => {
     const data: PersonalizationData = {
-      orgEnabled: true,
-      threadDisablePersonalization: false,
+      effective: true,
       preferences: { customInstructions: 'be terse', enabled: true },
       memories: [
         { _id: 'mem_a', content: 'lives in PT', createdAt: 1700000000000 },

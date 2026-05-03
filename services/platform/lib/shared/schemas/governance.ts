@@ -14,8 +14,18 @@ export const POLICY_TYPES = [
   'two_factor_policy',
   'chat_filter',
   'moderation_provider',
+  'personalization',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
+
+// Org-level default for the personalization feature (custom instructions +
+// memories + propose_memory tool). Per-user `userPreferences.enabled` may
+// override this default; absent user preference falls back to this value.
+// Missing row entirely → effective default is OFF.
+export const personalizationConfigSchema = z.object({
+  enabled: z.boolean(),
+});
+export type PersonalizationConfig = z.infer<typeof personalizationConfigSchema>;
 
 export const budgetRuleSchema = z.object({
   scope: z.enum(['user', 'team', 'role', 'org', 'default']),

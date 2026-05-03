@@ -17,6 +17,7 @@ export const GOVERNANCE_POLICY_TYPES = [
   'two_factor_policy',
   'chat_filter',
   'moderation_provider',
+  'personalization',
 ] as const;
 
 const policyTypeValidator = v.union(

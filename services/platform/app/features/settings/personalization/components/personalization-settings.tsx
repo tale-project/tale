@@ -12,11 +12,15 @@ import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
+import { useUpsertGovernancePolicy } from '@/app/features/settings/governance/hooks/mutations';
+import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { isRecord } from '@/lib/utils/type-guards';
 
 import {
   useApprovePendingMemory,
@@ -65,6 +69,7 @@ function PersonalizationSettingsInner({
         </Text>
       </header>
 
+      <OrgDefaultSection organizationId={organizationId} />
       <EnableSection prefs={prefs ?? null} organizationId={organizationId} />
       <CustomInstructionsSection
         prefs={prefs ?? null}
@@ -73,6 +78,49 @@ function PersonalizationSettingsInner({
       <SavedMemoriesSection memories={approvedMemories ?? []} />
       <PendingMemoriesSection memories={pendingMemories ?? []} />
     </Stack>
+  );
+}
+
+function readPolicyEnabled(config: unknown): boolean {
+  return isRecord(config) && config['enabled'] === true;
+}
+
+function OrgDefaultSection({ organizationId }: { organizationId: string }) {
+  const { t } = useT('personalization');
+  const { toast } = useToast();
+  const ability = useAbility();
+  const { data: policy } = useGovernancePolicy(
+    organizationId,
+    'personalization',
+  );
+  const upsertMutation = useUpsertGovernancePolicy();
+
+  if (ability.cannot('write', 'orgSettings')) return null;
+
+  const enabled = readPolicyEnabled(policy?.config);
+
+  return (
+    <PageSection title={t('page.orgDefault.label')} titleSize="base">
+      <Switch
+        checked={enabled}
+        description={t('page.orgDefault.description')}
+        onCheckedChange={async (next) => {
+          try {
+            await upsertMutation.mutateAsync({
+              organizationId,
+              policyType: 'personalization',
+              config: { enabled: next },
+            });
+            toast({ title: t('page.orgDefault.toastUpdated') });
+          } catch (err) {
+            toast({
+              title: errorMessage(err, t('errors.saveFailed')),
+              variant: 'destructive',
+            });
+          }
+        }}
+      />
+    </PageSection>
   );
 }
 
@@ -86,12 +134,26 @@ function EnableSection({
   const { t } = useT('personalization');
   const { toast } = useToast();
   const { mutateAsync: setEnabled } = useSetPersonalizationEnabled();
-  const enabled = prefs?.enabled === true;
+  const orgDefault = useQuery(api.personalization.queries.getOrgDefault, {
+    organizationId,
+  });
+  const orgDefaultOn = orgDefault === true;
+
+  const userExplicit = prefs?.enabled;
+  const isFollowingDefault = userExplicit === undefined;
+  const effective = isFollowingDefault ? orgDefaultOn : userExplicit;
+
+  const orgStateLabel = orgDefaultOn
+    ? t('page.enable.orgStateOn')
+    : t('page.enable.orgStateOff');
+  const hint = isFollowingDefault
+    ? t('page.enable.followingOrgDefault', { state: orgStateLabel })
+    : t('page.enable.overridingOrgDefault', { state: orgStateLabel });
 
   return (
     <PageSection title={t('page.enable.label')} titleSize="base">
       <Switch
-        checked={enabled}
+        checked={effective}
         description={t('page.enable.description')}
         onCheckedChange={async (next) => {
           try {
@@ -105,6 +167,11 @@ function EnableSection({
           }
         }}
       />
+      {orgDefault !== undefined && (
+        <Text variant="muted" className="mt-2 text-xs">
+          {hint}
+        </Text>
+      )}
     </PageSection>
   );
 }

@@ -69,7 +69,11 @@ export const proposeMemoryTool: ToolDefinition = {
       'influences future responses; you are not directly modifying memory. ' +
       'Use sparingly — only for stable preferences, identifiers, or facts ' +
       'the user explicitly told you to remember. Keep entries to one short ' +
-      'sentence (≤ 200 tokens, no newlines / angle brackets / backticks).',
+      'sentence (≤ 200 tokens, no newlines / angle brackets / backticks). ' +
+      'After calling this tool, continue your reply naturally as if memory ' +
+      'were not mentioned. Do not narrate the call, do not refer to a ' +
+      "card / button / popup / 'above' / 'below', and do not instruct the " +
+      'user where to click — the UI surfaces the proposal on its own.',
     inputSchema: z.object({
       content: z
         .string()
@@ -86,11 +90,18 @@ export const proposeMemoryTool: ToolDefinition = {
             'verbatim to the user for approval.',
         ),
     }),
-    execute: async (ctx: ToolCtx, args): Promise<ProposeResult> => {
+    execute: async (ctx, args, options): Promise<ProposeResult> => {
       const userId = readStringContextField(ctx, 'userId');
       const organizationId = readStringContextField(ctx, 'organizationId');
       const threadId = readStringContextField(ctx, 'threadId');
-      const messageId = readStringContextField(ctx, 'messageId');
+      // The convex-agent SDK does not surface the assistant message id
+      // on the tool ctx. We capture the AI SDK toolCallId here and let
+      // the post-generation hook resolve it to the message id once the
+      // SDK has saved the assistant turn.
+      const toolCallId =
+        typeof options?.toolCallId === 'string'
+          ? options.toolCallId
+          : undefined;
       if (!userId || !organizationId || !threadId) {
         return {
           ok: false,
@@ -107,7 +118,7 @@ export const proposeMemoryTool: ToolDefinition = {
             userId,
             organizationId,
             threadId,
-            messageId,
+            toolCallId,
             content: args.content,
             pendingTtlMs: MEMORY_PENDING_TTL_MS,
             perThreadCap: PENDING_PER_THREAD_CAP,
@@ -123,9 +134,8 @@ export const proposeMemoryTool: ToolDefinition = {
         return {
           ok: true,
           message:
-            'Proposal queued. The user will see a card to approve or ' +
-            'dismiss; the memory will not affect responses until they ' +
-            'approve.',
+            'Suggestion stored for the user to review. Continue your ' +
+            'response naturally without referring to this action.',
         };
       } catch (err) {
         if (err instanceof ConvexError) {

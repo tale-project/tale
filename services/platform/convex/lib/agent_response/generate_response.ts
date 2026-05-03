@@ -516,6 +516,11 @@ export async function generateAgentResponse(
   let retrySystemMessageId: string | undefined;
   let firstTokenTime: number | null = null;
   let savedMessageId: string | undefined;
+  // Accumulator for every saved-message envelope returned across the
+  // stream / generate / continue / recovery code paths. Used after
+  // generation to resolve (toolCallId → messageId) for `propose_memory`
+  // proposals whose `pendingToolCallId` still needs an anchor message.
+  const allSavedMessages: unknown[] = [];
   // Guardrails output-filter state. Populated whether streaming or not;
   // the streaming transform writes into `guardrailsState` on block, and
   // `persistAssistantMessage` below uses that + the snapshot to tombstone
@@ -1260,6 +1265,9 @@ export async function generateAgentResponse(
         );
 
         savedMessageId = streamResult.savedMessages?.[0]?._id;
+        if (Array.isArray(streamResult.savedMessages)) {
+          allSavedMessages.push(...streamResult.savedMessages);
+        }
 
         // Wait for stream to complete (with timeout)
         const [
@@ -1473,6 +1481,9 @@ export async function generateAgentResponse(
         );
 
         savedMessageId = generateResult.savedMessages?.[0]?._id;
+        if (Array.isArray(generateResult.savedMessages)) {
+          allSavedMessages.push(...generateResult.savedMessages);
+        }
 
         debugLog('Generate completed', {
           threadId,
@@ -1655,6 +1666,9 @@ export async function generateAgentResponse(
             // Capture continuation's saved message ID for downstream operations
             const continueSavedId = continueResult.savedMessages?.[0]?._id;
             if (continueSavedId) savedMessageId = continueSavedId;
+            if (Array.isArray(continueResult.savedMessages)) {
+              allSavedMessages.push(...continueResult.savedMessages);
+            }
 
             result = {
               text: continueResult.text,
@@ -1844,6 +1858,9 @@ export async function generateAgentResponse(
             didRetry = true;
             const recoverySavedId = recoveryResult.savedMessages?.[0]?._id;
             if (recoverySavedId) savedMessageId = recoverySavedId;
+            if (Array.isArray(recoveryResult.savedMessages)) {
+              allSavedMessages.push(...recoveryResult.savedMessages);
+            }
 
             result = {
               text: recoveryResult.text,
@@ -1954,6 +1971,35 @@ export async function generateAgentResponse(
       inputTokens: result.usage?.inputTokens,
       outputTokens: result.usage?.outputTokens,
     });
+
+    // Resolve `propose_memory` proposals to their assistant message id.
+    // The convex-agent SDK doesn't expose the assistant message id at
+    // tool-execute time, so `writeProposal` stashes the AI SDK
+    // `toolCallId` into `sourceMessageId`; here, after the SDK has
+    // saved every assistant message of this turn, we walk
+    // `allSavedMessages` for matching tool-call parts and overwrite
+    // `sourceMessageId` with the real message id. Fire-and-forget —
+    // the chat UI is reactive and an unresolved row simply doesn't
+    // render an inline card (the user can still see it in
+    // /settings/personalization).
+    if (userId && organizationId) {
+      const memoryMappings = extractToolCallMessageMapping(
+        allSavedMessages,
+        'propose_memory',
+      );
+      if (memoryMappings.length > 0) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.user_memories.internal_mutations.resolveProposalMessageIds,
+          {
+            userId,
+            organizationId,
+            threadId,
+            mappings: memoryMappings,
+          },
+        );
+      }
+    }
 
     // Extract tool calls from steps
     const {
@@ -2868,6 +2914,41 @@ function extractToolNamesFromSteps(steps: unknown[]): string[] {
     }
   }
   return [...names];
+}
+
+/**
+ * Walks the SDK's `savedMessages` array (one entry per saved chat
+ * message during this generation) and returns the (toolCallId →
+ * messageId) pairs for the named tool. Used by the post-generation hook
+ * to backfill `userMemories.sourceMessageId` once the assistant turn
+ * has been persisted (the convex-agent SDK does not surface the
+ * assistant message id at tool-execute time).
+ */
+export function extractToolCallMessageMapping(
+  savedMessages: unknown,
+  toolName: string,
+): Array<{ toolCallId: string; messageId: string }> {
+  if (!Array.isArray(savedMessages)) return [];
+  const mappings: Array<{ toolCallId: string; messageId: string }> = [];
+  for (const entry of savedMessages) {
+    if (!isRecord(entry)) continue;
+    const messageId = typeof entry._id === 'string' ? entry._id : undefined;
+    if (!messageId) continue;
+    const message = entry.message;
+    if (!isRecord(message)) continue;
+    const content = message.content;
+    if (!Array.isArray(content)) continue;
+    for (const part of content) {
+      if (!isRecord(part)) continue;
+      if (part.type !== 'tool-call') continue;
+      if (part.toolName !== toolName) continue;
+      const toolCallId =
+        typeof part.toolCallId === 'string' ? part.toolCallId : undefined;
+      if (!toolCallId) continue;
+      mappings.push({ toolCallId, messageId });
+    }
+  }
+  return mappings;
 }
 
 function capitalize(str: string): string {

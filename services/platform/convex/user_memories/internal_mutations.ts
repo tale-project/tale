@@ -38,7 +38,11 @@ export const writeProposal = internalMutation({
     userId: v.string(),
     organizationId: v.string(),
     threadId: v.string(),
-    messageId: v.optional(v.string()),
+    // Correlation id captured from `ToolExecutionOptions.toolCallId`. The
+    // post-generation hook resolves this to the actual assistant
+    // message id via `resolveProposalMessageIds` once the SDK has saved
+    // the assistant turn.
+    toolCallId: v.optional(v.string()),
     content: v.string(),
     pendingTtlMs: v.number(),
     perThreadCap: v.number(),
@@ -62,7 +66,6 @@ export const writeProposal = internalMutation({
               (memoryId as never)
             : undefined,
           threadId: args.threadId,
-          messageId: args.messageId,
         },
       );
     };
@@ -167,11 +170,78 @@ export const writeProposal = internalMutation({
       source: 'agent_proposed',
       status: 'pending',
       sourceThreadId: args.threadId,
-      sourceMessageId: args.messageId,
+      // We don't yet know the assistant message id (the convex-agent
+      // SDK doesn't expose it on the tool ctx), so we temporarily
+      // stash the AI SDK toolCallId here as a correlation key. The
+      // post-generation hook (`resolveProposalMessageIds`) overwrites
+      // this with the real message id once the SDK saves the
+      // assistant turn. The chat UI only renders cards whose
+      // `sourceMessageId` matches a visible message — toolCallIds
+      // never collide with message ids, so the in-flight value is
+      // simply invisible until the resolver runs.
+      sourceMessageId: args.toolCallId,
       pendingExpiresAt: now + args.pendingTtlMs,
       createdAt: now,
     });
     await audit('ok', String(memoryId));
     return { ok: true, reason: '', memoryId: String(memoryId) };
+  },
+});
+
+/**
+ * Patch a batch of pending memory rows with the assistant message id
+ * that contained their corresponding `propose_memory` tool call. Called
+ * once after generation completes from `generate_response.ts`.
+ *
+ * Each mapping pairs a `toolCallId` (captured at tool-execute time and
+ * stashed in `sourceMessageId` by `writeProposal`) with the `messageId`
+ * of the assistant message the SDK persisted for that step. Rows that
+ * have already been resolved (sourceMessageId already replaced with a
+ * real message id) or that don't exist are skipped — defensive
+ * against retries and duplicate post-action runs.
+ *
+ * Auth model: identical to `writeProposal` — internal-only, called
+ * from the chat action runtime which has already validated the user.
+ * `userId` and `organizationId` are required so we can use the
+ * `by_user_org_status_deleted_created` index to scope the lookup.
+ */
+export const resolveProposalMessageIds = internalMutation({
+  args: {
+    userId: v.string(),
+    organizationId: v.string(),
+    threadId: v.string(),
+    mappings: v.array(
+      v.object({
+        toolCallId: v.string(),
+        messageId: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, args): Promise<{ resolved: number }> => {
+    if (args.mappings.length === 0) return { resolved: 0 };
+    const wanted = new Map(
+      args.mappings.map((m) => [m.toolCallId, m.messageId]),
+    );
+
+    const candidates = await ctx.db
+      .query('userMemories')
+      .withIndex('by_user_org_status_deleted_created', (q) =>
+        q
+          .eq('userId', args.userId)
+          .eq('organizationId', args.organizationId)
+          .eq('status', 'pending'),
+      )
+      .collect();
+
+    let resolved = 0;
+    for (const row of candidates) {
+      if (row.sourceThreadId !== args.threadId) continue;
+      if (typeof row.sourceMessageId !== 'string') continue;
+      const messageId = wanted.get(row.sourceMessageId);
+      if (!messageId) continue;
+      await ctx.db.patch(row._id, { sourceMessageId: messageId });
+      resolved += 1;
+    }
+    return { resolved };
   },
 });

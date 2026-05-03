@@ -1,6 +1,7 @@
 'use client';
 
 import type { UIMessage } from '@convex-dev/agent/react';
+import { useQuery } from 'convex/react';
 import { AlertTriangle, Loader2, CheckCircle2, Lock } from 'lucide-react';
 import {
   useId,
@@ -12,16 +13,19 @@ import {
 } from 'react';
 
 import { Button } from '@/app/components/ui/primitives/button';
+import { api } from '@/convex/_generated/api';
+import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useBranchContext } from '../context/branch-context';
 import type { ChatItem } from '../hooks/use-merged-chat-items';
+import { usePersonalizationActiveForThread } from '../hooks/use-personalization-active';
 import { ApprovalCardRenderer } from './approval-card-renderer';
 import { BranchNavigator } from './branch-navigator';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
 import { InlineEditInput } from './inline-edit-input';
+import { InlineMemoryProposals } from './inline-memory-proposals';
 import { MessageBubble } from './message-bubble';
-import { PendingMemoriesSection } from './pending-memories-section';
 import { ThinkingAnimation } from './thinking-animation';
 
 /**
@@ -165,6 +169,35 @@ export function ChatMessages({
   const messageHistoryLabelId = useId();
   const { branches, activeBranchThreadId } = useBranchContext();
   const editInputScrollRef = useRef<HTMLDivElement>(null);
+
+  // Subscribe once to pending memory proposals for this thread and
+  // group them by `sourceMessageId`. Each card is rendered under the
+  // assistant bubble whose id matches — never under a different
+  // bubble. While the agent is still streaming, `sourceMessageId`
+  // briefly holds the AI SDK toolCallId (a temporary correlation key
+  // written by `propose_memory`); the post-generation resolver
+  // overwrites it with the real assistant message id, at which point
+  // reactivity drops the card into place. Rows whose
+  // `sourceMessageId` never resolves to a visible message id (e.g.
+  // generation crashed before the resolver ran) stay invisible here
+  // and remain manageable from /settings/personalization.
+  const personalizationActive = usePersonalizationActiveForThread(threadId);
+  const pendingMemories = useQuery(
+    api.user_memories.queries.listPendingMemories,
+    personalizationActive && threadId ? { threadId } : 'skip',
+  );
+
+  const pendingMemoriesByMessageId = useMemo(() => {
+    const map = new Map<string, Doc<'userMemories'>[]>();
+    if (!pendingMemories || pendingMemories.length === 0) return map;
+    for (const m of pendingMemories) {
+      if (typeof m.sourceMessageId !== 'string') continue;
+      const existing = map.get(m.sourceMessageId);
+      if (existing) existing.push(m);
+      else map.set(m.sourceMessageId, [m]);
+    }
+    return map;
+  }, [pendingMemories]);
 
   // Scroll the inline edit input into view when it appears.
   // Double-RAF ensures the ChatInterface scroll system (MutationObserver /
@@ -374,6 +407,9 @@ export function ChatMessages({
 
     const isEditing = isUserMessage && message.id === editingMessageId;
 
+    const inlineProposals =
+      !isUserMessage && pendingMemoriesByMessageId.get(message.id);
+
     return (
       <div
         key={reactKey}
@@ -391,37 +427,42 @@ export function ChatMessages({
             </div>
           </div>
         ) : (
-          <MessageBubble
-            message={{
-              ...message,
-              role: isUserMessage ? 'user' : 'assistant',
-              threadId: threadId,
-            }}
-            organizationId={organizationId}
-            hideFeedback={hideFeedback}
-            onSendFollowUp={onSendFollowUp}
-            onRetry={
-              message.isFailed && message.key === latestFailedAssistantKey
-                ? onRetry
-                : undefined
-            }
-            onEdit={isUserMessage ? onEditMessage : undefined}
-            onFork={onForkAtMessage}
-            onSavePrompt={isUserMessage ? onSavePrompt : undefined}
-            onUnsavePrompt={isUserMessage ? onUnsavePrompt : undefined}
-            isSavedPrompt={
-              isUserMessage && savedMessageMap
-                ? savedMessageMap.has(message.id)
-                : false
-            }
-            toolbarExtra={
-              !hideBranchNavigator &&
-              hasBranches &&
-              message.order !== undefined ? (
-                <BranchNavigator forkOrder={message.order} />
-              ) : undefined
-            }
-          />
+          <>
+            <MessageBubble
+              message={{
+                ...message,
+                role: isUserMessage ? 'user' : 'assistant',
+                threadId: threadId,
+              }}
+              organizationId={organizationId}
+              hideFeedback={hideFeedback}
+              onSendFollowUp={onSendFollowUp}
+              onRetry={
+                message.isFailed && message.key === latestFailedAssistantKey
+                  ? onRetry
+                  : undefined
+              }
+              onEdit={isUserMessage ? onEditMessage : undefined}
+              onFork={onForkAtMessage}
+              onSavePrompt={isUserMessage ? onSavePrompt : undefined}
+              onUnsavePrompt={isUserMessage ? onUnsavePrompt : undefined}
+              isSavedPrompt={
+                isUserMessage && savedMessageMap
+                  ? savedMessageMap.has(message.id)
+                  : false
+              }
+              toolbarExtra={
+                !hideBranchNavigator &&
+                hasBranches &&
+                message.order !== undefined ? (
+                  <BranchNavigator forkOrder={message.order} />
+                ) : undefined
+              }
+            />
+            {inlineProposals && (
+              <InlineMemoryProposals memories={inlineProposals} />
+            )}
+          </>
         )}
       </div>
     );
@@ -570,8 +611,6 @@ export function ChatMessages({
               onSendMessage={onSendMessage}
             />
           )}
-
-          <PendingMemoriesSection threadId={threadId} />
         </div>
       </div>
     </div>

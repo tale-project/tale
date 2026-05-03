@@ -8,11 +8,14 @@ import { internalQuery } from '../_generated/server';
 const MEMORY_INJECTION_LIMIT = 20;
 
 /**
- * Org-level kill switch: is personalization v1 turned on in the
- * `feature_flags` governance policy for this org? Convention is a
- * `personalization_v1: true` flag on the policy's `config` record.
- * Absent / disabled / wrong shape → false (default-off; orgs must
- * explicitly opt in).
+ * Org-level default for personalization. Read from the dedicated
+ * `policyType: 'personalization'` row in `governancePolicies` (config
+ * shape `{ enabled: boolean }`). When the row is missing, disabled, or
+ * malformed, the default is OFF.
+ *
+ * This is a *default*, not a kill switch: a user with explicit
+ * `userPreferences.enabled === true/false` overrides this value. See
+ * `evaluatePersonalizationGates` for the full effective-state rules.
  */
 export async function isPersonalizationEnabled(
   ctx: GenericQueryCtx<DataModel>,
@@ -21,21 +24,28 @@ export async function isPersonalizationEnabled(
   const policy = await ctx.db
     .query('governancePolicies')
     .withIndex('by_org_policyType', (q) =>
-      q.eq('organizationId', organizationId).eq('policyType', 'feature_flags'),
+      q
+        .eq('organizationId', organizationId)
+        .eq('policyType', 'personalization'),
     )
     .first();
 
   if (!policy || policy.enabled === false) return false;
   const config = policy.config;
   if (!isRecord(config)) return false;
-  return config['personalization_v1'] === true;
+  return config['enabled'] === true;
 }
 
 /**
- * Single source of truth for the read+write kill-switch. Returns true
- * only when ALL conditions hold: org has opted in, user prefs exist
- * with `enabled === true` (default-OFF), and the thread has not been
- * marked `disablePersonalization`.
+ * Single source of truth for whether personalization is currently active
+ * for a given (user, org, thread). Computes the effective state from:
+ *
+ *  - Org-level default: `policyType: 'personalization'` row.
+ *  - Per-user override: `userPreferences.enabled` is tri-state.
+ *      - `undefined` → follow org default
+ *      - `true` / `false` → user explicitly opted in/out
+ *  - Thread-level hard veto: `threadMetadata.disablePersonalization === true`
+ *    (e.g. shared threads) overrides everything else.
  *
  * Used by:
  *  - `buildUserPersonalization` (read-side via getPersonalizationDataForInjection)
@@ -51,7 +61,14 @@ export async function evaluatePersonalizationGates(
   ctx: GenericQueryCtx<DataModel>,
   args: { userId: string; organizationId: string; threadId?: string },
 ): Promise<boolean> {
-  if (!(await isPersonalizationEnabled(ctx, args.organizationId))) return false;
+  const threadId = args.threadId;
+  if (threadId) {
+    const meta = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+      .first();
+    if (meta?.disablePersonalization === true) return false;
+  }
 
   const prefs = await ctx.db
     .query('userPreferences')
@@ -59,17 +76,11 @@ export async function evaluatePersonalizationGates(
       q.eq('userId', args.userId).eq('organizationId', args.organizationId),
     )
     .first();
-  if (!prefs || prefs.enabled !== true) return false;
+  const userExplicit = prefs?.enabled;
+  if (userExplicit === true) return true;
+  if (userExplicit === false) return false;
 
-  if (args.threadId) {
-    const meta = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId!))
-      .first();
-    if (meta?.disablePersonalization === true) return false;
-  }
-
-  return true;
+  return isPersonalizationEnabled(ctx, args.organizationId);
 }
 
 export const isPersonalizationActiveForChat = internalQuery({
@@ -83,8 +94,10 @@ export const isPersonalizationActiveForChat = internalQuery({
 });
 
 interface PersonalizationData {
-  orgEnabled: boolean;
-  threadDisablePersonalization: boolean;
+  // Effective state after merging org default, user override, and thread
+  // veto. When false, the caller must skip injection regardless of the
+  // other fields.
+  effective: boolean;
   preferences: Doc<'userPreferences'> | null;
   memories: Doc<'userMemories'>[];
 }
@@ -96,11 +109,11 @@ interface PersonalizationData {
  * `(userId, organizationId)` arguments — there is no path here that
  * accepts a client-supplied identity.
  *
- * Returns:
- *  - orgEnabled: whether the org has opted into personalization_v1
- *  - preferences: the (userId, organizationId) row, or null
- *  - memories: up to 20 approved + not-soft-deleted + not-pending-expired
- *              rows, newest first
+ * `effective` is the same answer `evaluatePersonalizationGates` would
+ * give for these arguments; the caller may bail early when it's false.
+ * `preferences` is still returned even when `effective` is false so the
+ * caller can inspect `customInstructions` if a future code path needs
+ * it (currently it does not — the early-out covers all uses).
  */
 export const getPersonalizationDataForInjection = internalQuery({
   args: {
@@ -109,21 +122,7 @@ export const getPersonalizationDataForInjection = internalQuery({
     threadId: v.string(),
   },
   handler: async (ctx, args): Promise<PersonalizationData> => {
-    const meta = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
-    const threadDisablePersonalization = meta?.disablePersonalization === true;
-
-    const orgEnabled = await isPersonalizationEnabled(ctx, args.organizationId);
-    if (!orgEnabled) {
-      return {
-        orgEnabled: false,
-        threadDisablePersonalization,
-        preferences: null,
-        memories: [],
-      };
-    }
+    const effective = await evaluatePersonalizationGates(ctx, args);
 
     const preferences = await ctx.db
       .query('userPreferences')
@@ -131,6 +130,14 @@ export const getPersonalizationDataForInjection = internalQuery({
         q.eq('userId', args.userId).eq('organizationId', args.organizationId),
       )
       .first();
+
+    if (!effective) {
+      return {
+        effective: false,
+        preferences: preferences ?? null,
+        memories: [],
+      };
+    }
 
     const candidates = await ctx.db
       .query('userMemories')
@@ -148,8 +155,7 @@ export const getPersonalizationDataForInjection = internalQuery({
       .slice(0, MEMORY_INJECTION_LIMIT);
 
     return {
-      orgEnabled,
-      threadDisablePersonalization,
+      effective: true,
       preferences: preferences ?? null,
       memories,
     };

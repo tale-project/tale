@@ -9,6 +9,7 @@ import {
   modelAccessConfigSchema,
   moderationProviderConfigSchema,
   passwordPolicyConfigSchema,
+  personalizationConfigSchema,
   piiConfigSchema,
   retentionPolicyConfigSchema,
   twoFactorPolicyConfigSchema,
@@ -177,6 +178,15 @@ export const upsertPolicy = mutation({
       if (!parsed.success) {
         throw new Error(
           `Invalid moderation provider configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'personalization') {
+      const parsed = personalizationConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid personalization configuration: ${parsed.error.message}`,
         );
       }
     }

@@ -68,13 +68,16 @@ const EMPTY: UserPersonalization = {
 
 /**
  * Build the user personalization block to inject between agent_instructions
- * and thread_context in the system prompt. Returns empty when any kill
- * switch is engaged.
+ * and thread_context in the system prompt. Returns empty when the
+ * effective personalization state for this (user, org, thread) is OFF.
  *
- * Default is OFF: a missing `userPreferences` row, or `enabled !== true`,
- * returns empty. Org-level feature flag and per-thread disable also
- * short-circuit. Callers also strip the `propose_memory` tool whenever
- * this returns empty (handled in generate_response.ts).
+ * The effective state combines the org default (`policyType:
+ * 'personalization'`), the user's tri-state override
+ * (`userPreferences.enabled`), and the thread-level veto
+ * (`threadMetadata.disablePersonalization`). See
+ * `evaluatePersonalizationGates` for the merge rules. Callers also
+ * strip the `propose_memory` tool whenever this returns empty (handled
+ * in generate_response.ts).
  */
 export async function buildUserPersonalization(
   ctx: GenericActionCtx<DataModel>,
@@ -94,14 +97,10 @@ export async function buildUserPersonalization(
       },
     );
 
-    if (data.threadDisablePersonalization) return EMPTY;
-    if (!data.orgEnabled) return EMPTY;
+    if (!data.effective) return EMPTY;
 
     const prefs = data.preferences;
-    // Default-OFF: no row, or row with enabled !== true, blocks injection.
-    if (!prefs || prefs.enabled !== true) return EMPTY;
-
-    const customInstructions = (prefs.customInstructions ?? '').trim();
+    const customInstructions = (prefs?.customInstructions ?? '').trim();
     const customTokens = customInstructions
       ? Math.min(
           estimateTokens(customInstructions),

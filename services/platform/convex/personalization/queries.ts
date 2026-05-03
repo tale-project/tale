@@ -4,7 +4,10 @@ import { query } from '../_generated/server';
 import { assertSelfAndOrgMember } from '../lib/rls/auth/assert_self_and_org_member';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
-import { evaluatePersonalizationGates } from './internal_queries';
+import {
+  evaluatePersonalizationGates,
+  isPersonalizationEnabled,
+} from './internal_queries';
 
 /**
  * UI-side reactive query: is personalization currently active for this
@@ -34,5 +37,27 @@ export const isPersonalizationActiveForChat = query({
       organizationId: orgId,
       threadId: args.threadId,
     });
+  },
+});
+
+/**
+ * Org-level default for personalization. Any current org member may
+ * read this — it's not user-private, just the policy row's `enabled`
+ * flag. The settings page subscribes for the "following org default"
+ * hint shown next to the per-user toggle.
+ */
+export const getOrgDefault = query({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args): Promise<boolean> => {
+    const authUser = await requireAuthenticatedUser(ctx);
+    await assertSelfAndOrgMember(
+      ctx,
+      authUser,
+      authUser.userId,
+      args.organizationId,
+    );
+    return isPersonalizationEnabled(ctx, args.organizationId);
   },
 });
