@@ -51,23 +51,33 @@ export const listMyMemories = query({
 });
 
 /**
- * List the user's *pending* memory proposals attached to a specific thread.
- * Used by the chat UI to render non-blocking inline confirmation cards
- * under the assistant message that triggered the propose_memory call.
+ * List the user's *pending* memory proposals.
  *
- * Subscribes through Convex reactivity: when the user clicks Save / Edit /
- * Dismiss, the pending row's status flips and this query auto-refreshes.
+ * - With `threadId`: scoped to that thread, used by the chat UI to render
+ *   non-blocking inline confirmation cards. Caller must own the thread
+ *   AND be a current member of the thread's org.
+ * - With `organizationId` only: returns all pending proposals across
+ *   threads in the org, used by the settings page aggregate view.
+ *
+ * Subscribes through Convex reactivity: when the user clicks Save /
+ * Edit / Dismiss, the pending row mutates and this query auto-refreshes.
  */
 export const listPendingMemories = query({
   args: {
-    threadId: v.string(),
+    threadId: v.optional(v.string()),
+    organizationId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<Doc<'userMemories'>[]> => {
     const authUser = await requireAuthenticatedUser(ctx);
-    // Must own the thread to see its pending memories.
-    const meta = await canAccessThread(ctx, args.threadId, authUser);
-    if (!meta || meta.userId !== authUser.userId) return [];
-    const orgId = meta.organizationId;
+
+    let orgId: string | undefined;
+    if (args.threadId) {
+      const meta = await canAccessThread(ctx, args.threadId, authUser);
+      if (!meta || meta.userId !== authUser.userId) return [];
+      orgId = meta.organizationId ?? undefined;
+    } else {
+      orgId = args.organizationId;
+    }
     if (!orgId) return [];
     await assertSelfAndOrgMember(ctx, authUser, authUser.userId, orgId);
 
@@ -84,7 +94,7 @@ export const listPendingMemories = query({
 
     return rows.filter(
       (m) =>
-        m.sourceThreadId === args.threadId &&
+        (!args.threadId || m.sourceThreadId === args.threadId) &&
         typeof m.deletedAt !== 'number' &&
         (typeof m.pendingExpiresAt !== 'number' || m.pendingExpiresAt >= now),
     );
