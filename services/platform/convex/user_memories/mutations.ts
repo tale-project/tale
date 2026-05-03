@@ -1,7 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
-import type { Doc, Id } from '../_generated/dataModel';
+import type { Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
 import { estimateTokens } from '../lib/context_management/estimate_tokens';
 import { assertSelfAndOrgMember } from '../lib/rls/auth/assert_self_and_org_member';
@@ -34,14 +34,7 @@ type AuditPayload = {
   organizationId: string;
   actorUserId: string;
   subjectUserId: string;
-  action:
-    | 'propose'
-    | 'create'
-    | 'approve'
-    | 'dismiss'
-    | 'update'
-    | 'invalidate'
-    | 'delete';
+  action: 'propose' | 'create' | 'approve' | 'dismiss' | 'delete';
   outcome: 'ok' | 'denied' | 'error';
   memoryId?: Id<'userMemories'>;
 };
@@ -55,16 +48,12 @@ async function audit(ctx: MutationCtx, payload: AuditPayload): Promise<void> {
 
 /**
  * Manually add a new memory directly in the approved state — settings UI
- * "Add memory" button. Optionally supersedes an existing approved memory:
- * the old row's status flips to 'invalidated' and the new row's
- * `supersedesId` points back at it.
+ * "Add memory" button.
  */
 export const addMemory = mutation({
   args: {
     organizationId: v.string(),
     content: v.string(),
-    supersedesId: v.optional(v.id('userMemories')),
-    language: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<Id<'userMemories'>> => {
     const authUser = await requireAuthenticatedUser(ctx);
@@ -77,39 +66,12 @@ export const addMemory = mutation({
     await maybeRunCleanup(ctx, authUser.userId, args.organizationId);
     validateContent(args.content);
 
-    if (args.supersedesId) {
-      const old = await ctx.db.get(args.supersedesId);
-      if (
-        !old ||
-        old.userId !== authUser.userId ||
-        old.organizationId !== args.organizationId
-      ) {
-        throw new ConvexError({
-          code: 'forbidden',
-          message: 'supersedesId targets a memory that is not yours',
-        });
-      }
-      if (old.status === 'approved') {
-        await ctx.db.patch(args.supersedesId, { status: 'invalidated' });
-        await audit(ctx, {
-          organizationId: args.organizationId,
-          actorUserId: authUser.userId,
-          subjectUserId: authUser.userId,
-          action: 'invalidate',
-          outcome: 'ok',
-          memoryId: args.supersedesId,
-        });
-      }
-    }
-
     const id = await ctx.db.insert('userMemories', {
       userId: authUser.userId,
       organizationId: args.organizationId,
       content: args.content,
       source: 'manual',
       status: 'approved',
-      supersedesId: args.supersedesId,
-      language: args.language,
       createdAt: Date.now(),
     });
     await audit(ctx, {
@@ -126,14 +88,12 @@ export const addMemory = mutation({
 
 /**
  * User accepts a propose_memory proposal (Save or Edit&Save in the chat
- * inline card or settings/Pending tab). Optionally edits content and/or
- * marks an existing approved row as superseded.
+ * inline card or settings/Pending tab). Optionally edits content.
  */
 export const approvePendingMemory = mutation({
   args: {
     memoryId: v.id('userMemories'),
     content: v.optional(v.string()),
-    supersedesId: v.optional(v.id('userMemories')),
   },
   handler: async (ctx, args): Promise<void> => {
     const authUser = await requireAuthenticatedUser(ctx);
@@ -160,35 +120,9 @@ export const approvePendingMemory = mutation({
 
     if (args.content !== undefined) validateContent(args.content);
 
-    if (args.supersedesId) {
-      const old = await ctx.db.get(args.supersedesId);
-      if (
-        !old ||
-        old.userId !== authUser.userId ||
-        old.organizationId !== row.organizationId
-      ) {
-        throw new ConvexError({
-          code: 'forbidden',
-          message: 'supersedesId targets a memory that is not yours',
-        });
-      }
-      if (old.status === 'approved') {
-        await ctx.db.patch(args.supersedesId, { status: 'invalidated' });
-        await audit(ctx, {
-          organizationId: row.organizationId,
-          actorUserId: authUser.userId,
-          subjectUserId: authUser.userId,
-          action: 'invalidate',
-          outcome: 'ok',
-          memoryId: args.supersedesId,
-        });
-      }
-    }
-
     await ctx.db.patch(args.memoryId, {
       status: 'approved',
       content: args.content ?? row.content,
-      supersedesId: args.supersedesId ?? row.supersedesId,
       pendingExpiresAt: undefined,
     });
     await audit(ctx, {
@@ -203,7 +137,9 @@ export const approvePendingMemory = mutation({
 });
 
 /**
- * User dismisses a pending proposal — hard-deleted, no soft-delete trail.
+ * User dismisses a pending proposal — soft-deleted (consistent with
+ * `softDeleteMemory`). The audit row remains; the memory row is
+ * hard-deleted by lazy cleanup 30d after `deletedAt` is set.
  */
 export const dismissPendingMemory = mutation({
   args: {
@@ -230,42 +166,12 @@ export const dismissPendingMemory = mutation({
         message: 'Memory is not pending',
       });
     }
-    await ctx.db.delete(args.memoryId);
+    await ctx.db.patch(args.memoryId, { deletedAt: Date.now() });
     await audit(ctx, {
       organizationId: row.organizationId,
       actorUserId: authUser.userId,
       subjectUserId: authUser.userId,
       action: 'dismiss',
-      outcome: 'ok',
-      memoryId: args.memoryId,
-    });
-  },
-});
-
-export const markInvalidated = mutation({
-  args: { memoryId: v.id('userMemories') },
-  handler: async (ctx, args): Promise<void> => {
-    const authUser = await requireAuthenticatedUser(ctx);
-    const row = await ctx.db.get(args.memoryId);
-    if (!row || row.userId !== authUser.userId) {
-      throw new ConvexError({
-        code: 'forbidden',
-        message: 'Memory not found',
-      });
-    }
-    await assertSelfAndOrgMember(
-      ctx,
-      authUser,
-      authUser.userId,
-      row.organizationId,
-    );
-    if (row.status !== 'approved') return;
-    await ctx.db.patch(args.memoryId, { status: 'invalidated' });
-    await audit(ctx, {
-      organizationId: row.organizationId,
-      actorUserId: authUser.userId,
-      subjectUserId: authUser.userId,
-      action: 'invalidate',
       outcome: 'ok',
       memoryId: args.memoryId,
     });
@@ -289,6 +195,7 @@ export const softDeleteMemory = mutation({
       authUser.userId,
       row.organizationId,
     );
+    if (typeof row.deletedAt === 'number') return;
     await ctx.db.patch(args.memoryId, { deletedAt: Date.now() });
     await audit(ctx, {
       organizationId: row.organizationId,
@@ -298,68 +205,5 @@ export const softDeleteMemory = mutation({
       outcome: 'ok',
       memoryId: args.memoryId,
     });
-  },
-});
-
-export const restoreMemory = mutation({
-  args: { memoryId: v.id('userMemories') },
-  handler: async (ctx, args): Promise<void> => {
-    const authUser = await requireAuthenticatedUser(ctx);
-    const row = await ctx.db.get(args.memoryId);
-    if (!row || row.userId !== authUser.userId) {
-      throw new ConvexError({
-        code: 'forbidden',
-        message: 'Memory not found',
-      });
-    }
-    await assertSelfAndOrgMember(
-      ctx,
-      authUser,
-      authUser.userId,
-      row.organizationId,
-    );
-    if (typeof row.deletedAt !== 'number') return;
-    await ctx.db.patch(args.memoryId, { deletedAt: undefined });
-  },
-});
-
-export const bulkDeleteMemories = mutation({
-  args: { organizationId: v.string() },
-  handler: async (ctx, args): Promise<number> => {
-    const authUser = await requireAuthenticatedUser(ctx);
-    await assertSelfAndOrgMember(
-      ctx,
-      authUser,
-      authUser.userId,
-      args.organizationId,
-    );
-    await maybeRunCleanup(ctx, authUser.userId, args.organizationId);
-
-    const rows: Doc<'userMemories'>[] = await ctx.db
-      .query('userMemories')
-      .withIndex('by_user_org_status_deleted_created', (q) =>
-        q
-          .eq('userId', authUser.userId)
-          .eq('organizationId', args.organizationId),
-      )
-      .collect();
-    const now = Date.now();
-    let count = 0;
-    for (const r of rows) {
-      if (r.status === 'pending') continue;
-      if (typeof r.deletedAt === 'number') continue;
-      await ctx.db.patch(r._id, { deletedAt: now });
-      count++;
-    }
-    if (count > 0) {
-      await audit(ctx, {
-        organizationId: args.organizationId,
-        actorUserId: authUser.userId,
-        subjectUserId: authUser.userId,
-        action: 'delete',
-        outcome: 'ok',
-      });
-    }
-    return count;
   },
 });

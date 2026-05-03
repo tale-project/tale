@@ -7,8 +7,6 @@ const actionValidator = v.union(
   v.literal('create'),
   v.literal('approve'),
   v.literal('dismiss'),
-  v.literal('update'),
-  v.literal('invalidate'),
   v.literal('delete'),
   v.literal('inject'),
 );

@@ -1,7 +1,6 @@
 import type { MutationCtx } from '../_generated/server';
 import { rateLimiter } from '../lib/rate_limiter';
-
-const SOFT_DELETE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30d
+import { SOFT_DELETE_TTL_MS } from './constants';
 
 /**
  * Opportunistic per-(user, org) GC for personalization memories. Replaces

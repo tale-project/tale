@@ -9,15 +9,12 @@ import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_
 /**
  * List the calling user's memories in (userId, organizationId) scope.
  *
- * Defense-in-depth filtering: even when lazy cleanup hasn't fired yet,
- * stale pending rows and 30d+-soft-deleted rows are hidden. By default
- * pending rows are also hidden (they belong in `listPendingMemories` per
- * thread); flip `includePending` for the settings/Pending tab.
+ * Soft-deleted rows are always hidden. By default pending rows are also
+ * hidden; flip `includePending` for the settings page's Pending section.
  */
 export const listMyMemories = query({
   args: {
     organizationId: v.string(),
-    includeInvalidated: v.optional(v.boolean()),
     includePending: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<Doc<'userMemories'>[]> => {
@@ -41,8 +38,6 @@ export const listMyMemories = query({
       .collect();
 
     return rows.filter((m) => {
-      // Soft-deleted rows are always hidden from list views — user can
-      // restore via `restoreMemory` while still within the 30d window.
       if (typeof m.deletedAt === 'number') return false;
       if (m.status === 'pending') {
         if (!args.includePending) return false;
@@ -50,7 +45,6 @@ export const listMyMemories = query({
           typeof m.pendingExpiresAt !== 'number' || m.pendingExpiresAt >= now
         );
       }
-      if (m.status === 'invalidated' && !args.includeInvalidated) return false;
       return true;
     });
   },
