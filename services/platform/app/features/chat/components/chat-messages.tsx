@@ -21,6 +21,7 @@ import { BranchNavigator } from './branch-navigator';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
 import { InlineEditInput } from './inline-edit-input';
 import { MessageBubble } from './message-bubble';
+import { PendingMemoriesSection } from './pending-memories-section';
 import { ThinkingAnimation } from './thinking-animation';
 
 /**
@@ -569,6 +570,8 @@ export function ChatMessages({
               onSendMessage={onSendMessage}
             />
           )}
+
+          <PendingMemoriesSection threadId={threadId} />
         </div>
       </div>
     </div>
