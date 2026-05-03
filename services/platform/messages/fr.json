@@ -3884,6 +3884,7 @@
     "page": {
       "title": "Personnalisation",
       "description": "Aide l'assistant à se souvenir de choses sur toi d'une conversation à l'autre. Désactivé par défaut — active-le ci-dessous.",
+      "privacyLink": "Avis de confidentialité",
       "orgDefault": {
         "label": "Valeur par défaut de l'organisation (admin)",
         "description": "Lorsqu'activée, la personnalisation est activée par défaut pour tous les membres de cette organisation. Les membres qui s'y opposent explicitement conservent leur choix.",
@@ -3894,15 +3895,15 @@
         "description": "Quand activé, l'assistant utilise tes instructions personnalisées et tes souvenirs enregistrés. Désactive à tout moment pour stopper l'injection.",
         "orgStateOn": "activé",
         "orgStateOff": "désactivé",
-        "followingOrgDefault": "Suit la valeur par défaut de l'organisation ({{state}}).",
-        "overridingOrgDefault": "Remplace la valeur par défaut de l'organisation ({{state}})."
+        "followingOrgDefault": "Suit la valeur par défaut de l'organisation ({state}).",
+        "overridingOrgDefault": "Remplace la valeur par défaut de l'organisation ({state})."
       },
       "customInstructions": {
         "label": "Instructions personnalisées",
         "description": "Ce que l'assistant doit garder à l'esprit dans chaque réponse. 4000 caractères maximum.",
         "placeholder": "p. ex. Réponds de manière concise. Utilise TypeScript par défaut pour le code.",
         "save": "Enregistrer",
-        "counter": "{{count}} / 4000"
+        "counter": "{count} / 4000"
       },
       "memories": {
         "title": "Souvenirs enregistrés",

@@ -3884,6 +3884,7 @@
     "page": {
       "title": "Personalisierung",
       "description": "Hilf dem Assistenten, sich Dinge über dich chat-übergreifend zu merken. Standardmäßig aus — unten aktivieren.",
+      "privacyLink": "Datenschutzhinweis",
       "orgDefault": {
         "label": "Organisations-Standard (Admin)",
         "description": "Wenn aktiviert, ist Personalisierung für alle Mitglieder dieser Organisation standardmäßig aktiv. Mitglieder, die sich explizit dagegen entscheiden, behalten ihre Wahl.",
@@ -3894,15 +3895,15 @@
         "description": "Wenn aktiv, nutzt der Assistent deine benutzerdefinierten Anweisungen und gespeicherten Erinnerungen. Du kannst sie jederzeit deaktivieren.",
         "orgStateOn": "aktiv",
         "orgStateOff": "aus",
-        "followingOrgDefault": "Folgt dem Organisations-Standard ({{state}}).",
-        "overridingOrgDefault": "Überschreibt den Organisations-Standard ({{state}})."
+        "followingOrgDefault": "Folgt dem Organisations-Standard ({state}).",
+        "overridingOrgDefault": "Überschreibt den Organisations-Standard ({state})."
       },
       "customInstructions": {
         "label": "Benutzerdefinierte Anweisungen",
         "description": "Was der Assistent in jeder Antwort beachten soll. Maximal 4000 Zeichen.",
         "placeholder": "z. B. Antworte knapp. Verwende standardmäßig TypeScript bei Code-Themen.",
         "save": "Speichern",
-        "counter": "{{count}} / 4000"
+        "counter": "{count} / 4000"
       },
       "memories": {
         "title": "Gespeicherte Erinnerungen",

@@ -67,6 +67,14 @@ function PersonalizationSettingsInner({
         <Text variant="muted" className="mt-1">
           {t('page.description')}
         </Text>
+        <a
+          href="https://docs.tale.dev/legal/personalization"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-block text-sm underline"
+        >
+          {t('page.privacyLink')}
+        </a>
       </header>
 
       <OrgDefaultSection organizationId={organizationId} />

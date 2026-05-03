@@ -3884,6 +3884,7 @@
     "page": {
       "title": "Personalization",
       "description": "Help the assistant remember things about you across chats. Off by default — enable below.",
+      "privacyLink": "Privacy notice",
       "orgDefault": {
         "label": "Organization default (admin)",
         "description": "When on, every member of this organization has personalization enabled by default. Members who explicitly opt out keep their choice.",
@@ -3894,15 +3895,15 @@
         "description": "When on, the assistant uses your custom instructions and saved memories. Turn off any time to stop injection.",
         "orgStateOn": "on",
         "orgStateOff": "off",
-        "followingOrgDefault": "Following organization default ({{state}}).",
-        "overridingOrgDefault": "Overriding organization default ({{state}})."
+        "followingOrgDefault": "Following organization default ({state}).",
+        "overridingOrgDefault": "Overriding organization default ({state})."
       },
       "customInstructions": {
         "label": "Custom instructions",
         "description": "Things you want the assistant to keep in mind in every reply. Max 4000 characters.",
         "placeholder": "e.g. Reply concisely. Default to TypeScript when discussing code.",
         "save": "Save",
-        "counter": "{{count}} / 4000"
+        "counter": "{count} / 4000"
       },
       "memories": {
         "title": "Saved memories",
