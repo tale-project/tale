@@ -56,7 +56,7 @@ Major LLM providers run automated abuse-detection over inputs they receive. Cont
   - **Thread-level disable** — a per-thread hard off (e.g. shared threads).
 - **No admin override.** Admin role does not bypass another user's row. Every public read and write surface requires an exact user-id match plus a live organization-membership check, so a removed-but-still-tokened user cannot read stale rows.
 - **Auto-disable on share.** Sharing a thread automatically disables personalization for that thread; unsharing re-enables it.
-- **Cascade hard-delete.** Removing a user from an organization, or deleting the organization, immediately hard-deletes all of that user's personalization rows in scope (custom instructions, memories, audit-log entries, preferences). Account-level self-deletion is not yet a product feature; the matching cascade hook will land alongside the user-delete plugin.
+- **Cascade hard-delete.** Removing a user from an organization, or deleting the organization, immediately hard-deletes all of that user's personalization content rows in scope (custom instructions, memories, preferences). Audit-log entries that record those events are retained without content — only the timestamp, action type, and the raw subject user id — for compliance reporting; admin-blind pseudonymisation will be applied when an admin-readable audit view ships. Account-level self-deletion is not yet a product feature; the matching cascade hook will land alongside the user-delete plugin.
 - **Soft-delete window for approved memories.** User-initiated deletion of an approved memory triggers a 30-day soft-delete window before storage is reclaimed via opportunistic cleanup. A discarded proposal — one you reject from the chat inline card or the Pending tab — is hard-deleted at the moment of discard.
 
 ## 4. DPA addendum (draft)
@@ -68,4 +68,4 @@ Customers requiring a Data Processing Addendum addition for personalization cont
 - Sub-processors: the LLM provider configured per organization (see "Memory content is sent…" above).
 - Retention: indefinite while the user is a member of the organization and personalization remains enabled; 30 days after soft-delete; immediate on hard-delete.
 - Cross-border transfers: governed by the LLM provider's residency and the customer's choice of provider region.
-- Subject rights: erasure (Art. 17 via cascade on member-remove and org-delete). Operator-invokable export query (Art. 15/20) is available against the underlying tables; in-product self-service export is planned for v2.
+- Subject rights: erasure of content (Art. 17 via cascade on member-remove and org-delete). Audit-log metadata (no content) is retained for compliance and pseudonymized when admin-readable audit views are introduced. Operator-invokable export query (Art. 15/20) is available against the underlying tables; in-product self-service export is planned for v2.

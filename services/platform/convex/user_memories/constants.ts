@@ -1,5 +1,10 @@
 export const ILLEGAL_CONTENT_RE = /[\n\r<>`\x00-\x1f\x7f]/;
 
+// Same as ILLEGAL_CONTENT_RE but allows LF (0x0a). For multi-line fields like
+// customInstructions; callers must normalize CRLF / lone CR → LF before testing
+// (lone CR is still rejected by the \x00-\x09 / \x0b-\x1f range).
+export const CUSTOM_INSTRUCTIONS_ILLEGAL_RE = /[<>`\x00-\x09\x0b-\x1f\x7f]/;
+
 export const MEMORY_CONTENT_MAX_TOKENS = 200;
 
 export const CUSTOM_INSTRUCTIONS_MAX_CHARS = 4000;

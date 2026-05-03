@@ -5,9 +5,9 @@ import { estimateTokens } from '../lib/context_management/estimate_tokens';
 import { assertSelfAndOrgMember } from '../lib/rls/auth/assert_self_and_org_member';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import {
+  CUSTOM_INSTRUCTIONS_ILLEGAL_RE,
   CUSTOM_INSTRUCTIONS_MAX_CHARS,
   CUSTOM_INSTRUCTIONS_MAX_TOKENS,
-  ILLEGAL_CONTENT_RE,
 } from '../user_memories/constants';
 
 export const upsertMyPreferences = mutation({
@@ -24,24 +24,30 @@ export const upsertMyPreferences = mutation({
       args.organizationId,
     );
 
-    if (args.customInstructions.length > CUSTOM_INSTRUCTIONS_MAX_CHARS) {
+    // Canonicalize line endings before any length / regex check, so a
+    // Windows paste doesn't silently fail and stored content is always LF.
+    const normalized = args.customInstructions
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n');
+
+    if (normalized.length > CUSTOM_INSTRUCTIONS_MAX_CHARS) {
       throw new ConvexError({
         code: 'too_long',
         message: `Custom instructions exceed ${CUSTOM_INSTRUCTIONS_MAX_CHARS} characters.`,
       });
     }
     if (
-      args.customInstructions.length > 0 &&
-      ILLEGAL_CONTENT_RE.test(args.customInstructions)
+      normalized.length > 0 &&
+      CUSTOM_INSTRUCTIONS_ILLEGAL_RE.test(normalized)
     ) {
       throw new ConvexError({
         code: 'invalid',
         message:
-          'Custom instructions contain disallowed characters (newlines, ' +
-          'angle brackets, backticks, or control characters).',
+          'Custom instructions contain disallowed characters (angle ' +
+          'brackets, backticks, or control characters).',
       });
     }
-    const tokens = estimateTokens(args.customInstructions);
+    const tokens = estimateTokens(normalized);
     if (tokens > CUSTOM_INSTRUCTIONS_MAX_TOKENS) {
       throw new ConvexError({
         code: 'too_long',
@@ -61,7 +67,7 @@ export const upsertMyPreferences = mutation({
     const now = Date.now();
     if (existing) {
       await ctx.db.patch(existing._id, {
-        customInstructions: args.customInstructions,
+        customInstructions: normalized,
         updatedAt: now,
       });
       return existing._id;
@@ -73,7 +79,7 @@ export const upsertMyPreferences = mutation({
     return await ctx.db.insert('userPreferences', {
       userId: authUser.userId,
       organizationId: args.organizationId,
-      customInstructions: args.customInstructions,
+      customInstructions: normalized,
       updatedAt: now,
     });
   },
