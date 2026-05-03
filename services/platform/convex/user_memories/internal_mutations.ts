@@ -136,21 +136,23 @@ export const writeProposal = internalMutation({
       };
     }
 
-    // Per-day cap: count `agent_proposed` memory rows for this user+org
-    // created in the last 24h. (Commit 10 will switch this to count
-    // `propose` audit rows so dismissed proposals still count toward the
-    // cap.)
+    // Per-day cap: count `propose` audit rows for this user+org in the
+    // last 24h. Append-only audit means dismissed proposals still count
+    // toward the cap (closing the dismiss-then-propose bypass loop).
     const dayCutoff = now - PROPOSAL_DAY_WINDOW_MS;
-    const recentByUser = await ctx.db
-      .query('userMemories')
-      .withIndex('by_user_org_status_deleted_created', (q) =>
-        q.eq('userId', args.userId).eq('organizationId', args.organizationId),
+    const recentAudit = await ctx.db
+      .query('userMemoryAuditLog')
+      .withIndex('by_org_subject_at', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('subjectUserId', args.userId)
+          .gte('createdAt', dayCutoff),
       )
       .collect();
-    const proposalsInWindow = recentByUser.filter(
-      (m) => m.source === 'agent_proposed' && m.createdAt >= dayCutoff,
-    );
-    if (proposalsInWindow.length >= args.perDayCap) {
+    const proposeAttempts = recentAudit.filter(
+      (r) => r.action === 'propose',
+    ).length;
+    if (proposeAttempts >= args.perDayCap) {
       await audit('denied');
       return {
         ok: false,
