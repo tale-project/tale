@@ -3922,8 +3922,6 @@
       "discard": "Discard"
     },
     "errors": {
-      "invalidContent": "Content can't contain newlines, angle brackets, or backticks.",
-      "tooLong": "Content is too long.",
       "saveFailed": "Couldn't save. Please try again."
     },
     "toasts": {

@@ -3922,8 +3922,6 @@
       "discard": "Ignorer"
     },
     "errors": {
-      "invalidContent": "Le contenu ne peut pas contenir de retours à la ligne, de chevrons ni d'apostrophes inversées.",
-      "tooLong": "Contenu trop long.",
       "saveFailed": "Échec de l'enregistrement. Réessaie."
     },
     "toasts": {

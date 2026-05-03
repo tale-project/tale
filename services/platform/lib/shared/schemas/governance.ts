@@ -25,7 +25,6 @@ export type PolicyType = (typeof POLICY_TYPES)[number];
 export const personalizationConfigSchema = z.object({
   enabled: z.boolean(),
 });
-export type PersonalizationConfig = z.infer<typeof personalizationConfigSchema>;
 
 export const budgetRuleSchema = z.object({
   scope: z.enum(['user', 'team', 'role', 'org', 'default']),

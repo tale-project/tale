@@ -346,14 +346,14 @@ function PendingMemoriesSection({
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err instanceof ConvexError) {
-    const data = err.data;
+    const data: unknown = err.data;
     if (
-      data &&
+      data !== null &&
       typeof data === 'object' &&
       'message' in data &&
-      typeof (data as { message: unknown }).message === 'string'
+      typeof data.message === 'string'
     ) {
-      return (data as { message: string }).message;
+      return data.message;
     }
   }
   return fallback;

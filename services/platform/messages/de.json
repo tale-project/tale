@@ -3922,8 +3922,6 @@
       "discard": "Verwerfen"
     },
     "errors": {
-      "invalidContent": "Inhalt darf keine Zeilenumbrüche, spitzen Klammern oder Backticks enthalten.",
-      "tooLong": "Inhalt ist zu lang.",
       "saveFailed": "Speichern fehlgeschlagen. Bitte erneut versuchen."
     },
     "toasts": {
