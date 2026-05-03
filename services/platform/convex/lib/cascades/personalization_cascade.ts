@@ -7,11 +7,9 @@ import type { MutationCtx } from '../../_generated/server';
  * GDPR Art 17 erasure path; opportunistic lazy cleanup is for storage
  * hygiene only and is not on the erasure critical path.
  *
- * Audit-log rows are NOT deleted by these hooks — they keep the
- * pseudonymised `subjectUserIdHmac` and remain useful for compliance
- * reporting. To sever linkability when a user erases their account,
- * rotate the `PERSONALIZATION_AUDIT_PEPPER` env var (see
- * `user_memories/audit_pseudonym.ts`).
+ * Audit-log rows are NOT deleted by these hooks — they retain the raw
+ * `subjectUserId` for compliance reporting. Admin-blind pseudonymisation
+ * can be reintroduced when an admin-readable audit view ships.
  */
 
 async function deleteAllForUserOrg(

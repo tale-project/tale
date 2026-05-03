@@ -3,35 +3,29 @@ import { v } from 'convex/values';
 
 /**
  * Append-only audit log for personalization data lifecycle events. Distinct
- * from the platform `auditLogs` table because:
- *  - subject identity is HMAC-pseudonymised (`subjectUserIdHmac`), not raw
- *    `userId`, so org admins reading this table cannot identify who a row
- *    belongs to (admin-blind contract). The HMAC pepper lives in the
- *    `PERSONALIZATION_AUDIT_PEPPER` env var; rotating the pepper effectively
- *    crypto-shreds the linkability for old rows.
- *  - schema is closed: no free-form `metadata: jsonRecord`. Every action's
- *    payload shape is enumerated in this validator so future PRs can't
- *    accidentally smuggle memory content into the log.
+ * from the platform `auditLogs` table because schema is closed: no free-form
+ * `metadata: jsonRecord`. Every action's payload shape is enumerated in this
+ * validator so future PRs can't accidentally smuggle memory content into the
+ * log.
  *
- * `actorUserId` is the principal who performed the action (== subject for
- * self-actions, distinct for system / future admin paths). Stored raw because
- * actors are not the protected subject.
+ * `subjectUserId` is the user the row pertains to. `actorUserId` is the
+ * principal who performed the action (== subject for self-actions). Both are
+ * stored raw — admin-blind pseudonymisation can be reintroduced when an
+ * admin-readable audit view ships.
  *
  * Action semantics:
- *  - 'propose'    : agent called propose_memory; row written with status=pending
- *  - 'create'     : user added a memory directly in settings (status=approved)
- *  - 'approve'    : user approved a pending proposal
- *  - 'dismiss'    : user dismissed a pending proposal (row hard-deleted)
- *  - 'update'     : user edited the content of an approved memory
- *  - 'invalidate' : user marked an approved memory as no-longer-true
- *  - 'delete'     : user soft-deleted (deletedAt set)
- *  - 'inject'     : memories were folded into a chat turn's system prompt
- *                   (one row per chat turn, with injectedMemoryIds[])
+ *  - 'propose' : agent called propose_memory; row written with status=pending
+ *  - 'create'  : user added a memory directly in settings (status=approved)
+ *  - 'approve' : user approved a pending proposal
+ *  - 'dismiss' : user dismissed a pending proposal
+ *  - 'delete'  : user soft-deleted (deletedAt set)
+ *  - 'inject'  : memories were folded into a chat turn's system prompt (one
+ *                row per chat turn, with injectedMemoryIds[])
  */
 export const userMemoryAuditLogTable = defineTable({
   organizationId: v.string(),
   actorUserId: v.string(),
-  subjectUserIdHmac: v.string(),
+  subjectUserId: v.string(),
   action: v.union(
     v.literal('propose'),
     v.literal('create'),
@@ -51,9 +45,5 @@ export const userMemoryAuditLogTable = defineTable({
   requestId: v.optional(v.string()),
   createdAt: v.number(),
 })
-  .index('by_org_subjecthmac_at', [
-    'organizationId',
-    'subjectUserIdHmac',
-    'createdAt',
-  ])
+  .index('by_org_subject_at', ['organizationId', 'subjectUserId', 'createdAt'])
   .index('by_org_at', ['organizationId', 'createdAt']);

@@ -130,10 +130,10 @@ export const writeProposal = internalMutation({
       };
     }
 
-    // Per-day cap: count `propose` audit rows for this user+org in the
-    // last 24h. Audit rows are pseudonymised so we look up by org +
-    // subjectUserIdHmac. We don't have the HMAC inline; cheaper to count
-    // the actual memory rows that started as proposals in the window.
+    // Per-day cap: count `agent_proposed` memory rows for this user+org
+    // created in the last 24h. (Commit 10 will switch this to count
+    // `propose` audit rows so dismissed proposals still count toward the
+    // cap.)
     const dayCutoff = now - PROPOSAL_DAY_WINDOW_MS;
     const recentByUser = await ctx.db
       .query('userMemories')

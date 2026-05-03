@@ -4,7 +4,6 @@ import type { Doc } from '../_generated/dataModel';
 import { query } from '../_generated/server';
 import { assertSelfAndOrgMember } from '../lib/rls/auth/assert_self_and_org_member';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
-import { hmacUserId } from '../user_memories/audit_pseudonym';
 
 const SCHEMA_VERSION = 1;
 
@@ -60,13 +59,12 @@ export const exportMyPersonalData = query({
       )
       .collect();
 
-    const subjectHmac = await hmacUserId(authUser.userId);
     const auditLog = await ctx.db
       .query('userMemoryAuditLog')
-      .withIndex('by_org_subjecthmac_at', (q) =>
+      .withIndex('by_org_subject_at', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('subjectUserIdHmac', subjectHmac),
+          .eq('subjectUserId', authUser.userId),
       )
       .collect();
 
