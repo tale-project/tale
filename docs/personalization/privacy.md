@@ -2,7 +2,7 @@
 
 Tale's personalization layer (Custom Instructions + Memories) is designed around a single contract:
 
-> **Within Tale, no other user — including your organization's admin — can read your custom instructions or memory content via any UI, API, audit log, or export. Admins can see counts and timestamps; they cannot see content.**
+> **Within Tale, no other user — including your organization's admin — can read your custom instructions or memory content via any UI or API. Personalization is OFF by default; you must enable it explicitly in `/settings/personalization`.**
 
 This page documents what that contract does and does not cover. Five caveats are inherent to running an AI service and cannot be eliminated by Tale's code:
 
@@ -23,7 +23,7 @@ Tale supports self-hosted Convex. Whoever has database / Convex dashboard access
 
 ## 3. Assistant replies may quote or paraphrase your memories
 
-The model's reply, when generated using your memory, can repeat the memory verbatim or paraphrased. That reply is stored in your thread under the **thread visibility rules**, not the memory visibility rules. A shared thread (`isShared=true`) reveals replies to other org members; deleting a memory does not retroactively redact past replies.
+The model's reply, when generated using your memory, can repeat the memory verbatim or paraphrased. That reply is stored in your thread under the **thread visibility rules**, not the memory visibility rules. Sharing a thread (`isShared=true`) automatically disables personalization for subsequent turns by the owner, but past replies that were already generated under personalization remain in the shared thread; deleting a memory does not retroactively redact past replies.
 
 ## 4. Convex platform logs
 
@@ -37,19 +37,21 @@ Major LLM providers run automated abuse-detection over inputs they receive. Cont
 
 ## What Tale does enforce
 
+- Default-OFF: personalization is disabled until you explicitly enable it in `/settings/personalization`. A missing `userPreferences` row, or `enabled !== true`, blocks both read and write paths.
 - `assertSelfAndOrgMember` on every public read/write — admin role does not bypass.
-- Audit log subjects are HMAC-pseudonymised; rotating `PERSONALIZATION_AUDIT_PEPPER` severs admin-side linkability.
-- Cascade hard-delete on member removal, org deletion, and user account deletion.
-- Active GDPR Art 17 erasure goes through cascade hooks (immediate); 30-day soft-delete window before storage is reclaimed via opportunistic cleanup.
-- GDPR Art 15 / Art 20 data export endpoint returns a complete JSON snapshot of prefs + memories + audit-log entries scoped to the requester.
+- Symmetric kill-switch: org feature flag, per-user toggle, and per-thread `disablePersonalization` all gate the read path (`buildUserPersonalization`), the write path (`writeProposal`), AND the chat tool surface (the `propose_memory` tool is stripped from the agent's tool list when any switch is closed).
+- Sharing a thread auto-disables personalization for that thread (`disablePersonalization=true` on share, cleared on unshare).
+- Cascade hard-delete on member removal and organization deletion. Account-level self-deletion is not yet a product feature; when it ships, the matching cascade hook lands alongside the user-delete plugin.
+- Active GDPR Art 17 erasure for the in-scope cascades is immediate; 30-day soft-delete window before storage is reclaimed via opportunistic cleanup.
+- Audit-log rows store `subjectUserId` raw — admin-blind pseudonymisation can be reintroduced when an admin-readable audit view ships (currently no such reader exists).
 
 ## DPA addendum (draft)
 
 Customers requiring a Data Processing Addendum addition for personalization content should request the **Personalization & Memory Processor Annex**, which covers:
 
-- Categories of personal data: free-form user-authored instructions; LLM-mediated facts about the user; subject-pseudonymised audit metadata.
+- Categories of personal data: free-form user-authored instructions; LLM-mediated facts about the user; raw-subject audit metadata.
 - Purposes: per-user personalization of chat responses only.
 - Sub-processors: the LLM provider configured per org (see "Memory content is sent…" above).
-- Retention: indefinite while user is a member of the org; 30 days after soft-delete; immediate on hard-delete.
+- Retention: indefinite while user is a member of the org and personalization remains enabled; 30 days after soft-delete; immediate on hard-delete.
 - Cross-border transfers: governed by the LLM provider's residency and the customer's choice of provider region.
-- Subject rights: in-product export (Art 15/20) and erasure (Art 17 via cascade) for self-service data subject requests.
+- Subject rights: erasure (Art 17 via cascade on member-remove and org-delete). Operator-invokable export query (Art 15/20) is available via `npx convex run` against the underlying tables; in-product self-service export UI is planned for v2.

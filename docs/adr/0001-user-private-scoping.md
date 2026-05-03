@@ -19,11 +19,12 @@ The existing role system is the org-internal **action-permissions** axis: who ca
 ## Consequences
 
 - All public read/write surfaces use `assertSelfAndOrgMember` — exact `userId` match plus a live `member` lookup so a removed-but-still-tokened user cannot read stale rows.
+- Default-OFF for personalization injection: a missing `userPreferences` row, or `enabled !== true`, blocks both read and write paths uniformly. No per-user-attribute branching (no language / region / consent flags).
 - Org admins have no path to read personalization content. They can:
   - Toggle the org-wide feature flag (governance feature_flags policy).
-  - See pseudonymised audit-log counts and timestamps (subject ID is HMAC'd with a server-side pepper).
+  - See raw-subject audit-log counts and timestamps (admin-blind pseudonymisation will be reintroduced when an admin-readable audit view ships).
   - Run cascade-deletion via member removal or org deletion.
-- Cascade hooks live in `lib/cascades/personalization_cascade.ts`. Lifecycle authorities (member removal, org deletion, account deletion) call the appropriate hook. The hooks hard-delete; lazy cleanup is for storage hygiene, not GDPR Art 17 erasure.
+- Cascade hooks live in `lib/cascades/personalization_cascade.ts`. Lifecycle authorities (member removal, org deletion) call the appropriate hook. The hooks hard-delete; lazy cleanup is for storage hygiene, not GDPR Art 17 erasure. Account-level self-deletion is not yet a product feature; the matching cascade hook will land alongside the user-delete plugin.
 - Documentation (`docs/permission_model.md`) presents the three axes side-by-side so future tables pick correctly.
 
 ## Alternatives considered

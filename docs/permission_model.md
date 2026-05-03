@@ -24,9 +24,9 @@ A finer-grained slice for teams within an org: team-bound agents, team knowledge
 Per-user data that should not leak to anyone else in the org, **including org admins**: chat threads, custom instructions, memories.
 
 - Stored with `userId` and (where applicable) `organizationId` on the row.
-- Read/write gated by `assertSelfAndOrgMember` ([convex/lib/rls/auth/assert_self_and_org_member.ts](../services/platform/convex/lib/rls/auth/assert_self_and_org_member.ts)) — exact-match `userId` plus a current-membership check so a removed-but-still-tokened user can't read stale rows.
-- Org admins **cannot** read user-private content via any platform UI, query, audit log, or export. They can see lifecycle counts (the audit log records pseudonymised subject IDs), org-level kill switches (feature flags, governance), and storage quotas — never content.
-- Cascade: per-user-private resource has its own hook in [convex/lib/cascades/](../services/platform/convex/lib/cascades/) that runs on member-remove / account-delete / org-delete.
+- Read/write gated by `assertSelfAndOrgMember` ([convex/lib/rls/auth/assert_self_and_org_member.ts](../services/platform/convex/lib/rls/auth/assert_self_and_org_member.ts)) — exact-match `userId` plus a current-membership check so a removed-but-still-tokened user can't read stale rows. (`threadMetadata` uses `canAccessThread`, which gates by ownership but does not perform the live-membership re-check; the table sits between user-private and org-shared because of the `isShared` affordance.)
+- Org admins **cannot** read user-private content via any platform UI or query. They can see lifecycle counts via the audit log (currently with raw `subjectUserId`; admin-blind pseudonymisation will be reintroduced when an admin-readable audit view ships), org-level kill switches (feature flags, governance), and storage quotas — never content.
+- Cascade: per-user-private personalization rows are removed by [convex/lib/cascades/personalization_cascade.ts](../services/platform/convex/lib/cascades/personalization_cascade.ts) on member-remove and org-delete. Account-level self-deletion is not yet a product feature; the matching cascade hook will land alongside the user-delete plugin.
 
 User-private is **a scoping pattern**, not a permission level. Adding "private" to the role enum would be a category error — roles are about what the user can do org-wide; scoping is about who can see a particular row.
 
