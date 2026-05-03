@@ -44,5 +44,4 @@ export const userMemoriesTable = defineTable({
     'deletedAt',
     'createdAt',
   ])
-  .index('by_organizationId', ['organizationId'])
-  .index('by_pendingExpiresAt', ['pendingExpiresAt']);
+  .index('by_organizationId', ['organizationId']);

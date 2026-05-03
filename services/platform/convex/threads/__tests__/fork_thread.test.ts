@@ -183,6 +183,24 @@ describe('forkThread', () => {
     );
   });
 
+  it('forces disablePersonalization=true on the forked thread (privacy: forker should not inject personalization into context authored by another user)', async () => {
+    const { ctx, insertFn } = createMockCtx({
+      isShared: true,
+      organizationId: 'org_1',
+      title: 'Original chat',
+    });
+    await forkThread(ctx, { shareToken: VALID_TOKEN });
+
+    expect(insertFn).toHaveBeenCalledWith(
+      'threadMetadata',
+      expect.objectContaining({
+        threadId: 'new_thread_1',
+        forkedFromShare: true,
+        disablePersonalization: true,
+      }),
+    );
+  });
+
   it('respects snapshot isolation when forking', async () => {
     mockGetThreadMessages.mockResolvedValue({
       messages: [

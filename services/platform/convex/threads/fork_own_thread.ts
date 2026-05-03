@@ -84,6 +84,9 @@ export const forkOwnThread = mutation({
       forkedMessageCount: messages.length,
       lastForkedMessageOrder: lastSavedOrder,
       forkedAt: Date.now(),
+      ...(metadata.disablePersonalization === true && {
+        disablePersonalization: true,
+      }),
       ...(metadata.teamId && { teamId: metadata.teamId }),
     });
 

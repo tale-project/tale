@@ -43,6 +43,7 @@ Major LLM providers run automated abuse-detection over inputs they receive. Cont
 - Sharing a thread auto-disables personalization for that thread (`disablePersonalization=true` on share, cleared on unshare).
 - Cascade hard-delete on member removal and organization deletion. Account-level self-deletion is not yet a product feature; when it ships, the matching cascade hook lands alongside the user-delete plugin.
 - Active GDPR Art 17 erasure for the in-scope cascades is immediate; 30-day soft-delete window before storage is reclaimed via opportunistic cleanup.
+- A dismissed proposal (one the user rejected via the chat inline card or the settings Pending tab) is **hard-deleted** at dismissal time — the row is gone, only an audit-log entry with `action='dismiss'` (no content) remains. The 30-day soft-delete window applies only to user-initiated deletes of previously-approved memories, not to dismissed proposals.
 - Audit-log rows store `subjectUserId` raw — admin-blind pseudonymisation can be reintroduced when an admin-readable audit view ships (currently no such reader exists).
 
 ## DPA addendum (draft)
