@@ -35,11 +35,15 @@ import { z } from 'zod/v4';
 
 import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
+import { ILLEGAL_CONTENT_RE } from '../../user_memories/constants';
 import type { ToolDefinition } from '../types';
 
 const PENDING_PER_THREAD_CAP = 3;
 const PROPOSALS_PER_DAY_CAP = 20;
 const MEMORY_PENDING_TTL_MS = 24 * 60 * 60 * 1000;
+// Char cap for the model: 200 tokens ~ 800 chars (4 chars/tok upper
+// bound). Server still re-validates against MEMORY_CONTENT_MAX_TOKENS.
+const PROPOSAL_MAX_CHARS = 800;
 
 interface ProposeResult {
   ok: boolean;
@@ -64,13 +68,18 @@ export const proposeMemoryTool: ToolDefinition = {
       'future conversations. The user must approve the proposal before it ' +
       'influences future responses; you are not directly modifying memory. ' +
       'Use sparingly — only for stable preferences, identifiers, or facts ' +
-      'the user explicitly told you to remember. Keep entries to a single ' +
-      'short sentence.',
+      'the user explicitly told you to remember. Keep entries to one short ' +
+      'sentence (≤ 200 tokens, no newlines / angle brackets / backticks).',
     inputSchema: z.object({
       content: z
         .string()
         .min(1)
-        .max(2000)
+        .max(PROPOSAL_MAX_CHARS)
+        .refine((s) => !ILLEGAL_CONTENT_RE.test(s), {
+          message:
+            'Content must not contain newlines, angle brackets, backticks, ' +
+            'or control characters.',
+        })
         .describe(
           'A short, single-line fact about the user, written in plain text. ' +
             'No newlines, no angle brackets, no backticks. Will be shown ' +
