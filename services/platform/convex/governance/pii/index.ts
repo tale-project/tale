@@ -33,13 +33,22 @@ function buildPatterns(config: PiiConfig): PiiPattern[] {
  * dispatcher converts `blocked` into a ConvexError with legacy substring so
  * old clients continue to match via `.includes('Message blocked: PII')`.
  *
- * Browser-safe: pure regex + string ops, no Node-only APIs.
+ * Input is normalized to NFC at the entrypoint so that NFD-encoded text
+ * (common from macOS clipboard, some IMEs) doesn't bypass detectors that
+ * embed precomposed characters in their patterns (e.g. `Tél` containing a
+ * literal `é`). The masked output is therefore in NFC form too — consistent
+ * with the existing contract that `scrubPii` may rewrite the text. NFC is
+ * idempotent so this is safe to apply once at the boundary.
+ *
+ * Browser-safe: pure regex + string ops + checksum validators, no Node-only
+ * APIs.
  */
 export function scrubPii(text: string, config: PiiConfig): FilterOutcome {
   if (!config.enabled) return pass();
 
+  const normalized = text.normalize('NFC');
   const patterns = buildPatterns(config);
-  const matches = detectPii(text, patterns);
+  const matches = detectPii(normalized, patterns);
   if (matches.length === 0) return pass();
 
   const detectedTypes = [...new Set(matches.map((m) => m.patternName))];
@@ -48,12 +57,12 @@ export function scrubPii(text: string, config: PiiConfig): FilterOutcome {
     return blocked(detectedTypes, matches.length);
   }
 
-  const maskedText = maskPii(text, matches);
+  const maskedText = maskPii(normalized, matches);
   return modified(maskedText, detectedTypes, matches.length);
 }
 
 export { BUILT_IN_PII_PATTERNS } from './pii_patterns';
-export { detectPii } from './pii_detector';
+export { detectPii, dedupOverlaps } from './pii_detector';
 export { maskPii } from './pii_masker';
 export type { PiiMatch } from './pii_detector';
-export type { PiiPattern } from './pii_patterns';
+export type { PiiMatchSpan, PiiPattern } from './pii_patterns';
