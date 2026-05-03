@@ -20,4 +20,6 @@ export const userPreferencesTable = defineTable({
   customInstructions: v.string(),
   enabled: v.boolean(),
   updatedAt: v.number(),
-}).index('by_userId_organizationId', ['userId', 'organizationId']);
+})
+  .index('by_userId_organizationId', ['userId', 'organizationId'])
+  .index('by_organizationId', ['organizationId']);

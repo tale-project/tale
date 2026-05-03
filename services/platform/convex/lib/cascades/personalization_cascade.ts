@@ -28,7 +28,7 @@ async function deleteAllForUserOrg(
       q.eq('userId', userId).eq('organizationId', organizationId),
     )
     .collect();
-  for (const m of memories) await ctx.db.delete(m._id);
+  await Promise.all(memories.map((m) => ctx.db.delete(m._id)));
 
   const prefs = await ctx.db
     .query('userPreferences')
@@ -36,7 +36,7 @@ async function deleteAllForUserOrg(
       q.eq('userId', userId).eq('organizationId', organizationId),
     )
     .collect();
-  for (const p of prefs) await ctx.db.delete(p._id);
+  await Promise.all(prefs.map((p) => ctx.db.delete(p._id)));
 }
 
 /**
@@ -63,13 +63,17 @@ export async function cascadeOnOrgDeleted(
 ): Promise<void> {
   const memories = await ctx.db
     .query('userMemories')
-    .filter((q) => q.eq(q.field('organizationId'), organizationId))
+    .withIndex('by_organizationId', (q) =>
+      q.eq('organizationId', organizationId),
+    )
     .collect();
-  for (const m of memories) await ctx.db.delete(m._id);
+  await Promise.all(memories.map((m) => ctx.db.delete(m._id)));
 
   const prefs = await ctx.db
     .query('userPreferences')
-    .filter((q) => q.eq(q.field('organizationId'), organizationId))
+    .withIndex('by_organizationId', (q) =>
+      q.eq('organizationId', organizationId),
+    )
     .collect();
-  for (const p of prefs) await ctx.db.delete(p._id);
+  await Promise.all(prefs.map((p) => ctx.db.delete(p._id)));
 }
