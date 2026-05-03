@@ -2,14 +2,19 @@ import type { MutationCtx } from '../../_generated/server';
 
 /**
  * Active erasure cascades for the personalization tables. These run on
- * authoritative lifecycle events (member removal, org deletion, account
- * deletion) and hard-delete the underlying rows immediately. They are the
- * GDPR Art 17 erasure path; opportunistic lazy cleanup is for storage
- * hygiene only and is not on the erasure critical path.
+ * authoritative lifecycle events (member removal, org deletion) and
+ * hard-delete the underlying rows immediately. They are the GDPR Art 17
+ * erasure path; opportunistic lazy cleanup is for storage hygiene only
+ * and is not on the erasure critical path.
  *
  * Audit-log rows are NOT deleted by these hooks — they retain the raw
  * `subjectUserId` for compliance reporting. Admin-blind pseudonymisation
  * can be reintroduced when an admin-readable audit view ships.
+ *
+ * NOTE: account-level deletion is not yet a product feature on this
+ * deployment (Better Auth's user-delete plugin is not wired). When that
+ * lands, add a `cascadeOnUserAccountDeleted` hook that fans out across
+ * the user's orgs.
  */
 
 async function deleteAllForUserOrg(
@@ -44,31 +49,6 @@ export async function cascadeOnMemberRemoved(
   organizationId: string,
 ): Promise<void> {
   await deleteAllForUserOrg(ctx, userId, organizationId);
-}
-
-/**
- * User's account fully deleted: hard-delete prefs + memories across all
- * orgs. The audit log retains pseudonymised subject hashes; rotate the
- * audit pepper to fully sever linkability.
- */
-export async function cascadeOnUserAccountDeleted(
-  ctx: MutationCtx,
-  userId: string,
-): Promise<void> {
-  // No (userId)-only index on userMemories — scan via the composite index
-  // is acceptable because account deletion is rare and per-user memory
-  // counts are small.
-  const memories = await ctx.db
-    .query('userMemories')
-    .filter((q) => q.eq(q.field('userId'), userId))
-    .collect();
-  for (const m of memories) await ctx.db.delete(m._id);
-
-  const prefs = await ctx.db
-    .query('userPreferences')
-    .filter((q) => q.eq(q.field('userId'), userId))
-    .collect();
-  for (const p of prefs) await ctx.db.delete(p._id);
 }
 
 /**
