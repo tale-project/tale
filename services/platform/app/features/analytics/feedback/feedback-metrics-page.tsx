@@ -20,6 +20,7 @@ import { FeedbackSummaryCards } from './feedback-summary-cards';
 import { FilterChips } from './filter-chips';
 import { RecentFeedbackTable } from './recent-feedback-table';
 import { TopAgentsFeedbackTable } from './top-agents-feedback-table';
+import { TopMatchupsFeedbackTable } from './top-matchups-feedback-table';
 import { TopModelsFeedbackTable } from './top-models-feedback-table';
 
 export type FeedbackPeriod = '1' | '7' | '30' | '90' | 'all';
@@ -285,6 +286,10 @@ export function FeedbackMetricsPage({
         byVerdict={stats.arena.byVerdict}
         total={stats.arena.total}
       />
+
+      {stats.topMatchups.length > 0 ? (
+        <TopMatchupsFeedbackTable rows={stats.topMatchups} isLoading={false} />
+      ) : null}
 
       <TopAgentsFeedbackTable
         rows={stats.topAgents}

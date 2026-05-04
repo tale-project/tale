@@ -3911,7 +3911,12 @@
         "notHelpful": "Pas utile"
       },
       "arena": {
-        "title": "Verdicts d'arène"
+        "title": "Verdicts d'arène",
+        "cells": {
+          "decisive": "Tranché",
+          "tie": "Égalité",
+          "bothBad": "Les deux mauvais"
+        }
       },
       "tables": {
         "topAgents": {
@@ -3932,6 +3937,17 @@
           "sentiment": "Sentiment",
           "emptyTitle": "Aucun retour sur les modèles",
           "emptyDescription": "La répartition par modèle apparaît ici dès que les utilisateurs évaluent des réponses dont le modèle a été enregistré."
+        },
+        "topMatchups": {
+          "title": "Top duels de modèles",
+          "matchup": "Duel",
+          "vs": "vs",
+          "score": "Score",
+          "ties": "Égalités",
+          "bothBad": "Les deux mauvais",
+          "total": "Verdicts",
+          "emptyTitle": "Aucun duel de modèles",
+          "emptyDescription": "Les confrontations directes par paire apparaissent ici dès que les utilisateurs comparent deux modèles en mode arène."
         }
       },
       "filterChips": {

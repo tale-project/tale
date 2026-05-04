@@ -3904,7 +3904,12 @@
         "notHelpful": "Not helpful"
       },
       "arena": {
-        "title": "Arena verdicts"
+        "title": "Arena verdicts",
+        "cells": {
+          "decisive": "Decisive",
+          "tie": "Tie",
+          "bothBad": "Both bad"
+        }
       },
       "tables": {
         "topAgents": {
@@ -3925,6 +3930,17 @@
           "sentiment": "Sentiment",
           "emptyTitle": "No model feedback yet",
           "emptyDescription": "Per-model breakdown appears here once users rate replies whose model is captured."
+        },
+        "topMatchups": {
+          "title": "Top Model Matchups",
+          "matchup": "Matchup",
+          "vs": "vs",
+          "score": "Score",
+          "ties": "Ties",
+          "bothBad": "Both bad",
+          "total": "Verdicts",
+          "emptyTitle": "No model matchups yet",
+          "emptyDescription": "Per-pair head-to-head wins appear here once users compare two models in arena mode."
         }
       },
       "filterChips": {

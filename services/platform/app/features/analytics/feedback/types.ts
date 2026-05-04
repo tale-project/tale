@@ -22,6 +22,16 @@ export interface FeedbackModelBucket {
   total: number;
 }
 
+export interface FeedbackMatchupBucket {
+  modelLeft: string;
+  modelRight: string;
+  leftWins: number;
+  rightWins: number;
+  ties: number;
+  bothBad: number;
+  total: number;
+}
+
 export interface RecentFeedbackItem {
   _id: string;
   threadId: string;

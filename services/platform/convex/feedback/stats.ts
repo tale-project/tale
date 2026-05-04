@@ -45,6 +45,18 @@ export interface FeedbackStatsModelBucket {
   total: number;
 }
 
+export interface FeedbackStatsMatchupBucket {
+  /** Models in canonical (lexicographic) order so (X,Y) and (Y,X) merge. */
+  modelLeft: string;
+  modelRight: string;
+  /** Wins counted against the canonical orientation, not user-picked A/B. */
+  leftWins: number;
+  rightWins: number;
+  ties: number;
+  bothBad: number;
+  total: number;
+}
+
 export interface FeedbackStats {
   message: {
     byRating: { positive: number; negative: number };
@@ -56,6 +68,7 @@ export interface FeedbackStats {
   };
   topAgents: FeedbackStatsAgentBucket[];
   topModels: FeedbackStatsModelBucket[];
+  topMatchups: FeedbackStatsMatchupBucket[];
   capped: boolean;
   scanned: number;
   windowStartMs: number | null;
@@ -102,6 +115,7 @@ export function computeFeedbackStats(
 
   const agentBuckets = new Map<string, FeedbackStatsAgentBucket>();
   const modelBuckets = new Map<string, FeedbackStatsModelBucket>();
+  const matchupBuckets = new Map<string, FeedbackStatsMatchupBucket>();
 
   let scanned = 0;
   let capped = false;
@@ -132,6 +146,46 @@ export function computeFeedbackStats(
       arenaTotal++;
       const verdict = arenaVerdictOf(row);
       if (verdict) arenaByVerdict[verdict]++;
+
+      const modelA = row.metadata?.modelA;
+      const modelB = row.metadata?.modelB;
+      // Model-pair matchups are only meaningful when both sides are
+      // attributed and distinct. Drop self-matches (modelA === modelB) —
+      // verdict on those carries no comparative signal.
+      if (verdict && modelA && modelB && modelA !== modelB) {
+        const swapped = modelA > modelB;
+        const left = swapped ? modelB : modelA;
+        const right = swapped ? modelA : modelB;
+        const matchupKey = `${left}::${right}`;
+        let bucket = matchupBuckets.get(matchupKey);
+        if (!bucket) {
+          bucket = {
+            modelLeft: left,
+            modelRight: right,
+            leftWins: 0,
+            rightWins: 0,
+            ties: 0,
+            bothBad: 0,
+            total: 0,
+          };
+          matchupBuckets.set(matchupKey, bucket);
+        }
+        bucket.total++;
+        if (verdict === 'tie') {
+          bucket.ties++;
+        } else if (verdict === 'both_bad') {
+          bucket.bothBad++;
+        } else if (verdict === 'a_better') {
+          // a_better == originalA wins. If we swapped (modelA > modelB),
+          // originalA is now on the right side of the canonical pair.
+          if (swapped) bucket.rightWins++;
+          else bucket.leftWins++;
+        } else {
+          // b_better == originalB wins.
+          if (swapped) bucket.leftWins++;
+          else bucket.rightWins++;
+        }
+      }
     } else {
       messageTotal++;
       if (row.rating === 'positive') messageByRating.positive++;
@@ -191,11 +245,22 @@ export function computeFeedbackStats(
     )
     .slice(0, TOP_N);
 
+  const topMatchups = [...matchupBuckets.values()]
+    .sort(
+      (a, b) =>
+        b.total - a.total ||
+        `${a.modelLeft}::${a.modelRight}`.localeCompare(
+          `${b.modelLeft}::${b.modelRight}`,
+        ),
+    )
+    .slice(0, TOP_N);
+
   return {
     message: { byRating: messageByRating, total: messageTotal },
     arena: { byVerdict: arenaByVerdict, total: arenaTotal },
     topAgents,
     topModels,
+    topMatchups,
     capped,
     scanned,
     windowStartMs: opts.cutoffMs,

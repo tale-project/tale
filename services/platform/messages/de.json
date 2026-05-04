@@ -3904,7 +3904,12 @@
         "notHelpful": "Nicht hilfreich"
       },
       "arena": {
-        "title": "Arena-Urteile"
+        "title": "Arena-Urteile",
+        "cells": {
+          "decisive": "Eindeutig",
+          "tie": "Unentschieden",
+          "bothBad": "Beide schlecht"
+        }
       },
       "tables": {
         "topAgents": {
@@ -3925,6 +3930,17 @@
           "sentiment": "Sentiment",
           "emptyTitle": "Noch kein Modell-Feedback",
           "emptyDescription": "Die Aufschlüsselung pro Modell erscheint hier, sobald Nutzer Antworten bewerten, deren Modell erfasst wurde."
+        },
+        "topMatchups": {
+          "title": "Top Modell-Duelle",
+          "matchup": "Duell",
+          "vs": "vs",
+          "score": "Ergebnis",
+          "ties": "Unentschieden",
+          "bothBad": "Beide schlecht",
+          "total": "Urteile",
+          "emptyTitle": "Noch keine Modell-Duelle",
+          "emptyDescription": "Direkte Vergleiche pro Paar erscheinen hier, sobald Nutzer im Arena-Modus zwei Modelle gegeneinander antreten lassen."
         }
       },
       "filterChips": {

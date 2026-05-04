@@ -188,8 +188,78 @@ describe('computeFeedbackStats', () => {
     expect(out.arena.total).toBe(0);
     expect(out.topAgents).toEqual([]);
     expect(out.topModels).toEqual([]);
+    expect(out.topMatchups).toEqual([]);
     expect(out.capped).toBe(false);
     expect(out.scanned).toBe(0);
+  });
+
+  it('aggregates arena matchups in canonical (lexicographic) model order', () => {
+    const out = computeFeedbackStats(
+      [
+        // alpha (A) vs zeta (B), A wins. Canonical [alpha, zeta] → leftWins.
+        row({
+          metadata: {
+            arenaVerdict: 'a_better',
+            modelA: 'alpha',
+            modelB: 'zeta',
+          },
+        }),
+        // zeta (A) vs alpha (B), A wins. Canonical [alpha, zeta] → rightWins
+        // (because A is now the larger of the two).
+        row({
+          metadata: {
+            arenaVerdict: 'a_better',
+            modelA: 'zeta',
+            modelB: 'alpha',
+          },
+        }),
+        // alpha (A) vs zeta (B), tie.
+        row({
+          metadata: { arenaVerdict: 'tie', modelA: 'alpha', modelB: 'zeta' },
+        }),
+        // alpha (A) vs zeta (B), both bad.
+        row({
+          metadata: {
+            arenaVerdict: 'both_bad',
+            modelA: 'alpha',
+            modelB: 'zeta',
+          },
+        }),
+      ],
+      NO_FILTER,
+    );
+    expect(out.topMatchups).toEqual([
+      {
+        modelLeft: 'alpha',
+        modelRight: 'zeta',
+        leftWins: 1,
+        rightWins: 1,
+        ties: 1,
+        bothBad: 1,
+        total: 4,
+      },
+    ]);
+  });
+
+  it('skips matchups when arena rows have a self-pair or missing models', () => {
+    const out = computeFeedbackStats(
+      [
+        row({
+          metadata: {
+            arenaVerdict: 'a_better',
+            modelA: 'gpt-4',
+            modelB: 'gpt-4',
+          },
+        }),
+        row({ metadata: { arenaVerdict: 'a_better', modelA: 'gpt-4' } }),
+        row({ metadata: { arenaVerdict: 'a_better', modelB: 'gpt-4' } }),
+        row({ metadata: { arenaVerdict: 'a_better' } }),
+      ],
+      NO_FILTER,
+    );
+    expect(out.topMatchups).toEqual([]);
+    // Arena totals still increment; only matchup rollup is skipped.
+    expect(out.arena.total).toBe(4);
   });
 
   it('ignores arena rows with unknown verdict in byVerdict', () => {

@@ -10,6 +10,7 @@ import {
   computeFeedbackStats,
   type FeedbackStats,
   type FeedbackStatsAgentBucket,
+  type FeedbackStatsMatchupBucket,
   type FeedbackStatsModelBucket,
   ARENA_VERDICTS,
   type ArenaVerdict,
@@ -261,4 +262,8 @@ export const listRecentFeedback = query({
 });
 
 // Re-export bucket types so the page module imports them from one place.
-export type { FeedbackStatsAgentBucket, FeedbackStatsModelBucket };
+export type {
+  FeedbackStatsAgentBucket,
+  FeedbackStatsMatchupBucket,
+  FeedbackStatsModelBucket,
+};
