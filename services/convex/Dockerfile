@@ -29,7 +29,10 @@ WORKDIR /app
 ARG SOPS_VERSION=3.9.4
 # System packages, binary symlinks, app user (UID 1001 to match platform),
 # and LLVM/docs stripping (~155 MB savings on the base image).
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN sed -i 's|security\.ubuntu\.com/ubuntu|archive.ubuntu.com/ubuntu|g' \
+        /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list 2>/dev/null || true \
+    && apt-get -o Acquire::Retries=5 update \
+    && apt-get install -y --no-install-recommends \
     curl tini gosu postgresql-client ca-certificates \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
