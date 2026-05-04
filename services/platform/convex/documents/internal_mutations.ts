@@ -7,6 +7,7 @@ import { assertNotHeld } from '../governance/legal_hold_guard';
 import { createDocument as createDocumentHelper } from './create_document';
 import { updateDocumentInternal as updateDocumentInternalHelper } from './update_document_internal';
 import { updateDocumentRagInfo as updateDocumentRagInfoHelper } from './update_document_rag_info';
+import { upsertDocumentByExternalId as upsertDocumentByExternalIdHelper } from './upsert_document_by_external_id';
 import { sourceProviderValidator, ragInfoValidator } from './validators';
 
 export const updateDocument = internalMutation({
@@ -213,5 +214,32 @@ export const createDocument = internalMutation({
   handler: async (ctx, args) => {
     const result = await createDocumentHelper(ctx, args);
     return result.documentId;
+  },
+});
+
+export const upsertDocumentByExternalId = internalMutation({
+  args: {
+    organizationId: v.string(),
+    externalItemId: v.string(),
+    folderPathPrefix: v.optional(v.string()),
+    title: v.string(),
+    fileId: v.optional(v.id('_storage')),
+    mimeType: v.optional(v.string()),
+    sourceProvider: v.optional(v.string()),
+    contentHash: v.optional(v.string()),
+    metadata: v.optional(jsonRecordValidator),
+    folderId: v.optional(v.id('folders')),
+    createdBy: v.optional(v.string()),
+  },
+  returns: v.object({
+    documentId: v.id('documents'),
+    action: v.union(
+      v.literal('created'),
+      v.literal('updated'),
+      v.literal('skipped'),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    return await upsertDocumentByExternalIdHelper(ctx, args);
   },
 });

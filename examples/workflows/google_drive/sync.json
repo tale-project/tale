@@ -81,8 +81,21 @@
         "items": "{{steps.list_files.output.data.result.data.files}}"
       },
       "nextSteps": {
-        "done": "reconcile_deletes",
+        "done": "check_truncated",
         "loop": "lookup_existing"
+      }
+    },
+    {
+      "stepSlug": "check_truncated",
+      "name": "Skip Reconcile If Listing Truncated",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.list_files.output.data.result.data.truncated == true",
+        "description": "If list_files hit the recursive cap (>5000 files or >20 levels), the present-id set is incomplete and reconcile would delete legitimate docs. Skip cleanup and surface a warning via execution logs; the next run with smaller scope or raised caps will reconcile correctly."
+      },
+      "nextSteps": {
+        "true": "noop",
+        "false": "reconcile_deletes"
       }
     },
     {
@@ -173,6 +186,7 @@
           "externalItemId": "{{loop.item.id}}",
           "fileId": "{{steps.download_file.output.data.result.data.fileId}}",
           "folderPath": "{{(input.targetFolderPath || 'Google Drive') + (loop.item.subfolderPath ? '/' + loop.item.subfolderPath : '')}}",
+          "folderPathPrefix": "{{input.targetFolderPath || 'Google Drive'}}",
           "metadata": {
             "googleDriveFileId": "{{loop.item.id}}",
             "googleDriveFolderId": "{{input.folderId}}",
@@ -230,7 +244,8 @@
           "operation": "reconcile_deletes",
           "sourceProvider": "google_drive",
           "folderPath": "{{input.targetFolderPath || 'Google Drive'}}",
-          "presentExternalIds": "{{steps.list_files.output.data.result.data.files | map('id')}}"
+          "presentExternalIds": "{{steps.list_files.output.data.result.data.files | map('id')}}",
+          "truncated": "{{steps.list_files.output.data.result.data.truncated}}"
         }
       },
       "nextSteps": {

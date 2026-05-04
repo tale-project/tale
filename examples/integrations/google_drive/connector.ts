@@ -239,12 +239,18 @@ function buildListQuery(
 }
 
 // Replace characters that are valid in Drive folder names but rejected by
-// Tale's folder name validator (which forbids '/' and '\') or that would
-// otherwise corrupt the workflow's '/'-joined folderPath template. The
-// substitution is one-way and lossy by design — `a?b` and `a_b` collide,
-// which is acceptable at demo stage and avoidable by users renaming.
+// Tale's folder name validator (which forbids '/' and '\' and trim-empty
+// names) or that would otherwise corrupt the workflow's '/'-joined
+// folderPath template. The substitution is one-way and lossy by design —
+// `a?b` and `a_b` collide, which is acceptable at demo stage and avoidable
+// by users renaming. Whitespace-only Drive folder names map to '_' to keep
+// the workflow from aborting at folder-creation time.
 function sanitizeDriveFolderName(name: string): string {
-  return name.replace(/[/\\?*<>:"|]/g, '_').slice(0, 255);
+  const cleaned = name
+    .replace(/[/\\?*<>:"|]/g, '_')
+    .trim()
+    .slice(0, 255);
+  return cleaned.length > 0 ? cleaned : '_';
 }
 
 interface DriveRawFile {

@@ -12,6 +12,7 @@
 import { v } from 'convex/values';
 
 import { internal } from '../../../_generated/api';
+import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 import { fetchDocumentComparisonByUrls } from '../../../agent_tools/documents/helpers/fetch_document_comparison';
 import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fetch_document_content';
@@ -98,6 +99,13 @@ type DocumentActionParams =
       fileId: string;
       title?: string;
       folderPath?: string;
+      /**
+       * Optional sync-subtree scope for the cross-folder fallback. When two
+       * independent sync configs target the same external item but different
+       * Tale folders, scoping the fallback to each sync's root prevents the
+       * doc from ping-ponging between rows.
+       */
+      folderPathPrefix?: string;
       sourceProvider?: string;
       externalItemId?: string;
       contentHash?: string;
@@ -135,6 +143,14 @@ type DocumentActionParams =
       sourceProvider: string;
       folderPath: string;
       presentExternalIds: string[];
+      /**
+       * When true, the upstream listing was truncated and `presentExternalIds`
+       * is incomplete — reconcile must skip to avoid deleting legitimate docs.
+       * Defense-in-depth: the workflow JSON should also gate this step on a
+       * truncation check, but enforcing it here closes the gap if the workflow
+       * is forked without that check.
+       */
+      truncated?: boolean;
     };
 
 export const documentAction: ActionDefinition<DocumentActionParams> = {
@@ -176,6 +192,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       fileId: v.string(),
       title: v.optional(v.string()),
       folderPath: v.optional(v.string()),
+      folderPathPrefix: v.optional(v.string()),
       sourceProvider: v.optional(v.string()),
       externalItemId: v.optional(v.string()),
       contentHash: v.optional(v.string()),
@@ -221,6 +238,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       sourceProvider: v.string(),
       folderPath: v.string(),
       presentExternalIds: v.array(v.string()),
+      truncated: v.optional(v.boolean()),
     }),
   ),
 
@@ -428,88 +446,48 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         }
 
         const sourceProvider = params.sourceProvider ?? 'agent';
+
+        // Sync flows pass `externalItemId` and rely on dedup. Route through the
+        // atomic upsert mutation: a single transaction reads+writes the index,
+        // and Convex OCC retries one of two concurrent calls so duplicate rows
+        // can't be created. `folderPathPrefix` constrains the cross-folder
+        // fallback to a single sync's subtree (prevents two independent syncs
+        // from ping-ponging the same external file).
+        if (params.externalItemId) {
+          const result = await ctx.runMutation(
+            internal.documents.internal_mutations.upsertDocumentByExternalId,
+            {
+              organizationId,
+              externalItemId: params.externalItemId,
+              folderPathPrefix: params.folderPathPrefix,
+              title: docTitle,
+              fileId: storageId,
+              mimeType: fileMetadata.contentType,
+              sourceProvider,
+              contentHash: params.contentHash,
+              metadata: params.metadata,
+              ...(folderId ? { folderId: toId<'folders'>(folderId) } : {}),
+              createdBy: userId,
+            },
+          );
+
+          return {
+            success: true,
+            fileId: params.fileId,
+            title: docTitle,
+            folderPath: params.folderPath ?? null,
+            documentId: result.documentId,
+            action: result.action,
+          };
+        }
+
+        // Non-sync ad-hoc create (no externalItemId) — straight insert, no dedup.
         const folderIdPatch = folderId
           ? { folderId: toId<'folders'>(folderId) }
           : {};
         const metadataPatch = params.metadata
           ? { metadata: toConvexJsonRecord(params.metadata) }
           : {};
-
-        if (params.externalItemId) {
-          // Scope dedup to the target folder. The same external file synced to
-          // two different Tale folders should produce two document rows — not
-          // ping-pong between folders on each run.
-          const lookupFolderId = folderId
-            ? toId<'folders'>(folderId)
-            : params.folderPath
-              ? null // folderPath was given but resolved empty → root
-              : undefined; // no folderPath given → match across all folders
-
-          let existing = await ctx.runQuery(
-            internal.documents.internal_queries.findDocumentByExternalId,
-            {
-              organizationId,
-              externalItemId: params.externalItemId,
-              ...(lookupFolderId !== undefined
-                ? { folderId: lookupFolderId }
-                : {}),
-            },
-          );
-
-          // Cross-folder move: a file that previously lived in folder A is now
-          // in folder B. The scoped lookup misses it; without this fallback
-          // we'd insert a duplicate row and reconcile would spare both
-          // (since the externalId is still in the present set).
-          if (!existing && lookupFolderId !== undefined) {
-            existing = await ctx.runQuery(
-              internal.documents.internal_queries.findDocumentByExternalId,
-              {
-                organizationId,
-                externalItemId: params.externalItemId,
-              },
-            );
-          }
-
-          if (existing) {
-            if (
-              params.contentHash &&
-              existing.contentHash === params.contentHash
-            ) {
-              return {
-                success: true,
-                fileId: params.fileId,
-                title: docTitle,
-                folderPath: params.folderPath ?? null,
-                documentId: existing._id,
-                action: 'skipped',
-              };
-            }
-
-            await ctx.runMutation(
-              internal.documents.internal_mutations.updateDocument,
-              {
-                documentId: existing._id,
-                title: docTitle,
-                fileId: storageId,
-                mimeType: fileMetadata.contentType,
-                sourceProvider,
-                externalItemId: params.externalItemId,
-                contentHash: params.contentHash,
-                ...folderIdPatch,
-                ...metadataPatch,
-              },
-            );
-
-            return {
-              success: true,
-              fileId: params.fileId,
-              title: docTitle,
-              folderPath: params.folderPath ?? null,
-              documentId: existing._id,
-              action: 'updated',
-            };
-          }
-        }
 
         const documentId = await ctx.runMutation(
           internal.documents.internal_mutations.createDocument,
@@ -519,7 +497,6 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             fileId: storageId,
             mimeType: fileMetadata.contentType,
             sourceProvider,
-            externalItemId: params.externalItemId,
             contentHash: params.contentHash,
             createdBy: userId,
             ...folderIdPatch,
@@ -686,9 +663,9 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
 
       case 'find_by_external_id': {
         // Cheap pre-flight lookup used by sync workflows to skip the download
-        // step when the source file's hash hasn't changed. Scoped by folder
-        // when `folderPath` is provided so the same external file synced to
-        // two different Tale folders stays distinct.
+        // step when the source file's hash hasn't changed. Read-only by design:
+        // resolves the folder via a query (no folder rows created) and short-
+        // circuits to `exists: false` if the path does not yet exist.
         const organizationId =
           typeof _variables.organizationId === 'string'
             ? _variables.organizationId
@@ -700,26 +677,24 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           );
         }
 
-        let folderId: string | null = null;
+        let folderId: Id<'folders'> | null = null;
         if (params.folderPath) {
-          folderId = await ctx.runMutation(
-            internal.folders.internal_mutations.getOrCreateFolderPath,
+          const resolved = await ctx.runQuery(
+            internal.folders.internal_queries.findFolderByPath,
             {
               organizationId,
               pathSegments: params.folderPath.split('/').filter(Boolean),
-              createdBy:
-                typeof _variables.userId === 'string'
-                  ? _variables.userId
-                  : undefined,
             },
           );
+          if (resolved === null) {
+            // Path does not exist — no document can live there yet.
+            return { exists: false };
+          }
+          folderId = resolved;
         }
 
-        const lookupFolderId = folderId
-          ? toId<'folders'>(folderId)
-          : params.folderPath
-            ? null
-            : undefined;
+        const lookupFolderId =
+          folderId ?? (params.folderPath ? null : undefined);
 
         const existing = await ctx.runQuery(
           internal.documents.internal_queries.findDocumentByExternalId,
@@ -756,6 +731,19 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           throw new Error(
             'organizationId is required in workflow variables to reconcile deletes',
           );
+        }
+
+        // Defense-in-depth: a truncated upstream listing means the present-id
+        // set is incomplete and reconcile would delete legitimate docs. The
+        // workflow JSON should already gate this step on a truncation check;
+        // enforce it here too so a forked workflow without that gate is safe.
+        if (params.truncated) {
+          return {
+            success: false,
+            deleted: 0,
+            scanned: params.presentExternalIds.length,
+            skippedReason: `Skipping reconcile: ${params.sourceProvider} listing was truncated (present-id set incomplete).`,
+          };
         }
 
         const orphaned = await ctx.runQuery(

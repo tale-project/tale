@@ -406,7 +406,9 @@ export const deleteDocumentFromRag = internalAction({
         { method: 'DELETE', timeoutMs: 60_000 },
       );
 
-      if (response.ok) {
+      if (response.ok || response.status === 404) {
+        // 404 means the RAG entry was never indexed (or was already deleted)
+        // — either way, the Tale row is the only thing left to clean up.
         ragSuccess = true;
       } else {
         const errorText = await response.text();
