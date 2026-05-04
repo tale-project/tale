@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # Tale Platform Dockerfile
 # Builds the Vite SPA + Convex Backend with multi-stage optimization
 
@@ -30,12 +31,10 @@ COPY services/proxy/package.json ./services/proxy/
 COPY tools/cli/package.json ./tools/cli/
 COPY patches/ ./patches/
 
-RUN { find /etc/apt/sources.list.d -type f \( -name '*.list' -o -name '*.sources' \) 2>/dev/null; \
-      [ -f /etc/apt/sources.list ] && echo /etc/apt/sources.list; } \
-        | xargs -r sed -i -E 's|https?://(archive\|security)\.ubuntu\.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' \
-    && apt-get -o Acquire::Retries=5 update \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get -o Acquire::Retries=3 update \
     && apt-get install -y --no-install-recommends python3 make g++ \
-    && rm -rf /var/lib/apt/lists/* \
     && HUSKY=0 bun install
 
 # ============================================================================
@@ -151,13 +150,11 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 ARG SOPS_VERSION=3.9.4
-RUN { find /etc/apt/sources.list.d -type f \( -name '*.list' -o -name '*.sources' \) 2>/dev/null; \
-      [ -f /etc/apt/sources.list ] && echo /etc/apt/sources.list; } \
-        | xargs -r sed -i -E 's|https?://(archive\|security)\.ubuntu\.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' \
-    && apt-get -o Acquire::Retries=5 update \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get -o Acquire::Retries=3 update \
     && apt-get install -y --no-install-recommends \
     curl tini gosu postgresql-client ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
     && mkdir -p /usr/local/share/ca-certificates \
     && chmod 755 /usr/local/share/ca-certificates \
@@ -173,9 +170,7 @@ RUN { find /etc/apt/sources.list.d -type f \( -name '*.list' -o -name '*.sources
     && ARCH_LIB="/usr/lib/$(dpkg --print-architecture | sed 's/amd64/x86_64-linux-gnu/;s/arm64/aarch64-linux-gnu/')" \
     && rm -rf "${ARCH_LIB}"/libLLVM* "${ARCH_LIB}"/libclang* \
     && rm -rf /usr/lib/llvm-18 \
-    && rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* \
-    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
-    && apt-get clean 2>/dev/null || true
+    && rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/*
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
