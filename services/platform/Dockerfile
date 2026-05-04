@@ -30,8 +30,9 @@ COPY services/proxy/package.json ./services/proxy/
 COPY tools/cli/package.json ./tools/cli/
 COPY patches/ ./patches/
 
-RUN sed -i -E 's|(security|archive)\.ubuntu\.com/ubuntu|azure.archive.ubuntu.com/ubuntu|g' \
-        /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list 2>/dev/null || true \
+RUN { find /etc/apt/sources.list.d -type f \( -name '*.list' -o -name '*.sources' \) 2>/dev/null; \
+      [ -f /etc/apt/sources.list ] && echo /etc/apt/sources.list; } \
+        | xargs -r sed -i -E 's|https?://(archive\|security)\.ubuntu\.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' \
     && apt-get -o Acquire::Retries=5 update \
     && apt-get install -y --no-install-recommends python3 make g++ \
     && rm -rf /var/lib/apt/lists/* \
@@ -150,8 +151,9 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 ARG SOPS_VERSION=3.9.4
-RUN sed -i -E 's|(security|archive)\.ubuntu\.com/ubuntu|azure.archive.ubuntu.com/ubuntu|g' \
-        /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list 2>/dev/null || true \
+RUN { find /etc/apt/sources.list.d -type f \( -name '*.list' -o -name '*.sources' \) 2>/dev/null; \
+      [ -f /etc/apt/sources.list ] && echo /etc/apt/sources.list; } \
+        | xargs -r sed -i -E 's|https?://(archive\|security)\.ubuntu\.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' \
     && apt-get -o Acquire::Retries=5 update \
     && apt-get install -y --no-install-recommends \
     curl tini gosu postgresql-client ca-certificates \
