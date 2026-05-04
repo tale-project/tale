@@ -293,6 +293,7 @@ import type * as documents_upload_base64_to_storage from "../documents/upload_ba
 import type * as documents_validators from "../documents/validators.js";
 import type * as feedback_mutations from "../feedback/mutations.js";
 import type * as feedback_queries from "../feedback/queries.js";
+import type * as feedback_stats from "../feedback/stats.js";
 import type * as file_metadata_actions from "../file_metadata/actions.js";
 import type * as file_metadata_audio_preprocess from "../file_metadata/audio_preprocess.js";
 import type * as file_metadata_helpers from "../file_metadata/helpers.js";
@@ -1326,6 +1327,7 @@ declare const fullApi: ApiFromModules<{
   "documents/validators": typeof documents_validators;
   "feedback/mutations": typeof feedback_mutations;
   "feedback/queries": typeof feedback_queries;
+  "feedback/stats": typeof feedback_stats;
   "file_metadata/actions": typeof file_metadata_actions;
   "file_metadata/audio_preprocess": typeof file_metadata_audio_preprocess;
   "file_metadata/helpers": typeof file_metadata_helpers;

@@ -3617,7 +3617,8 @@
       "policiesAndLimits": "Richtlinien & Limits",
       "securityAndMonitoring": "Sicherheit & Überwachung",
       "guardrails": "Guardrails",
-      "usage": "Nutzung"
+      "usage": "Nutzung",
+      "feedback": "Feedback"
     },
     "modelAccess": {
       "title": "Modellzugriff",
@@ -3870,6 +3871,113 @@
       "emptyModels": {
         "title": "Noch keine Modellnutzung",
         "description": "Für den ausgewählten Zeitraum wurden keine LLM-Aufrufe erfasst. Integrations- und Transkriptionsnutzung wird unter Top-Assistenten angezeigt."
+      }
+    },
+    "feedback": {
+      "title": "Feedback-Analyse",
+      "description": "Daumen-Bewertungen und Arena-Urteile zu Assistenten-Antworten.",
+      "commentsOnly": "Nur Kommentare",
+      "errors": {
+        "loadFailed": "Feedback-Metriken konnten nicht geladen werden",
+        "unauthorized": "Du hast keinen Zugriff auf diese Seite"
+      },
+      "period": {
+        "label": "Zeitraum",
+        "last24Hours": "Letzte 24 Stunden",
+        "last7Days": "Letzte 7 Tage",
+        "last30Days": "Letzte 30 Tage",
+        "last90Days": "Letzte 90 Tage",
+        "allTime": "Gesamter Zeitraum"
+      },
+      "kind": {
+        "label": "Typ",
+        "all": "Alle Typen",
+        "message": "Nachrichten-Bewertung",
+        "arena": "Arena-Urteile"
+      },
+      "cards": {
+        "sentiment": "Sentiment",
+        "sentimentAriaLabel": "{{pct}} hilfreich, {{helpful}} von {{total}}",
+        "sentimentCapped": "Sentiment nicht verfügbar bei Teilergebnissen",
+        "sentimentDenominator": "{{helpful}} / {{total}}",
+        "helpful": "Hilfreich",
+        "notHelpful": "Nicht hilfreich"
+      },
+      "arena": {
+        "title": "Arena-Urteile"
+      },
+      "tables": {
+        "topAgents": {
+          "title": "Top-Assistenten nach Feedback",
+          "agent": "Assistent",
+          "helpful": "Hilfreich",
+          "notHelpful": "Nicht hilfreich",
+          "sentiment": "Sentiment",
+          "unattributed": "Ohne Zuordnung",
+          "emptyTitle": "Noch kein Assistenten-Feedback",
+          "emptyDescription": "Die Aufschlüsselung pro Assistent erscheint hier, sobald Nutzer Antworten bewerten."
+        },
+        "topModels": {
+          "title": "Top-Modelle nach Feedback",
+          "model": "Modell",
+          "helpful": "Hilfreich",
+          "notHelpful": "Nicht hilfreich",
+          "sentiment": "Sentiment",
+          "emptyTitle": "Noch kein Modell-Feedback",
+          "emptyDescription": "Die Aufschlüsselung pro Modell erscheint hier, sobald Nutzer Antworten bewerten, deren Modell erfasst wurde."
+        }
+      },
+      "filterChips": {
+        "agent": "Assistent: {{value}}",
+        "model": "Modell: {{value}}",
+        "provider": "Anbieter: {{value}}",
+        "clear": "Filter zurücksetzen"
+      },
+      "empty": {
+        "title": "Noch kein Feedback erfasst",
+        "description": "Sobald Nutzer Daumen hoch/runter geben oder ein Arena-Urteil fällen, erscheint es hier."
+      },
+      "periodEmpty": {
+        "title": "Kein Feedback in diesem Zeitraum",
+        "description": "Versuche, den Zeitraum zu erweitern.",
+        "expand": "Gesamter Zeitraum"
+      },
+      "filterEmpty": {
+        "title": "Keine Treffer für die aktiven Filter",
+        "description": "Entferne oder lockere die aktiven Filter.",
+        "clear": "Filter zurücksetzen"
+      },
+      "cappedNotice": {
+        "title": "Teilergebnisse werden angezeigt",
+        "description": "Deine Organisation hat mehr als 50.000 Einträge im gewählten Zeitraum. Verkleinere den Zeitraum für genaue Werte."
+      },
+      "recent": {
+        "title": "Aktuelles Feedback",
+        "emptyTitle": "Kein Feedback in diesem Zeitraum",
+        "emptyDescription": "Passe Zeitraum oder Filter an, um mehr zu sehen.",
+        "noComment": "(kein Kommentar)",
+        "openThread": "Chat öffnen",
+        "helpfulAria": "Hilfreich",
+        "notHelpfulAria": "Nicht hilfreich",
+        "types": {
+          "message": "Chat",
+          "arena": "Arena"
+        },
+        "columns": {
+          "time": "Zeit",
+          "user": "Benutzer",
+          "type": "Typ",
+          "rating": "Bewertung",
+          "agent": "Assistent",
+          "model": "Modell",
+          "comment": "Kommentar",
+          "thread": "Chat"
+        },
+        "expanded": {
+          "comment": "Kommentar",
+          "arena": "Arena-Paarung",
+          "attribution": "Zuordnung"
+        }
       }
     }
   },

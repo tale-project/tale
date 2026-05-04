@@ -16,6 +16,7 @@ export const saveMessageMetadata = internalMutation({
     threadId: v.string(),
     model: v.optional(v.string()),
     provider: v.optional(v.string()),
+    agentSlug: v.optional(v.string()),
     inputTokens: v.optional(v.number()),
     outputTokens: v.optional(v.number()),
     totalTokens: v.optional(v.number()),
@@ -57,6 +58,7 @@ export const saveMessageMetadata = internalMutation({
       await ctx.db.patch(existing._id, {
         model: args.model ?? existing.model,
         provider: args.provider ?? existing.provider,
+        agentSlug: args.agentSlug ?? existing.agentSlug,
         inputTokens: args.inputTokens ?? existing.inputTokens,
         outputTokens: args.outputTokens ?? existing.outputTokens,
         totalTokens: args.totalTokens ?? existing.totalTokens,
@@ -82,6 +84,7 @@ export const saveMessageMetadata = internalMutation({
       threadId: args.threadId,
       model: args.model ?? '',
       provider: args.provider ?? '',
+      agentSlug: args.agentSlug,
       inputTokens: args.inputTokens,
       outputTokens: args.outputTokens,
       totalTokens: args.totalTokens,
