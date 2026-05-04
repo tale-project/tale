@@ -44,7 +44,7 @@ Le manifeste est validé côté serveur contre un schéma Zod dans [services/pla
 | `setupGuide`           | non                  | string (≤5000)                                                      | Markdown rendu sous **Guide de configuration** dans le manage dialog. Indique où générer les clés, quels scopes, etc.           |
 | `metadata`             | non                  | object                                                              | Métadonnées libres pour l’outillage ; non interprétées par la plateforme.                                                       |
 
-## Forme d’une opération
+## Forme d’une opération {#operation-shape}
 
 Une opération REST décrit une action appelable. L’agent choisit une opération par `name` et fournit des paramètres validés ; ton `connector.ts` dispatche sur `ctx.operation` et utilise `ctx.params`.
 
