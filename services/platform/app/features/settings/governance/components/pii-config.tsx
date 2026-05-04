@@ -218,9 +218,15 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
           regex: new RegExp(p.regex, 'g'),
           replacement: p.replacement,
         });
-      } catch {
+      } catch (err) {
         // The save-time schema (`piiCustomPatternSchema`) is the canonical
-        // gate for invalid syntax — preview just stays silent here.
+        // gate for invalid syntax. Preview can race that gate while the user
+        // types a half-finished pattern, so log + skip rather than crash.
+        console.warn(
+          `[pii-config] customPattern "${p.name}" failed to compile: ${
+            err instanceof Error ? err.name : 'unknown'
+          }`,
+        );
       }
     }
 
