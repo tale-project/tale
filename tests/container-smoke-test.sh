@@ -49,13 +49,22 @@ fail() {
 }
 
 cleanup() {
+    local exit_code=$?
     if [ "${KEEP_RUNNING:-false}" = "true" ]; then
         echo -e "${YELLOW}KEEP_RUNNING=true — skipping teardown${NC}"
         echo -e "To stop: cd ${PROJECT_ROOT} && ${COMPOSE_CMD} down -v"
         return
     fi
-    header "Tearing down test containers"
     cd "${PROJECT_ROOT}"
+    # Dump container state + logs before teardown when the script is exiting
+    # non-zero, so CI captures them before `compose down -v` destroys them.
+    if [ "$exit_code" -ne 0 ]; then
+        header "Container state on failure"
+        ${COMPOSE_CMD} ps -a 2>&1 || true
+        header "Container logs (last 200 lines per service) on failure"
+        ${COMPOSE_CMD} logs --tail=200 --no-color 2>&1 || true
+    fi
+    header "Tearing down test containers"
     ${COMPOSE_CMD} down -v --remove-orphans 2>/dev/null || true
 }
 
