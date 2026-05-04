@@ -427,7 +427,6 @@ import type * as lib_crypto_base64_to_bytes from "../lib/crypto/base64_to_bytes.
 import type * as lib_crypto_base64_url_to_buffer from "../lib/crypto/base64_url_to_buffer.js";
 import type * as lib_crypto_decrypt_string from "../lib/crypto/decrypt_string.js";
 import type * as lib_crypto_encrypt_string from "../lib/crypto/encrypt_string.js";
-import type * as lib_crypto_generate_secure_state from "../lib/crypto/generate_secure_state.js";
 import type * as lib_crypto_get_secret_key from "../lib/crypto/get_secret_key.js";
 import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
 import type * as lib_crypto_internal_actions from "../lib/crypto/internal_actions.js";
@@ -1461,7 +1460,6 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/base64_url_to_buffer": typeof lib_crypto_base64_url_to_buffer;
   "lib/crypto/decrypt_string": typeof lib_crypto_decrypt_string;
   "lib/crypto/encrypt_string": typeof lib_crypto_encrypt_string;
-  "lib/crypto/generate_secure_state": typeof lib_crypto_generate_secure_state;
   "lib/crypto/get_secret_key": typeof lib_crypto_get_secret_key;
   "lib/crypto/hex_to_bytes": typeof lib_crypto_hex_to_bytes;
   "lib/crypto/internal_actions": typeof lib_crypto_internal_actions;
