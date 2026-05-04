@@ -3,11 +3,11 @@ title: Démarrage rapide local
 description: Faire tourner Tale en local avec Docker Desktop en une dizaine de minutes — pour évaluer, faire des démos ou contribuer.
 ---
 
-C'est le chemin le plus rapide pour avoir une instance Tale qui tourne sur ton portable. Utilise ce démarrage rapide pour évaluer le produit, faire une démo ou développer contre la plateforme. Pour une instance publique avec TLS et upgrades sans interruption, suis plutôt le guide [déploiement en production](/fr/self-hosted/install/linux-server).
+C’est le chemin le plus rapide pour avoir une instance Tale qui tourne sur ton portable. Utilise ce démarrage rapide pour évaluer le produit, faire une démo ou développer contre la plateforme. Pour une instance publique avec TLS et upgrades sans interruption, suis plutôt le guide [déploiement en production](/fr/self-hosted/install/linux-server).
 
 ## Prérequis
 
-| Logiciel       | Version minimale | Où l'obtenir                                   |
+| Logiciel       | Version minimale | Où l’obtenir                                   |
 | -------------- | ---------------- | ---------------------------------------------- |
 | Docker Desktop | 24.0+            | https://www.docker.com/products/docker-desktop |
 
@@ -17,9 +17,9 @@ Tale utilise OpenRouter comme passerelle IA par défaut, ce qui donne accès à 
 
 1. Va sur https://openrouter.ai et crée un compte gratuit.
 2. Dans ton tableau de bord, va dans **Keys** et génère une nouvelle clé API.
-3. Copie la clé — tu la colleras pendant l'installation.
+3. Copie la clé — tu la colleras pendant l’installation.
 
-> **Astuce :** N'importe quel fournisseur compatible OpenAI fonctionne, y compris une instance Ollama locale. OpenRouter est la valeur par défaut recommandée pour la variété de modèles et sa tarification simple.
+> **Astuce :** N’importe quel fournisseur compatible OpenAI fonctionne, y compris une instance Ollama locale. OpenRouter est la valeur par défaut recommandée pour la variété de modèles et sa tarification simple.
 
 ## Installation
 
@@ -37,7 +37,7 @@ curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/inst
 irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
-> **Épingler une version précise :** Les deux installeurs respectent la variable d'environnement `VERSION`. Sur Linux/macOS : `VERSION=0.9.0 curl -fsSL …/install-cli.sh | bash`, sur Windows : `$env:VERSION = '0.9.0'; irm …/install-cli.ps1 | iex`. Les tags disponibles sont sur la [page GitHub Releases](https://github.com/tale-project/tale/releases).
+> **Épingler une version précise :** Les deux installeurs respectent la variable d’environnement `VERSION`. Sur Linux/macOS : `VERSION=0.9.0 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash`, sur Windows : `$env:VERSION = '0.9.0'; irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex`. Les tags disponibles sont sur la [page GitHub Releases](https://github.com/tale-project/tale/releases).
 
 Ou télécharge le binaire directement — remplace `latest` par un tag (par exemple `v0.9.0`) pour épingler :
 
@@ -65,11 +65,11 @@ Le CLI te demande ton domaine, ta clé API et le mode TLS. Les secrets de sécur
 tale start
 ```
 
-Attends `Tale Dev v0.x.x  Ready.` Les messages de health-check pendant le démarrage sont normaux — attends la ligne `Ready` avant d'ouvrir le navigateur.
+Attends `Tale Dev v0.x.x  Ready.` Les messages de health-check pendant le démarrage sont normaux — attends la ligne `Ready` avant d’ouvrir le navigateur.
 
-### Étape 4 : ouvrir l'application
+### Étape 4 : ouvrir l’application
 
-Va sur https://localhost (ou ton domaine configuré) dans le navigateur. À la première ouverture, tu es dirigé·e vers une page d'inscription pour créer ton compte admin.
+Va sur https://localhost (ou ton domaine configuré) dans le navigateur. À la première ouverture, tu es dirigé·e vers une page d’inscription pour créer ton compte admin.
 
 > **Avertissement de certificat auto-signé.** Le mode TLS `selfsigned` génère un certificat local, donc le navigateur affiche un avertissement de connexion non privée à la première visite. Passe outre (Chrome : **Paramètres avancés → Continuer**, Firefox : **Avancé → Accepter le risque**). Pour un déploiement public, choisis `letsencrypt` lors de `tale init` ou suis le guide [déploiement en production](/fr/self-hosted/install/linux-server).
 
@@ -90,7 +90,7 @@ Pour arrêter en conservant les données :
 docker compose -p tale-dev down
 ```
 
-Le flag `-p tale-dev` est requis parce que `tale start` utilise ce nom de projet Compose au lieu d'un `docker-compose.yml` standard.
+Le flag `-p tale-dev` est requis parce que `tale start` utilise ce nom de projet Compose au lieu d’un `docker-compose.yml` standard.
 
 ### Upgrade
 
@@ -120,7 +120,7 @@ cd tale
 cp .env.example .env
 ```
 
-Édite `.env` et remplace les valeurs d'exemple :
+Édite `.env` et remplace les valeurs d’exemple :
 
 | Variable                | Comment la définir                  |
 | ----------------------- | ----------------------------------- |
@@ -128,7 +128,7 @@ cp .env.example .env
 | `ENCRYPTION_SECRET_HEX` | `openssl rand -hex 32`              |
 | `DB_PASSWORD`           | Un mot de passe pour la base locale |
 
-> **Important :** `.env.example` contient des secrets d'exemple qu'il faut remplacer avant le premier démarrage.
+> **Important :** `.env.example` contient des secrets d’exemple qu’il faut remplacer avant le premier démarrage.
 
 Ensuite build et start :
 
@@ -136,10 +136,10 @@ Ensuite build et start :
 docker compose up --build
 ```
 
-Pour un cycle édit-reload plus rapide, utilise l'override de développement, qui monte tes répertoires sources locaux dans les conteneurs :
+Pour un cycle édit-reload plus rapide, utilise l’override de développement, qui monte tes répertoires sources locaux dans les conteneurs :
 
 ```bash
 docker compose -f compose.yml -f compose.dev.yml up --build
 ```
 
-Après modification des Dockerfiles ou dépendances, lance `bun run docker:test` pour un smoke-test du build. Le [guide Contributing Docker](/fr/develop/contributing-docker) couvre la validation d'images et les scripts de scan de vulnérabilités.
+Après modification des Dockerfiles ou dépendances, lance `bun run docker:test` pour un smoke-test du build. Le [guide Contributing Docker](/fr/develop/contributing-docker) couvre la validation d’images et les scripts de scan de vulnérabilités.

@@ -45,7 +45,7 @@ Toutes les images Python et Node.js utilisent des builds multi-stage :
 2. **Stage runtime** — copier uniquement les artefacts runtime dans une image base propre.
 3. **Stage squash** — `FROM scratch` + `COPY --from=runtime / /` pour aplatir les layers.
 
-Le squash fait que les suppressions dans les étapes de cleanup libèrent vraiment l'espace, au lieu d'ajouter des layers masquants. Ça garde les outils de build (`gcc`, `build-essential`, `libpq-dev`) hors de l'image finale.
+Le squash fait que les suppressions dans les étapes de cleanup libèrent vraiment l’espace, au lieu d’ajouter des layers masquants. Ça garde les outils de build (`gcc`, `build-essential`, `libpq-dev`) hors de l’image finale.
 
 > **Important :** Avec `FROM scratch`, toutes les ENV des stages précédents sont perdues et doivent être redéclarées. Les mountpoints de volume doivent aussi être pré-créés dans le stage runtime avant le squash.
 
@@ -88,7 +88,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8001/health || exit 1
 ```
 
-## Budgets de taille d'image
+## Budgets de taille d’image
 
 Chaque image a un budget de taille. CI échoue si dépassé.
 
@@ -100,7 +100,7 @@ Chaque image a un budget de taille. CI échoue si dépassé.
 | DB       | 1 200 Mo | ~1 060 Mo |
 | Proxy    | 100 Mo   | ~88 Mo    |
 
-### Causes courantes d'augmentation
+### Causes courantes d’augmentation
 
 1. **Nouvelle dépendance Python** — vérifie si elle tire de grosses deps transitives.
 2. **Nouveaux paquets apt** — utiliser `--no-install-recommends` et nettoyer après.
@@ -139,7 +139,7 @@ Lance `tests/container-smoke-test.sh` qui :
 - teste la connectivité inter-services ;
 - tear down tout (y compris les volumes).
 
-### 2. Validation d'image
+### 2. Validation d’image
 
 ```bash
 bun run docker:test:image
@@ -149,7 +149,7 @@ Vérifie pour chaque image :
 
 - label OCI `org.opencontainers.image.version` ;
 - user non-root (requis pour platform) ;
-- pas de secrets embarqués dans l'env ou le filesystem ;
+- pas de secrets embarqués dans l’env ou le filesystem ;
 - instruction `HEALTHCHECK` présente ;
 - taille dans le budget.
 
@@ -161,7 +161,7 @@ bun run docker:test:vulnerability
 
 Lance Trivy contre chaque image. Rapports dans `trivy-reports/`.
 
-Pour supprimer un faux positif connu, ajoute l'ID CVE dans `.trivyignore` :
+Pour supprimer un faux positif connu, ajoute l’ID CVE dans `.trivyignore` :
 
 ```
 CVE-2023-12345    # false positive: function not reachable
@@ -209,17 +209,17 @@ Utilise `compose.test.yml` qui mappe sur des ports non conflictuels :
 docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-test up -d
 ```
 
-### Paquet Python introuvable à l'exécution
+### Paquet Python introuvable à l’exécution
 
 Si un paquet est installé en builder mais pas disponible en runtime, vérifie :
 
 1. Que tu copies depuis le bon chemin : `COPY --from=builder /usr/local/lib/python3.11/site-packages ...`.
-2. Que `.dist-info` du paquet n'est pas supprimé si quelque chose dépend des métadonnées à l'exécution.
+2. Que `.dist-info` du paquet n’est pas supprimé si quelque chose dépend des métadonnées à l’exécution.
 3. Que le strip ne retire pas des `.so` requis.
 
-### Module Node.js introuvable à l'exécution
+### Module Node.js introuvable à l’exécution
 
 Si un module manque après le pruner, vérifie :
 
-1. S'il est listé en `dependencies` (pas `devDependencies`) dans `package.json`.
+1. S’il est listé en `dependencies` (pas `devDependencies`) dans `package.json`.
 2. Si le pruner le retire explicitement dans son `rm -rf`.

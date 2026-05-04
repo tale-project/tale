@@ -33,7 +33,7 @@ Sobald Memory-Inhalte gesendet wurden, **kann Tale sie nicht zurückrufen**. Wen
 
 ### 2.2 Self-Hosting: Der Betreiber des Deployments kann Rohdaten lesen
 
-Tale unterstützt Self-Hosting auf Basis von Convex. Wer Datenbank- oder Convex-Dashboard-Zugriff in deinem Deployment hat, kann die Rohzeilen von `userPreferences` und `userMemories` lesen — Tales rollenbasierte Admin-Sperre („Admins können keine Inhalte sehen") **gilt nicht auf Datenbankebene**. Beim Self-Hosting solltest du davon ausgehen, dass deine Convex-Betreiber Zugriff auf alle Personalisierungsinhalte haben. SOC-2- und ISO-Kontrollen für DB-Zugriff liegen in deiner Verantwortung.
+Tale unterstützt Self-Hosting auf Basis von Convex. Wer Datenbank- oder Convex-Dashboard-Zugriff in deinem Deployment hat, kann die Rohzeilen von `userPreferences` und `userMemories` lesen — Tales rollenbasierte Admin-Sperre („Admins können keine Inhalte sehen“) **gilt nicht auf Datenbankebene**. Beim Self-Hosting solltest du davon ausgehen, dass deine Convex-Betreiber Zugriff auf alle Personalisierungsinhalte haben. SOC-2- und ISO-Kontrollen für DB-Zugriff liegen in deiner Verantwortung.
 
 ### 2.3 Assistenten-Antworten können deine Memories zitieren oder paraphrasieren
 
@@ -51,13 +51,13 @@ Große LLM-Anbieter führen automatische Missbrauchserkennung über die empfange
 
 - **Standardmäßig aus.** Ohne Organisationsrichtlinie und ohne Nutzer-Opt-in wird Personalisierung nie an das Modell gesendet — Lese- und Schreibpfade brechen kurzgeschlossen ab.
 - **Dreifach-Gating.** Ob Personalisierung für einen Chat gilt, ergibt sich aus drei unabhängigen Signalen; sobald eines davon blockt, werden weder Custom Instructions noch Memories gesendet:
-  - **Organisations-Default** — Admin-gesteuert. Bei „an" erben Mitglieder „an"; bei „aus" oder fehlend erben Mitglieder „aus".
+  - **Organisations-Default** — Admin-gesteuert. Bei „an“ erben Mitglieder „an“; bei „aus“ oder fehlend erben Mitglieder „aus“.
   - **Deine Präferenz** — dein explizites An/Aus überstimmt den Organisations-Default in beide Richtungen.
   - **Thread-Sperre** — ein hartes Aus pro Thread (z. B. geteilte Threads).
 - **Kein Admin-Bypass.** Die Admin-Rolle umgeht keine fremde Nutzerzeile. Jede öffentliche Lese- und Schreib-Schnittstelle verlangt eine exakte Nutzer-ID-Übereinstimmung plus eine Live-Mitgliedschaftsprüfung, damit ein bereits entfernter Nutzer mit noch gültigem Token keine veralteten Zeilen mehr lesen kann.
 - **Auto-Aus beim Teilen.** Beim Teilen eines Threads wird die Personalisierung automatisch deaktiviert; beim Aufheben der Freigabe wieder aktiviert.
 - **Cascade-Hardlöschung.** Das Entfernen eines Nutzers aus einer Organisation oder das Löschen der Organisation löscht sofort alle zugehörigen Personalisierungs-Inhaltszeilen hart (Custom Instructions, Memories, Präferenzen). Audit-Log-Einträge, die diese Vorgänge protokollieren, werden ohne Inhalt aufbewahrt — nur Zeitstempel, Aktionstyp und die rohe Subjekt-Nutzer-ID — zur Compliance-Berichterstattung; admin-blinde Pseudonymisierung wird angewendet, sobald eine admin-lesbare Audit-Ansicht ausgeliefert wird. Selbstlöschung des Accounts ist noch kein Produktfeature; der zugehörige Cascade-Hook wird mit dem User-Delete-Plugin nachgereicht.
-- **Soft-Delete-Fenster für freigegebene Memories.** Vom Nutzer initiiertes Löschen eines freigegebenen Memory startet ein 30-tägiges Soft-Delete-Fenster, bevor der Speicher per opportunistischem Cleanup zurückgewonnen wird. Ein verworfener Vorschlag — abgelehnt über die Inline-Karte im Chat oder den Tab „Ausstehend" — wird im Moment des Verwerfens hart gelöscht.
+- **Soft-Delete-Fenster für freigegebene Memories.** Vom Nutzer initiiertes Löschen eines freigegebenen Memory startet ein 30-tägiges Soft-Delete-Fenster, bevor der Speicher per opportunistischem Cleanup zurückgewonnen wird. Ein verworfener Vorschlag — abgelehnt über die Inline-Karte im Chat oder den Tab „Ausstehend“ — wird im Moment des Verwerfens hart gelöscht.
 
 ## 4. DPA-Anhang (Entwurf)
 
@@ -65,7 +65,7 @@ Kunden, die eine Erweiterung ihres Auftragsverarbeitungsvertrags für Personalis
 
 - Kategorien personenbezogener Daten: freitextliche, vom Nutzer verfasste Instruktionen; LLM-vermittelte Fakten über den Nutzer; rohformatige Audit-Metadaten.
 - Zwecke: ausschließlich Personalisierung der Chat-Antworten pro Nutzer.
-- Unterauftragsverarbeiter: der pro Organisation konfigurierte LLM-Anbieter (siehe „Memory-Inhalte gehen…" oben).
+- Unterauftragsverarbeiter: der pro Organisation konfigurierte LLM-Anbieter (siehe „Memory-Inhalte gehen…“ oben).
 - Aufbewahrung: unbefristet, solange der Nutzer Mitglied der Organisation ist und Personalisierung aktiviert bleibt; 30 Tage nach Soft-Delete; sofort bei Hardlöschung.
 - Grenzüberschreitende Übermittlung: gemäß Residency des LLM-Anbieters und der vom Kunden gewählten Anbieterregion.
 - Betroffenenrechte: Löschung der Inhalte (Art. 17 per Cascade bei Member-Entfernung und Org-Löschung). Audit-Log-Metadaten (ohne Inhalt) werden zur Compliance aufbewahrt und pseudonymisiert, sobald admin-lesbare Audit-Ansichten eingeführt werden. Ein vom Betreiber ausführbarer Export (Art. 15/20) steht gegen die zugrunde liegenden Tabellen zur Verfügung; produktinterner Self-Service-Export ist für v2 geplant.

@@ -3,7 +3,7 @@ title: Webhooks
 description: Lance workflows et agents depuis des systèmes externes via des requêtes HTTP signées.
 ---
 
-Tale expose deux types de webhooks : **webhooks de workflow** (déclenchent une automatisation) et **webhooks d'agent** (envoient un message à un agent hors de l'UI chat). Les deux utilisent le même format de requête et schéma de signature.
+Tale expose deux types de webhooks : **webhooks de workflow** (déclenchent une automatisation) et **webhooks d’agent** (envoient un message à un agent hors de l’UI chat). Les deux utilisent le même format de requête et schéma de signature.
 
 ## Webhooks de workflow
 
@@ -22,9 +22,9 @@ curl -X POST https://tale.example.com/api/webhooks/workflow/abc123 \
   -d '{"customerId": "c-42", "priority": "high"}'
 ```
 
-La réponse arrive immédiatement avec un ID d'exécution. Consulte l'onglet **Exécutions** du workflow (ou l'API REST) pour voir statut et sortie.
+La réponse arrive immédiatement avec un ID d’exécution. Consulte l’onglet **Exécutions** du workflow (ou l’API REST) pour voir statut et sortie.
 
-## Webhooks d'agent
+## Webhooks d’agent
 
 Chaque agent a un endpoint unique :
 
@@ -32,7 +32,7 @@ Chaque agent a un endpoint unique :
 https://<your-tale-domain>/api/webhooks/agent/<agent-slug>
 ```
 
-POST un message pour obtenir une réponse d'agent sans utiliser l'UI. La réponse est synchrone — la requête HTTP bloque jusqu'à ce que l'agent ait fini de générer.
+POST un message pour obtenir une réponse d’agent sans utiliser l’UI. La réponse est synchrone — la requête HTTP bloque jusqu’à ce que l’agent ait fini de générer.
 
 ```bash
 curl -X POST https://tale.example.com/api/webhooks/agent/support-agent \
@@ -48,13 +48,13 @@ Si `conversationId` est omis, une nouvelle conversation est créée et renvoyée
 
 ## Vérification de signature
 
-Tale signe chaque requête webhook en HMAC-SHA-256 avec le secret du webhook. La signature est envoyée dans l'en-tête `X-Tale-Signature` au format `sha256=<hex>`.
+Tale signe chaque requête webhook en HMAC-SHA-256 avec le secret du webhook. La signature est envoyée dans l’en-tête `X-Tale-Signature` au format `sha256=<hex>`.
 
 Les récepteurs doivent :
 
 1. lire le body brut (pas le JSON parsé) ;
 2. calculer `HMAC-SHA-256(secret, body)` ;
-3. comparer avec la valeur de l'en-tête en comparaison temps-constant ;
+3. comparer avec la valeur de l’en-tête en comparaison temps-constant ;
 4. rejeter les requêtes qui ne matchent pas.
 
 Exemple Node.js :
@@ -85,10 +85,10 @@ def verify(body: bytes, header: str, secret: str) -> bool:
 
 ## Nouvelles tentatives
 
-Tale retente les livraisons webhook échouées (réponses non-2xx, timeouts) avec backoff exponentiel jusqu'à 5 tentatives. Après l'échec final, la livraison est marquée en échec et loggée dans le flux d'audit — un admin peut la rejouer depuis la page Audit logs.
+Tale retente les livraisons webhook échouées (réponses non-2xx, timeouts) avec backoff exponentiel jusqu’à 5 tentatives. Après l’échec final, la livraison est marquée en échec et loggée dans le flux d’audit — un admin peut la rejouer depuis la page Audit logs.
 
 ## Voir aussi
 
-- [Référence API](/fr/develop/api-reference) pour l'API REST complète.
+- [Référence API](/fr/develop/api-reference) pour l’API REST complète.
 - [Triggers](/fr/platform/automations/triggers) pour configurer des triggers webhook sur les workflows.
-- [Agents — onglet Webhook](/fr/platform/agents/create#onglet-webhook) pour la mise en place des webhooks d'agent.
+- [Agents — onglet Webhook](/fr/platform/agents/create#onglet-webhook) pour la mise en place des webhooks d’agent.

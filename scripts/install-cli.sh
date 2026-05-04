@@ -120,7 +120,10 @@ verify_release_exists() {
     local url=$1
     local http_code="000"
     if [ "$DOWNLOADER" = "curl" ]; then
-        http_code=$(curl -sIL -o /dev/null -w "%{http_code}" "$url" || echo "000")
+        # curl's `-w "%{http_code}"` already prints `000` on transport failure,
+        # so `|| true` is just there to keep `set -e` from tripping on curl's
+        # non-zero exit (DNS, connection refused, etc.).
+        http_code=$(curl -sIL -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || true)
     else
         # wget --spider sends a HEAD; --server-response prints status lines to
         # stderr. Tolerate non-2xx exits so we can inspect 404 explicitly.

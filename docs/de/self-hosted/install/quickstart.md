@@ -15,9 +15,7 @@ Das hier ist der schnellste Weg, eine lokale Tale-Instanz auf deinem Laptop lauf
 
 Tale nutzt standardmäßig OpenRouter als KI-Gateway, das dir über einen einzigen API-Schlüssel Zugriff auf Hunderte von Modellen gibt.
 
-1. Gehe auf https://openrouter.ai und erstelle ein kostenloses Konto.
-2. Navigiere im Kontomenü zu **Keys** und erzeuge einen neuen API-Schlüssel.
-3. Kopiere den Schlüssel — du fügst ihn während der Einrichtung ein.
+Erstelle ein kostenloses Konto auf https://openrouter.ai, erzeuge im Kontomenü unter **Keys** einen neuen API-Schlüssel und kopiere ihn, um ihn während der Einrichtung einzufügen.
 
 > **Tipp:** Jeder OpenAI-kompatible Anbieter funktioniert, auch eine lokale Ollama-Instanz. OpenRouter ist wegen der Modellvielfalt und einfachen Preisgestaltung der empfohlene Standard.
 
@@ -71,7 +69,7 @@ Warte auf `Tale Dev v0.x.x  Ready.` Health-Check-Meldungen während des Starts s
 
 Gehe in deinem Browser auf https://localhost (oder deine konfigurierte Domain). Beim ersten Aufruf landest du auf einer Sign-up-Seite, um dein Admin-Konto zu erstellen.
 
-> **Warnung wegen selbstsigniertem Zertifikat.** Der TLS-Modus `selfsigned` erzeugt ein lokales Zertifikat, daher zeigt der Browser beim ersten Aufruf eine „Ihre Verbindung ist nicht privat"-Warnung. Klick dich durch (Chrome: **Erweitert → Weiter**, Firefox: **Erweitert → Risiko akzeptieren**). Für ein öffentliches Deployment wähle bei `tale init` `letsencrypt` oder folge dem [Produktions-Deployment](/de/self-hosted/install/linux-server)-Leitfaden.
+> **Warnung wegen selbstsigniertem Zertifikat.** Der TLS-Modus `selfsigned` erzeugt ein lokales Zertifikat, daher zeigt der Browser beim ersten Aufruf eine „Ihre Verbindung ist nicht privat“-Warnung. Klick dich durch (Chrome: **Erweitert → Weiter**, Firefox: **Erweitert → Risiko akzeptieren**). Für ein öffentliches Deployment wähle bei `tale init` `letsencrypt` oder folge dem [Produktions-Deployment](/de/self-hosted/install/linux-server)-Leitfaden.
 
 ## Täglicher Ablauf
 

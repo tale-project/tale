@@ -99,6 +99,7 @@ interface ConnectorContext {
   secrets: SecretsApi;
   base64Encode(input: string): string;
   base64Decode(input: string): string;
+  files?: FilesApi; // injected only when the runtime supplies a storage provider
 }
 
 interface HttpApi {
@@ -131,7 +132,32 @@ interface HttpResponse {
 interface SecretsApi {
   get(key: string): string | undefined;
 }
+
+interface FilesApi {
+  download(
+    url: string,
+    options: { headers?: Record<string, string>; fileName: string },
+  ): FileReference;
+  store(
+    data: string,
+    options: {
+      encoding: 'base64' | 'utf-8';
+      contentType: string;
+      fileName: string;
+    },
+  ): FileReference;
+}
+
+interface FileReference {
+  fileId: string;
+  url: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
 ```
+
+`ctx.files` is only present when the host runtime injects a storage provider (the platform does this for connector executions tied to an organization). Treat it as optional in your connector code; check for `ctx.files` before using it if your operation can run in contexts that don't supply one.
 
 The `http` client only reaches hosts listed in `allowedHosts`. A request to anything else fails before the network call.
 

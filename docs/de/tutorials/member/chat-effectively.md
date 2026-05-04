@@ -27,7 +27,7 @@ Diktieren ist kein Modus, sondern ein Tool pro Nachricht — einschalten, sprech
 
 ## Schritt 4 — An der Antwort feilen
 
-Die erste Antwort ist selten die endgültige. Nutze kurze Nachfragen zum Einengen: „in drei Stichpunkten zusammenfassen", „jetzt auf Französisch", „nenne das Dokument, aus dem du zitierst", „formuliere es für Nicht-Techniker". Der Agent behält den gesamten Thread im Kontext, jede Nachfrage profitiert vom vorherigen Turn.
+Die erste Antwort ist selten die endgültige. Nutze kurze Nachfragen zum Einengen: „in drei Stichpunkten zusammenfassen“, „jetzt auf Französisch“, „nenne das Dokument, aus dem du zitierst“, „formuliere es für Nicht-Techniker“. Der Agent behält den gesamten Thread im Kontext, jede Nachfrage profitiert vom vorherigen Turn.
 
 Wenn du auf ein Ergebnis triffst, das du wiederverwenden willst, speichere es in der [Prompt-Bibliothek](/de/platform/workspace/prompt-library) — beim nächsten Mal ist derselbe Startpunkt einen Klick entfernt.
 

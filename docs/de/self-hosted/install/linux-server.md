@@ -114,9 +114,7 @@ tale deploy                        # Diese Version ausrollen
 
 #### Vor dem Upgrade
 
-- Lies die [Release Notes](https://github.com/tale-project/tale/releases) auf Breaking Changes und Migrationshinweise.
-- Sichere die Datenbank — das Postgres-Volume enthält alle Plattformdaten und hochgeladenen Dateien.
-- Wenn die Instanz produktionskritisch ist, teste das Upgrade vorher auf einer Staging-Instanz. `tale init` in einem separaten Verzeichnis auf einem anderen Host gibt dir einen isolierten Stack.
+Lies die [Release Notes](https://github.com/tale-project/tale/releases) auf Breaking Changes und Migrationshinweise. Sichere die Datenbank — das Postgres-Volume enthält alle Plattformdaten und hochgeladenen Dateien. Wenn die Instanz produktionskritisch ist, teste das Upgrade vorher auf einer Staging-Instanz; `tale init` in einem separaten Verzeichnis auf einem anderen Host gibt dir einen isolierten Stack.
 
 ### Deploy
 

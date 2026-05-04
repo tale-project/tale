@@ -10,6 +10,10 @@ import { update } from './update';
 
 const GITHUB_REPO = 'tale-project/tale';
 
+// First release that ships `tale upgrade --internal-sync-only`. Older binaries
+// don't have the subcommand, so re-spawning them with this flag would fail.
+const MIN_VERSION_WITH_INTERNAL_SYNC = '0.2.8';
+
 const SUPPORTED_TARGETS: Record<string, string> = {
   'linux-x64': 'tale_linux',
   'darwin-arm64': 'tale_macos',
@@ -541,9 +545,24 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
     );
   }
 
-  // Phase 4: Sync project files using the NEW binary
+  // Phase 4: Sync project files using the NEW binary.
+  // Older releases (pre-0.2.8) don't have `tale upgrade --internal-sync-only`,
+  // so when downgrading past that boundary we fall back to running the sync
+  // in-process with the current binary's logic.
   logger.blank();
   logger.step('Syncing project files with new version...');
+
+  if (compareVersions(release.version, MIN_VERSION_WITH_INTERNAL_SYNC) < 0) {
+    logger.warn(
+      `Target v${release.version} predates 'upgrade --internal-sync-only'; running sync in-process instead.`,
+    );
+    await update({
+      force: options.force,
+      dryRun: options.dryRun,
+      skipHeader: true,
+    });
+    return;
+  }
 
   const installPath = getInstallPath();
   const syncArgs = [installPath, 'upgrade', '--internal-sync-only'];

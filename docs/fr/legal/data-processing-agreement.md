@@ -6,7 +6,7 @@ noindex: true
 
 **Dernière mise à jour :** 01.04.2026
 
-Le présent accord de traitement des données (« DPA ») est un avenant au Service Agreement (« Contrat ») entre Ruler GmbH (« Tale », « nous ») et l'entité ou la personne qui accepte le Contrat (« Client », « tu »). Ce DPA s'applique dans la mesure où Tale traite des données personnelles pour le compte du Client dans le cadre de la fourniture des services.
+Le présent accord de traitement des données (« DPA ») est un avenant au Service Agreement (« Contrat ») entre Ruler GmbH (« Tale », « nous ») et l’entité ou la personne qui accepte le Contrat (« Client », « tu »). Ce DPA s’applique dans la mesure où Tale traite des données personnelles pour le compte du Client dans le cadre de la fourniture des services.
 
 En exécutant le Contrat, le Client conclut ce DPA en son nom et, dans la mesure requise par le droit applicable, au nom de ses utilisateurs autorisés et sociétés affiliées. Ce DPA prend effet à la date du Contrat.
 
@@ -14,19 +14,19 @@ En exécutant le Contrat, le Client conclut ce DPA en son nom et, dans la mesure
 
 Les termes capitalisés non définis ici ont la signification donnée dans le Contrat.
 
-**« Droit applicable à la protection des données »** : la LPD suisse et ses ordonnances, le RGPD de l'UE, et toute autre législation applicable, telles qu'amendées ou remplacées.
+**« Droit applicable à la protection des données »** : la LPD suisse et ses ordonnances, le RGPD de l’UE, et toute autre législation applicable, telles qu’amendées ou remplacées.
 
-**« Responsable du traitement »** : l'entité qui détermine les finalités et moyens du traitement. Pour ce DPA, le Client est le Responsable.
+**« Responsable du traitement »** : l’entité qui détermine les finalités et moyens du traitement. Pour ce DPA, le Client est le Responsable.
 
-**« Violation de données »** : une violation de sécurité menant à la destruction, perte, altération accidentelles ou illicites, ou à la divulgation ou à l'accès non autorisés aux données personnelles traitées par Tale pour le Client.
+**« Violation de données »** : une violation de sécurité menant à la destruction, perte, altération accidentelles ou illicites, ou à la divulgation ou à l’accès non autorisés aux données personnelles traitées par Tale pour le Client.
 
 **« Personne concernée »** : la personne physique identifiée ou identifiable à laquelle se rapportent les données.
 
 **« Données personnelles »** : toute information relative à une personne physique identifiée ou identifiable, traitée par Tale pour le Client dans le cadre des services.
 
-**« Traitement »** : toute opération ou ensemble d'opérations sur des données personnelles, automatisé ou non — collecte, enregistrement, organisation, structuration, conservation, adaptation, modification, extraction, consultation, utilisation, communication par transmission, diffusion, rapprochement, limitation, effacement, destruction.
+**« Traitement »** : toute opération ou ensemble d’opérations sur des données personnelles, automatisé ou non — collecte, enregistrement, organisation, structuration, conservation, adaptation, modification, extraction, consultation, utilisation, communication par transmission, diffusion, rapprochement, limitation, effacement, destruction.
 
-**« Sous-traitant »** : l'entité qui traite des données personnelles pour le Responsable. Pour ce DPA, Tale est le Sous-traitant.
+**« Sous-traitant »** : l’entité qui traite des données personnelles pour le Responsable. Pour ce DPA, Tale est le Sous-traitant.
 
 **« Sous-traitant ultérieur »** : tout tiers engagé par Tale pour traiter des données personnelles pour le Client.
 
@@ -43,36 +43,36 @@ Le Client est Responsable et Tale est Sous-traitant. Tale traite les données pe
 | **Finalité**                           | Fourniture de la plateforme Tale et des services liés selon le Contrat, y compris automatisation de workflows IA, gestion des conversations et fonctionnalités opérationnelles. |
 | **Nature**                             | Stockage, extraction, organisation, structuration, calcul, transmission et affichage nécessaires à la fourniture.                                                               |
 | **Catégories de personnes concernées** | Déterminées par le Client ; peuvent inclure employés, utilisateurs finaux, clients, prestataires, contacts commerciaux et toute personne dont les données sont soumises.        |
-| **Catégories de données**              | Déterminées par le Client ; peuvent inclure noms, e-mails, téléphones, informations sur l'entreprise, contenu de messages, conversations, workflows, documents, etc.            |
+| **Catégories de données**              | Déterminées par le Client ; peuvent inclure noms, e-mails, téléphones, informations sur l’entreprise, contenu de messages, conversations, workflows, documents, etc.            |
 | **Durée**                              | Pour la durée du Contrat, plus la période requise pour la restitution ou la suppression (voir section 12).                                                                      |
 
 ### 2.3 Responsabilités du Client
 
-Le Client s'assure :
+Le Client s’assure :
 
-a) d'avoir une base légale valable pour le traitement et pour instruire Tale ;
+a) d’avoir une base légale valable pour le traitement et pour instruire Tale ;
 
-b) d'avoir fourni les informations et obtenu les consentements ou autorisations nécessaires auprès des Personnes concernées ;
+b) d’avoir fourni les informations et obtenu les consentements ou autorisations nécessaires auprès des Personnes concernées ;
 
 c) que ses instructions à Tale sont conformes au droit applicable ;
 
-d) qu'il est seul responsable de l'exactitude, de la qualité et de la légalité des données soumises.
+d) qu’il est seul responsable de l’exactitude, de la qualité et de la légalité des données soumises.
 
 ## 3. Obligations de Tale en tant que Sous-traitant
 
-Tale s'engage à :
+Tale s’engage à :
 
 a) traiter les données personnelles uniquement sur instructions documentées, sauf obligation légale — auquel cas Tale informe le Client avant le traitement (sauf interdiction légale) ;
 
-b) s'assurer que les personnes autorisées à traiter sont soumises à la confidentialité ;
+b) s’assurer que les personnes autorisées à traiter sont soumises à la confidentialité ;
 
 c) mettre en œuvre des mesures techniques et organisationnelles appropriées (section 6) ;
 
-d) n'engager aucun Sous-traitant ultérieur sans respecter la section 5 ;
+d) n’engager aucun Sous-traitant ultérieur sans respecter la section 5 ;
 
 e) assister le Client — compte tenu de la nature du traitement — par des mesures appropriées pour répondre aux demandes des Personnes concernées (section 8) ;
 
-f) assister le Client pour la sécurité des données, la notification des violations, les analyses d'impact et les consultations préalables avec les autorités ;
+f) assister le Client pour la sécurité des données, la notification des violations, les analyses d’impact et les consultations préalables avec les autorités ;
 
 g) au choix du Client, supprimer ou restituer toutes les données personnelles à la fin des services (section 12) ;
 
@@ -86,7 +86,7 @@ Le Client instruit Tale de traiter les données dans la mesure nécessaire à la
 
 ### 4.2 Instructions contradictoires
 
-Si Tale constate qu'une instruction du Client viole le droit applicable, Tale notifie rapidement le Client et peut suspendre le traitement concerné jusqu'à réception d'une instruction licite.
+Si Tale constate qu’une instruction du Client viole le droit applicable, Tale notifie rapidement le Client et peut suspendre le traitement concerné jusqu’à réception d’une instruction licite.
 
 ## 5. Sous-traitants ultérieurs
 
@@ -96,11 +96,11 @@ Le Client autorise de manière générale Tale à engager des Sous-traitants ult
 
 ### 5.2 Notification des changements
 
-Tale informe le Client au moins 30 jours avant d'engager un nouveau Sous-traitant ultérieur ou d'en remplacer un, par mise à jour de la liste et, si le Client a souscrit, par e-mail.
+Tale informe le Client au moins 30 jours avant d’engager un nouveau Sous-traitant ultérieur ou d’en remplacer un, par mise à jour de la liste et, si le Client a souscrit, par e-mail.
 
-### 5.3 Droit d'opposition
+### 5.3 Droit d’opposition
 
-Le Client peut s'opposer à un nouveau Sous-traitant ou à son remplacement dans les 30 jours suivant la notification, par écrit, sur des motifs raisonnables liés à la protection des données. En cas d'opposition, Tale fait des efforts commercialement raisonnables pour proposer une alternative évitant le Sous-traitant contesté. Sans résolution dans les 30 jours, chaque partie peut résilier les services concernés.
+Le Client peut s’opposer à un nouveau Sous-traitant ou à son remplacement dans les 30 jours suivant la notification, par écrit, sur des motifs raisonnables liés à la protection des données. En cas d’opposition, Tale fait des efforts commercialement raisonnables pour proposer une alternative évitant le Sous-traitant contesté. Sans résolution dans les 30 jours, chaque partie peut résilier les services concernés.
 
 ### 5.4 Obligations des Sous-traitants ultérieurs
 
@@ -118,15 +118,15 @@ Tale met en œuvre et maintient des mesures techniques et organisationnelles app
 
 a) chiffrement en transit et au repos ;
 
-b) mesures pour garantir la confidentialité, l'intégrité, la disponibilité et la résilience continues des systèmes et services ;
+b) mesures pour garantir la confidentialité, l’intégrité, la disponibilité et la résilience continues des systèmes et services ;
 
-c) moyens de restaurer la disponibilité et l'accès aux données en temps utile après un incident ;
+c) moyens de restaurer la disponibilité et l’accès aux données en temps utile après un incident ;
 
-d) contrôles d'accès assurant l'accès uniquement au personnel autorisé selon le besoin d'en connaître ;
+d) contrôles d’accès assurant l’accès uniquement au personnel autorisé selon le besoin d’en connaître ;
 
-e) tests, évaluations et examens réguliers de l'efficacité des mesures ;
+e) tests, évaluations et examens réguliers de l’efficacité des mesures ;
 
-f) mesures physiques pour les centres de données et l'infrastructure ;
+f) mesures physiques pour les centres de données et l’infrastructure ;
 
 g) formation à la sensibilisation à la sécurité des employés.
 
@@ -148,7 +148,7 @@ Tale notifie le Client sans retard injustifié, et en tout cas dans les 72 heure
 
 La notification inclut, dans la mesure raisonnablement disponible :
 
-a) une description de la nature de la violation, avec si possible les catégories et le nombre approximatif de personnes concernées et d'enregistrements ;
+a) une description de la nature de la violation, avec si possible les catégories et le nombre approximatif de personnes concernées et d’enregistrements ;
 
 b) les coordonnées du point de contact Tale ;
 
@@ -158,7 +158,7 @@ d) les mesures prises ou proposées pour y remédier, y compris pour atténuer l
 
 ### 7.3 Coopération
 
-Tale coopère avec le Client et fait les démarches commercialement raisonnables pour l'aider à enquêter, contenir et remédier.
+Tale coopère avec le Client et fait les démarches commercialement raisonnables pour l’aider à enquêter, contenir et remédier.
 
 ### 7.4 Limites de la notification
 
@@ -168,29 +168,29 @@ La notification par Tale ne vaut pas reconnaissance de faute. Le Client est seul
 
 ### 8.1 Assistance
 
-Tale assiste le Client — compte tenu de la nature du traitement — par des mesures techniques et organisationnelles appropriées pour répondre aux demandes de Personnes concernées (droits d'accès, rectification, effacement, limitation, portabilité, opposition).
+Tale assiste le Client — compte tenu de la nature du traitement — par des mesures techniques et organisationnelles appropriées pour répondre aux demandes de Personnes concernées (droits d’accès, rectification, effacement, limitation, portabilité, opposition).
 
 ### 8.2 Transfert des demandes
 
-Si Tale reçoit une demande directement d'une Personne concernée, Tale la transfère rapidement au Client et ne répond pas directement, sauf instruction du Client ou exigence légale.
+Si Tale reçoit une demande directement d’une Personne concernée, Tale la transfère rapidement au Client et ne répond pas directement, sauf instruction du Client ou exigence légale.
 
 ### 8.3 Frais
 
-Lorsque l'assistance demande un effort significatif au-delà du raisonnable, Tale peut facturer une somme raisonnable basée sur ses coûts administratifs.
+Lorsque l’assistance demande un effort significatif au-delà du raisonnable, Tale peut facturer une somme raisonnable basée sur ses coûts administratifs.
 
 ## 9. Audits
 
-### 9.1 Rapports d'audit
+### 9.1 Rapports d’audit
 
-Tale met à disposition du Client, sur demande raisonnable et au plus une fois par an, les rapports d'audit tiers pertinents ou certifications (SOC 2 Type II, ISO 27001) pour démontrer la conformité.
+Tale met à disposition du Client, sur demande raisonnable et au plus une fois par an, les rapports d’audit tiers pertinents ou certifications (SOC 2 Type II, ISO 27001) pour démontrer la conformité.
 
 ### 9.2 Audits complémentaires
 
 Si le Client estime raisonnablement que les informations fournies en 9.1 sont insuffisantes, il peut demander un audit complémentaire. Ces audits sont :
 
-a) aux frais du Client (sauf si l'audit révèle une violation substantielle par Tale) ;
+a) aux frais du Client (sauf si l’audit révèle une violation substantielle par Tale) ;
 
-b) annoncés au moins 30 jours à l'avance ;
+b) annoncés au moins 30 jours à l’avance ;
 
 c) réalisés en horaires ouvrables et de manière à minimiser la perturbation ;
 
@@ -200,7 +200,7 @@ e) limités au traitement des données personnelles du Client.
 
 ### 9.3 Confidentialité
 
-Tout rapport, constat ou information obtenus dans le cadre d'un audit sont traités comme confidentiels pour Tale et soumis aux dispositions de confidentialité du Contrat.
+Tout rapport, constat ou information obtenus dans le cadre d’un audit sont traités comme confidentiels pour Tale et soumis aux dispositions de confidentialité du Contrat.
 
 ## 10. Transferts internationaux
 
@@ -214,7 +214,7 @@ Tale peut traiter des données dans des pays reconnus par le Conseil fédéral s
 
 ### 10.3 Garanties pour les autres transferts
 
-Tale ne transfère pas de données vers des pays sans niveau adéquat sauf en présence de garanties appropriées, comme les Clauses Contractuelles Types approuvées par la Commission européenne ou reconnues par le PFPDT, ou d'autres mécanismes légalement reconnus.
+Tale ne transfère pas de données vers des pays sans niveau adéquat sauf en présence de garanties appropriées, comme les Clauses Contractuelles Types approuvées par la Commission européenne ou reconnues par le PFPDT, ou d’autres mécanismes légalement reconnus.
 
 ### 10.4 Transparence
 
@@ -222,7 +222,7 @@ Les lieux actuels de traitement et les mécanismes de transfert sont décrits da
 
 ## 11. Confidentialité
 
-Tale traite toutes les données personnelles sous ce DPA comme confidentielles. Cette obligation survit à la résiliation du DPA et du Contrat. Tale s'assure que tout le personnel avec accès est soumis à des obligations de confidentialité appropriées.
+Tale traite toutes les données personnelles sous ce DPA comme confidentielles. Cette obligation survit à la résiliation du DPA et du Contrat. Tale s’assure que tout le personnel avec accès est soumis à des obligations de confidentialité appropriées.
 
 ## 12. Conservation et suppression
 
@@ -246,7 +246,7 @@ Quand la loi applicable exige que Tale conserve certaines données au-delà de l
 
 ## 13. Responsabilité
 
-La responsabilité sous ce DPA est soumise aux limitations et exclusions du Contrat, dans la mesure permise par le droit applicable. Rien dans ce DPA ou le Contrat ne limite ni n'exclut la responsabilité d'une partie pour les dommages résultant d'une violation intentionnelle ou par négligence grave du droit applicable.
+La responsabilité sous ce DPA est soumise aux limitations et exclusions du Contrat, dans la mesure permise par le droit applicable. Rien dans ce DPA ou le Contrat ne limite ni n’exclut la responsabilité d’une partie pour les dommages résultant d’une violation intentionnelle ou par négligence grave du droit applicable.
 
 ## 14. Relation avec le Contrat
 
@@ -264,13 +264,13 @@ Si une disposition est jugée invalide ou inapplicable, les autres restent en vi
 
 ## 15. Droit applicable et for
 
-Ce DPA est régi et interprété selon le droit matériel de la Suisse, à l'exclusion des règles de conflit de lois et de la Convention des Nations unies sur les contrats de vente internationale de marchandises (CVIM).
+Ce DPA est régi et interprété selon le droit matériel de la Suisse, à l’exclusion des règles de conflit de lois et de la Convention des Nations unies sur les contrats de vente internationale de marchandises (CVIM).
 
 Tout litige relève de la compétence exclusive des tribunaux compétents du canton de Berne, Suisse, sauf loi impérative contraire.
 
 ## 16. Modifications
 
-Tale peut mettre à jour ce DPA pour refléter des changements dans ses pratiques ou dans le droit applicable. Les changements substantiels sont communiqués à l'avance. L'usage continu des services après entrée en vigueur vaut acceptation.
+Tale peut mettre à jour ce DPA pour refléter des changements dans ses pratiques ou dans le droit applicable. Les changements substantiels sont communiqués à l’avance. L’usage continu des services après entrée en vigueur vaut acceptation.
 
 ## 17. Contact
 

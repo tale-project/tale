@@ -93,7 +93,8 @@ When the word is generic — someone on the team, not the capital-M Member role 
 
 - **`du`, never `Sie`.** The informal form is used consistently across UI and docs.
 - **Compound nouns follow standard German rules.** Hyphenate when a component is an English loanword, an abbreviation, or when the hyphen improves readability: `API-Schlüssel`, `E-Mail-Anbieter`, `Docker-Service`, `JSON-Datei`.
-- **Quotation marks:** `„Text"` (low-9 opening, high-9 closing) in running prose. Straight `"..."` inside UI labels and code blocks.
+- **Quotation marks:** `„Text“` (low-9 opening, high-9 closing) in running prose. Straight `"..."` inside UI labels and code blocks.
+- **Apostrophes:** straight ASCII `'` everywhere. German prose rarely needs an apostrophe (no French-style elision); when one does appear (Genitiv of names ending in `s`, contractions like `geht's`), use ASCII `'`, not the typographic `’`.
 - **Decimal comma** in docs prose (`2,5 GB`). Inside code blocks and env var values, keep the period (`2.5`) — the runtime expects it.
 - **Thousands separator:** period or narrow space (`1.000` or `1 000`). Stay consistent within a page.
 - **Dates:** `DD.MM.YYYY` in docs prose (`19.04.2026`). In frontmatter and technical contexts, use ISO (`2026-04-19`).

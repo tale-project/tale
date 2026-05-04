@@ -3,7 +3,7 @@ title: Tutorials
 description: Aufgabenorientierte End-to-End-Anleitungen für jede Tale-Rolle.
 ---
 
-Tutorials sind Schritt-für-Schritt-Anleitungen, die dich von „Ich will X tun" zu einem funktionierenden Ergebnis führen. Sie stehen neben der Referenz unter [Platform](/de/platform) — die Referenz beschreibt, was jede Funktion tut, die Tutorials zeigen, wie man Funktionen zu einem konkreten Ergebnis kombiniert. Nutze Platform, wenn du die Funktion bereits kennst und Details brauchst; nutze diesen Bereich, wenn du einen geführten Weg willst.
+Tutorials sind Schritt-für-Schritt-Anleitungen, die dich von „Ich will X tun“ zu einem funktionierenden Ergebnis führen. Sie stehen neben der Referenz unter [Platform](/de/platform) — die Referenz beschreibt, was jede Funktion tut, die Tutorials zeigen, wie man Funktionen zu einem konkreten Ergebnis kombiniert. Nutze Platform, wenn du die Funktion bereits kennst und Details brauchst; nutze diesen Bereich, wenn du einen geführten Weg willst.
 
 Die Tutorials sind nach Rolle gegliedert, damit du auf Inhalten landest, die du wirklich ausführen kannst. Die Berechtigungen folgen dem [Sechs-Rollen-Modell](/de/platform/admin/members-and-roles); wenn ein Tutorial unter Admin liegt, brauchst du einen Admin- oder Owner-Platz, um es abzuschließen.
 

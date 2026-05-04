@@ -48,6 +48,7 @@ Swiss French has a handful of distinct vocabulary items. Most do not appear in T
 
 - NON-BREAKING SPACE before `:`, `;`, `!`, `?`, `%`, and inside `« … »` — **same rule as metropolitan French.** Swiss French follows the same typographic convention, so no override is needed for punctuation spacing.
 - QUOTATION marks: « guillemets » (same as base).
+- APOSTROPHES: typographic `’` in docs prose (same as base). The thousands-separator `'` in `1'000` stays straight ASCII — it is a numeric separator, not a typographic apostrophe.
 
 ## Legal / authority references
 

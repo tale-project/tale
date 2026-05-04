@@ -15,9 +15,7 @@ This is the fastest way to get a local Tale instance running on your laptop. Use
 
 Tale uses OpenRouter as its default AI gateway, which gives you access to hundreds of models through a single API key.
 
-1. Go to https://openrouter.ai and create a free account.
-2. Navigate to **Keys** in your account dashboard and generate a new API key.
-3. Copy the key — you will paste it during setup.
+Create a free account at https://openrouter.ai, generate a new API key from the **Keys** section of your account dashboard, and copy it so you can paste it during setup.
 
 > **Tip:** Any OpenAI-compatible provider works, including a local Ollama instance. OpenRouter is the recommended default for its model variety and simple pricing.
 
