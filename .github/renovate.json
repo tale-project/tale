@@ -4,6 +4,9 @@
   "rangeStrategy": "pin",
   "automerge": false,
   "minimumReleaseAge": "90 days",
+  "internalChecksFilter": "strict",
+  "prCreation": "not-pending",
+  "rebaseWhen": "conflicted",
   "dependencyDashboard": true,
   "labels": ["dependencies"],
   "prConcurrentLimit": 5,
@@ -38,14 +41,12 @@
     },
     {
       "description": "Disable Convex-related packages (manual upgrades only)",
-      "matchPackageNames": ["convex"],
-      "matchPackagePatterns": ["^convex-", "^@convex-dev/"],
+      "matchPackageNames": ["convex", "/^convex-/", "/^@convex-dev\\//"],
       "enabled": false
     },
     {
       "description": "Disable AI SDK packages (manual upgrades only)",
-      "matchPackageNames": ["ai"],
-      "matchPackagePatterns": ["^@ai-sdk/"],
+      "matchPackageNames": ["ai", "/^@ai-sdk\\//"],
       "enabled": false
     }
   ]
