@@ -32,7 +32,7 @@ Bild-Modelle werden pro generiertem Bild und nicht pro Token abgerechnet. Das Us
 Starte mit **Agents > New Agent** und fülle die Basis aus — Name, Slug, Beschreibung. Im Tab **Instructions**:
 
 - **Modell-Preset** — wähle das oben registrierte Bild-Modell. Im Picker erscheinen nur Modelle mit dem Tag `image-generation` oder `image-edit`.
-- **System Instructions** — beschreibe, worin der Agent gut sein soll. _„Du erstellst minimalistische Marketing-Thumbnails: flache Farben, ein Motiv, kein Text-Overlay"_ steuert deutlich verlässlicher als gar keine Instructions.
+- **System Instructions** — beschreibe, worin der Agent gut sein soll. _„Du erstellst minimalistische Marketing-Thumbnails: flache Farben, ein Motiv, kein Text-Overlay“_ steuert deutlich verlässlicher als gar keine Instructions.
 
 Wissen, Tools, Gesprächseinstiege, Delegation und Webhook funktionieren wie bei Chat-Agents — siehe [Agent erstellen](/de/platform/agents/create).
 

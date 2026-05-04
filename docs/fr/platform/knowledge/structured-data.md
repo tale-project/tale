@@ -1,15 +1,15 @@
 ---
 title: Données structurées
-description: Gère Produits, Clients et Fournisseurs comme enregistrements structurés interrogeables par l'IA.
+description: Gère Produits, Clients et Fournisseurs comme enregistrements structurés interrogeables par l’IA.
 ---
 
-Les sections de données structurées de la base de connaissances stockent des enregistrements métier que l'agent IA peut interroger à côté des documents et sites. Contrairement aux documents libres, les entrées structurées ont des champs fixes et peuvent être importées en masse.
+Les sections de données structurées de la base de connaissances stockent des enregistrements métier que l’agent IA peut interroger à côté des documents et sites. Contrairement aux documents libres, les entrées structurées ont des champs fixes et peuvent être importées en masse.
 
 ## Produits
 
-La section Produits stocke ton catalogue produit. Chaque enregistrement contient nom, description, URL d'image, stock, prix, devise, catégorie et statut.
+La section Produits stocke ton catalogue produit. Chaque enregistrement contient nom, description, URL d’image, stock, prix, devise, catégorie et statut.
 
-Les produits peuvent être ajoutés un par un ou importés en masse via CSV. Le format CSV n'a pas d'en-tête ; les colonnes suivent cet ordre :
+Les produits peuvent être ajoutés un par un ou importés en masse via CSV. Le format CSV n’a pas d’en-tête ; les colonnes suivent cet ordre :
 
 ```text
 name, description, imageUrl, stock, price, currency, category, status
@@ -31,7 +31,7 @@ Valeurs de locale valides : `en`, `de`, `es`, `fr`, `it`, `nl`, `pt`, `zh`. Vale
 
 ## Fournisseurs
 
-La section Fournisseurs stocke les enregistrements de fournisseurs et partenaires. Les données Fournisseur sont interrogeables par l'IA et utilisables dans les workflows automatisés. Le même import CSV que Clients fonctionne aussi ici.
+La section Fournisseurs stocke les enregistrements de fournisseurs et partenaires. Les données Fournisseur sont interrogeables par l’IA et utilisables dans les workflows automatisés. Le même import CSV que Clients fonctionne aussi ici.
 
 ## Utiliser des données structurées dans les agents
 

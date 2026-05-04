@@ -30,7 +30,8 @@ Prefer Austrian usage when it's clearly the more natural choice. Don't force an 
 ## Style
 
 - SPELLING: identical to standard German. Use "ß" where the base uses it (Austria keeps "ß", unlike Switzerland). Do not "Swiss-ify" Austrian content.
-- QUOTATION marks: „Text" (same as base).
+- QUOTATION marks: `„Text“` (same as base).
+- APOSTROPHES: straight ASCII `'` (same as base).
 - DECIMAL comma, period or narrow-space thousands (same as base).
 - DATES: `DD.MM.YYYY` (same as base). In Austrian prose, `Jänner` replaces `Januar` when the month is spelled out.
 - CURRENCY in examples: EUR (same as Germany).

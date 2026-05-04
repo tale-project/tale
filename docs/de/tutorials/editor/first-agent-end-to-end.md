@@ -3,17 +3,17 @@ title: Den ersten Agent end-to-end bauen
 description: Einen gezielten Agent anlegen, Wissen anhängen, testen und eine Version veröffentlichen.
 ---
 
-Generischer Chat beantwortet Fragen mit dem, worauf das Modell trainiert wurde. Ein gezielter Agent beantwortet sie mit dem Wissen deiner Organisation, in deinem Ton, auf eine Aufgabe zugeschnitten — „Produkt-Support", „HR-Richtlinien", „Sales-Enablement". Dieses Tutorial führt dich von einer leeren Agent-Seite bis zu einem aktiven, versionierten Agent, den dein Team im Chat auswählen kann.
+Generischer Chat beantwortet Fragen mit dem, worauf das Modell trainiert wurde. Ein gezielter Agent beantwortet sie mit dem Wissen deiner Organisation, in deinem Ton, auf eine Aufgabe zugeschnitten — „Produkt-Support“, „HR-Richtlinien“, „Sales-Enablement“. Dieses Tutorial führt dich von einer leeren Agent-Seite bis zu einem aktiven, versionierten Agent, den dein Team im Chat auswählen kann.
 
 Du brauchst Editor-Zugriff oder höher. Die Funktionsreferenz steht unter [Agent-Konzepte](/de/platform/agents/concepts) und [Agent erstellen](/de/platform/agents/create); dieses Tutorial verbindet die Schritte zu einem konkreten Ergebnis.
 
 ## Schritt 1 — Festlegen, wofür der Agent da ist
 
-Bevor du irgendwas klickst, schreib einen Satz: „Dieser Agent beantwortet X auf Basis von Y und macht kein Z." Beispiel: „Dieser Agent beantwortet Produkt-Support-Fragen aus dem Ordner Help Center und gibt keine rechtlichen oder Billing-Auskünfte." Dieser Satz wird das Rückgrat deiner Systemanweisungen — ohne ihn driftet der Agent.
+Bevor du irgendwas klickst, schreib einen Satz: „Dieser Agent beantwortet X auf Basis von Y und macht kein Z.“ Beispiel: „Dieser Agent beantwortet Produkt-Support-Fragen aus dem Ordner Help Center und gibt keine rechtlichen oder Billing-Auskünfte.“ Dieser Satz wird das Rückgrat deiner Systemanweisungen — ohne ihn driftet der Agent.
 
 ## Schritt 2 — Agent anlegen
 
-Navigiere in der Seitenleiste zu **Agents** und klicke **Agent erstellen**. Gib einen Anzeigenamen („Produkt-Support") und einen Namen — einen URL-sicheren Slug für API-Aufrufe und die Chat-URL (`produkt-support`). Füge eine kurze Beschreibung hinzu und klicke **Erstellen**.
+Navigiere in der Seitenleiste zu **Agents** und klicke **Agent erstellen**. Gib einen Anzeigenamen („Produkt-Support“) und einen Namen — einen URL-sicheren Slug für API-Aufrufe und die Chat-URL (`produkt-support`). Füge eine kurze Beschreibung hinzu und klicke **Erstellen**.
 
 Du landest auf der Konfigurationsseite. Lass alle Tabs vorerst auf Standard.
 

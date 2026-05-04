@@ -8,7 +8,7 @@ La comparaison de documents te laisse téléverser ou sélectionner deux documen
 ## Démarrer une comparaison
 
 1. Va dans **Base de connaissances > Documents**.
-2. Ouvre le dialogue de comparaison depuis le menu d'actions.
+2. Ouvre le dialogue de comparaison depuis le menu d’actions.
 3. Sélectionne deux documents :
 
 | Côté   | Libellé                 | Options                                            |
@@ -40,7 +40,7 @@ Les résultats affichent une barre de résumé et une liste de blocs de changeme
 | **Modifiés**  | paragraphes qui ont changé entre les documents.                             |
 | **Inchangés** | paragraphes sans différence.                                                |
 
-Un avertissement de **divergence élevée** apparaît si les documents diffèrent fortement. Un **avertissement de troncature** apparaît si le nombre de changements dépasse la limite d'affichage.
+Un avertissement de **divergence élevée** apparaît si les documents diffèrent fortement. Un **avertissement de troncature** apparaît si le nombre de changements dépasse la limite d’affichage.
 
 ### Types de changement
 
@@ -53,4 +53,4 @@ Chaque bloc est coloré :
 | Modifié  | Jaune   | `~`      | contenu changé, avec diffs en ligne mettant en évidence des mots précis. |
 | Contexte | Gris    | (espace) | texte environnant inchangé, pour référence.                              |
 
-Les blocs modifiés affichent des diffs en ligne quand c'est possible : les parties supprimées apparaissent comme `[-texte-]` et les ajouts comme `{+texte+}`. Si pas de diff en ligne, les anciennes et nouvelles versions apparaissent sur des lignes séparées.
+Les blocs modifiés affichent des diffs en ligne quand c’est possible : les parties supprimées apparaissent comme `[-texte-]` et les ajouts comme `{+texte+}`. Si pas de diff en ligne, les anciennes et nouvelles versions apparaissent sur des lignes séparées.

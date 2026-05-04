@@ -39,6 +39,24 @@ curl -fsSL https://github.com/tale-project/tale/releases/latest/download/tale_li
 chmod +x /usr/local/bin/tale
 ```
 
+### Épingler une version précise
+
+Pour installer une version précise du CLI au lieu de la dernière release, définis la variable d’environnement `VERSION` sur l’installeur :
+
+```bash
+VERSION=0.9.0 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
+```
+
+Ou télécharge le binaire directement avec le tag de version dans l’URL :
+
+```bash
+curl -fsSL https://github.com/tale-project/tale/releases/download/v0.9.0/tale_linux \
+  -o /usr/local/bin/tale
+chmod +x /usr/local/bin/tale
+```
+
+Les versions disponibles sont sur la [page GitHub Releases](https://github.com/tale-project/tale/releases).
+
 ## Installation initiale
 
 ### Étape 1 : initialiser le répertoire
@@ -50,7 +68,7 @@ tale init
 
 Ça crée ton `.env` avec des secrets générés.
 
-### Étape 2 : configurer l'environnement
+### Étape 2 : configurer l’environnement
 
 Ouvre `.env` et définis les valeurs requises :
 
@@ -62,7 +80,7 @@ TLS_EMAIL=admin@yourdomain.com
 DB_PASSWORD=a-strong-database-password
 ```
 
-Voir la [référence d'environnement](/fr/self-hosted/configuration/environment-reference) pour toutes les options.
+Voir la [référence d’environnement](/fr/self-hosted/configuration/environment-reference) pour toutes les options.
 
 ### Étape 3 : déployer
 
@@ -74,15 +92,35 @@ Le CLI tire les images pré-construites, démarre tous les services, attend les 
 
 ## Gérer les déploiements
 
-### Déployer une nouvelle version
+### Passer à une nouvelle version
+
+`tale deploy` déploie toujours la version du binaire CLI en cours, donc un upgrade se fait en deux étapes :
 
 ```bash
-tale deploy                # déployer la version courante du CLI
-tale deploy --dry-run      # prévisualiser sans déployer
-tale deploy --all          # mettre aussi à jour DB et proxy
+tale upgrade            # 1. mettre à jour le CLI vers la dernière release
+tale deploy             # 2. dérouler la nouvelle version
 ```
 
-`tale deploy` déploie toujours la version du CLI en cours. Pour passer à une version plus récente, `tale upgrade` d'abord puis `tale deploy`.
+#### Migrer ou redescendre vers une version précise
+
+```bash
+tale upgrade --version 0.9.0       # bascule le CLI vers v0.9.0 (montée ou descente)
+tale deploy                        # dérouler ensuite cette version
+```
+
+`--version` accepte `0.9.0` ou `v0.9.0`. Les downgrades sont autorisés, mais **les changements de schéma restent forward-only** — voir [Compatibilité de schéma et rollback](#compatibilité-de-schéma-et-rollback). Les versions disponibles sont sur la [page GitHub Releases](https://github.com/tale-project/tale/releases).
+
+#### Avant l’upgrade
+
+Lis les [release notes](https://github.com/tale-project/tale/releases) pour repérer les ruptures de compatibilité et les notes de migration. Sauvegarde la base — le volume Postgres contient toutes les données plateforme et les fichiers uploadés. Si l’instance est critique, teste l’upgrade sur une instance de staging au préalable ; `tale init` dans un répertoire séparé sur un autre hôte te donne un stack isolé.
+
+### Déployer
+
+```bash
+tale deploy             # déployer la version courante du CLI
+tale deploy --dry-run   # prévisualiser sans déployer
+tale deploy --all       # mettre aussi à jour DB et proxy
+```
 
 ### Statut
 
@@ -103,22 +141,22 @@ tale logs db --tail 100
 ### Rollback
 
 ```bash
-tale rollback                      # revenir à la précédente
-tale rollback --version 0.9.0      # revenir à une version précise
+tale rollback                       # revenir à la précédente
+tale rollback --version 0.9.0       # revenir à une version précise
 ```
 
-> **Changements de schéma forward-only.** `tale rollback` n'échange que les images ; il ne **rollback pas** les données Convex. Voir [Compatibilité de schéma et rollback](#compatibilité-de-schéma-et-rollback).
+> **Changements de schéma forward-only.** `tale rollback` n’échange que les images ; il ne **rollback pas** les données Convex. Voir [Compatibilité de schéma et rollback](#compatibilité-de-schéma-et-rollback).
 
 ### Nettoyage
 
 ```bash
-tale cleanup              # retirer les conteneurs inactifs
-tale reset --force        # retirer TOUS les conteneurs (demande confirmation)
+tale cleanup            # retirer les conteneurs inactifs
+tale reset --force      # retirer TOUS les conteneurs (demande confirmation)
 ```
 
 ## Zero-downtime
 
-Le CLI utilise le blue-green. Lors d'une nouvelle version :
+Le CLI utilise le blue-green. Lors d’une nouvelle version :
 
 1. les nouveaux conteneurs démarrent à côté des actuels ;
 2. les health checks confirment que la nouvelle version est prête ;
@@ -129,7 +167,7 @@ Le CLI utilise le blue-green. Lors d'une nouvelle version :
 
 ## Configuration TLS
 
-### Let's Encrypt (recommandé)
+### Let’s Encrypt (recommandé)
 
 ```dotenv
 TLS_MODE=letsencrypt
@@ -144,7 +182,7 @@ Caddy émet et renouvelle automatiquement des certificats TLS de confiance. Les 
 TLS_MODE=selfsigned
 ```
 
-Génère un certificat auto-signé. Les navigateurs affichent un avertissement. Pour faire confiance sur l'hôte :
+Génère un certificat auto-signé. Les navigateurs affichent un avertissement. Pour faire confiance sur l’hôte :
 
 ```bash
 docker exec tale-proxy caddy trust
@@ -156,7 +194,7 @@ docker exec tale-proxy caddy trust
 TLS_MODE=external
 ```
 
-Caddy n'écoute qu'en HTTP (port 80). Ton reverse proxy gère la terminaison TLS.
+Caddy n’écoute qu’en HTTP (port 80). Ton reverse proxy gère la terminaison TLS.
 
 ## Derrière un reverse proxy
 
@@ -168,7 +206,7 @@ SITE_URL=https://yourdomain.com
 TLS_MODE=external
 ```
 
-`SITE_URL` doit matcher l'URL que voient les utilisateurs. Si ton reverse proxy utilise un port non standard, inclus-le (ex. `SITE_URL=https://yourdomain.com:8443`).
+`SITE_URL` doit matcher l’URL que voient les utilisateurs. Si ton reverse proxy utilise un port non standard, inclus-le (ex. `SITE_URL=https://yourdomain.com:8443`).
 
 Caddy écoute alors uniquement en HTTP (port 80). Ton reverse proxy doit :
 
@@ -222,7 +260,7 @@ TLS_MODE=external
 BASE_PATH=/tale
 ```
 
-Caddy gère le strip du préfixe en interne — ton reverse proxy n'a **pas** besoin de le stripper. Transfère simplement tout le trafic sous le sous-chemin tel quel (note : pas de slash final sur `proxy_pass`) :
+Caddy gère le strip du préfixe en interne — ton reverse proxy n’a **pas** besoin de le stripper. Transfère simplement tout le trafic sous le sous-chemin tel quel (note : pas de slash final sur `proxy_pass`) :
 
 ```nginx
 location /tale/ {
@@ -233,11 +271,11 @@ location /tale/ {
 
 **Limitations connues :**
 
-- Le Convex Dashboard (`/convex-dashboard`) n'est pas accessible en déploiement sous-chemin.
+- Le Convex Dashboard (`/convex-dashboard`) n’est pas accessible en déploiement sous-chemin.
 
 ## Utiliser une base externe
 
-Tale livre un conteneur ParadeDB (PostgreSQL 16 + pgvector + pg_search), mais l'architecture supporte aussi une instance PostgreSQL externe. Utile quand ton organisation exige une base managée, doit respecter des règles de résidence des données ou veut utiliser un cluster existant.
+Tale livre un conteneur ParadeDB (PostgreSQL 16 + pgvector + pg_search), mais l’architecture supporte aussi une instance PostgreSQL externe. Utile quand ton organisation exige une base managée, doit respecter des règles de résidence des données ou veut utiliser un cluster existant.
 
 ### Exigences
 
@@ -274,7 +312,7 @@ CRAWLER_DATABASE_URL=postgresql://tale:your-password@your-db-host:5432/tale_know
 
 ### Initialisation DB
 
-Le conteneur DB fourni exécute les scripts d'init automatiquement au premier start. Avec une DB externe, il faut les lancer à la main. Les scripts sont dans `services/db/init-scripts/`, numérotés :
+Le conteneur DB fourni exécute les scripts d’init automatiquement au premier start. Avec une DB externe, il faut les lancer à la main. Les scripts sont dans `services/db/init-scripts/`, numérotés :
 
 ```bash
 for f in services/db/init-scripts/*.sql; do
@@ -308,7 +346,7 @@ services:
 
 ## Compatibilité de schéma et rollback
 
-Les déploiements Tale ne sont pas automatiquement rollback-safe si ton changement modifie le schéma Convex. Les données Convex persistent indépendamment du code, et `tale rollback` n'échange que les images — pas l'état de la base.
+Les déploiements Tale ne sont pas automatiquement rollback-safe si ton changement modifie le schéma Convex. Les données Convex persistent indépendamment du code, et `tale rollback` n’échange que les images — pas l’état de la base.
 
 ### Changements sûrs (rollback-friendly)
 
@@ -316,13 +354,13 @@ Les déploiements Tale ne sont pas automatiquement rollback-safe si ton changeme
 - Nouvelles tables.
 - Nouveaux index.
 - Nouvelles queries/mutations/actions.
-- Retrait de champs que l'ancien code tolérait déjà comme optionnels.
+- Retrait de champs que l’ancien code tolérait déjà comme optionnels.
 
 ### Changements risqués (forward-only)
 
 - Ajouter un champ **requis** à une table existante.
 - Renommer un champ.
-- Changer le type d'un champ.
+- Changer le type d’un champ.
 - Retirer un champ requis sur lequel le nouveau code compte.
 - Restructurer des documents dénormalisés.
 
@@ -330,8 +368,8 @@ Les déploiements Tale ne sont pas automatiquement rollback-safe si ton changeme
 
 Pour tout changement "risqué", releaser en **deux versions** :
 
-1. **Expand** — introduire la nouvelle forme à côté de l'ancienne. Code qui gère les deux formes. Migrer les données existantes via un backfill one-shot. Rollback sûr, car les deux formes marchent.
-2. **Contract** — une fois que l'expand est stable en production, un release suit qui retire l'ancienne forme. Forward-only, mais les données sont garanties dans la nouvelle forme.
+1. **Expand** — introduire la nouvelle forme à côté de l’ancienne. Code qui gère les deux formes. Migrer les données existantes via un backfill one-shot. Rollback sûr, car les deux formes marchent.
+2. **Contract** — une fois que l’expand est stable en production, un release suit qui retire l’ancienne forme. Forward-only, mais les données sont garanties dans la nouvelle forme.
 
 ### Fenêtre transitoire blue-green
 
@@ -346,7 +384,7 @@ Si V2 retire ou renomme des functions, les utilisateurs `blue` voient des erreur
 
 ## Scan de vulnérabilités
 
-Toutes les images Tale sont scannées pour vulnérabilités pendant le pipeline CI/CD via [Trivy](https://trivy.dev/). Les résultats sont uploadés dans l'onglet Security GitHub pour chaque release.
+Toutes les images Tale sont scannées pour vulnérabilités pendant le pipeline CI/CD via [Trivy](https://trivy.dev/). Les résultats sont uploadés dans l’onglet Security GitHub pour chaque release.
 
 Scan local :
 
@@ -354,7 +392,7 @@ Scan local :
 bun run docker:test:vulnerability
 ```
 
-Les rapports vont dans `trivy-reports/`. Voir [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture) pour les détails d'image.
+Les rapports vont dans `trivy-reports/`. Voir [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture) pour les détails d’image.
 
 ## Versioning des images
 
@@ -373,9 +411,21 @@ docker pull ghcr.io/tale-project/tale/tale-platform:1.2.0
 docker pull ghcr.io/tale-project/tale/tale-platform:latest
 ```
 
+### Épingler une version d’image
+
+`tale deploy` choisit les images selon la version du CLI. Pour verrouiller des images de service indépendamment — par exemple pour tester une seule image sans upgrader tout le stack — crée un `compose.override.yml` à côté de ton `.env` :
+
+```yaml
+services:
+  platform:
+    image: ghcr.io/tale-project/tale/tale-platform:1.2.0
+```
+
+`tale deploy` fusionne l’override automatiquement.
+
 ## Accès au Convex Dashboard
 
-Tale inclut un backend Convex embarqué. Le Convex Dashboard permet d'inspecter la base, voir les logs des fonctions et gérer les jobs de fond.
+Tale inclut un backend Convex embarqué. Le Convex Dashboard permet d’inspecter la base, voir les logs des fonctions et gérer les jobs de fond.
 
 1. Générer une clé admin :
 
@@ -387,4 +437,4 @@ Tale inclut un backend Convex embarqué. Le Convex Dashboard permet d'inspecter 
 3. Ouvrir `https://yourdomain.com/convex-dashboard` dans le navigateur.
 4. Coller la clé admin quand elle est demandée.
 
-> **Note :** Le Convex Dashboard donne un accès direct en lecture et écriture à toutes les données. Ne partage des clés admin qu'avec des équipiers de confiance.
+> **Note :** Le Convex Dashboard donne un accès direct en lecture et écriture à toutes les données. Ne partage des clés admin qu’avec des équipiers de confiance.

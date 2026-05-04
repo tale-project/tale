@@ -84,12 +84,13 @@ Match the UI verbatim — if the two ever disagree, update the UI first, then th
 
 The six Tale roles stay in English to match the UI: **Owner**, **Admin**, **Developer**, **Editor**, **Member**, **Disabled**. Capitalize when naming the role.
 
-When the word is generic — someone on the team, not the capital-M Member role — translate it to **membre** / **membres**. Never leave `member` or `members` in French prose. Example: _Les membres de ton équipe utilisent le chat_ vs. _Un Member peut consulter l'historique du chat_.
+When the word is generic — someone on the team, not the capital-M Member role — translate it to **membre** / **membres**. Never leave `member` or `members` in French prose. Example: _Les membres de ton équipe utilisent le chat_ vs. _Un Member peut consulter l’historique du chat_.
 
 ## Style rules
 
 - **`tu`, never `vous`.** The informal form is used consistently across UI and docs.
 - **Quotation marks:** « guillemets français » in running prose. Straight `"..."` inside UI labels and code blocks.
+- **Apostrophes:** typographic `’` in docs prose (`l’équipe`, `aujourd’hui`, `d’abord`). Straight `'` inside UI labels (`fr.json`), code blocks, and inline code spans — preserve the source form when quoting strings from the codebase.
 - **Non-breaking space** before `:`, `;`, `!`, `?`, `%`, and inside guillemets (`« texte »`). Markdown rendering normalizes a regular space, but preserve the exact character when copying from an authoritative source.
 - **Decimal comma** in docs prose (`2,5 Go`). Inside code blocks and env var values, keep the period (`2.5`).
 - **Thousands separator:** narrow non-breaking space (`1 000`).
@@ -97,5 +98,5 @@ When the word is generic — someone on the team, not the capital-M Member role 
 - **Times:** 24-hour clock in user-facing copy (`09 h 00`, `17 h 30`). Cron expressions and server logs keep their canonical format.
 - **Headings are sentence case.** Capitalize only the first word and proper nouns — `## Concepts des agents`, not `## Concepts des Agents`.
 - **Gerunds:** avoid untranslated English `-ing` forms. `Le monitoring` → `La supervision` when the sense is Tale's built-in Prometheus story. Keep `monitoring` only when it is a well-established tool-name loanword.
-- **Inclusive forms:** prefer neutral nouns (`l'équipe`, `les personnes`) over `utilisateur·rice` in long-form docs. In space-tight UI, plain `utilisateur` is acceptable.
+- **Inclusive forms:** prefer neutral nouns (`l’équipe`, `les personnes`) over `utilisateur·rice` in long-form docs. In space-tight UI, plain `utilisateur` is acceptable.
 - **UI labels must match the product.** Before quoting a button or menu, grep `services/platform/messages/fr.json` to confirm the exact wording.

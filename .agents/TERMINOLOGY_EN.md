@@ -91,7 +91,8 @@ Tale's six roles are proper nouns: **Owner**, **Admin**, **Developer**, **Editor
 ## Style rules
 
 - **Oxford comma** in lists of three or more.
-- **Curly quotes** (`"..."`) in running prose; straight quotes (`"..."`) inside UI strings and code blocks.
+- **Straight quotes** (`"..."`) everywhere — running prose, UI strings, and code blocks. Tale's English docs do not use the typographic `“…”`; ASCII keeps grep simple and avoids drift between the two forms.
+- **Apostrophes:** straight ASCII `'` everywhere — contractions (`don't`), possessives (`Tale's`), and quoted strings. The English docs do not use the typographic `’`; keep them ASCII so search and grep stay simple.
 - **En-dash** (`–`) for numeric ranges (`5–10 minutes`); **em-dash** (`—`) for parenthetical asides — like this.
 - **ISO dates** (`2026-04-19`) in docs prose, log output, and frontmatter. Wall-clock times in the UI render through `useFormatDate()` and use the user's locale format.
 - **12-hour clock** with lowercase `am`/`pm` in user-facing copy (`9 am`, `10:30 pm`). **24-hour** in technical contexts (cron expressions, server logs).

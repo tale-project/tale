@@ -29,7 +29,7 @@ Input: ein Rohtranskript eines Meetings, eventuell mit unsauberen Sprecher-Label
 Output in Markdown:
 1. Ein Absatz Zusammenfassung.
 2. Entscheidungen — Bullet-Liste, jeweils mit verantwortlicher Person.
-3. To-dos — Bullet-Liste im Format „Owner — Aufgabe — Fälligkeit (falls genannt)".
+3. To-dos — Bullet-Liste im Format „Owner — Aufgabe — Fälligkeit (falls genannt)“.
 4. Offene Fragen — Bullet-Liste mit Punkten, die aufkamen, aber nicht geklärt wurden.
 
 Regeln:

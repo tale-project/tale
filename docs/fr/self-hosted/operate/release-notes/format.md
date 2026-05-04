@@ -3,7 +3,7 @@ title: Format des release notes
 description: Format de référence pour les release notes GitHub de tale-project/tale.
 ---
 
-Format de référence pour les release notes GitHub de `tale-project/tale`. La slash-command `/release` rédige les notes selon cette spec, et le lien "What's new" dans le produit y dirige les utilisateurs.
+Format de référence pour les release notes GitHub de `tale-project/tale`. La slash-command `/release` rédige les notes selon cette spec, et le lien "What’s new" dans le produit y dirige les utilisateurs.
 
 ## Pourquoi cette spec
 
@@ -23,8 +23,8 @@ Inclure seulement les sections avec contenu. Toujours dans cet ordre :
 | --- | ------------------------ | -------------------------------------------------------------------------------------------------- |
 | 1   | `## 🔒 Security`         | correctifs CVE, patchs de dépendance, durcissement auth/session/crypto, gestion de secrets         |
 | 2   | `## 🤖 Model & Provider` | swap/upgrade/dépréciation de modèle LLM, changements de config fournisseur qui modifient la sortie |
-| 3   | `## 💥 Breaking Changes` | suppression/renommage d'API, migrations manuelles de schéma, fonctionnalités retirées              |
-| 4   | `## 🚀 Features`         | nouvelles fonctionnalités visibles par l'utilisateur                                               |
+| 3   | `## 💥 Breaking Changes` | suppression/renommage d’API, migrations manuelles de schéma, fonctionnalités retirées              |
+| 4   | `## 🚀 Features`         | nouvelles fonctionnalités visibles par l’utilisateur                                               |
 | 5   | `## ⚡ Performance`      | gains de performance mesurables à mettre en avant                                                  |
 | 6   | `## 🛠 Improvements`     | améliorations non breaking, polish UX                                                              |
 | 7   | `## 🐛 Fixes`            | correctifs de bugs (non sécuritaires)                                                              |
@@ -44,7 +44,7 @@ Chaque release doit contenir au minimum :
    Run `tale upgrade` to update the CLI, then `tale deploy` to apply the new version.
    ```
 
-   Les deux étapes sont nécessaires — `tale upgrade` récupère le CLI, `tale deploy` l'applique. Omettre l'une laisse le déploiement sur l'ancienne version.
+   Les deux étapes sont nécessaires — `tale upgrade` récupère le CLI, `tale deploy` l’applique. Omettre l’une laisse le déploiement sur l’ancienne version.
 
 4. **Notes de migration manuelle** (si pertinent) : si une breaking change demande une action opérateur au-delà de `tale deploy`, inclure une section `## Migration Guide` avec étapes numérotées.
 5. **Lien Full Changelog** en bas :
@@ -54,9 +54,9 @@ Chaque release doit contenir au minimum :
 
 ## Règles de classification
 
-- **Security** : tout ce qui touche à l'authentification, session, stockage de secrets, crypto ou CVE de dépendance atteignable. Dans le doute, classer en security ET ouvrir un [Security Advisory](/fr/self-hosted/operate/security/advisories).
+- **Security** : tout ce qui touche à l’authentification, session, stockage de secrets, crypto ou CVE de dépendance atteignable. Dans le doute, classer en security ET ouvrir un [Security Advisory](/fr/self-hosted/operate/security/advisories).
 - **Model & Fournisseur** : tout changement susceptible de modifier la sortie LLM pour la même entrée utilisateur — bumps de modèle, swaps de fournisseur, changements de prompts/templates dans les agents par défaut.
-- **Breaking Changes** : l'utilisateur ou l'opérateur doit faire quelque chose après la mise à jour. Si ça "fonctionne tout simplement", ce n'est pas breaking.
+- **Breaking Changes** : l’utilisateur ou l’opérateur doit faire quelque chose après la mise à jour. Si ça "fonctionne tout simplement", ce n’est pas breaking.
 - **Other** : uniquement pour des changements notables qui ne rentrent nulle part ailleurs. Trivial (fautes de frappe, refactors internes, changements de tests seuls) est omis.
 
 ## Exemple

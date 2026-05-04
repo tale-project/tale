@@ -83,7 +83,10 @@
               "self-hosted/overview",
               {
                 "group": "Install",
-                "pages": ["self-hosted/install/linux-server"]
+                "pages": [
+                  "self-hosted/install/quickstart",
+                  "self-hosted/install/linux-server"
+                ]
               },
               {
                 "group": "Configuration",
@@ -239,6 +242,7 @@
               "develop/api-reference",
               "develop/webhooks",
               "develop/ai-assisted-development",
+              "develop/integrations",
               "develop/contributing-docker"
             ]
           },
@@ -285,7 +289,10 @@
               "de/self-hosted/overview",
               {
                 "group": "Installation",
-                "pages": ["de/self-hosted/install/linux-server"]
+                "pages": [
+                  "de/self-hosted/install/quickstart",
+                  "de/self-hosted/install/linux-server"
+                ]
               },
               {
                 "group": "Konfiguration",
@@ -441,6 +448,7 @@
               "de/develop/api-reference",
               "de/develop/webhooks",
               "de/develop/ai-assisted-development",
+              "de/develop/integrations",
               "de/develop/contributing-docker"
             ]
           },
@@ -487,7 +495,10 @@
               "fr/self-hosted/overview",
               {
                 "group": "Installation",
-                "pages": ["fr/self-hosted/install/linux-server"]
+                "pages": [
+                  "fr/self-hosted/install/quickstart",
+                  "fr/self-hosted/install/linux-server"
+                ]
               },
               {
                 "group": "Configuration",
@@ -643,6 +654,7 @@
               "fr/develop/api-reference",
               "fr/develop/webhooks",
               "fr/develop/ai-assisted-development",
+              "fr/develop/integrations",
               "fr/develop/contributing-docker"
             ]
           },
@@ -696,7 +708,7 @@
         "items": [
           {
             "label": "Getting started",
-            "href": "/platform/member/overview"
+            "href": "/self-hosted/install/quickstart"
           },
           {
             "label": "Environment reference",

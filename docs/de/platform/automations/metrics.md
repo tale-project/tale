@@ -25,7 +25,7 @@ Klicke eine Zeile in **Top-Workflows** an, um zu den [Ausführungsprotokollen](/
 
 Wechsle oben auf der Seite zwischen **Letzte 7 Tage**, **Letzte 30 Tage** und **Letzte 90 Tage**. Der Zeitraum spiegelt sich in der URL (`?period=30`), damit ein Link auf das Dashboard reproduzierbar bleibt.
 
-Pro Abfrage werden nur die letzten 5.000 Ausführungen im gewählten Fenster ausgewertet. Wird das Limit erreicht, blendet sich ein Banner ein: _„Es werden die letzten 5.000 Ausführungen in diesem Zeitraum angezeigt. Ältere Ausführungen sind nicht in diesen Summen enthalten."_ — wähle dann ein kürzeres Fenster für ein komplettes Bild oder springe zu **Top-Workflows** und untersuche die ungekappten, workflow-spezifischen Ausführungsprotokolle.
+Pro Abfrage werden nur die letzten 5.000 Ausführungen im gewählten Fenster ausgewertet. Wird das Limit erreicht, blendet sich ein Banner ein: _„Es werden die letzten 5.000 Ausführungen in diesem Zeitraum angezeigt. Ältere Ausführungen sind nicht in diesen Summen enthalten.“_ — wähle dann ein kürzeres Fenster für ein komplettes Bild oder springe zu **Top-Workflows** und untersuche die ungekappten, workflow-spezifischen Ausführungsprotokolle.
 
 ## Leerer Zustand
 

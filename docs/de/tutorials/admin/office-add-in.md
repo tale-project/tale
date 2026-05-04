@@ -50,7 +50,7 @@ Nach dem Sideloading öffnest du Word oder Excel und siehst den Office-Agents-Bu
 
 | Feld       | Wert                                                                                        |
 | ---------- | ------------------------------------------------------------------------------------------- |
-| `Provider` | **OpenAI-compatible** (oder „Custom" — Label variiert)                                      |
+| `Provider` | **OpenAI-compatible** (oder „Custom“ — Label variiert)                                      |
 | Base URL   | `https://<deine-tale-instanz>/api/v1`                                                       |
 | API key    | Das `tale_...`-Token aus Schritt 1                                                          |
 | Model      | Einen Agent-Slug aus `GET /api/v1/models` — siehe [API-Referenz](/de/develop/api-reference) |
@@ -60,8 +60,8 @@ Speichere. Das Panel spricht jetzt mit Tale.
 
 ## Schritt 5 — End-to-End testen
 
-- **Excel:** eine Tabelle mit einer kurzen Datenreihe öffnen, einen Bereich markieren und im Panel „Fasse diese Daten in drei Stichpunkten zusammen" eingeben. Der Agent sollte mit deinem Tale-Modell antworten.
-- **Word:** ein Dokument öffnen, einen Absatz markieren und „Schreibe das für ein nicht-technisches Publikum um" eingeben. Gleiches erwartetes Ergebnis.
+- **Excel:** eine Tabelle mit einer kurzen Datenreihe öffnen, einen Bereich markieren und im Panel „Fasse diese Daten in drei Stichpunkten zusammen“ eingeben. Der Agent sollte mit deinem Tale-Modell antworten.
+- **Word:** ein Dokument öffnen, einen Absatz markieren und „Schreibe das für ein nicht-technisches Publikum um“ eingeben. Gleiches erwartetes Ergebnis.
 - **In Tale prüfen:** die Konversationshistorie des Agents öffnen und bestätigen, dass die Anfrage als neuer Thread auftaucht. Thread, verwendetes Modell und etwaige Tool Calls sind genauso protokolliert, als hätte der Nutzer aus der Tale-UI gechattet.
 
 ## Troubleshooting

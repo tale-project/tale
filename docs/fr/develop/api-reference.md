@@ -3,11 +3,11 @@ title: Référence API
 description: Endpoints REST API pour les services RAG, Crawler et Platform.
 ---
 
-Chaque service Tale a sa propre API REST. Elles sont utilisées en interne entre services mais aussi disponibles pour l'intégration directe avec des systèmes externes.
+Chaque service Tale a sa propre API REST. Elles sont utilisées en interne entre services mais aussi disponibles pour l’intégration directe avec des systèmes externes.
 
 ## Documentation API interactive
 
-Tous les services Python ont une UI Swagger pour explorer et tester l'API :
+Tous les services Python ont une UI Swagger pour explorer et tester l’API :
 
 | Service | URL Swagger UI             | OpenAPI JSON                       |
 | ------- | -------------------------- | ---------------------------------- |
@@ -16,7 +16,7 @@ Tous les services Python ont une UI Swagger pour explorer et tester l'API :
 
 ## API RAG
 
-L'API RAG gère l'indexation et la recherche des documents. C'est le moteur derrière la base de connaissances.
+L’API RAG gère l’indexation et la recherche des documents. C’est le moteur derrière la base de connaissances.
 
 ### Téléverser un document
 
@@ -32,7 +32,7 @@ sync:      "true"  (optionnel, attendre la fin de l'indexation)
 metadata:  '{"source": "upload"}'  (JSON optionnel)
 ```
 
-L'indexation tourne en arrière-plan par défaut. `sync=true` attend la fin avant de répondre.
+L’indexation tourne en arrière-plan par défaut. `sync=true` attend la fin avant de répondre.
 
 ### Vérifier les statuts de documents
 
@@ -46,7 +46,7 @@ POST /api/v1/documents/statuses
 }
 ```
 
-Renvoie le statut d'indexation par document. États : `queued`, `running`, `completed`, `failed`.
+Renvoie le statut d’indexation par document. États : `queued`, `running`, `completed`, `failed`.
 
 ### Chercher dans la base
 
@@ -72,13 +72,13 @@ POST /api/v1/search
 DELETE /api/v1/documents/{file_id}
 ```
 
-### Récupérer le contenu d'un document
+### Récupérer le contenu d’un document
 
 ```http
 GET /api/v1/documents/{file_id}/content
 ```
 
-Renvoie le texte extrait complet d'un document indexé.
+Renvoie le texte extrait complet d’un document indexé.
 
 ### Comparer des documents
 
@@ -110,7 +110,7 @@ POST /api/v1/websites
 
 `scan_interval` en secondes. Minimum 60.
 
-### Récupérer le contenu d'une page
+### Récupérer le contenu d’une page
 
 ```http
 POST /api/v1/urls/fetch
@@ -137,7 +137,7 @@ GET /api/v1/websites/{domain}
 DELETE /api/v1/websites/{domain}
 ```
 
-### Lister les URLs d'un site
+### Lister les URLs d’un site
 
 ```http
 GET /api/v1/websites/{domain}/urls
@@ -145,11 +145,11 @@ GET /api/v1/websites/{domain}/urls
 
 ## API Platform
 
-Le service Platform expose une API publique sur `/api/v1/*` pour l'accès programmatique à tes données. Authentification par clé API depuis **Paramètres > Clés API**.
+Le service Platform expose une API publique sur `/api/v1/*` pour l’accès programmatique à tes données. Authentification par clé API depuis **Paramètres > Clés API**.
 
 ### Chat completions compatibles OpenAI
 
-La plateforme fournit une interface entièrement compatible avec l'[API OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat). Tout client ou SDK supportant OpenAI (Python, Node, curl, LiteLLM, etc.) peut se connecter en pointant `base_url` vers ton instance Tale.
+La plateforme fournit une interface entièrement compatible avec l’[API OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat). Tout client ou SDK supportant OpenAI (Python, Node, curl, LiteLLM, etc.) peut se connecter en pointant `base_url` vers ton instance Tale.
 
 #### Quick start
 
@@ -199,20 +199,20 @@ curl https://your-tale-instance.com/api/v1/chat/completions \
 
 #### Authentification
 
-Toutes les requêtes exigent un bearer token dans l'en-tête `Authorization` :
+Toutes les requêtes exigent un bearer token dans l’en-tête `Authorization` :
 
 ```text
 Authorization: Bearer tale_...
 ```
 
-Crée les clés API dans **Paramètres > Clés API** de l'UI.
+Crée les clés API dans **Paramètres > Clés API** de l’UI.
 
 #### En-têtes
 
 | En-tête               | Requis | Description                                                                   |
 | --------------------- | ------ | ----------------------------------------------------------------------------- |
 | `Authorization`       | Oui    | `Bearer <api-key>`.                                                           |
-| `X-Organization-Slug` | Non    | slug d'organisation. Résolu automatiquement si le user n'appartient qu'à une. |
+| `X-Organization-Slug` | Non    | slug d’organisation. Résolu automatiquement si le user n’appartient qu’à une. |
 | `X-Thread-Id`         | Non    | réutiliser un fil de conversation entre requêtes.                             |
 
 #### Endpoints
@@ -225,7 +225,7 @@ Envoie un message de chat et reçoit une réponse. Supporte streaming et tool ca
 
 | Champ               | Type             | Description                                                                          |
 | ------------------- | ---------------- | ------------------------------------------------------------------------------------ |
-| `model`             | string           | **Requis.** slug d'agent (ex. `chat-agent`).                                         |
+| `model`             | string           | **Requis.** slug d’agent (ex. `chat-agent`).                                         |
 | `messages`          | array            | **Requis.** messages de conversation avec `role` et `content`.                       |
 | `stream`            | boolean          | activer le streaming SSE. Défaut : `false`.                                          |
 | `temperature`       | number           | température de sampling (0–2).                                                       |
@@ -233,14 +233,14 @@ Envoie un message de chat et reçoit une réponse. Supporte streaming et tool ca
 | `top_p`             | number           | paramètre de nucleus sampling.                                                       |
 | `frequency_penalty` | number           | pénalise les tokens répétés.                                                         |
 | `presence_penalty`  | number           | pénalise les tokens déjà présents.                                                   |
-| `stop`              | string ou array  | séquences d'arrêt.                                                                   |
+| `stop`              | string ou array  | séquences d’arrêt.                                                                   |
 | `response_format`   | object           | `{"type": "json_object"}` pour mode JSON.                                            |
-| `tools`             | array            | définitions d'outils pour tool calling côté client.                                  |
+| `tools`             | array            | définitions d’outils pour tool calling côté client.                                  |
 | `tool_choice`       | string ou object | `"auto"`, `"required"`, `"none"` ou `{"type":"function","function":{"name":"..."}}`. |
 
 **Deux modes :**
 
-- **Mode agent** (sans `tools`) : l'agent utilise ses outils serveurs préconfigurés (RAG, recherche web, etc.) et les exécute automatiquement. La réponse contient le texte final.
+- **Mode agent** (sans `tools`) : l’agent utilise ses outils serveurs préconfigurés (RAG, recherche web, etc.) et les exécute automatiquement. La réponse contient le texte final.
 - **Mode outils client** (`tools` fournis) : seuls les outils définis par le client sont disponibles. Le modèle renvoie des `tool_calls` à exécuter côté client. Renvoie les résultats via des messages `role: "tool"`.
 
 **Exemple de tool calling :**

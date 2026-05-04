@@ -18,6 +18,6 @@ Les tutoriels sont groupés par rôle, pour que tu atterrisses sur du contenu qu
 
 - Une instance Tale joignable — Cloud ou [self-hébergée](/fr/self-hosted).
 - Un compte sur cette instance. Les tutoriels liés à un rôle le précisent en tête.
-- Pour les tutoriels qui appellent l'API, une clé API depuis **Paramètres > Clés API**. La création est réservée aux Admins ; voir [Membres et rôles](/fr/platform/admin/members-and-roles).
+- Pour les tutoriels qui appellent l’API, une clé API depuis **Paramètres > Clés API**. La création est réservée aux Admins ; voir [Membres et rôles](/fr/platform/admin/members-and-roles).
 
-Si une étape suppose autre chose que ce qui est listé ci-dessus, le tutoriel concerné l'indique dans sa propre section prérequis.
+Si une étape suppose autre chose que ce qui est listé ci-dessus, le tutoriel concerné l’indique dans sa propre section prérequis.

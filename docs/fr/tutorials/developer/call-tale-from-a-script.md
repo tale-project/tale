@@ -1,15 +1,15 @@
 ---
 title: Appeler Tale depuis un script
-description: Envoyer une requête chat à un agent depuis cURL et Python via l'API OpenAI-compatible de Tale.
+description: Envoyer une requête chat à un agent depuis cURL et Python via l’API OpenAI-compatible de Tale.
 ---
 
-L'API publique de Tale est OpenAI-compatible — tout SDK qui parle à `chat/completions` peut parler à Tale en changeant deux valeurs : l'URL de base et la clé API. Ce tutoriel enchaîne un appel cURL minimal, le même en Python avec le client officiel `openai`, puis le passage au streaming. La référence complète est dans la [Référence API](/fr/develop/api-reference).
+L’API publique de Tale est OpenAI-compatible — tout SDK qui parle à `chat/completions` peut parler à Tale en changeant deux valeurs : l’URL de base et la clé API. Ce tutoriel enchaîne un appel cURL minimal, le même en Python avec le client officiel `openai`, puis le passage au streaming. La référence complète est dans la [Référence API](/fr/develop/api-reference).
 
-Il te faut un accès Developer pour créer des clés API. Il te faut aussi un agent que tu peux adresser par slug — prends celui de [Construire ton premier agent end-to-end](/fr/tutorials/editor/first-agent-end-to-end), ou n'importe quel agent par défaut.
+Il te faut un accès Developer pour créer des clés API. Il te faut aussi un agent que tu peux adresser par slug — prends celui de [Construire ton premier agent end-to-end](/fr/tutorials/editor/first-agent-end-to-end), ou n’importe quel agent par défaut.
 
 ## Étape 1 — Créer une clé API
 
-Va dans **Paramètres > Clés API** et clique **Créer**. Donne-lui un nom explicite (`cli-dev-laptop`), copie le token — il commence par `tale_` et n'est affiché qu'une fois — et mets-le dans ton gestionnaire de mots de passe ou ton env shell.
+Va dans **Paramètres > Clés API** et clique **Créer**. Donne-lui un nom explicite (`cli-dev-laptop`), copie le token — il commence par `tale_` et n’est affiché qu’une fois — et mets-le dans ton gestionnaire de mots de passe ou ton env shell.
 
 ```bash
 export TALE_API_KEY="tale_..."
@@ -18,7 +18,7 @@ export TALE_BASE_URL="https://<ton-instance-tale>/api/v1"
 
 ## Étape 2 — Lister les agents disponibles
 
-Chaque requête a besoin d'un champ `model` ; les valeurs valides sont les slugs d'agent retournés par `GET /api/v1/models`.
+Chaque requête a besoin d’un champ `model` ; les valeurs valides sont les slugs d’agent retournés par `GET /api/v1/models`.
 
 ```bash
 curl -s "$TALE_BASE_URL/models" \
@@ -41,7 +41,7 @@ Choisis un slug — dans la suite, on prend `product-support`.
 
 ## Étape 3 — Envoyer une requête chat sans streaming
 
-Sans streaming, c'est au plus simple : une requête, une réponse. À utiliser quand tu veux juste le texte final.
+Sans streaming, c’est au plus simple : une requête, une réponse. À utiliser quand tu veux juste le texte final.
 
 ```bash
 curl -s "$TALE_BASE_URL/chat/completions" \
@@ -94,11 +94,11 @@ for chunk in stream:
 print()
 ```
 
-Le format réseau est Server-Sent Events (SSE) ; le SDK gère le parsing. Si tu consommes l'endpoint sans SDK, lis les [notes streaming](/fr/develop/api-reference) de la référence.
+Le format réseau est Server-Sent Events (SSE) ; le SDK gère le parsing. Si tu consommes l’endpoint sans SDK, lis les [notes streaming](/fr/develop/api-reference) de la référence.
 
 ## Étape 5 — Réutiliser un thread de conversation
 
-Par défaut, chaque requête est un tour isolé. Pour garder une conversation vivante entre requêtes, envoie l'en-tête optionnel `X-Thread-Id` avec une valeur que tu contrôles. Le même thread ID résout la même conversation dans l'UI Tale, donc les utilisateurs peuvent reprendre où ton script s'est arrêté.
+Par défaut, chaque requête est un tour isolé. Pour garder une conversation vivante entre requêtes, envoie l’en-tête optionnel `X-Thread-Id` avec une valeur que tu contrôles. Le même thread ID résout la même conversation dans l’UI Tale, donc les utilisateurs peuvent reprendre où ton script s’est arrêté.
 
 ```python
 client_with_thread = OpenAI(
@@ -113,8 +113,8 @@ Voir [Référence API](/fr/develop/api-reference) pour tous les en-têtes.
 ## Dépannage
 
 - **401 Unauthorized** — clé `tale_` révoquée, mal saisie, ou préfixe `Bearer` manquant.
-- **404 Not Found** sur `/chat/completions` — l'URL de base n'a pas le suffixe `/api/v1`.
-- **400 model not found** — le slug d'agent n'existe pas ou est mal orthographié ; revérifie `GET /models`.
+- **404 Not Found** sur `/chat/completions` — l’URL de base n’a pas le suffixe `/api/v1`.
+- **400 model not found** — le slug d’agent n’existe pas ou est mal orthographié ; revérifie `GET /models`.
 
 ## Ensuite
 

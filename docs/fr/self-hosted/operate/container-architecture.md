@@ -45,7 +45,7 @@ graph TB
 | DB       | `paradedb/paradedb:0.22.5-pg16`                                            | **~1,06 Go**          | 3 stages : cleanup → runtime → squash                                     |
 | Proxy    | `caddy:2.11-alpine`                                                        | **~88 Mo**            | un seul stage                                                             |
 
-Séparer Convex de platform a réduit l'image platform de ~2,58 Go à ~320 Mo compressé ; le service convex est une nouvelle image ~485 Mo. Le disque total est similaire mais le layer platform rebuild bien plus vite pour des changements app-only.
+Séparer Convex de platform a réduit l’image platform de ~2,58 Go à ~320 Mo compressé ; le service convex est une nouvelle image ~485 Mo. Le disque total est similaire mais le layer platform rebuild bien plus vite pour des changements app-only.
 
 ## Mapping des ports
 
@@ -80,7 +80,7 @@ Séparer Convex de platform a réduit l'image platform de ~2,58 Go à ~320 Mo co
 | `rag-data`      | RAG                     | `/app/data`                            | fichiers temp, traitement de documents.                                                                                                      |
 | `crawler-data`  | Crawler                 | `/app/data`                            | registre de sites, bases URL.                                                                                                                |
 | `convex-data`   | Convex                  | `/app/data`                            | DB Convex (SQLite/pg-local), index de recherche, fichiers, JSON agents/workflows/integrations/providers.                                     |
-| `convex-data`   | Platform                | `/app/data` **(read-only)**            | watcher SSE de config + serveur d'images branding.                                                                                           |
+| `convex-data`   | Platform                | `/app/data` **(read-only)**            | watcher SSE de config + serveur d’images branding.                                                                                           |
 | `convex-data`   | Crawler, RAG            | `/app/platform-config` **(read-only)** | config provider partagée.                                                                                                                    |
 | `caddy-data`    | Proxy, Convex           | `/data`, `/caddy-data`                 | certificats TLS.                                                                                                                             |
 | `caddy-config`  | Proxy                   | `/config`                              | configuration Caddy.                                                                                                                         |
@@ -92,12 +92,12 @@ Séparer Convex de platform a réduit l'image platform de ~2,58 Go à ~320 Mo co
 
 | Argument            | Défaut  | Utilisé par | Description                                             |
 | ------------------- | ------- | ----------- | ------------------------------------------------------- |
-| `VERSION`           | `dev`   | tous        | tag de version d'image (posé par CI depuis le tag git). |
+| `VERSION`           | `dev`   | tous        | tag de version d’image (posé par CI depuis le tag git). |
 | `INSTALL_CJK_FONTS` | `false` | Crawler     | installer le support des polices CJK (~100 Mo).         |
 
 ## Stratégie multi-stage
 
-Tous les services utilisent un squash `FROM scratch` en stage final. Ça aplati les layers Docker pour que les suppressions de fichiers dans les étapes de cleanup libèrent vraiment du disque, au lieu d'ajouter des layers masquants. Ça garde les outils de build (`gcc`, `build-essential`, `libpq-dev`) hors de l'image finale.
+Tous les services utilisent un squash `FROM scratch` en stage final. Ça aplati les layers Docker pour que les suppressions de fichiers dans les étapes de cleanup libèrent vraiment du disque, au lieu d’ajouter des layers masquants. Ça garde les outils de build (`gcc`, `build-essential`, `libpq-dev`) hors de l’image finale.
 
 ### Platform (5 stages, post-split)
 
@@ -105,13 +105,13 @@ Tous les services utilisent un squash `FROM scratch` en stage final. Ça aplati 
 2. **workspace-deps** — installe toutes les dépendances npm (dont devDependencies).
 3. **builder** — lance `vite build` pour produire la SPA.
 4. **pruner** — réinstalle uniquement les prod deps, retire les paquets dev (`@vitest`, `@storybook`, `typescript`, etc.).
-5. **runner** — runtime finale sur l'image base `convex-backend` (conservée pour le binaire glibc `generate_key` qui signe les tokens admin Convex). SPA Vite + serveur Bun seulement — pas de backend Convex.
-6. **squash** — `FROM scratch` + `COPY --from=runner`. Tourne en root, bascule sur user `app` via `gosu` dans l'entrypoint.
+5. **runner** — runtime finale sur l’image base `convex-backend` (conservée pour le binaire glibc `generate_key` qui signe les tokens admin Convex). SPA Vite + serveur Bun seulement — pas de backend Convex.
+6. **squash** — `FROM scratch` + `COPY --from=runner`. Tourne en root, bascule sur user `app` via `gosu` dans l’entrypoint.
 
 ### Convex (2 stages, nouveau en phase 2)
 
 1. **convex-dashboard** — `FROM ghcr.io/get-convex/convex-dashboard` pour copier le build Next.js standalone.
-2. **runner** — `FROM ghcr.io/get-convex/convex-backend`. Contient le daemon `convex-local-backend`, le Dashboard, les assets builtin de seed (agents/workflows/integrations/providers/branding) et l'entrypoint. Retire LLVM/Clang (~155 Mo).
+2. **runner** — `FROM ghcr.io/get-convex/convex-backend`. Contient le daemon `convex-local-backend`, le Dashboard, les assets builtin de seed (agents/workflows/integrations/providers/branding) et l’entrypoint. Retire LLVM/Clang (~155 Mo).
 
 ### Crawler (3 stages)
 
@@ -127,7 +127,7 @@ Tous les services utilisent un squash `FROM scratch` en stage final. Ça aplati 
 
 ### DB (3 stages)
 
-1. **cleanup** — retire les symboles debug (~888 Mo), les libs LLVM partagées (~127 Mo), les fichiers d'extension PostGIS, les locales et docs de l'image ParadeDB de base.
+1. **cleanup** — retire les symboles debug (~888 Mo), les libs LLVM partagées (~127 Mo), les fichiers d’extension PostGIS, les locales et docs de l’image ParadeDB de base.
 2. **runtime** — `FROM scratch` + `COPY --from=cleanup`. Layer frais avec seulement les fichiers nettoyés.
 3. **squash** — redéclare `PGDATA`, `PATH` et autres ENV perdus lors de `FROM scratch`.
 
@@ -142,7 +142,7 @@ Tous les services utilisent un squash `FROM scratch` en stage final. Ça aplati 
 | Platform | `GET :3000/api/health` + `[ -f /tmp/platform-ready ]` | HTTP + fichier | 180 s     |
 | Proxy    | `GET /health` sur :2020 (interne)                     | HTTP           | 10 s      |
 
-Les marqueurs `/tmp/<service>-ready` sont posés par l'entrypoint de chaque service après ses tâches d'init one-shot (Convex : backend up + seed builtin ; Platform : env sync + `convex deploy`). Ça empêche le trafic d'être routé avant que le service soit vraiment prêt.
+Les marqueurs `/tmp/<service>-ready` sont posés par l’entrypoint de chaque service après ses tâches d’init one-shot (Convex : backend up + seed builtin ; Platform : env sync + `convex deploy`). Ça empêche le trafic d’être routé avant que le service soit vraiment prêt.
 
 ## Tests conteneurs
 

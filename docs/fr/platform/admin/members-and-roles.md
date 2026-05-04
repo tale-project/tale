@@ -1,27 +1,27 @@
 ---
 title: Membres et rôles
-description: Gère qui accède à ton organisation et ce qu'il peut y faire.
+description: Gère qui accède à ton organisation et ce qu’il peut y faire.
 ---
 
 Tale utilise six rôles. Chaque utilisateur a exactement un rôle dans une organisation. La même personne peut avoir des rôles différents dans des organisations différentes.
 
 ## Gérer les membres
 
-La table sous **Paramètres > Membres** liste tous les utilisateurs de l'organisation avec e-mail, nom affiché, rôle et date d'arrivée. Les admins peuvent :
+La table sous **Paramètres > Membres** liste tous les utilisateurs de l’organisation avec e-mail, nom affiché, rôle et date d’arrivée. Les admins peuvent :
 
-- **Ajouter des membres** — e-mail, mot de passe optionnel, nom affiché et rôle. Si l'e-mail existe déjà dans Tale, l'utilisateur est ajouté à l'organisation sans créer de nouveau compte.
+- **Ajouter des membres** — e-mail, mot de passe optionnel, nom affiché et rôle. Si l’e-mail existe déjà dans Tale, l’utilisateur est ajouté à l’organisation sans créer de nouveau compte.
 - **Éditer des membres** — changer le nom affiché, le rôle, ou définir un nouveau mot de passe.
-- **Retirer des membres** — retire le membre de l'organisation. Le compte n'est pas supprimé ; l'utilisateur perd simplement l'accès.
+- **Retirer des membres** — retire le membre de l’organisation. Le compte n’est pas supprimé ; l’utilisateur perd simplement l’accès.
 
-Pour les options d'authentification (mot de passe, SSO Microsoft Entra ID, Trusted Headers), voir [Authentification](/fr/self-hosted/admin/authentication).
+Pour les options d’authentification (mot de passe, SSO Microsoft Entra ID, Trusted Headers), voir [Authentification](/fr/self-hosted/admin/authentication).
 
-## Vue d'ensemble des rôles
+## Vue d’ensemble des rôles
 
-| Rôle      | À qui il s'adresse                                                                                                                    |
+| Rôle      | À qui il s’adresse                                                                                                                    |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Owner     | créateur de l'organisation. Mêmes permissions qu'Admin avec transfert de propriété.                                                   |
-| Admin     | contrôle complet de l'organisation. Gère membres, paramètres, intégrations et tous les contenus.                                      |
-| Developer | pour ingénieurs et intégrateurs. Accès complet aux données, mais pas à la gestion des membres ni aux paramètres de l'organisation.    |
+| Owner     | créateur de l’organisation. Mêmes permissions qu’Admin avec transfert de propriété.                                                   |
+| Admin     | contrôle complet de l’organisation. Gère membres, paramètres, intégrations et tous les contenus.                                      |
+| Developer | pour ingénieurs et intégrateurs. Accès complet aux données, mais pas à la gestion des membres ni aux paramètres de l’organisation.    |
 | Editor    | pour les équipes contenu et support. Crée du contenu dans la base, traite les conversations, gère les agents et approuve des actions. |
 | Member    | accès en lecture seule. Peut utiliser le chat IA pour explorer, mais pas créer ni éditer de contenu.                                  |
 | Disabled  | compte suspendu. Aucun accès.                                                                                                         |
@@ -75,7 +75,7 @@ Pour les options d'authentification (mot de passe, SSO Microsoft Entra ID, Trust
 | Voir la liste             | —      | —      | ✓         | ✓     |
 | Créer et éditer           | —      | —      | ✓         | ✓     |
 | Publier et activer        | —      | —      | ✓         | ✓     |
-| Voir les logs d'exécution | —      | —      | ✓         | ✓     |
+| Voir les logs d’exécution | —      | —      | ✓         | ✓     |
 
 ### Intégrations et API
 
@@ -85,11 +85,11 @@ Pour les options d'authentification (mot de passe, SSO Microsoft Entra ID, Trust
 | Configurer les intégrations      | —      | —      | ✓         | ✓     |
 | Générer et révoquer des clés API | —      | —      | ✓         | ✓     |
 
-### Administration de l'organisation
+### Administration de l’organisation
 
 | Fonctionnalité                        | Member | Editor | Developer | Admin |
 | ------------------------------------- | ------ | ------ | --------- | ----- |
-| Voir les paramètres de l'organisation | —      | —      | —         | ✓     |
+| Voir les paramètres de l’organisation | —      | —      | —         | ✓     |
 | Éditer nom et image de marque         | —      | —      | —         | ✓     |
 | Ajouter et retirer des membres        | —      | —      | —         | ✓     |
 | Changer le rôle des membres           | —      | —      | —         | ✓     |
@@ -98,4 +98,4 @@ Pour les options d'authentification (mot de passe, SSO Microsoft Entra ID, Trust
 
 Tale supporte e-mail/mot de passe, Microsoft Entra ID SSO et Trusted Headers. Toutes les méthodes peuvent être utilisées en même temps.
 
-Pour l'installation complète, voir le [guide d'authentification](/fr/self-hosted/admin/authentication).
+Pour l’installation complète, voir le [guide d’authentification](/fr/self-hosted/admin/authentication).

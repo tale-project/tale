@@ -1,11 +1,11 @@
 ---
 title: Exploitation
-description: Monitoring, tracking d'erreurs, logs, backups DB, health checks et validation des conteneurs.
+description: Monitoring, tracking d’erreurs, logs, backups DB, health checks et validation des conteneurs.
 ---
 
 ## Monitoring
 
-Tous les services Tale exposent un endpoint Prometheus `/metrics` sur le réseau Docker interne. Pour l'accès externe, définis un bearer token dans ton `.env` :
+Tous les services Tale exposent un endpoint Prometheus `/metrics` sur le réseau Docker interne. Pour l’accès externe, définis un bearer token dans ton `.env` :
 
 ```dotenv
 METRICS_BEARER_TOKEN=your-secret-token-here
@@ -40,7 +40,7 @@ scrape_configs:
   # en changeant metrics_path en conséquence.
 ```
 
-## Tracking d'erreurs
+## Tracking d’erreurs
 
 Tale supporte Sentry et des alternatives compatibles comme GlitchTip. Définis ton DSN dans `.env` :
 
@@ -48,7 +48,7 @@ Tale supporte Sentry et des alternatives compatibles comme GlitchTip. Définis t
 SENTRY_DSN=https://your-key@your-sentry-host/project-id
 ```
 
-Si `SENTRY_DSN` n'est pas défini, le tracking est désactivé et les erreurs n'apparaissent que dans les logs Docker.
+Si `SENTRY_DSN` n’est pas défini, le tracking est désactivé et les erreurs n’apparaissent que dans les logs Docker.
 
 ## Consulter les logs
 
@@ -83,7 +83,7 @@ docker exec -i tale-db psql -U tale tale < backup-20260101.sql
 
 Chaque service a un endpoint de health check :
 
-| Endpoint                       | Ce qu'il vérifie                                       |
+| Endpoint                       | Ce qu’il vérifie                                       |
 | ------------------------------ | ------------------------------------------------------ |
 | `GET /health`                  | le proxy tourne et écoute.                             |
 | `GET /api/health`              | platform est up et le backend Convex joignable.        |
@@ -98,9 +98,9 @@ Pour valider que tous les conteneurs sont sains après un déploiement ou change
 bun run docker:test
 ```
 
-Il construit toutes les images, les démarre sur des ports non conflictuels, valide les endpoints de santé et la connectivité inter-services, puis arrête tout. C'est le même test qui tourne en CI sur chaque PR.
+Il construit toutes les images, les démarre sur des ports non conflictuels, valide les endpoints de santé et la connectivité inter-services, puis arrête tout. C’est le même test qui tourne en CI sur chaque PR.
 
-Pour la validation d'image (labels OCI, pas de secrets, budgets de taille) :
+Pour la validation d’image (labels OCI, pas de secrets, budgets de taille) :
 
 ```bash
 bun run docker:test:image
