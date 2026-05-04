@@ -97,13 +97,13 @@ describe('German ID pattern', () => {
   const germanIdPatterns = getEnabledPatterns(['germanId']);
 
   it('detects valid German ID serial', () => {
-    const matches = detectPii('ID: T22000129', germanIdPatterns);
+    const matches = detectPii('ID: T22000124', germanIdPatterns);
     expect(matches).toHaveLength(1);
     expect(matches[0].patternName).toBe('germanId');
   });
 
   it('detects another valid German ID', () => {
-    const matches = detectPii('My ID number is L0100FG57', germanIdPatterns);
+    const matches = detectPii('My ID number is L0100FG50', germanIdPatterns);
     expect(matches).toHaveLength(1);
   });
 
@@ -118,11 +118,11 @@ describe('German ID pattern', () => {
   });
 
   it('masks German ID with [GERMAN_ID] placeholder', () => {
-    const text = 'Personalausweis: T22000129';
+    const text = 'Personalausweis: T22000124';
     const matches = detectPii(text, germanIdPatterns);
     const masked = maskPii(text, matches);
     expect(masked).toContain('[GERMAN_ID]');
-    expect(masked).not.toContain('T22000129');
+    expect(masked).not.toContain('T22000124');
   });
 });
 
@@ -144,7 +144,7 @@ describe('scrubPii with new patterns', () => {
   });
 
   it('masks German ID in text', () => {
-    const result = scrubPii('My Personalausweis is T22000129', config);
+    const result = scrubPii('My Personalausweis is T22000124', config);
     expect(result.kind).toBe('modified');
     if (result.kind !== 'modified') return;
     expect(result.text).toContain('[GERMAN_ID]');
@@ -164,7 +164,7 @@ describe('scrubPii with new patterns', () => {
 
   it('returns blocked in block mode when German ID detected', () => {
     const blockConfig = { ...config, mode: 'block' } satisfies PiiConfig;
-    const result = scrubPii('ID: T22000129', blockConfig);
+    const result = scrubPii('ID: T22000124', blockConfig);
     expect(result.kind).toBe('blocked');
     if (result.kind !== 'blocked') return;
     expect(result.categoryIds).toContain('germanId');
@@ -192,13 +192,16 @@ describe('address pattern', () => {
     expect(matches[0].matchedText).toBe('1234 5th Ave');
   });
 
-  it('detects address embedded in prose', () => {
+  it('detects address embedded in prose with floor continuation', () => {
     const matches = detectPii(
       'My address is 42 Oak Lane, Apt 5',
       addressPatterns,
     );
     expect(matches).toHaveLength(1);
-    expect(matches[0].matchedText).toBe('42 Oak Lane');
+    // v2 extends the match through the apartment continuation, so the whole
+    // address line gets a single [ADDRESS] token rather than leaving "Apt 5"
+    // exposed.
+    expect(matches[0].matchedText).toBe('42 Oak Lane, Apt 5');
   });
 
   it('detects Indonesian-style "street X no 02G" (regression for #1473)', () => {
@@ -277,14 +280,14 @@ describe('overlap dedup (regression for #1618)', () => {
   it('does not eat the [EMAIL] token when CC + email are adjacent', () => {
     // The original repro from the issue: prior to the fix, the email part
     // disappeared completely from the output.
-    const result = scrubPii('4532123456789010 test@example.com 123', config);
+    const result = scrubPii('4111111111111111 test@example.com 123', config);
     expect(result.kind).toBe('modified');
     if (result.kind !== 'modified') return;
     expect(result.text).toBe('[CREDIT_CARD] [EMAIL] 123');
   });
 
   it('keeps creditCard, drops the overlapping phone match', () => {
-    const result = scrubPii('4532-1234-5678-9010', config);
+    const result = scrubPii('4111-1111-1111-1111', config);
     expect(result.kind).toBe('modified');
     if (result.kind !== 'modified') return;
     expect(result.text).toBe('[CREDIT_CARD]');
@@ -294,7 +297,7 @@ describe('overlap dedup (regression for #1618)', () => {
 
   it('does not corrupt surrounding text when CC + email co-occur with prose', () => {
     const result = scrubPii(
-      'My credit card is 4532-1234-5678-9010, my email is alice@example.com.',
+      'My credit card is 4111-1111-1111-1111, my email is alice@example.com.',
       config,
     );
     expect(result.kind).toBe('modified');
@@ -305,8 +308,12 @@ describe('overlap dedup (regression for #1618)', () => {
   });
 
   it('masks all three independent items when patterns do not overlap', () => {
+    // Phone detection in v2 requires either a `+` international prefix or a
+    // `Tel:` / `Phone:` context keyword (libphonenumber-js + context-anchored
+    // regex hybrid). Bare local numbers are intentionally not detected to
+    // avoid false-positives on order numbers and error codes.
     const result = scrubPii(
-      'call 555-867-5309 mail a@b.com card 4532-1234-5678-9010',
+      'call Tel: 555-867-5309 mail a@b.com card 4111-1111-1111-1111',
       config,
     );
     expect(result.kind).toBe('modified');
@@ -315,17 +322,97 @@ describe('overlap dedup (regression for #1618)', () => {
     expect(result.text).toContain('[EMAIL]');
     expect(result.text).toContain('[CREDIT_CARD]');
     expect(result.text).not.toMatch(/\d{3}-\d{3}-\d{4}/);
-    expect(result.text).not.toMatch(/4532/);
+    expect(result.text).not.toMatch(/4111/);
   });
 
   it('handles email and creditCard separated only by a non-word char', () => {
     // The creditCard regex requires \b on both sides, so a letter-adjacent
     // CC (e.g. ".com4532...") won't match — that's an intentional limit of
     // the existing pattern. A non-word separator (here a comma) is enough.
-    const result = scrubPii('test@example.com,4532-1234-5678-9010', config);
+    const result = scrubPii('test@example.com,4111-1111-1111-1111', config);
     expect(result.kind).toBe('modified');
     if (result.kind !== 'modified') return;
     expect(result.text).toBe('[EMAIL],[CREDIT_CARD]');
+  });
+});
+
+describe('user-reported integration cases (v2)', () => {
+  // These cases drove the v2 redesign. They MUST stay green; if they fail,
+  // the fix has regressed real-world coverage we promised customers.
+  const config = {
+    enabled: true,
+    mode: 'mask',
+    enabledPatterns: ['address', 'phone', 'iban', 'creditCard'],
+    customPatterns: [],
+  } satisfies PiiConfig;
+
+  it('Round 1 reporter case — full German address line', () => {
+    const input =
+      'Max Mustermann, Musterfirma GmbH, Musterstraße 123, 3. OG Wohnung 12, 10115 Berlin, Deutschland';
+    const result = scrubPii(input, config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    // Person name (Max Mustermann) and organization (Musterfirma GmbH) are
+    // known blind spots — needs NER and is out of scope for this PR.
+    expect(result.text).toBe('Max Mustermann, Musterfirma GmbH, [ADDRESS]');
+    expect(result.categoryIds).toContain('address');
+  });
+
+  it('Romandie inverted order — Avenue du Léman 5', () => {
+    const input =
+      'Mes coordonnées : Avenue du Léman 5, 3ème étage, 1003 Lausanne, Suisse';
+    const result = scrubPii(input, config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('Mes coordonnées : [ADDRESS]');
+  });
+
+  it('R1-30 D-group — does not over-mask trailing prose', () => {
+    const input = 'Hauptstr. 5, 10115 Berlin Und Marie kommt um 7.';
+    const result = scrubPii(input, config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    // City compound is hyphen-only, so "Berlin Und Marie" cannot extend.
+    expect(result.text).toBe('[ADDRESS] Und Marie kommt um 7.');
+  });
+
+  it('R1-30 D-group — country tail does not eat following sentence', () => {
+    const input = 'Musterstraße 123, 10115 Berlin, Deutschland Vielen Dank.';
+    const result = scrubPii(input, config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[ADDRESS] Vielen Dank.');
+  });
+
+  it('R1-30 D-group — Apartment is not partial-matched as Apt', () => {
+    const input = 'Apartment hunting in Berlin is hard';
+    const result = scrubPii(input, config);
+    // "Apartment" must NOT be redacted as `[ADDRESS]Apartment hunting...`
+    // (v1 risk where `Apt` ate the prefix). And no street keyword present.
+    expect(result.kind).toBe('pass');
+  });
+
+  it('CH-prefix postcode is captured into the address', () => {
+    const input = 'Bahnhofstrasse 23, CH-8001 Zürich, Schweiz';
+    const result = scrubPii(input, config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('[ADDRESS]');
+  });
+
+  it('multi-PII line: phone + IBAN with prose', () => {
+    const input =
+      'Call me at +49 30 12345678, my IBAN is DE89 3704 0044 0532 0130 00';
+    const result = scrubPii(input, config);
+    expect(result.kind).toBe('modified');
+    if (result.kind !== 'modified') return;
+    expect(result.text).toBe('Call me at [PHONE], my IBAN is [IBAN]');
+  });
+
+  it('rejects IBAN with bad checksum (validator post-filter)', () => {
+    const input = 'IBAN: DE89 3704 0044 0532 0130 99';
+    const result = scrubPii(input, config);
+    expect(result.kind).toBe('pass');
   });
 });
 

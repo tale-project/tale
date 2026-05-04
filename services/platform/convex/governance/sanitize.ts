@@ -12,6 +12,7 @@ import type { ActionCtx } from '../_generated/server';
 import { runChatFilter } from './chat_filter';
 import type { FilterOutcome, GuardrailsDirection } from './filter_outcome';
 import { scrubPii, type PiiConfig } from './pii';
+import { clampMessage } from './regex_safety';
 
 /**
  * Snapshot of all guardrails configs for one sanitize invocation. Callers
@@ -376,7 +377,18 @@ export async function sanitizeMessage(
       matchCount: 0,
       truncated: false,
     };
-    const outcome = scrubPii(current, snapshot.pii.config);
+    // Clamp to MAX_MESSAGE_BYTES (50KB) before scanning. Without this, large
+    // pasted text (chat upload, file ingest) blows past `execWithBudget`'s
+    // 50ms per-pattern cap, causing the address regex to silently miss matches
+    // beyond the cutoff (R2-9). On truncation we also rewrite `current` so
+    // downstream filters / the LLM never see content the PII pass couldn't
+    // scan — otherwise PII at offset >50KB would leak through `pass`.
+    const { text: clamped, truncated: clampedFlag } = clampMessage(current);
+    if (clampedFlag) {
+      acc.truncated = true;
+      current = clamped;
+    }
+    const outcome = scrubPii(clamped, snapshot.pii.config);
     if (outcome.kind === 'blocked') {
       accumulate(acc, outcome);
       await flushAudit(ctx, 'pii', 'blocked', direction, runId, meta, acc);
