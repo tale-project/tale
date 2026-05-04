@@ -276,6 +276,7 @@ import type * as documents_internal_queries from "../documents/internal_queries.
 import type * as documents_list_documents_for_agent from "../documents/list_documents_for_agent.js";
 import type * as documents_list_documents_paginated from "../documents/list_documents_paginated.js";
 import type * as documents_list_indexed_documents_for_agent from "../documents/list_indexed_documents_for_agent.js";
+import type * as documents_list_orphaned_external_docs from "../documents/list_orphaned_external_docs.js";
 import type * as documents_migrate_team_fields from "../documents/migrate_team_fields.js";
 import type * as documents_mutations from "../documents/mutations.js";
 import type * as documents_queries from "../documents/queries.js";
@@ -1329,6 +1330,7 @@ declare const fullApi: ApiFromModules<{
   "documents/list_documents_for_agent": typeof documents_list_documents_for_agent;
   "documents/list_documents_paginated": typeof documents_list_documents_paginated;
   "documents/list_indexed_documents_for_agent": typeof documents_list_indexed_documents_for_agent;
+  "documents/list_orphaned_external_docs": typeof documents_list_orphaned_external_docs;
   "documents/migrate_team_fields": typeof documents_migrate_team_fields;
   "documents/mutations": typeof documents_mutations;
   "documents/queries": typeof documents_queries;

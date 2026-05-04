@@ -1,6 +1,6 @@
 {
   "name": "Google Drive Sync",
-  "description": "Sync files from a Google Drive folder into Tale documents. Each scheduled run lists the files in the configured folder, downloads any that are new or changed, and upserts documents by external ID. RAG indexing is then handled by the document-rag-sync workflow.",
+  "description": "Sync files from a Google Drive folder into Tale documents. Each scheduled run lists every file in the configured folder (recursing into subfolders, mirroring their structure under targetFolderPath), downloads any that are new or changed, and upserts documents by external ID. Pure renames are detected and applied without re-downloading. After the loop completes, files that were removed from Drive are also removed from the target Tale folder (RAG entries are cleaned up too). For safety, if Drive returns an empty file list the reconcile step skips deletion — an empty result is more often caused by an OAuth scope downgrade or wrong folder ID than by a genuinely empty folder, and a user who really wants to clear the target folder can do so directly in the Tale UI.",
   "version": "1.0.0",
   "config": {
     "timeout": 600000,
@@ -61,7 +61,8 @@
           "operation": "list_files",
           "params": {
             "folderId": "{{input.folderId}}",
-            "mimeTypes": "{{input.mimeTypeFilter}}"
+            "mimeTypes": "{{input.mimeTypeFilter}}",
+            "recursive": true
           }
         },
         "type": "integration"
@@ -80,7 +81,7 @@
         "items": "{{steps.list_files.output.data.result.data.files}}"
       },
       "nextSteps": {
-        "done": "noop",
+        "done": "reconcile_deletes",
         "loop": "lookup_existing"
       }
     },
@@ -93,7 +94,7 @@
         "parameters": {
           "operation": "find_by_external_id",
           "externalItemId": "{{loop.item.id}}",
-          "folderPath": "{{input.targetFolderPath || 'Google Drive'}}"
+          "folderPath": "{{(input.targetFolderPath || 'Google Drive') + (loop.item.subfolderPath ? '/' + loop.item.subfolderPath : '')}}"
         }
       },
       "nextSteps": {
@@ -106,11 +107,40 @@
       "stepType": "condition",
       "config": {
         "expression": "steps.lookup_existing.output.data.exists == true && steps.lookup_existing.output.data.contentHash == loop.item.md5Checksum",
-        "description": "If a document with the same external id and md5 already exists in the target folder, skip the download entirely."
+        "description": "If a document with the same external id and md5 already exists in the target folder, skip the download. A pure rename (same md5, new name) is handled by the next step without re-downloading."
       },
       "nextSteps": {
-        "true": "loop_files",
+        "true": "check_renamed",
         "false": "download_file"
+      }
+    },
+    {
+      "stepSlug": "check_renamed",
+      "name": "Detect Rename",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.lookup_existing.output.data.title != loop.item.name",
+        "description": "Content unchanged but Drive title differs from Tale title — rename. Patch the title without touching the file blob."
+      },
+      "nextSteps": {
+        "true": "update_title",
+        "false": "loop_files"
+      }
+    },
+    {
+      "stepSlug": "update_title",
+      "name": "Apply Drive Rename",
+      "stepType": "action",
+      "config": {
+        "type": "document",
+        "parameters": {
+          "operation": "update",
+          "fileId": "{{steps.lookup_existing.output.data.fileId}}",
+          "title": "{{loop.item.name}}"
+        }
+      },
+      "nextSteps": {
+        "success": "loop_files"
       }
     },
     {
@@ -142,13 +172,14 @@
           "contentHash": "{{loop.item.md5Checksum}}",
           "externalItemId": "{{loop.item.id}}",
           "fileId": "{{steps.download_file.output.data.result.data.fileId}}",
-          "folderPath": "{{input.targetFolderPath || 'Google Drive'}}",
+          "folderPath": "{{(input.targetFolderPath || 'Google Drive') + (loop.item.subfolderPath ? '/' + loop.item.subfolderPath : '')}}",
           "metadata": {
             "googleDriveFileId": "{{loop.item.id}}",
             "googleDriveFolderId": "{{input.folderId}}",
             "mimeType": "{{loop.item.mimeType}}",
             "size": "{{loop.item.size}}",
             "sourceModifiedAt": "{{loop.item.modifiedTime}}",
+            "subfolderPath": "{{loop.item.subfolderPath}}",
             "syncedAt": "{{now}}"
           },
           "operation": "create",
@@ -187,6 +218,23 @@
       },
       "nextSteps": {
         "success": "loop_files"
+      }
+    },
+    {
+      "stepSlug": "reconcile_deletes",
+      "name": "Delete Documents Removed in Drive",
+      "stepType": "action",
+      "config": {
+        "type": "document",
+        "parameters": {
+          "operation": "reconcile_deletes",
+          "sourceProvider": "google_drive",
+          "folderPath": "{{input.targetFolderPath || 'Google Drive'}}",
+          "presentExternalIds": "{{steps.list_files.output.data.result.data.files | map('id')}}"
+        }
+      },
+      "nextSteps": {
+        "success": "noop"
       }
     },
     {

@@ -78,6 +78,13 @@ interface TestConnectionContext {
 
 const API_BASE = 'https://www.googleapis.com/drive/v3';
 
+const FOLDER_MIME = 'application/vnd.google-apps.folder';
+// Soft caps for recursive listing. Hitting either returns a truncated result
+// with `truncated: true` rather than throwing, so a sync workflow can still
+// make progress on huge folders.
+const RECURSIVE_FILE_CAP = 5000;
+const RECURSIVE_DEPTH_CAP = 20;
+
 const connector = {
   operations: ['list_files', 'download_file'],
 
@@ -206,16 +213,21 @@ function escapeDriveQueryLiteral(value: string): string {
 function buildListQuery(
   folderId: string,
   mimeTypes: string[] | undefined,
+  includeFolders: boolean,
 ): string {
   const parts: string[] = [];
   parts.push("'" + escapeDriveQueryLiteral(folderId) + "' in parents");
   parts.push('trashed = false');
 
-  // Always exclude folders themselves from the file list — we're syncing files,
-  // not nested folder containers. (For now; subfolder recursion is a future op.)
-  parts.push("mimeType != 'application/vnd.google-apps.folder'");
+  if (!includeFolders) {
+    parts.push("mimeType != 'application/vnd.google-apps.folder'");
+  }
 
-  if (mimeTypes && mimeTypes.length > 0) {
+  // mimeTypes filter applies only to files, not folders. When recursing we
+  // need to enumerate folders unconditionally to descend into them, so the
+  // mimeTypes filter is intentionally skipped in that mode and applied
+  // client-side by the caller.
+  if (mimeTypes && mimeTypes.length > 0 && !includeFolders) {
     const ors: string[] = [];
     for (let i = 0; i < mimeTypes.length; i++) {
       ors.push("mimeType = '" + escapeDriveQueryLiteral(mimeTypes[i]) + "'");
@@ -224,6 +236,110 @@ function buildListQuery(
   }
 
   return parts.join(' and ');
+}
+
+// Replace characters that are valid in Drive folder names but rejected by
+// Tale's folder name validator (which forbids '/' and '\') or that would
+// otherwise corrupt the workflow's '/'-joined folderPath template. The
+// substitution is one-way and lossy by design — `a?b` and `a_b` collide,
+// which is acceptable at demo stage and avoidable by users renaming.
+function sanitizeDriveFolderName(name: string): string {
+  return name.replace(/[/\\?*<>:"|]/g, '_').slice(0, 255);
+}
+
+interface DriveRawFile {
+  id: string;
+  name: string;
+  size?: string;
+  mimeType?: string;
+  modifiedTime?: string;
+  md5Checksum?: string;
+}
+
+interface DrivePage {
+  files?: DriveRawFile[];
+  nextPageToken?: string;
+}
+
+interface OutputFile {
+  id: string;
+  name: string;
+  size: number;
+  mimeType: string | undefined;
+  modifiedTime: string | undefined;
+  md5Checksum: string | undefined;
+  subfolderPath: string;
+}
+
+// Fetch every page for one folder query (no recursion). Drive's pageSize is
+// capped at 200, so callers must paginate to get a complete list — leaving
+// pagination to the workflow layer (as the original implementation did) is
+// unsafe because reconcile_deletes uses the file list to compute deletes.
+function listOnePageFolder(
+  http: HttpApi,
+  headers: Record<string, string>,
+  folderId: string,
+  mimeTypes: string[] | undefined,
+  includeFolders: boolean,
+): DriveRawFile[] {
+  const q = buildListQuery(folderId, mimeTypes, includeFolders);
+  const fields =
+    'nextPageToken, files(id, name, size, mimeType, modifiedTime, md5Checksum)';
+
+  const allFiles: DriveRawFile[] = [];
+  let pageToken: string | undefined;
+
+  while (true) {
+    const queryParts = [
+      'q=' + encodeURIComponent(q),
+      'fields=' + encodeURIComponent(fields),
+      'pageSize=200',
+    ];
+    if (pageToken) {
+      queryParts.push('pageToken=' + encodeURIComponent(pageToken));
+    }
+
+    const url = API_BASE + '/files?' + queryParts.join('&');
+    const response = http.get(url, { headers: headers });
+    handleError(response, 'list files');
+
+    const data = response.json() as DrivePage;
+    const pageFiles = data.files || [];
+    for (let i = 0; i < pageFiles.length; i++) {
+      allFiles.push(pageFiles[i]);
+    }
+
+    if (!data.nextPageToken) {
+      break;
+    }
+    pageToken = data.nextPageToken;
+  }
+
+  return allFiles;
+}
+
+function toOutputFile(raw: DriveRawFile, subfolderPath: string): OutputFile {
+  return {
+    id: raw.id,
+    name: raw.name,
+    size: raw.size ? parseInt(raw.size, 10) : 0,
+    mimeType: raw.mimeType,
+    modifiedTime: raw.modifiedTime,
+    md5Checksum: raw.md5Checksum,
+    subfolderPath: subfolderPath,
+  };
+}
+
+function matchesMimeFilter(
+  raw: DriveRawFile,
+  mimeTypes: string[] | undefined,
+): boolean {
+  if (!mimeTypes || mimeTypes.length === 0) return true;
+  if (!raw.mimeType) return false;
+  for (let i = 0; i < mimeTypes.length; i++) {
+    if (raw.mimeType === mimeTypes[i]) return true;
+  }
+  return false;
 }
 
 function listFiles(
@@ -239,61 +355,88 @@ function listFiles(
   const mimeTypes = Array.isArray(params.mimeTypes)
     ? (params.mimeTypes as string[])
     : undefined;
+  const recursive = params.recursive === true;
 
-  const q = buildListQuery(folderId, mimeTypes);
-  const fields =
-    'nextPageToken, files(id, name, size, mimeType, modifiedTime, md5Checksum)';
+  const files: OutputFile[] = [];
+  let truncated = false;
 
-  const queryParts = [
-    'q=' + encodeURIComponent(q),
-    'fields=' + encodeURIComponent(fields),
-    'pageSize=200',
-  ];
-  if (params.pageToken) {
-    queryParts.push(
-      'pageToken=' + encodeURIComponent(params.pageToken as string),
-    );
+  if (!recursive) {
+    // Flat: one folder, exhaust pagination.
+    const raw = listOnePageFolder(http, headers, folderId, mimeTypes, false);
+    for (let i = 0; i < raw.length; i++) {
+      if (files.length >= RECURSIVE_FILE_CAP) {
+        truncated = true;
+        break;
+      }
+      files.push(toOutputFile(raw[i], ''));
+    }
+  } else {
+    // BFS over subfolders. One Drive query per folder returns files + folders
+    // mixed (no `mimeType != folder` filter); we partition client-side.
+    const queue: Array<{
+      folderId: string;
+      subfolderPath: string;
+      depth: number;
+    }> = [{ folderId: folderId, subfolderPath: '', depth: 0 }];
+
+    outer: while (queue.length > 0) {
+      const head = queue.shift() as {
+        folderId: string;
+        subfolderPath: string;
+        depth: number;
+      };
+
+      const raw = listOnePageFolder(
+        http,
+        headers,
+        head.folderId,
+        undefined,
+        true,
+      );
+
+      for (let i = 0; i < raw.length; i++) {
+        const r = raw[i];
+        if (r.mimeType === FOLDER_MIME) {
+          if (head.depth + 1 > RECURSIVE_DEPTH_CAP) {
+            truncated = true;
+            continue;
+          }
+          const segment = sanitizeDriveFolderName(r.name);
+          const childPath = head.subfolderPath
+            ? head.subfolderPath + '/' + segment
+            : segment;
+          queue.push({
+            folderId: r.id,
+            subfolderPath: childPath,
+            depth: head.depth + 1,
+          });
+        } else {
+          if (!matchesMimeFilter(r, mimeTypes)) continue;
+          if (files.length >= RECURSIVE_FILE_CAP) {
+            truncated = true;
+            break outer;
+          }
+          files.push(toOutputFile(r, head.subfolderPath));
+        }
+      }
+    }
   }
 
-  const url = API_BASE + '/files?' + queryParts.join('&');
-  console.log('Listing Drive files: ' + url);
-
-  const response = http.get(url, { headers: headers });
-  handleError(response, 'list files');
-
-  const data = response.json() as {
-    files?: Array<{
-      id: string;
-      name: string;
-      size?: string;
-      mimeType?: string;
-      modifiedTime?: string;
-      md5Checksum?: string;
-    }>;
-    nextPageToken?: string;
-  };
-
-  const rawFiles = data.files || [];
-  const files = rawFiles.map(function (f) {
-    return {
-      id: f.id,
-      name: f.name,
-      size: f.size ? parseInt(f.size, 10) : 0,
-      mimeType: f.mimeType,
-      modifiedTime: f.modifiedTime,
-      md5Checksum: f.md5Checksum,
-    };
-  });
+  console.log(
+    'Listed Drive files: count=' +
+      files.length +
+      ', recursive=' +
+      recursive +
+      ', truncated=' +
+      truncated,
+  );
 
   return {
     success: true,
     operation: 'list_files',
     data: {
       files: files,
-      pagination: {
-        hasNextPage: !!data.nextPageToken,
-        nextPageToken: data.nextPageToken || null,
-      },
+      truncated: truncated,
     },
     count: files.length,
     timestamp: Date.now(),

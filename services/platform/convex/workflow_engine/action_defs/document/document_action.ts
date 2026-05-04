@@ -129,13 +129,19 @@ type DocumentActionParams =
       operation: 'find_by_external_id';
       externalItemId: string;
       folderPath?: string;
+    }
+  | {
+      operation: 'reconcile_deletes';
+      sourceProvider: string;
+      folderPath: string;
+      presentExternalIds: string[];
     };
 
 export const documentAction: ActionDefinition<DocumentActionParams> = {
   type: 'document',
   title: 'Document Operation',
   description:
-    'Execute document-specific operations (list, update, retrieve, generate_docx, create, extract_docx_structured, apply_docx_structured). organizationId is automatically read from workflow context variables.',
+    'Execute document-specific operations (list, update, retrieve, generate_docx, create, extract_docx_structured, apply_docx_structured, find_by_external_id, index_in_rag, reconcile_deletes). organizationId is automatically read from workflow context variables.',
 
   parametersValidator: v.union(
     v.object({
@@ -209,6 +215,12 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       operation: v.literal('find_by_external_id'),
       externalItemId: v.string(),
       folderPath: v.optional(v.string()),
+    }),
+    v.object({
+      operation: v.literal('reconcile_deletes'),
+      sourceProvider: v.string(),
+      folderPath: v.string(),
+      presentExternalIds: v.array(v.string()),
     }),
   ),
 
@@ -433,7 +445,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
               ? null // folderPath was given but resolved empty → root
               : undefined; // no folderPath given → match across all folders
 
-          const existing = await ctx.runQuery(
+          let existing = await ctx.runQuery(
             internal.documents.internal_queries.findDocumentByExternalId,
             {
               organizationId,
@@ -443,6 +455,20 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
                 : {}),
             },
           );
+
+          // Cross-folder move: a file that previously lived in folder A is now
+          // in folder B. The scoped lookup misses it; without this fallback
+          // we'd insert a duplicate row and reconcile would spare both
+          // (since the externalId is still in the present set).
+          if (!existing && lookupFolderId !== undefined) {
+            existing = await ctx.runQuery(
+              internal.documents.internal_queries.findDocumentByExternalId,
+              {
+                organizationId,
+                externalItemId: params.externalItemId,
+              },
+            );
+          }
 
           if (existing) {
             if (
@@ -716,6 +742,70 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           contentHash: existing.contentHash,
           externalItemId: existing.externalItemId,
           fileId: existing.fileId,
+          title: existing.title,
+        };
+      }
+
+      case 'reconcile_deletes': {
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+
+        if (!organizationId) {
+          throw new Error(
+            'organizationId is required in workflow variables to reconcile deletes',
+          );
+        }
+
+        const orphaned = await ctx.runQuery(
+          internal.documents.internal_queries.listOrphanedExternalDocs,
+          {
+            organizationId,
+            sourceProvider: params.sourceProvider,
+            folderPathPrefix: params.folderPath,
+            presentExternalIds: params.presentExternalIds,
+          },
+        );
+
+        // Empty present set + non-empty orphan candidates means the source
+        // listing very likely failed silently (Drive returns 200+empty for
+        // OAuth scope downgrades, lost shared-drive access, or wrong folder
+        // ids). Always skip in this case — a user who really wants to clear
+        // the target can do so directly in the Tale UI.
+        if (params.presentExternalIds.length === 0 && orphaned.length > 0) {
+          return {
+            success: false,
+            deleted: 0,
+            scanned: 0,
+            skippedReason: `Skipping reconcile: ${params.sourceProvider} listing returned 0 files for "${params.folderPath}". ${orphaned.length} documents preserved as a safety against transient source-side failures.`,
+          };
+        }
+
+        // Stagger deletes by 100ms to avoid swamping the scheduler and the
+        // RAG service when a folder churns. deleteDocumentFromRag's own
+        // backoff still applies on top.
+        for (let i = 0; i < orphaned.length; i++) {
+          const doc = orphaned[i];
+          if (doc.fileId) {
+            await ctx.scheduler.runAfter(
+              i * 100,
+              internal.documents.internal_actions.deleteDocumentFromRag,
+              { documentId: doc.documentId },
+            );
+          } else {
+            await ctx.scheduler.runAfter(
+              i * 100,
+              internal.documents.internal_mutations.deleteDocumentById,
+              { documentId: doc.documentId },
+            );
+          }
+        }
+
+        return {
+          success: true,
+          deleted: orphaned.length,
+          scanned: params.presentExternalIds.length,
         };
       }
 
