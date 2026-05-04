@@ -57,15 +57,13 @@ export function TopModelsFeedbackTable({
         id: 'model',
         header: t('feedback.tables.topModels.model'),
         cell: ({ row }) => (
-          <div className="flex max-w-[260px] items-center gap-2">
-            <Text
-              as="span"
-              variant="label"
-              className="block flex-1 truncate text-sm"
-            >
+          <div className="flex items-baseline gap-2">
+            <Text as="span" variant="label" className="text-sm break-all">
               {row.original.model}
             </Text>
-            <Badge variant="outline">{row.original.provider}</Badge>
+            <Badge variant="outline" className="shrink-0">
+              {row.original.provider}
+            </Badge>
           </div>
         ),
         size: 260,

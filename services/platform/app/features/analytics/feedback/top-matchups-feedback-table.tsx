@@ -31,14 +31,14 @@ export function TopMatchupsFeedbackTable({
         id: 'matchup',
         header: t('feedback.tables.topMatchups.matchup'),
         cell: ({ row }) => (
-          <div className="flex max-w-[420px] items-center gap-2 text-sm">
-            <Text as="span" variant="label" className="truncate">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+            <Text as="span" variant="label" className="break-all">
               {row.original.modelLeft}
             </Text>
-            <span className="text-muted-foreground text-xs">
+            <span className="text-muted-foreground shrink-0 text-xs">
               {t('feedback.tables.topMatchups.vs')}
             </span>
-            <Text as="span" variant="label" className="truncate">
+            <Text as="span" variant="label" className="break-all">
               {row.original.modelRight}
             </Text>
           </div>

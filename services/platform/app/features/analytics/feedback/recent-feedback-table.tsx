@@ -104,7 +104,7 @@ export function RecentFeedbackTable({
         cell: ({ row }) => (
           <Text
             as="span"
-            className="text-muted-foreground block max-w-[140px] truncate text-xs"
+            className="text-muted-foreground block text-xs break-all"
           >
             {row.original.agentSlug ?? '—'}
           </Text>
@@ -122,7 +122,7 @@ export function RecentFeedbackTable({
               return (
                 <Text
                   as="span"
-                  className="text-muted-foreground block max-w-[200px] truncate text-xs"
+                  className="text-muted-foreground block text-xs break-all"
                 >
                   {a} vs {b}
                 </Text>
@@ -132,7 +132,7 @@ export function RecentFeedbackTable({
           return (
             <Text
               as="span"
-              className="text-muted-foreground block max-w-[180px] truncate text-xs"
+              className="text-muted-foreground block text-xs break-all"
             >
               {row.original.model ?? '—'}
             </Text>
