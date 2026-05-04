@@ -145,6 +145,7 @@ export async function onAgentComplete(
               threadId,
               model: result.model,
               provider: result.provider,
+              agentSlug: args.agentSlug,
               inputTokens: result.usage?.inputTokens,
               outputTokens: result.usage?.outputTokens,
               totalTokens: result.usage?.totalTokens,

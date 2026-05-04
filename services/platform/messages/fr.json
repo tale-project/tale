@@ -3529,7 +3529,8 @@
       "policiesAndLimits": "Politiques et limites",
       "securityAndMonitoring": "Sécurité et surveillance",
       "guardrails": "Guardrails",
-      "usage": "Utilisation"
+      "usage": "Utilisation",
+      "feedback": "Retours"
     },
     "modelAccess": {
       "title": "Accès aux modèles",
@@ -3877,6 +3878,127 @@
       "emptyModels": {
         "title": "Aucune utilisation de modèle",
         "description": "Aucun appel LLM n'a été enregistré pour la période sélectionnée. L'utilisation des intégrations et des transcriptions est affichée dans Top assistants."
+      }
+    },
+    "feedback": {
+      "title": "Analyse des retours",
+      "description": "Évaluations pouce levé/baissé et verdicts d'arène sur les réponses de l'assistant.",
+      "commentsOnly": "Commentaires uniquement",
+      "errors": {
+        "loadFailed": "Impossible de charger les métriques de retour",
+        "unauthorized": "Tu n'as pas accès à cette page"
+      },
+      "period": {
+        "label": "Période",
+        "last24Hours": "Dernières 24 heures",
+        "last7Days": "7 derniers jours",
+        "last30Days": "30 derniers jours",
+        "last90Days": "90 derniers jours",
+        "allTime": "Tout l'historique"
+      },
+      "kind": {
+        "label": "Type",
+        "all": "Tous les types",
+        "message": "Évaluations de messages",
+        "arena": "Verdicts d'arène"
+      },
+      "cards": {
+        "sentiment": "Sentiment",
+        "sentimentAriaLabel": "{pct} utile, {helpful} sur {total}",
+        "sentimentCapped": "Sentiment indisponible avec des résultats partiels",
+        "sentimentDenominator": "{helpful} / {total}",
+        "helpful": "Utile",
+        "notHelpful": "Pas utile"
+      },
+      "arena": {
+        "title": "Verdicts d'arène",
+        "cells": {
+          "decisive": "Tranché",
+          "tie": "Égalité",
+          "bothBad": "Les deux mauvais"
+        }
+      },
+      "tables": {
+        "topAgents": {
+          "title": "Top assistants par retour",
+          "agent": "Assistant",
+          "helpful": "Utile",
+          "notHelpful": "Pas utile",
+          "sentiment": "Sentiment",
+          "unattributed": "Non attribué",
+          "emptyTitle": "Aucun retour d'assistant",
+          "emptyDescription": "La répartition par assistant apparaît ici dès que les utilisateurs évaluent des réponses."
+        },
+        "topModels": {
+          "title": "Top modèles par retour",
+          "model": "Modèle",
+          "helpful": "Utile",
+          "notHelpful": "Pas utile",
+          "sentiment": "Sentiment",
+          "emptyTitle": "Aucun retour sur les modèles",
+          "emptyDescription": "La répartition par modèle apparaît ici dès que les utilisateurs évaluent des réponses dont le modèle a été enregistré."
+        },
+        "topMatchups": {
+          "title": "Top duels de modèles",
+          "matchup": "Duel",
+          "vs": "vs",
+          "score": "Score",
+          "ties": "Égalités",
+          "bothBad": "Les deux mauvais",
+          "total": "Verdicts",
+          "emptyTitle": "Aucun duel de modèles",
+          "emptyDescription": "Les confrontations directes par paire apparaissent ici dès que les utilisateurs comparent deux modèles en mode arène."
+        }
+      },
+      "filterChips": {
+        "agent": "Assistant : {value}",
+        "model": "Modèle : {value}",
+        "provider": "Fournisseur : {value}",
+        "clear": "Effacer les filtres"
+      },
+      "empty": {
+        "title": "Aucun retour collecté pour le moment",
+        "description": "Quand les utilisateurs cliquent sur pouce levé/baissé ou choisissent un gagnant en mode arène, cela apparaît ici."
+      },
+      "periodEmpty": {
+        "title": "Aucun retour sur cette période",
+        "description": "Essaie d'élargir la période.",
+        "expand": "Tout l'historique"
+      },
+      "filterEmpty": {
+        "title": "Aucun retour ne correspond aux filtres",
+        "description": "Essaie de retirer ou d'assouplir les filtres actifs.",
+        "clear": "Effacer les filtres"
+      },
+      "cappedNotice": {
+        "title": "Résultats partiels affichés",
+        "description": "Ton organisation a plus de 50 000 entrées dans la fenêtre choisie. Réduis la fenêtre pour des chiffres exacts."
+      },
+      "recent": {
+        "title": "Retours récents",
+        "emptyTitle": "Aucun retour sur cette période",
+        "emptyDescription": "Ajuste la période ou les filtres pour en voir davantage.",
+        "noComment": "(aucun commentaire)",
+        "helpfulAria": "Utile",
+        "notHelpfulAria": "Pas utile",
+        "types": {
+          "message": "Chat",
+          "arena": "Arène"
+        },
+        "columns": {
+          "time": "Heure",
+          "user": "Utilisateur",
+          "type": "Type",
+          "rating": "Évaluation",
+          "agent": "Assistant",
+          "model": "Modèle",
+          "comment": "Commentaire"
+        },
+        "expanded": {
+          "comment": "Commentaire",
+          "arena": "Pairing d'arène",
+          "attribution": "Attribution"
+        }
       }
     }
   },

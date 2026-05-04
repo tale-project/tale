@@ -3617,7 +3617,8 @@
       "policiesAndLimits": "Policies & Limits",
       "securityAndMonitoring": "Security & Monitoring",
       "guardrails": "Guardrails",
-      "usage": "Usage"
+      "usage": "Usage",
+      "feedback": "Feedback"
     },
     "modelAccess": {
       "title": "Model access",
@@ -3870,6 +3871,127 @@
       "emptyModels": {
         "title": "No model usage yet",
         "description": "No LLM calls have been recorded for the selected period. Integration and transcription usage is shown under Top Assistants."
+      }
+    },
+    "feedback": {
+      "title": "Feedback Analytics",
+      "description": "User-submitted thumbs up/down and arena verdicts on assistant responses.",
+      "commentsOnly": "Comments only",
+      "errors": {
+        "loadFailed": "Couldn't load feedback metrics",
+        "unauthorized": "You don't have access to this page"
+      },
+      "period": {
+        "label": "Period",
+        "last24Hours": "Last 24 hours",
+        "last7Days": "Last 7 days",
+        "last30Days": "Last 30 days",
+        "last90Days": "Last 90 days",
+        "allTime": "All time"
+      },
+      "kind": {
+        "label": "Type",
+        "all": "All types",
+        "message": "Message thumbs",
+        "arena": "Arena verdicts"
+      },
+      "cards": {
+        "sentiment": "Sentiment",
+        "sentimentAriaLabel": "{pct} helpful, {helpful} of {total}",
+        "sentimentCapped": "Sentiment unavailable while results are partial",
+        "sentimentDenominator": "{helpful} / {total}",
+        "helpful": "Helpful",
+        "notHelpful": "Not helpful"
+      },
+      "arena": {
+        "title": "Arena verdicts",
+        "cells": {
+          "decisive": "Decisive",
+          "tie": "Tie",
+          "bothBad": "Both bad"
+        }
+      },
+      "tables": {
+        "topAgents": {
+          "title": "Top Assistants by feedback",
+          "agent": "Assistant",
+          "helpful": "Helpful",
+          "notHelpful": "Not helpful",
+          "sentiment": "Sentiment",
+          "unattributed": "Unattributed",
+          "emptyTitle": "No assistant feedback yet",
+          "emptyDescription": "Per-assistant breakdown appears here once users rate assistant replies."
+        },
+        "topModels": {
+          "title": "Top Models by feedback",
+          "model": "Model",
+          "helpful": "Helpful",
+          "notHelpful": "Not helpful",
+          "sentiment": "Sentiment",
+          "emptyTitle": "No model feedback yet",
+          "emptyDescription": "Per-model breakdown appears here once users rate replies whose model is captured."
+        },
+        "topMatchups": {
+          "title": "Top Model Matchups",
+          "matchup": "Matchup",
+          "vs": "vs",
+          "score": "Score",
+          "ties": "Ties",
+          "bothBad": "Both bad",
+          "total": "Verdicts",
+          "emptyTitle": "No model matchups yet",
+          "emptyDescription": "Per-pair head-to-head wins appear here once users compare two models in arena mode."
+        }
+      },
+      "filterChips": {
+        "agent": "Assistant: {value}",
+        "model": "Model: {value}",
+        "provider": "Provider: {value}",
+        "clear": "Clear filters"
+      },
+      "empty": {
+        "title": "No feedback collected yet",
+        "description": "When users tap thumbs up/down on a chat reply or pick a winner in arena mode, it shows up here."
+      },
+      "periodEmpty": {
+        "title": "No feedback in this window",
+        "description": "Try widening the period.",
+        "expand": "Show all time"
+      },
+      "filterEmpty": {
+        "title": "No feedback matches your filters",
+        "description": "Try removing or relaxing the active filters.",
+        "clear": "Clear filters"
+      },
+      "cappedNotice": {
+        "title": "Showing partial results",
+        "description": "Your organization has more than 50,000 entries in the selected window. Narrow the window for accurate counts."
+      },
+      "recent": {
+        "title": "Recent feedback",
+        "emptyTitle": "No feedback in this window",
+        "emptyDescription": "Adjust the period or filters to see more.",
+        "noComment": "(no comment)",
+        "helpfulAria": "Helpful",
+        "notHelpfulAria": "Not helpful",
+        "types": {
+          "message": "Chat",
+          "arena": "Arena"
+        },
+        "columns": {
+          "time": "Time",
+          "user": "User",
+          "type": "Type",
+          "rating": "Rating",
+          "agent": "Assistant",
+          "model": "Model",
+          "comment": "Comment"
+        },
+        "expanded": {
+          "comment": "Comment",
+          "arena": "Arena pairing",
+          "attribution": "Attribution"
+        }
       }
     }
   },

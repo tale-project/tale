@@ -45,6 +45,7 @@ export const messageMetadataValidator = v.object({
   threadId: v.string(),
   model: v.string(),
   provider: v.string(),
+  agentSlug: v.optional(v.string()),
   inputTokens: v.optional(v.number()),
   outputTokens: v.optional(v.number()),
   totalTokens: v.optional(v.number()),

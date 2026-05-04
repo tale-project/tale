@@ -8,6 +8,10 @@ export const messageMetadataTable = defineTable({
   threadId: v.string(),
   model: v.string(),
   provider: v.string(),
+  // Owning assistant slug. Optional for backward compatibility with rows
+  // written before the field existed; new writes should populate it from
+  // OnAgentCompleteArgs.agentSlug so feedback rows can attribute by agent.
+  agentSlug: v.optional(v.string()),
   inputTokens: v.optional(v.number()),
   outputTokens: v.optional(v.number()),
   totalTokens: v.optional(v.number()),

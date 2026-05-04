@@ -19,6 +19,7 @@ export const GOVERNANCE_GROUPS = [
   'security-monitoring',
   'guardrails',
   'usage',
+  'feedback',
 ] as const;
 export type GovernanceGroup = (typeof GOVERNANCE_GROUPS)[number];
 
@@ -92,6 +93,7 @@ function GovernanceLayout() {
   const securityMonitoring = linkClass(`${basePath}/security-monitoring`);
   const guardrails = linkClass(`${basePath}/guardrails`);
   const usage = linkClass(`${basePath}/usage`);
+  const feedback = linkClass(`${basePath}/feedback`);
 
   return (
     <div className={LAYOUT_ROOT_CLASSNAME}>
@@ -135,6 +137,14 @@ function GovernanceLayout() {
           aria-current={usage.isActive ? 'page' : undefined}
         >
           {t('groups.usage')}
+        </Link>
+        <Link
+          to="/dashboard/$id/settings/governance/feedback"
+          params={{ id: organizationId }}
+          className={feedback.className}
+          aria-current={feedback.isActive ? 'page' : undefined}
+        >
+          {t('groups.feedback')}
         </Link>
       </nav>
       <div ref={contentRef} className={CONTENT_CLASSNAME}>
