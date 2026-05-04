@@ -20,11 +20,26 @@ export interface PiiConfig {
 
 function buildPatterns(config: PiiConfig): PiiPattern[] {
   const builtIn = getEnabledPatterns(config.enabledPatterns);
-  const custom: PiiPattern[] = (config.customPatterns ?? []).map((cp) => ({
-    name: cp.name,
-    regex: new RegExp(cp.regex, 'g'),
-    replacement: cp.replacement,
-  }));
+  const custom: PiiPattern[] = [];
+  for (const cp of config.customPatterns ?? []) {
+    // Defense-in-depth: the schema (`piiCustomPatternSchema`) already rejects
+    // bad regex syntax at save-time, but a stale config / direct DB write could
+    // still reach here. Skip with a warn rather than throwing so `scrubPii`
+    // honours its "never throws" docstring contract.
+    try {
+      custom.push({
+        name: cp.name,
+        regex: new RegExp(cp.regex, 'g'),
+        replacement: cp.replacement,
+      });
+    } catch (err) {
+      console.warn(
+        `[pii_index] customPattern "${cp.name}" failed to compile: ${
+          err instanceof Error ? err.name : 'unknown'
+        }`,
+      );
+    }
+  }
   return [...builtIn, ...custom];
 }
 

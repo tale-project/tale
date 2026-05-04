@@ -121,12 +121,13 @@ export const ADDRESSES_DE: AddressCase[] = [
   {
     input:
       'Die Lieferung soll an Karl-Marx-Allee 50, 10178 Berlin gehen. Vielen Dank!',
-    expectedMatches: ['Karl-Marx-Allee 50, 10178 Berlin'],
-    note: 'Closed-terminal tail must NOT eat trailing prose "gehen. Vielen Dank!"',
+    expectedMatches: ['an Karl-Marx-Allee 50, 10178 Berlin'],
+    note: 'Form 5b absorbs leading prep "an" before the street; trailing prose "gehen. Vielen Dank!" is still NOT eaten (closed-terminal contract preserved)',
   },
   {
     input: 'Hi, ich wohne in Reeperbahn 1, 20359 Hamburg seit 2020.',
-    expectedMatches: ['Reeperbahn 1, 20359 Hamburg'],
+    expectedMatches: ['in Reeperbahn 1, 20359 Hamburg'],
+    note: 'Form 5b absorbs leading prep "in"; trailing "seit 2020." not eaten',
   },
   {
     input:

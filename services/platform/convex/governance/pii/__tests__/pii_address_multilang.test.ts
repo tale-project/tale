@@ -13,6 +13,10 @@ import {
   ADDRESSES_FR,
   ADDRESSES_FR_NEGATIVES,
 } from '../../../../test/pii-fixtures/addresses-fr';
+import {
+  ADDRESSES_NL,
+  ADDRESSES_NL_NEGATIVES,
+} from '../../../../test/pii-fixtures/addresses-nl';
 import type { AddressCase } from '../../../../test/pii-fixtures/types';
 import { detectPii } from '../pii_detector';
 import { getEnabledPatterns } from '../pii_patterns';
@@ -43,3 +47,5 @@ runFixture('addresses (FR negative)', ADDRESSES_FR_NEGATIVES);
 runFixture('addresses (CH positive)', ADDRESSES_CH);
 runFixture('addresses (EN positive)', ADDRESSES_EN);
 runFixture('addresses (EN negative)', ADDRESSES_EN_NEGATIVES);
+runFixture('addresses (NL positive)', ADDRESSES_NL);
+runFixture('addresses (NL negative)', ADDRESSES_NL_NEGATIVES);

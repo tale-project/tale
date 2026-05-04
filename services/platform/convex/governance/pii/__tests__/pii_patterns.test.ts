@@ -97,13 +97,13 @@ describe('German ID pattern', () => {
   const germanIdPatterns = getEnabledPatterns(['germanId']);
 
   it('detects valid German ID serial', () => {
-    const matches = detectPii('ID: T22000129', germanIdPatterns);
+    const matches = detectPii('ID: T22000124', germanIdPatterns);
     expect(matches).toHaveLength(1);
     expect(matches[0].patternName).toBe('germanId');
   });
 
   it('detects another valid German ID', () => {
-    const matches = detectPii('My ID number is L0100FG57', germanIdPatterns);
+    const matches = detectPii('My ID number is L0100FG50', germanIdPatterns);
     expect(matches).toHaveLength(1);
   });
 
@@ -118,11 +118,11 @@ describe('German ID pattern', () => {
   });
 
   it('masks German ID with [GERMAN_ID] placeholder', () => {
-    const text = 'Personalausweis: T22000129';
+    const text = 'Personalausweis: T22000124';
     const matches = detectPii(text, germanIdPatterns);
     const masked = maskPii(text, matches);
     expect(masked).toContain('[GERMAN_ID]');
-    expect(masked).not.toContain('T22000129');
+    expect(masked).not.toContain('T22000124');
   });
 });
 
@@ -144,7 +144,7 @@ describe('scrubPii with new patterns', () => {
   });
 
   it('masks German ID in text', () => {
-    const result = scrubPii('My Personalausweis is T22000129', config);
+    const result = scrubPii('My Personalausweis is T22000124', config);
     expect(result.kind).toBe('modified');
     if (result.kind !== 'modified') return;
     expect(result.text).toContain('[GERMAN_ID]');
@@ -164,7 +164,7 @@ describe('scrubPii with new patterns', () => {
 
   it('returns blocked in block mode when German ID detected', () => {
     const blockConfig = { ...config, mode: 'block' } satisfies PiiConfig;
-    const result = scrubPii('ID: T22000129', blockConfig);
+    const result = scrubPii('ID: T22000124', blockConfig);
     expect(result.kind).toBe('blocked');
     if (result.kind !== 'blocked') return;
     expect(result.categoryIds).toContain('germanId');

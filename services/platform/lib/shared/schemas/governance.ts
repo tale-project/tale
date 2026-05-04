@@ -1,3 +1,4 @@
+import safe from 'safe-regex2';
 import { z } from 'zod/v4';
 
 export const POLICY_TYPES = [
@@ -130,7 +131,19 @@ const piiCustomPatternSchema = z.object({
       } catch {
         return false;
       }
-    }, 'Invalid regex pattern'),
+    }, 'Invalid regex pattern')
+    // Static AST analysis: rejects nested-quantifier shapes like `(a+)+b`,
+    // `(a|aa)+`, `(a|a?)+` that exhibit catastrophic backtracking. Without
+    // this, an admin can save a pattern that hangs every guardrail-protected
+    // message — `execWithBudget` checks the wall clock only between `exec()`
+    // calls and cannot pre-empt a single pathological exec.
+    .refine((v) => {
+      try {
+        return safe(v);
+      } catch {
+        return false;
+      }
+    }, 'Pattern is unsafe — likely catastrophic backtracking'),
   replacement: z.string().min(1),
 });
 
@@ -244,7 +257,14 @@ const chatFilterPatternSchema = z.object({
       } catch {
         return false;
       }
-    }, 'Invalid regex pattern'),
+    }, 'Invalid regex pattern')
+    .refine((v) => {
+      try {
+        return safe(v);
+      } catch {
+        return false;
+      }
+    }, 'Pattern is unsafe — likely catastrophic backtracking'),
 });
 
 export const chatFilterCategorySchema = z.object({

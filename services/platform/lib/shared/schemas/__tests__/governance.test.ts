@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   uploadPolicyConfigSchema,
   retentionPolicyConfigSchema,
+  piiConfigSchema,
 } from '../governance';
 
 describe('uploadPolicyConfigSchema', () => {
@@ -121,6 +122,56 @@ describe('retentionPolicyConfigSchema', () => {
       agentTempRetentionHours: -5,
     });
 
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('piiConfigSchema customPattern ReDoS guard (S-02)', () => {
+  // The Round 2 review measured `(a+)+b` running ~12 seconds against 28 'a's
+  // — far past `execWithBudget`'s 50ms cap (which only checks between
+  // `exec()` calls, never within one). `safe-regex2` AST-validates the
+  // pattern at save-time and rejects nested-quantifier shapes.
+  const baseConfig = {
+    enabled: true,
+    mode: 'mask' as const,
+    enabledPatterns: ['email'],
+  };
+
+  it('accepts a benign pattern', () => {
+    const result = piiConfigSchema.safeParse({
+      ...baseConfig,
+      customPatterns: [
+        { name: 'ssn', regex: '\\d{3}-\\d{2}-\\d{4}', replacement: '[SSN]' },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects nested-quantifier ReDoS shape "(a+)+b"', () => {
+    const result = piiConfigSchema.safeParse({
+      ...baseConfig,
+      customPatterns: [{ name: 'redos', regex: '(a+)+b', replacement: '[X]' }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects "(a|a?)+" optional-overlap ReDoS', () => {
+    const result = piiConfigSchema.safeParse({
+      ...baseConfig,
+      customPatterns: [
+        { name: 'redos3', regex: '(a|a?)+', replacement: '[X]' },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects syntactically invalid regex (existing contract)', () => {
+    const result = piiConfigSchema.safeParse({
+      ...baseConfig,
+      customPatterns: [
+        { name: 'broken', regex: '[unclosed', replacement: '[X]' },
+      ],
+    });
     expect(result.success).toBe(false);
   });
 });

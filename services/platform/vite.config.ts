@@ -123,6 +123,13 @@ export default defineConfig({
             if (id.includes('lucide-react')) {
               return 'vendor-icons';
             }
+            if (
+              id.includes('libphonenumber-js') ||
+              id.includes('validator/lib') ||
+              id.includes('validator/es')
+            ) {
+              return 'vendor-pii';
+            }
           }
           return undefined;
         },

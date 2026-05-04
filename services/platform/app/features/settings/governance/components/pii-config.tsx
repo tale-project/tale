@@ -207,16 +207,28 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
     }
 
     const builtIn = getEnabledPatterns([...enabledPatterns]);
-    const custom = customPatterns
-      .filter((p) => p.name && p.regex && p.replacement)
-      .map((p) => ({
-        name: p.name,
-        regex: new RegExp(p.regex, 'g'),
-        replacement: p.replacement,
-      }));
+    const custom: ReturnType<typeof getEnabledPatterns> = [];
+    for (const p of customPatterns) {
+      if (!p.name || !p.regex || !p.replacement) continue;
+      // Mid-edit regex strings can be syntactically invalid (mid-token); skip
+      // them silently rather than crashing the preview panel.
+      try {
+        custom.push({
+          name: p.name,
+          regex: new RegExp(p.regex, 'g'),
+          replacement: p.replacement,
+        });
+      } catch {
+        // The save-time schema (`piiCustomPatternSchema`) is the canonical
+        // gate for invalid syntax — preview just stays silent here.
+      }
+    }
 
     const allPatterns = [...builtIn, ...custom];
-    setTestResults(detectPii(testText, allPatterns));
+    // Mirror server-side `scrubPii` NFC normalize (pii/index.ts:49) so admin
+    // preview matches production for NFD-encoded paste (macOS clipboard /
+    // some IMEs).
+    setTestResults(detectPii(testText.normalize('NFC'), allPatterns));
   }, [testText, enabledPatterns, customPatterns]);
 
   const skeleton = (
