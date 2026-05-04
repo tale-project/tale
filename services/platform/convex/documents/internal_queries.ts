@@ -9,6 +9,7 @@ import { getAgentScopedFileIds as getAgentScopedFileIdsHelper } from './get_agen
 import * as DocumentsHelpers from './helpers';
 import { listDocumentsForAgent as listDocumentsForAgentHelper } from './list_documents_for_agent';
 import { listIndexedDocumentsForAgent as listIndexedDocumentsForAgentHelper } from './list_indexed_documents_for_agent';
+import { listOrphanedExternalDocs as listOrphanedExternalDocsHelper } from './list_orphaned_external_docs';
 import { sourceProviderValidator } from './validators';
 
 export const getDocumentByIdRaw = internalQuery({
@@ -161,6 +162,18 @@ export const listIndexedForAgent = internalQuery({
   },
   handler: async (ctx, args) => {
     return listIndexedDocumentsForAgentHelper(ctx, args);
+  },
+});
+
+export const listOrphanedExternalDocs = internalQuery({
+  args: {
+    organizationId: v.string(),
+    sourceProvider: v.string(),
+    folderPathPrefix: v.string(),
+    presentExternalIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await listOrphanedExternalDocsHelper(ctx, args);
   },
 });
 
