@@ -2,6 +2,9 @@
   "recommendations": [
     "oxc.oxc-vscode",
     "foxundermoon.shell-format",
-    "charliermarsh.ruff"
+    "charliermarsh.ruff",
+    "ms-vscode.powershell",
+    "ms-python.python",
+    "ms-vscode.vscode-typescript-next"
   ]
 }

@@ -17,9 +17,16 @@ const SUPPORTED_TARGETS: Record<string, string> = {
 };
 
 interface UpgradeOptions {
+  /** Install this exact version (e.g. "0.9.0" or "v0.9.0") instead of latest. */
+  version?: string;
   force?: boolean;
   dryRun?: boolean;
   internalSyncOnly?: boolean;
+}
+
+function normalizeTag(input: string): string {
+  const trimmed = input.trim();
+  return trimmed.startsWith('v') ? trimmed : `v${trimmed}`;
 }
 
 interface ReleaseInfo {
@@ -133,6 +140,50 @@ async function fetchLatestReadyRelease(
   });
 
   return { release: best, skipped };
+}
+
+async function fetchReleaseByTag(
+  asset: string,
+  tag: string,
+): Promise<ReleaseInfo> {
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/tags/${encodeURIComponent(tag)}`;
+  const response = await fetch(url, {
+    headers: {
+      ...getAuthHeaders(),
+      'User-Agent': `tale-cli/${pkg.version}`,
+    },
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  if (response.status === 404) {
+    throw new Error(
+      `Release ${tag} not found. See https://github.com/${GITHUB_REPO}/releases for available versions.`,
+    );
+  }
+  if (response.status === 403) {
+    throw new Error(
+      'GitHub API returned 403. This may be rate limiting or an auth issue. ' +
+        'Set GITHUB_TOKEN or GH_TOKEN for higher limits.',
+    );
+  }
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch release ${tag}: GitHub API returned ${response.status}.`,
+    );
+  }
+
+  const entry = (await response.json()) as Record<string, unknown>;
+  const release = parseRelease(entry);
+  if (!release) {
+    throw new Error(`Release ${tag} has no valid version metadata.`);
+  }
+  if (!release.assetNames.includes(asset)) {
+    throw new Error(
+      `Release ${tag} does not include the ${asset} binary for this platform. ` +
+        `Check https://github.com/${GITHUB_REPO}/releases/tag/${tag} for available assets.`,
+    );
+  }
+  return release;
 }
 
 function getAssetName(): string {
@@ -353,27 +404,40 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
   requireProject();
 
   const prefix = options.dryRun ? '[DRY-RUN] ' : '';
-  logger.header(`${prefix}Upgrading Tale CLI`);
+  const pinnedVersion = options.version;
+  logger.header(
+    pinnedVersion
+      ? `${prefix}Migrating Tale CLI to ${pinnedVersion}`
+      : `${prefix}Upgrading Tale CLI`,
+  );
 
-  // Phase 1: Version check
+  // Phase 1: Resolve target release (latest, or pinned)
   const asset = getAssetName();
-  logger.step(`${prefix}Checking for updates...`);
   let release: ReleaseInfo;
-  let skipped: string[];
-  try {
-    ({ release, skipped } = await fetchLatestReadyRelease(asset));
-  } catch (err) {
-    throw new Error(
-      `Could not check for updates. ${err instanceof Error ? err.message : String(err)}`,
-      { cause: err },
-    );
+  let skipped: string[] = [];
+  if (pinnedVersion) {
+    const tag = normalizeTag(pinnedVersion);
+    logger.step(`${prefix}Looking up release ${tag}...`);
+    release = await fetchReleaseByTag(asset, tag);
+  } else {
+    logger.step(`${prefix}Checking for updates...`);
+    try {
+      ({ release, skipped } = await fetchLatestReadyRelease(asset));
+    } catch (err) {
+      throw new Error(
+        `Could not check for updates. ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err },
+      );
+    }
   }
 
   const currentVersion = pkg.version;
   const comparison = compareVersions(release.version, currentVersion);
 
   logger.info(`Current version: ${currentVersion}`);
-  if (skipped.length > 0) {
+  if (pinnedVersion) {
+    logger.info(`Target version:  ${release.version}`);
+  } else if (skipped.length > 0) {
     logger.info(
       `Latest version:  ${skipped[0].replace(/^v/, '')} (binary not yet available)`,
     );
@@ -386,12 +450,26 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
     logger.info(`Latest version:  ${release.version}`);
   }
 
+  if (pinnedVersion && comparison < 0) {
+    logger.warn(
+      `Downgrading from ${currentVersion} to ${release.version}. ` +
+        `Schema changes from the newer version persist in the database — see the rollback notes in the docs.`,
+    );
+  }
+
   const isDevBuild = currentVersion.includes('dev');
-  const needsBinaryUpgrade = isDevBuild || comparison > 0 || options.force;
+  // When pinnedVersion, always replace unless the user is already on the exact target.
+  const needsBinaryUpgrade = pinnedVersion
+    ? comparison !== 0 || isDevBuild || options.force
+    : isDevBuild || comparison > 0 || options.force;
 
   if (!needsBinaryUpgrade) {
-    logger.success(`CLI is up to date (v${currentVersion})`);
-    if (skipped.length > 0) {
+    logger.success(
+      pinnedVersion
+        ? `CLI is already on v${currentVersion}`
+        : `CLI is up to date (v${currentVersion})`,
+    );
+    if (!pinnedVersion && skipped.length > 0) {
       logger.info(
         `Note: ${skipped[0].replace(/^v/, '')} is available but binary not yet uploaded — re-run 'tale upgrade' later.`,
       );

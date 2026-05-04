@@ -1,164 +1,47 @@
 ---
-title: Getting started
-description: Install Tale and open the app — a friendly walkthrough for your first 10 minutes.
+title: Getting started as a Member
+description: Sign in, chat, browse the knowledge base, and read shared conversations and approvals — the day-one orientation for Members.
 ---
 
-This is the fastest way to go from nothing to a running Tale instance. You don't need to be a developer — if you can run a command in a terminal, you can follow along. For self-hosted production setups, see [Production deployment](/self-hosted/install/linux-server) instead.
+Welcome to Tale. As a **Member** you have read-only access to your organisation's workspace: you can chat with AI models and agents, browse the knowledge base, and read conversations and approvals shared with you. Editors and Developers in your org create the content; Members consume it.
 
-## Prerequisites
+If you also need to install or run a Tale instance yourself, see [Local quickstart](/self-hosted/install/quickstart) or [Production deployment](/self-hosted/install/linux-server).
 
-| Software       | Minimum version | Where to get it                                |
-| -------------- | --------------- | ---------------------------------------------- |
-| Docker Desktop | 24.0+           | https://www.docker.com/products/docker-desktop |
+## Sign in
 
-### Get an API key
+There is nothing to install — Tale runs entirely in the browser. Your admin gets you in via one of three methods, depending on how your organisation is configured.
 
-Tale uses OpenRouter as its default AI gateway, which gives you access to hundreds of models through a single API key.
+- **Email and password.** Your admin creates the account from **Settings → Members** with an initial password and shares it with you. You will be required to change it on first sign-in.
+- **SSO (Microsoft Entra).** Sign in with your existing Microsoft account; your Tale account is provisioned automatically the first time.
+- **Reverse proxy (trusted headers).** If Tale sits behind Authelia, Authentik, oauth2-proxy, or similar, the proxy authenticates you and your account is auto-provisioned on first request.
 
-1. Go to https://openrouter.ai and create a free account.
-2. Navigate to Keys in your account dashboard and generate a new API key.
-3. Copy the key. You will need it during setup.
+If you cannot sign in, ask your admin which method is enabled. (Admins: see [authentication](/self-hosted/admin/authentication) for the instance-wide configuration.)
 
-> **Tip:** You can use any OpenAI-compatible provider, including a local Ollama instance. OpenRouter is the recommended default for its model variety and simple pricing.
+## What you can do
 
-## Setup
+### Chat
 
-### Step 1: Install the CLI
+Start a conversation from the home screen. Pick a model, type a message, and reply. The chat input also supports:
 
-**Linux / macOS:**
+- Attaching files (images, PDFs, docs) — see [attachments](/platform/chat/attachments).
+- Mentioning an agent created by an Editor or Developer — see [agents in chat](/platform/chat/agents-in-chat).
+- Comparing two models side-by-side in [Arena Mode](/platform/chat/arena-mode).
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
-```
+Full feature reference: [chat basics](/platform/chat/basics).
 
-**Windows (PowerShell):**
+### Browse the knowledge base
 
-```powershell
-irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
-```
+The knowledge base holds documents your org has uploaded or crawled. Search it, open documents, and reference them from chat. As a Member you cannot upload or delete — that is an Editor task. See [knowledge base](/platform/workspace/knowledge-base).
 
-Or download the binary directly from [GitHub Releases](https://github.com/tale-project/tale/releases):
+### Read conversations and approvals
 
-```bash
-# Linux
-curl -fsSL https://github.com/tale-project/tale/releases/latest/download/tale_linux \
-  -o /usr/local/bin/tale
-chmod +x /usr/local/bin/tale
-```
+- **[Conversations](/platform/workspace/conversations)** — shared chat threads from teammates.
+- **[Approvals](/platform/workspace/approvals)** — outputs from automations awaiting human review. Members can read; only Editors and above can decide.
 
-### Step 2: Create a project
+## Personalise your account
 
-```bash
-tale init my-project
-cd my-project
-```
+Set your display name, language, theme, and notification preferences from the avatar menu. Details: [preferences](/platform/member/preferences).
 
-The CLI prompts for your domain, API key, and TLS mode. Security secrets (`BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`) are generated automatically.
+## Want to do more?
 
-> **Tip:** The CLI also generates configuration files for AI-powered editors (Claude Code, Cursor, GitHub Copilot, Windsurf) and extracts the full platform source code to `.tale/reference/`. Open your project in any of these editors to create and edit agents, workflows, and integrations by describing what you want in natural language. See [AI-assisted development](/develop/ai-assisted-development) for details.
-
-### Step 3: Start Tale
-
-```bash
-tale start
-```
-
-Wait for the ready message:
-
-```text
-Tale Dev v0.x.x  Ready.
-```
-
-> **Note:** The version number will vary. You will see a stream of health check messages while services are starting. Those are normal. Wait for the "Ready" message before opening your browser.
-
-### Step 4: Open the app
-
-Go to https://localhost (or your configured domain) in your browser. The first time you open it, you will be taken to a sign-up page to create your admin account.
-
-## Daily workflow
-
-### Starting and stopping
-
-```bash
-tale start              # Start all services
-tale start --detach     # Start in background
-```
-
-To stop all services while keeping your data:
-
-```bash
-docker compose -p tale-dev down
-```
-
-The `-p tale-dev` flag is required because `tale start` creates a compose project named `tale-dev` rather than using a standard `docker-compose.yml` file.
-
-> **Important:** Never run `docker compose -p tale-dev down -v`. The `-v` flag deletes all Docker volumes, which permanently erases your database, uploaded documents, crawler state, and all platform data. There is no recovery from this.
-
-### Upgrading
-
-```bash
-tale upgrade            # Upgrade CLI and sync project files
-```
-
-### Viewing backend data
-
-```bash
-tale convex admin       # Generate admin key for the Convex Dashboard
-```
-
-Open `/convex-dashboard` in your browser and paste the key to inspect the database, view function logs, and manage background jobs.
-
-## Alternative: build from source
-
-If you want to contribute to Tale or customize the platform code, you can run from source instead of using pre-built images.
-
-```bash
-git clone https://github.com/tale-project/tale.git
-cd tale
-cp .env.example .env
-```
-
-Edit `.env` and fill in the required values:
-
-| Variable                | How to fill it in                          |
-| ----------------------- | ------------------------------------------ |
-| `BETTER_AUTH_SECRET`    | Generate with: `openssl rand -base64 32`   |
-| `ENCRYPTION_SECRET_HEX` | Generate with: `openssl rand -hex 32`      |
-| `DB_PASSWORD`           | Choose any password for the local database |
-
-> **Important:** The `.env.example` file ships with example secrets that must be replaced before starting.
-
-Then build and start:
-
-```bash
-docker compose up --build
-```
-
-Build times vary by service (all 5 services build in ~3 minutes in parallel on a modern system). Subsequent builds are much faster thanks to Docker layer caching.
-
-### Local development with hot-reload
-
-For a faster edit-reload cycle during development, use the development override:
-
-```bash
-docker compose -f compose.yml -f compose.dev.yml up --build
-```
-
-This mounts your local source directories into the containers so changes are reflected immediately without rebuilding images.
-
-### Running container tests
-
-After modifying Dockerfiles or dependencies, validate your changes:
-
-```bash
-# Smoke test: build, start, health check, tear down
-bun run docker:test
-
-# Image validation: OCI labels, secrets, size budgets
-bun run docker:test:image
-
-# Vulnerability scan (requires trivy installed)
-bun run docker:test:vulnerability
-```
-
-See [Contributing Docker guide](/develop/contributing-docker) for more details.
+Members are read-only. To create agents, edit knowledge, or run automations, ask your admin to upgrade your role. The full role matrix is on [Members and roles](/platform/admin/members-and-roles).

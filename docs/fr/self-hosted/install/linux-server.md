@@ -39,6 +39,24 @@ curl -fsSL https://github.com/tale-project/tale/releases/latest/download/tale_li
 chmod +x /usr/local/bin/tale
 ```
 
+### Épingler une version précise
+
+Pour installer une version précise du CLI au lieu de la dernière release, définis la variable d'environnement `VERSION` sur l'installeur :
+
+```bash
+VERSION=0.9.0 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
+```
+
+Ou télécharge le binaire directement avec le tag de version dans l'URL :
+
+```bash
+curl -fsSL https://github.com/tale-project/tale/releases/download/v0.9.0/tale_linux \
+  -o /usr/local/bin/tale
+chmod +x /usr/local/bin/tale
+```
+
+Les versions disponibles sont sur la [page GitHub Releases](https://github.com/tale-project/tale/releases).
+
 ## Installation initiale
 
 ### Étape 1 : initialiser le répertoire
@@ -74,15 +92,37 @@ Le CLI tire les images pré-construites, démarre tous les services, attend les 
 
 ## Gérer les déploiements
 
-### Déployer une nouvelle version
+### Passer à une nouvelle version
+
+`tale deploy` déploie toujours la version du binaire CLI en cours, donc un upgrade se fait en deux étapes :
 
 ```bash
-tale deploy                # déployer la version courante du CLI
-tale deploy --dry-run      # prévisualiser sans déployer
-tale deploy --all          # mettre aussi à jour DB et proxy
+tale upgrade            # 1. mettre à jour le CLI vers la dernière release
+tale deploy             # 2. dérouler la nouvelle version
 ```
 
-`tale deploy` déploie toujours la version du CLI en cours. Pour passer à une version plus récente, `tale upgrade` d'abord puis `tale deploy`.
+#### Migrer ou redescendre vers une version précise
+
+```bash
+tale upgrade --version 0.9.0       # bascule le CLI vers v0.9.0 (montée ou descente)
+tale deploy                        # dérouler ensuite cette version
+```
+
+`--version` accepte `0.9.0` ou `v0.9.0`. Les downgrades sont autorisés, mais **les changements de schéma restent forward-only** — voir [Compatibilité de schéma et rollback](#compatibilité-de-schéma-et-rollback). Les versions disponibles sont sur la [page GitHub Releases](https://github.com/tale-project/tale/releases).
+
+#### Avant l'upgrade
+
+- Lis les [release notes](https://github.com/tale-project/tale/releases) pour les ruptures de compatibilité et les notes de migration.
+- Sauvegarde la base — le volume Postgres contient toutes les données plateforme et les fichiers uploadés.
+- Si l'instance est critique, teste l'upgrade sur une instance de staging d'abord. `tale init` dans un répertoire séparé sur un autre hôte te donne un stack isolé.
+
+### Déployer
+
+```bash
+tale deploy             # déployer la version courante du CLI
+tale deploy --dry-run   # prévisualiser sans déployer
+tale deploy --all       # mettre aussi à jour DB et proxy
+```
 
 ### Statut
 
@@ -103,8 +143,8 @@ tale logs db --tail 100
 ### Rollback
 
 ```bash
-tale rollback                      # revenir à la précédente
-tale rollback --version 0.9.0      # revenir à une version précise
+tale rollback                       # revenir à la précédente
+tale rollback --version 0.9.0       # revenir à une version précise
 ```
 
 > **Changements de schéma forward-only.** `tale rollback` n'échange que les images ; il ne **rollback pas** les données Convex. Voir [Compatibilité de schéma et rollback](#compatibilité-de-schéma-et-rollback).
@@ -112,8 +152,8 @@ tale rollback --version 0.9.0      # revenir à une version précise
 ### Nettoyage
 
 ```bash
-tale cleanup              # retirer les conteneurs inactifs
-tale reset --force        # retirer TOUS les conteneurs (demande confirmation)
+tale cleanup            # retirer les conteneurs inactifs
+tale reset --force      # retirer TOUS les conteneurs (demande confirmation)
 ```
 
 ## Zero-downtime
@@ -372,6 +412,18 @@ docker pull ghcr.io/tale-project/tale/tale-platform:1.2.0
 # Pull de la dernière release
 docker pull ghcr.io/tale-project/tale/tale-platform:latest
 ```
+
+### Épingler une version d'image
+
+`tale deploy` choisit les images selon la version du CLI. Pour verrouiller des images de service indépendamment — par exemple pour tester une seule image sans upgrader tout le stack — crée un `compose.override.yml` à côté de ton `.env` :
+
+```yaml
+services:
+  platform:
+    image: ghcr.io/tale-project/tale/tale-platform:1.2.0
+```
+
+`tale deploy` fusionne l'override automatiquement.
 
 ## Accès au Convex Dashboard
 

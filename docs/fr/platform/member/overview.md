@@ -1,164 +1,47 @@
 ---
-title: Pour commencer
-description: Installe Tale et ouvre l'application — un parcours convivial pour tes 10 premières minutes.
+title: Pour commencer en tant que Member
+description: Se connecter, discuter, parcourir la base de connaissances et lire les conversations et approbations partagées — l'orientation jour 1 pour les Members.
 ---
 
-C'est le chemin le plus rapide pour passer de rien à une instance Tale qui tourne. Pas besoin d'être développeur — si tu sais lancer une commande dans un terminal, tu peux suivre. Pour les setups de production auto-hébergés, va plutôt sur [Déploiement en production](/fr/self-hosted/install/linux-server).
+Bienvenue dans Tale. En tant que **Member**, tu as un accès en lecture seule à l'espace de travail de ton organisation : tu peux discuter avec des modèles IA et des agents, parcourir la base de connaissances et lire les conversations et approbations partagées avec toi. Les Editors et Developers de ton organisation créent le contenu ; les Members le consomment.
 
-## Prérequis
+Si tu dois aussi installer ou faire tourner une instance Tale toi-même, va voir [Démarrage rapide local](/fr/self-hosted/install/quickstart) ou [Déploiement en production](/fr/self-hosted/install/linux-server).
 
-| Logiciel       | Version minimale | Où l'obtenir                                   |
-| -------------- | ---------------- | ---------------------------------------------- |
-| Docker Desktop | 24.0+            | https://www.docker.com/products/docker-desktop |
+## Se connecter
 
-### Obtenir une clé API
+Rien à installer — Tale tourne entièrement dans le navigateur. Ton admin te fait entrer via l'une des trois méthodes, selon la configuration de ton organisation.
 
-Tale utilise OpenRouter comme passerelle IA par défaut, ce qui donne accès à des centaines de modèles via une seule clé API.
+- **E-mail et mot de passe.** Ton admin crée ton compte depuis **Paramètres → Membres** avec un mot de passe initial et te le transmet. Tu seras obligé·e de le changer à la première connexion.
+- **SSO (Microsoft Entra).** Connecte-toi avec ton compte Microsoft existant ; ton compte Tale est provisionné automatiquement à la première connexion.
+- **Reverse proxy (trusted headers).** Si Tale est derrière Authelia, Authentik, oauth2-proxy ou similaire, le proxy t'authentifie et ton compte est provisionné automatiquement à la première requête.
 
-1. Va sur https://openrouter.ai et crée un compte gratuit.
-2. Dans ton tableau de bord, va dans Keys et génère une nouvelle clé API.
-3. Copie la clé. Tu en auras besoin pendant l'installation.
+Si tu n'arrives pas à te connecter, demande à ton admin quelle méthode est activée. (Admins : voir [Authentification](/fr/self-hosted/admin/authentication) pour la configuration côté instance.)
 
-> **Astuce :** Tu peux utiliser n'importe quel fournisseur compatible OpenAI, y compris une instance Ollama locale. OpenRouter est la valeur par défaut recommandée pour la variété de modèles et sa tarification simple.
+## Ce que tu peux faire
 
-## Installation
+### Chat
 
-### Étape 1 : installer le CLI
+Lance une conversation depuis l'écran d'accueil. Choisis un modèle, écris un message, et réponds. La saisie du chat prend aussi en charge :
 
-**Linux / macOS :**
+- Joindre des fichiers (images, PDF, documents) — voir [pièces jointes](/fr/platform/chat/attachments).
+- Mentionner un agent créé par un Editor ou un Developer — voir [agents dans le chat](/fr/platform/chat/agents-in-chat).
+- Comparer deux modèles côte à côte avec le [Mode Arène](/fr/platform/chat/arena-mode).
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
-```
+Référence complète : [bases du chat](/fr/platform/chat/basics).
 
-**Windows (PowerShell) :**
+### Parcourir la base de connaissances
 
-```powershell
-irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
-```
+La base de connaissances contient les documents uploadés ou crawlés par ton organisation. Cherche-la, ouvre des documents et référence-les depuis le chat. En tant que Member, tu ne peux ni uploader ni supprimer — c'est le rôle des Editors. Voir [base de connaissances](/fr/platform/workspace/knowledge-base).
 
-Ou télécharge le binaire directement depuis [GitHub Releases](https://github.com/tale-project/tale/releases) :
+### Lire les conversations et approbations
 
-```bash
-# Linux
-curl -fsSL https://github.com/tale-project/tale/releases/latest/download/tale_linux \
-  -o /usr/local/bin/tale
-chmod +x /usr/local/bin/tale
-```
+- **[Conversations](/fr/platform/workspace/conversations)** — threads de chat partagés par tes collègues.
+- **[Approbations](/fr/platform/workspace/approvals)** — sorties d'automatisations en attente de revue humaine. Les Members peuvent lire ; seuls les Editors et au-dessus décident.
 
-### Étape 2 : créer un projet
+## Personnaliser ton compte
 
-```bash
-tale init my-project
-cd my-project
-```
+Nom affiché, langue, thème et préférences de notification se règlent depuis le menu de l'avatar. Détails : [préférences](/fr/platform/member/preferences).
 
-Le CLI te demande ton domaine, ta clé API et le mode TLS. Les secrets de sécurité (`BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`) sont générés automatiquement.
+## Aller plus loin ?
 
-> **Astuce :** Le CLI génère aussi des fichiers de configuration pour les éditeurs IA (Claude Code, Cursor, GitHub Copilot, Windsurf) et extrait le code source complet de la plateforme dans `.tale/reference/`. Ouvre ton projet dans l'un de ces éditeurs pour créer et modifier agents, workflows et intégrations en décrivant ce que tu veux en langage naturel. Voir [AI-assisted development](/fr/develop/ai-assisted-development).
-
-### Étape 3 : lancer Tale
-
-```bash
-tale start
-```
-
-Attends le message Ready :
-
-```text
-Tale Dev v0.x.x  Ready.
-```
-
-> **Note :** Le numéro de version varie. Tu verras des messages de health-check pendant que les services démarrent. C'est normal. Attends le message "Ready" avant d'ouvrir ton navigateur.
-
-### Étape 4 : ouvrir l'application
-
-Va sur https://localhost (ou ton domaine) dans ton navigateur. À la première ouverture, tu es dirigé vers une page d'inscription pour créer ton compte admin.
-
-## Usage quotidien
-
-### Démarrer et arrêter
-
-```bash
-tale start              # démarrer tous les services
-tale start --detach     # démarrer en arrière-plan
-```
-
-Pour arrêter tous les services en conservant tes données :
-
-```bash
-docker compose -p tale-dev down
-```
-
-Le flag `-p tale-dev` est requis parce que `tale start` crée un projet Compose nommé `tale-dev` au lieu d'utiliser un `docker-compose.yml` standard.
-
-> **Important :** Ne lance jamais `docker compose -p tale-dev down -v`. Le flag `-v` supprime tous les volumes Docker, ce qui efface définitivement ta base de données, tes documents et l'état du crawler.
-
-### Upgrade
-
-```bash
-tale upgrade            # mettre le CLI à jour et synchroniser les fichiers du projet
-```
-
-### Voir les données backend
-
-```bash
-tale convex admin       # générer une clé admin pour le Convex Dashboard
-```
-
-Ouvre `/convex-dashboard` dans ton navigateur et colle la clé pour inspecter la base de données, voir les logs des fonctions et gérer les tâches de fond.
-
-## Alternative : build depuis les sources
-
-Pour contribuer à Tale ou personnaliser le code, tu peux lancer depuis les sources au lieu des images pré-construites.
-
-```bash
-git clone https://github.com/tale-project/tale.git
-cd tale
-cp .env.example .env
-```
-
-Édite `.env` et remplis les valeurs requises :
-
-| Variable                | Comment la définir                          |
-| ----------------------- | ------------------------------------------- |
-| `BETTER_AUTH_SECRET`    | Générer avec : `openssl rand -base64 32`    |
-| `ENCRYPTION_SECRET_HEX` | Générer avec : `openssl rand -hex 32`       |
-| `DB_PASSWORD`           | Choisir un mot de passe pour la base locale |
-
-> **Important :** Le fichier `.env.example` contient des secrets d'exemple qu'il faut remplacer avant le premier démarrage.
-
-Ensuite build et start :
-
-```bash
-docker compose up --build
-```
-
-Les temps de build varient selon le service (les 5 services se construisent en parallèle en ~3 minutes sur un système moderne). Les builds suivants sont bien plus rapides grâce au cache des couches Docker.
-
-### Développement local avec hot-reload
-
-Pour un cycle édit-reload plus rapide pendant le dev, utilise l'override de développement :
-
-```bash
-docker compose -f compose.yml -f compose.dev.yml up --build
-```
-
-Tes répertoires sources locaux sont montés dans les conteneurs, donc les changements sont visibles immédiatement sans reconstruire les images.
-
-### Tests conteneurs
-
-Après modification des Dockerfiles ou dépendances, valide tes changements :
-
-```bash
-# Smoke test : build, start, health check, teardown
-bun run docker:test
-
-# Validation d'image : labels OCI, secrets, budgets de taille
-bun run docker:test:image
-
-# Scan de vulnérabilités (nécessite Trivy)
-bun run docker:test:vulnerability
-```
-
-Voir [Contributing Docker guide](/fr/develop/contributing-docker) pour plus de détails.
+Les Members sont en lecture seule. Pour créer des agents, modifier du savoir ou exécuter des automatisations, demande à ton admin une montée de rôle. La matrice complète des rôles est sur [Membres et rôles](/fr/platform/admin/members-and-roles).

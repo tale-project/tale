@@ -23,7 +23,7 @@ Tale pulls pre-built images from GitHub Container Registry. Here are the current
 | DB       | `ghcr.io/tale-project/tale/tale-db`       | ~1.1 GB |
 | Proxy    | `ghcr.io/tale-project/tale/tale-proxy`    | ~88 MB  |
 
-> **Tip:** First pull downloads ~4.4 GB total (compressed). Subsequent updates only download changed layers. Sizes shown are post-Phase-2 (split-Convex) — the Platform image is significantly smaller now that the Convex backend lives in its own service.
+> **Tip:** First pull downloads ~4.4 GB total (compressed). Subsequent updates only download changed layers.
 
 ## Installing the Tale CLI
 
@@ -40,6 +40,24 @@ curl -fsSL https://github.com/tale-project/tale/releases/latest/download/tale_li
   -o /usr/local/bin/tale
 chmod +x /usr/local/bin/tale
 ```
+
+### Pin to a specific version
+
+To install a specific CLI version instead of the latest release, set the `VERSION` environment variable on the installer:
+
+```bash
+VERSION=0.9.0 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
+```
+
+Or download the binary directly with the version tag in the URL:
+
+```bash
+curl -fsSL https://github.com/tale-project/tale/releases/download/v0.9.0/tale_linux \
+  -o /usr/local/bin/tale
+chmod +x /usr/local/bin/tale
+```
+
+Available versions are listed on the [GitHub Releases](https://github.com/tale-project/tale/releases) page.
 
 ## Initial setup
 
@@ -76,22 +94,37 @@ The CLI pulls pre-built images, starts all services, waits for health checks, an
 
 ## Managing deployments
 
-### Deploy a new version
+### Upgrade to a new version
+
+`tale deploy` always deploys the version of the CLI binary you are running, so an upgrade is two steps:
 
 ```bash
-# Deploy the current CLI version
-tale deploy
-
-# Preview changes without deploying
-tale deploy --dry-run
-
-# Also update infrastructure services (db, proxy)
-tale deploy --all
+tale upgrade            # 1. Update the CLI to the latest release
+tale deploy             # 2. Roll the new version out
 ```
 
-`tale deploy` always deploys the version of the CLI you are running. To
-move to a newer release, run `tale upgrade` first to update the CLI,
-then `tale deploy`.
+#### Migrate or downgrade to a specific version
+
+```bash
+tale upgrade --version 0.9.0       # Switch the CLI to v0.9.0 (up or down)
+tale deploy                        # Then roll that version out
+```
+
+`--version` accepts `0.9.0` or `v0.9.0`. Downgrades are allowed but **forward-only schema changes still apply** — see [Schema compatibility and rollback](#schema-compatibility-and-rollback). Available versions are listed on the [GitHub Releases](https://github.com/tale-project/tale/releases) page.
+
+#### Before upgrading
+
+- Read the [release notes](https://github.com/tale-project/tale/releases) for breaking changes and migration notes.
+- Back up the database — the Postgres volume holds all platform data and uploaded files.
+- If the instance is production-critical, test the upgrade on a staging instance first. Running `tale init` in a separate directory on another host gives you an isolated stack.
+
+### Deploy
+
+```bash
+tale deploy             # Deploy the current CLI version
+tale deploy --dry-run   # Preview changes without deploying
+tale deploy --all       # Also update infrastructure services (db, proxy)
+```
 
 ### Check status
 
@@ -112,26 +145,17 @@ tale logs db --tail 100
 ### Rollback
 
 ```bash
-# Rollback to the previous version
-tale rollback
-
-# Rollback to a specific version
-tale rollback --version 0.9.0
+tale rollback                       # Roll back to the previous version
+tale rollback --version 0.9.0       # Roll back to a specific version
 ```
 
-> **Forward-only schema changes.** `tale rollback` reverts container
-> images only; it does **not** roll back Convex data or indexes. See
-> [Schema compatibility and rollback](#schema-compatibility-and-rollback)
-> for what to watch out for.
+> **Forward-only schema changes.** `tale rollback` reverts container images only; it does **not** roll back Convex data or indexes. See [Schema compatibility and rollback](#schema-compatibility-and-rollback) for what to watch out for.
 
 ### Cleanup
 
 ```bash
-# Remove inactive containers
-tale cleanup
-
-# Remove ALL containers (requires confirmation)
-tale reset --force
+tale cleanup            # Remove inactive containers
+tale reset --force      # Remove ALL containers (requires confirmation)
 ```
 
 ## Zero-downtime deployment
@@ -405,6 +429,18 @@ docker pull ghcr.io/tale-project/tale/tale-platform:1.2.0
 # Pull the latest release
 docker pull ghcr.io/tale-project/tale/tale-platform:latest
 ```
+
+### Pin a specific image version
+
+`tale deploy` selects images based on the CLI version. To lock individual service images independently — for example, to test a single new image without upgrading the whole stack — create `compose.override.yml` next to your `.env`:
+
+```yaml
+services:
+  platform:
+    image: ghcr.io/tale-project/tale/tale-platform:1.2.0
+```
+
+`tale deploy` merges the override automatically.
 
 ## Convex dashboard access
 
