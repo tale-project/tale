@@ -30,7 +30,8 @@ COPY services/proxy/package.json ./services/proxy/
 COPY tools/cli/package.json ./tools/cli/
 COPY patches/ ./patches/
 
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+RUN apt-get -o Acquire::Retries=5 update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
     && rm -rf /var/lib/apt/lists/* \
     && HUSKY=0 bun install
 
@@ -147,7 +148,8 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 ARG SOPS_VERSION=3.9.4
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Retries=5 update \
+    && apt-get install -y --no-install-recommends \
     curl tini gosu postgresql-client ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
