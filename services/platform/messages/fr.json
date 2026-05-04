@@ -3904,9 +3904,9 @@
       },
       "cards": {
         "sentiment": "Sentiment",
-        "sentimentAriaLabel": "{{pct}} utile, {{helpful}} sur {{total}}",
+        "sentimentAriaLabel": "{pct} utile, {helpful} sur {total}",
         "sentimentCapped": "Sentiment indisponible avec des résultats partiels",
-        "sentimentDenominator": "{{helpful}} / {{total}}",
+        "sentimentDenominator": "{helpful} / {total}",
         "helpful": "Utile",
         "notHelpful": "Pas utile"
       },
@@ -3935,9 +3935,9 @@
         }
       },
       "filterChips": {
-        "agent": "Assistant : {{value}}",
-        "model": "Modèle : {{value}}",
-        "provider": "Fournisseur : {{value}}",
+        "agent": "Assistant : {value}",
+        "model": "Modèle : {value}",
+        "provider": "Fournisseur : {value}",
         "clear": "Effacer les filtres"
       },
       "empty": {

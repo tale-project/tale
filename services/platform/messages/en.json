@@ -3897,9 +3897,9 @@
       },
       "cards": {
         "sentiment": "Sentiment",
-        "sentimentAriaLabel": "{{pct}} helpful, {{helpful}} of {{total}}",
+        "sentimentAriaLabel": "{pct} helpful, {helpful} of {total}",
         "sentimentCapped": "Sentiment unavailable while results are partial",
-        "sentimentDenominator": "{{helpful}} / {{total}}",
+        "sentimentDenominator": "{helpful} / {total}",
         "helpful": "Helpful",
         "notHelpful": "Not helpful"
       },
@@ -3928,9 +3928,9 @@
         }
       },
       "filterChips": {
-        "agent": "Assistant: {{value}}",
-        "model": "Model: {{value}}",
-        "provider": "Provider: {{value}}",
+        "agent": "Assistant: {value}",
+        "model": "Model: {value}",
+        "provider": "Provider: {value}",
         "clear": "Clear filters"
       },
       "empty": {
