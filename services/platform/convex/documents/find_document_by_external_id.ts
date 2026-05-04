@@ -1,13 +1,15 @@
 /**
  * Find document by external ID (e.g., OneDrive item ID, Google Drive file ID).
  *
- * Optionally scope to a target folder. When `folderId` is provided (or `null`
- * for the root), only docs in that folder are considered — useful for sync
- * flows where the same external file may be synced to multiple Tale folders
- * via separate sync configs (each gets its own document row).
+ * Optional scope:
+ *  - `folderId` matches docs in exactly that folder (`null` for the root).
+ *  - `folderPathPrefix` matches docs whose `folderPath` equals the prefix or
+ *    sits under it (`prefix + '/'`). Used by sync workflows to confine the
+ *    cross-folder fallback to a single sync's subtree, so two independent
+ *    sync configs targeting the same external file do not ping-pong rows.
  *
- * When `folderId` is undefined, returns the first match in any folder
- * (legacy behavior, kept for callers like the OneDrive importer).
+ * Without either scope, returns the first match in any folder (legacy
+ * behavior, kept for callers like the OneDrive importer).
  */
 
 import type { Doc, Id } from '../_generated/dataModel';
@@ -19,6 +21,7 @@ export async function findDocumentByExternalId(
     organizationId: string;
     externalItemId: string;
     folderId?: Id<'folders'> | null;
+    folderPathPrefix?: string;
   },
 ): Promise<Doc<'documents'> | null> {
   const candidates = ctx.db
@@ -29,15 +32,20 @@ export async function findDocumentByExternalId(
         .eq('externalItemId', args.externalItemId),
     );
 
-  if (args.folderId === undefined) {
-    return await candidates.first();
-  }
+  const folderIdScope = args.folderId;
+  const prefix = args.folderPathPrefix;
 
-  // Scoped match: same external item id AND same folder. The expected count
-  // here is at most 1 in normal usage, so a small in-memory filter is fine.
-  const target = args.folderId;
+  // The expected match count for these scopes is at most 1 in normal usage,
+  // so a small in-memory filter is fine.
   for await (const doc of candidates) {
-    if ((doc.folderId ?? null) === target) return doc;
+    if (folderIdScope !== undefined) {
+      if ((doc.folderId ?? null) !== folderIdScope) continue;
+    }
+    if (prefix !== undefined && prefix.length > 0) {
+      const path = doc.folderPath ?? '';
+      if (path !== prefix && !path.startsWith(prefix + '/')) continue;
+    }
+    return doc;
   }
   return null;
 }

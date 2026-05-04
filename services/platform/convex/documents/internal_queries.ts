@@ -57,6 +57,10 @@ export const findDocumentByExternalId = internalQuery({
     // When provided, scopes the lookup to a specific target folder (`null`
     // means the root). Omit to match across all folders (legacy behavior).
     folderId: v.optional(v.union(v.id('folders'), v.null())),
+    // When provided, scopes the lookup to docs whose `folderPath` equals the
+    // prefix or sits under it. Used by sync workflows to keep the cross-folder
+    // fallback confined to a single sync's target subtree.
+    folderPathPrefix: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await DocumentsHelpers.findDocumentByExternalId(ctx, args);

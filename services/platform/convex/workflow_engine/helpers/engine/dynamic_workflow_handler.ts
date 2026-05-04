@@ -100,6 +100,13 @@ export async function handleDynamicWorkflow(
     )?.stepSlug ||
       stepDefinitions[0]?.stepSlug);
 
+  // Stack of currently-active loop step slugs. Pushed when a loop step emits
+  // `port: 'loop'` for the first iteration, popped when the same loop emits
+  // `port: 'done'`. Used to honor `continueOnError` on the body's exception
+  // path: when a body step throws, walk the stack from the innermost loop
+  // outward and recover at the first loop that opted in.
+  const activeLoopStack: string[] = [];
+
   while (currentStepSlug) {
     const stepDef = stepMap.get(currentStepSlug);
     if (!stepDef) {
@@ -129,26 +136,67 @@ export async function handleDynamicWorkflow(
       stepRetryPolicy ?? workflowRetryPolicy ?? undefined;
     const retryBehavior = buildRetryBehaviorFromPolicy(effectiveRetryPolicy);
 
-    const stepResult = await step.runAction(
-      internal.workflow_engine.internal_actions.executeStep,
-      {
-        organizationId: stepDef.organizationId,
-        executionId: executionId,
-        stepSlug: stepDef.stepSlug,
-        stepType: stepDef.stepType,
-        stepName: stepDef.name,
-        threadId: args.threadId, // Pass shared threadId for agent orchestration workflows
-        initialInput: args.input,
-        resumeVariables: args.resumeVariables,
-      },
-      {
-        name: `${stepDef.name} (${stepDef.stepType})`,
-        retry: retryBehavior,
-      },
-    );
+    let stepResult;
+    try {
+      stepResult = await step.runAction(
+        internal.workflow_engine.internal_actions.executeStep,
+        {
+          organizationId: stepDef.organizationId,
+          executionId: executionId,
+          stepSlug: stepDef.stepSlug,
+          stepType: stepDef.stepType,
+          stepName: stepDef.name,
+          threadId: args.threadId, // Pass shared threadId for agent orchestration workflows
+          initialInput: args.input,
+          resumeVariables: args.resumeVariables,
+        },
+        {
+          name: `${stepDef.name} (${stepDef.stepType})`,
+          retry: retryBehavior,
+        },
+      );
+    } catch (err) {
+      // Honor `continueOnError` on a surrounding loop. We never recover
+      // exceptions thrown by a loop step itself — that would risk an infinite
+      // re-entry. Walk the stack inside-out so the innermost opt-in loop wins.
+      let recovered = false;
+      if (stepDef.stepType !== 'loop') {
+        for (let i = activeLoopStack.length - 1; i >= 0; i--) {
+          const ownerSlug = activeLoopStack[i];
+          const ownerStep = stepMap.get(ownerSlug);
+          const rawConfig: unknown = ownerStep?.config;
+          const ownerCfg = isRecord(rawConfig) ? rawConfig : undefined;
+          if (
+            ownerStep?.stepType === 'loop' &&
+            ownerCfg?.continueOnError === true
+          ) {
+            console.warn(
+              `[loop:${ownerSlug}] step '${stepDef.stepSlug}' failed, continuing iteration: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            );
+            // Trim nested loops nested above the recovery point — their
+            // remaining body is being skipped together with the failing step.
+            activeLoopStack.length = i + 1;
+            currentStepSlug = ownerSlug;
+            recovered = true;
+            break;
+          }
+        }
+      }
+      if (!recovered) throw err;
+      continue;
+    }
 
-    // Note: If step execution fails, it will throw an exception
-    // No need to check for success field anymore
+    // Track loop-step entry/exit so the catch above knows the active loop.
+    if (stepDef.stepType === 'loop') {
+      const top = activeLoopStack[activeLoopStack.length - 1];
+      if (stepResult.port === 'loop' && top !== stepDef.stepSlug) {
+        activeLoopStack.push(stepDef.stepSlug);
+      } else if (stepResult.port === 'done' && top === stepDef.stepSlug) {
+        activeLoopStack.pop();
+      }
+    }
 
     let nextStepSlug: string | null = null;
 

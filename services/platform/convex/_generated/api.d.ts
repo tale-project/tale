@@ -290,6 +290,7 @@ import type * as documents_update_document from "../documents/update_document.js
 import type * as documents_update_document_internal from "../documents/update_document_internal.js";
 import type * as documents_update_document_rag_info from "../documents/update_document_rag_info.js";
 import type * as documents_upload_base64_to_storage from "../documents/upload_base64_to_storage.js";
+import type * as documents_upsert_document_by_external_id from "../documents/upsert_document_by_external_id.js";
 import type * as documents_validators from "../documents/validators.js";
 import type * as feedback_mutations from "../feedback/mutations.js";
 import type * as feedback_queries from "../feedback/queries.js";
@@ -307,8 +308,10 @@ import type * as file_metadata_transcribe_audio from "../file_metadata/transcrib
 import type * as file_metadata_transcribe_dictation from "../file_metadata/transcribe_dictation.js";
 import type * as files_mutations from "../files/mutations.js";
 import type * as files_queries from "../files/queries.js";
+import type * as folders_find_folder_by_path from "../folders/find_folder_by_path.js";
 import type * as folders_get_or_create_path from "../folders/get_or_create_path.js";
 import type * as folders_internal_mutations from "../folders/internal_mutations.js";
+import type * as folders_internal_queries from "../folders/internal_queries.js";
 import type * as folders_mutations from "../folders/mutations.js";
 import type * as folders_queries from "../folders/queries.js";
 import type * as governance_budget_enforcement from "../governance/budget_enforcement.js";
@@ -1389,6 +1392,7 @@ declare const fullApi: ApiFromModules<{
   "documents/update_document_internal": typeof documents_update_document_internal;
   "documents/update_document_rag_info": typeof documents_update_document_rag_info;
   "documents/upload_base64_to_storage": typeof documents_upload_base64_to_storage;
+  "documents/upsert_document_by_external_id": typeof documents_upsert_document_by_external_id;
   "documents/validators": typeof documents_validators;
   "feedback/mutations": typeof feedback_mutations;
   "feedback/queries": typeof feedback_queries;
@@ -1406,8 +1410,10 @@ declare const fullApi: ApiFromModules<{
   "file_metadata/transcribe_dictation": typeof file_metadata_transcribe_dictation;
   "files/mutations": typeof files_mutations;
   "files/queries": typeof files_queries;
+  "folders/find_folder_by_path": typeof folders_find_folder_by_path;
   "folders/get_or_create_path": typeof folders_get_or_create_path;
   "folders/internal_mutations": typeof folders_internal_mutations;
+  "folders/internal_queries": typeof folders_internal_queries;
   "folders/mutations": typeof folders_mutations;
   "folders/queries": typeof folders_queries;
   "governance/budget_enforcement": typeof governance_budget_enforcement;
