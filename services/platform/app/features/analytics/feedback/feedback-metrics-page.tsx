@@ -206,23 +206,6 @@ export function FeedbackMetricsPage({
               aria-label={t('feedback.period.label')}
             />
           </div>
-          <div className="w-36">
-            <Select
-              options={kindOptions}
-              value={kind}
-              onValueChange={handleChangeKind}
-              size="sm"
-              aria-label={t('feedback.kind.label')}
-            />
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <Switch
-              checked={withCommentOnly}
-              onCheckedChange={onToggleCommentOnly}
-              aria-label={t('feedback.commentsOnly')}
-            />
-            <span>{t('feedback.commentsOnly')}</span>
-          </label>
         </HStack>
       </div>
 
@@ -309,6 +292,27 @@ export function FeedbackMetricsPage({
         hasMore={recent.status === 'CanLoadMore'}
         isLoadingMore={recent.status === 'LoadingMore'}
         onLoadMore={() => recent.loadMore(PAGE_SIZE)}
+        headerActions={
+          <HStack gap={2} className="flex-wrap">
+            <div className="w-36">
+              <Select
+                options={kindOptions}
+                value={kind}
+                onValueChange={handleChangeKind}
+                size="sm"
+                aria-label={t('feedback.kind.label')}
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <Switch
+                checked={withCommentOnly}
+                onCheckedChange={onToggleCommentOnly}
+                aria-label={t('feedback.commentsOnly')}
+              />
+              <span>{t('feedback.commentsOnly')}</span>
+            </label>
+          </HStack>
+        }
       />
     </Stack>
   );

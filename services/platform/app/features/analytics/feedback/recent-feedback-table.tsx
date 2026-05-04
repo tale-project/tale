@@ -2,7 +2,7 @@
 
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import { MessageSquare, ThumbsDown, ThumbsUp } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { type ReactNode, useCallback, useMemo } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -27,6 +27,8 @@ interface RecentFeedbackTableProps {
   hasMore: boolean;
   isLoadingMore: boolean;
   onLoadMore: () => void;
+  /** Right-aligned controls in the section header — kind/comments-only filters scoped to this table only. */
+  headerActions?: ReactNode;
 }
 
 export function RecentFeedbackTable({
@@ -35,6 +37,7 @@ export function RecentFeedbackTable({
   hasMore,
   isLoadingMore,
   onLoadMore,
+  headerActions,
 }: RecentFeedbackTableProps) {
   const { t: tAnalytics } = useT('analytics');
   const { t: tChat } = useT('chat');
@@ -197,9 +200,12 @@ export function RecentFeedbackTable({
 
   return (
     <div className={cn('flex flex-col gap-3')}>
-      <Text as="h3" className="text-foreground text-base font-semibold">
-        {tAnalytics('feedback.recent.title')}
-      </Text>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <Text as="h3" className="text-foreground text-base font-semibold">
+          {tAnalytics('feedback.recent.title')}
+        </Text>
+        {headerActions}
+      </div>
       <DataTable
         columns={columns}
         data={rows}
