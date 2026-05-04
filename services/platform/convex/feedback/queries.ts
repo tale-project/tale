@@ -150,7 +150,6 @@ export interface RecentFeedbackItem {
   arenaModelA: string | null;
   arenaModelB: string | null;
   isArena: boolean;
-  threadDeleted: boolean;
   createdAt: number;
 }
 
@@ -224,24 +223,8 @@ export const listRecentFeedback = query({
       return true;
     });
 
-    // Resolve user display names + thread-deleted state in a single pass
-    // each. getUserNamesBatch already dedupes; threadMetadata lookup is by
-    // primary key so cheap.
     const userIds = [...new Set(wanted.map((r) => r.userId))];
     const userNameMap = await getUserNamesBatch(ctx, userIds);
-
-    const threadIds = [...new Set(wanted.map((r) => r.threadId))];
-    const threadStatusMap = new Map<string, boolean>();
-    for (const threadId of threadIds) {
-      const meta = await ctx.db
-        .query('threadMetadata')
-        .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
-        .first();
-      threadStatusMap.set(
-        threadId,
-        !meta || meta.status === 'deleted' || meta.status === 'archived',
-      );
-    }
 
     const items: RecentFeedbackItem[] = wanted.map((row) => {
       const verdictRaw = row.metadata?.arenaVerdict;
@@ -266,7 +249,6 @@ export const listRecentFeedback = query({
         arenaModelA: row.metadata?.modelA ?? null,
         arenaModelB: row.metadata?.modelB ?? null,
         isArena: row.metadata?.arenaVerdict !== undefined,
-        threadDeleted: threadStatusMap.get(row.threadId) ?? false,
         createdAt: row.createdAt,
       };
     });

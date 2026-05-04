@@ -1,13 +1,7 @@
 'use client';
 
-import { Link } from '@tanstack/react-router';
 import type { ColumnDef, Row } from '@tanstack/react-table';
-import {
-  ExternalLink,
-  MessageSquare,
-  ThumbsDown,
-  ThumbsUp,
-} from 'lucide-react';
+import { MessageSquare, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
@@ -28,7 +22,6 @@ const VERDICT_I18N_KEY: Record<ArenaVerdict, string> = {
 };
 
 interface RecentFeedbackTableProps {
-  organizationId: string;
   rows: RecentFeedbackItem[];
   isLoading: boolean;
   hasMore: boolean;
@@ -37,7 +30,6 @@ interface RecentFeedbackTableProps {
 }
 
 export function RecentFeedbackTable({
-  organizationId,
   rows,
   isLoading,
   hasMore,
@@ -158,36 +150,8 @@ export function RecentFeedbackTable({
         ),
         size: 300,
       },
-      {
-        id: 'thread',
-        header: () => (
-          <div className="text-right">
-            {tAnalytics('feedback.recent.columns.thread')}
-          </div>
-        ),
-        cell: ({ row }) => {
-          if (row.original.threadDeleted) {
-            return <div className="text-muted-foreground text-right">—</div>;
-          }
-          return (
-            <div className="text-right">
-              <Link
-                to="/dashboard/$id/chat/$threadId"
-                params={{ id: organizationId, threadId: row.original.threadId }}
-                onClick={(e) => e.stopPropagation()}
-                aria-label={tAnalytics('feedback.recent.openThread')}
-                className="text-muted-foreground hover:text-foreground inline-flex items-center"
-              >
-                <ExternalLink className="size-4" />
-              </Link>
-            </div>
-          );
-        },
-        meta: { align: 'right' as const },
-        size: 80,
-      },
     ],
-    [tAnalytics, tChat, organizationId],
+    [tAnalytics, tChat],
   );
 
   const renderExpandedRow = useCallback(

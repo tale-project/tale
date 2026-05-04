@@ -3956,7 +3956,6 @@
         "emptyTitle": "Kein Feedback in diesem Zeitraum",
         "emptyDescription": "Passe Zeitraum oder Filter an, um mehr zu sehen.",
         "noComment": "(kein Kommentar)",
-        "openThread": "Chat öffnen",
         "helpfulAria": "Hilfreich",
         "notHelpfulAria": "Nicht hilfreich",
         "types": {
@@ -3970,8 +3969,7 @@
           "rating": "Bewertung",
           "agent": "Assistent",
           "model": "Modell",
-          "comment": "Kommentar",
-          "thread": "Chat"
+          "comment": "Kommentar"
         },
         "expanded": {
           "comment": "Kommentar",

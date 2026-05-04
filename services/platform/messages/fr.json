@@ -3963,7 +3963,6 @@
         "emptyTitle": "Aucun retour sur cette période",
         "emptyDescription": "Ajuste la période ou les filtres pour en voir davantage.",
         "noComment": "(aucun commentaire)",
-        "openThread": "Ouvrir le chat",
         "helpfulAria": "Utile",
         "notHelpfulAria": "Pas utile",
         "types": {
@@ -3977,8 +3976,7 @@
           "rating": "Évaluation",
           "agent": "Assistant",
           "model": "Modèle",
-          "comment": "Commentaire",
-          "thread": "Chat"
+          "comment": "Commentaire"
         },
         "expanded": {
           "comment": "Commentaire",

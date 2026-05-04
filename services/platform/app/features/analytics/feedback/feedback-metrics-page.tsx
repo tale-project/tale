@@ -299,7 +299,6 @@ export function FeedbackMetricsPage({
       />
 
       <RecentFeedbackTable
-        organizationId={organizationId}
         rows={recent.results}
         isLoading={recent.status === 'LoadingFirstPage'}
         hasMore={recent.status === 'CanLoadMore'}

@@ -37,7 +37,6 @@ export interface RecentFeedbackItem {
   arenaModelA: string | null;
   arenaModelB: string | null;
   isArena: boolean;
-  threadDeleted: boolean;
   createdAt: number;
 }
 

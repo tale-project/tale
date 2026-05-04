@@ -3956,7 +3956,6 @@
         "emptyTitle": "No feedback in this window",
         "emptyDescription": "Adjust the period or filters to see more.",
         "noComment": "(no comment)",
-        "openThread": "Open chat",
         "helpfulAria": "Helpful",
         "notHelpfulAria": "Not helpful",
         "types": {
@@ -3970,8 +3969,7 @@
           "rating": "Rating",
           "agent": "Assistant",
           "model": "Model",
-          "comment": "Comment",
-          "thread": "Thread"
+          "comment": "Comment"
         },
         "expanded": {
           "comment": "Comment",
