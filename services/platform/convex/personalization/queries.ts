@@ -17,20 +17,26 @@ import {
  * (`writeProposal`) paths so all three observe identical behavior.
  *
  * Auth: caller must own the thread AND be a current member of the
- * thread's org. Returns false on any miss (never throws — the chat UI
- * treats false as "don't render the section").
+ * thread's org. Both checks live inside `canAccessThread`, which returns
+ * `null` (not throws) for orphaned/non-member access — keeping this
+ * handler's "never throws" contract the chat UI relies on.
  */
 export const isPersonalizationActiveForChat = query({
   args: {
     threadId: v.string(),
+    organizationId: v.string(),
   },
   handler: async (ctx, args): Promise<boolean> => {
     const authUser = await requireAuthenticatedUser(ctx);
-    const meta = await canAccessThread(ctx, args.threadId, authUser);
+    const meta = await canAccessThread(
+      ctx,
+      args.threadId,
+      authUser,
+      args.organizationId,
+    );
     if (!meta || meta.userId !== authUser.userId) return false;
     const orgId = meta.organizationId;
     if (!orgId) return false;
-    await assertSelfAndOrgMember(ctx, authUser, authUser.userId, orgId);
 
     return evaluatePersonalizationGates(ctx, {
       userId: authUser.userId,

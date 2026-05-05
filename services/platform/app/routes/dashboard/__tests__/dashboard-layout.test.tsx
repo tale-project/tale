@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // --- Mocks ---
 
 const mockUseParams = vi.fn(() => ({ id: 'test-org-id' }));
+const mockNavigate = vi.fn();
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => ({
@@ -13,7 +14,7 @@ vi.mock('@tanstack/react-router', () => ({
     ...config,
   }),
   Outlet: () => <div data-testid="outlet" />,
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockNavigate,
   useLocation: () => ({ pathname: '/dashboard/test-org-id' }),
   useParams: () => mockUseParams(),
 }));
@@ -140,7 +141,7 @@ afterEach(() => {
 });
 
 describe('DashboardLayout', () => {
-  it('renders outlet when Convex auth is loading', () => {
+  it('shows spinner (not outlet) while Convex auth is loading', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: true,
       isAuthenticated: false,
@@ -153,10 +154,13 @@ describe('DashboardLayout', () => {
 
     render(<DashboardLayout />);
 
-    expect(screen.getByTestId('outlet')).toBeInTheDocument();
+    // Outlet must not render until access is confirmed — child routes mount
+    // org-scoped Convex subscriptions that throw on UnauthorizedError.
+    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
-  it('renders outlet when member context query is loading', () => {
+  it('shows spinner (not outlet) while member context query is loading', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: false,
       isAuthenticated: true,
@@ -169,10 +173,11 @@ describe('DashboardLayout', () => {
 
     render(<DashboardLayout />);
 
-    expect(screen.getByTestId('outlet')).toBeInTheDocument();
+    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
-  it('renders outlet when both auth and query are loading', () => {
+  it('shows spinner when both auth and query are loading', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: true,
       isAuthenticated: false,
@@ -185,7 +190,8 @@ describe('DashboardLayout', () => {
 
     render(<DashboardLayout />);
 
-    expect(screen.getByTestId('outlet')).toBeInTheDocument();
+    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
   it('renders child routes when auth complete and member has role', () => {
@@ -210,7 +216,7 @@ describe('DashboardLayout', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('shows access denied when user is not a member', () => {
+  it('shows access denied when user is not a member (no redirect)', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: false,
       isAuthenticated: true,
@@ -225,9 +231,12 @@ describe('DashboardLayout', () => {
 
     expect(screen.getByText('accessDenied.noMembership')).toBeInTheDocument();
     expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
+    // not_member intentionally preserves the AccessDenied "you've been removed"
+    // UX — should NOT trigger redirect.
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it('shows not-found when organization does not exist', () => {
+  it('redirects to /dashboard/ when organization does not exist', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: false,
       isAuthenticated: true,
@@ -240,11 +249,33 @@ describe('DashboardLayout', () => {
 
     render(<DashboardLayout />);
 
-    expect(screen.getByText('common.notFound.title')).toBeInTheDocument();
-    expect(
-      screen.getByText('accessDenied.workspaceNotFound'),
-    ).toBeInTheDocument();
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: '/dashboard',
+      replace: true,
+    });
+    // Until redirect commits, the AccessDenied fallback is shown without
+    // layout chrome (no outlet, no Navigation/MobileNavigation subscriptions).
     expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
+  });
+
+  it('does not redirect twice on re-render with not_found status', () => {
+    mockUseConvexAuth.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+    });
+    mockUseCurrentMemberContext.mockReturnValue({
+      data: { status: 'not_found' },
+      isLoading: false,
+      isError: false,
+    });
+
+    const { rerender } = render(<DashboardLayout />);
+    rerender(<DashboardLayout />);
+    rerender(<DashboardLayout />);
+
+    // useRef guard keeps redirect a one-shot effect across re-renders.
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
   });
 
   it('passes organizationId from route params to useCurrentMemberContext', () => {
@@ -296,7 +327,7 @@ describe('DashboardLayout', () => {
     expect(mockUseCurrentMemberContext.mock.calls[0]?.[1]).toBe(false);
   });
 
-  it('renders outlet when query errors (treats error as loading)', () => {
+  it('shows spinner (not outlet) when query errors without prior data', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: false,
       isAuthenticated: true,
@@ -309,10 +340,15 @@ describe('DashboardLayout', () => {
 
     render(<DashboardLayout />);
 
-    expect(screen.getByTestId('outlet')).toBeInTheDocument();
+    // Without resolved memberContext we can't confirm access — fall through
+    // to the loading spinner rather than rendering Outlet (which would mount
+    // org-scoped subscriptions) or AccessDenied (which would be misleading
+    // for a transient error).
+    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
     expect(
       screen.queryByText('accessDenied.noMembership'),
     ).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
   it('keeps outlet visible when query errors but has previous data', () => {

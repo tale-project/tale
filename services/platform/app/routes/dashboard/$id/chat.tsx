@@ -107,7 +107,7 @@ function ThreadGate({
   // Returns undefined while loading, null if thread not found / not owned.
   const threadStatus = useQuery(
     api.threads.queries.getThreadStatus,
-    threadId && !isJustCreated ? { threadId } : 'skip',
+    threadId && !isJustCreated ? { threadId, organizationId } : 'skip',
   );
 
   // No threadId or just-created thread → render immediately. BranchProvider
@@ -283,7 +283,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
               and request the right thread's artifacts. Without this, the bar
               shows the URL's root thread regardless of which branch the user
               is viewing. */}
-          <BranchProvider threadId={threadId}>
+          <BranchProvider threadId={threadId} organizationId={organizationId}>
             <BudgetBanner organizationId={organizationId} />
             {threadId && (
               <BranchAwareArtifactBar organizationId={organizationId} />

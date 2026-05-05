@@ -25,7 +25,12 @@ export function createRouter() {
       queries: {
         queryKeyHashFn: convexQueryClient.hashFn(),
         queryFn: convexQueryClient.queryFn(),
-        gcTime: 120 * 60 * 1000,
+        // 15min: bounds stale Convex subscription leak when components unmount
+        // (the @convex-dev/react-query integration ties WS subscription teardown
+        // to React Query's cache 'removed' event, which fires only after gcTime
+        // expires with zero observers). Aligned with the codebase's 5min staleTime
+        // and TanStack defaults.
+        gcTime: 15 * 60 * 1000,
       },
     },
   });

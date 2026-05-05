@@ -11,10 +11,11 @@ import { api } from '@/convex/_generated/api';
  */
 export function usePersonalizationActiveForThread(
   threadId: string | undefined,
+  organizationId: string,
 ): boolean {
   const result = useQuery(
     api.personalization.queries.isPersonalizationActiveForChat,
-    threadId ? { threadId } : 'skip',
+    threadId ? { threadId, organizationId } : 'skip',
   );
   return result === true;
 }

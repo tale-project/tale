@@ -1,6 +1,6 @@
 import { Spinner } from '@tale/ui/spinner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Outlet, createFileRoute } from '@tanstack/react-router';
+import { Outlet, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation } from 'convex/react';
 import { useEffect, useRef } from 'react';
 
@@ -126,6 +126,56 @@ function DashboardLayout() {
     }
   }, [isDisabled, t]);
 
+  // Bounce away from a deleted-org URL. Handles cross-tab live deletion (tab A
+  // deletes the org; tab B's getCurrentMemberContext subscription pushes
+  // 'not_found' via Convex reactivity), bookmarks/history into deleted orgs,
+  // and racy fallthrough during deletion. /dashboard/ index has fallback logic
+  // (persistedStillMember) that prevents looping back to the deleted org.
+  // 'not_member' intentionally not redirected — preserve the AccessDenied
+  // "you've been removed" message; the early-bailout below already prevents
+  // its layout-chrome subscription leak.
+  const navigate = useNavigate();
+  const redirectedRef = useRef(false);
+  useEffect(() => {
+    if (status === 'not_found' && !redirectedRef.current) {
+      redirectedRef.current = true;
+      void navigate({ to: '/dashboard', replace: true });
+    }
+  }, [status, navigate]);
+
+  // Gate the entire child tree behind a confirmed-access answer. Until
+  // memberContext resolves with status === 'ok', do NOT render the layout
+  // chrome or Outlet. Child routes (chat, agents, …) mount Convex
+  // subscriptions on mount; several use convex/react's useQuery, which
+  // *throws* to React on UnauthorizedError. If the user lands on a deleted
+  // or unauthorized org URL, those throws hit the inner LayoutErrorBoundary
+  // and surface "Something went wrong" before this layout has a chance to
+  // bail out. Showing a centred spinner while the access check is in flight
+  // also avoids a brief chrome flash on cold loads.
+  if (!hasRole) {
+    if (memberContext && status !== 'ok') {
+      return (
+        <FullPageCenter>
+          {status === 'not_found' ? (
+            <AccessDenied
+              title={tNotFound('notFound.title')}
+              message={t('workspaceNotFound')}
+            />
+          ) : (
+            <AccessDenied
+              message={t(isDisabled ? 'disabled' : 'noMembership')}
+            />
+          )}
+        </FullPageCenter>
+      );
+    }
+    return (
+      <FullPageCenter>
+        <Spinner size="lg" />
+      </FullPageCenter>
+    );
+  }
+
   return (
     <AbilityContext.Provider value={ability}>
       <AbilityLoadingContext.Provider value={isLoading}>
@@ -166,17 +216,8 @@ function DashboardLayout() {
                       </Text>
                     </VStack>
                   </FullPageCenter>
-                ) : hasRole || isLoading ? (
-                  <Outlet />
-                ) : status === 'not_found' ? (
-                  <AccessDenied
-                    title={tNotFound('notFound.title')}
-                    message={t('workspaceNotFound')}
-                  />
                 ) : (
-                  <AccessDenied
-                    message={t(isDisabled ? 'disabled' : 'noMembership')}
-                  />
+                  <Outlet />
                 )}
               </main>
             </div>

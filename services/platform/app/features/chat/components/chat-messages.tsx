@@ -181,7 +181,10 @@ export function ChatMessages({
   // `sourceMessageId` never resolves to a visible message id (e.g.
   // generation crashed before the resolver ran) stay invisible here
   // and remain manageable from /settings/personalization.
-  const personalizationActive = usePersonalizationActiveForThread(threadId);
+  const personalizationActive = usePersonalizationActiveForThread(
+    threadId,
+    organizationId,
+  );
   const pendingMemories = useQuery(
     api.user_memories.queries.listPendingMemories,
     personalizationActive && threadId ? { threadId } : 'skip',
