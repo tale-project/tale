@@ -31,7 +31,9 @@ COPY packages/ui ./packages/ui
 COPY services/web ./services/web
 
 ENV NODE_ENV=production
-RUN cd services/web && bun --bun vite build
+WORKDIR /app/services/web
+RUN bun --bun vite build
+WORKDIR /app
 
 # ============================================================================
 # Stage 3: runtime

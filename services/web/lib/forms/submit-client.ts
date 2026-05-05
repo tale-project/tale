@@ -1,8 +1,6 @@
 import type { SubmitRequest } from './schemas';
 
-export type SubmitResult =
-  | { ok: true }
-  | { ok: false; status: number; error: string };
+type SubmitResult = { ok: true } | { ok: false; status: number; error: string };
 
 export async function submitForm(
   request: SubmitRequest,

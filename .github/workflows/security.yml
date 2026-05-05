@@ -93,6 +93,10 @@ jobs:
           exit-code: '0'
           scanners: 'vuln,secret,misconfig'
           ignore-unfixed: true
+          # Skip handlebars Dockerfile templates: handlebars syntax confuses
+          # the misconfig scanner. The generated Dockerfiles are scanned
+          # downstream when each service runs its own build.
+          skip-files: 'tools/plop/templates/**/Dockerfile.hbs'
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4

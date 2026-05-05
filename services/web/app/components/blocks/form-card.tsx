@@ -19,13 +19,13 @@ import { useT } from '@/lib/i18n/client';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
-export interface BasePayload extends FieldValues {
+interface BasePayload extends FieldValues {
   privacy: boolean;
   startedAt: number;
   website?: string;
 }
 
-export interface FormCardProps {
+interface FormCardProps {
   eyebrow?: string;
   title: string;
   description?: ReactNode;

@@ -3,14 +3,14 @@ import type { LucideIcon } from 'lucide-react';
 
 import { SiteContainer } from '@/app/components/layout/site-container';
 
-export interface FeatureGridItem {
+interface FeatureGridItem {
   icon: LucideIcon;
   title: string;
   description: string;
   illustration?: string;
 }
 
-export interface FeatureGridProps {
+interface FeatureGridProps {
   title: string;
   description?: string;
   items: FeatureGridItem[];

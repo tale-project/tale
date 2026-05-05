@@ -31,7 +31,9 @@ COPY packages/ui ./packages/ui
 COPY services/{{kebabCase name}} ./services/{{kebabCase name}}
 
 ENV NODE_ENV=production
-RUN cd services/{{kebabCase name}} && bun --bun vite build
+WORKDIR /app/services/{{kebabCase name}}
+RUN bun --bun vite build
+WORKDIR /app
 
 # ============================================================================
 # Stage 3: runtime

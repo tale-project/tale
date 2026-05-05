@@ -41,6 +41,7 @@
 # =============================================================================
 *.md
 docs/
+!docs/package.json
 README.md
 
 # =============================================================================
@@ -119,10 +120,17 @@ compose.*.yml
 # Local Convex artifacts not shipped in the platform image
 **/.convex/
 
-# Other services not needed in the platform image
+# Other services not needed in the platform image (but keep their package.json
+# so the workspace dep stage can resolve cross-service references)
 services/web/
+!services/web/package.json
 services/convex/
+!services/convex/package.json
 services/crawler/
+!services/crawler/package.json
 services/rag/
+!services/rag/package.json
 services/db/
+!services/db/package.json
 services/proxy/
+!services/proxy/package.json
