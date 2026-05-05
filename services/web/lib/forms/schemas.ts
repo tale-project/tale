@@ -70,7 +70,7 @@ const baseFields = {
 };
 
 export const REQUEST_DEMO_INTERESTS = [
-  'pro_enterprise',
+  'enterprise',
   'professional_services',
   'custom_ai_training',
   'ai_hardware',

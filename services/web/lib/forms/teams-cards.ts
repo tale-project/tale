@@ -10,7 +10,7 @@ interface AdaptiveCardFact {
 }
 
 const INTEREST_LABELS: Record<string, string> = {
-  pro_enterprise: 'Pro/Enterprise solutions',
+  enterprise: 'Enterprise solutions',
   professional_services: 'Professional services',
   custom_ai_training: 'Custom AI model training',
   ai_hardware: 'AI hardware',

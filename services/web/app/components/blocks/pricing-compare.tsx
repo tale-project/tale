@@ -2,7 +2,7 @@ import { Button } from '@tale/ui/button';
 import { Link } from '@tanstack/react-router';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Check, Minus } from 'lucide-react';
-import { Fragment, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 import {
   CompareTable,
@@ -11,9 +11,10 @@ import {
 } from '@/app/components/blocks/compare-table';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
+import type { Region } from '@/lib/pricing/region';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
-const TIER_KEYS = ['community', 'pro', 'enterprise'] as const;
+const TIER_KEYS = ['community', 'enterprise'] as const;
 type TierKey = (typeof TIER_KEYS)[number];
 
 type Cell =
@@ -40,37 +41,13 @@ interface SectionRow {
 
 type Row = DataRow | SpanRow | SectionRow;
 
-// Inline ✓ marker used inside text-cell values (e.g. "Cloud: ✓"). Same
-// green Check glyph as the dedicated check cell so the table reads
-// consistently regardless of whether the value is a pure check or a
-// labelled one.
-function InlineCheck({ label }: { label: string }) {
-  return (
-    <Check
-      className="inline-block h-4 w-4 align-[-0.125em] text-emerald-600"
-      strokeWidth={2}
-      aria-label={label}
-    />
-  );
-}
-
-function renderTextWithChecks(value: string, yesLabel: string): ReactNode {
-  if (!value.includes('✓')) return value;
-  const parts = value.split('✓');
-  return parts.map((part, i) => (
-    <Fragment key={i}>
-      {part}
-      {i < parts.length - 1 ? <InlineCheck label={yesLabel} /> : null}
-    </Fragment>
-  ));
-}
-
 function renderCell(cell: Cell, yesLabel: string, noLabel: string): ReactNode {
   if (cell.kind === 'check') {
     return (
       <Check
         className="mx-auto h-5 w-5 text-emerald-600"
         strokeWidth={2}
+        role="img"
         aria-label={yesLabel}
       />
     );
@@ -86,12 +63,16 @@ function renderCell(cell: Cell, yesLabel: string, noLabel: string): ReactNode {
   }
   return (
     <span className="text-fg-muted block whitespace-pre-line">
-      {renderTextWithChecks(cell.value, yesLabel)}
+      {cell.value}
     </span>
   );
 }
 
-export function PricingCompare() {
+interface PricingCompareProps {
+  region: Region;
+}
+
+export function PricingCompare({ region }: PricingCompareProps) {
   const { t } = useT('pricing');
   const reduceMotion = useReducedMotion();
 
@@ -101,56 +82,64 @@ export function PricingCompare() {
   const yesLabel = t('compare.cellLabels.yes');
   const noLabel = t('compare.cellLabels.no');
 
+  const installationFee = t(`compare.values.installationFee.${region}`);
+  const hourlyRate = t(`compare.values.hourlyRate.${region}`);
+
   const rows: Row[] = [
     { kind: 'section', label: t('compare.categories.deployment') },
     {
       kind: 'data',
       label: t('compare.rows.selfHosted'),
-      cells: { community: check, pro: check, enterprise: check },
+      cells: { community: check, enterprise: check },
     },
     {
       kind: 'data',
       label: t('compare.rows.cloud'),
-      cells: { community: dash, pro: check, enterprise: check },
+      cells: { community: dash, enterprise: check },
+    },
+    {
+      kind: 'data',
+      label: t('compare.rows.localDataCenters'),
+      cells: { community: dash, enterprise: check },
     },
 
     { kind: 'section', label: t('compare.categories.compliance') },
     {
       kind: 'data',
       label: t('compare.rows.gdpr'),
-      cells: { community: dash, pro: check, enterprise: check },
+      cells: { community: dash, enterprise: check },
     },
     {
       kind: 'data',
       label: t('compare.rows.iso'),
-      cells: { community: dash, pro: check, enterprise: check },
+      cells: { community: dash, enterprise: check },
     },
     {
       kind: 'data',
       label: t('compare.rows.piiRedaction'),
-      cells: { community: dash, pro: check, enterprise: check },
+      cells: { community: check, enterprise: check },
     },
 
     { kind: 'section', label: t('compare.categories.support') },
     {
       kind: 'data',
       label: t('compare.rows.emailSupport'),
-      cells: { community: dash, pro: check, enterprise: check },
+      cells: { community: dash, enterprise: check },
     },
     {
       kind: 'data',
       label: t('compare.rows.phoneSupport'),
-      cells: { community: dash, pro: dash, enterprise: check },
+      cells: { community: dash, enterprise: check },
     },
     {
       kind: 'data',
       label: t('compare.rows.whatsappSupport'),
-      cells: { community: dash, pro: dash, enterprise: check },
+      cells: { community: dash, enterprise: check },
     },
     {
       kind: 'data',
       label: t('compare.rows.remoteSupport'),
-      cells: { community: dash, pro: dash, enterprise: check },
+      cells: { community: dash, enterprise: check },
     },
 
     { kind: 'section', label: t('compare.sections.services') },
@@ -158,8 +147,7 @@ export function PricingCompare() {
       kind: 'data',
       label: t('compare.categories.installation'),
       cells: {
-        community: text(t('compare.values.installationFee')),
-        pro: text(t('compare.values.installationFee')),
+        community: text(installationFee),
         enterprise: check,
       },
     },
@@ -167,25 +155,30 @@ export function PricingCompare() {
       kind: 'data',
       label: t('compare.categories.maintenance'),
       cells: {
-        community: text(t('compare.values.maintenanceRate')),
-        pro: text(t('compare.values.proMaintenance')),
+        community: text(hourlyRate),
         enterprise: check,
       },
     },
     {
-      kind: 'span',
+      kind: 'data',
       label: t('compare.categories.customDevelopment'),
-      content: t('compare.values.customDevelopmentRate'),
+      cells: {
+        community: text(hourlyRate),
+        enterprise: text(hourlyRate),
+      },
     },
     {
-      kind: 'span',
+      kind: 'data',
       label: t('compare.categories.consulting'),
-      content: t('compare.values.consultingRate'),
+      cells: {
+        community: text(hourlyRate),
+        enterprise: text(hourlyRate),
+      },
     },
     {
       kind: 'data',
       label: t('compare.categories.roadmap'),
-      cells: { community: dash, pro: dash, enterprise: check },
+      cells: { community: dash, enterprise: check },
     },
 
     {
@@ -239,7 +232,7 @@ export function PricingCompare() {
     name: t(`${key}.name`),
     cta: (
       <Button
-        variant={key === 'pro' ? 'primary' : 'secondary'}
+        variant={key === 'enterprise' ? 'primary' : 'secondary'}
         asChild
         fullWidth
         className="hidden sm:inline-flex"
@@ -256,7 +249,6 @@ export function PricingCompare() {
       label: row.label,
       cells: {
         community: renderCell(row.cells.community, yesLabel, noLabel),
-        pro: renderCell(row.cells.pro, yesLabel, noLabel),
         enterprise: renderCell(row.cells.enterprise, yesLabel, noLabel),
       },
     };

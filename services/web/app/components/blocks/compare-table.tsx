@@ -33,7 +33,7 @@ export type CompareRow<TK extends string> =
   | CompareSpanRow
   | CompareSectionRow;
 
-export interface CompareTableProps<TK extends string> {
+interface CompareTableProps<TK extends string> {
   /** Screen-reader-only caption for the leading column. */
   caption: string;
   /** Tier definitions, rendered as sticky column headers (left → right). */

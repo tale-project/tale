@@ -115,7 +115,6 @@ export function HardwareTiers() {
               key={tier.key}
               name={t(`tiers.${tier.key}.name`)}
               popular={tier.popular}
-              popularLabel={t('popular')}
               price={formatApproximateCurrency(
                 billing === 'renting' ? tier.rentalAmount : tier.buyAmount,
                 {

@@ -3,74 +3,137 @@ import { formatCurrency } from '@tale/ui/format';
 import { Link } from '@tanstack/react-router';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Check } from 'lucide-react';
-import { useState } from 'react';
 
+import type { Billing } from '@/app/components/blocks/pricing-section';
 import { TierCard } from '@/app/components/blocks/tier-card';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
+import {
+  REGION_CURRENCY,
+  REGION_FORMAT_LOCALE,
+  REGIONS,
+  type Region,
+} from '@/lib/pricing/region';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
-const PRICING_LOCALE = 'de-CH';
-const PRICING_CURRENCY = 'CHF';
 
-type BillingMode = 'monthly' | 'yearly';
+const PER_USER_MONTHLY: Record<Region, number> = { CH: 15, DE: 17 };
+const STORAGE_PER_TB_MONTHLY: Record<Region, number> = { CH: 10, DE: 12 };
 
-interface Tier {
-  key: 'community' | 'pro' | 'enterprise';
-  /** `null` = free tier (renders the `community.price` string verbatim). */
-  monthlyAmount: number | null;
-  popular?: boolean;
-  cta: { kind: 'demo' } | { kind: 'external'; href: string };
+const BILLINGS: readonly Billing[] = ['yearly', 'monthly'] as const;
+
+const COMMUNITY_FEATURES = [
+  'community.feature1',
+  'community.feature2',
+  'community.feature3',
+  'community.feature4',
+] as const;
+
+const ENTERPRISE_FEATURES = [
+  'enterprise.feature1',
+  'enterprise.feature2',
+  'enterprise.feature3',
+  'enterprise.feature4',
+  'enterprise.feature5',
+  'enterprise.feature6',
+  'enterprise.feature7',
+] as const;
+
+interface PricingTiersProps {
+  billing: Billing;
+  region: Region;
+  onBillingChange: (next: Billing) => void;
+  onRegionChange: (next: Region) => void;
 }
 
-const TIERS: Tier[] = [
-  {
-    key: 'community',
-    monthlyAmount: null,
-    cta: { kind: 'external', href: 'https://docs.tale.dev' },
-  },
-  {
-    key: 'pro',
-    monthlyAmount: 299,
-    popular: true,
-    cta: { kind: 'demo' },
-  },
-  {
-    key: 'enterprise',
-    monthlyAmount: 1199,
-    cta: { kind: 'demo' },
-  },
-];
+function formatPerUserMonthly(region: Region): string {
+  return formatCurrency(PER_USER_MONTHLY[region], {
+    currency: REGION_CURRENCY[region],
+    locale: REGION_FORMAT_LOCALE[region],
+    maximumFractionDigits: 0,
+  });
+}
 
-const FEATURES_PER_TIER: Record<Tier['key'], string[]> = {
-  community: [
-    'community.feature1',
-    'community.feature2',
-    'community.feature3',
-    'community.feature4',
-  ],
-  pro: [
-    'pro.feature1',
-    'pro.feature2',
-    'pro.feature3',
-    'pro.feature4',
-    'pro.gdpr',
-  ],
-  enterprise: [
-    'enterprise.feature1',
-    'enterprise.feature2',
-    'enterprise.feature3',
-    'enterprise.feature4',
-    'enterprise.feature5',
-    'enterprise.feature6',
-  ],
-};
+function formatStoragePrice(region: Region): string {
+  return formatCurrency(STORAGE_PER_TB_MONTHLY[region], {
+    currency: REGION_CURRENCY[region],
+    locale: REGION_FORMAT_LOCALE[region],
+    maximumFractionDigits: 0,
+  });
+}
 
-export function PricingTiers() {
+interface SegmentedControlProps<T extends string> {
+  ariaLabel: string;
+  value: T;
+  options: readonly T[];
+  onChange: (next: T) => void;
+  renderLabel: (option: T) => string;
+}
+
+function SegmentedControl<T extends string>({
+  ariaLabel,
+  value,
+  options,
+  onChange,
+  renderLabel,
+}: SegmentedControlProps<T>) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className="bg-bg-elevated flex w-fit items-center gap-1 rounded-md p-0.5"
+    >
+      {options.map((option) => {
+        const isActive = value === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            role="radio"
+            aria-checked={isActive}
+            onClick={() => onChange(option)}
+            className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
+              isActive
+                ? 'bg-bg-base text-fg-base shadow-sm'
+                : 'text-fg-muted hover:text-fg-base cursor-pointer'
+            }`}
+          >
+            {renderLabel(option)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+interface TierNameProps {
+  name: string;
+  deploymentLabel: string;
+}
+
+function TierName({ name, deploymentLabel }: TierNameProps) {
+  return (
+    <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
+      <span>{name}</span>
+      <span className="text-fg-muted text-sm font-normal">
+        ({deploymentLabel})
+      </span>
+    </span>
+  );
+}
+
+export function PricingTiers({
+  billing,
+  region,
+  onBillingChange,
+  onRegionChange,
+}: PricingTiersProps) {
   const { t } = useT('pricing');
   const reduceMotion = useReducedMotion();
   const fadeInitial = reduceMotion ? false : { opacity: 0, y: 24 };
-  const [billing, setBilling] = useState<BillingMode>('monthly');
+
+  const enterprisePrice = formatPerUserMonthly(region);
+  const storagePrice = formatStoragePrice(region);
 
   return (
     <section className="border-border-base scroll-mt-16 border-b py-20">
@@ -91,108 +154,133 @@ export function PricingTiers() {
             {t('title')}
           </h1>
           <p
-            className="text-fg-muted max-w-[560px] text-base md:text-lg"
+            className="text-fg-muted max-w-[600px] text-base md:text-lg"
             style={{ letterSpacing: '-0.27px', lineHeight: 1.556 }}
           >
             {t('description')}
           </p>
         </motion.header>
 
-        <div
-          role="radiogroup"
-          aria-label={t('billing.monthly')}
-          className="bg-bg-elevated mx-auto mt-10 flex w-fit items-center gap-1 rounded-md p-0.5"
-        >
-          {(['monthly', 'yearly'] as BillingMode[]).map((mode) => {
-            const isActive = billing === mode;
-            return (
-              <button
-                key={mode}
-                type="button"
-                role="radio"
-                aria-checked={isActive}
-                onClick={() => setBilling(mode)}
-                className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-bg-base text-fg-base shadow-sm'
-                    : 'text-fg-muted hover:text-fg-base cursor-pointer'
-                }`}
-              >
-                {t(`billing.${mode}`)}
-              </button>
-            );
-          })}
+        <div className="mx-auto mt-10 flex flex-col items-center gap-3 md:flex-row md:justify-center md:gap-4">
+          <SegmentedControl
+            ariaLabel={t('billing.ariaLabel')}
+            value={billing}
+            options={BILLINGS}
+            onChange={onBillingChange}
+            renderLabel={(opt) => t(`billing.${opt}`)}
+          />
+          <SegmentedControl
+            ariaLabel={t('region.ariaLabel')}
+            value={region}
+            options={REGIONS}
+            onChange={onRegionChange}
+            renderLabel={(opt) => t(`region.${opt}`)}
+          />
         </div>
 
-        <div className="border-border-base mx-auto mt-12 grid max-w-[1120px] grid-cols-1 overflow-hidden border lg:grid-cols-3">
-          {TIERS.map((tier, idx) => (
-            <TierCard
-              key={tier.key}
-              name={t(`${tier.key}.name`)}
-              popular={tier.popular}
-              popularLabel={t('popular')}
-              price={
-                tier.monthlyAmount === null
-                  ? t(`${tier.key}.price`)
-                  : formatCurrency(
-                      billing === 'yearly'
-                        ? tier.monthlyAmount * 10
-                        : tier.monthlyAmount,
-                      {
-                        currency: PRICING_CURRENCY,
-                        locale: PRICING_LOCALE,
-                        maximumFractionDigits: 0,
-                      },
-                    )
-              }
-              priceSuffix={t(`${tier.key}.priceSuffix`)}
-              tagline={t(`${tier.key}.tagline`)}
-              animationDelay={idx * 0.06}
-            >
-              <div className="border-border-base flex flex-col gap-3 border-t pt-6">
-                <p
-                  className="text-fg-base text-sm font-medium"
-                  style={{ letterSpacing: '-0.21px', lineHeight: 1.5 }}
-                >
-                  {t('planIncludes')}
-                </p>
-                <ul role="list" className="flex flex-col gap-3">
-                  {FEATURES_PER_TIER[tier.key].map((featureKey) => (
-                    <li
-                      key={featureKey}
-                      className="text-fg-base flex items-start gap-2 text-sm"
-                      style={{ letterSpacing: '-0.21px', lineHeight: 1.5 }}
-                    >
-                      <Check
-                        className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"
-                        strokeWidth={2}
-                        aria-hidden
-                      />
-                      <span>{t(featureKey)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+        <div className="border-border-base mx-auto mt-12 grid max-w-[800px] grid-cols-1 items-stretch overflow-hidden border lg:grid-cols-2">
+          <TierCard
+            name={
+              <TierName
+                name={t('community.name')}
+                deploymentLabel={t('community.deployment')}
+              />
+            }
+            price={t('community.price')}
+            priceSuffix={t('community.priceSuffix')}
+            priceFootnote=" "
+            tagline={t('community.tagline')}
+            animationDelay={0}
+          >
+            <div className="border-border-base flex flex-col gap-3 border-t pt-6">
+              <p
+                className="text-fg-base text-sm font-medium"
+                style={{ letterSpacing: '-0.21px', lineHeight: 1.5 }}
+              >
+                {t('planIncludes')}
+              </p>
+              <ul role="list" className="flex flex-col gap-3">
+                {COMMUNITY_FEATURES.map((featureKey) => (
+                  <li
+                    key={featureKey}
+                    className="text-fg-base flex items-start gap-2 text-sm"
+                    style={{ letterSpacing: '-0.21px', lineHeight: 1.5 }}
+                  >
+                    <Check
+                      className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"
+                      strokeWidth={2}
+                      aria-hidden
+                    />
+                    <span>{t(featureKey)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-              <div className="mt-auto pt-2">
-                {tier.cta.kind === 'external' ? (
-                  <Button asChild variant="secondary" fullWidth>
-                    <a
-                      href={tier.cta.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {t(`${tier.key}.cta`)}
-                    </a>
-                  </Button>
-                ) : (
-                  <Button asChild fullWidth>
-                    <Link to="/request-demo">{t(`${tier.key}.cta`)}</Link>
-                  </Button>
-                )}
-              </div>
-            </TierCard>
-          ))}
+            <div className="mt-auto pt-2">
+              <Button asChild variant="secondary" fullWidth>
+                <a
+                  href="https://docs.tale.dev"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t('community.cta')}
+                </a>
+              </Button>
+            </div>
+          </TierCard>
+
+          <TierCard
+            popular
+            name={
+              <TierName
+                name={t('enterprise.name')}
+                deploymentLabel={t('enterprise.deployment')}
+              />
+            }
+            price={enterprisePrice}
+            priceSuffix={t('enterprise.priceSuffix')}
+            priceFootnote={t(`billingNote.${billing}`)}
+            tagline={t('enterprise.tagline')}
+            animationDelay={0.06}
+          >
+            <div className="border-border-base flex flex-col gap-3 border-t pt-6">
+              <p
+                className="text-fg-base text-sm font-medium"
+                style={{ letterSpacing: '-0.21px', lineHeight: 1.5 }}
+              >
+                {t('planIncludes')}
+              </p>
+              <ul role="list" className="flex flex-col gap-3">
+                {ENTERPRISE_FEATURES.map((featureKey) => (
+                  <li
+                    key={featureKey}
+                    className="text-fg-base flex items-start gap-2 text-sm"
+                    style={{ letterSpacing: '-0.21px', lineHeight: 1.5 }}
+                  >
+                    <Check
+                      className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"
+                      strokeWidth={2}
+                      aria-hidden
+                    />
+                    <span>{t(featureKey)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p
+                className="text-fg-muted mt-1 text-xs"
+                style={{ letterSpacing: '-0.18px', lineHeight: 1.5 }}
+              >
+                {t('enterprise.storageAddOn', { price: storagePrice })}
+              </p>
+            </div>
+
+            <div className="mt-auto pt-2">
+              <Button asChild fullWidth>
+                <Link to="/request-demo">{t('enterprise.cta')}</Link>
+              </Button>
+            </div>
+          </TierCard>
         </div>
 
         <p

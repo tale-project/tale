@@ -12,29 +12,33 @@ import globalMessages from '@/messages/global.json';
 
 import { defaultLocale } from './config';
 
+type Bundle = Record<string, Record<string, unknown>>;
+
+// Merge per-locale namespaces on top of shared globals one namespace deep,
+// so locale-specific keys (e.g. `languageSwitcher.ariaLabel`) coexist with
+// shared keys (e.g. `languageSwitcher.locales`) instead of clobbering them.
+function mergeWithGlobal(locale: Bundle, global: Bundle): Bundle {
+  const out: Bundle = { ...global };
+  for (const [ns, value] of Object.entries(locale)) {
+    out[ns] = { ...global[ns], ...value };
+  }
+  return out;
+}
+
 void i18n
   .use(ICU)
   .use(initReactI18next)
   .init({
     resources: {
-      de: {
-        ...deMessages,
-        ...globalMessages,
-      },
+      de: mergeWithGlobal(deMessages, globalMessages),
       'de-AT': {
         ...deAtMessages,
       },
       'de-CH': {
         ...deChMessages,
       },
-      en: {
-        ...enMessages,
-        ...globalMessages,
-      },
-      fr: {
-        ...frMessages,
-        ...globalMessages,
-      },
+      en: mergeWithGlobal(enMessages, globalMessages),
+      fr: mergeWithGlobal(frMessages, globalMessages),
       'fr-CH': {
         ...frChMessages,
       },

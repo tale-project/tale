@@ -88,7 +88,7 @@ export function defineMessagesParityTests(config: MessagesParityConfig): void {
   const baseKeys = flatten(loadLocale(messagesDir, baseLocale));
 
   describe('i18n messages parity', () => {
-    describe.each(primary)('primary locale %s', (locale) => {
+    describe.for(primary)('primary locale %s', (locale) => {
       const keys = flatten(loadLocale(messagesDir, locale));
 
       it(`has every key from ${baseLocale}.json`, () => {
@@ -99,7 +99,7 @@ export function defineMessagesParityTests(config: MessagesParityConfig): void {
         ).toEqual([]);
       });
 
-      it(`has no keys missing from ${baseLocale}.json`, () => {
+      it(`has no extra keys not present in ${baseLocale}.json`, () => {
         const extra = [...keys].filter((k) => !baseKeys.has(k));
         expect(
           extra,
@@ -108,10 +108,10 @@ export function defineMessagesParityTests(config: MessagesParityConfig): void {
       });
     });
 
-    describe.each(regional)('regional override %s', (locale) => {
+    describe.for(regional)('regional override %s', (locale) => {
       const keys = flatten(loadLocale(messagesDir, locale));
 
-      it(`has no keys missing from ${baseLocale}.json`, () => {
+      it(`has no extra keys not present in ${baseLocale}.json`, () => {
         const extra = [...keys].filter((k) => !baseKeys.has(k));
         expect(
           extra,

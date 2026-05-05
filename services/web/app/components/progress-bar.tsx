@@ -1,6 +1,6 @@
 import { cn } from '@tale/ui/cn';
 
-export interface ProgressBarProps {
+interface ProgressBarProps {
   /** Current value, expressed in the range `[min, max]`. */
   value: number;
   /** Lower bound of the value range. Defaults to `0`. */
@@ -8,11 +8,17 @@ export interface ProgressBarProps {
   /** Upper bound of the value range. Defaults to `100`. */
   max?: number;
   /**
-   * Accessible label describing what the bar represents. If omitted,
-   * the consumer is expected to label the bar via `aria-labelledby`
-   * on the wrapping element.
+   * Accessible label describing what the bar represents. Consumers may
+   * alternatively pass `ariaLabelledBy` to reference an existing label
+   * element by id (applied to the progressbar itself).
    */
   ariaLabel?: string;
+  /**
+   * Id of an element that labels the progressbar. When provided, takes
+   * precedence over `ariaLabel` and is rendered as `aria-labelledby` on
+   * the element with `role="progressbar"`.
+   */
+  ariaLabelledBy?: string;
   /** Tailwind class for the track (background). Default `bg-gray-200`. */
   trackClassName?: string;
   /** Tailwind class for the fill. Default `bg-blue-600`. */
@@ -33,6 +39,7 @@ export function ProgressBar({
   min = 0,
   max = 100,
   ariaLabel,
+  ariaLabelledBy,
   trackClassName = 'bg-gray-200',
   fillClassName = 'bg-blue-600',
   className,
@@ -47,7 +54,8 @@ export function ProgressBar({
       aria-valuenow={clamped}
       aria-valuemin={min}
       aria-valuemax={max}
-      aria-label={ariaLabel}
+      aria-labelledby={ariaLabelledBy}
+      aria-label={ariaLabelledBy ? undefined : ariaLabel}
       className={cn(
         'h-2 overflow-hidden rounded-full',
         trackClassName,

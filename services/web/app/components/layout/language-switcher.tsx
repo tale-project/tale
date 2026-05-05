@@ -130,7 +130,6 @@ export function LanguageSwitcher({ className }: LanguageSwitcherProps) {
       {open ? (
         <ul
           id={menuId}
-          role="menu"
           aria-label={t('ariaLabel')}
           className="border-border-base bg-bg-base absolute right-0 bottom-full z-20 mb-2 flex min-w-[180px] flex-col overflow-hidden rounded-md border py-1 shadow-lg"
         >
@@ -138,11 +137,10 @@ export function LanguageSwitcher({ className }: LanguageSwitcherProps) {
             const isActive = code === currentBase;
             const Flag = LOCALE_FLAGS[code];
             return (
-              <li key={code} role="none">
+              <li key={code}>
                 <button
                   type="button"
-                  role="menuitemradio"
-                  aria-checked={isActive}
+                  aria-current={isActive ? 'true' : undefined}
                   onClick={() => handleSelect(code)}
                   className={`hover:bg-bg-elevated flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors ${
                     isActive ? 'text-fg-base font-medium' : 'text-fg-muted'

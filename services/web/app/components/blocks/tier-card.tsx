@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
-export interface TierCardProps {
+interface TierCardProps {
   /** Tier display name (e.g. "Community", "Pro", "Quality"). */
   name: ReactNode;
   /** Highlight this tier as the recommended one (popular badge + tinted bg). */
@@ -18,6 +18,13 @@ export interface TierCardProps {
    * when one tier has no suffix.
    */
   priceSuffix?: ReactNode;
+  /**
+   * Optional small footnote rendered directly below the price suffix
+   * (e.g. "Billed yearly · 2 months free"). When this prop is present
+   * the slot is always rendered — pass an empty space (e.g. " ") on
+   * sibling cards to keep the divider y-position aligned across the row.
+   */
+  priceFootnote?: ReactNode;
   /**
    * Tagline below the price. Reserves a fixed minimum height so the
    * border separating the body section starts at the same y-position
@@ -34,6 +41,18 @@ export interface TierCardProps {
   children?: ReactNode;
   /** Stagger entrance — useful when several cards animate in sequence. */
   animationDelay?: number;
+  /**
+   * Render the card as inactive (e.g. Cloud view's Community card).
+   * Dims the entire article so the row layout stays stable while the
+   * tier reads as not-applicable for the current selection.
+   */
+  disabled?: boolean;
+  /**
+   * Localized badge text shown in the same slot as `popularLabel` when
+   * `disabled` is true (e.g. "Self-hosted only"). Lets the card explain
+   * *why* it's inactive without reflowing the body copy.
+   */
+  disabledLabel?: ReactNode;
 }
 
 /**
@@ -52,15 +71,19 @@ export function TierCard({
   popularLabel,
   price,
   priceSuffix,
+  priceFootnote,
   tagline,
   children,
   animationDelay = 0,
+  disabled = false,
+  disabledLabel,
 }: TierCardProps) {
   const reduceMotion = useReducedMotion();
   const fadeInitial = reduceMotion ? false : { opacity: 0, y: 24 };
 
   return (
     <motion.article
+      aria-disabled={disabled || undefined}
       initial={fadeInitial}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-10%' }}
@@ -71,7 +94,15 @@ export function TierCard({
       }
       className={`border-border-base relative flex flex-col gap-6 border-t p-8 first:border-t-0 sm:p-10 lg:border-t-0 lg:border-l lg:first:border-l-0 ${
         popular ? 'bg-bg-elevated' : 'bg-bg-base'
-      }`}
+      } ${disabled ? 'opacity-55' : ''}`}
+      style={
+        popular
+          ? {
+              backgroundImage:
+                'linear-gradient(135deg, rgba(155, 196, 255, 0.22), rgba(155, 196, 255, 0.06) 45%, transparent 75%)',
+            }
+          : undefined
+      }
     >
       <div className="flex items-center justify-between gap-3">
         <h2
@@ -84,6 +115,10 @@ export function TierCard({
           <span className="rounded-md bg-[#9bc4ff] px-1.5 py-px text-[10px] font-medium text-[#021a3f]">
             {popularLabel}
           </span>
+        ) : disabled && disabledLabel ? (
+          <span className="border-border-base text-fg-muted rounded-md border px-1.5 py-px text-[10px] font-medium">
+            {disabledLabel}
+          </span>
         ) : null}
       </div>
 
@@ -95,8 +130,13 @@ export function TierCard({
           {price}
         </span>
         <span className="text-fg-muted min-h-[1.25rem] text-sm">
-          {priceSuffix ? priceSuffix : ' '}
+          {priceSuffix}
         </span>
+        {priceFootnote !== undefined ? (
+          <span className="text-fg-muted min-h-[1lh] text-xs">
+            {priceFootnote}
+          </span>
+        ) : null}
       </div>
 
       {tagline !== undefined && tagline !== null ? (
