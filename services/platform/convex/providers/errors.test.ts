@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isTransientProviderError,
+  NoProviderAvailableError,
   ProviderUnavailableError,
   shouldFailoverToNextModel,
 } from './errors';
@@ -132,6 +133,46 @@ describe('shouldFailoverToNextModel', () => {
     ).toBe(false);
   });
 
+  it('returns false for NoProviderAvailableError (no_providers)', () => {
+    expect(
+      shouldFailoverToNextModel(
+        new NoProviderAvailableError('no providers', 'no_providers', [
+          'directory missing',
+        ]),
+      ),
+    ).toBe(false);
+  });
+
+  it('returns false for NoProviderAvailableError (missing_api_key)', () => {
+    expect(
+      shouldFailoverToNextModel(
+        new NoProviderAvailableError('no key', 'missing_api_key', [
+          'openrouter: ENOENT secrets',
+        ]),
+      ),
+    ).toBe(false);
+  });
+
+  it('returns false for NoProviderAvailableError (load_failed)', () => {
+    expect(
+      shouldFailoverToNextModel(
+        new NoProviderAvailableError('load failed', 'load_failed', [
+          'openrouter: parse error',
+        ]),
+      ),
+    ).toBe(false);
+  });
+
+  it('returns false for cross-action serialized NoProviderAvailableError', () => {
+    // Convex `ctx.runAction()` reserializes thrown errors as plain Error
+    // whose message is prefixed "Uncaught <ClassName>: ...". The class
+    // identity is lost, so detection has to fall back to message matching.
+    const serialized = new Error(
+      'Uncaught NoProviderAvailableError: No API key is configured for this organization yet. Open Settings → AI providers and add one to start chatting.\n    at loadAllProviders (../../convex/providers/file_actions.ts:145:6)',
+    );
+    expect(shouldFailoverToNextModel(serialized)).toBe(false);
+  });
+
   // --- Should failover: transient errors (superset) ---
 
   it('returns true for 429 (rate limit)', () => {
@@ -248,5 +289,19 @@ describe('ProviderUnavailableError', () => {
     expect(err.model).toBe('test/model');
     expect(err.statusCode).toBe(502);
     expect(err.name).toBe('ProviderUnavailableError');
+  });
+});
+
+describe('NoProviderAvailableError', () => {
+  it('stores reason and details', () => {
+    const err = new NoProviderAvailableError(
+      'no key configured',
+      'missing_api_key',
+      ['openrouter: ENOENT secrets'],
+    );
+    expect(err.reason).toBe('missing_api_key');
+    expect(err.details).toEqual(['openrouter: ENOENT secrets']);
+    expect(err.name).toBe('NoProviderAvailableError');
+    expect(err.message).toBe('no key configured');
   });
 });

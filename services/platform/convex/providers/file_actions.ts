@@ -22,6 +22,7 @@ import { authComponent } from '../auth';
 import { deriveAgePublicKey } from '../lib/age_keygen';
 import { atomicWrite, readJsonFile, sha256 } from '../lib/file_io';
 import { decryptSecretsFile } from '../lib/sops';
+import { NoProviderAvailableError } from './errors';
 import type { ProviderJson, ProviderReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
@@ -63,27 +64,6 @@ interface ProviderWithSecrets {
   name: string;
   config: ProviderJson;
   secrets: ProviderSecrets;
-}
-
-/**
- * User-facing error thrown when no usable AI provider can be loaded.
- * Carries a friendly message plus structured context so the chat UI can
- * surface actionable guidance (e.g. a link to Settings → Providers) and
- * operators can still find filesystem details in logs.
- */
-export class NoProviderAvailableError extends Error {
-  readonly reason: 'missing_api_key' | 'no_providers' | 'load_failed';
-  readonly details: string[];
-  constructor(
-    message: string,
-    reason: 'missing_api_key' | 'no_providers' | 'load_failed',
-    details: string[] = [],
-  ) {
-    super(message);
-    this.name = 'NoProviderAvailableError';
-    this.reason = reason;
-    this.details = details;
-  }
 }
 
 const FRIENDLY_NO_PROVIDER =
