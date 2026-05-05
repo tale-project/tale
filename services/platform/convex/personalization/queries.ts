@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { assertSelfAndOrgMember } from '../lib/rls/auth/assert_self_and_org_member';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
+import { isOrgMember } from '../lib/rls/auth/check_org_membership';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import {
   evaluatePersonalizationGates,
@@ -18,7 +19,12 @@ import {
  *
  * Auth: caller must own the thread AND be a current member of the
  * thread's org. Returns false on any miss (never throws — the chat UI
- * treats false as "don't render the section").
+ * treats false as "don't render the section"). The non-throwing
+ * membership check is load-bearing: a thread can outlive its org (org
+ * deletion does not cascade-delete threadMetadata), so an owner reading
+ * an orphaned thread would otherwise hit an UnauthorizedError that
+ * propagates through convex/react's useQuery into the chat error
+ * boundary.
  */
 export const isPersonalizationActiveForChat = query({
   args: {
@@ -30,7 +36,7 @@ export const isPersonalizationActiveForChat = query({
     if (!meta || meta.userId !== authUser.userId) return false;
     const orgId = meta.organizationId;
     if (!orgId) return false;
-    await assertSelfAndOrgMember(ctx, authUser, authUser.userId, orgId);
+    if (!(await isOrgMember(ctx, authUser.userId, orgId))) return false;
 
     return evaluatePersonalizationGates(ctx, {
       userId: authUser.userId,
