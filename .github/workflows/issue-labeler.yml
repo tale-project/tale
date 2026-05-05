@@ -25,7 +25,6 @@ jobs:
               'Crawler': 'service: crawler',
               'Database': 'service: db',
               'Graph DB': 'service: graph-db',
-              'Operator': 'service: operator',
               'Proxy': 'service: proxy',
             };
 

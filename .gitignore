@@ -84,7 +84,6 @@ yarn-error.log*
 # Docker / deployment
 # ---------------------------------------------------------------------------
 compose.override.yml
-services/operator/Dockerfile.arm64
 trivy-reports/
 .tale/
 
