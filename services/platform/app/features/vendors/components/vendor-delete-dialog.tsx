@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Trash2 } from 'lucide-react';
 import { useCallback } from 'react';
 
@@ -8,7 +9,6 @@ import {
   useDeleteDialog,
   useDeleteDialogTranslations,
 } from '@/app/components/ui/entity/use-delete-dialog';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 

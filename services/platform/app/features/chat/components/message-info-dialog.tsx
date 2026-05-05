@@ -1,5 +1,6 @@
 'use client';
 
+import { IconButton } from '@tale/ui/icon-button';
 import { Copy, Check } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
@@ -14,7 +15,6 @@ import {
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { Stack } from '@/app/components/ui/layout/layout';
-import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';

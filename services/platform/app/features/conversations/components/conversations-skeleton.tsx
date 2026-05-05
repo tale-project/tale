@@ -1,5 +1,6 @@
+import { Skeleton } from '@tale/ui/skeleton';
+
 import { PanelFooter } from '@/app/components/layout/panel-footer';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { cn } from '@/lib/utils/cn';
 

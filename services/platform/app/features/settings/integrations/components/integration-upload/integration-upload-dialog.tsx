@@ -1,10 +1,10 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { useAction } from 'convex/react';
 import { useCallback } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';

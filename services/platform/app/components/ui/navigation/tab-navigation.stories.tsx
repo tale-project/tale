@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from '@tale/ui/button';
 import { Plus } from 'lucide-react';
 
 import { AbilityContext } from '@/app/context/ability-context';
@@ -8,7 +9,6 @@ import {
   type AppSubject,
 } from '@/lib/permissions/ability';
 
-import { Button } from '../primitives/button';
 import { TabNavigation } from './tab-navigation';
 
 const meta: Meta<typeof TabNavigation> = {

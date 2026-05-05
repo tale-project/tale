@@ -1,12 +1,12 @@
 import { convexQuery } from '@convex-dev/react-query';
+import { Separator } from '@tale/ui/separator';
+import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Separator } from '@/app/components/ui/layout/separator';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { OrganizationSettings } from '@/app/features/settings/organization/components/organization-settings';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';

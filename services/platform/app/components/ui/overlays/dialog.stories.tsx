@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from '@tale/ui/button';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import { fn } from 'storybook/test';
@@ -6,7 +7,6 @@ import { fn } from 'storybook/test';
 import { ConfirmDialog } from '../dialog/confirm-dialog';
 import { Dialog } from '../dialog/dialog';
 import { Input } from '../forms/input';
-import { Button } from '../primitives/button';
 
 const meta: Meta<typeof Dialog> = {
   title: 'Overlays/Dialog',

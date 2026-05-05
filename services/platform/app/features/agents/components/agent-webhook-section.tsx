@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Check, Code, Copy, Plus, Trash2, Webhook } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
@@ -12,7 +13,6 @@ import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Alert } from '@/app/components/ui/feedback/alert';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';

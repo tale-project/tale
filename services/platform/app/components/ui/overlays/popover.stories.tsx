@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from '@tale/ui/button';
 
 import { Input } from '../forms/input';
-import { Button } from '../primitives/button';
 import { Popover } from './popover';
 
 const meta: Meta<typeof Popover> = {

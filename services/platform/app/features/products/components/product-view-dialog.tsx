@@ -1,5 +1,7 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
+import { Separator } from '@tale/ui/separator';
 import { useMemo } from 'react';
 
 import {
@@ -7,10 +9,8 @@ import {
   StatGrid,
 } from '@/app/components/ui/data-display/stat-grid';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { HStack } from '@/app/components/ui/layout/layout';
-import { Separator } from '@/app/components/ui/layout/separator';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';

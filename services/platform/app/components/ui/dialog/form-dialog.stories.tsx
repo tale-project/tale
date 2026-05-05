@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from '@tale/ui/button';
 import { useState } from 'react';
 
 import { Input } from '../forms/input';
 import { Select } from '../forms/select';
 import { Textarea } from '../forms/textarea';
-import { Button } from '../primitives/button';
 import { FormDialog } from './form-dialog';
 
 const meta: Meta<typeof FormDialog> = {

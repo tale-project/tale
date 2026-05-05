@@ -1,15 +1,15 @@
+import { Button } from '@tale/ui/button';
+import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Grid } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useSaveWorkflow } from '@/app/features/automations/hooks/file-mutations';
 import { useReadWorkflow } from '@/app/features/automations/hooks/file-queries';

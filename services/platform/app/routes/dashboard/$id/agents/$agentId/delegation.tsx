@@ -1,9 +1,9 @@
+import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';

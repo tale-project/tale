@@ -1,10 +1,10 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { Popover } from '@/app/components/ui/overlays/popover';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 
 interface AddCategoryPopoverProps {

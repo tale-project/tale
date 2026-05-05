@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import type { UsePaginatedQueryResult } from 'convex/react';
 import {
   ArchiveIcon,
@@ -20,7 +21,6 @@ import {
   type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import type { ConversationItem } from '@/convex/conversations/types';
 import { useT } from '@/lib/i18n/client';
 import { filterByTextSearch } from '@/lib/utils/client-utils';

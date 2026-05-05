@@ -1,9 +1,9 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { CheckIcon, CopyIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { Button } from '@/app/components/ui/primitives/button';
 import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 

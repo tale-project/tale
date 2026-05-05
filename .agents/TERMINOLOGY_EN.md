@@ -8,24 +8,26 @@ This file exists to freeze the English spellings of Tale's product vocabulary, s
 
 Proper nouns. Capitalize when naming the feature; use lowercase in running prose where the feature name becomes a common noun (`in the canvas`, `open the knowledge base`).
 
-| Term                 | Preferred form       | Notes                                                                                                                                             |
-| -------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Agent                | Agent                | Capitalized when referring to a Tale agent; lowercase as a general AI term.                                                                       |
-| Workflow             | Workflow             | One word.                                                                                                                                         |
-| Automation(s)        | Automation(s)        | Distinct from Workflow — do not use the two interchangeably.                                                                                      |
-| Integration(s)       | Integration(s)       |                                                                                                                                                   |
-| Dashboard            | Dashboard            | One word.                                                                                                                                         |
-| Knowledge base       | Knowledge base       | Two words, lowercase except at the start of a sentence.                                                                                           |
-| Knowledge            | Knowledge            | The top-level feature area the knowledge base sits inside.                                                                                        |
-| Workspace            | Workspace            | One word.                                                                                                                                         |
-| Canvas               | Canvas               | Capitalized when naming the feature; lowercase in prose (`in the canvas`). Matches UI label `chat.canvas.title`.                                  |
-| Composer             | Composer             | The chat input area. Capitalize when naming the UI element.                                                                                       |
-| Prompt library       | Prompt library       | Two words, sentence case in prose. Matches UI label `chat.promptLibrary`.                                                                         |
-| Arena Mode           | Arena Mode           | Title case, matches UI label `chat.arena.title`.                                                                                                  |
-| Research plan        | Research plan        | The agent to-do pane. The i18n key is `todoList.title`, but the **product name is "Research plan"** — never use "Todo list" in user-facing prose. |
-| Approval / Approvals | Approval / Approvals | Singular for one pending action; plural for the workspace view.                                                                                   |
-| Human input request  | Human input request  | A workflow step that pauses for a typed answer. Matches the UI label for the approval type.                                                       |
-| Location request     | Location request     | A workflow step that asks for a location. Matches UI label `locationRequest.title`.                                                               |
+| Term                 | Preferred form       | Notes                                                                                                                                              |
+| -------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent                | Agent                | Capitalized when referring to a Tale agent; lowercase as a general AI term.                                                                        |
+| Chat / Chat with AI  | Chat with AI         | The conversational AI feature. Matches UI label `navigation.chatWithAI`. Use plain `Chat` only when the surrounding sentence makes it unambiguous. |
+| Conversations        | Conversations        | The multi-channel inbox feature. Matches UI label `navigation.conversations`. Distinct from `Thread` (the data-model term).                        |
+| Workflow             | Workflow             | One word.                                                                                                                                          |
+| Automation(s)        | Automation(s)        | Distinct from Workflow — do not use the two interchangeably. Matches UI label `navigation.automations`.                                            |
+| Integration(s)       | Integration(s)       | Matches UI label `navigation.integrations`.                                                                                                        |
+| Dashboard            | Dashboard            | One word.                                                                                                                                          |
+| Knowledge base       | Knowledge base       | Two words, lowercase except at the start of a sentence.                                                                                            |
+| Knowledge            | Knowledge            | The top-level feature area the knowledge base sits inside.                                                                                         |
+| Workspace            | Workspace            | One word.                                                                                                                                          |
+| Canvas               | Canvas               | Capitalized when naming the feature; lowercase in prose (`in the canvas`). Matches UI label `chat.canvas.title`.                                   |
+| Composer             | Composer             | The chat input area. Capitalize when naming the UI element.                                                                                        |
+| Prompt library       | Prompt library       | Two words, sentence case in prose. Matches UI label `chat.promptLibrary`.                                                                          |
+| Arena Mode           | Arena Mode           | Title case, matches UI label `chat.arena.title`.                                                                                                   |
+| Research plan        | Research plan        | The agent to-do pane. The i18n key is `todoList.title`, but the **product name is "Research plan"** — never use "Todo list" in user-facing prose.  |
+| Approval / Approvals | Approval / Approvals | Singular for one pending action; plural for the workspace view. Matches UI label `contextApprovals`.                                               |
+| Human input request  | Human input request  | A workflow step that pauses for a typed answer. Matches the UI label for the approval type.                                                        |
+| Location request     | Location request     | A workflow step that asks for a location. Matches UI label `locationRequest.title`.                                                                |
 
 ## Knowledge-base entities
 

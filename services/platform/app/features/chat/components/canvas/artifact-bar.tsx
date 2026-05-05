@@ -1,5 +1,7 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import { useQuery } from 'convex/react';
 import {
   Code,
@@ -11,8 +13,6 @@ import {
 } from 'lucide-react';
 import { memo, useEffect, useRef, type ComponentType } from 'react';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
-import { Button } from '@/app/components/ui/primitives/button';
 import { api } from '@/convex/_generated/api';
 import type { ArtifactListItem } from '@/convex/artifacts/queries';
 import { useT } from '@/lib/i18n/client';

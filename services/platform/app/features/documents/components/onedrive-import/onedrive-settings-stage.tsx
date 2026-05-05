@@ -1,10 +1,12 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { Separator } from '@tale/ui/separator';
+import { Spinner } from '@tale/ui/spinner';
 import { Database, Loader2, Users } from 'lucide-react';
 
 import { SelectableRow } from '@/app/components/ui/data-display/selectable-row';
 import { EmptyPlaceholder } from '@/app/components/ui/feedback/empty-placeholder';
-import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { Description } from '@/app/components/ui/forms/description';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import {
@@ -14,8 +16,6 @@ import {
 import { Select } from '@/app/components/ui/forms/select';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
-import { Separator } from '@/app/components/ui/layout/separator';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { narrowStringUnion } from '@/lib/utils/type-guards';
 

@@ -8,10 +8,10 @@
  * as plain markdown.
  */
 
+import { Button } from '@tale/ui/button';
+import { Skeleton } from '@tale/ui/skeleton';
 import { memo, useMemo } from 'react';
 
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

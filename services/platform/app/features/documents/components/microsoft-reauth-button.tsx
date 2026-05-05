@@ -1,9 +1,9 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { RefreshCw } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
-import { Button } from '@/app/components/ui/primitives/button';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 

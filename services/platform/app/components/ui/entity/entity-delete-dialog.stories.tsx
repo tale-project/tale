@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from '@tale/ui/button';
 import { useState } from 'react';
 
-import { Button } from '../primitives/button';
 import { EntityDeleteDialog } from './entity-delete-dialog';
 
 interface SampleEntity {

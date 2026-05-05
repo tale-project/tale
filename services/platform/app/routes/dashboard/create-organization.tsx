@@ -1,7 +1,7 @@
+import { Spinner } from '@tale/ui/spinner';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
-import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { FullPageCenter } from '@/app/components/ui/layout/full-page-center';
 import { OrganizationForm } from '@/app/features/organization/components/organization-form';
 import { useUserOrganizations } from '@/app/features/organization/hooks/queries';

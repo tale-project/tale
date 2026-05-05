@@ -1,0 +1,51 @@
+{
+  "name": "@tale/ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared Tale React component library",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./button": "./src/components/primitives/button.tsx",
+    "./icon-button": "./src/components/primitives/icon-button.tsx",
+    "./input": "./src/components/forms/input.tsx",
+    "./textarea": "./src/components/forms/textarea.tsx",
+    "./label": "./src/components/forms/label.tsx",
+    "./checkbox": "./src/components/forms/checkbox.tsx",
+    "./field": "./src/components/forms/field.tsx",
+    "./badge": "./src/components/feedback/badge.tsx",
+    "./spinner": "./src/components/feedback/spinner.tsx",
+    "./skeleton": "./src/components/feedback/skeleton.tsx",
+    "./status-indicator": "./src/components/feedback/status-indicator.tsx",
+    "./toast": "./src/components/feedback/toast.tsx",
+    "./accordion": "./src/components/feedback/accordion.tsx",
+    "./container": "./src/components/layout/container.tsx",
+    "./section": "./src/components/layout/section.tsx",
+    "./separator": "./src/components/layout/separator.tsx",
+    "./tooltip": "./src/components/overlays/tooltip.tsx",
+    "./logo": "./src/logo/tale-logo.tsx",
+    "./theme": "./src/theme/index.ts",
+    "./cn": "./src/lib/cn.ts",
+    "./format": "./src/lib/format.ts",
+    "./globals.css": "./src/globals.css",
+    "./tailwind-preset": "./tailwind-preset.ts"
+  },
+  "scripts": {
+    "lint": "bunx oxlint --type-aware",
+    "lint:fix": "bunx oxlint --type-aware --fix",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bunx vitest --run",
+    "test:watch": "bunx vitest",
+    "storybook": "bunx --bun storybook dev -p 6006",
+    "storybook:build": "bunx --bun storybook build -o storybook-static"
+  },
+  "dependencies": {
+    "@radix-ui/react-separator": "1.1.8",
+    "@radix-ui/react-slot": "1.2.4",
+    "@tanstack/react-router": "1.168.10",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "lucide-react": "1.8.0",
+    "tailwind-merge": "3.5.0"
+  }
+}

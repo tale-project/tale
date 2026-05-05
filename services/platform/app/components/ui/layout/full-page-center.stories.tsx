@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Spinner } from '@tale/ui/spinner';
 
-import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { Text } from '@/app/components/ui/typography/text';
 
 import { FullPageCenter } from './full-page-center';

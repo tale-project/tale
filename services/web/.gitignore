@@ -1,0 +1,9 @@
+node_modules
+dist
+dist-ssr
+storybook-static
+.turbo
+.vite
+*.tsbuildinfo
+.env
+.env.local

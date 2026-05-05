@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from '@tale/ui/button';
 import {
   CreditCard,
   Keyboard,
@@ -13,7 +14,6 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
-import { Button } from '../primitives/button';
 import { DropdownMenu } from './dropdown-menu';
 
 const meta: Meta<typeof DropdownMenu> = {

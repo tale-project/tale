@@ -1,3 +1,4 @@
+import { Button } from '@tale/ui/button';
 /**
  * Post-grace enrollment wall. The sign-in after-hook returns
  * `{ twoFactorRedirect: true, enrollRequired: true }` when an org policy
@@ -22,7 +23,6 @@ import { z } from 'zod';
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack, VStack } from '@/app/components/ui/layout/layout';
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';

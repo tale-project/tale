@@ -1,5 +1,8 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { Skeleton } from '@tale/ui/skeleton';
+import { Spinner } from '@tale/ui/spinner';
 import {
   flexRender,
   getCoreRowModel,
@@ -36,11 +39,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/app/components/ui/data-display/table';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { Spinner } from '@/app/components/ui/feedback/spinner';
 import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useInfiniteScroll } from '@/app/hooks/use-infinite-scroll';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';

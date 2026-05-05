@@ -1,12 +1,12 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { FileText, Upload, X } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,

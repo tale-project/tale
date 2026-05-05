@@ -1,12 +1,12 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { useNavigate } from '@tanstack/react-router';
 import { Check, Copy, ExternalLink, Link } from 'lucide-react';
 import { useCallback, useState, useRef, useEffect } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';

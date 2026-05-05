@@ -1,10 +1,10 @@
 import { convexQuery } from '@convex-dev/react-query';
+import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Card } from '@/app/components/ui/layout/card';
 import { Grid, HStack, Stack } from '@/app/components/ui/layout/layout';
 import { useOrganization } from '@/app/features/organization/hooks/queries';

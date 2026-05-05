@@ -1,3 +1,4 @@
+import { Skeleton } from '@tale/ui/skeleton';
 import {
   createFileRoute,
   Link,
@@ -7,7 +8,6 @@ import {
 import { useEffect, useRef } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

@@ -1,8 +1,8 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Position } from '@xyflow/react';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { Doc } from '@/convex/_generated/dataModel';

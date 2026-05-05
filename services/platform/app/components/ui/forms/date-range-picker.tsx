@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import {
   format,
   isSameDay,
@@ -35,7 +36,6 @@ import {
   DropdownMenu,
   type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

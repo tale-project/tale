@@ -1,0 +1,12 @@
+# @tale/{{kebabCase name}}
+
+{{description}}
+
+```bash
+bun run --filter @tale/{{kebabCase name}} dev       # Vite dev server on :{{port}}
+bun run --filter @tale/{{kebabCase name}} build     # Production bundle
+bun run --filter @tale/{{kebabCase name}} typecheck
+bun run --filter @tale/{{kebabCase name}} test
+```
+
+Stack: Vite · TanStack Router · React 19 · Tailwind v4 (extends `@tale/ui/tailwind-preset`) · framer-motion · Zod · Vitest.

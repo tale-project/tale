@@ -1,0 +1,17 @@
+{
+  "nav": {
+    "closeMenu": "Menü schliessen"
+  },
+  "footer": {
+    "address": {
+      "street": "Seestrasse 4"
+    }
+  },
+  "home": {
+    "faq": {
+      "deployment": {
+        "a": "Nein. Sie können eigene Modelle nutzen, müssen es aber nicht. Wir unterstützen die meisten grossen KI-Anbieter und erheben keine Aufschläge — die Nutzung von Cloud-KI-Modellen wird zu den Preisen Ihres gewählten Anbieters abgerechnet und ist nicht in den Plänen enthalten."
+      }
+    }
+  }
+}

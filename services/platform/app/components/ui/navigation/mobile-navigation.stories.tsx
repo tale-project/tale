@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from '@tale/ui/button';
 import {
   MessageCircle,
   Inbox,
@@ -10,7 +11,6 @@ import {
 import { useState } from 'react';
 
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Button } from '@/app/components/ui/primitives/button';
 import { cn } from '@/lib/utils/cn';
 
 import {

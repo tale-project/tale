@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { Info, HelpCircle } from 'lucide-react';
 
-import { Button } from '../primitives/button';
-import { IconButton } from '../primitives/icon-button';
 import { Tooltip } from './tooltip';
 
 const meta: Meta<typeof Tooltip> = {

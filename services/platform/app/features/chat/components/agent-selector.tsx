@@ -1,11 +1,11 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { useNavigate } from '@tanstack/react-router';
 import { Bot, ChevronDown, Plus } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
-import { Button } from '@/app/components/ui/primitives/button';
 import { CreateAgentDialog } from '@/app/features/agents/components/agent-create-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDialogSearchParam } from '@/app/hooks/use-dialog-search-param';

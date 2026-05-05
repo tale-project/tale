@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { X, ArrowUp, CircleStop, Eye, Loader } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
@@ -18,7 +19,6 @@ import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import type { Id } from '@/convex/_generated/dataModel';

@@ -1,3 +1,4 @@
+import { Button } from '@tale/ui/button';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Download } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
@@ -6,7 +7,6 @@ import { z } from 'zod';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
 import { BlockCountersTable } from '@/app/features/settings/audit-logs/components/block-counters-table';

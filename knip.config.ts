@@ -1,6 +1,25 @@
 export default {
   ignoreBinaries: ['uv', 'uvx'],
   ignore: ['examples/**'],
+  ignoreDependencies: [
+    '@fontsource/inter',
+    '@radix-ui/react-dialog',
+    '@radix-ui/react-dropdown-menu',
+    '@radix-ui/react-navigation-menu',
+    '@radix-ui/react-popover',
+    '@radix-ui/react-radio-group',
+    '@radix-ui/react-select',
+    '@radix-ui/react-separator',
+    '@radix-ui/react-slot',
+    '@radix-ui/react-switch',
+    '@radix-ui/react-tabs',
+    '@radix-ui/react-toast',
+    '@radix-ui/react-visually-hidden',
+    '@tanstack/react-query',
+    'clsx',
+    'date-fns',
+    'tailwind-merge',
+  ],
   workspaces: {
     'services/platform': {
       vite: {
@@ -23,10 +42,51 @@ export default {
         'reset-owner.ts',
       ],
       project: ['**/*.{ts,tsx}'],
-      ignoreDependencies: ['convex-test', '@fontsource/inter'],
+      ignoreDependencies: [
+        'convex-test',
+        '@fontsource/inter',
+        '@radix-ui/react-separator',
+        '@radix-ui/react-slot',
+      ],
+    },
+    'services/web': {
+      vite: {
+        config: ['vite.config.ts'],
+      },
+      entry: [
+        'app/entry-server.tsx',
+        'app/routes/**/*.tsx',
+        'scripts/**/*.ts',
+        'vitest.ui.config.ts',
+      ],
+      project: ['**/*.{ts,tsx}'],
+    },
+    'packages/ui': {
+      storybook: {
+        config: ['.storybook/main.ts'],
+        entry: [
+          '.storybook/{main,manager,preview}.{ts,tsx}',
+          '**/*.stories.{ts,tsx}',
+        ],
+      },
+      entry: ['src/components/**/*.{ts,tsx}', 'src/**/*.stories.{ts,tsx}'],
+      project: ['**/*.{ts,tsx}'],
+      ignoreDependencies: [
+        '@storybook/addon-a11y',
+        '@storybook/addon-docs',
+        '@storybook/addon-themes',
+        '@storybook/addon-vitest',
+        '@storybook/react',
+        '@storybook/react-vite',
+        'storybook',
+      ],
     },
     'tools/cli': {
       project: ['**/*.ts'],
+    },
+    'tools/plop': {
+      entry: ['generators/**/*.ts', 'helpers/**/*.ts'],
+      project: ['**/*.ts', '!templates/**'],
     },
   },
   exclude: ['duplicates'],

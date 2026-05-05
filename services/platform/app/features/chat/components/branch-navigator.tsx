@@ -1,9 +1,9 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
 
-import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 
 import { useBranchContext } from '../context/branch-context';

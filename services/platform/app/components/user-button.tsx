@@ -1,6 +1,7 @@
 'use client';
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import { Skeleton } from '@tale/ui/skeleton';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import {
   LogOut,
@@ -16,7 +17,6 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { useTheme } from '@/app/components/theme/theme-provider';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import {
   DropdownMenu,

@@ -1,0 +1,40 @@
+// Minimal Bun server. Serves the prebuilt SPA from ./dist with a /api/health
+// route for the Dockerfile HEALTHCHECK. Extend with /api/* routes per service.
+
+import { file } from 'bun';
+import { join, resolve, sep } from 'node:path';
+
+const PORT = Number(process.env.PORT ?? {{port}});
+const DIST = resolve(import.meta.dir, 'dist');
+const DIST_PREFIX = DIST + sep;
+
+Bun.serve({
+  port: PORT,
+  hostname: process.env.HOSTNAME ?? '0.0.0.0',
+  async fetch(request) {
+    const url = new URL(request.url);
+
+    if (url.pathname === '/api/health') {
+      return Response.json({ ok: true, version: process.env.TALE_VERSION ?? 'dev' });
+    }
+
+    // Return 404 for unhandled API routes
+    if (url.pathname.startsWith('/api/')) {
+      return Response.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    // Static asset lookup with path-traversal guard, falling back to
+    // index.html for SPA routing.
+    const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+    const resolved = resolve(DIST, rel);
+    if (resolved === DIST || resolved.startsWith(DIST_PREFIX)) {
+      const candidate = file(resolved);
+      if (await candidate.exists()) {
+        return new Response(candidate);
+      }
+    }
+    return new Response(file(join(DIST, 'index.html')));
+  },
+});
+
+console.log(`[{{kebabCase name}}] listening on :${PORT}`);

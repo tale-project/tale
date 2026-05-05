@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { useNavigate } from '@tanstack/react-router';
 import { Archive, ArchiveRestore, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -7,7 +8,6 @@ import { useCallback, useState } from 'react';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';

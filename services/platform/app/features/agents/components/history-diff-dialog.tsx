@@ -1,11 +1,11 @@
 'use client';
 
 import 'json-diff-kit/viewer.css';
+import { Button } from '@tale/ui/button';
 import { Differ, Viewer } from 'json-diff-kit';
 import { useMemo } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { AgentJsonConfig } from '@/convex/agents/file_utils';
 import { useT } from '@/lib/i18n/client';

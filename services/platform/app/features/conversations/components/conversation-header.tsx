@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import {
   ArrowLeft,
   Ellipsis,
@@ -14,7 +15,6 @@ import {
   DropdownMenu,
   type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { CustomerInfoPopover } from '@/app/features/customers/components/customer-info-popover';
 import {

@@ -1,13 +1,12 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
 import type { ComponentPropsWithoutRef, FC } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-
-import { Button } from '../primitives/button';
 
 const bannerVariants = cva(
   'flex items-center gap-2 rounded-lg border p-3 transition-all',

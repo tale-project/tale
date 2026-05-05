@@ -1,4 +1,5 @@
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { Skeleton } from '@tale/ui/skeleton';
+
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

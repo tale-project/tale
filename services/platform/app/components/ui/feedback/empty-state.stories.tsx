@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from '@tale/ui/button';
 import { Inbox, Search, Users } from 'lucide-react';
 
-import { Button } from '../primitives/button';
 import { EmptyState } from './empty-state';
 
 const meta: Meta<typeof EmptyState> = {

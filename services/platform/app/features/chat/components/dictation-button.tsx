@@ -1,10 +1,10 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Mic } from 'lucide-react';
 import { useCallback, useEffect, useRef, memo } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

@@ -1,0 +1,136 @@
+# =============================================================================
+# Tale Platform (TanStack Start + Convex) — Dockerfile.dockerignore
+# =============================================================================
+# BuildKit picks this file (adjacent to the Dockerfile) over the root
+# .dockerignore. It does NOT merge — so this file must list everything we want
+# excluded from the platform image's build context.
+#
+# Build (from repo root):
+#   docker build -f services/platform/Dockerfile .
+
+# =============================================================================
+# Local environment files
+# =============================================================================
+**/.env
+**/.env.*
+
+# =============================================================================
+# Git
+# =============================================================================
+.git
+.gitignore
+.gitattributes
+
+# =============================================================================
+# CI / tooling
+# =============================================================================
+.github/
+.husky/
+.claude/
+.agents/
+.vscode/
+.idea/
+.ruff_cache/
+.turbo/
+.trivyignore
+.oxlintrc.json
+.oxfmtrc.json
+
+# =============================================================================
+# Documentation
+# =============================================================================
+*.md
+docs/
+!docs/package.json
+README.md
+
+# =============================================================================
+# IDE / OS
+# =============================================================================
+*.swp
+*.swo
+*~
+.DS_Store
+
+# =============================================================================
+# Node
+# =============================================================================
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# =============================================================================
+# Build artifacts
+# =============================================================================
+*.tsbuildinfo
+**/dist/
+**/build/
+**/.output/
+**/.vinxi/
+
+# =============================================================================
+# Testing
+# =============================================================================
+tests/
+**/coverage/
+.nyc_output/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# =============================================================================
+# Storybook
+# =============================================================================
+.storybook/
+**/.storybook/
+**/*.stories.tsx
+**/*.stories.ts
+**/*.stories.jsx
+**/*.stories.js
+storybook-static/
+
+# =============================================================================
+# Logs / temp / cache / misc
+# =============================================================================
+*.log
+*.tmp
+*.temp
+.cache/
+.playwright-mcp/
+knip-results.json
+designs/
+
+# =============================================================================
+# Docker files
+# =============================================================================
+docker-compose.yml
+docker-compose.*.yml
+compose.yml
+compose.*.yml
+.dockerignore
+**/Dockerfile.dockerignore
+
+# =============================================================================
+# Platform-specific
+# =============================================================================
+# Local Convex artifacts not shipped in the platform image
+**/.convex/
+
+# Other services not needed in the platform image (but keep their package.json
+# so the workspace dep stage can resolve cross-service references)
+services/web/
+!services/web/package.json
+services/convex/
+!services/convex/package.json
+services/crawler/
+!services/crawler/package.json
+services/rag/
+!services/rag/package.json
+services/db/
+!services/db/package.json
+services/proxy/
+!services/proxy/package.json

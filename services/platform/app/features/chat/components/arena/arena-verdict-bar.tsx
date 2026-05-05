@@ -1,8 +1,8 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { useState, useCallback } from 'react';
 
-import { Button } from '@/app/components/ui/primitives/button';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';

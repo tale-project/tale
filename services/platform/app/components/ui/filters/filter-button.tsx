@@ -1,8 +1,8 @@
+import { Button } from '@tale/ui/button';
 import { ListFilter } from 'lucide-react';
 import { Loader2Icon } from 'lucide-react';
 import { ComponentProps } from 'react';
 
-import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

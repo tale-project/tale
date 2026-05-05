@@ -1,13 +1,12 @@
 'use client';
 
 import * as ToastPrimitives from '@radix-ui/react-toast';
+import type { ToastVariant } from '@tale/ui/toast';
 import { cva } from 'class-variance-authority';
 import { X, CheckCircle2, XCircle, Info } from 'lucide-react';
 
 import { useToast } from '@/app/hooks/use-toast';
 import { cn } from '@/lib/utils/cn';
-
-import type { ToastVariant } from './toast';
 
 const toastVariants = cva(
   'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-xl p-3 pr-6 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full border bg-background text-foreground',

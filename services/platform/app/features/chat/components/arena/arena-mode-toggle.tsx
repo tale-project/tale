@@ -1,9 +1,9 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Swords } from 'lucide-react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

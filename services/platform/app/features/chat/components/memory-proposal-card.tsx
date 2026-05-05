@@ -1,10 +1,10 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { ConvexError } from 'convex/values';
 import { useState } from 'react';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Button } from '@/app/components/ui/primitives/button';
 import {
   useApprovePendingMemory,
   useDismissPendingMemory,

@@ -1,0 +1,6 @@
+export { ThemeContext, ThemeProvider, useTheme } from './theme-provider';
+export type {
+  ResolvedTheme,
+  Theme,
+  ThemeProviderProps,
+} from './theme-provider';

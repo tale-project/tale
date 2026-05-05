@@ -1,9 +1,9 @@
 'use client';
 
+import { Spinner } from '@tale/ui/spinner';
 import { AlertCircle } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
-import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';

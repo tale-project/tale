@@ -1,0 +1,8 @@
+node_modules/
+.turbo/
+*.tsbuildinfo
+
+# Environment files - NEVER commit secrets!
+.env
+.env.local
+.env.*.local

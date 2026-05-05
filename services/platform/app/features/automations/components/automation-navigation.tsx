@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { History } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -11,7 +12,6 @@ import {
   DropdownMenu,
   type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';

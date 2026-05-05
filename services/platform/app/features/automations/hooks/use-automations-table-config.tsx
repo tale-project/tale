@@ -1,10 +1,10 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Folder, Workflow } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 

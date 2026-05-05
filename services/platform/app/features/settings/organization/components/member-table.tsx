@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import type { ColumnDef } from '@tanstack/react-table';
 import { ChevronDownIcon, Users } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
@@ -7,7 +8,6 @@ import { useMemo, useCallback } from 'react';
 import { TableTimestampCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';

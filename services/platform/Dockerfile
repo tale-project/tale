@@ -23,12 +23,15 @@ COPY docs/package.json ./docs/
 COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
 COPY packages/tale_shared/package.json ./packages/tale_shared/
 COPY packages/tale_telemetry/package.json ./packages/tale_telemetry/
+COPY packages/ui/package.json ./packages/ui/
 COPY services/platform/package.json ./services/platform/
 COPY services/crawler/package.json ./services/crawler/
 COPY services/rag/package.json ./services/rag/
 COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
+COPY services/web/package.json ./services/web/
 COPY tools/cli/package.json ./tools/cli/
+COPY tools/plop/package.json ./tools/plop/
 COPY patches/ ./patches/
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -62,6 +65,8 @@ COPY services/platform/vite.config.ts \
      services/platform/components.json \
      services/platform/package.json \
      ./services/platform/
+
+COPY packages/ui ./packages/ui
 
 COPY services/platform/app ./services/platform/app
 COPY services/platform/lib ./services/platform/lib
@@ -98,12 +103,15 @@ COPY --from=workspace-deps /app/docs/package.json /tmp/workspace/docs/
 COPY --from=workspace-deps /app/packages/tale_knowledge/package.json /tmp/workspace/packages/tale_knowledge/
 COPY --from=workspace-deps /app/packages/tale_shared/package.json /tmp/workspace/packages/tale_shared/
 COPY --from=workspace-deps /app/packages/tale_telemetry/package.json /tmp/workspace/packages/tale_telemetry/
+COPY --from=workspace-deps /app/packages/ui/package.json /tmp/workspace/packages/ui/
 COPY --from=workspace-deps /app/services/platform/package.json /tmp/workspace/services/platform/
 COPY --from=workspace-deps /app/services/crawler/package.json /tmp/workspace/services/crawler/
 COPY --from=workspace-deps /app/services/rag/package.json /tmp/workspace/services/rag/
 COPY --from=workspace-deps /app/services/db/package.json /tmp/workspace/services/db/
 COPY --from=workspace-deps /app/services/proxy/package.json /tmp/workspace/services/proxy/
+COPY --from=workspace-deps /app/services/web/package.json /tmp/workspace/services/web/
 COPY --from=workspace-deps /app/tools/cli/package.json /tmp/workspace/tools/cli/
+COPY --from=workspace-deps /app/tools/plop/package.json /tmp/workspace/tools/plop/
 COPY --from=workspace-deps /app/patches/ /tmp/workspace/patches/
 
 RUN cd /tmp/workspace && HUSKY=0 bun install --production \

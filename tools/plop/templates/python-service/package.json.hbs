@@ -1,0 +1,16 @@
+{
+  "name": "@tale/{{kebabCase name}}",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "setup": "uv sync --extra dev",
+    "serve": "uv run uvicorn app.main:app --host 0.0.0.0 --port {{port}} --reload",
+    "lint": "uvx ruff@0.15.10 check app tests",
+    "lint:fix": "uvx ruff@0.15.10 check --fix app tests",
+    "format": "uvx ruff@0.15.10 format app tests",
+    "format:check": "uvx ruff@0.15.10 format --check app tests",
+    "test": "uv run pytest",
+    "test:watch": "uv run ptw -- -q",
+    "test:coverage": "uv run pytest --cov=app"
+  }
+}

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DEFAULT_PORT={{port}}
+PORT="${PORT:-$DEFAULT_PORT}"
+echo "[{{kebabCase name}}] starting on :${PORT}"
+exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT}"

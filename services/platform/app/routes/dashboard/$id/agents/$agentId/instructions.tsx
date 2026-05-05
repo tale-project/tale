@@ -1,3 +1,4 @@
+import { Button } from '@tale/ui/button';
 import { createFileRoute } from '@tanstack/react-router';
 import { BookOpen } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -11,7 +12,6 @@ import { HStack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { CollapsibleDetails } from '@/app/components/ui/navigation/collapsible-details';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { LocaleTabs } from '@/app/features/agents/components/locale-tabs';
 import { useTranslateAgentFields } from '@/app/features/agents/hooks/mutations';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';

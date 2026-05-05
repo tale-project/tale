@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Check, Copy } from 'lucide-react';
 import {
   type ReactNode,
@@ -11,7 +12,6 @@ import {
 
 import { cn } from '@/lib/utils/cn';
 
-import { Button } from '../primitives/button';
 import { Text } from '../typography/text';
 
 interface CodeBlockProps {

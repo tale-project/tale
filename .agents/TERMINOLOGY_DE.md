@@ -14,9 +14,11 @@ These are the feature names users see in the UI and read in the docs. Match the 
 | English              | German                      | Notes                                                                                                                |
 | -------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Agent                | Agent                       | Established loanword.                                                                                                |
+| Chat / Chat with AI  | Chat mit KI                 | Matches UI label `navigation.chatWithAI`. The plain noun `Chat` is fine when context is clear.                       |
+| Conversations        | Konversationen              | Multi-channel inbox feature. Matches UI label `navigation.conversations`. Singular `Konversation` mirrors `Thread`.  |
 | Workflow             | Workflow                    | Loanword.                                                                                                            |
-| Automation(s)        | Automatisierung(en)         |                                                                                                                      |
-| Integration(s)       | Integration(en)             | Same root in German.                                                                                                 |
+| Automation(s)        | Automatisierung(en)         | Matches UI label `navigation.automations`.                                                                           |
+| Integration(s)       | Integration(en)             | Same root in German. Matches UI label `navigation.integrations`.                                                     |
 | Dashboard            | Dashboard                   | Loanword.                                                                                                            |
 | Knowledge            | Wissen                      |                                                                                                                      |
 | Knowledge base       | Wissensdatenbank            | Single compound noun.                                                                                                |
@@ -26,7 +28,7 @@ These are the feature names users see in the UI and read in the docs. Match the 
 | Prompt library       | Prompt-Bibliothek           | Matches UI label `chat.promptLibrary` — never the loanword `Prompt Library`.                                         |
 | Arena Mode           | Arena-Modus                 | Hyphenated compound. Matches UI label `chat.arena.title`.                                                            |
 | Research plan        | Recherche-Plan              | Matches UI label `todoList.title` — **never** `Todo-Liste` in user-facing prose.                                     |
-| Approval / Approvals | Genehmigung / Genehmigungen | Singular for one pending item; plural for the workspace view.                                                        |
+| Approval / Approvals | Genehmigung / Genehmigungen | Singular for one pending item; plural for the workspace view. **Never** `Freigabe`/`Freigaben` for this feature.     |
 | Human input request  | Benutzeranfrage             | Context: a workflow step paused on a typed answer. Fall back to `Frage an Nutzer` if the UI string is still unclear. |
 | Location request     | Standortanfrage             | Matches UI label `locationRequest.title`.                                                                            |
 

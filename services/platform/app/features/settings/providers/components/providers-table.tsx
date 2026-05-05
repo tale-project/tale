@@ -1,5 +1,7 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row } from '@tanstack/react-table';
@@ -12,8 +14,6 @@ import {
   DropdownMenu,
   type DropdownMenuGroup,
 } from '@/app/components/ui/overlays/dropdown-menu';
-import { Button } from '@/app/components/ui/primitives/button';
-import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { toast } from '@/app/hooks/use-toast';

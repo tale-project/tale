@@ -1,0 +1,28 @@
+{
+  "name": "@tale/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tale marketing site",
+  "type": "module",
+  "scripts": {
+    "setup": "echo 'Dependencies managed by root workspace'",
+    "dev": "bun --bun vite",
+    "build": "bun --bun vite build && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr && bun --bun scripts/prerender.ts",
+    "build:client": "bun --bun vite build",
+    "build:ssr": "bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr",
+    "prerender": "bun --bun scripts/prerender.ts",
+    "start": "bun server.ts",
+    "lint": "bunx oxlint --type-aware",
+    "lint:fix": "bunx oxlint --type-aware --fix",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bunx vitest --run --passWithNoTests",
+    "test:watch": "bunx vitest",
+    "test:coverage": "bunx vitest --coverage --passWithNoTests"
+  },
+  "dependencies": {
+    "@tale/ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.11"
+  }
+}

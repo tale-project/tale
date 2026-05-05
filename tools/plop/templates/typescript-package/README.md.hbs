@@ -1,0 +1,10 @@
+# @tale/{{kebabCase name}}
+
+{{description}}
+
+```bash
+bun run --filter @tale/{{kebabCase name}} typecheck
+bun run --filter @tale/{{kebabCase name}} test
+```
+
+Source-only library — no build step. Consumers (other workspaces) import directly from `./src/`.

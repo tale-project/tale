@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from '@tale/ui/button';
 
 import { Input } from '../forms/input';
 import { Select } from '../forms/select';
 import { Switch } from '../forms/switch';
-import { Button } from '../primitives/button';
 import { Stack } from './layout';
 import { PageSection } from './page-section';
 

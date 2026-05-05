@@ -1,5 +1,8 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { useAction } from 'convex/react';
 import {
   CheckCircle2,
@@ -14,15 +17,12 @@ import {
 import { useCallback, useMemo, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import {
   DropdownMenu,
   type DropdownMenuGroup,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Button } from '@/app/components/ui/primitives/button';
-import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';

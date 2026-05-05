@@ -1,16 +1,16 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
+import { IconButton } from '@tale/ui/icon-button';
 import { Ellipsis, Pencil, Server, Trash2, Wrench } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Card } from '@/app/components/ui/layout/card';
 import { Center, HStack, Stack } from '@/app/components/ui/layout/layout';
 import {
   DropdownMenu,
   type DropdownMenuGroup,
 } from '@/app/components/ui/overlays/dropdown-menu';
-import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';

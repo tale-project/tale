@@ -1,10 +1,10 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
+import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Loader2, Puzzle, Upload } from 'lucide-react';
 
 import { Image } from '@/app/components/ui/data-display/image';
-import { Badge } from '@/app/components/ui/feedback/badge';
-import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
 import { Center, HStack } from '@/app/components/ui/layout/layout';
 import { useT } from '@/lib/i18n/client';
 
