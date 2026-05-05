@@ -29,10 +29,12 @@ WORKDIR /app
 ARG SOPS_VERSION=3.9.4
 # System packages, binary symlinks, app user (UID 1001 to match platform),
 # and LLVM/docs stripping (~155 MB savings on the base image).
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get -o Acquire::Retries=3 update \
+    && apt-get install -y --no-install-recommends \
     curl tini gosu postgresql-client ca-certificates \
     ffmpeg \
-    && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
     && mkdir -p /usr/local/share/ca-certificates \
     && chmod 755 /usr/local/share/ca-certificates \
@@ -50,9 +52,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ARCH_LIB="/usr/lib/$(dpkg --print-architecture | sed 's/amd64/x86_64-linux-gnu/;s/arm64/aarch64-linux-gnu/')" \
     && rm -rf "${ARCH_LIB}"/libLLVM* "${ARCH_LIB}"/libclang* \
     && rm -rf /usr/lib/llvm-18 \
-    && rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* \
-    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
-    && apt-get clean 2>/dev/null || true
+    && rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/*
 
 ARG VERSION=dev
 LABEL org.opencontainers.image.version="${VERSION}" \

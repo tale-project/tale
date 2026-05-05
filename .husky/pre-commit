@@ -5,7 +5,7 @@ JS_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|json|jsonc
 PY_FILES=$(echo "$STAGED" | grep -E '\.py$' || true)
 
 if [ -n "$JS_FILES" ]; then
-  echo "$JS_FILES" | xargs bunx oxfmt -c .oxfmtrc.json
+  echo "$JS_FILES" | xargs bunx oxfmt -c .oxfmtrc.json --no-error-on-unmatched-pattern
   echo "$JS_FILES" | xargs git add
 fi
 
