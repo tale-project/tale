@@ -1,9 +1,9 @@
 ---
 title: KI-Anbieter
-description: KI-Modell-Anbieter über JSON-Konfigurationsdateien einrichten, selbst gehostete Inferenz-Backends anbinden und Secrets mit SOPS verschlüsseln.
+description: KI-Modell-Anbieter über JSON-Konfigurationsdateien einrichten, selbst gehostete Inferenz-Backends anbinden und Secrets entweder verschlüsselt (SOPS) oder als Klartext speichern.
 ---
 
-Anbieter verbinden Tale über OpenAI-kompatible HTTP-APIs mit KI-Modellen. Admins können Anbieter im laufenden Betrieb unter **Einstellungen > KI-Anbieter** anlegen und bearbeiten — siehe [KI-Anbieter](/de/platform/admin/providers) für den UI-Weg und das Feature-Konzept. Diese Seite beschreibt die Konfigurationsform auf der Platte: die JSON-Dateien in `TALE_CONFIG_DIR/providers/`, ihr Schema, SOPS-verschlüsselte Secrets und wie du Tale auf selbst gehostete Inferenz-Backends wie Ollama, vLLM, LocalAI oder faster-whisper-server zeigen lässt.
+Anbieter verbinden Tale über OpenAI-kompatible HTTP-APIs mit KI-Modellen. Admins können Anbieter im laufenden Betrieb unter **Einstellungen > KI-Anbieter** anlegen und bearbeiten — siehe [KI-Anbieter](/de/platform/admin/providers) für den UI-Weg und das Feature-Konzept. Diese Seite beschreibt die Konfigurationsform auf der Platte: die JSON-Dateien in `TALE_CONFIG_DIR/providers/`, ihr Schema, die Speicherung von Secrets (SOPS-verschlüsselt oder als Klartext) und wie du Tale auf selbst gehostete Inferenz-Backends wie Ollama, vLLM, LocalAI oder faster-whisper-server zeigen lässt.
 
 Die UI-Form und die Dateiform sind gleichwertig — beim Speichern aus **Einstellungen > KI-Anbieter** schreibt die App dasselbe JSON. Wähle, was zu deinem Change-Management-Workflow passt: UI-Änderungen sind schneller für tägliche Anpassungen, Dateiänderungen landen sauber in Git und eignen sich für Infrastructure-as-Code-Betreiber.
 
@@ -15,13 +15,13 @@ Die Anbieter-Konfiguration liegt im Unterverzeichnis `providers/` von `TALE_CONF
 $TALE_CONFIG_DIR/
   providers/
     openrouter.json          # public config — committable
-    openrouter.secrets.json  # SOPS-encrypted API key — committable
+    openrouter.secrets.json  # API key — never commit (encrypted or plaintext)
     openai.json
     openai.secrets.json
 ```
 
 - `providers/<name>.json` — öffentliche Konfiguration: Base-URL, Modell-Definitionen, Tags, Defaults.
-- `providers/<name>.secrets.json` — der API-Schlüssel, SOPS-verschlüsselt. Committe die unverschlüsselte Form niemals.
+- `providers/<name>.secrets.json` — der API-Schlüssel. SOPS-verschlüsselt, wenn `SOPS_AGE_KEY` gesetzt ist, sonst Klartext-JSON mit Modus `0600`. Committe niemals — `tale init` ergänzt `**/*.secrets.json` in der `.gitignore` des Projekts.
 
 Der Dateistamm (`<name>`) ist der interne Slug des Anbieters. Er muss zwischen der öffentlichen Datei und der zugehörigen Secrets-Datei übereinstimmen.
 
@@ -71,17 +71,43 @@ Preise werden pro Modell deklariert, damit das Usage-Ledger Kostenschätzungen b
 
 Lass `cost` für selbst gehostete Backends weg, bei denen der Aufwand operativ statt pro Call entsteht — die Nutzung wird trotzdem protokolliert, aber die geschätzte Kostenspalte steht auf `0`.
 
-## SOPS-verschlüsselte Secrets
+## Speicherung der Anbieter-Secrets
 
-Die Datei `providers/<name>.secrets.json` enthält den API-Schlüssel und wird mit [SOPS](https://github.com/getsops/sops) unter Verwendung des age-Empfängers des Repos verschlüsselt. Unverschlüsselt sieht sie so aus:
+Tale unterstützt zwei On-Disk-Formate für `providers/<name>.secrets.json`. Die Format-Erkennung ist **inhaltsbasiert** — die Datei spricht für sich, und Tale wählt den richtigen Pfad unabhängig davon, welcher Prozess (Convex, CLI, Python-Services) sie liest.
+
+### Verschlüsselter Modus (`SOPS_AGE_KEY` gesetzt)
+
+Wenn `SOPS_AGE_KEY` (oder `SOPS_AGE_KEY_FILE`) in `.env` gesetzt ist, speichert Tale Secrets [SOPS](https://github.com/getsops/sops)-verschlüsselt mit dem konfigurierten age-Empfänger. `tale init` erzeugt automatisch einen Schlüssel und verwendet diesen Modus standardmäßig. Die Datei sieht auf der Platte so aus:
+
+```json
+{
+  "apiKey": "ENC[AES256_GCM,...]",
+  "sops": {
+    "age": [{ "recipient": "age1...", "enc": "..." }],
+    "version": "3.9.4"
+  }
+}
+```
+
+Zur Rotation verschlüssle die Datei mit dem neuen Empfänger neu (oder speichere über die UI, um mit dem aktuellen Schlüssel neu zu verschlüsseln) und starte neu.
+
+### Klartext-Modus (`SOPS_AGE_KEY` nicht gesetzt)
+
+Wenn die Variable fehlt, liest und schreibt Tale Secrets als Klartext-JSON mit Datei-Modus `0600`. Dieser Modus eignet sich für selbst gehostete Setups, die Credentials bereits extern verwalten (Kubernetes Secrets, Vault-injizierte Dateien, gemountete Bind-Volumes usw.):
 
 ```json
 { "apiKey": "sk-…" }
 ```
 
-Committe das niemals. Verschlüssle vor dem Commit mit `sops --encrypt --in-place providers/<name>.secrets.json` — Tale entschlüsselt beim Start. Wenn du einen Schlüssel rotierst, verschlüssle die aktualisierte Datei neu und starte neu (oder lass den Config-Watcher die Änderung aufnehmen, je nach Deployment).
+Die Klartext-Form ist nur für den Eigentümer lesbar und wird über die per Scaffold erzeugte `.gitignore` von Git ausgeschlossen. Die Plattform loggt beim Start einmalig eine Warnung, damit die Speicherposition für Operator:innen sichtbar ist.
 
-Willst du SOPS komplett vermeiden, setze den API-Schlüssel stattdessen über die UI — **Einstellungen > KI-Anbieter > Bearbeiten > API-Schlüssel**. Die App kümmert sich transparent um die Verschlüsselung.
+### Zwischen Modi wechseln
+
+Das Dateiformat ist selbstbeschreibend, daher bleibt eine SOPS-verschlüsselte Datei nach dem Umschalten in den Klartext-Modus weiterhin entschlüsselbar (sofern du den Schlüssel behältst), und eine Klartext-Datei bleibt nach Aktivierung der Verschlüsselung lesbar — Tale verschlüsselt erst beim nächsten Speichern über die UI neu.
+
+Um unwiederbringlichen Datenverlust zu vermeiden, **weigert sich die Plattform, eine bestehende SOPS-verschlüsselte Secrets-Datei mit Klartext zu überschreiben**, wenn `SOPS_AGE_KEY` nicht mehr gesetzt ist. Behebe das explizit: stelle entweder den Schlüssel wieder her oder entferne die verschlüsselte Datei, bevor du neue Credentials speicherst.
+
+Willst du SOPS komplett vermeiden, setze den API-Schlüssel stattdessen über die UI — **Einstellungen > KI-Anbieter > Bearbeiten > API-Schlüssel**. Die App nutzt den Modus, den die `.env` konfiguriert.
 
 ## Mitgelieferte Beispiel-Anbieter nutzen
 
@@ -91,10 +117,9 @@ Das Repo liefert einsatzbereite Beispiel-Configs in `examples/providers/`. Kopie
 
 ```bash
 cp examples/providers/openrouter.json $TALE_CONFIG_DIR/providers/
-cp examples/providers/openrouter.secrets.json $TALE_CONFIG_DIR/providers/
 ```
 
-Hol dir einen Schlüssel auf [openrouter.ai/keys](https://openrouter.ai/keys) und verschlüssle die Secrets-Datei entweder mit deinem eigenen SOPS-Empfänger neu oder aktualisiere sie in der UI unter **Einstellungen > KI-Anbieter > OpenRouter**.
+Hol dir einen Schlüssel auf [openrouter.ai/keys](https://openrouter.ai/keys) und trage ihn über die UI unter **Einstellungen > KI-Anbieter > OpenRouter** ein — die App schreibt das passende `openrouter.secrets.json` für dich, im aktuell konfigurierten Modus. (Die mitgelieferten `examples/providers/*.secrets.json` sind SOPS-verschlüsselt für den age-Empfänger des Repos und nicht als Drop-in-Vorlagen geeignet.)
 
 Das Beispiel enthält Modelle mehrerer Hersteller:
 
@@ -113,10 +138,9 @@ Das Beispiel enthält Modelle mehrerer Hersteller:
 
 ```bash
 cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
-cp examples/providers/openai.secrets.json $TALE_CONFIG_DIR/providers/
 ```
 
-Die Datei deklariert `whisper-1` und `defaults.transcription`, sodass Audio- und Video-Anhänge im Chat hierhin geroutet werden, sobald ein Schlüssel gesetzt ist. Den Endbenutzer-Blick findest du unter [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription).
+Trage deinen OpenAI-Schlüssel über **Einstellungen > KI-Anbieter > OpenAI** ein. Die Datei deklariert `whisper-1` und `defaults.transcription`, sodass Audio- und Video-Anhänge im Chat hierhin geroutet werden, sobald ein Schlüssel gesetzt ist. Den Endbenutzer-Blick findest du unter [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription).
 
 ## Selbst gehostete Inferenz-Backends
 

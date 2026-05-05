@@ -28,11 +28,13 @@ Toute la configuration passe par des variables d’environnement dans `.env`. Co
 
 ## Secrets de sécurité
 
-| Variable                | Requis | Description                                                                       |
-| ----------------------- | ------ | --------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`    | Oui    | clé de signature des sessions d’auth. Générer avec : `openssl rand -base64 32`.   |
-| `ENCRYPTION_SECRET_HEX` | Oui    | clé de chiffrement pour données sensibles. Générer avec : `openssl rand -hex 32`. |
-| `INSTANCE_SECRET`       | Non    | secret d’instance Convex. Générer avec : `openssl rand -hex 32`.                  |
+| Variable                | Requis | Description                                                                                                                                                                                                                                                                                        |
+| ----------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`    | Oui    | clé de signature des sessions d’auth. Générer avec : `openssl rand -base64 32`.                                                                                                                                                                                                                    |
+| `ENCRYPTION_SECRET_HEX` | Oui    | clé de chiffrement pour données sensibles, y compris les secrets de guardrails stockés en base (clés API de modération, etc.). Générer avec : `openssl rand -hex 32`. La rotation de cette valeur invalide tous les secrets de guardrails stockés — les admins doivent les réenregistrer via l’UI. |
+| `INSTANCE_SECRET`       | Non    | secret d’instance Convex. Générer avec : `openssl rand -hex 32`.                                                                                                                                                                                                                                   |
+| `SOPS_AGE_KEY`          | Non    | clé secrète age pour le chiffrement [SOPS](https://github.com/getsops/sops) de `providers/*.secrets.json`. Si défini, les secrets de fournisseur sont stockés chiffrés ; sinon en clair avec mode de fichier `0600`. Généré automatiquement par `tale init`.                                       |
+| `SOPS_AGE_KEY_FILE`     | Non    | alternative à `SOPS_AGE_KEY` : chemin d’un fichier contenant la clé secrète age. L’une ou l’autre variable active le mode chiffré pour les secrets de fournisseur.                                                                                                                                 |
 
 > **Important :** `.env.example` livre des secrets d’exemple. Tu dois les remplacer par les tiens avant démarrage, même en dev local.
 
@@ -41,7 +43,7 @@ Toute la configuration passe par des variables d’environnement dans `.env`. Co
 La configuration des fournisseurs IA (clés API, base URLs, modèles) passe par des fichiers dans `providers/`, pas par des variables d’environnement. Voir la page Paramètres > Fournisseurs IA dans l’admin UI, ou édite les JSON directement.
 
 - `providers/<name>.json` — config publique (base URL, modèles, tags).
-- `providers/<name>.secrets.json` — clés API chiffrées par SOPS (auto-générées par `tale init`).
+- `providers/<name>.secrets.json` — clé API. Chiffrée par SOPS quand `SOPS_AGE_KEY` est défini ; sinon en clair avec mode `0600`. Auto-créée par `tale init` et l’UI Paramètres.
 
 ## Base de données
 

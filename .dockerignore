@@ -19,6 +19,16 @@ services/platform/.env.production.local
 services/platform/.env*.local
 
 # ============================================================================
+# Provider secrets
+# ============================================================================
+# *.secrets.json carries credentials in either form (SOPS-encrypted or
+# plaintext). The convex image ships seeds from examples/providers/, but
+# the secrets siblings should never bake into a layer — the entrypoint
+# already filters them at seed time, but exclude them from the build
+# context entirely so they cannot leak via image inspection.
+**/*.secrets.json
+
+# ============================================================================
 # Git
 # ============================================================================
 .git

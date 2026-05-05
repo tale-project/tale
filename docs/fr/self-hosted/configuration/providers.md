@@ -1,9 +1,9 @@
 ---
 title: Fournisseurs IA
-description: Configure des fournisseurs de modèles IA via des fichiers JSON, connecte des backends d’inférence auto-hébergés et chiffre les secrets avec SOPS.
+description: Configure des fournisseurs de modèles IA via des fichiers JSON, connecte des backends d’inférence auto-hébergés et stocke les secrets soit chiffrés (SOPS) soit en clair.
 ---
 
-Les fournisseurs relient Tale aux modèles IA via des API HTTP compatibles OpenAI. Les admins peuvent ajouter et modifier des fournisseurs depuis **Paramètres > Fournisseurs IA** dans l’application — voir [Fournisseurs IA](/fr/platform/admin/providers) pour le parcours UI et le concept. Cette page couvre la forme fichier : les JSON dans `TALE_CONFIG_DIR/providers/`, leur schéma, les secrets chiffrés par SOPS et comment pointer Tale vers des backends d’inférence auto-hébergés comme Ollama, vLLM, LocalAI ou faster-whisper-server.
+Les fournisseurs relient Tale aux modèles IA via des API HTTP compatibles OpenAI. Les admins peuvent ajouter et modifier des fournisseurs depuis **Paramètres > Fournisseurs IA** dans l’application — voir [Fournisseurs IA](/fr/platform/admin/providers) pour le parcours UI et le concept. Cette page couvre la forme fichier : les JSON dans `TALE_CONFIG_DIR/providers/`, leur schéma, le stockage des secrets (chiffrés par SOPS ou en clair) et comment pointer Tale vers des backends d’inférence auto-hébergés comme Ollama, vLLM, LocalAI ou faster-whisper-server.
 
 La forme UI et la forme fichier sont équivalentes — l’application écrit le même JSON quand tu enregistres depuis **Paramètres > Fournisseurs IA**. Choisis ce qui convient à ton workflow de change-management : les modifications UI vont plus vite au quotidien, les modifications fichier se committent proprement dans Git et conviennent aux opérateurs en infrastructure-as-code.
 
@@ -15,13 +15,13 @@ La configuration des fournisseurs vit dans le sous-répertoire `providers/` de `
 $TALE_CONFIG_DIR/
   providers/
     openrouter.json          # public config — committable
-    openrouter.secrets.json  # SOPS-encrypted API key — committable
+    openrouter.secrets.json  # API key — never commit (encrypted or plaintext)
     openai.json
     openai.secrets.json
 ```
 
 - `providers/<name>.json` — config publique : base URL, définitions de modèles, tags, valeurs par défaut.
-- `providers/<name>.secrets.json` — la clé API, chiffrée par SOPS. Ne committe jamais la forme non chiffrée.
+- `providers/<name>.secrets.json` — la clé API. Chiffrée par SOPS quand `SOPS_AGE_KEY` est défini, sinon JSON en clair en mode `0600`. Ne committe jamais — `tale init` ajoute `**/*.secrets.json` au `.gitignore` du projet.
 
 La racine du nom de fichier (`<name>`) est le slug interne du fournisseur. Elle doit correspondre entre le fichier public et son jumeau secrets.
 
@@ -71,17 +71,43 @@ Les tarifs sont déclarés par modèle pour que le registre d’usage puisse est
 
 Laisse `cost` vide pour les backends auto-hébergés où la dépense est opérationnelle plutôt que par appel — l’usage reste journalisé, mais la colonne coût estimé vaut `0`.
 
-## Secrets chiffrés par SOPS
+## Stockage des secrets de fournisseur
 
-Le fichier `providers/<name>.secrets.json` contient la clé API et est chiffré avec [SOPS](https://github.com/getsops/sops) en utilisant le destinataire age du dépôt. Sous forme non chiffrée :
+Tale prend en charge deux formes sur disque pour `providers/<name>.secrets.json`. La détection du format est **basée sur le contenu** — le fichier parle pour lui-même, et Tale choisit le bon chemin quel que soit le processus (Convex, CLI, services Python) qui le lit.
+
+### Mode chiffré (`SOPS_AGE_KEY` défini)
+
+Quand `SOPS_AGE_KEY` (ou `SOPS_AGE_KEY_FILE`) est défini dans `.env`, Tale stocke les secrets chiffrés via [SOPS](https://github.com/getsops/sops) avec le destinataire age configuré. `tale init` génère automatiquement une clé et utilise ce mode par défaut. Le fichier sur disque ressemble à :
+
+```json
+{
+  "apiKey": "ENC[AES256_GCM,...]",
+  "sops": {
+    "age": [{ "recipient": "age1...", "enc": "..." }],
+    "version": "3.9.4"
+  }
+}
+```
+
+Pour faire tourner la clé, rechiffre le fichier avec le nouveau destinataire (ou enregistre via l’UI pour rechiffrer avec la clé courante) et redémarre.
+
+### Mode clair (`SOPS_AGE_KEY` non défini)
+
+Quand la variable est absente, Tale lit et écrit les secrets en JSON clair avec un mode de fichier `0600`. Ce mode est destiné aux setups auto-hébergés qui gèrent déjà les credentials en externe (Kubernetes Secrets, fichiers injectés par Vault, volumes bind montés, etc.) :
 
 ```json
 { "apiKey": "sk-…" }
 ```
 
-Ne committe jamais cela. Chiffre avec `sops --encrypt --in-place providers/<name>.secrets.json` avant de committer — Tale déchiffre au démarrage. Si tu fais tourner une clé, rechiffre le fichier mis à jour et redémarre (ou laisse le watcher de config prendre le changement, selon ton déploiement).
+La forme en clair n’est lisible que par le propriétaire et est exclue de Git via le `.gitignore` scaffold. La plateforme journalise un avertissement unique au démarrage afin que la posture de stockage soit visible pour les opérateurs.
 
-Si tu préfères éviter SOPS de bout en bout, définis plutôt la clé API via l’UI — **Paramètres > Fournisseurs IA > Modifier > clé API**. L’application gère le chiffrement de manière transparente.
+### Basculer entre les modes
+
+Le format de fichier est auto-descriptif, donc un fichier chiffré par SOPS reste déchiffrable après le passage en mode clair (à condition de garder la clé), et un fichier en clair reste lisible après l’activation du chiffrement — Tale ne rechiffrera qu’à la prochaine sauvegarde via l’UI.
+
+Pour éviter une perte de données irrécupérable, **la plateforme refuse d’écraser en clair un fichier de secrets SOPS existant** quand `SOPS_AGE_KEY` n’est plus défini. Résous-le explicitement : restaure la clé, ou supprime le fichier chiffré avant d’enregistrer de nouveaux credentials.
+
+Si tu préfères éviter SOPS de bout en bout, définis plutôt la clé API via l’UI — **Paramètres > Fournisseurs IA > Modifier > clé API**. L’application utilise le mode configuré par `.env`.
 
 ## Utiliser les fournisseurs exemple livrés
 
@@ -91,10 +117,9 @@ Le dépôt fournit des configs prêtes à l’emploi dans `examples/providers/`.
 
 ```bash
 cp examples/providers/openrouter.json $TALE_CONFIG_DIR/providers/
-cp examples/providers/openrouter.secrets.json $TALE_CONFIG_DIR/providers/
 ```
 
-Obtiens une clé sur [openrouter.ai/keys](https://openrouter.ai/keys) et soit rechiffre le fichier secrets avec ton propre destinataire SOPS, soit mets-le à jour via l’UI dans **Paramètres > Fournisseurs IA > OpenRouter**.
+Obtiens une clé sur [openrouter.ai/keys](https://openrouter.ai/keys) et ajoute-la via l’UI dans **Paramètres > Fournisseurs IA > OpenRouter** — l’application écrit le `openrouter.secrets.json` correspondant pour toi, dans le mode configuré. (Les fichiers `examples/providers/*.secrets.json` livrés sont chiffrés par SOPS pour le destinataire age du dépôt et ne servent pas de modèles plug-and-play.)
 
 L’exemple inclut des modèles de plusieurs constructeurs :
 
@@ -113,10 +138,9 @@ L’exemple inclut des modèles de plusieurs constructeurs :
 
 ```bash
 cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
-cp examples/providers/openai.secrets.json $TALE_CONFIG_DIR/providers/
 ```
 
-Le fichier déclare `whisper-1` et `defaults.transcription`, donc les pièces jointes audio et vidéo du chat sont routées ici dès qu’une clé est définie. Voir [Pièces jointes du chat](/fr/platform/chat/attachments#transcription-audio-et-vidéo) pour la vue utilisateur.
+Ajoute ta clé OpenAI via **Paramètres > Fournisseurs IA > OpenAI**. Le fichier déclare `whisper-1` et `defaults.transcription`, donc les pièces jointes audio et vidéo du chat sont routées ici dès qu’une clé est définie. Voir [Pièces jointes du chat](/fr/platform/chat/attachments#transcription-audio-et-vidéo) pour la vue utilisateur.
 
 ## Backends d’inférence auto-hébergés
 

@@ -1,9 +1,9 @@
 ---
 title: Providers
-description: Configure AI model providers via JSON config files, connect self-hosted inference backends, and encrypt secrets with SOPS.
+description: Configure AI model providers via JSON config files, connect self-hosted inference backends, and store secrets either encrypted (SOPS) or as plaintext.
 ---
 
-Providers connect Tale to AI models over OpenAI-compatible HTTP APIs. Admins can add and edit providers from **Settings > Providers** in the running app — see [AI providers](/platform/admin/providers) for the UI path and feature concept. This page covers the on-disk config form: the JSON files in `TALE_CONFIG_DIR/providers/`, their schema, SOPS-encrypted secrets, and how to point Tale at self-hosted inference backends like Ollama, vLLM, LocalAI, or faster-whisper-server.
+Providers connect Tale to AI models over OpenAI-compatible HTTP APIs. Admins can add and edit providers from **Settings > Providers** in the running app — see [AI providers](/platform/admin/providers) for the UI path and feature concept. This page covers the on-disk config form: the JSON files in `TALE_CONFIG_DIR/providers/`, their schema, secrets storage (SOPS-encrypted or plaintext), and how to point Tale at self-hosted inference backends like Ollama, vLLM, LocalAI, or faster-whisper-server.
 
 The UI form and the file form are equivalent — the app writes the same JSON when you save from **Settings > Providers**. Choose whichever fits your change-management workflow: UI edits are quicker for day-to-day tweaks; file edits commit cleanly to git and suit infrastructure-as-code operators.
 
@@ -15,13 +15,13 @@ Provider configuration lives in the `providers/` subdirectory of `TALE_CONFIG_DI
 $TALE_CONFIG_DIR/
   providers/
     openrouter.json          # public config — committable
-    openrouter.secrets.json  # SOPS-encrypted API key — committable
+    openrouter.secrets.json  # API key — never commit (encrypted or plaintext)
     openai.json
     openai.secrets.json
 ```
 
 - `providers/<name>.json` — public config: base URL, model definitions, tags, defaults.
-- `providers/<name>.secrets.json` — the API key, SOPS-encrypted. Never commit the unencrypted form.
+- `providers/<name>.secrets.json` — the API key. Stored SOPS-encrypted when `SOPS_AGE_KEY` is set, otherwise plaintext JSON at file mode `0600`. Never commit either form — `tale init` adds `**/*.secrets.json` to the project `.gitignore`.
 
 The filename stem (`<name>`) is the provider's internal slug. It must match between the public file and its secrets sibling.
 
@@ -71,17 +71,43 @@ Pricing is declared per model so the usage ledger can compute cost estimates. To
 
 Leave `cost` unset for self-hosted backends where spend is operational rather than per-call — usage is still logged, but the estimated cost column is `0`.
 
-## SOPS-encrypted secrets
+## Provider secrets storage
 
-The `providers/<name>.secrets.json` file holds the API key and is encrypted with [SOPS](https://github.com/getsops/sops) using the repo's age recipient. An unencrypted form looks like:
+Tale supports two on-disk forms for `providers/<name>.secrets.json`. The format detection is **content-based** — the file format speaks for itself, and Tale picks the right path regardless of which process (Convex, CLI, Python services) is reading it.
+
+### Encrypted mode (`SOPS_AGE_KEY` set)
+
+When `SOPS_AGE_KEY` (or `SOPS_AGE_KEY_FILE`) is set in `.env`, Tale stores secrets [SOPS](https://github.com/getsops/sops)-encrypted with the configured age recipient. `tale init` auto-generates a key and uses this mode by default. The on-disk file looks like:
+
+```json
+{
+  "apiKey": "ENC[AES256_GCM,...]",
+  "sops": {
+    "age": [{ "recipient": "age1...", "enc": "..." }],
+    "version": "3.9.4"
+  }
+}
+```
+
+To rotate, re-encrypt the file with the new recipient (or save through the UI to re-encrypt with the current key) and restart.
+
+### Plaintext mode (`SOPS_AGE_KEY` not set)
+
+When the env var is absent, Tale reads and writes secrets as plaintext JSON at file mode `0600`. This mode is intended for self-hosted setups that already manage credentials externally (Kubernetes secrets, Vault-injected files, mounted bind volumes, etc.):
 
 ```json
 { "apiKey": "sk-…" }
 ```
 
-Never commit that. Encrypt with `sops --encrypt --in-place providers/<name>.secrets.json` before committing — Tale decrypts at startup. If you rotate a key, re-encrypt the updated file and restart (or let the config watcher pick up the change, depending on your deployment).
+The plaintext form is owner-readable only and is excluded from git via the scaffolded `.gitignore`. The platform logs a one-time warning at startup so the storage posture is visible to operators.
 
-If you prefer to avoid SOPS end-to-end, set the API key through the UI instead — **Settings > Providers > Edit > API key**. The app handles encryption transparently.
+### Switching modes
+
+The file format is self-describing, so a SOPS-encrypted file remains decryptable after switching to plaintext mode (provided you keep the key) and a plaintext file remains readable after enabling encryption — Tale will only re-encrypt on the next save through the UI.
+
+To prevent unrecoverable data loss, **the platform refuses to plaintext-overwrite an existing SOPS-encrypted secrets file** when `SOPS_AGE_KEY` is no longer set. Resolve it explicitly: either restore the key, or remove the encrypted file before saving fresh credentials.
+
+If you prefer to avoid SOPS end-to-end, set the API key through the UI instead — **Settings > Providers > Edit > API key**. The app handles whichever mode `.env` configures.
 
 ## Using the bundled example providers
 
@@ -91,10 +117,9 @@ The repo ships ready-to-use example configs in `examples/providers/`. Copy any o
 
 ```bash
 cp examples/providers/openrouter.json $TALE_CONFIG_DIR/providers/
-cp examples/providers/openrouter.secrets.json $TALE_CONFIG_DIR/providers/
 ```
 
-Get a key at [openrouter.ai/keys](https://openrouter.ai/keys) and either re-encrypt the secrets file with your own SOPS recipient or update it via the UI in **Settings > Providers > OpenRouter**.
+Get a key at [openrouter.ai/keys](https://openrouter.ai/keys) and add it via the UI in **Settings > Providers > OpenRouter** — the app writes the matching `openrouter.secrets.json` for you in whichever mode is configured. (The committed `examples/providers/*.secrets.json` files are SOPS-encrypted to the repo's age recipient and not useful as drop-in templates.)
 
 The example includes models across multiple vendors:
 
@@ -113,10 +138,9 @@ The example includes models across multiple vendors:
 
 ```bash
 cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
-cp examples/providers/openai.secrets.json $TALE_CONFIG_DIR/providers/
 ```
 
-The file declares `whisper-1` and `defaults.transcription`, so audio and video chat attachments route here once a key is set. See [Chat attachments](/platform/chat/attachments#audio-and-video-transcription) for the end-user view.
+Add your OpenAI key via **Settings > Providers > OpenAI**. The file declares `whisper-1` and `defaults.transcription`, so audio and video chat attachments route here once a key is set. See [Chat attachments](/platform/chat/attachments#audio-and-video-transcription) for the end-user view.
 
 ## Self-hosted inference backends
 

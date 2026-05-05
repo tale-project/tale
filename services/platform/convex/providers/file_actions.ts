@@ -20,8 +20,18 @@ import { providerJsonSchema } from '../../lib/shared/schemas/providers';
 import { action, internalAction } from '../_generated/server';
 import { authComponent } from '../auth';
 import { deriveAgePublicKey } from '../lib/age_keygen';
-import { atomicWrite, readJsonFile, sha256 } from '../lib/file_io';
-import { decryptSecretsFile } from '../lib/sops';
+import {
+  atomicWrite,
+  atomicWriteSecret,
+  readJsonFile,
+  sha256,
+} from '../lib/file_io';
+import {
+  EncryptedFileWithoutKeyError,
+  decryptSecretsFile,
+  hasSopsKey,
+  invalidateSecretsCache,
+} from '../lib/sops';
 import { NoProviderAvailableError } from './errors';
 import type { ProviderJson, ProviderReadResult } from './file_utils';
 import {
@@ -1173,7 +1183,13 @@ export const testProviderConnection = action({
 // ---------------------------------------------------------------------------
 
 /**
- * Save an API key for a provider by writing a SOPS-encrypted .secrets.json file.
+ * Save an API key for a provider by writing a `.secrets.json` file.
+ *
+ * When `SOPS_AGE_KEY` (or `SOPS_AGE_KEY_FILE`) is set, the file is
+ * SOPS-encrypted; otherwise it is written as plaintext JSON at mode 0600.
+ * In plaintext mode, refuses to overwrite an existing encrypted file —
+ * silently downgrading would destroy the only decryptable copy of any
+ * pre-existing secrets.
  */
 export const saveProviderSecret = action({
   args: {
@@ -1195,22 +1211,19 @@ export const saveProviderSecret = action({
       args.providerName,
     );
 
-    const sopsAgeKey = process.env.SOPS_AGE_KEY;
-    if (!sopsAgeKey) {
-      throw new Error(
-        'SOPS_AGE_KEY environment variable is not set. ' +
-          'Set it in .env to enable provider secret encryption.',
-      );
-    }
-    const agePublicKey = deriveAgePublicKey(sopsAgeKey);
+    const encryptMode = hasSopsKey();
 
-    // Read existing secrets to merge with new values
+    // Read existing secrets to merge with new values. decryptSecretsFile
+    // throws EncryptedFileWithoutKeyError if the on-disk file is SOPS-shaped
+    // but no key is configured — propagate that instead of silently
+    // overwriting the encrypted file with plaintext (unrecoverable data loss).
     let existing: ProviderSecrets | null = null;
     try {
       const raw = await decryptSecretsFile(secretsPath);
       existing = parseProviderSecrets(raw);
-    } catch {
-      // No existing secrets or decryption failed — start fresh
+    } catch (err) {
+      if (err instanceof EncryptedFileWithoutKeyError) throw err;
+      // Otherwise: no existing file, parse failure, or decrypt failure — start fresh.
     }
 
     const mergedApiKey = args.apiKey ?? existing?.apiKey;
@@ -1242,6 +1255,25 @@ export const saveProviderSecret = action({
     }
 
     const plaintext = JSON.stringify(secretsData, null, 2) + '\n';
+
+    if (!encryptMode) {
+      await atomicWriteSecret(secretsPath, plaintext);
+      invalidateSecretsCache(secretsPath);
+      return null;
+    }
+
+    const sopsAgeKey = process.env.SOPS_AGE_KEY;
+    if (!sopsAgeKey) {
+      // hasSopsKey() may have been satisfied by SOPS_AGE_KEY_FILE alone;
+      // age public-key derivation needs the inline key. Surface a clear error
+      // pointing the operator at the inline form rather than failing in sops.
+      throw new Error(
+        'SOPS_AGE_KEY (inline) is required to encrypt new secrets via the UI. ' +
+          'Either set SOPS_AGE_KEY=... in .env, or unset SOPS_AGE_KEY_FILE to use plaintext mode.',
+      );
+    }
+    const agePublicKey = deriveAgePublicKey(sopsAgeKey);
+
     const { execFileSync } = await import('node:child_process');
     const { writeFileSync, unlinkSync, mkdtempSync, rmdirSync } =
       await import('node:fs');
@@ -1286,7 +1318,8 @@ export const saveProviderSecret = action({
       }
     }
 
-    await atomicWrite(secretsPath, encrypted);
+    await atomicWriteSecret(secretsPath, encrypted);
+    invalidateSecretsCache(secretsPath);
 
     return null;
   },

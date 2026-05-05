@@ -123,6 +123,45 @@ export async function atomicWrite(
 }
 
 /**
+ * Same as {@link atomicWrite} but creates the file with mode 0o600 so the
+ * resulting credential file is owner-only. `chmod` after `open` defeats the
+ * process umask, which would otherwise mask the requested mode down to 0o644
+ * on most systems.
+ */
+export async function atomicWriteSecret(
+  filePath: string,
+  content: string,
+): Promise<void> {
+  const dir = path.dirname(filePath);
+  await mkdir(dir, { recursive: true });
+
+  const randomSuffix = randomUUID().slice(0, 8);
+  const tmpPath = path.join(
+    dir,
+    `.${path.basename(filePath)}.${Date.now()}.${randomSuffix}.tmp`,
+  );
+
+  try {
+    const fd = await open(
+      tmpPath,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY,
+      0o600,
+    );
+    try {
+      await fd.chmod(0o600);
+      await fd.writeFile(content, 'utf-8');
+      await fd.sync();
+    } finally {
+      await fd.close();
+    }
+    await fsRename(tmpPath, filePath);
+  } catch (err) {
+    await unlink(tmpPath).catch(() => {});
+    throw err;
+  }
+}
+
+/**
  * Atomically write binary content to a file using temp → fsync → rename.
  * Same safety guarantees as {@link atomicWrite} but for Buffer data.
  */
