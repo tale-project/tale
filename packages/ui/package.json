@@ -27,6 +27,7 @@
     "./theme": "./src/theme/index.ts",
     "./cn": "./src/lib/cn.ts",
     "./format": "./src/lib/format.ts",
+    "./i18n-tests": "./src/i18n-tests/index.ts",
     "./globals.css": "./src/globals.css",
     "./tailwind-preset": "./tailwind-preset.ts"
   },
@@ -47,5 +48,13 @@
     "clsx": "2.1.1",
     "lucide-react": "1.8.0",
     "tailwind-merge": "3.5.0"
+  },
+  "peerDependencies": {
+    "vitest": "*"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
   }
 }

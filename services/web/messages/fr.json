@@ -6,7 +6,7 @@
     },
     "pricing": {
       "title": "Tarifs — simples et transparents",
-      "description": "Un prix pour toute votre équipe — sans frais par siège ni coûts cachés. Forfaits Community, Pro et Enterprise pour l'IA auto-hébergée en production."
+      "description": "Deux façons d'exécuter Tale : Enterprise géré et évolutif, ou l'édition Community open source. Tarif par utilisateur, en CHF ou EUR."
     },
     "contact": {
       "title": "Contact",
@@ -146,12 +146,12 @@
       "eyebrow": "FAQ",
       "title": "Questions fréquentes",
       "sovereignty": {
-        "q": "Y a-t-il une tarification à l'usage ou par siège ?",
-        "a": "Non. Nous ne facturons ni par utilisateur ni par siège — le prix du forfait reste le même."
+        "q": "Comment fonctionne la tarification Enterprise ?",
+        "a": "Enterprise est facturé par utilisateur et par mois, avec deux mois offerts en paiement annuel. Le stockage au-delà du quota inclus est facturé par To/mois. L'édition Community reste gratuite pour un usage auto-hébergé."
       },
       "dataResidency": {
         "q": "Y a-t-il des fonctionnalités supplémentaires dans le forfait Enterprise ?",
-        "a": "Non. Toutes les fonctionnalités du produit sont également disponibles dans la version open source. Pro et Enterprise ajoutent un support et des services étendus."
+        "a": "Non. Toutes les fonctionnalités du produit sont également disponibles dans la version open source. Enterprise ajoute un support et des services étendus."
       },
       "deployment": {
         "q": "Dois-je apporter mes propres modèles d'IA ?",
@@ -190,16 +190,26 @@
   },
   "pricing": {
     "title": "Tarifs simples et transparents",
-    "description": "Un prix pour toute votre équipe — sans facturation par siège, sans coûts cachés.",
-    "popular": "Populaire",
-    "note": "Toutes les fonctionnalités du produit sont incluses dans les plans Community, Pro et Enterprise. L'utilisation des modèles d'IA cloud est facturée aux tarifs du fournisseur et n'est pas incluse.",
+    "description": "Deux façons d'exécuter Tale. Enterprise — géré, évolutif et prêt pour la production. Community — flexible et entièrement à vous.",
+    "note": "Toutes les fonctionnalités du produit sont incluses dans Community comme dans Enterprise. L'utilisation supplémentaire de modèles d'IA cloud est facturée aux tarifs du fournisseur.",
     "planIncludes": "Le plan inclut :",
     "billing": {
+      "ariaLabel": "Période de facturation",
       "monthly": "Mensuel",
       "yearly": "Annuel (2 mois offerts)"
     },
+    "billingNote": {
+      "monthly": "Facturé mensuellement",
+      "yearly": "Facturé annuellement · 2 mois offerts"
+    },
+    "region": {
+      "ariaLabel": "Devise",
+      "CH": "CHF",
+      "DE": "EUR"
+    },
     "community": {
       "name": "Community",
+      "deployment": "auto-hébergé uniquement",
       "price": "Gratuit",
       "priceSuffix": "",
       "tagline": "Édition open source auto-hébergée avec support communautaire.",
@@ -209,29 +219,20 @@
       "feature3": "Maintenu par la communauté (GitHub)",
       "feature4": "Support communautaire (GitHub)"
     },
-    "pro": {
-      "name": "Pro",
-      "price": "CHF 299",
-      "priceSuffix": "/mois + TVA",
-      "tagline": "Version maintenue professionnellement pour les équipes qui exécutent de l'IA en production.",
-      "cta": "Nous contacter",
-      "feature1": "Tout le plan Community",
-      "feature2": "Auto-hébergé ou cloud",
-      "feature3": "Maintenu professionnellement (certifié ISO 27001 & SOC 2)",
-      "feature4": "Support par email"
-    },
     "enterprise": {
       "name": "Enterprise",
-      "price": "CHF 1 199",
-      "priceSuffix": "/mois + TVA",
-      "tagline": "Support entreprise complet pour une IA privée critique.",
+      "deployment": "Cloud ou auto-hébergé",
+      "priceSuffix": "/utilisateur/mois + TVA",
+      "storageAddOn": "+ {price}/To/mois de stockage supplémentaire",
+      "tagline": "Entièrement géré, évolutif et prêt pour la production — conçu pour une IA privée critique.",
       "cta": "Nous contacter",
-      "feature1": "Tout le plan Pro",
-      "feature2": "Support téléphone/SMS",
-      "feature3": "Support WhatsApp",
-      "feature4": "Support à distance (AnyDesk / RustDesk)",
+      "feature1": "Auto-hébergé ou cloud",
+      "feature2": "Maintenu professionnellement (certifié ISO 27001 & SOC 2)",
+      "feature3": "Conforme RGPD",
+      "feature4": "Support email, téléphone/SMS, WhatsApp et à distance",
       "feature5": "Installation et maintenance continue",
-      "feature6": "Influence sur la feuille de route"
+      "feature6": "Développement sur mesure et conseil disponibles",
+      "feature7": "Influence sur la feuille de route"
     },
     "compare": {
       "title": "Comparer les plans",
@@ -252,13 +253,16 @@
         "paidCompliance": "Conforme RGPD, certifié ISO 27001 & SOC 2",
         "proSupport": "Support par email",
         "enterpriseSupport": "Support téléphone/SMS, WhatsApp, à distance, services professionnels",
-        "installationFee": "CHF 399",
-        "maintenanceRate": "CHF 80–120 / h",
-        "customDevelopmentRate": "CHF 80–120 / h",
-        "consultingRate": "CHF 160–200 / h",
+        "installationFee": {
+          "CH": "CHF 1 990",
+          "DE": "EUR 2 290"
+        },
+        "hourlyRate": {
+          "CH": "CHF 180–240 / h",
+          "DE": "EUR 200–260 / h"
+        },
         "yes": "Oui",
-        "dash": "—",
-        "proMaintenance": "Cloud :\n✓\nAuto-hébergé : CHF 80–120 / h"
+        "dash": "—"
       },
       "sections": {
         "services": "Services professionnels"
@@ -266,8 +270,10 @@
       "rows": {
         "selfHosted": "Auto-hébergé",
         "cloud": "Cloud",
+        "localDataCenters": "Centres de données locaux (CH & UE)",
         "gdpr": "Conforme RGPD",
         "iso": "Certifié ISO 27001 et SOC 2",
+        "piiRedaction": "Masquage des données personnelles",
         "emailSupport": "Support par email",
         "phoneSupport": "Support téléphone/SMS",
         "whatsappSupport": "Support WhatsApp",
@@ -286,7 +292,7 @@
       },
       "hardware": {
         "title": "Matériel",
-        "description": "Pour l'auto-hébergement, nous proposons des options matérielles flexibles — location, achat ou financement. Voir nos tarifs matériel.",
+        "description": "Pour l'auto-hébergement, nous proposons des options matérielles flexibles — location, achat ou financement.",
         "cta": "Tarifs matériel"
       },
       "cloudProviders": {
@@ -304,7 +310,6 @@
   "hardwarePricing": {
     "title": "Tarifs matériel",
     "description": "Matériel d'IA haute performance — au juste prix. Faites tourner les modèles de pointe, partout.",
-    "popular": "Populaire",
     "configIncludes": "La configuration inclut :",
     "billing": {
       "renting": "Location",
@@ -317,7 +322,7 @@
         "price": "CHF ~2k",
         "priceSuffix": "+ TVA/mois",
         "buyPrice": "CHF ~80k",
-        "buySuffix": "+ TVA, paiement unique",
+        "buySuffix": "+ TVA",
         "tagline": "Optimisé pour une haute précision et des résultats d'IA cohérents.",
         "cta": "Nous contacter",
         "highlightQuality": "Qualité",
@@ -329,7 +334,7 @@
         "price": "CHF ~2.1k",
         "priceSuffix": "+ TVA/mois",
         "buyPrice": "CHF ~84k",
-        "buySuffix": "+ TVA, paiement unique",
+        "buySuffix": "+ TVA",
         "tagline": "Équilibré entre précision et vitesse.",
         "cta": "Nous contacter",
         "highlightQuality": "Élevée",
@@ -341,7 +346,7 @@
         "price": "CHF ~2.2k",
         "priceSuffix": "+ TVA/mois",
         "buyPrice": "CHF ~88k",
-        "buySuffix": "+ TVA, paiement unique",
+        "buySuffix": "+ TVA",
         "tagline": "Optimisé pour des réponses d'IA rapides et une faible latence.",
         "cta": "Nous contacter",
         "highlightQuality": "Standard",
@@ -363,8 +368,8 @@
       },
       "values": {
         "qualityModel": "Kimi K2 Thinking",
-        "hybridModel": "DeepSeek V3.2",
-        "speedModel": "Qwen3 235B",
+        "hybridModel": "DeepSeek V3.2-Exp",
+        "speedModel": "Qwen3-30B-A3B",
         "qualitySize": "50cm × 50cm × 150cm",
         "hybridSize": "50cm × 50cm × 150cm",
         "speedSize": "150cm × 50cm × 50cm",
@@ -417,7 +422,7 @@
     "placeholderCompany": "Saisissez le nom de votre entreprise",
     "placeholderMessage": "Décrivez votre projet. Tous les détails partagés restent confidentiels.",
     "interests": {
-      "proEnterprise": "Solutions Pro/Entreprise",
+      "enterprise": "Solutions Entreprise",
       "professionalServices": "Services professionnels",
       "customAiTraining": "Entraînement de modèle IA sur mesure",
       "aiHardware": "Matériel IA"
@@ -477,5 +482,8 @@
       "hour1": "1 h",
       "hours4": "4 h"
     }
+  },
+  "languageSwitcher": {
+    "ariaLabel": "Langue"
   }
 }

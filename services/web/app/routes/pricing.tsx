@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import { PricingCompare } from '@/app/components/blocks/pricing-compare';
-import { PricingTiers } from '@/app/components/blocks/pricing-tiers';
+import { PricingSection } from '@/app/components/blocks/pricing-section';
 import { useT } from '@/lib/i18n/client';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
@@ -18,10 +17,5 @@ function PricingPage() {
     canonicalPath: '/pricing',
   });
 
-  return (
-    <>
-      <PricingTiers />
-      <PricingCompare />
-    </>
-  );
+  return <PricingSection />;
 }

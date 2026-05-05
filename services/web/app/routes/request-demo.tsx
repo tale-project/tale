@@ -35,7 +35,7 @@ const INTEREST_KEY_MAP: Record<
   (typeof REQUEST_DEMO_INTERESTS)[number],
   string
 > = {
-  pro_enterprise: 'proEnterprise',
+  enterprise: 'enterprise',
   professional_services: 'professionalServices',
   custom_ai_training: 'customAiTraining',
   ai_hardware: 'aiHardware',

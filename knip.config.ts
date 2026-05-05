@@ -1,6 +1,6 @@
 export default {
   ignoreBinaries: ['uv', 'uvx'],
-  ignore: ['examples/**'],
+  ignore: ['examples/**', 'tools/plop/templates/**'],
   ignoreDependencies: [
     '@fontsource/inter',
     '@radix-ui/react-dialog',
@@ -79,6 +79,7 @@ export default {
         '@storybook/react',
         '@storybook/react-vite',
         'storybook',
+        'vitest',
       ],
     },
     'tools/cli': {

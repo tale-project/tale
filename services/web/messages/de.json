@@ -6,7 +6,7 @@
     },
     "pricing": {
       "title": "Preise — einfach und transparent",
-      "description": "Ein Preis für Ihr ganzes Team — keine Pro-Sitz-Gebühren, keine versteckten Kosten. Community, Pro und Enterprise für selbst gehostete KI in Produktion."
+      "description": "Zwei Arten, Tale zu betreiben: verwaltetes Enterprise mit Skalierbarkeit oder die Open-Source-Community-Edition. Preis pro Nutzer, in CHF oder EUR."
     },
     "contact": {
       "title": "Kontakt",
@@ -146,12 +146,12 @@
       "eyebrow": "FAQ",
       "title": "Häufig gestellte Fragen",
       "sovereignty": {
-        "q": "Gibt es eine nutzungs- oder platzbasierte Preisgestaltung?",
-        "a": "Nein. Wir berechnen weder pro Nutzer noch pro Platz — der Preis bleibt unverändert."
+        "q": "Wie funktioniert die Enterprise-Preisgestaltung?",
+        "a": "Enterprise wird pro Nutzer und Monat abgerechnet, mit zwei Monaten gratis bei jährlicher Zahlung. Speicher über das enthaltene Kontingent hinaus wird pro TB/Monat berechnet. Die Community-Edition bleibt für den selbst gehosteten Einsatz kostenlos."
       },
       "dataResidency": {
         "q": "Gibt es zusätzliche Funktionen im Enterprise-Plan?",
-        "a": "Nein. Alle Produktfunktionen sind auch in der Open-Source-Version verfügbar. Pro und Enterprise bieten erweiterten Support und zusätzliche Services."
+        "a": "Nein. Alle Produktfunktionen sind auch in der Open-Source-Version verfügbar. Enterprise bietet erweiterten Support und zusätzliche Services."
       },
       "deployment": {
         "q": "Muss ich eigene KI-Modelle mitbringen?",
@@ -190,16 +190,26 @@
   },
   "pricing": {
     "title": "Einfache, transparente Preise",
-    "description": "Ein Preis für Ihr ganzes Team — keine Pro-Sitz-Gebühren, keine versteckten Kosten.",
-    "popular": "Beliebt",
-    "note": "Alle Produktfunktionen sind in den Plänen Community, Pro und Enterprise enthalten. Die Nutzung von Cloud-KI-Modellen wird zu den Tarifen des Anbieters berechnet und ist nicht inbegriffen.",
+    "description": "Zwei Arten, Tale zu betreiben. Enterprise — verwaltet, skalierbar und produktionsbereit. Community — flexibel und vollständig in Ihrer Hand.",
+    "note": "Alle Produktfunktionen sind sowohl in Community als auch in Enterprise enthalten. Die zusätzliche Nutzung von Cloud-KI-Modellen wird zu den Tarifen des Anbieters berechnet.",
     "planIncludes": "Im Plan enthalten:",
     "billing": {
+      "ariaLabel": "Abrechnungszeitraum",
       "monthly": "Monatlich",
       "yearly": "Jährlich (2 Monate gratis)"
     },
+    "billingNote": {
+      "monthly": "Monatlich abgerechnet",
+      "yearly": "Jährlich abgerechnet · 2 Monate gratis"
+    },
+    "region": {
+      "ariaLabel": "Währung",
+      "CH": "CHF",
+      "DE": "EUR"
+    },
     "community": {
       "name": "Community",
+      "deployment": "nur selbst gehostet",
       "price": "Kostenlos",
       "priceSuffix": "",
       "tagline": "Selbst gehostete Open-Source-Edition mit Community-Support.",
@@ -209,29 +219,20 @@
       "feature3": "Community-gepflegt (GitHub)",
       "feature4": "Community-Support (GitHub)"
     },
-    "pro": {
-      "name": "Pro",
-      "price": "CHF 299",
-      "priceSuffix": "/Monat + MwSt.",
-      "tagline": "Professionell gewartete Version für Teams, die KI in Produktion bringen.",
-      "cta": "Kontakt aufnehmen",
-      "feature1": "Alles aus Community",
-      "feature2": "Selbst gehostet oder Cloud",
-      "feature3": "Professionell gewartet (ISO 27001 & SOC 2 zertifiziert)",
-      "feature4": "E-Mail-Support"
-    },
     "enterprise": {
       "name": "Enterprise",
-      "price": "CHF 1.199",
-      "priceSuffix": "/Monat + MwSt.",
-      "tagline": "Vollständiger Enterprise-Support für geschäftskritische private KI.",
+      "deployment": "Cloud oder selbst gehostet",
+      "priceSuffix": "/Nutzer/Monat + MwSt.",
+      "storageAddOn": "+ {price}/TB/Monat zusätzlicher Speicher",
+      "tagline": "Vollständig verwaltet, skalierbar und produktionsbereit — gebaut für geschäftskritische private KI.",
       "cta": "Kontakt aufnehmen",
-      "feature1": "Alles aus Pro",
-      "feature2": "Telefon/SMS-Support",
-      "feature3": "WhatsApp-Support",
-      "feature4": "Remote-Support (AnyDesk / RustDesk)",
+      "feature1": "Selbst gehostet oder Cloud",
+      "feature2": "Professionell gewartet (ISO 27001 & SOC 2 zertifiziert)",
+      "feature3": "DSGVO-konform",
+      "feature4": "E-Mail-, Telefon-/SMS-, WhatsApp- und Remote-Support",
       "feature5": "Installation und laufende Wartung",
-      "feature6": "Einfluss auf die Produkt-Roadmap"
+      "feature6": "Individuelle Entwicklung & Beratung verfügbar",
+      "feature7": "Einfluss auf die Produkt-Roadmap"
     },
     "compare": {
       "title": "Pläne vergleichen",
@@ -252,13 +253,16 @@
         "paidCompliance": "DSGVO-konform, ISO 27001 & SOC 2 zertifiziert",
         "proSupport": "E-Mail-Support",
         "enterpriseSupport": "Telefon/SMS-Support, WhatsApp-Support, Remote-Support, Professional Services",
-        "installationFee": "CHF 399",
-        "maintenanceRate": "CHF 80–120 / Std.",
-        "customDevelopmentRate": "CHF 80–120 / Std.",
-        "consultingRate": "CHF 160–200 / Std.",
+        "installationFee": {
+          "CH": "CHF 1.990",
+          "DE": "EUR 2.290"
+        },
+        "hourlyRate": {
+          "CH": "CHF 180–240 / Std.",
+          "DE": "EUR 200–260 / Std."
+        },
         "yes": "Ja",
-        "dash": "—",
-        "proMaintenance": "Cloud:\n✓\nSelbst gehostet: CHF 80–120 / h"
+        "dash": "—"
       },
       "sections": {
         "services": "Professionelle Dienstleistungen"
@@ -266,8 +270,10 @@
       "rows": {
         "selfHosted": "Selbst gehostet",
         "cloud": "Cloud",
+        "localDataCenters": "Lokale Rechenzentren (CH & EU)",
         "gdpr": "DSGVO-konform",
         "iso": "ISO 27001 und SOC 2 zertifiziert",
+        "piiRedaction": "PII-Schwärzung",
         "emailSupport": "E-Mail-Support",
         "phoneSupport": "Telefon-/SMS-Support",
         "whatsappSupport": "WhatsApp-Support",
@@ -286,7 +292,7 @@
       },
       "hardware": {
         "title": "Hardware",
-        "description": "Für Self-Hosting bieten wir flexible Hardware-Optionen — Miete, Kauf oder Finanzierung. Sehen Sie unsere Hardware-Preise.",
+        "description": "Für Self-Hosting bieten wir flexible Hardware-Optionen — Miete, Kauf oder Finanzierung.",
         "cta": "Hardware-Preise"
       },
       "cloudProviders": {
@@ -304,7 +310,6 @@
   "hardwarePricing": {
     "title": "Hardware-Preise",
     "description": "Hochleistungs-KI-Hardware — fair bepreist. Betreiben Sie modernste Modelle, überall.",
-    "popular": "Beliebt",
     "configIncludes": "Konfiguration enthält:",
     "billing": {
       "renting": "Miete",
@@ -317,7 +322,7 @@
         "price": "CHF ~2k",
         "priceSuffix": "+ MwSt./Monat",
         "buyPrice": "CHF ~80k",
-        "buySuffix": "+ MwSt. einmalig",
+        "buySuffix": "+ MwSt.",
         "tagline": "Optimiert für hohe Genauigkeit und konsistente KI-Ergebnisse.",
         "cta": "Kontakt aufnehmen",
         "highlightQuality": "Qualität",
@@ -329,7 +334,7 @@
         "price": "CHF ~2.1k",
         "priceSuffix": "+ MwSt./Monat",
         "buyPrice": "CHF ~84k",
-        "buySuffix": "+ MwSt. einmalig",
+        "buySuffix": "+ MwSt.",
         "tagline": "Ausgewogen zwischen Genauigkeit und Geschwindigkeit.",
         "cta": "Kontakt aufnehmen",
         "highlightQuality": "Hoch",
@@ -341,7 +346,7 @@
         "price": "CHF ~2.2k",
         "priceSuffix": "+ MwSt./Monat",
         "buyPrice": "CHF ~88k",
-        "buySuffix": "+ MwSt. einmalig",
+        "buySuffix": "+ MwSt.",
         "tagline": "Optimiert für schnelle KI-Antworten und niedrige Latenz.",
         "cta": "Kontakt aufnehmen",
         "highlightQuality": "Standard",
@@ -363,8 +368,8 @@
       },
       "values": {
         "qualityModel": "Kimi K2 Thinking",
-        "hybridModel": "DeepSeek V3.2",
-        "speedModel": "Qwen3 235B",
+        "hybridModel": "DeepSeek V3.2-Exp",
+        "speedModel": "Qwen3-30B-A3B",
         "qualitySize": "50cm × 50cm × 150cm",
         "hybridSize": "50cm × 50cm × 150cm",
         "speedSize": "150cm × 50cm × 50cm",
@@ -417,7 +422,7 @@
     "placeholderCompany": "Firmennamen eingeben",
     "placeholderMessage": "Beschreiben Sie Ihr Projekt. Alle geteilten Projektdetails behandeln wir vertraulich.",
     "interests": {
-      "proEnterprise": "Pro-/Enterprise-Lösungen",
+      "enterprise": "Enterprise-Lösungen",
       "professionalServices": "Professional Services",
       "customAiTraining": "Individuelles KI-Modelltraining",
       "aiHardware": "KI-Hardware"
@@ -477,5 +482,8 @@
       "hour1": "1 Std.",
       "hours4": "4 Std."
     }
+  },
+  "languageSwitcher": {
+    "ariaLabel": "Sprache"
   }
 }

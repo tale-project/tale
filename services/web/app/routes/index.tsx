@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Bot, LaptopMinimal, ListMinus, Lock } from 'lucide-react';
 
 import { ComplianceTrust } from '@/app/components/blocks/compliance-trust';
 import { CtaDeploy } from '@/app/components/blocks/cta-deploy';
@@ -9,6 +8,12 @@ import { FeatureSectors } from '@/app/components/blocks/feature-sectors';
 import { FeatureSecure } from '@/app/components/blocks/feature-secure';
 import { HeroHeadline } from '@/app/components/blocks/hero-headline';
 import { LogoWall } from '@/app/components/blocks/logo-wall';
+import {
+  BuiltForYouIcon,
+  IndependentIcon,
+  SecureIcon,
+  StackIcon,
+} from '@/app/components/icons/marketing-icons';
 import { useT } from '@/lib/i18n/client';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
@@ -42,25 +47,25 @@ function IndexPage() {
         description={t('featureGrid.description')}
         items={[
           {
-            icon: ListMinus,
+            icon: IndependentIcon,
             title: t('featureGrid.independent.title'),
             description: t('featureGrid.independent.description'),
             illustration: '/marketing/security-1-independent.png',
           },
           {
-            icon: Bot,
+            icon: StackIcon,
             title: t('featureGrid.stack.title'),
             description: t('featureGrid.stack.description'),
-            illustration: '/marketing/security-2-stack.png',
+            illustration: '/marketing/svg/mock-integrations-stack.svg',
           },
           {
-            icon: Lock,
+            icon: SecureIcon,
             title: t('featureGrid.proven.title'),
             description: t('featureGrid.proven.description'),
-            illustration: '/marketing/security-3-proven.png',
+            illustration: '/marketing/svg/mock-compliance-columns.svg',
           },
           {
-            icon: LaptopMinimal,
+            icon: BuiltForYouIcon,
             title: t('featureGrid.needs.title'),
             description: t('featureGrid.needs.description'),
             illustration: '/marketing/security-4-needs.png',

@@ -6,7 +6,7 @@
     },
     "pricing": {
       "title": "Pricing — Simple, Transparent Pricing",
-      "description": "One price for your entire team — no per-seat fees, no hidden costs. Community, Pro, and Enterprise plans for self-hosted AI in production."
+      "description": "Two ways to run Tale: managed Enterprise built to scale, or the open-source Community edition. Per-user pricing, in CHF or EUR."
     },
     "contact": {
       "title": "Contact us",
@@ -146,12 +146,12 @@
       "eyebrow": "FAQ",
       "title": "Frequently Asked Questions",
       "sovereignty": {
-        "q": "Is there any usage-based or seat-based pricing?",
-        "a": "No. We don't charge per user or per seat — the plan price stays the same."
+        "q": "How does Enterprise pricing work?",
+        "a": "Enterprise is billed per user/month, with two months free when paying yearly. Storage beyond the included quota is billed per TB/month. The Community edition stays free for self-hosted use."
       },
       "dataResidency": {
         "q": "Are there additional features in the Enterprise plan?",
-        "a": "No. All product features are available in the open source version too. Pro and Enterprise add extended support and services."
+        "a": "No. All product features are available in the open source version too. Enterprise adds extended support and services."
       },
       "deployment": {
         "q": "Do I have to bring my own AI models?",
@@ -190,16 +190,26 @@
   },
   "pricing": {
     "title": "Simple, Transparent Pricing",
-    "description": "One price for your entire team — no per-seat fees, no hidden costs.",
-    "popular": "Popular",
-    "note": "All product features are included in Community, Pro, and Enterprise plans. Cloud AI model usage is priced at the rates of the provider and is not included.",
+    "description": "Two ways to run Tale. Enterprise — managed, scalable, production-ready. Community — flexible, fully yours.",
+    "note": "All product features are included in both Community and Enterprise. Additional Cloud AI model usage is priced at the rates of the provider.",
     "planIncludes": "Plan includes:",
     "billing": {
+      "ariaLabel": "Billing period",
       "monthly": "Monthly",
       "yearly": "Yearly (2 months free)"
     },
+    "billingNote": {
+      "monthly": "Billed monthly",
+      "yearly": "Billed yearly · 2 months free"
+    },
+    "region": {
+      "ariaLabel": "Currency",
+      "CH": "CHF",
+      "DE": "EUR"
+    },
     "community": {
       "name": "Community",
+      "deployment": "self-hosted only",
       "price": "Free",
       "priceSuffix": "",
       "tagline": "Self-hosted open-source edition with community support.",
@@ -209,29 +219,20 @@
       "feature3": "Community-maintained (GitHub)",
       "feature4": "Community support (GitHub)"
     },
-    "pro": {
-      "name": "Pro",
-      "price": "CHF 299",
-      "priceSuffix": "/mo + VAT",
-      "tagline": "Professionally maintained version for teams running AI in production.",
-      "cta": "Contact us",
-      "feature1": "Everything in Community",
-      "feature2": "Self-hosted or cloud",
-      "feature3": "Professionally maintained (ISO 27001 & SOC 2 certified)",
-      "feature4": "Email support"
-    },
     "enterprise": {
       "name": "Enterprise",
-      "price": "CHF 1'199",
-      "priceSuffix": "/mo + VAT",
-      "tagline": "Full enterprise support for mission-critical private AI.",
+      "deployment": "Cloud or self-hosted",
+      "priceSuffix": "/user/month + VAT",
+      "storageAddOn": "+ {price}/TB/month additional storage",
+      "tagline": "Fully managed, scalable, and production-ready — built for mission-critical private AI.",
       "cta": "Contact us",
-      "feature1": "Everything in Pro",
-      "feature2": "Phone/SMS support",
-      "feature3": "WhatsApp support",
-      "feature4": "Remote support (AnyDesk / RustDesk)",
+      "feature1": "Self-hosted or cloud",
+      "feature2": "Professionally maintained (ISO 27001 & SOC 2 certified)",
+      "feature3": "GDPR compliant",
+      "feature4": "Email, phone/SMS, WhatsApp & remote support",
       "feature5": "Installation & ongoing maintenance",
-      "feature6": "Influence on product roadmap"
+      "feature6": "Custom development & consulting available",
+      "feature7": "Influence on product roadmap"
     },
     "compare": {
       "title": "Compare Plans",
@@ -252,13 +253,16 @@
         "paidCompliance": "GDPR compliant, ISO 27001 & SOC 2 certified",
         "proSupport": "Email support",
         "enterpriseSupport": "Phone/SMS support, WhatsApp support, Remote support, Professional services",
-        "installationFee": "CHF 399",
-        "maintenanceRate": "CHF 80–120 / h",
-        "customDevelopmentRate": "CHF 80–120 / h",
-        "consultingRate": "CHF 160–200 / h",
+        "installationFee": {
+          "CH": "CHF 1'990",
+          "DE": "EUR 2,290"
+        },
+        "hourlyRate": {
+          "CH": "CHF 180–240 / h",
+          "DE": "EUR 200–260 / h"
+        },
         "yes": "Yes",
-        "dash": "—",
-        "proMaintenance": "Cloud:\n✓\nSelf-hosted: CHF 80–120 / h"
+        "dash": "—"
       },
       "sections": {
         "services": "Professional services"
@@ -266,8 +270,10 @@
       "rows": {
         "selfHosted": "Self-hosted",
         "cloud": "Cloud",
+        "localDataCenters": "Local data centers (CH & EU)",
         "gdpr": "GDPR compliant",
         "iso": "ISO 27001 & SOC 2 certified",
+        "piiRedaction": "PII redaction",
         "emailSupport": "Email support",
         "phoneSupport": "Phone/SMS support",
         "whatsappSupport": "WhatsApp support",
@@ -286,7 +292,7 @@
       },
       "hardware": {
         "title": "Hardware",
-        "description": "For self-hosting, we offer flexible hardware options — renting, buying, or financing. See our hardware pricing.",
+        "description": "For self-hosting, we offer flexible hardware options — renting, buying, or financing.",
         "cta": "Hardware pricing"
       },
       "cloudProviders": {
@@ -304,7 +310,6 @@
   "hardwarePricing": {
     "title": "Hardware Pricing",
     "description": "High-performance AI hardware — priced right. Run state-of-the-art models, anywhere.",
-    "popular": "Popular",
     "configIncludes": "Configuration includes:",
     "billing": {
       "renting": "Renting",
@@ -317,7 +322,7 @@
         "price": "CHF ~2k",
         "priceSuffix": "+ VAT/month",
         "buyPrice": "CHF ~80k",
-        "buySuffix": "+ VAT one-off",
+        "buySuffix": "+ VAT",
         "tagline": "Optimized for high-accuracy and consistent AI results.",
         "cta": "Contact us",
         "highlightQuality": "Quality",
@@ -329,7 +334,7 @@
         "price": "CHF ~2.1k",
         "priceSuffix": "+ VAT/month",
         "buyPrice": "CHF ~84k",
-        "buySuffix": "+ VAT one-off",
+        "buySuffix": "+ VAT",
         "tagline": "Balanced between accuracy and speed.",
         "cta": "Contact us",
         "highlightQuality": "High",
@@ -341,7 +346,7 @@
         "price": "CHF ~2.2k",
         "priceSuffix": "+ VAT/month",
         "buyPrice": "CHF ~88k",
-        "buySuffix": "+ VAT one-off",
+        "buySuffix": "+ VAT",
         "tagline": "Optimized for fast AI responses and low latency.",
         "cta": "Contact us",
         "highlightQuality": "Standard",
@@ -363,8 +368,8 @@
       },
       "values": {
         "qualityModel": "Kimi K2 Thinking",
-        "hybridModel": "DeepSeek V3.2",
-        "speedModel": "Qwen3 235B",
+        "hybridModel": "DeepSeek V3.2-Exp",
+        "speedModel": "Qwen3-30B-A3B",
         "qualitySize": "50cm × 50cm × 150cm",
         "hybridSize": "50cm × 50cm × 150cm",
         "speedSize": "150cm × 50cm × 50cm",
@@ -417,7 +422,7 @@
     "placeholderCompany": "Enter your company name",
     "placeholderMessage": "Describe your project. All project details shared with us are kept confidential.",
     "interests": {
-      "proEnterprise": "Pro/Enterprise solutions",
+      "enterprise": "Enterprise solutions",
       "professionalServices": "Professional services",
       "customAiTraining": "Custom AI model training",
       "aiHardware": "AI hardware"
@@ -477,5 +482,8 @@
       "hour1": "1h",
       "hours4": "4h"
     }
+  },
+  "languageSwitcher": {
+    "ariaLabel": "Language"
   }
 }
