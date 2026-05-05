@@ -103,6 +103,22 @@
   --ring: 217 100% 66%;
 }
 
+/*
+ * TEMPORARY: lock the marketing site to light mode until a dark-mode design
+ * pass ships. `color-scheme: light` forces native UI (form controls,
+ * scrollbars, autofill) to render light even when the OS is dark, and the
+ * `.dark` selector below is intentionally neutered so any stray class on
+ * `<html>` cannot flip our tokens. Remove this block when ThemeProvider is
+ * re-enabled in `app/main.tsx` and `app/entry-server.tsx`.
+ */
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: light;
+}
+
 html,
 body,
 #root {

@@ -3,7 +3,6 @@ import { cn } from '@tale/ui/cn';
 import { TaleLogo } from '@tale/ui/logo';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Menu, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { SiteContainer } from '@/app/components/layout/site-container';
@@ -19,6 +18,64 @@ const NAV_ITEMS: readonly NavItem[] = [
   { key: 'features', to: '/', hash: 'features' },
   { key: 'pricing', to: '/pricing' },
 ] as const;
+
+const easeOut = [0.22, 1, 0.36, 1] as const;
+
+function getScrollbarWidth(): number {
+  if (typeof window === 'undefined') return 0;
+  return window.innerWidth - document.documentElement.clientWidth;
+}
+
+function BurgerIcon({
+  open,
+  reduceMotion,
+}: {
+  open: boolean;
+  reduceMotion: boolean | null;
+}) {
+  const duration = reduceMotion ? 0 : 0.25;
+  const transition = { duration, ease: easeOut };
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      aria-hidden
+    >
+      <motion.line
+        initial={{ x1: 3, y1: 6, x2: 17, y2: 6 }}
+        animate={
+          open
+            ? { x1: 4.5, y1: 4.5, x2: 15.5, y2: 15.5 }
+            : { x1: 3, y1: 6, x2: 17, y2: 6 }
+        }
+        transition={transition}
+      />
+      <motion.line
+        initial={{ x1: 3, y1: 10, x2: 17, y2: 10, opacity: 1 }}
+        animate={
+          open
+            ? { x1: 3, y1: 10, x2: 17, y2: 10, opacity: 0 }
+            : { x1: 3, y1: 10, x2: 17, y2: 10, opacity: 1 }
+        }
+        transition={transition}
+      />
+      <motion.line
+        initial={{ x1: 3, y1: 14, x2: 17, y2: 14 }}
+        animate={
+          open
+            ? { x1: 4.5, y1: 15.5, x2: 15.5, y2: 4.5 }
+            : { x1: 3, y1: 14, x2: 17, y2: 14 }
+        }
+        transition={transition}
+      />
+    </svg>
+  );
+}
 
 export function SiteHeader() {
   const { t } = useT('nav');
@@ -39,12 +96,17 @@ export function SiteHeader() {
       if (event.key === 'Escape') setOpen(false);
     };
     if (open) {
+      const scrollbarWidth = getScrollbarWidth();
       document.addEventListener('keydown', onKey);
       document.body.style.overflow = 'hidden';
+      if (scrollbarWidth > 0) {
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
+      }
     }
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
     };
   }, [open]);
 
@@ -63,24 +125,26 @@ export function SiteHeader() {
     <header
       className={cn(
         'sticky top-0 z-40 transition-colors duration-300',
-        scrolled
-          ? 'border-border-base bg-bg-base/85 supports-[backdrop-filter]:bg-bg-base/65 border-b backdrop-blur'
-          : 'border-b border-transparent bg-transparent',
+        open
+          ? 'border-border-base bg-bg-base border-b'
+          : scrolled
+            ? 'border-border-base bg-bg-base/85 supports-[backdrop-filter]:bg-bg-base/65 border-b backdrop-blur'
+            : 'border-b border-transparent bg-transparent',
       )}
     >
       <SiteContainer>
-        <div className="flex h-16 items-center justify-between gap-4 md:grid md:grid-cols-[1fr_auto_1fr]">
+        <div className="flex h-16 items-center justify-between gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr]">
           <Link
             to="/"
             aria-label={t('homeAriaLabel')}
-            className="text-fg-base md:justify-self-start"
+            className="text-fg-base lg:justify-self-start"
           >
             <TaleLogo />
           </Link>
 
           <nav
             aria-label={t('ariaLabel')}
-            className="hidden items-center gap-12 md:flex md:justify-self-center"
+            className="hidden items-center gap-12 lg:flex lg:justify-self-center"
           >
             {NAV_ITEMS.map((item) => (
               <Link
@@ -94,7 +158,7 @@ export function SiteHeader() {
             ))}
           </nav>
 
-          <div className="hidden items-center gap-2 md:flex md:justify-self-end">
+          <div className="hidden items-center gap-2 lg:flex lg:justify-self-end">
             <Button asChild variant="secondary" size="sm">
               <a
                 href="https://docs.tale.dev"
@@ -114,38 +178,53 @@ export function SiteHeader() {
             aria-label={open ? t('closeMenu') : t('openMenu')}
             aria-expanded={open}
             aria-controls="mobile-nav"
-            className="text-fg-base hover:bg-bg-elevated inline-flex h-11 w-11 items-center justify-center rounded-lg md:hidden"
+            className="text-fg-base hover:bg-bg-muted inline-flex h-11 w-11 items-center justify-center rounded-lg transition-colors lg:hidden"
             onClick={() => setOpen((prev) => !prev)}
           >
-            {open ? <X aria-hidden /> : <Menu aria-hidden />}
+            <BurgerIcon open={open} reduceMotion={reduceMotion} />
           </button>
         </div>
       </SiteContainer>
 
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {open ? (
           <motion.nav
             id="mobile-nav"
-            initial={reduceMotion ? false : { opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: -8 }}
-            transition={
+            key="mobile-nav"
+            initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={
               reduceMotion
-                ? { duration: 0 }
-                : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+                ? { height: 'auto', opacity: 1 }
+                : { height: 0, opacity: 0 }
+            }
+            transition={
+              reduceMotion ? { duration: 0 } : { duration: 0.28, ease: easeOut }
             }
             aria-label={t('ariaLabel')}
-            className="border-border-base bg-bg-base border-t md:hidden"
+            className="border-border-base bg-bg-base overflow-hidden border-t lg:hidden"
           >
             <SiteContainer>
-              <div className="flex flex-col gap-2 py-6">
+              <motion.div
+                initial={reduceMotion ? false : { opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={
+                  reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: -8 }
+                }
+                transition={
+                  reduceMotion
+                    ? { duration: 0 }
+                    : { duration: 0.2, ease: easeOut, delay: 0.05 }
+                }
+                className="flex flex-col gap-2 py-6"
+              >
                 {NAV_ITEMS.map((item) => (
                   <Link
                     key={item.key}
                     to={item.to}
                     hash={item.hash}
                     onClick={() => setOpen(false)}
-                    className="text-fg-base hover:bg-bg-elevated rounded-md px-3 py-3 text-base font-medium"
+                    className="text-fg-base hover:bg-bg-muted rounded-md px-3 py-3 text-base font-medium transition-colors"
                   >
                     {t(item.key)}
                   </Link>
@@ -167,7 +246,7 @@ export function SiteHeader() {
                     </Link>
                   </Button>
                 </div>
-              </div>
+              </motion.div>
             </SiteContainer>
           </motion.nav>
         ) : null}

@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowUpRight, Cloud, GraduationCap, Server } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -44,13 +45,13 @@ export function PricingExtras() {
       title: t('extras.hardware.title'),
       description: t('extras.hardware.description'),
       cta: (
-        <a
-          href="/hardware-pricing"
+        <Link
+          to="/hardware-pricing"
           className="text-fg-base hover:text-fg-muted inline-flex items-center gap-1 text-sm font-medium transition-colors"
         >
           {t('extras.hardware.cta')}
           <ArrowUpRight className="h-4 w-4" aria-hidden />
-        </a>
+        </Link>
       ),
     },
     {

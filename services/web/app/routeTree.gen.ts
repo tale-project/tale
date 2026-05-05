@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root';
 import { Route as RequestDemoRouteImport } from './routes/request-demo';
 import { Route as PricingRouteImport } from './routes/pricing';
+import { Route as HardwarePricingRouteImport } from './routes/hardware-pricing';
 import { Route as ContactRouteImport } from './routes/contact';
 import { Route as IndexRouteImport } from './routes/index';
 
@@ -22,6 +23,11 @@ const RequestDemoRoute = RequestDemoRouteImport.update({
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const HardwarePricingRoute = HardwarePricingRouteImport.update({
+  id: '/hardware-pricing',
+  path: '/hardware-pricing',
   getParentRoute: () => rootRouteImport,
 } as any);
 const ContactRoute = ContactRouteImport.update({
@@ -38,12 +44,14 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
   '/contact': typeof ContactRoute;
+  '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
   '/contact': typeof ContactRoute;
+  '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
 }
@@ -51,20 +59,33 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   '/': typeof IndexRoute;
   '/contact': typeof ContactRoute;
+  '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: '/' | '/contact' | '/pricing' | '/request-demo';
+  fullPaths:
+    | '/'
+    | '/contact'
+    | '/hardware-pricing'
+    | '/pricing'
+    | '/request-demo';
   fileRoutesByTo: FileRoutesByTo;
-  to: '/' | '/contact' | '/pricing' | '/request-demo';
-  id: '__root__' | '/' | '/contact' | '/pricing' | '/request-demo';
+  to: '/' | '/contact' | '/hardware-pricing' | '/pricing' | '/request-demo';
+  id:
+    | '__root__'
+    | '/'
+    | '/contact'
+    | '/hardware-pricing'
+    | '/pricing'
+    | '/request-demo';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   ContactRoute: typeof ContactRoute;
+  HardwarePricingRoute: typeof HardwarePricingRoute;
   PricingRoute: typeof PricingRoute;
   RequestDemoRoute: typeof RequestDemoRoute;
 }
@@ -83,6 +104,13 @@ declare module '@tanstack/react-router' {
       path: '/pricing';
       fullPath: '/pricing';
       preLoaderRoute: typeof PricingRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/hardware-pricing': {
+      id: '/hardware-pricing';
+      path: '/hardware-pricing';
+      fullPath: '/hardware-pricing';
+      preLoaderRoute: typeof HardwarePricingRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/contact': {
@@ -105,6 +133,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ContactRoute: ContactRoute,
+  HardwarePricingRoute: HardwarePricingRoute,
   PricingRoute: PricingRoute,
   RequestDemoRoute: RequestDemoRoute,
 };

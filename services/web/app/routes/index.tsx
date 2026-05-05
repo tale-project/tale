@@ -10,6 +10,7 @@ import { FeatureSecure } from '@/app/components/blocks/feature-secure';
 import { HeroHeadline } from '@/app/components/blocks/hero-headline';
 import { LogoWall } from '@/app/components/blocks/logo-wall';
 import { useT } from '@/lib/i18n/client';
+import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 export const Route = createFileRoute('/')({
   component: IndexPage,
@@ -18,6 +19,13 @@ export const Route = createFileRoute('/')({
 function IndexPage() {
   const { t } = useT('home');
   const { t: tNav } = useT('nav');
+  const { t: tSeo } = useT('seo');
+
+  useDocumentMeta({
+    title: tSeo('home.title'),
+    description: tSeo('home.description'),
+    canonicalPath: '/',
+  });
 
   return (
     <>

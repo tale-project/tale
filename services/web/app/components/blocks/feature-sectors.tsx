@@ -102,7 +102,7 @@ export function FeatureSectors() {
             })}
           </div>
 
-          <div className="grid md:min-h-[500px] md:grid-cols-[420px_1fr]">
+          <div className="grid lg:min-h-[500px] lg:grid-cols-[420px_1fr]">
             <div className="relative px-10 py-12">
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
@@ -135,7 +135,7 @@ export function FeatureSectors() {
                 </motion.div>
               </AnimatePresence>
             </div>
-            <div className="border-border-base relative overflow-hidden border-t md:border-t-0 md:border-l">
+            <div className="border-border-base relative overflow-hidden border-t lg:border-t-0 lg:border-l">
               <AnimatePresence mode="wait" initial={false}>
                 <motion.img
                   key={active}

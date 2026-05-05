@@ -1,4 +1,26 @@
 {
+  "seo": {
+    "home": {
+      "title": "Tale : la plateforme d'IA souveraine",
+      "description": "Plateforme d'IA auto-hébergée pour les organisations sensibles aux données — modèles d'IA, agents et automatisations locaux sur votre propre infrastructure. Certifié ISO 27001 et SOC 2."
+    },
+    "pricing": {
+      "title": "Tarifs — simples et transparents",
+      "description": "Un prix pour toute votre équipe — sans frais par siège ni coûts cachés. Forfaits Community, Pro et Enterprise pour l'IA auto-hébergée en production."
+    },
+    "contact": {
+      "title": "Contact",
+      "description": "Contactez l'équipe Tale. Échangez avec nos experts pour discuter de vos objectifs et trouver la meilleure solution d'IA pour votre organisation."
+    },
+    "requestDemo": {
+      "title": "Demander une démo",
+      "description": "Nous aidons les organisations sensibles aux données à automatiser leurs workflows avec une IA privée et fiable. Échangez avec un expert de notre équipe."
+    },
+    "hardwarePricing": {
+      "title": "Tarifs matériel",
+      "description": "Matériel d'IA haute performance — au juste prix. Faites tourner les modèles de pointe, partout."
+    }
+  },
   "nav": {
     "ariaLabel": "Navigation principale",
     "features": "Fonctionnalités",
@@ -34,7 +56,8 @@
       "country": "Suisse",
       "vatId": "CHE-186.532.610"
     },
-    "copyright": "© {year} Tale par Ruler GmbH — certifié ISO 27001 et SOC 2. Tale est sous licence MIT — libre d'utilisation, de modification et de distribution."
+    "copyrightLine1": "© {year} Tale par Ruler GmbH — certifié ISO 27001 et SOC 2.",
+    "copyrightLine2": "Tale est sous licence MIT — libre d'utilisation, de modification et de distribution."
   },
   "home": {
     "hero": {
@@ -55,19 +78,19 @@
       "title": "La plateforme sécurisée pour toutes vos opérations",
       "description": "Discutez avec l'IA, automatisez les workflows, gérez les conversations sur tous les canaux et gardez l'humain dans la boucle — au même endroit.",
       "chat": {
-        "label": "Chat avec l'IA",
-        "description": "Une interface de chat IA entraînée sur les données, l'historique et les documents de votre entreprise.\n\nPosez des questions, recherchez dans tous les systèmes et obtenez des réponses précises et instantanées sans fouiller dans les tableaux de bord ou les fichiers."
+        "label": "Discuter avec l'IA",
+        "description": "Une interface de chat IA entraînée sur les données, l'historique et les documents de votre entreprise — posez des questions, recherchez dans tous les systèmes et obtenez des réponses précises et instantanées."
       },
       "conversations": {
         "label": "Conversations",
         "description": "Répondez aux emails, chats et appels depuis une seule boîte de réception. Tale garde chaque canal sur votre infrastructure, avec historique et routage complets."
       },
-      "workflows": {
-        "label": "Workflows",
+      "automations": {
+        "label": "Automatisations",
         "description": "Composez des automatisations multi-étapes reliant outils, modèles et humains. Déclenchez-les depuis n'importe quel événement et reprenez-les à la demande."
       },
       "approvals": {
-        "label": "Validations",
+        "label": "Approbations",
         "description": "Gardez l'humain dans la boucle avec des étapes d'approbation explicites. Tale achemine le bon contexte aux bons relecteurs et audite chaque décision."
       }
     },
@@ -135,7 +158,7 @@
         "a": "Non. Vous pouvez apporter vos propres modèles, mais ce n'est pas obligatoire. Nous prenons en charge la plupart des grands fournisseurs d'IA et n'ajoutons aucun frais — l'utilisation des modèles d'IA cloud est facturée aux tarifs du fournisseur que vous choisissez et n'est pas incluse dans les forfaits."
       },
       "cloudProviders": {
-        "q": "Prenez-vous en charge les fournisseurs d'IA cloud ?",
+        "q": "Puis-je utiliser mon fournisseur d'IA préféré ?",
         "a": "Oui — nous prenons en charge tous les grands fournisseurs d'IA cloud, ce qui vous permet d'utiliser votre fournisseur préféré tout en bénéficiant de meilleurs tarifs, d'une plus grande disponibilité et d'une facturation à l'usage."
       },
       "pricing": {
@@ -153,7 +176,7 @@
     },
     "cta": {
       "title": "Déployez une IA privée à vos conditions",
-      "description": "",
+      "description": "Faites tourner une stack d'IA souveraine sur votre propre infrastructure — contactez-nous.",
       "primary": "Demander une démo",
       "secondary": "Nous parler"
     }
@@ -170,6 +193,11 @@
     "description": "Un prix pour toute votre équipe — sans facturation par siège, sans coûts cachés.",
     "popular": "Populaire",
     "note": "Toutes les fonctionnalités du produit sont incluses dans les plans Community, Pro et Enterprise. L'utilisation des modèles d'IA cloud est facturée aux tarifs du fournisseur et n'est pas incluse.",
+    "planIncludes": "Le plan inclut :",
+    "billing": {
+      "monthly": "Mensuel",
+      "yearly": "Annuel (2 mois offerts)"
+    },
     "community": {
       "name": "Community",
       "price": "Gratuit",
@@ -229,7 +257,25 @@
         "customDevelopmentRate": "CHF 80–120 / h",
         "consultingRate": "CHF 160–200 / h",
         "yes": "Oui",
-        "dash": "—"
+        "dash": "—",
+        "proMaintenance": "Cloud :\n✓\nAuto-hébergé : CHF 80–120 / h"
+      },
+      "sections": {
+        "services": "Services professionnels"
+      },
+      "rows": {
+        "selfHosted": "Auto-hébergé",
+        "cloud": "Cloud",
+        "gdpr": "Conforme RGPD",
+        "iso": "Certifié ISO 27001 et SOC 2",
+        "emailSupport": "Support par email",
+        "phoneSupport": "Support téléphone/SMS",
+        "whatsappSupport": "Support WhatsApp",
+        "remoteSupport": "Support à distance"
+      },
+      "cellLabels": {
+        "yes": "Inclus",
+        "no": "Non inclus"
       }
     },
     "extras": {
@@ -253,6 +299,106 @@
       "prefix": "Toutes les configurations sont soumises à notre",
       "linkLabel": "contrat de service",
       "suffix": "."
+    }
+  },
+  "hardwarePricing": {
+    "title": "Tarifs matériel",
+    "description": "Matériel d'IA haute performance — au juste prix. Faites tourner les modèles de pointe, partout.",
+    "popular": "Populaire",
+    "configIncludes": "La configuration inclut :",
+    "billing": {
+      "renting": "Location",
+      "buying": "Achat (financement possible)"
+    },
+    "deploymentNote": "Toutes les configurations matérielles sont silencieuses (sans bruit) et peuvent être déployées chez vous et maintenues à distance par notre équipe, ou hébergées dans nos centres de données sécurisés.",
+    "tiers": {
+      "quality": {
+        "name": "Quality",
+        "price": "CHF ~2k",
+        "priceSuffix": "+ TVA/mois",
+        "buyPrice": "CHF ~80k",
+        "buySuffix": "+ TVA, paiement unique",
+        "tagline": "Optimisé pour une haute précision et des résultats d'IA cohérents.",
+        "cta": "Nous contacter",
+        "highlightQuality": "Qualité",
+        "highlightSpeed": "Standard",
+        "highlightStorage": "54TB"
+      },
+      "hybrid": {
+        "name": "Hybrid",
+        "price": "CHF ~2.1k",
+        "priceSuffix": "+ TVA/mois",
+        "buyPrice": "CHF ~84k",
+        "buySuffix": "+ TVA, paiement unique",
+        "tagline": "Équilibré entre précision et vitesse.",
+        "cta": "Nous contacter",
+        "highlightQuality": "Élevée",
+        "highlightSpeed": "Élevée",
+        "highlightStorage": "54TB"
+      },
+      "speed": {
+        "name": "Speed",
+        "price": "CHF ~2.2k",
+        "priceSuffix": "+ TVA/mois",
+        "buyPrice": "CHF ~88k",
+        "buySuffix": "+ TVA, paiement unique",
+        "tagline": "Optimisé pour des réponses d'IA rapides et une faible latence.",
+        "cta": "Nous contacter",
+        "highlightQuality": "Standard",
+        "highlightSpeed": "Qualité",
+        "highlightStorage": "54TB"
+      }
+    },
+    "compare": {
+      "title": "Comparer les configurations",
+      "subtitle": "Détail de chaque configuration",
+      "categories": {
+        "model": "Modèle d'IA recommandé",
+        "size": "Taille",
+        "gpu": "Puce (GPU)",
+        "cpu": "Puce (CPU)",
+        "ram": "RAM IA",
+        "ssd": "SSD",
+        "hdd": "HDD"
+      },
+      "values": {
+        "qualityModel": "Kimi K2 Thinking",
+        "hybridModel": "DeepSeek V3.2",
+        "speedModel": "Qwen3 235B",
+        "qualitySize": "50cm × 50cm × 150cm",
+        "hybridSize": "50cm × 50cm × 150cm",
+        "speedSize": "150cm × 50cm × 50cm",
+        "qualityGpu": "3× Apple Silicon",
+        "hybridGpu": "2× Apple Silicon, 1× NVIDIA RTX PRO 6000",
+        "speedGpu": "3× NVIDIA RTX PRO 6000",
+        "qualityCpu": "1× AMD EPYC 4005",
+        "hybridCpu": "2× AMD EPYC 4005",
+        "speedCpu": "4× AMD EPYC 4005",
+        "qualityRam": "1536GB",
+        "hybridRam": "1120GB",
+        "speedRam": "288GB",
+        "ssd": "18TB",
+        "hdd": "36TB"
+      }
+    },
+    "extras": {
+      "software": {
+        "title": "Logiciels & services",
+        "description": "Pour l'installation, le support et les services professionnels, nous proposons des options flexibles. Voir nos",
+        "linkLabel": "tarifs",
+        "suffix": "."
+      }
+    },
+    "terms": {
+      "title": "Conditions",
+      "prefix": "Toutes les configurations sont soumises à notre",
+      "linkLabel": "contrat matériel",
+      "suffix": "."
+    },
+    "metrics": {
+      "quality": "Qualité",
+      "speed": "Vitesse",
+      "storage": "Stockage"
     }
   },
   "requestDemo": {

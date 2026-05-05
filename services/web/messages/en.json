@@ -1,4 +1,26 @@
 {
+  "seo": {
+    "home": {
+      "title": "Tale: The Sovereign AI Platform",
+      "description": "Self-hosted AI platform for data-sensitive organizations — local AI models, agents, and automations on your own infrastructure. ISO 27001 & SOC 2 certified."
+    },
+    "pricing": {
+      "title": "Pricing — Simple, Transparent Pricing",
+      "description": "One price for your entire team — no per-seat fees, no hidden costs. Community, Pro, and Enterprise plans for self-hosted AI in production."
+    },
+    "contact": {
+      "title": "Contact us",
+      "description": "Get in touch with the Tale team. Connect with one of our domain experts to discuss your goals and find the best AI solution for your organization."
+    },
+    "requestDemo": {
+      "title": "Request a demo",
+      "description": "We help data-sensitive organizations automate workflows with private, reliable AI. Connect with a domain expert to explore solutions for your business."
+    },
+    "hardwarePricing": {
+      "title": "Hardware Pricing",
+      "description": "High-performance AI hardware — priced right. Run state-of-the-art models, anywhere."
+    }
+  },
   "nav": {
     "ariaLabel": "Primary",
     "features": "Features",
@@ -34,7 +56,8 @@
       "country": "Switzerland",
       "vatId": "CHE-186.532.610"
     },
-    "copyright": "© {year} Tale by Ruler GmbH — ISO 27001 & SOC 2 certified. Tale is MIT licensed — free to use, modify, and distribute."
+    "copyrightLine1": "© {year} Tale by Ruler GmbH — ISO 27001 & SOC 2 certified.",
+    "copyrightLine2": "Tale is MIT licensed — free to use, modify, and distribute."
   },
   "home": {
     "hero": {
@@ -56,14 +79,14 @@
       "description": "Chat with AI, automate workflows, manage conversations across channels, and keep humans in the loop — in one place.",
       "chat": {
         "label": "Chat with AI",
-        "description": "An AI chat interface trained on your company's data, history, and documents.\n\nAsk questions, search across systems, and get instant, accurate answers without digging through dashboards or files."
+        "description": "An AI chat interface trained on your company's data, history, and documents — ask questions, search across systems, and get instant, accurate answers."
       },
       "conversations": {
         "label": "Conversations",
         "description": "Reply to email, chat, and voice from a single inbox. Tale keeps every channel on your infrastructure with full conversation history and routing."
       },
-      "workflows": {
-        "label": "Workflows",
+      "automations": {
+        "label": "Automations",
         "description": "Compose multi-step automations that connect tools, models, and humans. Trigger from any event and resume them on demand."
       },
       "approvals": {
@@ -135,7 +158,7 @@
         "a": "No. You can bring your own models, but it's not required. We support most major AI providers and don't add fees on top — cloud AI model usage is priced at the rates of your chosen provider and is not included in the plans."
       },
       "cloudProviders": {
-        "q": "Do you support cloud AI providers?",
+        "q": "Can I use my preferred AI provider?",
         "a": "Yes — we support all major cloud AI providers, so you can use your preferred provider while benefiting from better pricing, higher uptime, and usage-based billing."
       },
       "pricing": {
@@ -153,7 +176,7 @@
     },
     "cta": {
       "title": "Deploy Private AI on Your Terms",
-      "description": "",
+      "description": "Run a sovereign AI stack on your own infrastructure — get in touch.",
       "primary": "Request demo",
       "secondary": "Talk to us"
     }
@@ -170,6 +193,11 @@
     "description": "One price for your entire team — no per-seat fees, no hidden costs.",
     "popular": "Popular",
     "note": "All product features are included in Community, Pro, and Enterprise plans. Cloud AI model usage is priced at the rates of the provider and is not included.",
+    "planIncludes": "Plan includes:",
+    "billing": {
+      "monthly": "Monthly",
+      "yearly": "Yearly (2 months free)"
+    },
     "community": {
       "name": "Community",
       "price": "Free",
@@ -229,7 +257,25 @@
         "customDevelopmentRate": "CHF 80–120 / h",
         "consultingRate": "CHF 160–200 / h",
         "yes": "Yes",
-        "dash": "—"
+        "dash": "—",
+        "proMaintenance": "Cloud:\n✓\nSelf-hosted: CHF 80–120 / h"
+      },
+      "sections": {
+        "services": "Professional services"
+      },
+      "rows": {
+        "selfHosted": "Self-hosted",
+        "cloud": "Cloud",
+        "gdpr": "GDPR compliant",
+        "iso": "ISO 27001 & SOC 2 certified",
+        "emailSupport": "Email support",
+        "phoneSupport": "Phone/SMS support",
+        "whatsappSupport": "WhatsApp support",
+        "remoteSupport": "Remote support"
+      },
+      "cellLabels": {
+        "yes": "Included",
+        "no": "Not included"
       }
     },
     "extras": {
@@ -253,6 +299,106 @@
       "prefix": "All configurations are subject to our",
       "linkLabel": "service agreement",
       "suffix": "."
+    }
+  },
+  "hardwarePricing": {
+    "title": "Hardware Pricing",
+    "description": "High-performance AI hardware — priced right. Run state-of-the-art models, anywhere.",
+    "popular": "Popular",
+    "configIncludes": "Configuration includes:",
+    "billing": {
+      "renting": "Renting",
+      "buying": "Buying (financing possible)"
+    },
+    "deploymentNote": "All hardware configurations are silent (noise-free) and can be deployed at your site and maintained remotely by our team, or hosted in our secure data centers.",
+    "tiers": {
+      "quality": {
+        "name": "Quality",
+        "price": "CHF ~2k",
+        "priceSuffix": "+ VAT/month",
+        "buyPrice": "CHF ~80k",
+        "buySuffix": "+ VAT one-off",
+        "tagline": "Optimized for high-accuracy and consistent AI results.",
+        "cta": "Contact us",
+        "highlightQuality": "Quality",
+        "highlightSpeed": "Standard",
+        "highlightStorage": "54TB"
+      },
+      "hybrid": {
+        "name": "Hybrid",
+        "price": "CHF ~2.1k",
+        "priceSuffix": "+ VAT/month",
+        "buyPrice": "CHF ~84k",
+        "buySuffix": "+ VAT one-off",
+        "tagline": "Balanced between accuracy and speed.",
+        "cta": "Contact us",
+        "highlightQuality": "High",
+        "highlightSpeed": "High",
+        "highlightStorage": "54TB"
+      },
+      "speed": {
+        "name": "Speed",
+        "price": "CHF ~2.2k",
+        "priceSuffix": "+ VAT/month",
+        "buyPrice": "CHF ~88k",
+        "buySuffix": "+ VAT one-off",
+        "tagline": "Optimized for fast AI responses and low latency.",
+        "cta": "Contact us",
+        "highlightQuality": "Standard",
+        "highlightSpeed": "Quality",
+        "highlightStorage": "54TB"
+      }
+    },
+    "compare": {
+      "title": "Compare Configurations",
+      "subtitle": "Breakdown of each configuration",
+      "categories": {
+        "model": "Recommended AI model",
+        "size": "Size",
+        "gpu": "Chip (GPU)",
+        "cpu": "Chip (CPU)",
+        "ram": "AI RAM",
+        "ssd": "SSD",
+        "hdd": "HDD"
+      },
+      "values": {
+        "qualityModel": "Kimi K2 Thinking",
+        "hybridModel": "DeepSeek V3.2",
+        "speedModel": "Qwen3 235B",
+        "qualitySize": "50cm × 50cm × 150cm",
+        "hybridSize": "50cm × 50cm × 150cm",
+        "speedSize": "150cm × 50cm × 50cm",
+        "qualityGpu": "3× Apple Silicon",
+        "hybridGpu": "2× Apple Silicon, 1× NVIDIA RTX PRO 6000",
+        "speedGpu": "3× NVIDIA RTX PRO 6000",
+        "qualityCpu": "1× AMD EPYC 4005",
+        "hybridCpu": "2× AMD EPYC 4005",
+        "speedCpu": "4× AMD EPYC 4005",
+        "qualityRam": "1536GB",
+        "hybridRam": "1120GB",
+        "speedRam": "288GB",
+        "ssd": "18TB",
+        "hdd": "36TB"
+      }
+    },
+    "extras": {
+      "software": {
+        "title": "Software & services",
+        "description": "For installation, support, and professional services, we offer flexible options. See our",
+        "linkLabel": "pricing",
+        "suffix": "."
+      }
+    },
+    "terms": {
+      "title": "Terms",
+      "prefix": "All configurations are subject to our",
+      "linkLabel": "hardware agreement",
+      "suffix": "."
+    },
+    "metrics": {
+      "quality": "Quality",
+      "speed": "Speed",
+      "storage": "Storage"
     }
   },
   "requestDemo": {

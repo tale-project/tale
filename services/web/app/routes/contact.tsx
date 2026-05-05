@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form';
 import { FormCard } from '@/app/components/blocks/form-card';
 import { type ContactInput, contactSchema } from '@/lib/forms/schemas';
 import { useT } from '@/lib/i18n/client';
+import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 export const Route = createFileRoute('/contact')({
   component: ContactPage,
@@ -26,6 +27,13 @@ const defaultValues: ContactInput = {
 function ContactPage() {
   const { t } = useT('contact');
   const { t: tCommon } = useT('forms');
+  const { t: tSeo } = useT('seo');
+
+  useDocumentMeta({
+    title: tSeo('contact.title'),
+    description: tSeo('contact.description'),
+    canonicalPath: '/contact',
+  });
 
   const form = useForm<ContactInput>({
     resolver: zodResolver(contactSchema),
@@ -36,7 +44,6 @@ function ContactPage() {
 
   return (
     <FormCard
-      eyebrow={t('eyebrow')}
       title={t('title')}
       description={<p>{t('description')}</p>}
       // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- FormCard expects a base shape; runtime payload is shape-compatible

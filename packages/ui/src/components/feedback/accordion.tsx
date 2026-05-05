@@ -99,13 +99,18 @@ export function AccordionItem({
         onClick={() => ctx.toggle(itemId)}
         aria-expanded={isOpen}
         aria-controls={`${itemId}-content`}
-        className="flex w-full items-center justify-between gap-4 text-left text-base font-medium text-[color:var(--color-fg-base)] transition-colors hover:text-[color:var(--color-accent-base)]"
+        className="flex w-full items-center justify-between gap-4 text-left font-semibold text-[color:var(--color-fg-base)] transition-colors hover:text-[color:var(--color-accent-base)]"
+        style={{
+          fontSize: '1.125rem',
+          letterSpacing: '-0.27px',
+          lineHeight: 1.4,
+        }}
       >
         <span>{question}</span>
         <ChevronDown
           aria-hidden
           className={cn(
-            'h-4 w-4 shrink-0 text-[color:var(--color-fg-muted)] motion-safe:transition-transform motion-safe:duration-300 motion-reduce:transition-none',
+            'h-5 w-5 shrink-0 text-[color:var(--color-fg-muted)] motion-safe:transition-transform motion-safe:duration-300 motion-reduce:transition-none',
             isOpen && 'rotate-180',
           )}
         />
@@ -128,7 +133,14 @@ export function AccordionItem({
             }
             className="overflow-hidden"
           >
-            <div className="pt-3 text-sm leading-relaxed text-[color:var(--color-fg-muted)]">
+            <div
+              className="pt-3 text-[color:var(--color-fg-muted)]"
+              style={{
+                fontSize: '0.9375rem',
+                letterSpacing: '-0.084px',
+                lineHeight: 1.6,
+              }}
+            >
               {children}
             </div>
           </motion.div>

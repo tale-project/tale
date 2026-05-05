@@ -59,13 +59,13 @@ export function ComplianceTrust() {
             >
               {t('compliance.independent.description')}
             </p>
-            <div className="mt-12 flex h-64 items-center justify-center">
+            <div className="mt-auto flex aspect-[16/10] w-full items-end justify-center overflow-hidden pt-12">
               <img
                 src="/marketing/trust-blocks.png"
                 alt=""
                 aria-hidden
                 draggable={false}
-                className="h-full w-auto object-contain"
+                className="block h-full max-h-full w-auto max-w-[360px] object-contain object-bottom"
               />
             </div>
           </motion.div>
@@ -100,13 +100,13 @@ export function ComplianceTrust() {
             >
               {t('compliance.certified.description')}
             </p>
-            <div className="mt-2 flex h-72 items-end justify-center overflow-hidden">
+            <div className="mt-auto flex aspect-[16/10] w-full items-end justify-center overflow-hidden pt-12">
               <img
                 src="/marketing/trust-network.png"
                 alt=""
                 aria-hidden
                 draggable={false}
-                className="h-full w-full object-contain object-bottom"
+                className="block h-full max-h-full w-auto max-w-[360px] object-contain object-bottom"
               />
             </div>
           </motion.div>

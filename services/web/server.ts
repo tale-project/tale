@@ -139,9 +139,15 @@ Bun.serve({
     const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
     const resolved = resolve(DIST, rel);
     if (resolved === DIST || resolved.startsWith(DIST_PREFIX)) {
+      // Serve the static asset if it exists.
       const candidate = file(resolved);
       if (await candidate.exists()) {
         return new Response(candidate);
+      }
+      // Try the prerendered route HTML (e.g. /pricing → dist/pricing/index.html).
+      const routeHtml = file(join(resolved, 'index.html'));
+      if (await routeHtml.exists()) {
+        return new Response(routeHtml);
       }
     }
     return new Response(file(join(DIST, 'index.html')));

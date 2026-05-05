@@ -10,7 +10,7 @@ import frChMessages from '@/messages/fr-CH.json';
 import frMessages from '@/messages/fr.json';
 import globalMessages from '@/messages/global.json';
 
-const defaultLocale = 'en';
+import { defaultLocale } from './config';
 
 void i18n
   .use(ICU)
@@ -39,8 +39,7 @@ void i18n
         ...frChMessages,
       },
     },
-    lng:
-      typeof navigator !== 'undefined' ? navigator.language : defaultLocale,
+    lng: typeof navigator !== 'undefined' ? navigator.language : defaultLocale,
     fallbackLng: {
       'de-CH': ['de', defaultLocale],
       'de-AT': ['de', defaultLocale],

@@ -1,3 +1,4 @@
+import { cva } from 'class-variance-authority';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   CircleCheck,
@@ -13,7 +14,7 @@ import { useT } from '@/lib/i18n/client';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
-type RailKey = 'chat' | 'conversations' | 'workflows' | 'approvals';
+type RailKey = 'chat' | 'conversations' | 'automations' | 'approvals';
 
 interface RailItem {
   key: RailKey;
@@ -22,6 +23,60 @@ interface RailItem {
   description: string;
   illustration: string;
 }
+
+// Per-tab full-bleed gradient. Values mirror frontpages.pen / live tale.dev
+// (extracted from the Framer JS bundle, all 0deg bottom→top stops).
+const panelGradient = cva('absolute inset-0', {
+  variants: {
+    tab: {
+      chat: 'bg-[linear-gradient(0deg,rgb(155,196,255)_0%,rgb(5,97,230)_18%,rgb(2,49,115)_41%,rgb(2,52,122)_72%,rgb(2,26,63)_100%)]',
+      conversations:
+        'bg-[linear-gradient(0deg,rgb(253,201,76)_0%,rgb(219,106,4)_41%,rgb(147,56,13)_72%,rgb(70,22,2)_100%)]',
+      automations:
+        'bg-[linear-gradient(0deg,rgb(163,179,255)_0%,rgb(79,57,246)_41%,rgb(55,42,172)_72%,rgb(30,26,77)_100%)]',
+      approvals:
+        'bg-[linear-gradient(0deg,rgb(111,230,167)_0%,rgb(7,148,85)_41%,rgb(7,94,58)_72%,rgb(2,44,28)_100%)]',
+    },
+  },
+});
+
+// Per-tab card position. The product mockup peeks out of the panel: top edge
+// inset, the right/left/bottom that sits "off-canvas" uses negative offsets so
+// the rounded corners on those sides simply get clipped by the panel.
+const panelCard = cva(
+  'absolute overflow-hidden bg-white shadow-[0_24px_64px_-16px_rgba(0,0,0,0.55)]',
+  {
+    variants: {
+      tab: {
+        // chat: peeks out to the right + bottom, top-left rounded.
+        chat: 'top-[8%] left-[7%] -right-[18%] -bottom-[20%] rounded-tl-2xl border-t border-l border-white/30',
+        // conversations: same anchor as chat (top-left in the panel).
+        conversations:
+          'top-[8%] left-[7%] -right-[18%] -bottom-[20%] rounded-tl-2xl border-t border-l border-white/30',
+        // automations: centered horizontally, both top corners rounded.
+        automations:
+          'top-[8%] right-[7%] left-[7%] -bottom-[20%] rounded-t-2xl border-t border-x border-white/30',
+        // approvals: peeks out to the left + bottom, top-right rounded.
+        approvals:
+          'top-[8%] -left-[18%] right-[7%] -bottom-[20%] rounded-tr-2xl border-t border-r border-white/30',
+      },
+    },
+  },
+);
+
+// Image anchor matches the card's "anchored" (non-clipped) corner so the
+// important content stays in view while the opposite side gets clipped by
+// the panel's overflow.
+const panelImage = cva('block h-full w-full object-cover', {
+  variants: {
+    tab: {
+      chat: 'object-left-top',
+      conversations: 'object-left-top',
+      automations: 'object-top',
+      approvals: 'object-right-top',
+    },
+  },
+});
 
 export function FeatureSecure() {
   const { t } = useT('home');
@@ -45,11 +100,11 @@ export function FeatureSecure() {
       illustration: '/marketing/feature-secure-conversations.png',
     },
     {
-      key: 'workflows',
+      key: 'automations',
       icon: Network,
-      label: t('featureSecure.workflows.label'),
-      description: t('featureSecure.workflows.description'),
-      illustration: '/marketing/feature-secure-workflows.png',
+      label: t('featureSecure.automations.label'),
+      description: t('featureSecure.automations.description'),
+      illustration: '/marketing/feature-secure-automations.png',
     },
     {
       key: 'approvals',
@@ -61,6 +116,25 @@ export function FeatureSecure() {
   ];
 
   const activeItem = items.find((item) => item.key === active) ?? items[0];
+
+  const renderPanel = (item: RailItem) => (
+    <div
+      role="tabpanel"
+      className="relative aspect-[671/559] w-full overflow-hidden"
+    >
+      <div aria-hidden className={panelGradient({ tab: item.key })} />
+      <div className={panelCard({ tab: item.key })}>
+        <img
+          src={item.illustration}
+          alt=""
+          aria-hidden
+          draggable={false}
+          loading="lazy"
+          className={panelImage({ tab: item.key })}
+        />
+      </div>
+    </div>
+  );
 
   return (
     <section
@@ -102,14 +176,15 @@ export function FeatureSecure() {
               ? { duration: 0 }
               : { delay: 0.1, duration: 0.7, ease: easeOut }
           }
-          className="border-border-base mx-auto mt-16 grid max-w-[1120px] overflow-hidden border md:grid-cols-[400px_1fr]"
+          className="border-border-base mx-auto mt-16 grid max-w-[1120px] overflow-hidden border lg:grid-cols-[400px_1fr]"
         >
           <ul
             role="tablist"
             aria-label={t('featureSecure.title')}
-            className="border-border-base divide-border-base flex flex-col divide-y border-r-0 md:border-r"
+            className="border-border-base divide-border-base flex flex-col divide-y border-r-0 lg:border-r"
           >
-            {items.map(({ key, icon: Icon, label, description }) => {
+            {items.map((item) => {
+              const { key, icon: Icon, label, description } = item;
               const isActive = key === active;
               return (
                 <li
@@ -187,35 +262,29 @@ export function FeatureSecure() {
                       </AnimatePresence>
                     </div>
                   </button>
+                  {isActive ? (
+                    <div className="lg:hidden">{renderPanel(item)}</div>
+                  ) : null}
                 </li>
               );
             })}
           </ul>
 
-          <div
-            id="feature-secure-panel"
-            role="tabpanel"
-            className="bg-bg-elevated relative aspect-[671/559] w-full overflow-hidden"
-          >
+          <div id="feature-secure-panel" className="relative hidden lg:block">
             <AnimatePresence mode="wait" initial={false}>
-              <motion.img
+              <motion.div
                 key={activeItem.key}
-                src={activeItem.illustration}
-                alt=""
-                aria-hidden
-                draggable={false}
-                initial={reduceMotion ? false : { opacity: 0, scale: 1.02 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={
-                  reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.98 }
-                }
+                initial={reduceMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
                 transition={
                   reduceMotion
                     ? { duration: 0 }
                     : { duration: 0.4, ease: easeOut }
                 }
-                className="absolute inset-0 h-full w-full object-cover"
-              />
+              >
+                {renderPanel(activeItem)}
+              </motion.div>
             </AnimatePresence>
           </div>
         </motion.div>

@@ -1,4 +1,3 @@
-import { ThemeProvider } from '@tale/ui/theme';
 import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -10,15 +9,18 @@ import { router } from './router';
 
 import './globals.css';
 
+// TEMPORARY: marketing pages are pinned to light mode. Remove this comment and
+// re-wrap the app in `<ThemeProvider>` (from `@tale/ui/theme`) once we ship a
+// dark-mode design pass for /, /pricing, /hardware-pricing, /contact, and
+// /request-demo. The platform UI keeps its own ThemeProvider — this lock only
+// applies to the marketing site.
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');
 
 createRoot(root).render(
   <StrictMode>
     <I18nProvider>
-      <ThemeProvider>
-        <RouterProvider router={router} />
-      </ThemeProvider>
+      <RouterProvider router={router} />
     </I18nProvider>
   </StrictMode>,
 );

@@ -117,7 +117,7 @@ export function FormCard({
                 ? { duration: 0 }
                 : { duration: 0.5, delay: 0.05, ease: easeOut }
             }
-            className="rounded-xl border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-base)] p-6 shadow-[var(--shadow-card)] md:p-8"
+            className="flex flex-col"
           >
             {submitted ? (
               <div

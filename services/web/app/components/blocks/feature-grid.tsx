@@ -50,7 +50,7 @@ export function FeatureGrid({ title, description, items }: FeatureGridProps) {
 
         <div
           role="list"
-          className="border-border-base mx-auto mt-16 grid max-w-[1120px] grid-cols-1 overflow-hidden border-x md:grid-cols-2"
+          className="border-border-base mx-auto mt-16 grid max-w-[1120px] grid-cols-1 overflow-hidden border md:grid-cols-2"
         >
           {items.map((item, idx) => (
             <motion.div
@@ -64,7 +64,7 @@ export function FeatureGrid({ title, description, items }: FeatureGridProps) {
                   ? { duration: 0 }
                   : { duration: 0.5, delay: idx * 0.06, ease: easeOut }
               }
-              className="border-border-base flex flex-col border-t even:md:border-l"
+              className="border-border-base flex flex-col border-t first:border-t-0 even:md:border-l md:[&:nth-child(2)]:border-t-0"
             >
               <div className="flex flex-col gap-4 px-10 pt-10">
                 <div className="flex items-center gap-2">
@@ -88,13 +88,13 @@ export function FeatureGrid({ title, description, items }: FeatureGridProps) {
                 </p>
               </div>
               {item.illustration ? (
-                <div className="mt-6 flex h-72 items-end justify-center overflow-hidden">
+                <div className="mt-auto flex aspect-[16/10] w-full items-end justify-center overflow-hidden pt-10">
                   <img
                     src={item.illustration}
                     alt=""
                     aria-hidden
                     draggable={false}
-                    className="h-full w-full object-contain object-bottom"
+                    className="block h-full max-h-full w-full object-contain object-bottom"
                   />
                 </div>
               ) : null}

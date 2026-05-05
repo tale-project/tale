@@ -10,7 +10,7 @@ import frChMessages from '@/messages/fr-CH.json';
 import frMessages from '@/messages/fr.json';
 import globalMessages from '@/messages/global.json';
 
-const defaultLocale = 'en';
+import { defaultLocale } from './config';
 
 void i18n
   .use(ICU)

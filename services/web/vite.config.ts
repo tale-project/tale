@@ -28,5 +28,16 @@ export default defineConfig({
     sourcemap: true,
     chunkSizeWarningLimit: 2000,
   },
+  ssr: {
+    noExternal: [
+      '@tale/ui',
+      '@tanstack/react-router',
+      'framer-motion',
+      'lucide-react',
+      'react-i18next',
+      'i18next',
+      'i18next-icu',
+    ],
+  },
   plugins: [tanstackRouter(), viteReact()],
 });

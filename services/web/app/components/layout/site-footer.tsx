@@ -6,7 +6,11 @@ import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
 type LinkSpec =
-  | { kind: 'route'; label: string; to: '/' | '/pricing' | '/contact' }
+  | {
+      kind: 'route';
+      label: string;
+      to: '/' | '/pricing' | '/hardware-pricing' | '/contact';
+    }
   | { kind: 'hash'; label: string; to: '/'; hash: string }
   | { kind: 'external'; label: string; href: string };
 
@@ -25,9 +29,9 @@ export function SiteFooter() {
         { kind: 'hash', label: t('features'), to: '/', hash: 'features' },
         { kind: 'route', label: t('pricing'), to: '/pricing' },
         {
-          kind: 'external',
+          kind: 'route',
           label: t('hardwarePricing'),
-          href: 'https://tale.dev/hardware-pricing',
+          to: '/hardware-pricing',
         },
         { kind: 'route', label: t('contact'), to: '/contact' },
       ],
@@ -77,8 +81,8 @@ export function SiteFooter() {
   return (
     <footer className="border-border-base bg-bg-base border-t">
       <SiteContainer>
-        <div className="grid grid-cols-1 gap-12 py-16 md:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(0,1fr))]">
-          <div className="text-fg-muted flex flex-col gap-4 text-sm">
+        <div className="grid grid-cols-1 gap-12 py-16 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(0,1fr))]">
+          <div className="text-fg-muted flex flex-col gap-4 text-sm sm:col-span-2 lg:col-span-1">
             <Link
               to="/"
               aria-label={t('homeAriaLabel')}
@@ -159,21 +163,22 @@ export function SiteFooter() {
           ))}
         </div>
 
-        <div className="border-border-base flex flex-col gap-4 border-t py-6 md:flex-row md:items-center md:justify-between">
-          <p
+        <div className="border-border-base flex flex-col gap-4 border-t py-6 sm:flex-row sm:items-center sm:justify-between">
+          <div
             className="text-fg-muted text-sm"
             style={{ letterSpacing: '-0.084px', lineHeight: 1.4286 }}
           >
-            {t('copyright', { year: new Date().getFullYear() })}
-          </p>
+            <p>{t('copyrightLine1', { year: new Date().getFullYear() })}</p>
+            <p>{t('copyrightLine2')}</p>
+          </div>
           <a
             href="https://github.com/tale-project/tale"
             target="_blank"
             rel="noopener noreferrer"
             aria-label={t('githubAriaLabel')}
-            className="text-fg-muted hover:bg-bg-elevated hover:text-fg-base inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors"
+            className="text-fg-muted hover:bg-bg-muted hover:text-fg-base inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors"
           >
-            <GithubIcon className="h-4 w-4" />
+            <GithubIcon className="h-5 w-5" />
           </a>
         </div>
       </SiteContainer>

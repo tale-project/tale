@@ -13,9 +13,11 @@ Match the UI verbatim — if the two ever disagree, update the UI first, then th
 | English              | French                     | Notes                                                                                                                   |
 | -------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Agent                | Agent                      | Same spelling in French.                                                                                                |
+| Chat / Chat with AI  | Discuter avec l'IA         | Matches UI label `navigation.chatWithAI`. Plain `Chat` (loanword) is acceptable when context is clear.                  |
+| Conversations        | Conversations              | Multi-channel inbox feature. Matches UI label `navigation.conversations`.                                               |
 | Workflow             | Workflow                   | Established loanword.                                                                                                   |
-| Automation(s)        | Automatisation(s)          |                                                                                                                         |
-| Integration(s)       | Intégration(s)             |                                                                                                                         |
+| Automation(s)        | Automatisation(s)          | Matches UI label `navigation.automations`.                                                                              |
+| Integration(s)       | Intégration(s)             | Matches UI label `navigation.integrations`.                                                                             |
 | Dashboard            | Dashboard                  | Loanword.                                                                                                               |
 | Knowledge            | Connaissances              |                                                                                                                         |
 | Knowledge base       | Base de connaissances      |                                                                                                                         |
@@ -25,7 +27,7 @@ Match the UI verbatim — if the two ever disagree, update the UI first, then th
 | Prompt library       | Bibliothèque de prompts    | Matches UI label `chat.promptLibrary` — **not** the loanword `Prompt Library`.                                          |
 | Arena Mode           | Mode Arène                 | Matches UI label `chat.arena.title`. Capitalize `Arène` as part of the feature name.                                    |
 | Research plan        | Plan de recherche          | Matches UI label `todoList.title` — **never** `Liste de tâches`.                                                        |
-| Approval / Approvals | Approbation / Approbations | Singular for one pending item; plural for the workspace view.                                                           |
+| Approval / Approvals | Approbation / Approbations | Singular for one pending item; plural for the workspace view. **Never** `Validation(s)` for this feature.               |
 | Human input request  | Demande utilisateur        | Context: a workflow step paused on a typed answer. Fall back to `Question à l'utilisateur` if the UI string is unclear. |
 | Location request     | Demande de localisation    | Matches UI label `locationRequest.title`.                                                                               |
 

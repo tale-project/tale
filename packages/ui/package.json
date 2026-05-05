@@ -26,6 +26,7 @@
     "./logo": "./src/logo/tale-logo.tsx",
     "./theme": "./src/theme/index.ts",
     "./cn": "./src/lib/cn.ts",
+    "./format": "./src/lib/format.ts",
     "./globals.css": "./src/globals.css",
     "./tailwind-preset": "./tailwind-preset.ts"
   },

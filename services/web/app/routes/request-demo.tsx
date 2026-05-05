@@ -13,6 +13,7 @@ import {
   requestDemoSchema,
 } from '@/lib/forms/schemas';
 import { useT } from '@/lib/i18n/client';
+import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
 export const Route = createFileRoute('/request-demo')({
   component: RequestDemoPage,
@@ -43,6 +44,13 @@ const INTEREST_KEY_MAP: Record<
 function RequestDemoPage() {
   const { t } = useT('requestDemo');
   const { t: tCommon } = useT('forms');
+  const { t: tSeo } = useT('seo');
+
+  useDocumentMeta({
+    title: tSeo('requestDemo.title'),
+    description: tSeo('requestDemo.description'),
+    canonicalPath: '/request-demo',
+  });
 
   const form = useForm<RequestDemoInput>({
     resolver: zodResolver(requestDemoSchema),
@@ -61,7 +69,6 @@ function RequestDemoPage() {
 
   return (
     <FormCard
-      eyebrow={t('eyebrow')}
       title={t('title')}
       description={
         <>

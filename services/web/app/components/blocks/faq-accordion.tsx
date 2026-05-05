@@ -23,7 +23,7 @@ export function FaqAccordion() {
   return (
     <section className="border-border-base border-b py-20">
       <SiteContainer>
-        <div className="mx-auto grid max-w-[1120px] grid-cols-1 gap-12 md:grid-cols-[1fr_640px] md:gap-10">
+        <div className="mx-auto grid max-w-[1120px] grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,640px)] lg:gap-12">
           <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -31,7 +31,7 @@ export function FaqAccordion() {
             transition={
               reduceMotion ? { duration: 0 } : { duration: 0.5, ease: easeOut }
             }
-            className="md:pl-10"
+            className="lg:pl-10"
           >
             <h2
               className="text-fg-base text-3xl font-medium md:text-[48px]"
