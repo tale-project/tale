@@ -143,25 +143,35 @@ function DashboardLayout() {
     }
   }, [status, navigate]);
 
-  // Early bailout: when the user has no valid member context (not_found,
-  // not_member, or disabled), do NOT render the layout chrome (Navigation,
-  // MobileNavigation, NotificationBell, TeamFilterProvider). Those components
-  // subscribe to Convex queries scoped to organizationId; if they stay mounted
-  // with a stale org id, their observers pin the cache entries and gcTime
-  // never starts ticking — leaving the WebSocket subscriptions firing RLS
-  // errors indefinitely. Keep rendering chrome during isLoading so the
-  // happy-path doesn't flash.
-  if (!isLoading && !hasRole) {
+  // Gate the entire child tree behind a confirmed-access answer. Until
+  // memberContext resolves with status === 'ok', do NOT render the layout
+  // chrome or Outlet. Child routes (chat, agents, …) mount Convex
+  // subscriptions on mount; several use convex/react's useQuery, which
+  // *throws* to React on UnauthorizedError. If the user lands on a deleted
+  // or unauthorized org URL, those throws hit the inner LayoutErrorBoundary
+  // and surface "Something went wrong" before this layout has a chance to
+  // bail out. Showing a centred spinner while the access check is in flight
+  // also avoids a brief chrome flash on cold loads.
+  if (!hasRole) {
+    if (memberContext && status !== 'ok') {
+      return (
+        <FullPageCenter>
+          {status === 'not_found' ? (
+            <AccessDenied
+              title={tNotFound('notFound.title')}
+              message={t('workspaceNotFound')}
+            />
+          ) : (
+            <AccessDenied
+              message={t(isDisabled ? 'disabled' : 'noMembership')}
+            />
+          )}
+        </FullPageCenter>
+      );
+    }
     return (
       <FullPageCenter>
-        {status === 'not_found' ? (
-          <AccessDenied
-            title={tNotFound('notFound.title')}
-            message={t('workspaceNotFound')}
-          />
-        ) : (
-          <AccessDenied message={t(isDisabled ? 'disabled' : 'noMembership')} />
-        )}
+        <Spinner size="lg" />
       </FullPageCenter>
     );
   }
