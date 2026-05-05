@@ -1948,7 +1948,6 @@
       "default": "Réflexion",
       "searching": "Recherche de \"{query}\"",
       "reading": "Lecture de {hostname}",
-      "browsing": "Navigation sur le web",
       "searchingKnowledgeBase": "Recherche dans la base de connaissances pour \"{query}\"",
       "searchingMultiple": "Recherche de {queries}",
       "searchingMore": "Recherche de {first}, {second} et {count} autres",

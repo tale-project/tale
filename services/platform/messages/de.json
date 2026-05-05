@@ -1948,7 +1948,6 @@
       "default": "Denkt nach",
       "searching": "Sucht nach \"{query}\"",
       "reading": "Liest {hostname}",
-      "browsing": "Durchsucht das Web",
       "searchingKnowledgeBase": "Durchsucht die Wissensdatenbank nach \"{query}\"",
       "searchingMultiple": "Sucht nach {queries}",
       "searchingMore": "Sucht nach {first}, {second} und {count} weiteren",

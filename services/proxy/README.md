@@ -20,7 +20,7 @@ Routes (defined in `Caddyfile`):
 - `convex:3210` — WebSocket sync (`/ws_api/*`, `/api/*/sync`), admin API, actions, storage
 - `convex:3211` — Convex HTTP actions and `/api/*` site proxy
 - `convex:6791` — Convex Dashboard at `/convex-dashboard`
-- `crawler:8002`, `rag:8001`, `operator:8004` — `/metrics/*` (token-gated)
+- `crawler:8002`, `rag:8001` — `/metrics/*` (token-gated)
 
 `maintenance.html` is served on backend 5xx.
 

@@ -28,24 +28,6 @@ export type WebFetchUrlResult = {
 };
 
 // =============================================================================
-// BROWSER OPERATE RESULT (via Operator service)
-// =============================================================================
-
-export type WebBrowserOperateResult = {
-  operation: 'browser_operate';
-  success: boolean;
-  response: string;
-  error?: string;
-  sources?: string[];
-  usage?: {
-    inputTokens?: number;
-    outputTokens?: number;
-    totalTokens?: number;
-    durationSeconds?: number;
-  };
-};
-
-// =============================================================================
 // API RESPONSE TYPES
 // =============================================================================
 
@@ -60,18 +42,4 @@ export interface WebFetchExtractApiResponse {
   vision_used: boolean;
   error?: string;
   usage?: ServiceUsage;
-}
-
-export interface OperatorChatResponse {
-  success: boolean;
-  response?: string;
-  error?: string;
-  partial?: boolean;
-  sources?: string[];
-  duration_seconds?: number;
-  token_usage?: {
-    input_tokens?: number;
-    output_tokens?: number;
-    total_tokens?: number;
-  };
 }

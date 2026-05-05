@@ -46,12 +46,6 @@ export function ThinkingAnimation({
           }),
         };
       }
-      if (input.operation === 'browser_operate' && input.instruction) {
-        return {
-          toolName,
-          displayText: t('thinking.browsing'),
-        };
-      }
     }
 
     if (toolName === 'rag_search' && typeof input?.query === 'string') {
