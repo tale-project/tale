@@ -25,6 +25,27 @@ export class ProviderUnavailableError extends Error {
   }
 }
 
+/**
+ * User-facing error thrown when no usable AI provider can be loaded for an
+ * org. The condition is org-wide — every fallback model would hit the same
+ * empty provider list — so callers should treat this as terminal and not
+ * walk the fallback chain.
+ */
+export class NoProviderAvailableError extends Error {
+  readonly reason: 'missing_api_key' | 'no_providers' | 'load_failed';
+  readonly details: string[];
+  constructor(
+    message: string,
+    reason: 'missing_api_key' | 'no_providers' | 'load_failed',
+    details: string[] = [],
+  ) {
+    super(message);
+    this.name = 'NoProviderAvailableError';
+    this.reason = reason;
+    this.details = details;
+  }
+}
+
 const TRANSIENT_STATUS_CODES = new Set([429, 502, 503, 504]);
 
 /**
@@ -133,12 +154,6 @@ const RESOLUTION_ERROR_PATTERNS = [
 export function shouldFailoverToNextModel(error: unknown): boolean {
   if (error === null || error === undefined) return false;
 
-  // All transient errors are failoverable (superset).
-  if (isTransientProviderError(error) !== null) return true;
-
-  // Explicit provider-unavailable errors always qualify.
-  if (error instanceof ProviderUnavailableError) return true;
-
   // Extract properties from the error object.
   const isObject = (val: unknown): val is Record<string, unknown> =>
     val !== null && typeof val === 'object';
@@ -155,6 +170,25 @@ export function shouldFailoverToNextModel(error: unknown): boolean {
   const message = (
     typeof err.message === 'string' ? err.message : ''
   ).toLowerCase();
+
+  // Org has no usable provider at all — every fallback model would hit the
+  // same empty provider list. Surface the actionable error immediately
+  // instead of walking the chain. Match by class name AND by message
+  // pattern: Convex's ctx.runAction() reserializes thrown errors as plain
+  // Error whose message is prefixed "Uncaught NoProviderAvailableError: ...",
+  // so `instanceof` alone misses cross-action throws.
+  if (
+    error instanceof NoProviderAvailableError ||
+    message.includes('noprovideravailableerror')
+  ) {
+    return false;
+  }
+
+  // All transient errors are failoverable (superset).
+  if (isTransientProviderError(error) !== null) return true;
+
+  // Explicit provider-unavailable errors always qualify.
+  if (error instanceof ProviderUnavailableError) return true;
 
   // Exclude universal errors that would fail on any model.
   if (NO_FAILOVER_PATTERNS.some((p) => message.includes(p))) return false;
