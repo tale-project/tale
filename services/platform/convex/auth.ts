@@ -9,6 +9,7 @@ import { createAccessControl } from 'better-auth/plugins/access';
 import {
   defaultStatements,
   adminAc,
+  ownerAc,
 } from 'better-auth/plugins/organization/access';
 
 import { isRecord, getString } from '../lib/utils/type-guards';
@@ -206,7 +207,31 @@ const disabled = ac.newRole({
   mcpServers: [],
 });
 
-const owner = admin;
+const owner = ac.newRole({
+  ...ownerAc.statements,
+
+  agents: ['read', 'write'],
+  documents: ['read', 'write'],
+  products: ['read', 'write'],
+  customers: ['read', 'write'],
+  vendors: ['read', 'write'],
+  integrations: ['read', 'write'],
+  onedriveSyncConfigs: ['read', 'write'],
+  conversations: ['read', 'write'],
+  conversationMessages: ['read', 'write'],
+  wfDefinitions: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfStepDefs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfStepAuditLogs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfExecutions: ['read', 'write'],
+  workflowProcessingRecords: ['read', 'write'],
+  approvals: ['read', 'write'],
+  websites: ['read', 'write'],
+  auditLogs: ['read', 'write'],
+  governancePolicies: ['read', 'write'],
+  promptTemplates: ['read', 'write'],
+  messageFeedback: ['read', 'write'],
+  mcpServers: ['read', 'write'],
+});
 
 export const platformRoles = {
   owner,
