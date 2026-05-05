@@ -651,6 +651,7 @@ import type * as providers_failover from "../providers/failover.js";
 import type * as providers_file_actions from "../providers/file_actions.js";
 import type * as providers_file_utils from "../providers/file_utils.js";
 import type * as providers_resolve_model from "../providers/resolve_model.js";
+import type * as providers_secret_io from "../providers/secret_io.js";
 import type * as providers_validators from "../providers/validators.js";
 import type * as sso_providers_actions from "../sso_providers/actions.js";
 import type * as sso_providers_create_user_session from "../sso_providers/create_user_session.js";
@@ -1682,6 +1683,7 @@ declare const fullApi: ApiFromModules<{
   "providers/file_actions": typeof providers_file_actions;
   "providers/file_utils": typeof providers_file_utils;
   "providers/resolve_model": typeof providers_resolve_model;
+  "providers/secret_io": typeof providers_secret_io;
   "providers/validators": typeof providers_validators;
   "sso_providers/actions": typeof sso_providers_actions;
   "sso_providers/create_user_session": typeof sso_providers_create_user_session;

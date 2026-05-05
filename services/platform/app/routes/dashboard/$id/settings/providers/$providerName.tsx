@@ -3,6 +3,7 @@ import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { ConvexError } from 'convex/values';
 import { ChevronRight, Loader2, Pencil, Trash2, X, Zap } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 
@@ -308,11 +309,15 @@ function ApiKeySection({
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
+  const [overwritePrompt, setOverwritePrompt] = useState<{
+    kind: 'encrypted_no_key' | 'undecryptable_existing';
+    path: string;
+    message: string;
+  } | null>(null);
   const apiKeyInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSaveKey = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
+  const performSave = useCallback(
+    async (force: boolean) => {
       if (!apiKey.trim() || !orgSlug) return;
       setSaving(true);
       try {
@@ -320,20 +325,49 @@ function ApiKeySection({
           orgSlug,
           providerName,
           apiKey: apiKey.trim(),
+          force: force || undefined,
         });
         setApiKey('');
         setDialogOpen(false);
-      } catch {
-        toast({
-          title: t('providers.secretSaveFailed'),
-          variant: 'destructive',
-        });
+        setOverwritePrompt(null);
+      } catch (err) {
+        if (
+          err instanceof ConvexError &&
+          err.data?.code === 'PROVIDER_SECRET_REFUSED_OVERWRITE' &&
+          (err.data.kind === 'encrypted_no_key' ||
+            err.data.kind === 'undecryptable_existing')
+        ) {
+          // Server refused the overwrite — surface the confirm dialog so the
+          // operator can opt into discarding the unreadable existing file.
+          setOverwritePrompt({
+            kind: err.data.kind,
+            path: err.data.path,
+            message: err.data.message,
+          });
+        } else {
+          toast({
+            title: t('providers.secretSaveFailed'),
+            variant: 'destructive',
+          });
+        }
       } finally {
         setSaving(false);
       }
     },
     [apiKey, orgSlug, providerName, saveSecret, t],
   );
+
+  const handleSaveKey = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      await performSave(false);
+    },
+    [performSave],
+  );
+
+  const handleConfirmOverwrite = useCallback(() => {
+    void performSave(true);
+  }, [performSave]);
 
   return (
     <>
@@ -463,6 +497,30 @@ function ApiKeySection({
         onOpenChange={setTestDialogOpen}
         orgSlug={orgSlug}
         providerName={providerName}
+      />
+
+      <ConfirmDialog
+        open={overwritePrompt != null}
+        onOpenChange={(open) => {
+          if (!open) setOverwritePrompt(null);
+        }}
+        title={t('providers.overwriteUnreadableTitle')}
+        description={
+          overwritePrompt
+            ? overwritePrompt.kind === 'encrypted_no_key'
+              ? t('providers.overwriteEncryptedNoKeyDescription', {
+                  path: overwritePrompt.path,
+                })
+              : t('providers.overwriteUndecryptableDescription', {
+                  path: overwritePrompt.path,
+                  reason: overwritePrompt.message,
+                })
+            : ''
+        }
+        confirmText={t('providers.overwriteAnywayConfirm')}
+        variant="destructive"
+        isLoading={saving}
+        onConfirm={handleConfirmOverwrite}
       />
     </>
   );

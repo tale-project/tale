@@ -5,12 +5,14 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { useNavigate } from '@tanstack/react-router';
+import { ConvexError } from 'convex/values';
 import { Loader2, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod/v4';
 
 import { CollapsibleGuide } from '@/app/components/ui/data-display/collapsible-guide';
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
@@ -372,44 +374,92 @@ export function ProviderAddPanel({
     [reset, onOpenChange],
   );
 
-  const onSubmit = async (data: FormData) => {
-    try {
-      await saveProvider({
-        orgSlug: 'default',
-        providerName: data.name,
-        config: {
-          displayName: data.displayName,
-          baseUrl: data.baseUrl,
-          models: data.models.map((m) => ({
-            id: m.id,
-            displayName: m.displayName,
-            tags: m.tags,
-          })),
-        },
-      });
-      await saveProviderSecret({
-        orgSlug: 'default',
-        providerName: data.name,
-        apiKey: data.apiKey,
-      });
-      toast({
-        title: t('providers.created'),
-        variant: 'success',
-      });
+  const [overwritePrompt, setOverwritePrompt] = useState<{
+    kind: 'encrypted_no_key' | 'undecryptable_existing';
+    path: string;
+    message: string;
+    pendingFormData: FormData;
+  } | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const finalizeProvider = useCallback(
+    (providerName: string) => {
+      toast({ title: t('providers.created'), variant: 'success' });
       reset();
       onOpenChange(false);
       void navigate({
         to: '/dashboard/$id/settings/providers/$providerName',
-        params: { id: organizationId, providerName: data.name },
+        params: { id: organizationId, providerName },
       });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: t('providers.createFailed'),
-        variant: 'destructive',
-      });
-    }
+    },
+    [navigate, onOpenChange, organizationId, reset, t],
+  );
+
+  const performCreate = useCallback(
+    async (data: FormData, force: boolean) => {
+      setCreating(true);
+      try {
+        if (!force) {
+          // First attempt also creates the config; on retry the config already
+          // exists (saveProvider is idempotent — last-writer-wins) so re-running
+          // it is harmless.
+          await saveProvider({
+            orgSlug: 'default',
+            providerName: data.name,
+            config: {
+              displayName: data.displayName,
+              baseUrl: data.baseUrl,
+              models: data.models.map((m) => ({
+                id: m.id,
+                displayName: m.displayName,
+                tags: m.tags,
+              })),
+            },
+          });
+        }
+        await saveProviderSecret({
+          orgSlug: 'default',
+          providerName: data.name,
+          apiKey: data.apiKey,
+          force: force || undefined,
+        });
+        setOverwritePrompt(null);
+        finalizeProvider(data.name);
+      } catch (error) {
+        if (
+          error instanceof ConvexError &&
+          error.data?.code === 'PROVIDER_SECRET_REFUSED_OVERWRITE' &&
+          (error.data.kind === 'encrypted_no_key' ||
+            error.data.kind === 'undecryptable_existing')
+        ) {
+          setOverwritePrompt({
+            kind: error.data.kind,
+            path: error.data.path,
+            message: error.data.message,
+            pendingFormData: data,
+          });
+        } else {
+          console.error(error);
+          toast({
+            title: t('providers.createFailed'),
+            variant: 'destructive',
+          });
+        }
+      } finally {
+        setCreating(false);
+      }
+    },
+    [finalizeProvider, saveProvider, saveProviderSecret, t],
+  );
+
+  const onSubmit = async (data: FormData) => {
+    await performCreate(data, false);
   };
+
+  const handleConfirmOverwrite = useCallback(() => {
+    if (!overwritePrompt) return;
+    void performCreate(overwritePrompt.pendingFormData, true);
+  }, [overwritePrompt, performCreate]);
 
   const watchedBaseUrl = watch('baseUrl');
   const watchedApiKey = watch('apiKey');
@@ -767,6 +817,29 @@ export function ProviderAddPanel({
           )}
         </Stack>
       </FormDialog>
+      <ConfirmDialog
+        open={overwritePrompt != null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setOverwritePrompt(null);
+        }}
+        title={t('providers.overwriteUnreadableTitle')}
+        description={
+          overwritePrompt
+            ? overwritePrompt.kind === 'encrypted_no_key'
+              ? t('providers.overwriteEncryptedNoKeyDescription', {
+                  path: overwritePrompt.path,
+                })
+              : t('providers.overwriteUndecryptableDescription', {
+                  path: overwritePrompt.path,
+                  reason: overwritePrompt.message,
+                })
+            : ''
+        }
+        confirmText={t('providers.overwriteAnywayConfirm')}
+        variant="destructive"
+        isLoading={creating}
+        onConfirm={handleConfirmOverwrite}
+      />
     </Sheet>
   );
 }

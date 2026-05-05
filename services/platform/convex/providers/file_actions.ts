@@ -19,7 +19,7 @@ import type { ProviderSecrets } from '../../lib/shared/schemas/providers';
 import { providerJsonSchema } from '../../lib/shared/schemas/providers';
 import { action, internalAction } from '../_generated/server';
 import { authComponent } from '../auth';
-import { deriveAgePublicKey } from '../lib/age_keygen';
+import { deriveAgePublicKey, resolveAgeSecretKey } from '../lib/age_keygen';
 import {
   atomicWrite,
   atomicWriteSecret,
@@ -45,6 +45,10 @@ import {
   serializeProviderJson,
   validateProviderName,
 } from './file_utils';
+import {
+  UndecryptableExistingSecretError,
+  prepareMergedSecrets,
+} from './secret_io';
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -197,6 +201,9 @@ export const readProvider = action({
         }
       }
     } catch (err) {
+      // Don't mask "encrypted but no key" as "no overrides" — surface the
+      // actionable error to the single-provider edit page.
+      if (err instanceof EncryptedFileWithoutKeyError) throw err;
       console.warn(
         `Provider "${args.providerName}": failed to read model key overrides`,
         err instanceof Error ? err.message : String(err),
@@ -1185,11 +1192,16 @@ export const testProviderConnection = action({
 /**
  * Save an API key for a provider by writing a `.secrets.json` file.
  *
- * When `SOPS_AGE_KEY` (or `SOPS_AGE_KEY_FILE`) is set, the file is
+ * When `SOPS_AGE_KEY` or `SOPS_AGE_KEY_FILE` is set, the file is
  * SOPS-encrypted; otherwise it is written as plaintext JSON at mode 0600.
- * In plaintext mode, refuses to overwrite an existing encrypted file —
- * silently downgrading would destroy the only decryptable copy of any
- * pre-existing secrets.
+ *
+ * Refuses to overwrite an existing-but-undecryptable file (e.g. SOPS-shaped
+ * with no key configured, or decrypt failure from a wrong/rotated key) by
+ * default — the on-disk ciphertext may be the only recoverable copy. The
+ * caller must affirmatively pass `force: true` (after a UI confirm dialog)
+ * to discard the existing file. The action surfaces the refusal as a
+ * `ConvexError` with `data.kind` of `'encrypted_no_key'` or
+ * `'undecryptable_existing'` so the UI dispatches on a discriminator.
  */
 export const saveProviderSecret = action({
   args: {
@@ -1197,6 +1209,7 @@ export const saveProviderSecret = action({
     providerName: v.string(),
     apiKey: v.optional(v.string()),
     modelKeys: v.optional(v.any()),
+    force: v.optional(v.boolean()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -1213,48 +1226,42 @@ export const saveProviderSecret = action({
 
     const encryptMode = hasSopsKey();
 
-    // Read existing secrets to merge with new values. decryptSecretsFile
-    // throws EncryptedFileWithoutKeyError if the on-disk file is SOPS-shaped
-    // but no key is configured — propagate that instead of silently
-    // overwriting the encrypted file with plaintext (unrecoverable data loss).
-    let existing: ProviderSecrets | null = null;
-    try {
-      const raw = await decryptSecretsFile(secretsPath);
-      existing = parseProviderSecrets(raw);
-    } catch (err) {
-      if (err instanceof EncryptedFileWithoutKeyError) throw err;
-      // Otherwise: no existing file, parse failure, or decrypt failure — start fresh.
-    }
-
-    const mergedApiKey = args.apiKey ?? existing?.apiKey;
-    if (!mergedApiKey) {
-      throw new Error(
-        'A provider-level API key is required. ' +
-          'Provide an apiKey or ensure one is already configured.',
-      );
-    }
-
-    // Merge model keys: existing + new (new values overwrite existing per model ID)
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- modelKeys validated as Record<string, string> by caller
     const incomingModelKeys = args.modelKeys as
       | Record<string, string>
       | undefined;
-    const mergedModelKeys = {
-      ...existing?.modelKeys,
-      ...incomingModelKeys,
-    };
 
-    // Remove entries with empty string values (signals deletion)
-    for (const [key, value] of Object.entries(mergedModelKeys)) {
-      if (!value) delete mergedModelKeys[key];
+    let plaintext: string;
+    try {
+      const prepared = await prepareMergedSecrets(
+        secretsPath,
+        { apiKey: args.apiKey, modelKeys: incomingModelKeys },
+        { force: args.force },
+      );
+      plaintext = prepared.plaintext;
+    } catch (err) {
+      // Convert the typed refuse-overwrite errors to a ConvexError carrying
+      // a structured discriminator. The UI reads `error.data.kind` to decide
+      // whether to render the "overwrite anyway?" confirm dialog and re-call
+      // with `force: true`.
+      if (err instanceof EncryptedFileWithoutKeyError) {
+        throw new ConvexError({
+          code: 'PROVIDER_SECRET_REFUSED_OVERWRITE',
+          kind: 'encrypted_no_key',
+          path: secretsPath,
+          message: err.message,
+        });
+      }
+      if (err instanceof UndecryptableExistingSecretError) {
+        throw new ConvexError({
+          code: 'PROVIDER_SECRET_REFUSED_OVERWRITE',
+          kind: 'undecryptable_existing',
+          path: secretsPath,
+          message: err.message,
+        });
+      }
+      throw err;
     }
-
-    const secretsData: Record<string, unknown> = { apiKey: mergedApiKey };
-    if (Object.keys(mergedModelKeys).length > 0) {
-      secretsData.modelKeys = mergedModelKeys;
-    }
-
-    const plaintext = JSON.stringify(secretsData, null, 2) + '\n';
 
     if (!encryptMode) {
       await atomicWriteSecret(secretsPath, plaintext);
@@ -1262,14 +1269,13 @@ export const saveProviderSecret = action({
       return null;
     }
 
-    const sopsAgeKey = process.env.SOPS_AGE_KEY;
+    // Read the active age secret key. resolveAgeSecretKey honors both
+    // SOPS_AGE_KEY (inline) and SOPS_AGE_KEY_FILE (path), keeping the encrypt
+    // path consistent with what hasSopsKey() and the sops CLI itself accept.
+    const sopsAgeKey = resolveAgeSecretKey();
     if (!sopsAgeKey) {
-      // hasSopsKey() may have been satisfied by SOPS_AGE_KEY_FILE alone;
-      // age public-key derivation needs the inline key. Surface a clear error
-      // pointing the operator at the inline form rather than failing in sops.
       throw new Error(
-        'SOPS_AGE_KEY (inline) is required to encrypt new secrets via the UI. ' +
-          'Either set SOPS_AGE_KEY=... in .env, or unset SOPS_AGE_KEY_FILE to use plaintext mode.',
+        'No age secret key available. Set SOPS_AGE_KEY (inline) or SOPS_AGE_KEY_FILE (path) in .env, or unset both to use plaintext mode.',
       );
     }
     const agePublicKey = deriveAgePublicKey(sopsAgeKey);
@@ -1365,8 +1371,17 @@ export const hasProviderSecret = action({
       const key = parsed.apiKey;
       if (!key) return null;
       return maskApiKey(key);
-    } catch {
-      // File exists but can't be decrypted — still report as configured
+    } catch (err) {
+      // Don't lie about "Configured" status when the file is encrypted-no-key
+      // — surface the actionable error so the UI can offer "overwrite anyway".
+      if (err instanceof EncryptedFileWithoutKeyError) throw err;
+      // Other failures (zod-shape, decrypt-with-wrong-key): file exists but
+      // unusable. Still mask as configured to avoid losing the "click Save"
+      // affordance — the actual save will surface a clearer error.
+      console.warn(
+        `Provider "${args.providerName}": secrets file unreadable`,
+        err instanceof Error ? err.message : String(err),
+      );
       return '••••••••••';
     }
   },
