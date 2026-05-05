@@ -36,6 +36,7 @@ vi.mock('better-auth/plugins/access', () => ({
 vi.mock('better-auth/plugins/organization/access', () => ({
   defaultStatements: {},
   adminAc: { statements: {} },
+  ownerAc: { statements: {} },
 }));
 
 vi.mock('@convex-dev/better-auth/plugins', () => ({
