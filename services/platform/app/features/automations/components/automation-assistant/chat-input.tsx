@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { ArrowUp, LoaderCircle, Paperclip, X } from 'lucide-react';
 
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
@@ -8,7 +9,6 @@ import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import {
   formatFileSize,

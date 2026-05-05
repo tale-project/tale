@@ -1,0 +1,14 @@
+# Tale {{upperFirst name}} — pure-Docker service
+ARG VERSION=dev
+
+FROM debian:bookworm-slim
+
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-{{kebabCase name}}" \
+      org.opencontainers.image.description="{{description}}"
+
+ENV TALE_VERSION=${VERSION} \
+    DO_NOT_TRACK=1
+
+WORKDIR /app

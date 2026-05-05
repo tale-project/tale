@@ -1,5 +1,7 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { Trash2 } from 'lucide-react';
@@ -9,8 +11,6 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Button } from '@/app/components/ui/primitives/button';
-import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useUpsertGovernancePolicy } from '@/app/features/settings/governance/hooks/mutations';
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';

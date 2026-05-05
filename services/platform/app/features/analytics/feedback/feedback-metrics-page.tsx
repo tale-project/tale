@@ -1,14 +1,14 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { Skeleton } from '@tale/ui/skeleton';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 import { Alert } from '@/app/components/ui/feedback/alert';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';

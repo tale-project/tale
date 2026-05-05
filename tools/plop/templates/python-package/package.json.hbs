@@ -1,0 +1,11 @@
+{
+  "name": "@tale/{{snakeCase name}}",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "lint": "uvx ruff@0.15.10 check src tests",
+    "lint:fix": "uvx ruff@0.15.10 check --fix src tests",
+    "format": "uvx ruff@0.15.10 format src tests",
+    "format:check": "uvx ruff@0.15.10 format --check src tests"
+  }
+}

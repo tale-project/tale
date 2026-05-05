@@ -1,3 +1,4 @@
+import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -5,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
 import { PageLayout } from '@/app/components/layout/page-layout';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack } from '@/app/components/ui/layout/layout';
 import {
   TabNavigation,

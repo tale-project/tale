@@ -1,5 +1,8 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
+import { Separator } from '@tale/ui/separator';
 import { Download, X, Loader2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
@@ -7,9 +10,6 @@ import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { HStack } from '@/app/components/ui/layout/layout';
-import { Separator } from '@/app/components/ui/layout/separator';
-import { Button } from '@/app/components/ui/primitives/button';
-import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFileUrl } from '@/app/features/chat/hooks/queries';

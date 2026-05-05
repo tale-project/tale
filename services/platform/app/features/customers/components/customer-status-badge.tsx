@@ -1,6 +1,7 @@
 'use client';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
+import { Badge } from '@tale/ui/badge';
+
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 

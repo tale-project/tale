@@ -1,9 +1,9 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Loader2 } from 'lucide-react';
 import { useRef, useState, useEffect, useCallback } from 'react';
 
-import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 
 interface InlineEditInputProps {

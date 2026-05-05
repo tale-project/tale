@@ -1,5 +1,6 @@
 'use client';
 
+import { LinkButton } from '@tale/ui/button';
 import { useNavigate } from '@tanstack/react-router';
 import { type Row } from '@tanstack/react-table';
 import { BarChart3, Workflow } from 'lucide-react';
@@ -8,7 +9,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
-import { LinkButton } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';

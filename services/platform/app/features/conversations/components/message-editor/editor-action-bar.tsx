@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import {
   LoaderCircleIcon,
   PaperclipIcon,
@@ -10,7 +11,6 @@ import { memo, useRef } from 'react';
 
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 
 import type { AttachedFile } from './types';

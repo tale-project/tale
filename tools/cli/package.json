@@ -11,8 +11,6 @@
     "build:windows": "bun run generate && bun build --compile --target=bun-windows-x64 --outfile=dist/tale.exe src/index.ts",
     "lint": "bunx oxlint",
     "lint:fix": "bunx oxlint --fix",
-    "format": "bunx oxfmt -c ../../.oxfmtrc.json",
-    "format:check": "bunx oxfmt -c ../../.oxfmtrc.json --check",
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {

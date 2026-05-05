@@ -1,12 +1,11 @@
 'use client';
 
+import { IconButton } from '@tale/ui/icon-button';
 import { Reorder, useDragControls, type DragControls } from 'framer-motion';
 import { ChevronDown, ChevronUp, GripVertical, X } from 'lucide-react';
 import { type ReactNode, useCallback } from 'react';
 
 import { cn } from '@/lib/utils/cn';
-
-import { IconButton } from '../primitives/icon-button';
 
 export interface ReorderItem {
   id: string;

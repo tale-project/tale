@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Plus, Trash2 } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -13,7 +14,6 @@ import {
 } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
 import type {
   HumanInputField,
   HumanInputTodoItem,

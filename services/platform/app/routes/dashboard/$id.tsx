@@ -1,3 +1,4 @@
+import { Spinner } from '@tale/ui/spinner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Outlet, createFileRoute } from '@tanstack/react-router';
 import { useMutation } from 'convex/react';
@@ -8,7 +9,6 @@ import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
 } from '@/app/components/layout/adaptive-header';
-import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { FullPageCenter } from '@/app/components/ui/layout/full-page-center';
 import { VStack } from '@/app/components/ui/layout/layout';
 import { MobileNavigation } from '@/app/components/ui/navigation/mobile-navigation';

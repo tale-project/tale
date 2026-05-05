@@ -1,0 +1,8 @@
+{
+  "$schema": "https://raw.githubusercontent.com/TanStack/router/main/packages/router-generator/src/config.schema.json",
+  "routesDirectory": "./app/routes",
+  "generatedRouteTree": "./app/routeTree.gen.ts",
+  "routeFileIgnorePrefix": "-",
+  "quoteStyle": "single",
+  "semicolons": true
+}

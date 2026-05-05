@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import {
   AlertCircle,
   AlertTriangle,
@@ -16,7 +17,6 @@ import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

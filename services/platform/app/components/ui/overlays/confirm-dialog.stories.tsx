@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from '@tale/ui/button';
 import { Trash2, AlertTriangle, Archive, Send } from 'lucide-react';
 import { useState } from 'react';
 
 import { ConfirmDialog } from '../dialog/confirm-dialog';
-import { Button } from '../primitives/button';
 
 const meta: Meta<typeof ConfirmDialog> = {
   title: 'Overlays/ConfirmDialog',

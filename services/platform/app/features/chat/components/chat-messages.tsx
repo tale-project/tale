@@ -1,6 +1,7 @@
 'use client';
 
 import type { UIMessage } from '@convex-dev/agent/react';
+import { Button } from '@tale/ui/button';
 import { useQuery } from 'convex/react';
 import { AlertTriangle, Loader2, CheckCircle2, Lock } from 'lucide-react';
 import {
@@ -12,7 +13,6 @@ import {
   type RefObject,
 } from 'react';
 
-import { Button } from '@/app/components/ui/primitives/button';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';

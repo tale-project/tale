@@ -1,6 +1,9 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { useNavigate } from '@tanstack/react-router';
 import { Loader2, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -9,14 +12,11 @@ import { z } from 'zod/v4';
 
 import { CollapsibleGuide } from '@/app/components/ui/data-display/collapsible-guide';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Button } from '@/app/components/ui/primitives/button';
-import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';

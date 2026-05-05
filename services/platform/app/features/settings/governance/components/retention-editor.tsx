@@ -1,8 +1,8 @@
 'use client';
 
+import { Skeleton } from '@tale/ui/skeleton';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack } from '@/app/components/ui/layout/layout';

@@ -9,16 +9,12 @@
   "experimentalSortImports": {},
   "experimentalTailwindcss": {},
   "ignorePatterns": [
-    "node_modules",
-    "dist",
-    "build",
     ".output",
     ".vinxi",
     "**/_generated",
     "*.gen.ts",
     "*.gen.tsx",
-    "lib/shared",
-    "storybook-static",
-    "**/public/canvas-libs"
+    "**/public/canvas-libs",
+    "tools/plop/templates"
   ]
 }

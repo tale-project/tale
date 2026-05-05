@@ -1,5 +1,7 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { Loader2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -8,8 +10,6 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Button } from '@/app/components/ui/primitives/button';
-import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';

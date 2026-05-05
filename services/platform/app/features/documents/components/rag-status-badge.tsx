@@ -1,11 +1,11 @@
 'use client';
 
+import { Badge, type BadgeProps } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import { Loader2, RotateCw } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { Badge, type BadgeProps } from '@/app/components/ui/feedback/badge';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useFormatDate } from '@/app/hooks/use-format-date';

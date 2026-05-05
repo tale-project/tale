@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from '@tale/ui/button';
 
-import { Button } from '../primitives/button';
 import { Card } from './card';
 
 const meta: Meta<typeof Card> = {

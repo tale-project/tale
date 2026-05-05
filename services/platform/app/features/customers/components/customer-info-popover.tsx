@@ -1,8 +1,8 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { useMemo } from 'react';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Popover } from '@/app/components/ui/overlays/popover';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';

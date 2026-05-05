@@ -6,6 +6,7 @@ export default {
       'always',
       [
         'platform',
+        'web',
         'cli',
         'crawler',
         'rag',
@@ -18,6 +19,7 @@ export default {
         'ui',
         'storybook',
         'design',
+        'plop',
       ],
     ],
     'scope-empty': [0],

@@ -1,12 +1,12 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
+import { Skeleton } from '@tale/ui/skeleton';
 import { decode } from 'he';
 import { ClipboardList, Inbox, Loader2, Mail, Sparkles } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef } from 'react';
 import striptags from 'striptags';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Center, HStack } from '@/app/components/ui/layout/layout';
 import { Heading } from '@/app/components/ui/typography/heading';

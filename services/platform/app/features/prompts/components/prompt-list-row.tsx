@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Copy, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -8,7 +9,6 @@ import {
   DropdownMenu,
   type DropdownMenuGroup,
 } from '@/app/components/ui/overlays/dropdown-menu';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';

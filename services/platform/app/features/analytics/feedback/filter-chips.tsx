@@ -1,10 +1,10 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import { X } from 'lucide-react';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 
 interface FilterChipsProps {

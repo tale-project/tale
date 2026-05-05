@@ -1,6 +1,6 @@
+import { Button } from '@tale/ui/button';
 import { Loader2Icon } from 'lucide-react';
 
-import { Button } from '@/app/components/ui/primitives/button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';

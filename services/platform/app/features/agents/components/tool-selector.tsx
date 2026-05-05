@@ -1,8 +1,8 @@
 'use client';
 
+import { Skeleton } from '@tale/ui/skeleton';
 import { useCallback, useMemo } from 'react';
 
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { FormSection } from '@/app/components/ui/forms/form-section';

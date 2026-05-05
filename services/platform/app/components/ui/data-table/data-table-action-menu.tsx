@@ -1,5 +1,6 @@
 'use client';
 
+import { Button, buttonVariants } from '@tale/ui/button';
 import { Link } from '@tanstack/react-router';
 import { ChevronDown } from 'lucide-react';
 import type { ComponentType, ReactNode } from 'react';
@@ -8,7 +9,6 @@ import {
   DropdownMenu,
   type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
-import { Button, buttonVariants } from '@/app/components/ui/primitives/button';
 import { cn } from '@/lib/utils/cn';
 
 /** Icon component type that accepts className prop */

@@ -1,10 +1,10 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Position } from '@xyflow/react';
 import { Repeat } from 'lucide-react';
 import React from 'react';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { useT } from '@/lib/i18n/client';
 

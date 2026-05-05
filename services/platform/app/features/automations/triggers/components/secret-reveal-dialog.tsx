@@ -1,12 +1,12 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Field } from '@/app/components/ui/forms/field';
 import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';

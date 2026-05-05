@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Button } from '@tale/ui/button';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
@@ -10,7 +11,6 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack, VStack } from '@/app/components/ui/layout/layout';
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useUpdatePassword } from '@/app/features/settings/account/hooks/mutations';

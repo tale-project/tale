@@ -1,9 +1,9 @@
 'use client';
 
+import { Skeleton } from '@tale/ui/skeleton';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ZoomPanViewer } from '@/app/components/ui/data-display/zoom-pan-viewer';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Center } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';

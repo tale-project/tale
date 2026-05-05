@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Link, useLocation } from '@tanstack/react-router';
 import { Menu } from 'lucide-react';
 import { useState } from 'react';
@@ -8,7 +9,6 @@ import { useBrandingContext } from '@/app/components/branding/branding-provider'
 import { OrganizationButton } from '@/app/components/organization-button';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { UserButton } from '@/app/components/user-button';
 import { useAbility } from '@/app/hooks/use-ability';

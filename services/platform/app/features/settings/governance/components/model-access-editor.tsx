@@ -1,18 +1,18 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { Skeleton } from '@tale/ui/skeleton';
 import { Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';

@@ -1,8 +1,8 @@
 'use client';
 
+import { IconButton } from '@tale/ui/icon-button';
 import { XIcon } from 'lucide-react';
 
-import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

@@ -1,0 +1,39 @@
+import type { StorybookConfig } from '@storybook/react-vite';
+
+const config: StorybookConfig = {
+  stories: ['../app/**/*.stories.@(ts|tsx)'],
+  addons: [
+    '@storybook/addon-a11y',
+    '@storybook/addon-docs',
+    '@storybook/addon-themes',
+    '@storybook/addon-vitest',
+  ],
+  framework: {
+    name: '@storybook/react-vite',
+    options: {},
+  },
+  staticDirs: ['../public'],
+  core: {
+    disableTelemetry: true,
+    disableWhatsNewNotifications: true,
+  },
+  features: {
+    sidebarOnboardingChecklist: false,
+  },
+  docs: {
+    autodocs: 'tag',
+  },
+  async viteFinal(viteConfig) {
+    const { mergeConfig } = await import('vite');
+    const path = await import('path');
+    return mergeConfig(viteConfig, {
+      resolve: {
+        alias: {
+          '@': path.resolve(import.meta.dirname, '..'),
+        },
+      },
+    });
+  },
+};
+
+export default config;

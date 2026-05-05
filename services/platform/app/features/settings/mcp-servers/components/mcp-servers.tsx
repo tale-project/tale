@@ -1,5 +1,7 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { useAction } from 'convex/react';
 import { Plus, Server, X } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -8,8 +10,6 @@ import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { EmptyState } from '@/app/components/ui/feedback/empty-state';
 import { Grid, HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Button } from '@/app/components/ui/primitives/button';
-import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';

@@ -1,6 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Button } from '@tale/ui/button';
 import { CronExpressionParser } from 'cron-parser';
 import { Sparkles } from 'lucide-react';
 import { useMemo, useEffect, useCallback, useState } from 'react';
@@ -11,7 +12,6 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';

@@ -1,10 +1,10 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Code, Database, Key, Globe, Pencil, Puzzle, Zap } from 'lucide-react';
 import { useCallback, useMemo, useRef } from 'react';
 
 import { Image } from '@/app/components/ui/data-display/image';
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Center } from '@/app/components/ui/layout/layout';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { CollapsibleDetails } from '@/app/components/ui/navigation/collapsible-details';

@@ -1,5 +1,6 @@
+import { Button } from '@tale/ui/button';
+
 import { Stack } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 
 interface ConditionalAccessErrorProps {

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from '@tale/ui/button';
 
-import { Button } from '../primitives/button';
 import { SectionHeader } from './section-header';
 
 const meta: Meta<typeof SectionHeader> = {

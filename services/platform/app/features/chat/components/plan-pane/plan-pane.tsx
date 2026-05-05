@@ -1,12 +1,12 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import { useMatch } from '@tanstack/react-router';
 import { PanelRightClose, Telescope, X } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';

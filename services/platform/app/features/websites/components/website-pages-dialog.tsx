@@ -1,5 +1,8 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { Skeleton } from '@tale/ui/skeleton';
+import { Spinner } from '@tale/ui/spinner';
 import { FileText, Search as SearchIcon } from 'lucide-react';
 import {
   type ChangeEvent,
@@ -11,12 +14,9 @@ import {
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { EmptyState } from '@/app/components/ui/feedback/empty-state';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
 import { CollapsibleDetails } from '@/app/components/ui/navigation/collapsible-details';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useConvexAction } from '@/app/hooks/use-convex-action';

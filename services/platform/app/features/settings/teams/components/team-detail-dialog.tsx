@@ -1,13 +1,13 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
+import { Skeleton } from '@tale/ui/skeleton';
 import { Pencil, Users } from 'lucide-react';
 import { useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Badge } from '@/app/components/ui/feedback/badge';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 

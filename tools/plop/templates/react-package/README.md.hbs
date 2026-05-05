@@ -1,0 +1,11 @@
+# @tale/{{kebabCase name}}
+
+{{description}}
+
+```bash
+bun run --filter @tale/{{kebabCase name}} typecheck
+bun run --filter @tale/{{kebabCase name}} test{{#if storybook}}
+bun run --filter @tale/{{kebabCase name}} storybook{{/if}}
+```
+
+Source-only React component package — consumers import directly from `@tale/{{kebabCase name}}/<subpath>`. Ships a Tailwind preset (`@tale/{{kebabCase name}}/tailwind-preset`) and a base stylesheet (`@tale/{{kebabCase name}}/globals.css`).

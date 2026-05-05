@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Badge } from '@tale/ui/badge';
 
-import { Badge } from '../feedback/badge';
 import { Text } from '../typography/text';
 import { StatGrid } from './stat-grid';
 

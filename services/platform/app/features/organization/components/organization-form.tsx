@@ -1,6 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Button } from '@tale/ui/button';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useMutation } from 'convex/react';
@@ -12,7 +13,6 @@ import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
 import { VStack, Center } from '@/app/components/ui/layout/layout';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { UserButton } from '@/app/components/user-button';
 import { useAuth } from '@/app/hooks/use-convex-auth';

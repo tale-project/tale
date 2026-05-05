@@ -1,9 +1,9 @@
 'use client';
 
+import { Spinner } from '@tale/ui/spinner';
+
 import { Text } from '@/app/components/ui/typography/text';
 import { cn } from '@/lib/utils/cn';
-
-import { Spinner } from './spinner';
 
 interface LoadingOverlayProps {
   message: string;

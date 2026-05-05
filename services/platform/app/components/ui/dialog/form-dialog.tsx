@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { useCallback, useRef } from 'react';
 
 import { DialogErrorBoundary } from '@/app/components/error-boundaries/boundaries/dialog-error-boundary';
@@ -8,7 +9,6 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { Stack } from '../layout/layout';
-import { Button } from '../primitives/button';
 import { Dialog } from './dialog';
 
 const preventDefaultSubmit = (e: React.FormEvent) => e.preventDefault();

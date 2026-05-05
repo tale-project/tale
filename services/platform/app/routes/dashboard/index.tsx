@@ -1,10 +1,10 @@
 import { convexQuery } from '@convex-dev/react-query';
+import { Spinner } from '@tale/ui/spinner';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useAction, useMutation } from 'convex/react';
 import { useEffect, useRef } from 'react';
 
-import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { FullPageCenter } from '@/app/components/ui/layout/full-page-center';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';

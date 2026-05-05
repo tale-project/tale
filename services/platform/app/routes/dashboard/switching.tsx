@@ -13,6 +13,7 @@
  * not re-flash a loading indicator of its own.
  */
 
+import { Spinner } from '@tale/ui/spinner';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   createFileRoute,
@@ -23,7 +24,6 @@ import { useMutation } from 'convex/react';
 import { useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod';
 
-import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { FullPageCenter } from '@/app/components/ui/layout/full-page-center';
 import { VStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';

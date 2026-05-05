@@ -1,11 +1,11 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { ChevronLeft } from 'lucide-react';
 import { memo, useEffect, useRef } from 'react';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 
 interface ImproveModeProps {

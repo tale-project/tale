@@ -1,0 +1,104 @@
+@import 'tailwindcss';
+
+@source '../src/**/*.{ts,tsx}';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-bg-base: #ffffff;
+  --color-bg-elevated: #f9fafb;
+  --color-bg-muted: #f3f4f6;
+  --color-bg-overlay: rgba(0, 0, 0, 0.4);
+
+  --color-fg-base: #111827;
+  --color-fg-muted: #6b7280;
+  --color-fg-subtle: #9ca3af;
+  --color-fg-inverse: #ffffff;
+
+  --color-border-base: #e5e7eb;
+  --color-border-strong: #d1d5db;
+
+  --color-accent-base: #030712;
+  --color-accent-fg: #ffffff;
+
+  --color-success: #057747;
+  --color-success-bg: #dcfce7;
+  --color-warning: #f79009;
+  --color-warning-bg: #fef9c3;
+  --color-danger: #dc2626;
+  --color-danger-bg: #fee2e2;
+  --color-info: #056cff;
+  --color-info-bg: #dbeafe;
+
+  --shadow-card: 0 1px 2px 0 rgba(3, 7, 18, 0.04);
+  --shadow-card-hover: 0 4px 8px -2px rgba(3, 7, 18, 0.08);
+  --shadow-overlay:
+    0 8px 24px -4px rgba(0, 0, 0, 0.06), 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-fade-in: fade-in 480ms var(--ease-out-quint) both;
+  --animate-rise: rise 600ms var(--ease-out-quint) both;
+  --animate-marquee: marquee 32s linear infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --animate-fade-in: none;
+    --animate-rise: none;
+    --animate-marquee: none;
+  }
+}
+
+.dark {
+  --color-bg-base: #030712;
+  --color-bg-elevated: #0f0f0f;
+  --color-bg-muted: #1a1a1a;
+  --color-bg-overlay: rgba(3, 7, 18, 0.8);
+
+  --color-fg-base: #f3f4f6;
+  --color-fg-muted: #9ca3af;
+  --color-fg-subtle: #6b7280;
+  --color-fg-inverse: #030712;
+
+  --color-border-base: #404040;
+  --color-border-strong: #525252;
+
+  --color-accent-base: #ffffff;
+  --color-accent-fg: #030712;
+}

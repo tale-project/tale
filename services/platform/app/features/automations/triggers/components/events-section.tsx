@@ -1,15 +1,15 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Plus, Zap, Trash2, Pencil } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';

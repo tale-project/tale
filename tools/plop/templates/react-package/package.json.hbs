@@ -1,0 +1,21 @@
+{
+  "name": "@tale/{{kebabCase name}}",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "{{description}}",
+  "exports": {
+    ".": "./src/index.ts",
+    "./globals.css": "./src/globals.css",
+    "./tailwind-preset": "./tailwind-preset.ts"
+  },
+  "scripts": {
+    "lint": "bunx oxlint --type-aware",
+    "lint:fix": "bunx oxlint --type-aware --fix",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bunx vitest --run",
+    "test:watch": "bunx vitest"{{#if storybook}},
+    "storybook": "bunx --bun storybook dev -p 6006",
+    "storybook:build": "bunx --bun storybook build -o storybook-static"{{/if}}
+  }
+}

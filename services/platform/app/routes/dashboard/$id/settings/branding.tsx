@@ -1,7 +1,7 @@
+import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { BrandingSettings } from '@/app/features/settings/branding/components/branding-settings';

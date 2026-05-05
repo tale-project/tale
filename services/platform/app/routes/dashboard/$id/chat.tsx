@@ -1,3 +1,5 @@
+import { Button } from '@tale/ui/button';
+import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute, useMatch, useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { m, AnimatePresence } from 'framer-motion';
@@ -6,8 +8,6 @@ import { Suspense, useState, useEffect, useRef } from 'react';
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { PageLayout } from '@/app/components/layout/page-layout';
 import { PanelFooter } from '@/app/components/layout/panel-footer';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { Button } from '@/app/components/ui/primitives/button';
 import { ArenaModeProvider } from '@/app/features/chat/components/arena/arena-mode-context';
 import { BudgetBanner } from '@/app/features/chat/components/budget-banner';
 import { ArtifactBar } from '@/app/features/chat/components/canvas/artifact-bar';

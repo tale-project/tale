@@ -1,9 +1,9 @@
+import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute } from '@tanstack/react-router';
 import { Suspense } from 'react';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { PageLayout } from '@/app/components/layout/page-layout';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { SharedChatView } from '@/app/features/chat/components/shared-chat-view';
 import { seo } from '@/lib/utils/seo';
 
@@ -16,7 +16,11 @@ export const Route = createFileRoute('/dashboard/$id/chat/shared/$shareToken')({
 
 function SharedChatSkeleton() {
   return (
-    <div className="flex h-full flex-col items-center p-8">
+    <div
+      aria-busy="true"
+      role="status"
+      className="flex h-full flex-col items-center p-8"
+    >
       <div className="w-full max-w-(--chat-max-width) space-y-4">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-24 w-full" />

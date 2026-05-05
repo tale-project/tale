@@ -1,0 +1,11 @@
+{
+  "name": "@tale/{{kebabCase name}}",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "serve": "docker compose up {{kebabCase name}}",
+    "docker:build": "docker build -t tale-{{kebabCase name}} -f services/{{kebabCase name}}/Dockerfile ../../",
+    "logs": "docker compose logs -f {{kebabCase name}}",
+    "shell": "docker compose exec {{kebabCase name}} sh"
+  }
+}

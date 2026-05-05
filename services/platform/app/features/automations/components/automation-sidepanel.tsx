@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import {
   TestTubeDiagonal,
   X,
@@ -13,7 +14,6 @@ import { PanelHeader } from '@/app/components/layout/panel-header';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';

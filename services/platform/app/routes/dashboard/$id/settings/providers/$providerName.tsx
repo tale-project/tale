@@ -1,3 +1,7 @@
+import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
+import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChevronRight, Loader2, Pencil, Trash2, X, Zap } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
@@ -11,16 +15,12 @@ import {
   TableRow,
 } from '@/app/components/ui/data-display/table';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { Badge } from '@/app/components/ui/feedback/badge';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Card } from '@/app/components/ui/layout/card';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Button } from '@/app/components/ui/primitives/button';
-import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { ProviderEditPanel } from '@/app/features/settings/providers/components/provider-edit-panel';

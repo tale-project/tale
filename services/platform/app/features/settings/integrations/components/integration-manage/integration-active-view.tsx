@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { ExternalLink, Loader2 } from 'lucide-react';
 import { useMemo } from 'react';
 
@@ -10,7 +11,6 @@ import {
 } from '@/app/components/ui/data-display/stat-grid';
 import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
 import { Stack } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 

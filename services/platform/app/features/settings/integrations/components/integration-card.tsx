@@ -1,9 +1,9 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Puzzle, type LucideIcon } from 'lucide-react';
 
 import { Image } from '@/app/components/ui/data-display/image';
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Card } from '@/app/components/ui/layout/card';
 import { Center, HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Heading } from '@/app/components/ui/typography/heading';

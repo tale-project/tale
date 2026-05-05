@@ -1,11 +1,11 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { useState, useCallback, useMemo } from 'react';
 
 import { Dialog, DialogClose } from '@/app/components/ui/dialog/dialog';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';

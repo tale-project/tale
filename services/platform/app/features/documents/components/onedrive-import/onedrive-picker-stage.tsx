@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Home } from 'lucide-react';
 
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
@@ -8,7 +9,6 @@ import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 

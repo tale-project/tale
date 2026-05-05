@@ -1,9 +1,9 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Globe, Loader } from 'lucide-react';
 
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';

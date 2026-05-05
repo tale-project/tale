@@ -1,10 +1,10 @@
 'use client';
 
+import { Spinner } from '@tale/ui/spinner';
 import { Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Image } from '@/app/components/ui/data-display/image';
-import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { VStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { cn } from '@/lib/utils/cn';

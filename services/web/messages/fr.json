@@ -1,0 +1,335 @@
+{
+  "nav": {
+    "ariaLabel": "Navigation principale",
+    "features": "Fonctionnalités",
+    "pricing": "Tarifs",
+    "readDocs": "Lire la doc",
+    "requestDemo": "Demander une démo",
+    "openMenu": "Ouvrir le menu",
+    "closeMenu": "Fermer le menu",
+    "homeAriaLabel": "Accueil Tale",
+    "skipToMain": "Aller au contenu principal"
+  },
+  "footer": {
+    "product": "Produit",
+    "resources": "Ressources",
+    "legal": "Mentions légales",
+    "features": "Fonctionnalités",
+    "pricing": "Tarifs",
+    "hardwarePricing": "Tarifs matériel",
+    "contact": "Contact",
+    "aiTraining": "Formations IA",
+    "serviceAgreement": "Contrat de service",
+    "hardwareAgreement": "Contrat matériel",
+    "privacyPolicy": "Politique de confidentialité",
+    "termsOfService": "Conditions d'utilisation",
+    "processingAgreement": "Contrat de sous-traitance",
+    "countrySwitzerland": "Suisse",
+    "homeAriaLabel": "Accueil Tale",
+    "githubAriaLabel": "GitHub",
+    "address": {
+      "company": "Ruler GmbH",
+      "street": "Seestrasse 4",
+      "city": "3700 Spiez",
+      "country": "Suisse",
+      "vatId": "CHE-186.532.610"
+    },
+    "copyright": "© {year} Tale par Ruler GmbH — certifié ISO 27001 et SOC 2. Tale est sous licence MIT — libre d'utilisation, de modification et de distribution."
+  },
+  "home": {
+    "hero": {
+      "title": "La plateforme d'IA souveraine",
+      "subtitle": "Des modèles d'IA, agents, compétences et automatisations locaux — sur votre propre infrastructure, connectés à vos données",
+      "ctaPrimary": "Demander une démo",
+      "ctaSecondary": "Lire la doc",
+      "footNote": "Nous nous intégrons avec {logos} et plus encore — notre expertise couvre le reste.",
+      "integrationsPrefix": "Nous nous intégrons avec",
+      "integrationsSuffix": "et plus encore — notre expertise couvre le reste.",
+      "integrations": ["Microsoft", "Google", "Atlassian"]
+    },
+    "logoWall": {
+      "prefix": "Nous nous intégrons à",
+      "suffix": "et plus — notre expertise couvre le reste."
+    },
+    "featureSecure": {
+      "title": "La plateforme sécurisée pour toutes vos opérations",
+      "description": "Discutez avec l'IA, automatisez les workflows, gérez les conversations sur tous les canaux et gardez l'humain dans la boucle — au même endroit.",
+      "chat": {
+        "label": "Chat avec l'IA",
+        "description": "Une interface de chat IA entraînée sur les données, l'historique et les documents de votre entreprise.\n\nPosez des questions, recherchez dans tous les systèmes et obtenez des réponses précises et instantanées sans fouiller dans les tableaux de bord ou les fichiers."
+      },
+      "conversations": {
+        "label": "Conversations",
+        "description": "Répondez aux emails, chats et appels depuis une seule boîte de réception. Tale garde chaque canal sur votre infrastructure, avec historique et routage complets."
+      },
+      "workflows": {
+        "label": "Workflows",
+        "description": "Composez des automatisations multi-étapes reliant outils, modèles et humains. Déclenchez-les depuis n'importe quel événement et reprenez-les à la demande."
+      },
+      "approvals": {
+        "label": "Validations",
+        "description": "Gardez l'humain dans la boucle avec des étapes d'approbation explicites. Tale achemine le bon contexte aux bons relecteurs et audite chaque décision."
+      }
+    },
+    "featureSectors": {
+      "title": "Conçu pour le travail opérationnel réel",
+      "description": "Soutenu par une équipe qui prend la responsabilité de votre succès — quels que soient le secteur et l'usage.",
+      "cta": "Demander une démo",
+      "hospitality": {
+        "label": "Hôtellerie",
+        "description": "Guidez vos clients. Automatisez la logistique. Soutenez les tâches après-vente. Tale s'adapte à la demande tout en préservant la confiance dans votre marque."
+      },
+      "legal": {
+        "label": "Juridique",
+        "description": "Rédigez, examinez et acheminez le travail juridique avec une traçabilité complète. Tale conserve les données sensibles sur votre infrastructure tout en réduisant les délais."
+      },
+      "finance": {
+        "label": "Finance",
+        "description": "Réconciliez, analysez et reportez avec des contrôles stricts. Tale se connecte à vos données sans jamais les envoyer ailleurs qu'elles ne devraient aller."
+      }
+    },
+    "featureGrid": {
+      "title": "Sécurité, confidentialité et fiabilité",
+      "description": "Des principes fondamentaux qui vous permettent d'exécuter une IA privée à vos conditions.",
+      "independent": {
+        "title": "Indépendant par conception",
+        "description": "Auto-exploité, open source, on-premises ou dans le cloud — pour rester indépendant des SaaS tiers, des fournisseurs et du verrouillage."
+      },
+      "stack": {
+        "title": "Tout de A à Z",
+        "description": "Du matériel et logiciel au support, conseil et services professionnels — tout ce qu'il vous faut pour exécuter l'IA en production."
+      },
+      "proven": {
+        "title": "Éprouvé, sécurisé, fiable",
+        "description": "Une plateforme sécurisée, fiable et évolutive avec une précision éprouvée, conçue pour les workflows critiques."
+      },
+      "needs": {
+        "title": "Adapté à vos besoins",
+        "description": "Utilisez des workflows qui s'intègrent à votre infrastructure existante, pour qu'ils s'adaptent à votre façon de travailler."
+      }
+    },
+    "compliance": {
+      "title": "Confiance et conformité de niveau entreprise",
+      "independent": {
+        "title": "Indépendant et transparent",
+        "description": "Basé en Suisse, neutre vis-à-vis des fournisseurs et impartial — toujours dans l'intérêt de nos clients."
+      },
+      "certified": {
+        "title": "Certifié et conforme",
+        "description": "Conforme à ISO 27001, SOC 2 et RGPD, avec journaux d'audit et contrôle des données pour que vous sachiez toujours où sont stockées vos données."
+      }
+    },
+    "faq": {
+      "eyebrow": "FAQ",
+      "title": "Questions fréquentes",
+      "sovereignty": {
+        "q": "Y a-t-il une tarification à l'usage ou par siège ?",
+        "a": "Non. Nous ne facturons ni par utilisateur ni par siège — le prix du forfait reste le même."
+      },
+      "dataResidency": {
+        "q": "Y a-t-il des fonctionnalités supplémentaires dans le forfait Enterprise ?",
+        "a": "Non. Toutes les fonctionnalités du produit sont également disponibles dans la version open source. Pro et Enterprise ajoutent un support et des services étendus."
+      },
+      "deployment": {
+        "q": "Dois-je apporter mes propres modèles d'IA ?",
+        "a": "Non. Vous pouvez apporter vos propres modèles, mais ce n'est pas obligatoire. Nous prenons en charge la plupart des grands fournisseurs d'IA et n'ajoutons aucun frais — l'utilisation des modèles d'IA cloud est facturée aux tarifs du fournisseur que vous choisissez et n'est pas incluse dans les forfaits."
+      },
+      "cloudProviders": {
+        "q": "Prenez-vous en charge les fournisseurs d'IA cloud ?",
+        "a": "Oui — nous prenons en charge tous les grands fournisseurs d'IA cloud, ce qui vous permet d'utiliser votre fournisseur préféré tout en bénéficiant de meilleurs tarifs, d'une plus grande disponibilité et d'une facturation à l'usage."
+      },
+      "pricing": {
+        "q": "Fournissez-vous aussi du matériel ?",
+        "a": "Oui, nous pouvons aussi fournir du matériel (location, leasing, achat, etc.). Mentionnez-le simplement lorsque vous nous contactez."
+      },
+      "integrations": {
+        "q": "Puis-je utiliser mon propre matériel et mes propres modèles d'IA ?",
+        "a": "Oui. Nous sommes agnostiques au matériel et aux modèles — vous êtes libre d'utiliser les vôtres."
+      },
+      "support": {
+        "q": "Proposez-vous l'entraînement de modèles d'IA sur mesure ?",
+        "a": "Oui. Nous entraînons et affinons des modèles sur mesure pour nos clients. Si cela vous intéresse, mentionnez-le lors de l'appel de démonstration."
+      }
+    },
+    "cta": {
+      "title": "Déployez une IA privée à vos conditions",
+      "description": "",
+      "primary": "Demander une démo",
+      "secondary": "Nous parler"
+    }
+  },
+  "complianceTrust": {
+    "certifications": {
+      "iso27001": "ISO 27001",
+      "soc2": "SOC 2 Type II",
+      "gdpr": "RGPD"
+    }
+  },
+  "pricing": {
+    "title": "Tarifs simples et transparents",
+    "description": "Un prix pour toute votre équipe — sans facturation par siège, sans coûts cachés.",
+    "popular": "Populaire",
+    "note": "Toutes les fonctionnalités du produit sont incluses dans les plans Community, Pro et Enterprise. L'utilisation des modèles d'IA cloud est facturée aux tarifs du fournisseur et n'est pas incluse.",
+    "community": {
+      "name": "Community",
+      "price": "Gratuit",
+      "priceSuffix": "",
+      "tagline": "Édition open source auto-hébergée avec support communautaire.",
+      "cta": "Démarrer",
+      "feature1": "Auto-hébergé",
+      "feature2": "Licence MIT",
+      "feature3": "Maintenu par la communauté (GitHub)",
+      "feature4": "Support communautaire (GitHub)"
+    },
+    "pro": {
+      "name": "Pro",
+      "price": "CHF 299",
+      "priceSuffix": "/mois + TVA",
+      "tagline": "Version maintenue professionnellement pour les équipes qui exécutent de l'IA en production.",
+      "cta": "Nous contacter",
+      "feature1": "Tout le plan Community",
+      "feature2": "Auto-hébergé ou cloud",
+      "feature3": "Maintenu professionnellement (certifié ISO 27001 & SOC 2)",
+      "feature4": "Support par email"
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "price": "CHF 1 199",
+      "priceSuffix": "/mois + TVA",
+      "tagline": "Support entreprise complet pour une IA privée critique.",
+      "cta": "Nous contacter",
+      "feature1": "Tout le plan Pro",
+      "feature2": "Support téléphone/SMS",
+      "feature3": "Support WhatsApp",
+      "feature4": "Support à distance (AnyDesk / RustDesk)",
+      "feature5": "Installation et maintenance continue",
+      "feature6": "Influence sur la feuille de route"
+    },
+    "compare": {
+      "title": "Comparer les plans",
+      "subtitle": "Détail de chaque plan",
+      "categories": {
+        "deployment": "Déploiement",
+        "compliance": "Conformité",
+        "support": "Support",
+        "installation": "Installation",
+        "maintenance": "Maintenance",
+        "customDevelopment": "Développement sur mesure",
+        "consulting": "Conseil",
+        "roadmap": "Influence sur la feuille de route"
+      },
+      "values": {
+        "communityDeployment": "Auto-hébergé",
+        "paidDeployment": "Cloud, auto-hébergé",
+        "paidCompliance": "Conforme RGPD, certifié ISO 27001 & SOC 2",
+        "proSupport": "Support par email",
+        "enterpriseSupport": "Support téléphone/SMS, WhatsApp, à distance, services professionnels",
+        "installationFee": "CHF 399",
+        "maintenanceRate": "CHF 80–120 / h",
+        "customDevelopmentRate": "CHF 80–120 / h",
+        "consultingRate": "CHF 160–200 / h",
+        "yes": "Oui",
+        "dash": "—"
+      }
+    },
+    "extras": {
+      "training": {
+        "title": "Formations IA",
+        "description": "Des formations qui dotent vos équipes des compétences nécessaires pour concevoir et déployer des solutions d'IA concrètes — découvrez nos formations IA.",
+        "cta": "Formations IA"
+      },
+      "hardware": {
+        "title": "Matériel",
+        "description": "Pour l'auto-hébergement, nous proposons des options matérielles flexibles — location, achat ou financement. Voir nos tarifs matériel.",
+        "cta": "Tarifs matériel"
+      },
+      "cloudProviders": {
+        "title": "Fournisseurs d'IA cloud",
+        "description": "Nous prenons en charge tous les grands fournisseurs d'IA cloud — meilleurs tarifs, meilleure disponibilité et facturation à l'usage."
+      }
+    },
+    "terms": {
+      "title": "Conditions",
+      "prefix": "Toutes les configurations sont soumises à notre",
+      "linkLabel": "contrat de service",
+      "suffix": "."
+    }
+  },
+  "requestDemo": {
+    "eyebrow": "Démo",
+    "title": "Qu'est-ce qui anime votre entreprise ?",
+    "paragraph1": "Nous aidons les organisations qui manipulent des données sensibles à automatiser leurs workflows avec une IA privée et fiable.",
+    "paragraph2": "Échangez avec un de nos experts pour explorer des solutions IA et discuter de vos objectifs et défis — nous trouverons la meilleure solution pour vous.",
+    "fieldName": "Nom",
+    "fieldPhone": "Téléphone (facultatif)",
+    "fieldCompany": "Entreprise",
+    "fieldInterests": "Intéressé par",
+    "fieldMessage": "Commentaire complémentaire (facultatif)",
+    "placeholderName": "Saisissez votre nom complet",
+    "placeholderEmail": "Saisissez votre adresse e-mail",
+    "placeholderPhone": "Saisissez votre numéro de téléphone",
+    "placeholderCompany": "Saisissez le nom de votre entreprise",
+    "placeholderMessage": "Décrivez votre projet. Tous les détails partagés restent confidentiels.",
+    "interests": {
+      "proEnterprise": "Solutions Pro/Entreprise",
+      "professionalServices": "Services professionnels",
+      "customAiTraining": "Entraînement de modèle IA sur mesure",
+      "aiHardware": "Matériel IA"
+    },
+    "messageHelp": "Tous les détails partagés restent confidentiels.",
+    "submit": "Prendre contact"
+  },
+  "contact": {
+    "eyebrow": "Contact",
+    "title": "Nous contacter",
+    "description": "Échangez avec un de nos experts pour discuter de vos objectifs et défis et explorer la meilleure solution IA pour votre organisation.",
+    "fieldName": "Nom",
+    "fieldCompany": "Entreprise (facultatif)",
+    "fieldMessage": "Message",
+    "placeholderName": "Saisissez votre nom complet",
+    "placeholderEmail": "Saisissez votre adresse e-mail",
+    "placeholderCompany": "Saisissez le nom de votre entreprise",
+    "placeholderMessage": "Partagez quelques détails pour que nous comprenions mieux vos besoins. Tous les détails partagés restent confidentiels.",
+    "submit": "Prendre contact"
+  },
+  "forms": {
+    "email": "E-mail",
+    "honeypotLabel": "Site web",
+    "privacyPrefix": "Je confirme avoir lu la",
+    "privacyLink": "politique de confidentialité",
+    "privacyRequired": "Vous devez accepter la politique de confidentialité",
+    "errors": {
+      "generic": "Quelque chose s'est mal passé. Veuillez réessayer.",
+      "rateLimited": "Trop d'envois. Patientez un instant et réessayez.",
+      "tooFast": "Un instant — vérifiez vos informations avant d'envoyer."
+    },
+    "success": {
+      "title": "Merci — bien reçu",
+      "description": "Nous revenons vers vous sous un jour ouvré.",
+      "sendAnother": "Envoyer un autre message"
+    }
+  },
+  "productMockChat": {
+    "userMessage": "À quoi ressemble notre politique de retour pour le matériel IA ?",
+    "assistantMessage": "Notre matériel est livré avec une fenêtre de retour de 30 jours et une garantie de 2 ans. Voulez-vous que je rédige la réponse par e-mail ?",
+    "attachAriaLabel": "Joindre",
+    "inputPlaceholder": "Posez n'importe quelle question sur vos données…",
+    "sendAriaLabel": "Envoyer"
+  },
+  "productMockOps": {
+    "heading": "Automatisations",
+    "today": "Aujourd'hui",
+    "rows": {
+      "inventorySync": "Synchronisation quotidienne des stocks",
+      "customerEscalation": "Triage des escalades clients",
+      "complianceReport": "Rapport de conformité hebdomadaire",
+      "vendorSla": "Vérification des SLA fournisseurs"
+    },
+    "when": {
+      "justNow": "À l'instant",
+      "minutes14": "14 min",
+      "hour1": "1 h",
+      "hours4": "4 h"
+    }
+  }
+}

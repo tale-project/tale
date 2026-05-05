@@ -1,12 +1,12 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
+import { Spinner } from '@tale/ui/spinner';
 import { CircleCheck, RotateCw, Upload } from 'lucide-react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';

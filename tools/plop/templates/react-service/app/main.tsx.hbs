@@ -1,0 +1,29 @@
+import { RouterProvider, createRouter } from '@tanstack/react-router';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { ThemeProvider } from '@tale/ui/theme';
+
+import { I18nProvider } from '@/lib/i18n/i18n-provider';
+import { routeTree } from './routeTree.gen';
+import './globals.css';
+
+const router = createRouter({ routeTree, defaultPreload: 'intent' });
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router;
+  }
+}
+
+const root = document.getElementById('root');
+if (!root) throw new Error('Missing #root element');
+
+createRoot(root).render(
+  <StrictMode>
+    <I18nProvider>
+      <ThemeProvider>
+        <RouterProvider router={router} />
+      </ThemeProvider>
+    </I18nProvider>
+  </StrictMode>,
+);

@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { useNavigate } from '@tanstack/react-router';
 import {
   Clock,
@@ -19,7 +20,6 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useChatLayout } from '@/app/features/chat/context/chat-layout-context';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

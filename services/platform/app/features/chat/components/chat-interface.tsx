@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { useNavigate } from '@tanstack/react-router';
 import { m, AnimatePresence } from 'framer-motion';
 import { Archive, ArrowDown, Share } from 'lucide-react';
@@ -14,7 +15,6 @@ import {
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';

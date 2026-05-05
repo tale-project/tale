@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Plus, Download, Filter } from 'lucide-react';
 import { useState } from 'react';
 
 import { TableDateCell } from '../data-display/table-date-cell';
-import { Badge } from '../feedback/badge';
-import { Button } from '../primitives/button';
 import { DataTable } from './data-table';
 
 interface User {

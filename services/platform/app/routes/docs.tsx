@@ -1,8 +1,8 @@
+import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute } from '@tanstack/react-router';
 import { Suspense, lazy, useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { seo } from '@/lib/utils/seo';
 

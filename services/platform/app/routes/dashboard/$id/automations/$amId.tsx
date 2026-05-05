@@ -1,3 +1,5 @@
+import { Badge } from '@tale/ui/badge';
+import { Skeleton } from '@tale/ui/skeleton';
 import {
   createFileRoute,
   Outlet,
@@ -17,8 +19,6 @@ import { z } from 'zod';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { PageLayout } from '@/app/components/layout/page-layout';
-import { Badge } from '@/app/components/ui/feedback/badge';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Center } from '@/app/components/ui/layout/layout';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { AutomationAIChatPanel } from '@/app/features/automations/components/automation-ai-chat-panel';

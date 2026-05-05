@@ -1,5 +1,7 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import {
   AlertTriangle,
   Check,
@@ -14,10 +16,8 @@ import {
 } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';

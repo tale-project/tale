@@ -1,10 +1,10 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import { ReactNode, useState, useCallback } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

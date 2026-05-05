@@ -1,0 +1,51 @@
+# Tale {{upperFirst name}} Dockerfile — FastAPI service
+ARG VERSION=dev
+
+FROM python:3.11-slim AS builder
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+COPY services/{{kebabCase name}}/pyproject.toml /app/pyproject.toml
+RUN uv pip install --system --no-cache-dir .
+
+RUN find /usr/local/lib/python3.11/site-packages -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/python3.11/site-packages -name "*.pyc" -delete 2>/dev/null || true \
+    && find /usr/local/lib/python3.11/site-packages -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
+
+FROM python:3.11-slim AS runtime
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 1001 app \
+    && useradd --system --uid 1001 --gid app app
+
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
+COPY --chown=app:app services/{{kebabCase name}}/app /app/app
+COPY --chown=app:app services/{{kebabCase name}}/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
+USER app
+
+ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-{{kebabCase name}}" \
+      org.opencontainers.image.description="{{description}}"
+
+ENV TALE_VERSION=${VERSION} \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DO_NOT_TRACK=1 \
+    PORT={{port}}
+
+EXPOSE {{port}}
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:{{port}}/health || exit 1
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

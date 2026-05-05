@@ -1,8 +1,8 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { AlertTriangle } from 'lucide-react';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
 import type { DocumentComparisonResult } from '@/convex/agent_tools/documents/helpers/fetch_document_comparison';
 import { useT } from '@/lib/i18n/client';
 

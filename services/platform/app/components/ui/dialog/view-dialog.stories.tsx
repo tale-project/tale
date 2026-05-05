@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { Copy, ExternalLink, Pencil } from 'lucide-react';
 import { useState } from 'react';
 
-import { Badge } from '../feedback/badge';
 import { Field, FieldGroup } from '../forms/field';
-import { Button } from '../primitives/button';
-import { IconButton } from '../primitives/icon-button';
 import { ViewDialog } from './view-dialog';
 
 const meta: Meta<typeof ViewDialog> = {

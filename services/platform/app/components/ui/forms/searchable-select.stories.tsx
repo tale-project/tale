@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from '@tale/ui/button';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { fn } from 'storybook/test';
 
-import { Button } from '../primitives/button';
 import { SearchableSelect } from './searchable-select';
 
 const sampleOptions = [

@@ -1,5 +1,6 @@
 'use client';
 
+import { Skeleton } from '@tale/ui/skeleton';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { ReactNode } from 'react';
 
@@ -11,7 +12,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/app/components/ui/data-display/table';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { cn } from '@/lib/utils/cn';
 

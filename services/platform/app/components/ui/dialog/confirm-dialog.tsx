@@ -1,12 +1,12 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { cva } from 'class-variance-authority';
 import * as React from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { Button } from '../primitives/button';
 import { Dialog } from './dialog';
 
 const confirmButtonVariants = cva('', {

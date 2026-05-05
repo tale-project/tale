@@ -1,13 +1,13 @@
+import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
+import { Skeleton } from '@tale/ui/skeleton';
 import { Check, CircleAlert, Loader2, Minus, X } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { Button } from '@/app/components/ui/primitives/button';
-import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 

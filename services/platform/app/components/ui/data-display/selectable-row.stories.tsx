@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { Badge } from '@tale/ui/badge';
 import { FileText } from 'lucide-react';
 import { useState } from 'react';
 
-import { Badge } from '../feedback/badge';
 import { Text } from '../typography/text';
 import { SelectableRow } from './selectable-row';
 

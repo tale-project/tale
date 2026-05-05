@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import {
   AlertCircle,
   ChevronDown,
@@ -14,7 +15,6 @@ import { useState } from 'react';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

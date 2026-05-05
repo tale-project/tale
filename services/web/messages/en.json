@@ -1,0 +1,335 @@
+{
+  "nav": {
+    "ariaLabel": "Primary",
+    "features": "Features",
+    "pricing": "Pricing",
+    "readDocs": "Read docs",
+    "requestDemo": "Request demo",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "homeAriaLabel": "Tale home",
+    "skipToMain": "Skip to main content"
+  },
+  "footer": {
+    "product": "Product",
+    "resources": "Resources",
+    "legal": "Legal",
+    "features": "Features",
+    "pricing": "Pricing",
+    "hardwarePricing": "Hardware Pricing",
+    "contact": "Contact",
+    "aiTraining": "AI Training Courses",
+    "serviceAgreement": "Service Agreement",
+    "hardwareAgreement": "Hardware Agreement",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service",
+    "processingAgreement": "Processing Agreement",
+    "countrySwitzerland": "Switzerland",
+    "homeAriaLabel": "Tale home",
+    "githubAriaLabel": "GitHub",
+    "address": {
+      "company": "Ruler GmbH",
+      "street": "Seestrasse 4",
+      "city": "3700 Spiez",
+      "country": "Switzerland",
+      "vatId": "CHE-186.532.610"
+    },
+    "copyright": "© {year} Tale by Ruler GmbH — ISO 27001 & SOC 2 certified. Tale is MIT licensed — free to use, modify, and distribute."
+  },
+  "home": {
+    "hero": {
+      "title": "The Sovereign AI Platform",
+      "subtitle": "Local AI models, agents, skills, and automations — on your own infrastructure, connected to your data",
+      "ctaPrimary": "Request demo",
+      "ctaSecondary": "Read docs",
+      "footNote": "We integrate with {logos} and more — our expertise covers the rest.",
+      "integrationsPrefix": "We integrate with",
+      "integrationsSuffix": "and more — our expertise covers the rest.",
+      "integrations": ["Microsoft", "Google", "Atlassian"]
+    },
+    "logoWall": {
+      "prefix": "We integrate with",
+      "suffix": "and more — our expertise covers the rest."
+    },
+    "featureSecure": {
+      "title": "The Secure Platform for All Your Operations",
+      "description": "Chat with AI, automate workflows, manage conversations across channels, and keep humans in the loop — in one place.",
+      "chat": {
+        "label": "Chat with AI",
+        "description": "An AI chat interface trained on your company's data, history, and documents.\n\nAsk questions, search across systems, and get instant, accurate answers without digging through dashboards or files."
+      },
+      "conversations": {
+        "label": "Conversations",
+        "description": "Reply to email, chat, and voice from a single inbox. Tale keeps every channel on your infrastructure with full conversation history and routing."
+      },
+      "workflows": {
+        "label": "Workflows",
+        "description": "Compose multi-step automations that connect tools, models, and humans. Trigger from any event and resume them on demand."
+      },
+      "approvals": {
+        "label": "Approvals",
+        "description": "Keep humans in the loop with explicit approval steps. Tale routes the right context to the right reviewers and audits every decision."
+      }
+    },
+    "featureSectors": {
+      "title": "Built for Real Operational Work",
+      "description": "Backed by a team that takes responsibility for your success — across industries and use cases.",
+      "cta": "Request demo",
+      "hospitality": {
+        "label": "Hospitality",
+        "description": "Guide customers. Automate logistics. Support post-purchase tasks. Tale adapts to changing demand while maintaining brand trust"
+      },
+      "legal": {
+        "label": "Legal",
+        "description": "Draft, review, and route legal work with full audit trails. Tale keeps sensitive matter on your infrastructure while reducing turnaround time."
+      },
+      "finance": {
+        "label": "Finance",
+        "description": "Reconcile, analyse, and report with strict controls. Tale connects to your data without sending it anywhere it shouldn't go."
+      }
+    },
+    "featureGrid": {
+      "title": "Security, Privacy & Reliability",
+      "description": "Core principles that help you run private AI on your terms.",
+      "independent": {
+        "title": "Independent by Design",
+        "description": "Self-operated, open source, on-prem or in cloud — so you stay independent from third-party SaaS, vendors, and lock-in."
+      },
+      "stack": {
+        "title": "All from A to Z",
+        "description": "From hardware and software to support, consulting, and professional services — everything you need to run AI in production."
+      },
+      "proven": {
+        "title": "Proven, Secure, Reliable",
+        "description": "A secure, reliable, and scalable platform with proven accuracy, built for mission-critical workflows."
+      },
+      "needs": {
+        "title": "Built for Your Needs",
+        "description": "Use workflows that integrate with your existing infrastructure, so it fits the way you already operate."
+      }
+    },
+    "compliance": {
+      "title": "Enterprise-Grade Trust & Compliance",
+      "independent": {
+        "title": "Independent & Transparent",
+        "description": "Swiss-based, vendor neutral and unbiased, always acting in our customers' best interest."
+      },
+      "certified": {
+        "title": "Certified & Compliant",
+        "description": "Compliant with ISO 27001, SOC 2 and GDPR, with audit logs and data control so you always know where your data is stored."
+      }
+    },
+    "faq": {
+      "eyebrow": "FAQ",
+      "title": "Frequently Asked Questions",
+      "sovereignty": {
+        "q": "Is there any usage-based or seat-based pricing?",
+        "a": "No. We don't charge per user or per seat — the plan price stays the same."
+      },
+      "dataResidency": {
+        "q": "Are there additional features in the Enterprise plan?",
+        "a": "No. All product features are available in the open source version too. Pro and Enterprise add extended support and services."
+      },
+      "deployment": {
+        "q": "Do I have to bring my own AI models?",
+        "a": "No. You can bring your own models, but it's not required. We support most major AI providers and don't add fees on top — cloud AI model usage is priced at the rates of your chosen provider and is not included in the plans."
+      },
+      "cloudProviders": {
+        "q": "Do you support cloud AI providers?",
+        "a": "Yes — we support all major cloud AI providers, so you can use your preferred provider while benefiting from better pricing, higher uptime, and usage-based billing."
+      },
+      "pricing": {
+        "q": "Do you also provide hardware?",
+        "a": "Yes, we can also provide hardware (rental, leasing, purchase, etc.). Just mention it when you contact us."
+      },
+      "integrations": {
+        "q": "Can I use my own hardware and AI models?",
+        "a": "Yes. We're hardware- and model-agnostic, so you're free to use your own."
+      },
+      "support": {
+        "q": "Do you offer custom AI model training?",
+        "a": "Yes. We train and fine-tune custom models for clients. If you're interested, bring it up in the demo call."
+      }
+    },
+    "cta": {
+      "title": "Deploy Private AI on Your Terms",
+      "description": "",
+      "primary": "Request demo",
+      "secondary": "Talk to us"
+    }
+  },
+  "complianceTrust": {
+    "certifications": {
+      "iso27001": "ISO 27001",
+      "soc2": "SOC 2 Type II",
+      "gdpr": "GDPR"
+    }
+  },
+  "pricing": {
+    "title": "Simple, Transparent Pricing",
+    "description": "One price for your entire team — no per-seat fees, no hidden costs.",
+    "popular": "Popular",
+    "note": "All product features are included in Community, Pro, and Enterprise plans. Cloud AI model usage is priced at the rates of the provider and is not included.",
+    "community": {
+      "name": "Community",
+      "price": "Free",
+      "priceSuffix": "",
+      "tagline": "Self-hosted open-source edition with community support.",
+      "cta": "Get started",
+      "feature1": "Self-hosted",
+      "feature2": "MIT licensed",
+      "feature3": "Community-maintained (GitHub)",
+      "feature4": "Community support (GitHub)"
+    },
+    "pro": {
+      "name": "Pro",
+      "price": "CHF 299",
+      "priceSuffix": "/mo + VAT",
+      "tagline": "Professionally maintained version for teams running AI in production.",
+      "cta": "Contact us",
+      "feature1": "Everything in Community",
+      "feature2": "Self-hosted or cloud",
+      "feature3": "Professionally maintained (ISO 27001 & SOC 2 certified)",
+      "feature4": "Email support"
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "price": "CHF 1'199",
+      "priceSuffix": "/mo + VAT",
+      "tagline": "Full enterprise support for mission-critical private AI.",
+      "cta": "Contact us",
+      "feature1": "Everything in Pro",
+      "feature2": "Phone/SMS support",
+      "feature3": "WhatsApp support",
+      "feature4": "Remote support (AnyDesk / RustDesk)",
+      "feature5": "Installation & ongoing maintenance",
+      "feature6": "Influence on product roadmap"
+    },
+    "compare": {
+      "title": "Compare Plans",
+      "subtitle": "Breakdown of each plan",
+      "categories": {
+        "deployment": "Deployment",
+        "compliance": "Compliance",
+        "support": "Support",
+        "installation": "Installation",
+        "maintenance": "Maintenance",
+        "customDevelopment": "Custom development",
+        "consulting": "Consulting",
+        "roadmap": "Influence on product roadmap"
+      },
+      "values": {
+        "communityDeployment": "Self-hosted",
+        "paidDeployment": "Cloud, Self-hosted",
+        "paidCompliance": "GDPR compliant, ISO 27001 & SOC 2 certified",
+        "proSupport": "Email support",
+        "enterpriseSupport": "Phone/SMS support, WhatsApp support, Remote support, Professional services",
+        "installationFee": "CHF 399",
+        "maintenanceRate": "CHF 80–120 / h",
+        "customDevelopmentRate": "CHF 80–120 / h",
+        "consultingRate": "CHF 160–200 / h",
+        "yes": "Yes",
+        "dash": "—"
+      }
+    },
+    "extras": {
+      "training": {
+        "title": "AI trainings",
+        "description": "Training courses that equip your team with the skills to build and deploy real-world AI solutions — explore our AI training courses.",
+        "cta": "AI training courses"
+      },
+      "hardware": {
+        "title": "Hardware",
+        "description": "For self-hosting, we offer flexible hardware options — renting, buying, or financing. See our hardware pricing.",
+        "cta": "Hardware pricing"
+      },
+      "cloudProviders": {
+        "title": "Cloud AI providers",
+        "description": "We support all major cloud AI providers — better pricing, higher uptime, and usage-based billing."
+      }
+    },
+    "terms": {
+      "title": "Terms",
+      "prefix": "All configurations are subject to our",
+      "linkLabel": "service agreement",
+      "suffix": "."
+    }
+  },
+  "requestDemo": {
+    "eyebrow": "Demo",
+    "title": "What drives your business?",
+    "paragraph1": "We help data-sensitive organizations automate workflows with private, reliable AI.",
+    "paragraph2": "Connect with one of our domain experts to explore AI solutions and discuss your goals and challenges, so we can find the best solution for you.",
+    "fieldName": "Name",
+    "fieldPhone": "Phone (optional)",
+    "fieldCompany": "Company",
+    "fieldInterests": "Interested in",
+    "fieldMessage": "Additional comment (optional)",
+    "placeholderName": "Enter your full name",
+    "placeholderEmail": "Enter your email address",
+    "placeholderPhone": "Enter your phone number",
+    "placeholderCompany": "Enter your company name",
+    "placeholderMessage": "Describe your project. All project details shared with us are kept confidential.",
+    "interests": {
+      "proEnterprise": "Pro/Enterprise solutions",
+      "professionalServices": "Professional services",
+      "customAiTraining": "Custom AI model training",
+      "aiHardware": "AI hardware"
+    },
+    "messageHelp": "All project details shared with us are kept confidential.",
+    "submit": "Get in touch"
+  },
+  "contact": {
+    "eyebrow": "Contact",
+    "title": "Contact us",
+    "description": "Connect with one of our domain experts to discuss your goals and challenges, and explore the best AI solution for your organization.",
+    "fieldName": "Name",
+    "fieldCompany": "Company (optional)",
+    "fieldMessage": "Message",
+    "placeholderName": "Enter your full name",
+    "placeholderEmail": "Enter your email address",
+    "placeholderCompany": "Enter your company name",
+    "placeholderMessage": "Please share some details so we can better understand your needs. All project details shared with us are kept confidential.",
+    "submit": "Get in touch"
+  },
+  "forms": {
+    "email": "Email",
+    "honeypotLabel": "Website",
+    "privacyPrefix": "I confirm that I have read the",
+    "privacyLink": "Privacy Policy",
+    "privacyRequired": "You must accept the privacy policy",
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "rateLimited": "Too many submissions. Please wait a moment and try again.",
+      "tooFast": "Hold on — please review your details before submitting."
+    },
+    "success": {
+      "title": "Thanks — we got it",
+      "description": "We'll be in touch within one business day.",
+      "sendAnother": "Send another"
+    }
+  },
+  "productMockChat": {
+    "userMessage": "What does our return policy look like for AI hardware?",
+    "assistantMessage": "Our hardware comes with a 30-day return window and a 2-year warranty. Want me to draft the email reply?",
+    "attachAriaLabel": "Attach",
+    "inputPlaceholder": "Ask anything about your data…",
+    "sendAriaLabel": "Send"
+  },
+  "productMockOps": {
+    "heading": "Automations",
+    "today": "Today",
+    "rows": {
+      "inventorySync": "Daily inventory sync",
+      "customerEscalation": "Customer escalation triage",
+      "complianceReport": "Weekly compliance report",
+      "vendorSla": "Vendor SLA check"
+    },
+    "when": {
+      "justNow": "Just now",
+      "minutes14": "14m",
+      "hour1": "1h",
+      "hours4": "4h"
+    }
+  }
+}

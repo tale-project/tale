@@ -1,5 +1,8 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
+import { Skeleton } from '@tale/ui/skeleton';
 import startCase from 'lodash/startCase';
 import { AlertTriangle, ChevronDown, Cpu } from 'lucide-react';
 import {
@@ -10,13 +13,10 @@ import {
   useState,
 } from 'react';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
-import { Button } from '@/app/components/ui/primitives/button';
 import { useAccessibleModels } from '@/app/features/settings/governance/hooks/queries';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { useT } from '@/lib/i18n/client';
