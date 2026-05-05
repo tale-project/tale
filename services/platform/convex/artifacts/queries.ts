@@ -55,7 +55,12 @@ export const getById = query({
     if (!authUser) return null;
     const artifact = await ctx.db.get(artifactId);
     if (!artifact) return null;
-    const metadata = await canAccessThread(ctx, artifact.threadId, authUser);
+    const metadata = await canAccessThread(
+      ctx,
+      artifact.threadId,
+      authUser,
+      artifact.organizationId,
+    );
     if (!metadata || metadata.organizationId !== artifact.organizationId) {
       return null;
     }
@@ -84,7 +89,12 @@ export const listByThread = query({
   ): Promise<ArtifactListItem[]> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return [];
-    const metadata = await canAccessThread(ctx, threadId, authUser);
+    const metadata = await canAccessThread(
+      ctx,
+      threadId,
+      authUser,
+      organizationId,
+    );
     if (!metadata || metadata.organizationId !== organizationId) return [];
 
     const cap = Math.max(
@@ -122,7 +132,12 @@ export const syncArtifactStream = query({
     if (!authUser) return undefined;
     const artifact = await ctx.db.get(artifactId);
     if (!artifact) return undefined;
-    const metadata = await canAccessThread(ctx, artifact.threadId, authUser);
+    const metadata = await canAccessThread(
+      ctx,
+      artifact.threadId,
+      authUser,
+      artifact.organizationId,
+    );
     if (!metadata || metadata.organizationId !== artifact.organizationId) {
       return undefined;
     }
@@ -143,7 +158,12 @@ export const listRevisions = query({
     if (!authUser) return [];
     const artifact = await ctx.db.get(artifactId);
     if (!artifact) return [];
-    const metadata = await canAccessThread(ctx, artifact.threadId, authUser);
+    const metadata = await canAccessThread(
+      ctx,
+      artifact.threadId,
+      authUser,
+      artifact.organizationId,
+    );
     if (!metadata || metadata.organizationId !== artifact.organizationId) {
       return [];
     }

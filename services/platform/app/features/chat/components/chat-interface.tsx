@@ -333,7 +333,7 @@ export function ChatInterface({
   // Thread status — disable input for archived threads
   // Always check the URL threadId (root thread), not dataThreadId (which may
   // be a branch thread that wasn't individually archived).
-  const threadStatus = useThreadStatus(threadId);
+  const threadStatus = useThreadStatus(threadId, organizationId);
   const isArchived = threadStatus === 'archived';
 
   const { mutate: unarchiveThread, isPending: isUnarchiving } =

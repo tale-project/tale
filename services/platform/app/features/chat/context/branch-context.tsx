@@ -45,6 +45,7 @@ export function useBranchContext() {
 
 interface BranchProviderProps {
   threadId: string | undefined;
+  organizationId: string;
   children: ReactNode;
 }
 
@@ -115,7 +116,11 @@ function resolveActiveBranch(
   return currentThreadId;
 }
 
-export function BranchProvider({ threadId, children }: BranchProviderProps) {
+export function BranchProvider({
+  threadId,
+  organizationId,
+  children,
+}: BranchProviderProps) {
   const [branchSelections, setBranchSelections] = useState<
     Record<string, string>
   >({});
@@ -124,7 +129,7 @@ export function BranchProvider({ threadId, children }: BranchProviderProps) {
   // Load persisted branch selections from DB
   const persistedSelections = useQuery(
     api.threads.queries.getThreadBranchSelections,
-    threadId ? { threadId } : 'skip',
+    threadId ? { threadId, organizationId } : 'skip',
   );
 
   // Initialize from persisted data once on load
@@ -179,7 +184,7 @@ export function BranchProvider({ threadId, children }: BranchProviderProps) {
   const rawBranches =
     useQuery(
       api.threads.queries.getThreadBranches,
-      threadId ? { rootThreadId: threadId } : 'skip',
+      threadId ? { rootThreadId: threadId, organizationId } : 'skip',
     ) ?? [];
 
   const branchesKey = JSON.stringify(rawBranches);

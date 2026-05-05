@@ -200,14 +200,22 @@ export const getFailedMessageErrors = query({
 });
 
 export const getThreadStatus = query({
-  args: { threadId: v.string() },
+  args: {
+    threadId: v.string(),
+    organizationId: v.string(),
+  },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return null;
     }
 
-    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    const metadata = await canAccessThread(
+      ctx,
+      args.threadId,
+      authUser,
+      args.organizationId,
+    );
     if (!metadata) return null;
 
     // Owner always gets the real status; non-owners reach this path only when
@@ -222,16 +230,20 @@ export const getThreadStatus = query({
 export { getSharedThread } from './get_shared_thread';
 
 export const getThreadBranches = query({
-  args: { rootThreadId: v.string() },
+  args: {
+    rootThreadId: v.string(),
+    organizationId: v.string(),
+  },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return [];
 
-    const rootMetadata = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.rootThreadId))
-      .first();
-
+    const rootMetadata = await canAccessThread(
+      ctx,
+      args.rootThreadId,
+      authUser,
+      args.organizationId,
+    );
     if (!rootMetadata || rootMetadata.userId !== authUser.userId) return [];
 
     const branches: Array<{
@@ -265,16 +277,20 @@ export const getThreadBranches = query({
 });
 
 export const getThreadBranchSelections = query({
-  args: { threadId: v.string() },
+  args: {
+    threadId: v.string(),
+    organizationId: v.string(),
+  },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return null;
 
-    const metadata = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
-
+    const metadata = await canAccessThread(
+      ctx,
+      args.threadId,
+      authUser,
+      args.organizationId,
+    );
     if (!metadata || metadata.userId !== authUser.userId) return null;
 
     return metadata.branchSelections ?? null;

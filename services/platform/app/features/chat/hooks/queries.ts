@@ -116,10 +116,13 @@ export function useArchivedThreads({
   };
 }
 
-export function useThreadStatus(threadId: string | undefined) {
+export function useThreadStatus(
+  threadId: string | undefined,
+  organizationId: string,
+) {
   const { data } = useConvexQuery(
     api.threads.queries.getThreadStatus,
-    threadId ? { threadId } : 'skip',
+    threadId ? { threadId, organizationId } : 'skip',
   );
   return data ?? null;
 }
