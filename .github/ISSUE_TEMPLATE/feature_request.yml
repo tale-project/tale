@@ -32,7 +32,6 @@ body:
         - Crawler
         - Database
         - Graph DB
-        - Operator
         - Proxy
         - Not sure
     validations:

@@ -9,7 +9,6 @@ export default {
         'cli',
         'crawler',
         'rag',
-        'operator',
         'db',
         'proxy',
         'deps',

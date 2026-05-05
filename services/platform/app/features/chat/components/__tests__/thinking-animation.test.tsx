@@ -12,7 +12,6 @@ vi.mock('@/lib/i18n/client', () => ({
       const p = (k: string) => String(params?.[k] ?? '');
       const translations: Record<string, string> = {
         'thinking.default': 'Thinking',
-        'thinking.browsing': 'Browsing',
         'thinking.reading': `Reading ${p('hostname')}`,
         'thinking.searchingKnowledgeBase': `Searching knowledge base for "${p('query')}"`,
         'thinking.searching': `Searching "${p('query')}"`,

@@ -161,7 +161,6 @@ Remove ALL blue-green containers.
 - `platform` - TanStack Start + Convex
 - `rag` - RAG service
 - `crawler` - Crawl4AI web crawler
-- `operator` - Browser automation (Chromium + Playwright)
 
 ### Deployment Flow
 

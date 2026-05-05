@@ -1948,7 +1948,6 @@
       "default": "Thinking",
       "searching": "Searching \"{query}\"",
       "reading": "Reading {hostname}",
-      "browsing": "Browsing the web",
       "searchingKnowledgeBase": "Searching knowledge base for \"{query}\"",
       "searchingMultiple": "Searching {queries}",
       "searchingMore": "Searching {first}, {second} and {count} more",
