@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { useState } from 'react';
 
+import { TierCard } from '@/app/components/blocks/tier-card';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
@@ -48,7 +49,13 @@ const FEATURES_PER_TIER: Record<Tier['key'], string[]> = {
     'community.feature3',
     'community.feature4',
   ],
-  pro: ['pro.feature1', 'pro.feature2', 'pro.feature3', 'pro.feature4'],
+  pro: [
+    'pro.feature1',
+    'pro.feature2',
+    'pro.feature3',
+    'pro.feature4',
+    'pro.gdpr',
+  ],
   enterprise: [
     'enterprise.feature1',
     'enterprise.feature2',
@@ -119,64 +126,29 @@ export function PricingTiers() {
 
         <div className="border-border-base mx-auto mt-12 grid max-w-[1120px] grid-cols-1 overflow-hidden border lg:grid-cols-3">
           {TIERS.map((tier, idx) => (
-            <motion.article
+            <TierCard
               key={tier.key}
-              initial={fadeInitial}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-10%' }}
-              transition={
-                reduceMotion
-                  ? { duration: 0 }
-                  : { duration: 0.5, delay: idx * 0.06, ease: easeOut }
+              name={t(`${tier.key}.name`)}
+              popular={tier.popular}
+              popularLabel={t('popular')}
+              price={
+                tier.monthlyAmount === null
+                  ? t(`${tier.key}.price`)
+                  : formatCurrency(
+                      billing === 'yearly'
+                        ? tier.monthlyAmount * 10
+                        : tier.monthlyAmount,
+                      {
+                        currency: PRICING_CURRENCY,
+                        locale: PRICING_LOCALE,
+                        maximumFractionDigits: 0,
+                      },
+                    )
               }
-              className={`border-border-base relative flex flex-col gap-6 border-t p-8 first:border-t-0 sm:p-10 lg:border-t-0 lg:border-l lg:first:border-l-0 ${
-                tier.popular ? 'bg-bg-elevated' : 'bg-bg-base'
-              }`}
+              priceSuffix={t(`${tier.key}.priceSuffix`)}
+              tagline={t(`${tier.key}.tagline`)}
+              animationDelay={idx * 0.06}
             >
-              <div className="flex items-center justify-between gap-3">
-                <h2
-                  className="text-fg-muted text-lg font-medium"
-                  style={{ letterSpacing: '-0.18px' }}
-                >
-                  {t(`${tier.key}.name`)}
-                </h2>
-                {tier.popular ? (
-                  <span className="rounded-md bg-[#9bc4ff] px-1.5 py-px text-[10px] font-medium text-[#021a3f]">
-                    {t('popular')}
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="flex items-baseline gap-2">
-                <span
-                  className="text-fg-base text-4xl font-medium md:text-[48px]"
-                  style={{ letterSpacing: '-2px', lineHeight: 1.05 }}
-                >
-                  {tier.monthlyAmount === null
-                    ? t(`${tier.key}.price`)
-                    : formatCurrency(
-                        billing === 'yearly'
-                          ? tier.monthlyAmount * 10
-                          : tier.monthlyAmount,
-                        {
-                          currency: PRICING_CURRENCY,
-                          locale: PRICING_LOCALE,
-                          maximumFractionDigits: 0,
-                        },
-                      )}
-                </span>
-                <span className="text-fg-muted text-sm">
-                  {t(`${tier.key}.priceSuffix`)}
-                </span>
-              </div>
-
-              <p
-                className="text-fg-muted text-base"
-                style={{ letterSpacing: '-0.24px', lineHeight: 1.5 }}
-              >
-                {t(`${tier.key}.tagline`)}
-              </p>
-
               <div className="border-border-base flex flex-col gap-3 border-t pt-6">
                 <p
                   className="text-fg-base text-sm font-medium"
@@ -192,7 +164,7 @@ export function PricingTiers() {
                       style={{ letterSpacing: '-0.21px', lineHeight: 1.5 }}
                     >
                       <Check
-                        className="text-fg-base mt-0.5 h-4 w-4 shrink-0"
+                        className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"
                         strokeWidth={2}
                         aria-hidden
                       />
@@ -219,7 +191,7 @@ export function PricingTiers() {
                   </Button>
                 )}
               </div>
-            </motion.article>
+            </TierCard>
           ))}
         </div>
 

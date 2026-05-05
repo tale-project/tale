@@ -218,7 +218,8 @@
       "feature1": "Tout le plan Community",
       "feature2": "Auto-hébergé ou cloud",
       "feature3": "Maintenu professionnellement (certifié ISO 27001 & SOC 2)",
-      "feature4": "Support par email"
+      "feature4": "Support par email",
+      "gdpr": "Conforme RGPD"
     },
     "enterprise": {
       "name": "Enterprise",
@@ -258,7 +259,7 @@
         "consultingRate": "CHF 160–200 / h",
         "yes": "Oui",
         "dash": "—",
-        "proMaintenance": "Cloud :\n✓\nAuto-hébergé : CHF 80–120 / h"
+        "proMaintenance": "Cloud : ✓\nAuto-hébergé : CHF 80–120 / h"
       },
       "sections": {
         "services": "Services professionnels"
@@ -268,6 +269,7 @@
         "cloud": "Cloud",
         "gdpr": "Conforme RGPD",
         "iso": "Certifié ISO 27001 et SOC 2",
+        "piiRedaction": "Masquage des données personnelles",
         "emailSupport": "Support par email",
         "phoneSupport": "Support téléphone/SMS",
         "whatsappSupport": "Support WhatsApp",
@@ -286,7 +288,7 @@
       },
       "hardware": {
         "title": "Matériel",
-        "description": "Pour l'auto-hébergement, nous proposons des options matérielles flexibles — location, achat ou financement. Voir nos tarifs matériel.",
+        "description": "Pour l'auto-hébergement, nous proposons des options matérielles flexibles — location, achat ou financement.",
         "cta": "Tarifs matériel"
       },
       "cloudProviders": {
@@ -317,7 +319,7 @@
         "price": "CHF ~2k",
         "priceSuffix": "+ TVA/mois",
         "buyPrice": "CHF ~80k",
-        "buySuffix": "+ TVA, paiement unique",
+        "buySuffix": "+ TVA",
         "tagline": "Optimisé pour une haute précision et des résultats d'IA cohérents.",
         "cta": "Nous contacter",
         "highlightQuality": "Qualité",
@@ -329,7 +331,7 @@
         "price": "CHF ~2.1k",
         "priceSuffix": "+ TVA/mois",
         "buyPrice": "CHF ~84k",
-        "buySuffix": "+ TVA, paiement unique",
+        "buySuffix": "+ TVA",
         "tagline": "Équilibré entre précision et vitesse.",
         "cta": "Nous contacter",
         "highlightQuality": "Élevée",
@@ -341,7 +343,7 @@
         "price": "CHF ~2.2k",
         "priceSuffix": "+ TVA/mois",
         "buyPrice": "CHF ~88k",
-        "buySuffix": "+ TVA, paiement unique",
+        "buySuffix": "+ TVA",
         "tagline": "Optimisé pour des réponses d'IA rapides et une faible latence.",
         "cta": "Nous contacter",
         "highlightQuality": "Standard",
@@ -353,7 +355,7 @@
       "title": "Comparer les configurations",
       "subtitle": "Détail de chaque configuration",
       "categories": {
-        "model": "Modèle d'IA recommandé",
+        "model": "Modèle d'IA SoA",
         "size": "Taille",
         "gpu": "Puce (GPU)",
         "cpu": "Puce (CPU)",

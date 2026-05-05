@@ -1,1 +1,10 @@
-{}
+{
+  "languageSwitcher": {
+    "ariaLabel": "Language",
+    "locales": {
+      "en": "English",
+      "de": "Deutsch",
+      "fr": "Français"
+    }
+  }
+}

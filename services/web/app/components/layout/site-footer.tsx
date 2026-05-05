@@ -2,6 +2,7 @@ import { TaleLogo } from '@tale/ui/logo';
 import { Link } from '@tanstack/react-router';
 
 import { GithubIcon } from '@/app/components/icons/github-icon';
+import { LanguageSwitcher } from '@/app/components/layout/language-switcher';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
@@ -171,15 +172,18 @@ export function SiteFooter() {
             <p>{t('copyrightLine1', { year: new Date().getFullYear() })}</p>
             <p>{t('copyrightLine2')}</p>
           </div>
-          <a
-            href="https://github.com/tale-project/tale"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={t('githubAriaLabel')}
-            className="text-fg-muted hover:bg-bg-muted hover:text-fg-base inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors"
-          >
-            <GithubIcon className="h-5 w-5" />
-          </a>
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher />
+            <a
+              href="https://github.com/tale-project/tale"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={t('githubAriaLabel')}
+              className="text-fg-muted hover:bg-bg-muted hover:text-fg-base inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors"
+            >
+              <GithubIcon className="h-5 w-5" />
+            </a>
+          </div>
         </div>
       </SiteContainer>
     </footer>

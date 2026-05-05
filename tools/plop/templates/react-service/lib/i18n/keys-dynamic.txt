@@ -1,0 +1,8 @@
+# Translation-key prefixes/keys that the orphan-key test in
+# messages-usage.test.ts treats as covered. Each line is matched as a prefix:
+# `foo.bar` covers `foo.bar` and `foo.bar.<anything>`.
+#
+# Add an entry here only when a key is genuinely dynamic — constructed at
+# runtime in ways the regex scanner cannot follow (template literals composed
+# across files, enum-driven dispatch, etc.). Static keys, even with template
+# literals whose prefix is constant, are already covered by the wildcard scan.

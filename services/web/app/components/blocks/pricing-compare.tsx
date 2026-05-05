@@ -2,8 +2,13 @@ import { Button } from '@tale/ui/button';
 import { Link } from '@tanstack/react-router';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Check, Minus } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 
+import {
+  CompareTable,
+  type CompareRow,
+  type CompareTier,
+} from '@/app/components/blocks/compare-table';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
@@ -35,15 +40,32 @@ interface SectionRow {
 
 type Row = DataRow | SpanRow | SectionRow;
 
-function CellContent({
-  cell,
-  yesLabel,
-  noLabel,
-}: {
-  cell: Cell;
-  yesLabel: string;
-  noLabel: string;
-}) {
+// Inline ✓ marker used inside text-cell values (e.g. "Cloud: ✓"). Same
+// green Check glyph as the dedicated check cell so the table reads
+// consistently regardless of whether the value is a pure check or a
+// labelled one.
+function InlineCheck({ label }: { label: string }) {
+  return (
+    <Check
+      className="inline-block h-4 w-4 align-[-0.125em] text-emerald-600"
+      strokeWidth={2}
+      aria-label={label}
+    />
+  );
+}
+
+function renderTextWithChecks(value: string, yesLabel: string): ReactNode {
+  if (!value.includes('✓')) return value;
+  const parts = value.split('✓');
+  return parts.map((part, i) => (
+    <Fragment key={i}>
+      {part}
+      {i < parts.length - 1 ? <InlineCheck label={yesLabel} /> : null}
+    </Fragment>
+  ));
+}
+
+function renderCell(cell: Cell, yesLabel: string, noLabel: string): ReactNode {
   if (cell.kind === 'check') {
     return (
       <Check
@@ -64,7 +86,7 @@ function CellContent({
   }
   return (
     <span className="text-fg-muted block whitespace-pre-line">
-      {cell.value}
+      {renderTextWithChecks(cell.value, yesLabel)}
     </span>
   );
 }
@@ -76,6 +98,8 @@ export function PricingCompare() {
   const check: Cell = { kind: 'check' };
   const dash: Cell = { kind: 'dash' };
   const text = (value: string): Cell => ({ kind: 'text', value });
+  const yesLabel = t('compare.cellLabels.yes');
+  const noLabel = t('compare.cellLabels.no');
 
   const rows: Row[] = [
     { kind: 'section', label: t('compare.categories.deployment') },
@@ -99,6 +123,11 @@ export function PricingCompare() {
     {
       kind: 'data',
       label: t('compare.rows.iso'),
+      cells: { community: dash, pro: check, enterprise: check },
+    },
+    {
+      kind: 'data',
+      label: t('compare.rows.piiRedaction'),
       cells: { community: dash, pro: check, enterprise: check },
     },
 
@@ -205,6 +234,34 @@ export function PricingCompare() {
     },
   ];
 
+  const tiers: CompareTier<TierKey>[] = TIER_KEYS.map((key) => ({
+    key,
+    name: t(`${key}.name`),
+    cta: (
+      <Button
+        variant={key === 'pro' ? 'primary' : 'secondary'}
+        asChild
+        fullWidth
+        className="hidden sm:inline-flex"
+      >
+        <Link to="/contact">{t(`${key}.cta`)}</Link>
+      </Button>
+    ),
+  }));
+
+  const tableRows: CompareRow<TierKey>[] = rows.map((row) => {
+    if (row.kind === 'section' || row.kind === 'span') return row;
+    return {
+      kind: 'data',
+      label: row.label,
+      cells: {
+        community: renderCell(row.cells.community, yesLabel, noLabel),
+        pro: renderCell(row.cells.pro, yesLabel, noLabel),
+        enterprise: renderCell(row.cells.enterprise, yesLabel, noLabel),
+      },
+    };
+  });
+
   return (
     <section className="border-border-base border-b py-20">
       <SiteContainer>
@@ -231,126 +288,11 @@ export function PricingCompare() {
           </p>
         </motion.header>
 
-        <motion.div
-          initial={reduceMotion ? false : { opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-10%' }}
-          transition={
-            reduceMotion
-              ? { duration: 0 }
-              : { delay: 0.08, duration: 0.6, ease: easeOut }
-          }
-          className="border-border-base mx-auto mt-12 max-w-[1120px] border"
-        >
-          <table className="w-full table-fixed border-collapse">
-            <colgroup>
-              <col className="w-[34%] sm:w-[28%]" />
-              <col className="w-[22%] sm:w-[24%]" />
-              <col className="w-[22%] sm:w-[24%]" />
-              <col className="w-[22%] sm:w-[24%]" />
-            </colgroup>
-            <thead>
-              <tr className="border-border-base border-b">
-                <th
-                  scope="col"
-                  className="text-fg-muted px-3 py-4 text-left text-xs font-medium tracking-wider uppercase sm:px-6"
-                >
-                  <span className="sr-only">{t('compare.title')}</span>
-                </th>
-                {TIER_KEYS.map((key) => (
-                  <th
-                    key={key}
-                    scope="col"
-                    className="text-fg-base border-border-base border-l px-2 py-4 text-center align-top sm:px-6 sm:py-6"
-                  >
-                    <div className="flex flex-col items-stretch gap-4">
-                      <span
-                        className="text-fg-muted text-base font-medium sm:text-lg"
-                        style={{ letterSpacing: '-0.18px' }}
-                      >
-                        {t(`${key}.name`)}
-                      </span>
-                      <Button
-                        variant={key === 'pro' ? 'primary' : 'secondary'}
-                        asChild
-                        fullWidth
-                        className="hidden sm:inline-flex"
-                      >
-                        <Link to="/contact">{t(`${key}.cta`)}</Link>
-                      </Button>
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, idx) => {
-                if (row.kind === 'section') {
-                  return (
-                    <tr
-                      key={`section-${row.label}-${idx}`}
-                      className="border-border-base border-b"
-                    >
-                      <th
-                        colSpan={4}
-                        scope="colgroup"
-                        className="text-fg-muted px-3 pt-8 pb-4 text-left text-base font-medium sm:px-6"
-                      >
-                        {row.label}
-                      </th>
-                    </tr>
-                  );
-                }
-                if (row.kind === 'span') {
-                  return (
-                    <tr
-                      key={`span-${row.label}-${idx}`}
-                      className="border-border-base border-b last:border-b-0"
-                    >
-                      <th
-                        scope="row"
-                        className="text-fg-base px-3 py-4 text-left align-top text-sm font-medium sm:px-6"
-                      >
-                        {row.label}
-                      </th>
-                      <td
-                        colSpan={3}
-                        className="border-border-base text-fg-muted border-l px-3 py-4 text-center align-top text-sm sm:px-6"
-                      >
-                        {row.content}
-                      </td>
-                    </tr>
-                  );
-                }
-                return (
-                  <tr
-                    key={`data-${row.label}-${idx}`}
-                    className="border-border-base border-b last:border-b-0"
-                  >
-                    <th
-                      scope="row"
-                      className="text-fg-base px-3 py-4 text-left align-top text-sm font-medium sm:px-6"
-                    >
-                      {row.label}
-                    </th>
-                    {TIER_KEYS.map((key) => (
-                      <td
-                        key={key}
-                        className="border-border-base border-l px-2 py-4 text-center align-top text-sm sm:px-6"
-                      >
-                        <CellContent
-                          cell={row.cells[key]}
-                          yesLabel={t('compare.cellLabels.yes')}
-                          noLabel={t('compare.cellLabels.no')}
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </motion.div>
+        <CompareTable
+          caption={t('compare.title')}
+          tiers={tiers}
+          rows={tableRows}
+        />
       </SiteContainer>
     </section>
   );

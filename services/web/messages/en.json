@@ -218,7 +218,8 @@
       "feature1": "Everything in Community",
       "feature2": "Self-hosted or cloud",
       "feature3": "Professionally maintained (ISO 27001 & SOC 2 certified)",
-      "feature4": "Email support"
+      "feature4": "Email support",
+      "gdpr": "GDPR compliant"
     },
     "enterprise": {
       "name": "Enterprise",
@@ -258,7 +259,7 @@
         "consultingRate": "CHF 160–200 / h",
         "yes": "Yes",
         "dash": "—",
-        "proMaintenance": "Cloud:\n✓\nSelf-hosted: CHF 80–120 / h"
+        "proMaintenance": "Cloud: ✓\nSelf-hosted: CHF 80–120 / h"
       },
       "sections": {
         "services": "Professional services"
@@ -268,6 +269,7 @@
         "cloud": "Cloud",
         "gdpr": "GDPR compliant",
         "iso": "ISO 27001 & SOC 2 certified",
+        "piiRedaction": "PII redaction",
         "emailSupport": "Email support",
         "phoneSupport": "Phone/SMS support",
         "whatsappSupport": "WhatsApp support",
@@ -286,7 +288,7 @@
       },
       "hardware": {
         "title": "Hardware",
-        "description": "For self-hosting, we offer flexible hardware options — renting, buying, or financing. See our hardware pricing.",
+        "description": "For self-hosting, we offer flexible hardware options — renting, buying, or financing.",
         "cta": "Hardware pricing"
       },
       "cloudProviders": {
@@ -317,7 +319,7 @@
         "price": "CHF ~2k",
         "priceSuffix": "+ VAT/month",
         "buyPrice": "CHF ~80k",
-        "buySuffix": "+ VAT one-off",
+        "buySuffix": "+ VAT",
         "tagline": "Optimized for high-accuracy and consistent AI results.",
         "cta": "Contact us",
         "highlightQuality": "Quality",
@@ -329,7 +331,7 @@
         "price": "CHF ~2.1k",
         "priceSuffix": "+ VAT/month",
         "buyPrice": "CHF ~84k",
-        "buySuffix": "+ VAT one-off",
+        "buySuffix": "+ VAT",
         "tagline": "Balanced between accuracy and speed.",
         "cta": "Contact us",
         "highlightQuality": "High",
@@ -341,7 +343,7 @@
         "price": "CHF ~2.2k",
         "priceSuffix": "+ VAT/month",
         "buyPrice": "CHF ~88k",
-        "buySuffix": "+ VAT one-off",
+        "buySuffix": "+ VAT",
         "tagline": "Optimized for fast AI responses and low latency.",
         "cta": "Contact us",
         "highlightQuality": "Standard",
@@ -353,7 +355,7 @@
       "title": "Compare Configurations",
       "subtitle": "Breakdown of each configuration",
       "categories": {
-        "model": "Recommended AI model",
+        "model": "SoA AI model",
         "size": "Size",
         "gpu": "Chip (GPU)",
         "cpu": "Chip (CPU)",

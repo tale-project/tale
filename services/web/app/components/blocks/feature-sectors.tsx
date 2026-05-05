@@ -11,9 +11,9 @@ const easeOut = [0.22, 1, 0.36, 1] as const;
 type SectorKey = 'hospitality' | 'legal' | 'finance';
 
 const ILLUSTRATIONS: Record<SectorKey, string> = {
-  hospitality: '/marketing/sector-hospitality.png',
-  legal: '/marketing/sector-legal.png',
-  finance: '/marketing/sector-finance.png',
+  hospitality: '/marketing/svg/mock-product-card.svg',
+  legal: '/marketing/svg/mock-document-long.svg',
+  finance: '/marketing/svg/mock-document-card.svg',
 };
 
 export function FeatureSectors() {
@@ -135,7 +135,7 @@ export function FeatureSectors() {
                 </motion.div>
               </AnimatePresence>
             </div>
-            <div className="border-border-base relative overflow-hidden border-t lg:border-t-0 lg:border-l">
+            <div className="border-border-base bg-bg-elevated relative overflow-hidden border-t lg:border-t-0 lg:border-l">
               <AnimatePresence mode="wait" initial={false}>
                 <motion.img
                   key={active}
@@ -153,7 +153,7 @@ export function FeatureSectors() {
                       ? { duration: 0 }
                       : { duration: 0.4, ease: easeOut }
                   }
-                  className="absolute inset-0 h-full w-full object-cover"
+                  className="absolute inset-8 m-auto block max-h-[calc(100%-4rem)] max-w-[calc(100%-4rem)] object-contain"
                 />
               </AnimatePresence>
             </div>

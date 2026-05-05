@@ -1,10 +1,12 @@
 import { motion, useReducedMotion } from 'framer-motion';
-import type { LucideIcon } from 'lucide-react';
+import type { ComponentType, SVGProps } from 'react';
 
 import { SiteContainer } from '@/app/components/layout/site-container';
 
+type FeatureIcon = ComponentType<SVGProps<SVGSVGElement>>;
+
 interface FeatureGridItem {
-  icon: LucideIcon;
+  icon: FeatureIcon;
   title: string;
   description: string;
   illustration?: string;
@@ -71,6 +73,8 @@ export function FeatureGrid({ title, description, items }: FeatureGridProps) {
                   <item.icon
                     className="text-fg-base h-6 w-6 shrink-0"
                     strokeWidth={1.75}
+                    stroke="currentColor"
+                    fill="none"
                     aria-hidden
                   />
                   <h3

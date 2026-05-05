@@ -1,16 +1,17 @@
 import { cva } from 'class-variance-authority';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import {
-  CircleCheck,
-  Inbox,
-  MessageSquareMore,
-  Network,
-  type LucideIcon,
-} from 'lucide-react';
-import { useState } from 'react';
+import { type ComponentType, type SVGProps, useState } from 'react';
 
+import {
+  ApprovalsIcon,
+  ChatIcon,
+  ConversationsIcon,
+  WorkflowsIcon,
+} from '@/app/components/icons/marketing-icons';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
+
+type FeatureIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
@@ -18,7 +19,7 @@ type RailKey = 'chat' | 'conversations' | 'automations' | 'approvals';
 
 interface RailItem {
   key: RailKey;
-  icon: LucideIcon;
+  icon: FeatureIcon;
   label: string;
   description: string;
   illustration: string;
@@ -40,43 +41,15 @@ const panelGradient = cva('absolute inset-0', {
   },
 });
 
-// Per-tab card position. The product mockup peeks out of the panel: top edge
-// inset, the right/left/bottom that sits "off-canvas" uses negative offsets so
-// the rounded corners on those sides simply get clipped by the panel.
-const panelCard = cva(
-  'absolute overflow-hidden bg-white shadow-[0_24px_64px_-16px_rgba(0,0,0,0.55)]',
-  {
-    variants: {
-      tab: {
-        // chat: peeks out to the right + bottom, top-left rounded.
-        chat: 'top-[8%] left-[7%] -right-[18%] -bottom-[20%] rounded-tl-2xl border-t border-l border-white/30',
-        // conversations: same anchor as chat (top-left in the panel).
-        conversations:
-          'top-[8%] left-[7%] -right-[18%] -bottom-[20%] rounded-tl-2xl border-t border-l border-white/30',
-        // automations: centered horizontally, both top corners rounded.
-        automations:
-          'top-[8%] right-[7%] left-[7%] -bottom-[20%] rounded-t-2xl border-t border-x border-white/30',
-        // approvals: peeks out to the left + bottom, top-right rounded.
-        approvals:
-          'top-[8%] -left-[18%] right-[7%] -bottom-[20%] rounded-tr-2xl border-t border-r border-white/30',
-      },
-    },
-  },
-);
+// Inner stage that holds the SVG mockup centered over the gradient.
+// `inset-X` keeps a comfortable margin on every side so the illustration
+// never bleeds to the panel edge regardless of its intrinsic aspect ratio.
+const panelStage =
+  'absolute inset-6 flex items-center justify-center sm:inset-10';
 
-// Image anchor matches the card's "anchored" (non-clipped) corner so the
-// important content stays in view while the opposite side gets clipped by
-// the panel's overflow.
-const panelImage = cva('block h-full w-full object-cover', {
-  variants: {
-    tab: {
-      chat: 'object-left-top',
-      conversations: 'object-left-top',
-      automations: 'object-top',
-      approvals: 'object-right-top',
-    },
-  },
-});
+// SVGs are vector — clamp to 100% on both axes and use `object-contain`
+// so they keep their aspect ratio and never blow up beyond the stage.
+const panelImage = 'block h-full max-h-full w-full max-w-full object-contain';
 
 export function FeatureSecure() {
   const { t } = useT('home');
@@ -87,31 +60,31 @@ export function FeatureSecure() {
   const items: RailItem[] = [
     {
       key: 'chat',
-      icon: MessageSquareMore,
+      icon: ChatIcon,
       label: t('featureSecure.chat.label'),
       description: t('featureSecure.chat.description'),
-      illustration: '/marketing/feature-secure-chat.png',
+      illustration: '/marketing/svg/mock-doc-summarizing.svg',
     },
     {
       key: 'conversations',
-      icon: Inbox,
+      icon: ConversationsIcon,
       label: t('featureSecure.conversations.label'),
       description: t('featureSecure.conversations.description'),
-      illustration: '/marketing/feature-secure-conversations.png',
+      illustration: '/marketing/svg/mock-conversations.svg',
     },
     {
       key: 'automations',
-      icon: Network,
+      icon: WorkflowsIcon,
       label: t('featureSecure.automations.label'),
       description: t('featureSecure.automations.description'),
-      illustration: '/marketing/feature-secure-automations.png',
+      illustration: '/marketing/svg/mock-workflow-grid.svg',
     },
     {
       key: 'approvals',
-      icon: CircleCheck,
+      icon: ApprovalsIcon,
       label: t('featureSecure.approvals.label'),
       description: t('featureSecure.approvals.description'),
-      illustration: '/marketing/feature-secure-approvals.png',
+      illustration: '/marketing/svg/mock-approvals-table.svg',
     },
   ];
 
@@ -123,14 +96,14 @@ export function FeatureSecure() {
       className="relative aspect-[671/559] w-full overflow-hidden"
     >
       <div aria-hidden className={panelGradient({ tab: item.key })} />
-      <div className={panelCard({ tab: item.key })}>
+      <div className={panelStage}>
         <img
           src={item.illustration}
           alt=""
           aria-hidden
           draggable={false}
           loading="lazy"
-          className={panelImage({ tab: item.key })}
+          className={panelImage}
         />
       </div>
     </div>
@@ -218,6 +191,8 @@ export function FeatureSecure() {
                       className="text-fg-base mt-1 h-6 w-6 shrink-0"
                       aria-hidden
                       strokeWidth={1.75}
+                      stroke="currentColor"
+                      fill="none"
                     />
                     <div className="flex-1 overflow-hidden">
                       <div

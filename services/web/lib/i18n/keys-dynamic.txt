@@ -1,0 +1,52 @@
+# Translation-key prefixes/keys that the orphan-key test in
+# messages-usage.test.ts treats as covered. Each line is matched as a prefix:
+# `foo.bar` covers `foo.bar` and `foo.bar.<anything>`.
+#
+# Add an entry here only when a key is genuinely dynamic — constructed at
+# runtime in ways the regex scanner cannot follow (template literals composed
+# across files, enum-driven dispatch, etc.). Static keys, even with template
+# literals whose prefix is constant, are already covered by the wildcard scan.
+
+# --- pending wire-up: namespaces defined but not yet referenced ---
+# Mock-data namespaces created for upcoming product-mockup components in the
+# marketing site. Remove this exemption when the components land.
+productMockChat
+productMockOps
+
+# Compliance-trust certifications — defined but consumed via design assets
+# (logos) rather than t() calls. Remove if/when the strings are surfaced.
+complianceTrust.certifications
+
+# --- legacy / leftover keys flagged for cleanup ---
+# Hero/CTA copy that survived a refactor. Confirm with copy and remove.
+home.hero.ctaSecondary
+home.hero.footNote
+home.hero.integrations
+home.hero.integrationsPrefix
+home.hero.integrationsSuffix
+home.cta.description
+home.cta.secondary
+
+# Footer/nav/contact/demo eyebrows — remove if no longer used in design.
+footer.countrySwitzerland
+nav.pricing
+contact.eyebrow
+requestDemo.eyebrow
+
+# Hardware-pricing planIncludes header — kept symmetric with pricing tiers
+# even though the hardware page does not currently print it.
+hardwarePricing.configIncludes
+
+# Pricing-compare legacy aggregate values — superseded by per-row strings.
+# Remove once design confirms the rolled-up labels are no longer needed.
+pricing.compare.values.communityDeployment
+pricing.compare.values.paidDeployment
+pricing.compare.values.paidCompliance
+pricing.compare.values.proSupport
+pricing.compare.values.enterpriseSupport
+pricing.compare.values.dash
+pricing.compare.values.yes
+
+# Pricing extras training CTA — extras.training only renders title +
+# description in the comparison table.
+pricing.extras.training.cta
