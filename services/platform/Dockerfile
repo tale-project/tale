@@ -28,7 +28,9 @@ COPY services/crawler/package.json ./services/crawler/
 COPY services/rag/package.json ./services/rag/
 COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
+COPY services/web/package.json ./services/web/
 COPY tools/cli/package.json ./tools/cli/
+COPY tools/plop/package.json ./tools/plop/
 COPY patches/ ./patches/
 
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
@@ -104,7 +106,9 @@ COPY --from=workspace-deps /app/services/crawler/package.json /tmp/workspace/ser
 COPY --from=workspace-deps /app/services/rag/package.json /tmp/workspace/services/rag/
 COPY --from=workspace-deps /app/services/db/package.json /tmp/workspace/services/db/
 COPY --from=workspace-deps /app/services/proxy/package.json /tmp/workspace/services/proxy/
+COPY --from=workspace-deps /app/services/web/package.json /tmp/workspace/services/web/
 COPY --from=workspace-deps /app/tools/cli/package.json /tmp/workspace/tools/cli/
+COPY --from=workspace-deps /app/tools/plop/package.json /tmp/workspace/tools/plop/
 COPY --from=workspace-deps /app/patches/ /tmp/workspace/patches/
 
 RUN cd /tmp/workspace && HUSKY=0 bun install --production \

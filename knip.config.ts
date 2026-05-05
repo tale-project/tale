@@ -16,7 +16,6 @@ export default {
     '@radix-ui/react-toast',
     '@radix-ui/react-visually-hidden',
     '@tanstack/react-query',
-    'class-variance-authority',
     'clsx',
     'date-fns',
     'tailwind-merge',
@@ -54,7 +53,12 @@ export default {
       vite: {
         config: ['vite.config.ts'],
       },
-      entry: ['app/router.tsx', 'app/routes/**/*.tsx', 'vitest.ui.config.ts'],
+      entry: [
+        'app/entry-server.tsx',
+        'app/routes/**/*.tsx',
+        'scripts/**/*.ts',
+        'vitest.ui.config.ts',
+      ],
       project: ['**/*.{ts,tsx}'],
     },
     'packages/ui': {
