@@ -79,6 +79,7 @@ export default {
         '@storybook/react',
         '@storybook/react-vite',
         'storybook',
+        'vitest',
       ],
     },
     'tools/cli': {
