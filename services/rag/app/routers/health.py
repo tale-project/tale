@@ -1,4 +1,15 @@
-"""Health and configuration endpoints for Tale RAG service."""
+"""Health and configuration endpoints for Tale RAG service.
+
+Two routers are exported:
+
+- `public_router` — `/`, `/health`. Reachable WITHOUT the bearer token
+  so docker / k8s liveness + readiness probes keep working with no
+  config.
+- `protected_router` — `/config`. Mounted under
+  `Depends(verify_internal_token)`; previously bundled with the public
+  router and accidentally unauthenticated, leaking model names, host /
+  port, chunking params (round-2 v15 CRITICAL).
+"""
 
 from typing import Any
 
@@ -11,10 +22,15 @@ from ..models import ConfigResponse, HealthResponse
 from ..services.database import get_pool
 from ..services.rag_service import rag_service
 
-router = APIRouter(tags=["Health"])
+public_router = APIRouter(tags=["Health"])
+protected_router = APIRouter(tags=["Health"])
+
+# Backwards-compat re-export for any caller still importing `router`. The
+# public-vs-protected split happens at mount time in `main.py`.
+router = public_router
 
 
-@router.get("/", response_model=dict[str, Any])
+@public_router.get("/", response_model=dict[str, Any])
 async def root():
     """Root endpoint with API information."""
     return {
@@ -28,7 +44,7 @@ async def root():
     }
 
 
-@router.get("/health", response_model=HealthResponse)
+@public_router.get("/health", response_model=HealthResponse)
 async def health():
     """Health check endpoint.
 
@@ -61,9 +77,14 @@ async def health():
     )
 
 
-@router.get("/config", response_model=ConfigResponse)
+@protected_router.get("/config", response_model=ConfigResponse)
 async def get_config():
-    """Get current configuration (non-sensitive values only)."""
+    """Get current configuration (non-sensitive values only).
+
+    Auth-gated via the protected router; before round-2 v15 this leaked
+    deployment fingerprints (model names, host/port, chunking params)
+    to any caller with reach to the RAG port.
+    """
     try:
         llm_config = settings.get_llm_config()
     except ValueError as exc:

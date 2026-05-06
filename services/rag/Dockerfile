@@ -136,15 +136,16 @@ ENV TALE_VERSION=${VERSION} \
     RAG_LOG_LEVEL=info \
     RAG_CHUNK_SIZE=2048 \
     RAG_CHUNK_OVERLAP=200 \
-    # Internal-token default — matches the bake in services/convex/Dockerfile
-    # so a fresh `docker compose up` works without operator setup. Production
-    # operators MUST override RAG_INTERNAL_TOKEN to a unique secret. Startup
-    # logs a loud SECURITY warning every restart while the default is active.
-    # Set RAG_REQUIRE_CUSTOM_INTERNAL_TOKEN=true to refuse to start with the
-    # default (strict production posture).
-    RAG_INTERNAL_TOKEN=tale-rag-dev-only \
     DO_NOT_TRACK=1 \
     TALE_PLATFORM_SHARED_CONFIG_DIR=/app/platform-config
+
+# NOTE: RAG_INTERNAL_TOKEN is intentionally NOT baked into the image.
+# Operators MUST supply it via env / compose / k8s secret. The Python
+# `Settings` class still has a `tale-rag-dev-only` default for plain
+# unit tests, but the runtime image refuses to default-launch with it
+# (set `RAG_REQUIRE_CUSTOM_INTERNAL_TOKEN=true` or
+# `TALE_REQUIRE_CUSTOM_RAG_TOKEN=true` to enforce, recommended for any
+# non-dev deployment).
 
 # Expose port
 EXPOSE 8001
@@ -155,6 +156,15 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 # Create mountpoints for volumes (must exist before FROM scratch squash)
 RUN mkdir -p /app/platform-config/providers /app/data
+
+# Run as non-root inside the container. The RAG service ingests untrusted
+# PDFs/DOCX through native parsers (PyMuPDF, python-docx) — the largest
+# container-escape blast radius of any service in the stack. Drop privs.
+# UID 1001 / GID 1001 mirrors services/convex/Dockerfile's `app` user.
+RUN addgroup --system --gid 1001 app \
+    && adduser --system --uid 1001 --gid 1001 --no-create-home --shell /sbin/nologin app \
+    && chown -R app:app /app
+USER app:app
 
 # Use entrypoint script for environment setup and application startup
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
@@ -181,19 +191,17 @@ ENV TALE_VERSION=${VERSION} \
     RAG_LOG_LEVEL=info \
     RAG_CHUNK_SIZE=2048 \
     RAG_CHUNK_OVERLAP=200 \
-    # Internal-token default — matches the bake in services/convex/Dockerfile
-    # so a fresh `docker compose up` works without operator setup. Production
-    # operators MUST override RAG_INTERNAL_TOKEN to a unique secret. Startup
-    # logs a loud SECURITY warning every restart while the default is active.
-    # Set RAG_REQUIRE_CUSTOM_INTERNAL_TOKEN=true to refuse to start with the
-    # default (strict production posture).
-    RAG_INTERNAL_TOKEN=tale-rag-dev-only \
     DO_NOT_TRACK=1 \
     TALE_PLATFORM_SHARED_CONFIG_DIR=/app/platform-config
+
+# NOTE: RAG_INTERNAL_TOKEN is intentionally NOT baked into the image — see
+# the runtime stage above for the full rationale.
 
 EXPOSE 8001
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${RAG_PORT:-8001}/health || exit 1
+
+USER app:app
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

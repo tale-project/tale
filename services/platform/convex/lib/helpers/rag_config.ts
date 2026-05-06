@@ -32,6 +32,10 @@ const SSRF_BLOCKED_CIDRS = ['169.254.0.0/16', '0.0.0.0/8'];
 const SSRF_BLOCKED_CIDRS_V6 = [
   'fe80::/10', // IPv6 link-local
   '::ffff:169.254.0.0/112', // IPv4-mapped link-local
+  // AWS IPv6 IMDSv2 endpoint (`fd00:ec2::254`) sits in the IPv6 ULA range
+  // `fc00::/7` — the previous fe80::/10-only check let this through.
+  // Round-2 v15 finding F2.
+  'fc00::/7',
 ];
 
 /**
@@ -106,7 +110,10 @@ export function validateRagUrl(rawUrl: string): URL {
   // Strip surrounding [...] from IPv6 hostnames before parsing.
   const rawHost = parsed.hostname;
   const ipCandidate = rawHost.startsWith('[') ? rawHost.slice(1, -1) : rawHost;
-  const lowerHost = rawHost.toLowerCase();
+  // Strip a trailing `.` before the blocklist `Set.has` lookup. WHATWG
+  // `URL` preserves the trailing dot (e.g., `metadata.google.internal.`),
+  // which would otherwise miss the exact-string match. Round-2 v15 F3.
+  const lowerHost = rawHost.replace(/\.$/, '').toLowerCase();
 
   if (SSRF_BLOCKED_HOSTNAMES.has(lowerHost)) {
     throw new Error(
@@ -195,9 +202,22 @@ export async function ragFetch(
   init: RequestInit & { timeoutMs?: number } = {},
 ): Promise<Response> {
   const { serviceUrl, internalToken } = getRagConfig();
-  const url = path.startsWith('http')
-    ? path
-    : `${serviceUrl.replace(/\/$/, '')}${path.startsWith('/') ? '' : '/'}${path}`;
+  // The legacy `path.startsWith('http')` override branch was a future-bypass
+  // foot-gun (a future caller could pass an absolute URL pointing anywhere
+  // and skip the SSRF guard entirely). All current call sites pass relative
+  // paths starting with `/`. Refuse anything else. Round-2 v15 F9.
+  if (!path.startsWith('/')) {
+    throw new Error(
+      `[rag_config] ragFetch path must start with '/'; got ${JSON.stringify(path)}`,
+    );
+  }
+  const url = `${serviceUrl.replace(/\/$/, '')}${path}`;
+  // Re-validate per-request to mitigate DNS rebinding across the cached
+  // RAG_URL: even though RAG_URL itself is operator-controlled and not
+  // user-supplied, the env value can be re-read on each call so a
+  // mid-flight env update (kubectl rollout) takes effect at the next
+  // request without a process restart. Round-2 v15 F4.
+  validateRagUrl(url);
 
   const headers = new Headers(init.headers);
   if (!headers.has('authorization')) {
@@ -208,7 +228,11 @@ export async function ragFetch(
   const signal = init.signal ?? AbortSignal.timeout(timeoutMs);
 
   const { timeoutMs: _drop, ...rest } = init;
-  return fetch(url, { ...rest, headers, signal });
+  // `redirect: 'manual'` so a compromised RAG returning a 30x to
+  // `http://169.254.169.254/...` (cloud IMDS) doesn't get auto-followed
+  // past the SSRF guard. Callers handle 30x as a hard error. Round-2 v15 F1.
+  const redirect: RequestRedirect = init.redirect ?? 'manual';
+  return fetch(url, { ...rest, headers, signal, redirect });
 }
 
 export const _internal = {

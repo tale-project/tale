@@ -15,7 +15,14 @@ from . import __version__
 from .auth import verify_internal_token, warn_if_default_token_in_use
 from .config import settings
 from .models import ErrorResponse
-from .routers import documents_router, health_router, search_router
+from .routers.documents import router as documents_router
+from .routers.health import (
+    protected_router as health_protected_router,
+)
+from .routers.health import (
+    public_router as health_public_router,
+)
+from .routers.search import router as search_router
 from .services.rag_service import rag_service
 from .utils import cleanup_memory
 
@@ -78,23 +85,32 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down Tale RAG service...")
 
 
-# Create FastAPI application
+# Create FastAPI application.
+# `/docs`, `/redoc`, `/openapi.json` are mounted at the FastAPI app level
+# (outside any router), so per-router `dependencies=` can't gate them.
+# Disable in non-debug builds — they leak the entire authenticated API
+# surface, helping a token-brute-forcer / replay attacker.
+_in_debug_mode = settings.log_level.lower() == "debug"
 app = FastAPI(
     title="Tale RAG API",
     description="Retrieval-Augmented Generation service for Tale",
     version=__version__,
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/docs" if _in_debug_mode else None,
+    redoc_url="/redoc" if _in_debug_mode else None,
+    openapi_url="/openapi.json" if _in_debug_mode else None,
 )
 
 
-# Add CORS middleware
+# Add CORS middleware. `allow_credentials=True` with `allow_origins=["*"]`
+# is a spec-invalid combo (Starlette degrades to reflecting `Origin`),
+# and we're not cookie-borne anyway — the bearer token rides explicit
+# `Authorization` headers — so flip credentials off to get a real
+# allowlist behavior.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.get_allowed_origins_list(),
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -127,10 +143,12 @@ async def general_exception_handler(_request, exc):
 
 
 # Include routers.
-# Health router is mounted WITHOUT the internal-token dependency so liveness
-# and readiness probes (docker / k8s) keep working with no auth headers.
-# Every other router requires `Authorization: Bearer ${RAG_INTERNAL_TOKEN}`.
-app.include_router(health_router)
+# `health_public_router` (`/`, `/health`) stays unauthenticated so liveness
+# and readiness probes (docker / k8s) work without auth headers.
+# `health_protected_router` (`/config`) and every other router require
+# `Authorization: Bearer ${RAG_INTERNAL_TOKEN}`.
+app.include_router(health_public_router)
+app.include_router(health_protected_router, dependencies=[Depends(verify_internal_token)])
 app.include_router(documents_router, dependencies=[Depends(verify_internal_token)])
 app.include_router(search_router, dependencies=[Depends(verify_internal_token)])
 init_telemetry(app)

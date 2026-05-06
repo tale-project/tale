@@ -11,16 +11,14 @@ override the token via env / compose / k8s secret. When the default is in
 use, startup logs a loud SECURITY warning.
 """
 
+import hmac
+
 from fastapi import Header, HTTPException, status
 from loguru import logger
 
 from .config import settings
 
 DEFAULT_INTERNAL_TOKEN = "tale-rag-dev-only"
-
-# Endpoints exempt from auth. Health checks and the root path must remain
-# reachable for liveness / readiness probes (k8s, docker healthcheck).
-EXEMPT_PATHS: frozenset[str] = frozenset({"/", "/health", "/healthz", "/ready"})
 
 
 def _extract_bearer(header_value: str | None) -> str | None:
@@ -37,11 +35,15 @@ async def verify_internal_token(
 ) -> None:
     """FastAPI dependency: validate Authorization: Bearer <token>.
 
-    Raises 401 on missing/invalid token. Mounted globally; see
-    `routers.health` for the path-based exemption.
+    Raises 401 on missing/invalid token. Mounted at the router level;
+    see `main.py` for the public-router exemption.
     """
     presented = _extract_bearer(authorization)
-    if presented is None or presented != settings.internal_token:
+    if presented is None or not hmac.compare_digest(presented, settings.internal_token):
+        # `hmac.compare_digest` does the constant-time compare; using `==`
+        # leaks per-byte timing on the 401 path. The threat model is
+        # "lateral mover with reach to rag:8001" — exactly the threat this
+        # dependency exists to stop.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid or missing internal token",
