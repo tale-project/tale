@@ -79,10 +79,11 @@ export function DataNoticeAckModal({ organizationId }: Props) {
           </Button>
           <Button
             onClick={async () => {
+              // policyVersion is pinned server-side from the live
+              // governancePolicies row — see acknowledgePolicy.
               await acknowledge({
                 organizationId,
                 policyType: 'data_classification_notice',
-                policyVersion: notice.version,
               });
               setOpen(false);
             }}

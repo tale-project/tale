@@ -106,6 +106,15 @@ export const getThreadMessages = query({
     if (!authUser) {
       return { messages: [] };
     }
+    // Mirror the streaming sibling at `getThreadMessagesStreaming`. Without
+    // this gate, any signed-in user with a threadId could read every
+    // message — bypasses owner / org / isShared / trashed checks and
+    // relies on UUID secrecy for authorization. canAccessThread enforces
+    // the same allow-list the streaming path already uses.
+    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    if (!metadata) {
+      return { messages: [] };
+    }
     return await getThreadMessagesHelper(ctx, args.threadId);
   },
 });

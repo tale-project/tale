@@ -31,6 +31,21 @@ export const getSharedThread = query({
       return null;
     }
 
+    // Status gate: the share token survives delete/trash/expire (delete
+    // does not clear `shareToken`/`isShared`/`sharedAt`/`sharedBy`), so
+    // without this check a share-token holder still reads a thread the
+    // owner has trashed or that retention has marked expired. Trashed
+    // and expired shares have no UI affordance anywhere; pretend the
+    // share doesn't exist. A future "share trashed/expired" feature
+    // would relax this.
+    if (
+      metadata.status === 'trashed' ||
+      metadata.status === 'expired' ||
+      metadata.status === 'deleted'
+    ) {
+      return null;
+    }
+
     // Org-scoped access: if the thread has an organizationId, verify membership
     if (metadata.organizationId) {
       const isMember = await isOrgMember(
