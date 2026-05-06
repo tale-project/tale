@@ -171,8 +171,13 @@ class TestCompareFilesEndpoint:
 
     @staticmethod
     def _get_app():
+        from app.auth import verify_internal_token
         from app.main import app
 
+        # Override the auth dependency for the test client. The router
+        # ships behind `Depends(verify_internal_token)` (round-2 v15 fix);
+        # these tests assert business logic, not auth wiring.
+        app.dependency_overrides[verify_internal_token] = lambda: None
         return app
 
     async def test_happy_path(self):
