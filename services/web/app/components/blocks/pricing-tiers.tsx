@@ -1,6 +1,5 @@
 import { Button } from '@tale/ui/button';
 import { formatCurrency } from '@tale/ui/format';
-import { Link } from '@tanstack/react-router';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { useState } from 'react';
@@ -8,6 +7,7 @@ import { useState } from 'react';
 import type { Billing } from '@/app/components/blocks/pricing-section';
 import { TierCard } from '@/app/components/blocks/tier-card';
 import { UserCountControl } from '@/app/components/blocks/user-count-control';
+import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -292,7 +292,9 @@ export function PricingTiers({
 
             <div className="mt-auto pt-2">
               <Button asChild fullWidth>
-                <Link to="/request-demo">{t('enterprise.cta')}</Link>
+                <LocalizedLink to="/request-demo">
+                  {t('enterprise.cta')}
+                </LocalizedLink>
               </Button>
             </div>
           </TierCard>

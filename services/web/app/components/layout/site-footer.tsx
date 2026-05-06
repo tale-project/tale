@@ -1,16 +1,17 @@
 import { TaleLogo } from '@tale/ui/logo';
-import { Link } from '@tanstack/react-router';
 
 import { GithubIcon } from '@/app/components/icons/github-icon';
 import { LanguageSwitcher } from '@/app/components/layout/language-switcher';
+import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
+import type { LocalizedRoutePath } from '@/lib/i18n/localized-paths';
 
 type LinkSpec =
   | {
       kind: 'route';
       label: string;
-      to: '/' | '/pricing' | '/hardware-pricing' | '/contact';
+      to: LocalizedRoutePath;
     }
   | { kind: 'hash'; label: string; to: '/'; hash: string }
   | { kind: 'external'; label: string; href: string };
@@ -84,13 +85,13 @@ export function SiteFooter() {
       <SiteContainer>
         <div className="grid grid-cols-1 gap-12 py-16 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(0,1fr))]">
           <div className="text-fg-muted flex flex-col gap-4 text-sm sm:col-span-2 lg:col-span-1">
-            <Link
+            <LocalizedLink
               to="/"
               aria-label={t('homeAriaLabel')}
               className="text-fg-base"
             >
               <TaleLogo />
-            </Link>
+            </LocalizedLink>
             <address className="leading-relaxed not-italic">
               {t('address.company')}
               <br />
@@ -141,21 +142,21 @@ export function SiteFooter() {
                   if (link.kind === 'hash') {
                     return (
                       <li key={link.label}>
-                        <Link
+                        <LocalizedLink
                           to={link.to}
                           hash={link.hash}
                           className={className}
                         >
                           {link.label}
-                        </Link>
+                        </LocalizedLink>
                       </li>
                     );
                   }
                   return (
                     <li key={link.label}>
-                      <Link to={link.to} className={className}>
+                      <LocalizedLink to={link.to} className={className}>
                         {link.label}
-                      </Link>
+                      </LocalizedLink>
                     </li>
                   );
                 })}

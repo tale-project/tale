@@ -5,7 +5,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@tale/ui/tooltip';
-import { Link } from '@tanstack/react-router';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Check, HelpCircle, Minus } from 'lucide-react';
 import { type ReactNode } from 'react';
@@ -15,6 +14,7 @@ import {
   type CompareRow,
   type CompareTier,
 } from '@/app/components/blocks/compare-table';
+import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 import type { Region } from '@/lib/pricing/region';
@@ -233,12 +233,12 @@ export function PricingCompare({ region }: PricingCompareProps) {
       content: (
         <>
           {t('extras.hardware.description').replace(/\s*$/, '')}{' '}
-          <Link
+          <LocalizedLink
             to="/hardware-pricing"
             className="text-fg-base font-medium underline underline-offset-4"
           >
             {t('extras.hardware.cta')}
-          </Link>
+          </LocalizedLink>
           .
         </>
       ),
@@ -278,7 +278,7 @@ export function PricingCompare({ region }: PricingCompareProps) {
         fullWidth
         className="hidden sm:inline-flex"
       >
-        <Link to="/contact">{t(`${key}.cta`)}</Link>
+        <LocalizedLink to="/contact">{t(`${key}.cta`)}</LocalizedLink>
       </Button>
     ),
   }));
