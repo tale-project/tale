@@ -162,6 +162,26 @@ export const placeLegalHold = mutation({
       });
     }
 
+    // `targetType: 'org'` is the nuclear "halt all retention" hold —
+    // a single admin placing it freezes cleanup for the entire tenant,
+    // which is exactly what dual-control is supposed to prevent. Refuse
+    // by default; deployments running a single admin can opt back in
+    // via the same escape-hatch env used for self-approved releases.
+    // A future maker-checker placement flow (legalHoldPlaceRequests
+    // table + approveLegalHoldPlacement mutation) supersedes this.
+    if (args.targetType === 'org') {
+      const escape = process.env[SINGLE_ADMIN_OK_ENV] === 'true';
+      if (!escape) {
+        throw new ConvexError({
+          code: 'ORG_HOLD_REQUIRES_DUAL_CONTROL',
+          message:
+            'Org-scoped legal holds require dual-control. Set ' +
+            `${SINGLE_ADMIN_OK_ENV}=true if this deployment is single-admin, ` +
+            'or place per-target holds (thread / document / execution / userMembership) instead.',
+        });
+      }
+    }
+
     // Refuse duplicate active holds on the same target — the audit
     // trail stays clean and the placer doesn't accidentally double-log.
     const existing = await ctx.db
@@ -310,6 +330,15 @@ export const requestLegalHoldRelease = mutation({
 
 const SINGLE_ADMIN_OK_ENV = 'TALE_LEGAL_HOLD_SINGLE_ADMIN_OK';
 
+/**
+ * Minimum elapsed time between a release request and its approval.
+ * Defeats the chained-call attack where one admin requests AND a
+ * second admin instantly approves (e.g. social-engineering an admin
+ * into double-clicking). 5-min default is short enough not to bother
+ * legitimate workflows, long enough to interrupt automation.
+ */
+const RELEASE_APPROVAL_MIN_DELAY_MS = 5 * 60 * 1000;
+
 function readReleaseCooldownMs(): number {
   const raw = process.env.TALE_LEGAL_HOLD_RELEASE_COOLDOWN_HOURS;
   const hours = raw ? Number.parseInt(raw, 10) : 24;
@@ -369,6 +398,52 @@ export const approveLegalHoldRelease = mutation({
           message:
             'A different admin must approve the release. Set ' +
             `${SINGLE_ADMIN_OK_ENV}=true to allow self-approval in single-admin orgs.`,
+        });
+      }
+    }
+
+    // Min delay defeats the chained-call attack (one admin requests +
+    // approves in the same automation flow). Skip for self-approve
+    // since the escape hatch above already opted out of dual control;
+    // adding a delay there only obstructs legitimate single-admin
+    // operators without a real security benefit.
+    if (!selfApprove) {
+      const elapsed = Date.now() - request.requestedAt;
+      if (elapsed < RELEASE_APPROVAL_MIN_DELAY_MS) {
+        const remainingMs = RELEASE_APPROVAL_MIN_DELAY_MS - elapsed;
+        throw new ConvexError({
+          code: 'APPROVAL_TOO_SOON',
+          message: `Approval requires at least ${RELEASE_APPROVAL_MIN_DELAY_MS / 1000 / 60} min after the request. Try again in ${Math.ceil(remainingMs / 1000)}s.`,
+          remainingMs,
+        });
+      }
+
+      // Re-check the requester is still an org admin at approval time.
+      // A demoted/removed requester whose request lingered loses the
+      // ability to retroactively gate a destructive change.
+      try {
+        const requesterMember = await getOrganizationMember(
+          ctx,
+          request.organizationId,
+          { userId: request.requestedBy, email: '' },
+        );
+        if (!isAdmin(requesterMember.role)) {
+          throw new ConvexError({
+            code: 'REQUESTER_NO_LONGER_ADMIN',
+            message:
+              'The original requester is no longer an admin of this org. ' +
+              'Reject this request and have a current admin file a fresh one.',
+          });
+        }
+      } catch (err) {
+        if (err instanceof ConvexError) throw err;
+        // Membership lookup failed (caller removed entirely) — same
+        // treatment as demoted.
+        throw new ConvexError({
+          code: 'REQUESTER_NO_LONGER_ADMIN',
+          message:
+            'The original requester is no longer a member of this org. ' +
+            'Reject this request and have a current admin file a fresh one.',
         });
       }
     }
@@ -727,8 +802,13 @@ export const upsertLegalMatter = mutation({
 export const closeLegalMatter = mutation({
   args: {
     matterId: v.id('legalMatters'),
+    /** Reason recorded on every fanned-out release request. */
+    releaseReason: v.optional(v.string()),
   },
-  returns: v.null(),
+  returns: v.object({
+    /** Number of release requests filed for linked active holds. */
+    releaseRequestsFiled: v.number(),
+  }),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
@@ -756,11 +836,54 @@ export const closeLegalMatter = mutation({
       });
     }
     if (matter.status === 'closed') {
-      return null;
+      return { releaseRequestsFiled: 0 };
     }
+
+    // Fan out: every active hold linked to this matter gets a pending
+    // release request. Approval still requires a second admin via
+    // approveLegalHoldRelease (matter-close does NOT auto-release —
+    // dual-control survives). Skips holds that already have a pending
+    // or approved request. Uses by_organizationId_matterRef so the
+    // lookup is indexed.
+    const linkedHolds = await ctx.db
+      .query('legalHolds')
+      .withIndex('by_organizationId_matterRef', (q) =>
+        q
+          .eq('organizationId', matter.organizationId)
+          .eq('matterRef', String(args.matterId)),
+      )
+      .collect();
+    const reason =
+      args.releaseReason?.trim() || `matter closed: ${matter.name}`;
+    const now = Date.now();
+    let releaseRequestsFiled = 0;
+    for (const hold of linkedHolds) {
+      if (hold.releasedAt !== undefined) continue;
+      const existingReq = await ctx.db
+        .query('legalHoldReleaseRequests')
+        .withIndex('by_holdId', (q) => q.eq('holdId', hold._id))
+        .filter((q) =>
+          q.or(
+            q.eq(q.field('status'), 'pending'),
+            q.eq(q.field('status'), 'approved'),
+          ),
+        )
+        .first();
+      if (existingReq) continue;
+      await ctx.db.insert('legalHoldReleaseRequests', {
+        organizationId: matter.organizationId,
+        holdId: hold._id,
+        requestedBy: callerId,
+        requestedAt: now,
+        reason,
+        status: 'pending',
+      });
+      releaseRequestsFiled++;
+    }
+
     await ctx.db.patch(args.matterId, {
       status: 'closed',
-      closedAt: Date.now(),
+      closedAt: now,
       closedBy: callerId,
     });
     await createAuditLog(ctx, {
@@ -774,7 +897,11 @@ export const closeLegalMatter = mutation({
       resourceId: String(args.matterId),
       resourceName: matter.name,
       status: 'success',
+      newState: {
+        linkedHolds: linkedHolds.length,
+        releaseRequestsFiled,
+      },
     });
-    return null;
+    return { releaseRequestsFiled };
   },
 });
