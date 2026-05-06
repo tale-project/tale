@@ -25,7 +25,16 @@ const SKIP_DIRS = new Set([
   '_generated',
   'node_modules',
 ]);
-const SKIP_EXTENSIONS = ['.test.ts', '.test.js', '.spec.ts'];
+const SKIP_EXTENSIONS = [
+  '.test.ts',
+  '.test.js',
+  '.spec.ts',
+  // Provider secrets — the committed examples are SOPS blobs bound to a
+  // single recipient and undecryptable to any other contributor; bundling
+  // them adds bloat without value, and shipping plaintext credentials in
+  // the binary would be a leak.
+  '.secrets.json',
+];
 const BINARY_EXTENSIONS = new Set([
   '.png',
   '.jpg',

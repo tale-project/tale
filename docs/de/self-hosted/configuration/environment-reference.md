@@ -28,11 +28,13 @@ Die gesamte Konfiguration erfolgt über Environment-Variablen in der `.env`-Date
 
 ## Sicherheits-Secrets
 
-| Variable                | Pflicht | Beschreibung                                                                        |
-| ----------------------- | ------- | ----------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`    | Ja      | Signatur-Schlüssel für Auth-Sessions. Erzeugen mit: `openssl rand -base64 32`.      |
-| `ENCRYPTION_SECRET_HEX` | Ja      | Verschlüsselungsschlüssel für sensible Daten. Erzeugen mit: `openssl rand -hex 32`. |
-| `INSTANCE_SECRET`       | Nein    | Convex-Instanz-Secret. Erzeugen mit: `openssl rand -hex 32`.                        |
+| Variable                | Pflicht | Beschreibung                                                                                                                                                                                                                                                                                       |
+| ----------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`    | Ja      | Signatur-Schlüssel für Auth-Sessions. Erzeugen mit: `openssl rand -base64 32`.                                                                                                                                                                                                                     |
+| `ENCRYPTION_SECRET_HEX` | Ja      | Verschlüsselungsschlüssel für sensible Daten, einschließlich der in der DB gespeicherten Guardrails-Secrets (Moderations-API-Schlüssel usw.). Erzeugen mit: `openssl rand -hex 32`. Eine Rotation invalidiert alle gespeicherten Guardrails-Secrets — Admins müssen sie über die UI neu speichern. |
+| `INSTANCE_SECRET`       | Nein    | Convex-Instanz-Secret. Erzeugen mit: `openssl rand -hex 32`.                                                                                                                                                                                                                                       |
+| `SOPS_AGE_KEY`          | Nein    | Age-Geheimschlüssel für die [SOPS](https://github.com/getsops/sops)-Verschlüsselung von `providers/*.secrets.json`. Wenn gesetzt, werden Anbieter-Secrets verschlüsselt gespeichert; sonst als Klartext mit Datei-Modus `0600`. Wird von `tale init` automatisch erzeugt.                          |
+| `SOPS_AGE_KEY_FILE`     | Nein    | Alternative zu `SOPS_AGE_KEY`: Pfad zu einer Datei mit dem Age-Geheimschlüssel. Eine der beiden Variablen aktiviert den verschlüsselten Modus für Anbieter-Secrets.                                                                                                                                |
 
 > **Wichtig:** `.env.example` enthält Beispiel-Secrets. Diese musst du vor dem Start durch eigene Werte ersetzen, auch in der lokalen Entwicklung.
 
@@ -41,7 +43,7 @@ Die gesamte Konfiguration erfolgt über Environment-Variablen in der `.env`-Date
 Die Anbieter-Konfiguration (API-Schlüssel, Base-URLs, Modelle) erfolgt über Dateien im Verzeichnis `providers/`, nicht über Environment-Variablen. Siehe Seite Einstellungen > Anbieter in der Management-UI oder bearbeite die Anbieter-JSON-Dateien direkt.
 
 - `providers/<name>.json` — öffentliche Konfiguration (Base-URL, Modelle, Tags).
-- `providers/<name>.secrets.json` — SOPS-verschlüsselte API-Schlüssel (automatisch von `tale init` erzeugt).
+- `providers/<name>.secrets.json` — API-Schlüssel. SOPS-verschlüsselt, wenn `SOPS_AGE_KEY` gesetzt ist; sonst Klartext mit Modus `0600`. Wird von `tale init` und der Einstellungs-UI automatisch erzeugt.
 
 ## Datenbank
 

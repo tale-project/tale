@@ -11,6 +11,7 @@ import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod/v4';
 
 import { CollapsibleGuide } from '@/app/components/ui/data-display/collapsible-guide';
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
@@ -51,6 +52,22 @@ interface ProviderAddPanelProps {
 
 function emptyModel(): ModelEntry {
   return { id: '', displayName: '', tags: ['chat'] };
+}
+
+/**
+ * Read structured `data` off a Convex action error without `instanceof
+ * ConvexError`. See $providerName.tsx for rationale (Vite chunk splitting
+ * can produce multiple ConvexError class copies, breaking instanceof).
+ */
+function readConvexErrorData(
+  err: unknown,
+): Record<string, unknown> | undefined {
+  if (err == null || typeof err !== 'object') return undefined;
+  if (!('data' in err)) return undefined;
+  const data = (err as { data: unknown }).data;
+  if (data == null || typeof data !== 'object') return undefined;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- data is a runtime-checked object; downstream reads narrow per-field
+  return data as Record<string, unknown>;
 }
 
 /** Derive a readable display name from a model ID (e.g. "gpt-4o" → "GPT-4o"). */
@@ -372,44 +389,97 @@ export function ProviderAddPanel({
     [reset, onOpenChange],
   );
 
-  const onSubmit = async (data: FormData) => {
-    try {
-      await saveProvider({
-        orgSlug: 'default',
-        providerName: data.name,
-        config: {
-          displayName: data.displayName,
-          baseUrl: data.baseUrl,
-          models: data.models.map((m) => ({
-            id: m.id,
-            displayName: m.displayName,
-            tags: m.tags,
-          })),
-        },
-      });
-      await saveProviderSecret({
-        orgSlug: 'default',
-        providerName: data.name,
-        apiKey: data.apiKey,
-      });
-      toast({
-        title: t('providers.created'),
-        variant: 'success',
-      });
+  const [overwritePrompt, setOverwritePrompt] = useState<{
+    kind: 'encrypted_no_key' | 'undecryptable_existing';
+    path: string;
+    reason?: string;
+    pendingFormData: FormData;
+  } | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const finalizeProvider = useCallback(
+    (providerName: string) => {
+      toast({ title: t('providers.created'), variant: 'success' });
       reset();
       onOpenChange(false);
       void navigate({
         to: '/dashboard/$id/settings/providers/$providerName',
-        params: { id: organizationId, providerName: data.name },
+        params: { id: organizationId, providerName },
       });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: t('providers.createFailed'),
-        variant: 'destructive',
-      });
-    }
+    },
+    [navigate, onOpenChange, organizationId, reset, t],
+  );
+
+  const performCreate = useCallback(
+    async (data: FormData, force: boolean) => {
+      setCreating(true);
+      try {
+        // Save the secret FIRST. Until the secret save succeeds (possibly
+        // after a force-confirm round-trip), the provider config is not
+        // written — so cancelling the overwrite dialog leaves zero state on
+        // disk instead of a half-baked config-without-secret entry that
+        // would otherwise show in the provider list with no way to flag it.
+        await saveProviderSecret({
+          orgSlug: 'default',
+          providerName: data.name,
+          apiKey: data.apiKey,
+          force: force || undefined,
+        });
+        await saveProvider({
+          orgSlug: 'default',
+          providerName: data.name,
+          config: {
+            displayName: data.displayName,
+            baseUrl: data.baseUrl,
+            models: data.models.map((m) => ({
+              id: m.id,
+              displayName: m.displayName,
+              tags: m.tags,
+            })),
+          },
+        });
+        setOverwritePrompt(null);
+        finalizeProvider(data.name);
+      } catch (error) {
+        const errData = readConvexErrorData(error);
+        if (
+          errData?.code === 'PROVIDER_SECRET_REFUSED_OVERWRITE' &&
+          (errData.kind === 'encrypted_no_key' ||
+            errData.kind === 'undecryptable_existing')
+        ) {
+          setOverwritePrompt({
+            kind: errData.kind,
+            path: typeof errData.path === 'string' ? errData.path : '',
+            reason:
+              typeof errData.reason === 'string' ? errData.reason : undefined,
+            pendingFormData: data,
+          });
+        } else {
+          // Non-overwrite failure (e.g. saveProvider zod-shape on second
+          // step, network error). Clear any open confirm dialog so the toast
+          // isn't hidden behind it.
+          setOverwritePrompt(null);
+          console.error(error);
+          toast({
+            title: t('providers.createFailed'),
+            variant: 'destructive',
+          });
+        }
+      } finally {
+        setCreating(false);
+      }
+    },
+    [finalizeProvider, saveProvider, saveProviderSecret, t],
+  );
+
+  const onSubmit = async (data: FormData) => {
+    await performCreate(data, false);
   };
+
+  const handleConfirmOverwrite = useCallback(() => {
+    if (!overwritePrompt) return;
+    void performCreate(overwritePrompt.pendingFormData, true);
+  }, [overwritePrompt, performCreate]);
 
   const watchedBaseUrl = watch('baseUrl');
   const watchedApiKey = watch('apiKey');
@@ -767,6 +837,29 @@ export function ProviderAddPanel({
           )}
         </Stack>
       </FormDialog>
+      <ConfirmDialog
+        open={overwritePrompt != null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setOverwritePrompt(null);
+        }}
+        title={t('providers.overwriteUnreadableTitle')}
+        description={
+          overwritePrompt
+            ? overwritePrompt.kind === 'encrypted_no_key'
+              ? t('providers.overwriteEncryptedNoKeyDescription', {
+                  path: overwritePrompt.path,
+                })
+              : t('providers.overwriteUndecryptableDescription', {
+                  path: overwritePrompt.path,
+                  reason: overwritePrompt.reason ?? '',
+                })
+            : ''
+        }
+        confirmText={t('providers.overwriteAnywayConfirm')}
+        variant="destructive"
+        isLoading={creating}
+        onConfirm={handleConfirmOverwrite}
+      />
     </Sheet>
   );
 }

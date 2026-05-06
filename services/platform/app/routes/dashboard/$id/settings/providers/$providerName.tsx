@@ -3,7 +3,15 @@ import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ChevronRight, Loader2, Pencil, Trash2, X, Zap } from 'lucide-react';
+import {
+  AlertTriangle,
+  ChevronRight,
+  Loader2,
+  Pencil,
+  Trash2,
+  X,
+  Zap,
+} from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 
 import {
@@ -15,6 +23,7 @@ import {
   TableRow,
 } from '@/app/components/ui/data-display/table';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { Alert } from '@/app/components/ui/feedback/alert';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -44,31 +53,93 @@ export const Route = createFileRoute(
   component: ProviderDetailRoute,
 });
 
+/**
+ * Read structured `data` off a Convex action error without `instanceof
+ * ConvexError`. Vite HMR / chunk splitting can produce multiple copies of the
+ * `ConvexError` class — the prototype-chain check then returns false even
+ * though the error IS a ConvexError. The UI only needs the structural shape
+ * (`{ data: { code, ... } }`), so check that directly.
+ */
+function readConvexErrorData(
+  err: unknown,
+): Record<string, unknown> | undefined {
+  if (err == null || typeof err !== 'object') return undefined;
+  if (!('data' in err)) return undefined;
+  const data = (err as { data: unknown }).data;
+  if (data == null || typeof data !== 'object') return undefined;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- data is a runtime-checked object; downstream reads narrow per-field
+  return data as Record<string, unknown>;
+}
+
 function ProviderDetailRoute() {
   const { t } = useT('settings');
   const { id: organizationId, providerName } = Route.useParams();
   const { data: organization, isLoading: isOrgLoading } =
     useOrganization(organizationId);
   const orgSlug = organization?.slug ?? '';
-  const { data, isLoading } = useReadProvider(orgSlug, providerName);
+  // Fire readProvider and hasProviderSecret in parallel as soon as orgSlug
+  // is known. Keeping hasProviderSecret at route level (instead of inside
+  // ApiKeySection) breaks a 3-step request waterfall — the encrypted-no-key
+  // banner appears in roughly max(read, has) instead of read+has, and shows
+  // even while the body skeleton is still rendering.
+  const enabled = !!orgSlug;
+  const { data, isLoading } = useReadProvider(orgSlug, providerName, {
+    enabled,
+  });
+  const { data: maskedKey, error: secretError } = useHasProviderSecret(
+    orgSlug,
+    providerName,
+    { enabled },
+  );
+
+  // Structural check (not `instanceof ConvexError`): Vite HMR / chunk
+  // splitting can produce multiple copies of the ConvexError class so the
+  // prototype-chain check fails even when the error IS one.
+  const errorData = readConvexErrorData(secretError);
+  const encryptedNoKey = errorData?.code === 'PROVIDER_SECRET_ENCRYPTED_NO_KEY';
+  const encryptedNoKeyPath =
+    encryptedNoKey && typeof errorData?.path === 'string' ? errorData.path : '';
+
+  const banner = encryptedNoKey ? (
+    <div className="px-4 pt-6">
+      <Alert
+        variant="destructive"
+        icon={AlertTriangle}
+        title={t('providers.encryptedNoKeyTitle')}
+        description={t('providers.encryptedNoKeyDescription', {
+          path: encryptedNoKeyPath,
+        })}
+      />
+    </div>
+  ) : null;
 
   if (isOrgLoading || isLoading) {
-    return <ProviderDetailSkeleton />;
+    return (
+      <>
+        {banner}
+        <ProviderDetailSkeleton />
+      </>
+    );
   }
 
   if (!data?.ok) {
     return (
-      <Stack gap={4} className="p-6">
-        <Text variant="muted">
-          {t('providers.providerNotFound', { name: providerName })}
-        </Text>
-        <Link
-          to="/dashboard/$id/settings/providers"
-          params={{ id: organizationId }}
-        >
-          <Button variant="secondary">{t('providers.backToProviders')}</Button>
-        </Link>
-      </Stack>
+      <>
+        {banner}
+        <Stack gap={4} className="p-6">
+          <Text variant="muted">
+            {t('providers.providerNotFound', { name: providerName })}
+          </Text>
+          <Link
+            to="/dashboard/$id/settings/providers"
+            params={{ id: organizationId }}
+          >
+            <Button variant="secondary">
+              {t('providers.backToProviders')}
+            </Button>
+          </Link>
+        </Stack>
+      </>
     );
   }
 
@@ -77,10 +148,12 @@ function ProviderDetailRoute() {
       providerName={providerName}
       initialConfig={data.config}
     >
+      {banner}
       <ProviderDetailContent
         organizationId={organizationId}
         orgSlug={orgSlug}
         providerName={providerName}
+        maskedKey={maskedKey ?? null}
         maskedModelKeys={data.maskedModelKeys ?? {}}
       />
     </ProviderConfigProvider>
@@ -145,11 +218,13 @@ function ProviderDetailContent({
   organizationId,
   orgSlug,
   providerName,
+  maskedKey,
   maskedModelKeys,
 }: {
   organizationId: string;
   orgSlug: string;
   providerName: string;
+  maskedKey: string | null;
   maskedModelKeys: Record<string, string>;
 }) {
   const { t } = useT('settings');
@@ -172,7 +247,11 @@ function ProviderDetailContent({
       </HStack>
 
       <GeneralSection providerName={providerName} />
-      <ApiKeySection orgSlug={orgSlug} providerName={providerName} />
+      <ApiKeySection
+        orgSlug={orgSlug}
+        providerName={providerName}
+        maskedKey={maskedKey}
+      />
       <ModelsSection
         orgSlug={orgSlug}
         providerName={providerName}
@@ -295,24 +374,29 @@ function GeneralSection({ providerName }: { providerName: string }) {
 function ApiKeySection({
   orgSlug,
   providerName,
+  maskedKey,
 }: {
   orgSlug: string;
   providerName: string;
+  maskedKey: string | null;
 }) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const { data: maskedKey } = useHasProviderSecret(orgSlug, providerName);
   const hasSecret = maskedKey != null;
   const saveSecret = useSaveProviderSecret();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
+  const [overwritePrompt, setOverwritePrompt] = useState<{
+    kind: 'encrypted_no_key' | 'undecryptable_existing';
+    path: string;
+    reason?: string;
+  } | null>(null);
   const apiKeyInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSaveKey = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
+  const performSave = useCallback(
+    async (force: boolean) => {
       if (!apiKey.trim() || !orgSlug) return;
       setSaving(true);
       try {
@@ -320,20 +404,53 @@ function ApiKeySection({
           orgSlug,
           providerName,
           apiKey: apiKey.trim(),
+          force: force || undefined,
         });
         setApiKey('');
         setDialogOpen(false);
-      } catch {
-        toast({
-          title: t('providers.secretSaveFailed'),
-          variant: 'destructive',
-        });
+        setOverwritePrompt(null);
+      } catch (err) {
+        const data = readConvexErrorData(err);
+        if (
+          data?.code === 'PROVIDER_SECRET_REFUSED_OVERWRITE' &&
+          (data.kind === 'encrypted_no_key' ||
+            data.kind === 'undecryptable_existing')
+        ) {
+          // Server refused the overwrite — surface the confirm dialog so the
+          // operator can opt into discarding the unreadable existing file.
+          setOverwritePrompt({
+            kind: data.kind,
+            path: typeof data.path === 'string' ? data.path : '',
+            reason: typeof data.reason === 'string' ? data.reason : undefined,
+          });
+        } else {
+          // Non-overwrite failure during retry: clear the stuck dialog before
+          // toasting so the destructive ConfirmDialog doesn't sit open behind
+          // a toast.
+          setOverwritePrompt(null);
+          toast({
+            title: t('providers.secretSaveFailed'),
+            variant: 'destructive',
+          });
+        }
       } finally {
         setSaving(false);
       }
     },
     [apiKey, orgSlug, providerName, saveSecret, t],
   );
+
+  const handleSaveKey = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      await performSave(false);
+    },
+    [performSave],
+  );
+
+  const handleConfirmOverwrite = useCallback(() => {
+    void performSave(true);
+  }, [performSave]);
 
   return (
     <>
@@ -391,10 +508,11 @@ function ApiKeySection({
         size="md"
         hideClose
         className="flex flex-col gap-0 p-0"
-        onOpenAutoFocus={(e) => {
-          e.preventDefault();
-          requestAnimationFrame(() => apiKeyInputRef.current?.focus());
-        }}
+        // Skip Radix's default (focus first tabbable, which would be the X
+        // close button in the header). Native `autoFocus` on the Input below
+        // takes over — it lands on mount, before Radix FocusScope or any
+        // browser password-manager overlay can race for focus.
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <HStack
           justify="between"
@@ -429,6 +547,7 @@ function ApiKeySection({
               )}
               <Input
                 ref={apiKeyInputRef}
+                autoFocus
                 type="password"
                 label={t('providers.apiKey')}
                 placeholder={t('providers.apiKeyEnter')}
@@ -463,6 +582,30 @@ function ApiKeySection({
         onOpenChange={setTestDialogOpen}
         orgSlug={orgSlug}
         providerName={providerName}
+      />
+
+      <ConfirmDialog
+        open={overwritePrompt != null}
+        onOpenChange={(open) => {
+          if (!open) setOverwritePrompt(null);
+        }}
+        title={t('providers.overwriteUnreadableTitle')}
+        description={
+          overwritePrompt
+            ? overwritePrompt.kind === 'encrypted_no_key'
+              ? t('providers.overwriteEncryptedNoKeyDescription', {
+                  path: overwritePrompt.path,
+                })
+              : t('providers.overwriteUndecryptableDescription', {
+                  path: overwritePrompt.path,
+                  reason: overwritePrompt.reason ?? '',
+                })
+            : ''
+        }
+        confirmText={t('providers.overwriteAnywayConfirm')}
+        variant="destructive"
+        isLoading={saving}
+        onConfirm={handleConfirmOverwrite}
       />
     </>
   );

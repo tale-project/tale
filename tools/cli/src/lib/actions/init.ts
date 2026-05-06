@@ -34,6 +34,9 @@ const GITIGNORE_ENTRIES = [
   '.history/',
   'compose.override.yml',
   'compose.override.yaml',
+  // Provider API keys — SOPS-encrypted when SOPS_AGE_KEY is set, plaintext
+  // otherwise. Both forms contain credentials and must never be committed.
+  '**/*.secrets.json',
 ];
 
 export async function init(options: InitOptions): Promise<void> {
@@ -247,17 +250,21 @@ export async function init(options: InitOptions): Promise<void> {
     logger.blank();
     const envResult = await ensureEnv({ deployDir: target });
 
-    // Generate encrypted provider secrets from the API key collected during env setup
-    if (envResult.agePublicKey && envResult.openrouterKey) {
+    // Persist the OpenRouter API key collected during env setup as a SOPS-
+    // encrypted file. `ensureEnv` always provisions a SOPS age keypair at
+    // init time, so `agePublicKey` is invariably present here. Operators who
+    // want plaintext-mode storage do so by clearing `SOPS_AGE_KEY` in .env
+    // after init and re-saving keys via Settings → AI providers; the
+    // encrypted-vs-plaintext mode is a runtime save-path decision, not an
+    // init-time choice.
+    if (envResult.openrouterKey && envResult.agePublicKey) {
+      const secretsPath = join(target, 'providers', 'openrouter.secrets.json');
       const { sopsEncryptJson } = await import('../crypto/sops-encrypt');
       const encrypted = await sopsEncryptJson(
         { apiKey: envResult.openrouterKey },
         envResult.agePublicKey,
       );
-      await writeFile(
-        join(target, 'providers', 'openrouter.secrets.json'),
-        encrypted,
-      );
+      await writeFile(secretsPath, encrypted);
       logger.success(
         'Encrypted provider API key into providers/openrouter.secrets.json',
       );
