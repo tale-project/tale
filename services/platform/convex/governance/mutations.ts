@@ -3,6 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import {
   budgetConfigSchema,
   chatFilterConfigSchema,
+  dataNoticeConfigSchema,
   defaultModelsConfigSchema,
   featureFlagsConfigSchema,
   loginPolicyConfigSchema,
@@ -230,6 +231,15 @@ export const upsertPolicy = mutation({
       if (!parsed.success) {
         throw new Error(
           `Invalid personalization configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'data_classification_notice') {
+      const parsed = dataNoticeConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid data classification notice configuration: ${parsed.error.message}`,
         );
       }
     }

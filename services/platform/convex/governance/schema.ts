@@ -18,6 +18,10 @@ export const GOVERNANCE_POLICY_TYPES = [
   'chat_filter',
   'moderation_provider',
   'personalization',
+  // Phase 12 — admin-customizable confidentiality notice rendered in
+  // chat composer + upload dialog footers. Default copy is fetched from
+  // i18n; this policy lets per-org admins override per locale.
+  'data_classification_notice',
 ] as const;
 
 const policyTypeValidator = v.union(

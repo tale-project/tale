@@ -27,6 +27,37 @@ export const personalizationConfigSchema = z.object({
   enabled: z.boolean(),
 });
 
+/**
+ * Phase 12 — admin-customizable confidentiality notice.
+ *
+ * Rendered in chat composer + upload dialog footers. `messages` is a
+ * per-locale map (en/de/fr/de-AT/de-CH/fr-CH); resolution falls back
+ * to platform default in `messages/{locale}.json` when an org's locale
+ * key is absent.
+ *
+ * `requireAcknowledgment: true` triggers a one-time onboarding modal
+ * on first message send + on every `version` bump (the bump is what
+ * forces re-acknowledgment when admins update the notice).
+ *
+ * Per-locale char cap: 280 chars warn at 240. German is typically
+ * +30% longer than English; aggregate caps would force translators to
+ * truncate, so the cap is per-locale.
+ */
+export const dataNoticeConfigSchema = z.object({
+  enabled: z.boolean(),
+  requireAcknowledgment: z.boolean().optional(),
+  /** locale-keyed (e.g., `en`, `de`, `fr-CH`); each value ≤ 280 chars. */
+  messages: z
+    .record(
+      z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/, 'Invalid locale code'),
+      z.string().min(1).max(280),
+    )
+    .optional(),
+  /** Bump to force re-acknowledgment of the notice. */
+  version: z.number().int().nonnegative().default(1),
+});
+export type DataNoticeConfig = z.infer<typeof dataNoticeConfigSchema>;
+
 export const budgetRuleSchema = z.object({
   scope: z.enum(['user', 'team', 'role', 'org', 'default']),
   scopeId: z.string().optional(),

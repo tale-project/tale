@@ -7,42 +7,74 @@ Tale has a single, central retention configuration that applies across every dat
 
 Retention can be configured in two places:
 
-- **Environment variables** — the floor, set by the operator deploying Tale. Users cannot relax these.
-- **Governance UI** — per-organisation overrides within the environment floor. See [Governance](/platform/admin/governance).
+- **Environment variables** — operator-set bounds. Per-org admins cannot relax these.
+- **Governance UI** — per-organisation values within the operator's bounds.
 
 ## Environment variables
 
-These apply to every organisation on the deployment. All values are in days.
+These apply to every organisation on the deployment. All values are in days unless noted otherwise. Pair `_MIN_DAYS` and `_MAX_DAYS` per category — operators can tighten the defaults but never relax them.
 
-| Variable                             | Default | Governs                                                 |
-| ------------------------------------ | ------- | ------------------------------------------------------- |
-| `TALE_RETENTION_CONVERSATIONS_DAYS`  | `365`   | Chat conversations and their messages.                  |
-| `TALE_RETENTION_FILES_DAYS`          | `365`   | Uploaded files attached to chat or the knowledge base.  |
-| `TALE_RETENTION_AUDIT_DAYS`          | `730`   | Audit log entries.                                      |
-| `TALE_RETENTION_EXECUTIONS_DAYS`     | `90`    | Workflow execution detail. Summary rows kept 365 days.  |
-| `TALE_RETENTION_ANALYTICS_DAYS`      | `395`   | Per-request usage analytics rows.                       |
-| `TALE_RETENTION_DELETION_GRACE_DAYS` | `30`    | Soft-deleted records (trash) before permanent deletion. |
+| Variable                                                   | Default min | Default max | Governs                                                                                                     |
+| ---------------------------------------------------------- | ----------- | ----------- | ----------------------------------------------------------------------------------------------------------- |
+| `TALE_RETENTION_CONVERSATIONS_MIN_DAYS` / `_MAX_DAYS`      | `1`         | `3650`      | Chat conversations and their messages.                                                                      |
+| `TALE_RETENTION_FILES_MIN_DAYS` / `_MAX_DAYS`              | `30`        | `3650`      | Uploaded files attached to chat or the knowledge base.                                                      |
+| `TALE_RETENTION_AUDIT_MIN_DAYS` / `_MAX_DAYS`              | `365`       | `3650`      | Audit log entries. Min hard-coded at 365d (PCI/SOC2/ISO baseline) — operator can only RAISE.                |
+| `TALE_RETENTION_EXECUTIONS_MIN_DAYS` / `_MAX_DAYS`         | `1`         | `365`       | Workflow execution detail.                                                                                  |
+| `TALE_RETENTION_ANALYTICS_MIN_DAYS` / `_MAX_DAYS`          | `30`        | `3650`      | Per-request usage analytics rows.                                                                           |
+| `TALE_RETENTION_LOGIN_ATTEMPTS_MIN_DAYS` / `_MAX_DAYS`     | `90`        | `365`       | Login failure forensic records. Min raised to 90d.                                                          |
+| `TALE_RETENTION_CHAT_FILTER_EVENTS_MIN_DAYS` / `_MAX_DAYS` | `1`         | `365`       | Chat-filter (PII / banned-word / moderation) telemetry.                                                     |
+| `TALE_RETENTION_USER_TEMP_MIN_HOURS` / `_MAX_HOURS`        | `1`         | `720`       | Ephemeral user-side temp files (hours).                                                                     |
+| `TALE_RETENTION_AGENT_TEMP_MIN_HOURS` / `_MAX_HOURS`       | `1`         | `720`       | Ephemeral agent-side temp files (hours).                                                                    |
+| `TALE_RETENTION_DISABLED`                                  | `false`     | —           | When `true`, the cleanup action no-ops with a warn-log. Operator kill-switch for migration windows / debug. |
 
-The deletion job runs nightly at 03:00 UTC. Set `TALE_RETENTION_DISABLED=true` to suspend deletion entirely — useful for debugging, not recommended in production.
+Changes to env vars take effect on **next backend restart** (`docker compose restart tale-convex`) — Convex caches env at process start.
 
-## Ordering and overrides
+## Per-org policy
 
-The environment variable is the upper bound. A governance policy in the admin UI can only set the org-level retention **equal to or lower than** the environment value. This lets operators enforce a compliance floor while still allowing privacy-sensitive organisations to keep less.
+Within the operator's bounds, an org admin can configure each category independently in the Governance UI. The form pre-fetches the effective bounds via `getEffectiveRetentionBounds` and renders `<input min={N} max={M}>` plus inline helper text BEFORE the user types out-of-range values. Save attempts that violate a bound are rejected with `RETENTION_BELOW_FLOOR` or `RETENTION_EXCEEDS_CEILING` (each surfaces the exact bound + source).
 
-If a governance policy requests a higher retention than the environment allows, the request is rejected with a clear error.
+## How deletion runs
+
+The deletion job runs nightly at 03:00 UTC. The top-level dispatcher schedules a separate per-org cleanup with a deterministic 0–15 minute hash-based stagger so RAG and DB don't see a thundering-herd burst on every cron tick.
+
+For each org, every category runs in priority order:
+
+1. Documents (RAG entries deleted via authenticated `ragFetch`)
+2. User temp files
+3. Agent temp files
+4. Chat history (cascade-deletes message metadata, threadTodos, approvals, threadBranches, messageFeedback, chatFilterEvents, artifacts + revisions, agentWebhookUserThreads, sub-threads, agent-component messages, then the threadMetadata row itself)
+5. Audit logs (writes a `auditLogCheckpoints` row capturing the chain head + count + max timestamp so the SHA-256 hash chain remains verifiable across the archive cut)
+6. Workflow logs
+7. Chat filter events
+8. Usage ledger
+
+Login attempts are email-scoped (not org-scoped) and run as a single global pass.
 
 ## Legal hold
 
-When an audit record is tagged for legal hold, retention is suspended for the matching conversations, files, and executions until the hold is lifted. Legal hold is managed in Governance and logged in the audit stream.
+When a `legalHolds` row exists for `(organizationId, targetType, targetId)` AND `releasedAt === undefined`, the cleanup runner refuses to physically delete the matching entity. The hold is sticky: `restoreChatThread` also refuses while a hold is active.
+
+Target types: `thread`, `document`, `execution`, `userMembership`, `org`. A whole-org hold (`targetType: 'org'`) short-circuits the entire cleanup pass for that org.
+
+Holds are placed via `placeLegalHold` and released via `releaseLegalHold` (admin only on both). Released holds are RETAINED in the table for the audit trail — never physically deleted.
+
+The cleanup runner pre-fetches every active hold ONCE per run, so in-flight runs see a consistent snapshot. Holds placed mid-run protect the _next_ run; the brief window is acceptable per ISO 27050 since cleanup is daily.
+
+## GDPR Art 17 erasure
+
+For verified subject erasure requests, an admin can call `requestErasure(organizationId, userId, reason)` to immediately cascade-delete every thread the named user owns in that org. This BYPASSES the retention grace window and the cooldown-on-shortening (so erasure happens "without undue delay" per Art 17). Refused if any matching legal hold is active; the response lists held items for the admin's reference.
+
+Audit subtype `gdpr_erasure_executed` (`category: 'admin'`) records actor, reason, threads erased, and any blocked-by-hold list.
 
 ## What gets deleted
 
 - Rows are deleted from the database.
 - Associated files are deleted from object storage.
 - Vector embeddings for deleted documents are removed from the knowledge store.
-- Execution step-level detail is purged, but aggregate counts remain for analytics.
+- For chat-history retention, every descendant row (messages, metadata, todos, feedback, artifacts, etc.) is cascade-deleted via the shared `cascadeDeleteThreadChildren` helper so user-delete and retention-delete never drift on which tables get cleaned up.
+- Audit log retention writes an `auditLogCheckpoints` row at every batch boundary so the SHA-256 hash chain stays verifiable.
 
 ## Related
 
 - [Environment reference](/self-hosted/configuration/environment-reference) — full list of Tale environment variables.
-- [Governance](/platform/admin/governance) — per-org retention overrides and legal hold.
+- [Governance](/platform/admin/governance) — per-org retention settings and legal hold management.
