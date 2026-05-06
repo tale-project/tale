@@ -1,7 +1,7 @@
 import { Button } from '@tale/ui/button';
-import { Link } from '@tanstack/react-router';
 import { motion, useReducedMotion } from 'framer-motion';
 
+import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
@@ -47,7 +47,9 @@ export function HeroHeadline() {
             }
           >
             <Button asChild>
-              <Link to="/request-demo">{t('hero.ctaPrimary')}</Link>
+              <LocalizedLink to="/request-demo">
+                {t('hero.ctaPrimary')}
+              </LocalizedLink>
             </Button>
           </motion.div>
         </div>

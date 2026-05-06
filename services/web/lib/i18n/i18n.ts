@@ -11,6 +11,7 @@ import frMessages from '@/messages/fr.json';
 import globalMessages from '@/messages/global.json';
 
 import { defaultLocale } from './config';
+import { detectInitialLocale } from './locales';
 
 type Bundle = Record<string, Record<string, unknown>>;
 
@@ -43,7 +44,13 @@ void i18n
         ...frChMessages,
       },
     },
-    lng: typeof navigator !== 'undefined' ? navigator.language : defaultLocale,
+    // Resolve the initial language from the URL pathname (`/de/...` →
+    // `de`, `/fr/...` → `fr`, otherwise the default English) so the
+    // very first render in both SSR and CSR uses the correct bundle and
+    // there is no flash of the wrong language. The `__root.tsx` layout
+    // re-syncs `i18n.language` to the regional variant on subsequent
+    // route changes.
+    lng: detectInitialLocale(),
     fallbackLng: {
       'de-CH': ['de', defaultLocale],
       'de-AT': ['de', defaultLocale],

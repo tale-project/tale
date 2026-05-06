@@ -1,8 +1,8 @@
 import { Button } from '@tale/ui/button';
-import { Link } from '@tanstack/react-router';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useState } from 'react';
 
+import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
@@ -130,7 +130,9 @@ export function FeatureSectors() {
                     {t(`featureSectors.${active}.description`)}
                   </p>
                   <Button asChild>
-                    <Link to="/request-demo">{t('featureSectors.cta')}</Link>
+                    <LocalizedLink to="/request-demo">
+                      {t('featureSectors.cta')}
+                    </LocalizedLink>
                   </Button>
                 </motion.div>
               </AnimatePresence>

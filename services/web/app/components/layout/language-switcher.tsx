@@ -1,3 +1,4 @@
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import {
   type ComponentType,
   type SVGProps,
@@ -6,7 +7,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useTranslation } from 'react-i18next';
 
 import {
   ChevronDownIcon,
@@ -15,12 +15,17 @@ import {
   FlagFR,
 } from '@/app/components/icons/marketing-icons';
 import { useT } from '@/lib/i18n/client';
+import { isUrlPrefixedLocale, type SupportedLocale } from '@/lib/i18n/locales';
+import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 
-const BASE_LOCALES = ['en', 'de', 'fr'] as const;
-type BaseLocale = (typeof BASE_LOCALES)[number];
+const BASE_LOCALES = [
+  'en',
+  'de',
+  'fr',
+] as const satisfies readonly SupportedLocale[];
 
 const LOCALE_FLAGS: Record<
-  BaseLocale,
+  SupportedLocale,
   ComponentType<SVGProps<SVGSVGElement>>
 > = {
   en: FlagEN,
@@ -28,30 +33,17 @@ const LOCALE_FLAGS: Record<
   fr: FlagFR,
 };
 
-const REGIONAL_OVERRIDES: ReadonlySet<string> = new Set([
-  'de-CH',
-  'de-AT',
-  'fr-CH',
-]);
-
-function getBrowserRegion(): string | null {
-  if (typeof navigator === 'undefined') return null;
-  const tag = navigator.language;
-  const dash = tag.indexOf('-');
-  return dash >= 0 ? tag.slice(dash + 1).toUpperCase() : null;
-}
-
-function resolveLocale(base: BaseLocale): string {
-  const region = getBrowserRegion();
-  if (!region) return base;
-  const candidate = `${base}-${region}`;
-  return REGIONAL_OVERRIDES.has(candidate) ? candidate : base;
-}
-
-function toBaseLocale(language: string): BaseLocale {
-  const dash = language.indexOf('-');
-  const base = (dash >= 0 ? language.slice(0, dash) : language) as BaseLocale;
-  return (BASE_LOCALES as readonly string[]).includes(base) ? base : 'en';
+/**
+ * Strip the leading `/de` or `/fr` segment from a pathname, leaving the
+ * canonical (English) path. Returns `'/'` for the language root itself.
+ */
+function stripLocalePrefix(pathname: string): string {
+  const segments = pathname.split('/').filter((s) => s.length > 0);
+  if (segments.length > 0 && isUrlPrefixedLocale(segments[0])) {
+    const rest = segments.slice(1).join('/');
+    return rest.length > 0 ? `/${rest}` : '/';
+  }
+  return pathname.length > 0 ? pathname : '/';
 }
 
 interface LanguageSwitcherProps {
@@ -60,8 +52,11 @@ interface LanguageSwitcherProps {
 
 export function LanguageSwitcher({ className }: LanguageSwitcherProps) {
   const { t } = useT('languageSwitcher');
-  const { i18n } = useTranslation();
-  const currentBase = toBaseLocale(i18n.language);
+  const currentLocale = useCurrentLocale();
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const search = useRouterState({ select: (s) => s.location.search });
+  const hash = useRouterState({ select: (s) => s.location.hash });
 
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -89,10 +84,28 @@ export function LanguageSwitcher({ className }: LanguageSwitcherProps) {
     };
   }, [open]);
 
-  const handleSelect = (base: BaseLocale) => {
-    void i18n.changeLanguage(resolveLocale(base));
+  const handleSelect = (target: SupportedLocale) => {
     setOpen(false);
     buttonRef.current?.focus();
+    if (target === currentLocale) return;
+
+    const canonical = stripLocalePrefix(pathname);
+
+    // The navigate options have to be assembled outside Tanstack's typed
+    // builder: at runtime we're targeting different file-based routes
+    // (`/pricing` vs `/$lang/pricing`) depending on the chosen locale,
+    // and the `to`/`params`/`search` types are intersected per-route in
+    // a way that erases under runtime branching. We forward the current
+    // search and hash unchanged so deep-linked filters survive a switch.
+    // oxlint-disable-next-line typescript/no-explicit-any -- runtime-built navigation target; see comment above
+    const options: any = { hash, search };
+    if (target === 'en') {
+      options.to = canonical;
+    } else {
+      options.to = canonical === '/' ? '/$lang' : `/$lang${canonical}`;
+      options.params = { lang: target };
+    }
+    void navigate(options);
   };
 
   return (
@@ -111,7 +124,7 @@ export function LanguageSwitcher({ className }: LanguageSwitcherProps) {
         className="border-border-base bg-bg-base text-fg-muted hover:text-fg-base hover:border-border-strong inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-current/20"
       >
         {(() => {
-          const Flag = LOCALE_FLAGS[currentBase];
+          const Flag = LOCALE_FLAGS[currentLocale];
           return (
             <Flag
               className="block h-3.5 w-5 shrink-0 overflow-hidden rounded-[2px] shadow-[0_0_0_1px_rgba(0,0,0,0.05)]"
@@ -119,7 +132,7 @@ export function LanguageSwitcher({ className }: LanguageSwitcherProps) {
             />
           );
         })()}
-        <span className="text-fg-base">{t(`locales.${currentBase}`)}</span>
+        <span className="text-fg-base">{t(`locales.${currentLocale}`)}</span>
         <ChevronDownIcon
           className={`h-3 w-3 shrink-0 transition-transform duration-200 ${
             open ? 'rotate-180' : ''
@@ -134,7 +147,7 @@ export function LanguageSwitcher({ className }: LanguageSwitcherProps) {
           className="border-border-base bg-bg-base absolute right-0 bottom-full z-20 mb-2 flex min-w-[180px] flex-col overflow-hidden rounded-md border py-1 shadow-lg"
         >
           {BASE_LOCALES.map((code) => {
-            const isActive = code === currentBase;
+            const isActive = code === currentLocale;
             const Flag = LOCALE_FLAGS[code];
             return (
               <li key={code}>

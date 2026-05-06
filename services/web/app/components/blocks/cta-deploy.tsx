@@ -1,7 +1,7 @@
 import { Button } from '@tale/ui/button';
-import { Link } from '@tanstack/react-router';
 import { motion, useReducedMotion } from 'framer-motion';
 
+import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
@@ -38,7 +38,7 @@ export function CtaDeploy() {
             {t('cta.title')}
           </h2>
           <Button asChild>
-            <Link to="/request-demo">{t('cta.primary')}</Link>
+            <LocalizedLink to="/request-demo">{t('cta.primary')}</LocalizedLink>
           </Button>
         </motion.div>
       </SiteContainer>
