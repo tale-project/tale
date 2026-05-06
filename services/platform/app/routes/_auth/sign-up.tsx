@@ -127,6 +127,7 @@ function SignUpPage() {
       toast({
         title: t('signup.accountCreated'),
         variant: 'success',
+        position: 'top-center',
       });
 
       await queryClient
@@ -141,6 +142,7 @@ function SignUpPage() {
       toast({
         title: tCommon('errors.somethingWentWrong'),
         variant: 'destructive',
+        position: 'top-center',
       });
     }
   };
@@ -166,7 +168,6 @@ function SignUpPage() {
             <Input
               id="email"
               type="email"
-              size="lg"
               label={t('email')}
               placeholder={t('emailPlaceholder')}
               disabled={isSubmitting}
@@ -180,7 +181,6 @@ function SignUpPage() {
               <Input
                 id="password"
                 type="password"
-                size="lg"
                 label={t('password')}
                 placeholder={t('passwordPlaceholder')}
                 disabled={isSubmitting}
@@ -197,12 +197,7 @@ function SignUpPage() {
               )}
             </Stack>
 
-            <Button
-              type="submit"
-              size="lg"
-              fullWidth
-              disabled={isSubmitting || !isValid}
-            >
+            <Button type="submit" fullWidth disabled={isSubmitting || !isValid}>
               {isSubmitting ? t('signup.creating') : t('signup.createButton')}
             </Button>
           </Form>
@@ -215,7 +210,6 @@ function SignUpPage() {
             <Button
               onClick={handleSsoLogin}
               variant="secondary"
-              size="lg"
               fullWidth
               disabled={isSubmitting}
             >

@@ -3,7 +3,7 @@
 import { LinkButton } from '@tale/ui/button';
 import { useNavigate } from '@tanstack/react-router';
 import { type Row } from '@tanstack/react-table';
-import { BarChart3, Workflow } from 'lucide-react';
+import { BarChart3, Network } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -11,6 +11,7 @@ import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-ske
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import { useListWorkflows } from '../hooks/file-queries';
@@ -22,10 +23,10 @@ export interface WorkflowItem {
   slug: string;
   name: string;
   description?: string;
-  version?: string;
   stepCount: number;
   hash: string;
   category: string;
+  createdAtMs?: number;
 }
 
 export interface FolderItem {
@@ -47,9 +48,9 @@ function toWorkflowItem(
         slug: string;
         name: string;
         description?: string;
-        version?: string;
         stepCount: number;
         hash: string;
+        createdAtMs?: number;
       }
     | { slug: string; status: string; message: string }
     | null,
@@ -160,35 +161,6 @@ export function AutomationsTable({
     [],
   );
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col gap-4 p-4">
-        <DataTableSkeleton
-          columns={columns}
-          rows={5}
-          searchPlaceholder={searchPlaceholder}
-          noFirstColumnAvatar
-          actionMenu={<AutomationsActionMenu organizationId={organizationId} />}
-        />
-      </div>
-    );
-  }
-
-  if (!validWorkflows || validWorkflows.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-4 p-12">
-        <Workflow className="text-muted-foreground size-10" />
-        <Text as="span" variant="label">
-          {tEmpty('automations.title')}
-        </Text>
-        <Text as="span" variant="caption">
-          {tEmpty('automations.description')}
-        </Text>
-        <AutomationsActionMenu organizationId={organizationId} />
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="flex items-center justify-between gap-4">
@@ -215,17 +187,28 @@ export function AutomationsTable({
       <DataTable
         columns={columns}
         data={tableItems}
+        isLoading={isLoading}
+        approxRowCount={isLoading ? 5 : tableItems.length}
         onRowClick={handleRowClick}
         rowClassName={getRowClassName}
+        infiniteScroll={{
+          hasMore: false,
+          onLoadMore: () => {},
+          entityLabel: tAutomations('entityLabel'),
+          totalCount: validWorkflows?.length ?? 0,
+        }}
+        emptyState={
+          searchQuery
+            ? {
+                title: tCommon('search.noResults'),
+              }
+            : {
+                icon: Network,
+                title: tEmpty('automations.title'),
+                description: tEmpty('automations.description'),
+              }
+        }
       />
-
-      {tableItems.length === 0 && searchQuery && (
-        <div className="flex flex-col items-center justify-center gap-2 p-8">
-          <Text as="span" variant="caption">
-            {tCommon('search.noResults')}
-          </Text>
-        </div>
-      )}
     </div>
   );
 }

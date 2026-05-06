@@ -85,9 +85,16 @@ function TwoFactorVerifyPage() {
         // default (info) variant rather than `success` — the dashboard
         // banner will pick up the persistent low-count warning if the
         // pool is running low.
-        toast({ title: t('verify.backupCodeSuccess') });
+        toast({
+          title: t('verify.backupCodeSuccess'),
+          position: 'top-center',
+        });
       } else {
-        toast({ title: t('enrollment.enabled'), variant: 'success' });
+        toast({
+          title: t('enrollment.enabled'),
+          variant: 'success',
+          position: 'top-center',
+        });
       }
       await queryClient
         .invalidateQueries({ queryKey: ['auth', 'session'] })

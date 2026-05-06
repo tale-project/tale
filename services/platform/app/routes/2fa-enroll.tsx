@@ -115,7 +115,11 @@ function TwoFactorEnrollPage() {
         setError(t('errors.invalidCode'));
         return;
       }
-      toast({ title: t('enrollment.enabled'), variant: 'success' });
+      toast({
+        title: t('enrollment.enabled'),
+        variant: 'success',
+        position: 'top-center',
+      });
       setStep({ kind: 'done', backupCodes: step.backupCodes });
     } catch {
       setError(t('errors.invalidCode'));

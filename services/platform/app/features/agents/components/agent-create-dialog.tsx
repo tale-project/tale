@@ -15,7 +15,6 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { stripModelRefQualifier } from '@/lib/shared/utils/model-ref';
 
 import { useSaveAgent } from '../hooks/mutations';
 
@@ -83,15 +82,6 @@ export function CreateAgentDialog({
       setSelectedModelId(modelOptions[0].value);
     }
   }, [selectedModelId, modelOptions]);
-
-  const selectedModelLabel = useMemo(() => {
-    const label = modelOptions.find((o) => o.value === selectedModelId)?.label;
-    if (label) return label;
-    const plain = selectedModelId
-      ? stripModelRefQualifier(selectedModelId)
-      : undefined;
-    return plain?.split('/').pop() ?? t('agents.createDialog.modelPlaceholder');
-  }, [modelOptions, selectedModelId, t]);
 
   const handleModelChange = useCallback((value: string) => {
     setSelectedModelId(value);
@@ -238,35 +228,19 @@ export function CreateAgentDialog({
         rows={3}
       />
 
-      <div>
-        <label
-          htmlFor="model-select"
-          className="text-foreground mb-1.5 block text-sm font-medium"
-        >
-          {t('agents.createDialog.model')}
-        </label>
-        <SearchableSelect
-          value={selectedModelId}
-          onValueChange={handleModelChange}
-          options={modelOptions}
-          open={modelSelectOpen}
-          onOpenChange={setModelSelectOpen}
-          searchPlaceholder={t('agents.createDialog.modelSearch')}
-          emptyText={t('agents.createDialog.modelEmpty')}
-          aria-label={t('agents.createDialog.model')}
-          trigger={
-            <button
-              id="model-select"
-              type="button"
-              className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-9 w-full items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
-            >
-              <span className={selectedModelId ? '' : 'text-muted-foreground'}>
-                {selectedModelLabel}
-              </span>
-            </button>
-          }
-        />
-      </div>
+      <SearchableSelect
+        id="model-select"
+        label={t('agents.createDialog.model')}
+        placeholder={t('agents.createDialog.modelPlaceholder')}
+        value={selectedModelId}
+        onValueChange={handleModelChange}
+        options={modelOptions}
+        open={modelSelectOpen}
+        onOpenChange={setModelSelectOpen}
+        searchPlaceholder={t('agents.createDialog.modelSearch')}
+        emptyText={t('agents.createDialog.modelEmpty')}
+        aria-label={t('agents.createDialog.model')}
+      />
     </FormDialog>
   );
 }

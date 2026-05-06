@@ -4,6 +4,7 @@ import { Button } from '@tale/ui/button';
 import { Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
+import { Input } from '@/app/components/ui/forms/input';
 import { Popover } from '@/app/components/ui/overlays/popover';
 import { useT } from '@/lib/i18n/client';
 
@@ -64,8 +65,8 @@ export function AddCategoryPopover({
       modal
     >
       <div className="flex flex-col gap-2.5">
-        <input
-          type="text"
+        <Input
+          size="sm"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
@@ -78,7 +79,6 @@ export function AddCategoryPopover({
             }
           }}
           placeholder={t('addCategory.inputPlaceholder')}
-          className="bg-background border-input text-foreground placeholder:text-muted-foreground rounded-lg border px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-blue-500"
           autoFocus
         />
         <div className="flex items-center justify-end gap-2">

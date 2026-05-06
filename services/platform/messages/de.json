@@ -244,7 +244,7 @@
     },
     "automations": {
       "title": "Noch keine Automatisierungen",
-      "description": "Beschreibe deinen Workflow und lass deine KI ihn automatisieren"
+      "description": "Erstelle deine erste Automatisierung, um loszulegen"
     },
     "agents": {
       "title": "Noch keine Agents",
@@ -372,7 +372,11 @@
       "accountLockedSeconds": "Konto vorübergehend gesperrt. In {seconds, plural, one {# Sekunde} other {# Sekunden}} erneut versuchen oder einen Administrator kontaktieren.",
       "accountLockedMinutes": "Konto vorübergehend gesperrt. In {minutes, plural, one {# Minute} other {# Minuten}} erneut versuchen oder einen Administrator kontaktieren.",
       "accountLockedHours": "Konto vorübergehend gesperrt. In {hours, plural, one {# Stunde} other {# Stunden}} erneut versuchen oder einen Administrator kontaktieren.",
-      "forgotPassword": "Passwort vergessen? Wende dich an einen Admin.",
+      "forgotPassword": "Passwort vergessen?",
+      "forgotPasswordToast": {
+        "title": "Wende dich an deinen Administrator",
+        "description": "Das Zurücksetzen des Passworts wird von deiner Organisation verwaltet."
+      },
       "toast": {
         "success": "Erfolgreich angemeldet"
       }
@@ -1313,6 +1317,7 @@
     "search": {
       "placeholder": "Automatisierungen suchen"
     },
+    "entityLabel": "Automatisierungen",
     "createWithAI": "Automatisierung mit KI erstellen",
     "navigation": {
       "editor": "Editor",
@@ -2522,6 +2527,7 @@
   },
   "products": {
     "title": "Produkte",
+    "searchPlaceholder": "Produkte suchen",
     "addButton": "Produkt hinzufügen",
     "importMenu": {
       "fromDevice": "Von deinem Gerät",
@@ -2606,6 +2612,7 @@
   },
   "customers": {
     "title": "Kunden",
+    "searchPlaceholder": "Kunden suchen",
     "filter": {
       "source": {
         "manual": "Manuell",
@@ -2671,6 +2678,7 @@
   },
   "vendors": {
     "title": "Lieferanten",
+    "searchPlaceholder": "Lieferanten suchen",
     "addVendors": "Lieferanten hinzufügen",
     "uploadVendors": "Lieferanten hochladen",
     "importForm": {
@@ -2721,6 +2729,7 @@
   },
   "websites": {
     "title": "Websites",
+    "searchPlaceholder": "Websites suchen",
     "addButton": "Website hinzufügen",
     "addWebsite": "Website hinzufügen",
     "editWebsite": "Website bearbeiten",

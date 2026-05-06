@@ -1,7 +1,7 @@
 'use client';
 
 import * as ToastPrimitives from '@radix-ui/react-toast';
-import type { ToastVariant } from '@tale/ui/toast';
+import type { ToastPosition, ToastVariant } from '@tale/ui/toast';
 import { cva } from 'class-variance-authority';
 import { X, CheckCircle2, XCircle, Info } from 'lucide-react';
 
@@ -33,19 +33,32 @@ function VariantIcon({ variant }: { variant?: ToastVariant }) {
     case 'destructive':
       return <XCircle className="text-destructive size-5" aria-hidden="true" />;
     default:
-      return (
-        <Info className="text-muted-foreground size-5" aria-hidden="true" />
-      );
+      return <Info className="size-5 text-blue-500" aria-hidden="true" />;
   }
 }
 
+const viewportPositionClasses: Record<ToastPosition, string> = {
+  'top-right': 'top-0 right-0',
+  'top-center': 'top-0 left-1/2 -translate-x-1/2',
+};
+
 export function Toaster() {
   const { toasts } = useToast();
+  const position: ToastPosition = toasts[0]?.position ?? 'top-right';
 
   return (
     <ToastPrimitives.Provider duration={3500}>
       {toasts.map(
-        ({ id, title, description, action, variant, className, ...props }) => {
+        ({
+          id,
+          title,
+          description,
+          action,
+          variant,
+          className,
+          position: _position,
+          ...props
+        }) => {
           return (
             <ToastPrimitives.Root
               key={id}
@@ -80,7 +93,12 @@ export function Toaster() {
           );
         },
       )}
-      <ToastPrimitives.Viewport className="fixed top-0 right-0 z-100 flex max-h-screen w-auto max-w-md min-w-[18.75rem] flex-col p-3" />
+      <ToastPrimitives.Viewport
+        className={cn(
+          'fixed z-100 flex max-h-screen w-auto max-w-sm min-w-[18.75rem] flex-col p-3',
+          viewportPositionClasses[position],
+        )}
+      />
     </ToastPrimitives.Provider>
   );
 }

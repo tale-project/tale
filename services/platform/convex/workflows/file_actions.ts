@@ -9,7 +9,7 @@
  * Supports compare-and-swap via expectedHash to prevent lost updates.
  */
 
-import { mkdir, readdir, rm, unlink } from 'node:fs/promises';
+import { mkdir, readdir, rm, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
 import { v } from 'convex/values';
@@ -61,6 +61,49 @@ async function readWorkflowFile(
     return { ok: true, config: result.data, hash: result.hash };
   }
   return result;
+}
+
+/**
+ * Best-effort "created at" for a workflow.
+ *
+ * Saves use atomic temp+rename, so the live file's birthtime resets on every
+ * save. The oldest history snapshot's epoch-ms filename is the earliest
+ * preserved revision, which is the closest signal to "first save". If no
+ * history exists yet, the file itself is the original — fall back to its
+ * birthtime (or mtime where birthtime is unavailable).
+ */
+async function resolveCreatedAtMs(
+  orgSlug: string,
+  workflowSlug: string,
+  filePath: string,
+): Promise<number | undefined> {
+  const historyDir = resolveHistoryDir(orgSlug, workflowSlug);
+  const entries = await readdir(historyDir).catch((err: unknown) => {
+    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+      return [] as string[];
+    }
+    console.warn(
+      `[listWorkflows] readdir history failed for ${workflowSlug}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return [] as string[];
+  });
+  const earliest = entries
+    .filter((e) => e.endsWith('.json'))
+    .map((e) => Number(e.replace('.json', '').split('-')[0]))
+    .filter((n) => Number.isFinite(n))
+    .sort((a, b) => a - b)[0];
+  if (earliest !== undefined) return earliest;
+
+  try {
+    const s = await stat(filePath);
+    const birth = s.birthtimeMs;
+    return birth && birth > 0 ? birth : s.mtimeMs;
+  } catch (err) {
+    console.warn(
+      `[listWorkflows] stat failed for ${workflowSlug}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return undefined;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -144,6 +187,9 @@ export const listWorkflows = action({
           if (filterMode === 'installed' && !installed) return null;
           if (filterMode === 'templates' && installed) return null;
 
+          const filePath = resolveWorkflowFilePath(orgSlug, slug);
+          const createdAtMs = await resolveCreatedAtMs(orgSlug, slug, filePath);
+
           return {
             slug,
             name: result.config.name,
@@ -152,6 +198,7 @@ export const listWorkflows = action({
             version: result.config.version,
             stepCount: result.config.steps.length,
             hash: result.hash,
+            createdAtMs,
           };
         }
         return {

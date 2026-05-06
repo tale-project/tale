@@ -244,7 +244,7 @@
     },
     "automations": {
       "title": "Aucune automatisation pour l'instant",
-      "description": "Décris ton flux de travail et laisse ton IA l'automatiser"
+      "description": "Crée ta première automatisation pour commencer"
     },
     "agents": {
       "title": "Aucun agent pour l'instant",
@@ -372,7 +372,11 @@
       "accountLockedSeconds": "Compte temporairement verrouillé. Réessaie dans {seconds, plural, one {# seconde} other {# secondes}}, ou contacte un administrateur.",
       "accountLockedMinutes": "Compte temporairement verrouillé. Réessaie dans {minutes, plural, one {# minute} other {# minutes}}, ou contacte un administrateur.",
       "accountLockedHours": "Compte temporairement verrouillé. Réessaie dans {hours, plural, one {# heure} other {# heures}}, ou contacte un administrateur.",
-      "forgotPassword": "Mot de passe oublié ? Contacte un administrateur pour obtenir de l'aide.",
+      "forgotPassword": "Mot de passe oublié ?",
+      "forgotPasswordToast": {
+        "title": "Contacte ton administrateur",
+        "description": "La réinitialisation du mot de passe est gérée par ton organisation."
+      },
       "toast": {
         "success": "Connecté avec succès"
       }
@@ -1313,6 +1317,7 @@
     "search": {
       "placeholder": "Rechercher des automatisations"
     },
+    "entityLabel": "automatisations",
     "createWithAI": "Créer une automatisation avec l'IA",
     "navigation": {
       "editor": "Éditeur",
@@ -2522,6 +2527,7 @@
   },
   "products": {
     "title": "Produits",
+    "searchPlaceholder": "Rechercher des produits",
     "addButton": "Ajouter un produit",
     "importMenu": {
       "fromDevice": "Depuis ton appareil",
@@ -2606,6 +2612,7 @@
   },
   "customers": {
     "title": "Clients",
+    "searchPlaceholder": "Rechercher des clients",
     "filter": {
       "source": {
         "manual": "Manuel",
@@ -2671,6 +2678,7 @@
   },
   "vendors": {
     "title": "Fournisseurs",
+    "searchPlaceholder": "Rechercher des fournisseurs",
     "addVendors": "Ajouter des fournisseurs",
     "uploadVendors": "Téléverser des fournisseurs",
     "importForm": {
@@ -2721,6 +2729,7 @@
   },
   "websites": {
     "title": "Sites web",
+    "searchPlaceholder": "Rechercher des sites web",
     "addButton": "Ajouter un site web",
     "addWebsite": "Ajouter un site web",
     "editWebsite": "Modifier le site web",
