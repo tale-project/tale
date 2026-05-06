@@ -4,6 +4,7 @@ import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
+import { hashEmailForAudit, hashIpForAudit } from '../lib/helpers/pii_hash';
 import { writeNotificationForOrgs } from '../notifications/helpers';
 import {
   computeLockedUntil,
@@ -134,17 +135,23 @@ export const recordFailure = internalMutation({
     }
 
     // Audit logs are org-scoped, so we write one per org the user belongs to.
+    // Email and IP are hashed when TALE_AUDIT_PEPPER is set so the long-
+    // lived audit chain doesn't carry plaintext PII for unauthenticated
+    // user input.
+    const auditEmail = await hashEmailForAudit(email);
+    const auditIp =
+      args.ip !== undefined ? await hashIpForAudit(args.ip) : undefined;
     for (const { organizationId } of orgs) {
       await createAuditLog(ctx, {
         organizationId,
         actorId: user.userId,
-        actorEmail: email,
+        actorEmail: auditEmail,
         actorType: 'user',
         action: 'login_attempt',
         category: 'security',
         resourceType: 'user',
         resourceId: user.userId,
-        ipAddress: args.ip,
+        ipAddress: auditIp,
         userAgent: args.userAgent,
         status: 'failure',
         errorMessage: 'Invalid credentials',
@@ -164,13 +171,13 @@ export const recordFailure = internalMutation({
         await createAuditLog(ctx, {
           organizationId,
           actorId: user.userId,
-          actorEmail: email,
+          actorEmail: auditEmail,
           actorType: 'system',
           action: 'login_lockout',
           category: 'security',
           resourceType: 'user',
           resourceId: user.userId,
-          ipAddress: args.ip,
+          ipAddress: auditIp,
           userAgent: args.userAgent,
           status: 'denied',
           errorMessage: 'Account temporarily locked due to repeated failures',
@@ -294,17 +301,20 @@ export const clearOnSuccess = internalMutation({
     if (!user) return null;
 
     const orgs = await findMemberOrgs(ctx, user.userId);
+    const auditEmail = await hashEmailForAudit(email);
+    const auditIp =
+      args.ip !== undefined ? await hashIpForAudit(args.ip) : undefined;
     for (const { organizationId } of orgs) {
       await createAuditLog(ctx, {
         organizationId,
         actorId: user.userId,
-        actorEmail: email,
+        actorEmail: auditEmail,
         actorType: 'user',
         action: 'login_success',
         category: 'security',
         resourceType: 'user',
         resourceId: user.userId,
-        ipAddress: args.ip,
+        ipAddress: auditIp,
         userAgent: args.userAgent,
         status: 'success',
       });
