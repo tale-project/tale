@@ -14,6 +14,44 @@ import { getAllRetentionBounds, isRetentionDisabled } from './retention_floors';
 import { GOVERNANCE_POLICY_TYPES } from './schema';
 
 /**
+ * Phase 13 — pending retention shortening for the editor banner.
+ * Admin-only. Returns the most recent pending row for the org, or
+ * `null` when none exists / cooldown is over.
+ */
+export const getPendingRetentionChange = query({
+  args: { organizationId: v.string() },
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email ?? '',
+    });
+    if (!isAdmin(member.role)) {
+      throw new Error('Admin role required.');
+    }
+    const row = await ctx.db
+      .query('retentionPolicyPendingChanges')
+      .withIndex('by_organizationId_appliesAt', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .order('desc')
+      .first();
+    if (!row) return null;
+    if (row.appliesAt <= Date.now()) return null;
+    return {
+      _id: row._id,
+      appliesAt: row.appliesAt,
+      summary: row.summary,
+      requestedBy: row.requestedBy,
+      requestedAt: row.requestedAt,
+    };
+  },
+});
+
+/**
  * Effective retention bounds (min + max) for every category, including
  * the operator's env-var overrides. The retention editor uses this to
  * render `<input min={N} max={M}>` plus helper text BEFORE the user

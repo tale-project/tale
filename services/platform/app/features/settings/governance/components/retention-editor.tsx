@@ -19,6 +19,7 @@ import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { RetentionPendingBanner } from './retention-pending-banner';
 
 interface RetentionEditorProps {
   organizationId: string;
@@ -230,6 +231,7 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
 
   return (
     <Stack gap={6}>
+      <RetentionPendingBanner organizationId={organizationId} />
       <RetentionSection
         title={t('retentionPolicy.chatHistory.title')}
         description={t('retentionPolicy.chatHistory.description')}
