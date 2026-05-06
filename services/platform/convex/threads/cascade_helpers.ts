@@ -30,6 +30,8 @@
 
 import { components } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
+import type { ActiveHolds } from '../governance/legal_hold';
+import { loadActiveHolds } from '../governance/legal_hold';
 import { parseSubThreadIds } from './delete_chat_thread';
 
 const PAGE_SIZE = 200;
@@ -53,10 +55,43 @@ const PAGE_SIZE = 200;
  */
 export async function cascadeDeleteThreadChildren(
   ctx: MutationCtx,
-  args: { threadId: string; organizationId: string | undefined },
+  args: {
+    threadId: string;
+    organizationId: string | undefined;
+    /**
+     * Pre-fetched active holds for the org. When the caller already
+     * holds a snapshot (retention dispatcher, GDPR erasure path), pass
+     * it; the helper consults it before recursing into sub-threads so
+     * a held child isn't silently wiped when its parent ages out.
+     *
+     * When omitted AND organizationId is set, the helper loads holds
+     * itself for defense-in-depth — the snapshot-race window means a
+     * caller's pre-fetched snapshot can be stale by the time the per-
+     * thread cascade fires. Re-reading the row at cascade time is the
+     * only authoritative gate.
+     */
+    holds?: ActiveHolds;
+  },
 ): Promise<{ done: boolean; remaining: number }> {
   const { threadId, organizationId } = args;
   const remaining = 0;
+
+  // Authoritative legal-hold check at cascade time. Re-reads even if the
+  // caller passed a snapshot (the snapshot can be stale; a hold placed
+  // mid-run otherwise has zero protection). Skips silently if the row is
+  // held — the caller (retention dispatcher / erasure) is responsible
+  // for surfacing the skip in its audit row.
+  if (organizationId !== undefined) {
+    const holds = args.holds ?? (await loadActiveHolds(ctx, organizationId));
+    if (holds.orgHeld || holds.threadIds.has(threadId)) {
+      console.info(
+        `[cascade_helpers] thread ${threadId} on legal hold — skipping cascade`,
+      );
+      return { done: true, remaining: 0 };
+    }
+    // Stash for the sub-thread recursion below so we don't re-fetch.
+    args.holds = holds;
+  }
 
   // 1. messageMetadata — paged
   const metadataPage = await ctx.db
@@ -208,10 +243,14 @@ export async function cascadeDeleteThreadChildren(
 
   // 12. Recurse for sub-threads (best-effort — done after parent's children
   // gone so a cascade interruption can still pick up sub-threads later).
+  // The recursive call inherits args.holds (set above when orgId is known)
+  // so the per-sub-thread hold check uses the same snapshot the dispatcher
+  // pre-fetched, falling back to a fresh re-read when no snapshot exists.
   for (const subId of subThreadIds) {
     await cascadeDeleteThreadChildren(ctx, {
       threadId: subId,
       organizationId,
+      holds: args.holds,
     });
   }
 

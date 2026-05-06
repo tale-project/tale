@@ -105,12 +105,20 @@ async function cleanupTempFiles(
   org: OrgPolicy,
   source: 'user' | 'agent',
   batchSize: number,
+  holds: ActiveHolds,
 ): Promise<void> {
   const enabled =
     source === 'user'
       ? org.config.userTempEnabled
       : org.config.agentTempEnabled;
   if (!enabled) return;
+
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping ${source} temp cleanup`,
+    );
+    return;
+  }
 
   const hours =
     (source === 'user'
@@ -195,10 +203,21 @@ async function cleanupAuditLogs(
   org: OrgPolicy,
   batchSize: number,
   deadlineMs: number,
+  holds: ActiveHolds,
 ): Promise<void> {
   if (!org.config.auditLogsEnabled) return;
   const days = org.config.auditLogRetentionDays;
   if (typeof days !== 'number' || days <= 0) return;
+
+  // Audit-log spoliation is the canonical preservation-duty failure mode
+  // (US FRCP 37(e), EU GDPR Art 21 challenge proceedings, ISO 27037).
+  // Refuse to delete the very table that records why the hold exists.
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping audit log cleanup`,
+    );
+    return;
+  }
 
   const olderThanTimestamp = Date.now() - days * DAY_MS;
   // High-volume orgs generate more rows/day than `batchSize` can drain in a
@@ -234,10 +253,18 @@ async function cleanupWorkflowLogs(
   ctx: ActionCtx,
   org: OrgPolicy,
   batchSize: number,
+  holds: ActiveHolds,
 ): Promise<void> {
   if (!org.config.workflowLogsEnabled) return;
   const days = org.config.workflowLogRetentionDays;
   if (typeof days !== 'number' || days <= 0) return;
+
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping workflow log cleanup`,
+    );
+    return;
+  }
 
   const cutoffMs = Date.now() - days * DAY_MS;
 
@@ -246,6 +273,14 @@ async function cleanupWorkflowLogs(
     { organizationId: org.organizationId, cutoffMs, batchSize },
   );
   for (const execution of expiredExecutions) {
+    // Per-execution hold (`targetType: 'execution'`). The hold UI pastes
+    // the execution `_id` as `targetId`; match exactly.
+    if (holds.executionIds.has(execution._id)) {
+      console.info(
+        `[RetentionCleanup] execution ${execution._id} on legal hold — skipping`,
+      );
+      continue;
+    }
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredWorkflowExecution,
@@ -270,10 +305,18 @@ async function cleanupUsageLedger(
   ctx: ActionCtx,
   org: OrgPolicy,
   batchSize: number,
+  holds: ActiveHolds,
 ): Promise<void> {
   if (!org.config.usageLedgerEnabled) return;
   const days = org.config.usageLedgerRetentionDays;
   if (typeof days !== 'number' || days <= 0) return;
+
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping usage ledger cleanup`,
+    );
+    return;
+  }
 
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
@@ -294,10 +337,18 @@ async function cleanupChatFilterEvents(
   ctx: ActionCtx,
   org: OrgPolicy,
   batchSize: number,
+  holds: ActiveHolds,
 ): Promise<void> {
   if (!org.config.chatFilterEventsEnabled) return;
   const days = org.config.chatFilterEventsRetentionDays;
   if (typeof days !== 'number' || days <= 0) return;
+
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping chat filter events cleanup`,
+    );
+    return;
+  }
 
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
@@ -317,10 +368,17 @@ async function cleanupPromptTemplates(
   ctx: ActionCtx,
   org: OrgPolicy,
   batchSize: number,
+  holds: ActiveHolds,
 ): Promise<void> {
   if (!org.config.promptTemplatesEnabled) return;
   const days = org.config.promptTemplatesRetentionDays;
   if (typeof days !== 'number' || days <= 0) return;
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping prompt templates cleanup`,
+    );
+    return;
+  }
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredPromptTemplates,
@@ -339,10 +397,17 @@ async function cleanupMessageFeedback(
   ctx: ActionCtx,
   org: OrgPolicy,
   batchSize: number,
+  holds: ActiveHolds,
 ): Promise<void> {
   if (!org.config.messageFeedbackEnabled) return;
   const days = org.config.messageFeedbackRetentionDays;
   if (typeof days !== 'number' || days <= 0) return;
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping message feedback cleanup`,
+    );
+    return;
+  }
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredMessageFeedback,
@@ -361,10 +426,17 @@ async function cleanupMemoryAudit(
   ctx: ActionCtx,
   org: OrgPolicy,
   batchSize: number,
+  holds: ActiveHolds,
 ): Promise<void> {
   if (!org.config.memoryAuditEnabled) return;
   const days = org.config.memoryAuditRetentionDays;
   if (typeof days !== 'number' || days <= 0) return;
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping memory audit cleanup`,
+    );
+    return;
+  }
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredMemoryAuditRows,
@@ -389,10 +461,17 @@ async function cleanupCustomers(
   ctx: ActionCtx,
   org: OrgPolicy,
   batchSize: number,
+  holds: ActiveHolds,
 ): Promise<void> {
   if (!org.config.customersEnabled) return;
   const days = org.config.customersRetentionDays;
   if (typeof days !== 'number' || days <= 0) return;
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping customers cleanup`,
+    );
+    return;
+  }
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredCustomers,
@@ -410,10 +489,17 @@ async function cleanupVendors(
   ctx: ActionCtx,
   org: OrgPolicy,
   batchSize: number,
+  holds: ActiveHolds,
 ): Promise<void> {
   if (!org.config.vendorsEnabled) return;
   const days = org.config.vendorsRetentionDays;
   if (typeof days !== 'number' || days <= 0) return;
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping vendors cleanup`,
+    );
+    return;
+  }
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredVendors,
@@ -431,10 +517,17 @@ async function cleanupExternalConversations(
   ctx: ActionCtx,
   org: OrgPolicy,
   batchSize: number,
+  holds: ActiveHolds,
 ): Promise<void> {
   if (!org.config.externalConversationsEnabled) return;
   const days = org.config.externalConversationsRetentionDays;
   if (typeof days !== 'number' || days <= 0) return;
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping external conversations cleanup`,
+    );
+    return;
+  }
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredExternalConversations,
@@ -453,10 +546,17 @@ async function cleanupMessageMetadata(
   ctx: ActionCtx,
   org: OrgPolicy,
   batchSize: number,
+  holds: ActiveHolds,
 ): Promise<void> {
   if (!org.config.messageMetadataEnabled) return;
   const days = org.config.messageMetadataRetentionDays;
   if (typeof days !== 'number' || days <= 0) return;
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping message metadata cleanup`,
+    );
+    return;
+  }
   const cutoffMs = Date.now() - days * DAY_MS;
   // Note: messageMetadata has no `organizationId` field today (Phase 10
   // backfill is a follow-up). Until then, retention sweeps it via
@@ -724,11 +824,11 @@ export const runOrgRetentionCleanup = internalAction({
         },
         {
           name: 'userTempFiles',
-          run: () => cleanupTempFiles(ctx, org, 'user', batchSize),
+          run: () => cleanupTempFiles(ctx, org, 'user', batchSize, holds),
         },
         {
           name: 'agentTempFiles',
-          run: () => cleanupTempFiles(ctx, org, 'agent', batchSize),
+          run: () => cleanupTempFiles(ctx, org, 'agent', batchSize, holds),
         },
         {
           name: 'chatHistory',
@@ -736,47 +836,47 @@ export const runOrgRetentionCleanup = internalAction({
         },
         {
           name: 'auditLogs',
-          run: () => cleanupAuditLogs(ctx, org, batchSize, deadlineMs),
+          run: () => cleanupAuditLogs(ctx, org, batchSize, deadlineMs, holds),
         },
         {
           name: 'workflowLogs',
-          run: () => cleanupWorkflowLogs(ctx, org, batchSize),
+          run: () => cleanupWorkflowLogs(ctx, org, batchSize, holds),
         },
         {
           name: 'chatFilterEvents',
-          run: () => cleanupChatFilterEvents(ctx, org, batchSize),
+          run: () => cleanupChatFilterEvents(ctx, org, batchSize, holds),
         },
         {
           name: 'promptTemplates',
-          run: () => cleanupPromptTemplates(ctx, org, batchSize),
+          run: () => cleanupPromptTemplates(ctx, org, batchSize, holds),
         },
         {
           name: 'messageFeedback',
-          run: () => cleanupMessageFeedback(ctx, org, batchSize),
+          run: () => cleanupMessageFeedback(ctx, org, batchSize, holds),
         },
         {
           name: 'memoryAudit',
-          run: () => cleanupMemoryAudit(ctx, org, batchSize),
+          run: () => cleanupMemoryAudit(ctx, org, batchSize, holds),
         },
         {
           name: 'customers',
-          run: () => cleanupCustomers(ctx, org, batchSize),
+          run: () => cleanupCustomers(ctx, org, batchSize, holds),
         },
         {
           name: 'vendors',
-          run: () => cleanupVendors(ctx, org, batchSize),
+          run: () => cleanupVendors(ctx, org, batchSize, holds),
         },
         {
           name: 'externalConversations',
-          run: () => cleanupExternalConversations(ctx, org, batchSize),
+          run: () => cleanupExternalConversations(ctx, org, batchSize, holds),
         },
         {
           name: 'messageMetadata',
-          run: () => cleanupMessageMetadata(ctx, org, batchSize),
+          run: () => cleanupMessageMetadata(ctx, org, batchSize, holds),
         },
         {
           name: 'usageLedger',
-          run: () => cleanupUsageLedger(ctx, org, batchSize),
+          run: () => cleanupUsageLedger(ctx, org, batchSize, holds),
         },
       ];
 
