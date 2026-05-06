@@ -33,6 +33,24 @@ export const compareDocuments = action({
       throw new Error('Unauthorized: not a member of this organization');
     }
 
+    // Convex `_storage` is global — membership in args.organizationId is
+    // not by itself enough; verify each storage id is owned by a
+    // fileMetadata row in this org. Without this gate, any org member
+    // can supply another org's storage ids and read its files via the
+    // diff endpoint (cross-tenant IDOR).
+    const ownsStorage = await ctx.runQuery(
+      internal.documents.internal_queries.verifyStorageIdsBelongToOrg,
+      {
+        organizationId: args.organizationId,
+        storageIds: [args.baseStorageId, args.comparisonStorageId],
+      },
+    );
+    if (!ownsStorage) {
+      throw new Error(
+        'Unauthorized: one or more storage ids do not belong to this organization',
+      );
+    }
+
     const [baseFileUrl, compFileUrl] = await Promise.all([
       resolveStorageUrl(ctx, args.baseStorageId),
       resolveStorageUrl(ctx, args.comparisonStorageId),

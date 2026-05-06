@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 
+import type { Id } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { checkMembership } from './check_membership';
@@ -96,6 +97,39 @@ export const verifyOrganizationMembership = internalQuery({
   handler: async (ctx, args) => {
     const member = await checkMembership(ctx, args);
     return member !== null;
+  },
+});
+
+/**
+ * Confirm every storage id belongs to a fileMetadata row in the given
+ * org. Used by `compareDocuments` (and any other action that takes
+ * client-supplied `_storage` ids) to prevent cross-org reads — Convex
+ * `_storage` is a global namespace, so a member of org A can supply
+ * org B's storage id and read its blob unless we cross-check
+ * fileMetadata.organizationId here.
+ */
+export const verifyStorageIdsBelongToOrg = internalQuery({
+  args: {
+    organizationId: v.string(),
+    // Accept plain strings since callers (e.g. compareDocuments) take
+    // storage ids as v.string() over the wire and we'd otherwise need
+    // them to import @convex-dev/id_branding to call this.
+    storageIds: v.array(v.string()),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    for (const storageId of args.storageIds) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage id is a wire string; the by_storageId index lookup expects the branded Id<'_storage'>
+      const branded = storageId as unknown as Id<'_storage'>;
+      const meta = await ctx.db
+        .query('fileMetadata')
+        .withIndex('by_storageId', (q) => q.eq('storageId', branded))
+        .first();
+      if (!meta || meta.organizationId !== args.organizationId) {
+        return false;
+      }
+    }
+    return true;
   },
 });
 

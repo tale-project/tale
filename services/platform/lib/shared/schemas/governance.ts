@@ -1,6 +1,9 @@
 import safe from 'safe-regex2';
 import { z } from 'zod/v4';
 
+// Single source of truth for policy types. The Convex side
+// `governance/schema.ts::GOVERNANCE_POLICY_TYPES` MUST stay in sync;
+// drift causes silent type holes and `as const` casts at call sites.
 export const POLICY_TYPES = [
   'system_prompt',
   'budgets',
@@ -16,6 +19,8 @@ export const POLICY_TYPES = [
   'chat_filter',
   'moderation_provider',
   'personalization',
+  // Phase 12 — admin-customizable confidentiality notice.
+  'data_classification_notice',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 

@@ -82,6 +82,26 @@ const policyTypeValidator = v.union(
   ...GOVERNANCE_POLICY_TYPES.map((t) => v.literal(t)),
 );
 
+/**
+ * Policy types that any org member can read. The remaining types
+ * (login_policy.trustedProxies, password_policy, two_factor_policy,
+ * model_access.rules, budgets, retention_policy,
+ * moderation_provider.endpoint, system_prompt — anything that exposes
+ * security or operator-secret config) require admin role. The
+ * member-readable set deliberately stays minimal: features the user
+ * actually toggles in the UI, plus the data-classification notice
+ * which the chat composer renders for every member.
+ */
+const POLICY_TYPES_READABLE_BY_MEMBER: ReadonlySet<string> = new Set([
+  'data_classification_notice',
+  'feature_flags',
+  'pii_config',
+  'chat_filter',
+  'personalization',
+  'upload_policy',
+  'default_models',
+]);
+
 export const getPolicy = query({
   args: {
     organizationId: v.string(),
@@ -93,11 +113,20 @@ export const getPolicy = query({
       throw new Error('Unauthenticated');
     }
 
-    await getOrganizationMember(ctx, args.organizationId, {
+    const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: String(authUser._id),
       email: authUser.email,
       name: authUser.name,
     });
+
+    // Sensitive policies (admin-only). Every other type stays open to
+    // any org member.
+    if (
+      !POLICY_TYPES_READABLE_BY_MEMBER.has(args.policyType) &&
+      !isAdmin(member.role)
+    ) {
+      throw new Error(`Reading ${args.policyType} requires admin role.`);
+    }
 
     return ctx.db
       .query('governancePolicies')
@@ -120,11 +149,14 @@ export const listPolicies = query({
       throw new Error('Unauthenticated');
     }
 
-    await getOrganizationMember(ctx, args.organizationId, {
+    const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: String(authUser._id),
       email: authUser.email,
       name: authUser.name,
     });
+
+    // Non-admins only see member-readable policy types. Admins see all.
+    const restrictToMemberReadable = !isAdmin(member.role);
 
     const policies: Array<{
       _id: string;
@@ -139,6 +171,12 @@ export const listPolicies = query({
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
+      if (
+        restrictToMemberReadable &&
+        !POLICY_TYPES_READABLE_BY_MEMBER.has(policy.policyType)
+      ) {
+        continue;
+      }
       policies.push({
         _id: String(policy._id),
         policyType: policy.policyType,

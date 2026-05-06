@@ -47,7 +47,7 @@ export function useDataClassificationNotice(
   const policy = useConvexQuery(
     api.governance.queries.getPolicy,
     organizationId
-      ? { organizationId, policyType: 'data_classification_notice' as const }
+      ? { organizationId, policyType: 'data_classification_notice' }
       : 'skip',
   );
 

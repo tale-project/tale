@@ -5,6 +5,7 @@ import { v } from 'convex/values';
 import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
+import { authComponent } from '../auth';
 import { ragFetch } from '../lib/helpers/rag_config';
 
 /**
@@ -13,6 +14,13 @@ import { ragFetch } from '../lib/helpers/rag_config';
  * Called by the frontend on an interval while files are in queued/running
  * state. Stops being called when the user leaves the page — no wasted
  * server-side scheduled actions.
+ *
+ * Auth: caller must be authenticated AND the supplied storageIds must
+ * belong to fileMetadata rows whose organizationId is one of the caller's
+ * org memberships. Without this gate, an anonymous attacker can flip any
+ * org's `ragStatus` to `failed` via `expireStaleRagQueue` (DoS), and a
+ * member of org A can poke org B's RAG status. (Pre-existing on `main`
+ * but in scope for this branch's RAG-auth surface.)
  */
 export const checkFileRagStatuses = action({
   args: {
@@ -21,6 +29,27 @@ export const checkFileRagStatuses = action({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     if (args.storageIds.length === 0) return null;
+
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      console.warn('[checkFileRagStatuses] unauthenticated caller — refused');
+      return null;
+    }
+    const callerId = String(authUser._id);
+
+    // Filter storageIds down to ones the caller is authorized to see.
+    // Per-row org membership check (stored on fileMetadata).
+    const allowedStorageIds = await ctx.runQuery(
+      internal.file_metadata.internal_queries.filterStorageIdsByCallerOrg,
+      { storageIds: args.storageIds, userId: callerId },
+    );
+    if (allowedStorageIds.length === 0) {
+      console.warn(
+        '[checkFileRagStatuses] no authorized storage ids for caller — refused',
+      );
+      return null;
+    }
+    args = { ...args, storageIds: allowedStorageIds };
 
     let body: unknown;
     try {
