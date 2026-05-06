@@ -645,6 +645,7 @@ import type * as prompts_generate_title from "../prompts/generate_title.js";
 import type * as prompts_mutations from "../prompts/mutations.js";
 import type * as prompts_queries from "../prompts/queries.js";
 import type * as prompts_validators from "../prompts/validators.js";
+import type * as providers_auth from "../providers/auth.js";
 import type * as providers_circuit_breaker from "../providers/circuit_breaker.js";
 import type * as providers_errors from "../providers/errors.js";
 import type * as providers_failover from "../providers/failover.js";
@@ -1677,6 +1678,7 @@ declare const fullApi: ApiFromModules<{
   "prompts/mutations": typeof prompts_mutations;
   "prompts/queries": typeof prompts_queries;
   "prompts/validators": typeof prompts_validators;
+  "providers/auth": typeof providers_auth;
   "providers/circuit_breaker": typeof providers_circuit_breaker;
   "providers/errors": typeof providers_errors;
   "providers/failover": typeof providers_failover;

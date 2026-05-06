@@ -22,9 +22,16 @@ import { parseProviderSecrets } from './file_utils';
  * pass `force: true`. The Convex action layer maps this to a `ConvexError`
  * with `data.kind = 'undecryptable_existing'` so the UI can offer a confirm
  * dialog and re-invoke with `force: true`.
+ *
+ * `reason` exposes the inner cause's message stripped of any wrapping. The
+ * Convex action forwards this via `data.reason` to the UI confirm dialog,
+ * which interpolates it into a translated template — so the wrapper
+ * `Error.message` (which embeds path + meta-instructions) must NOT be the
+ * source of the dialog text.
  */
 export class UndecryptableExistingSecretError extends Error {
   readonly path: string;
+  readonly reason: string;
   constructor(path: string, cause: unknown) {
     const reason = cause instanceof Error ? cause.message : String(cause);
     super(
@@ -34,8 +41,14 @@ export class UndecryptableExistingSecretError extends Error {
     );
     this.name = 'UndecryptableExistingSecretError';
     this.path = path;
+    this.reason = reason;
   }
 }
+
+/** Why a force-overwrite happened; populated only when `forced` is true. */
+export type ForceOverwriteReason =
+  | 'encrypted_no_key'
+  | 'undecryptable_existing';
 
 export interface PreparedSecrets {
   /** Plaintext JSON ready to encrypt or write directly (with trailing newline). */
@@ -44,6 +57,13 @@ export interface PreparedSecrets {
   existed: boolean;
   /** True when force-overwrite skipped an unreadable existing file. */
   forced: boolean;
+  /**
+   * Why the force-overwrite happened, populated only when `forced` is true.
+   * Mirrors the discriminator the action surfaces to the UI on the non-force
+   * refusal path, so audit logging can record the same reason without
+   * re-deriving it.
+   */
+  forceReason: ForceOverwriteReason | null;
 }
 
 /**
@@ -68,6 +88,7 @@ export async function prepareMergedSecrets(
   let existing: ProviderSecrets | null = null;
   let existed = false;
   let forced = false;
+  let forceReason: ForceOverwriteReason | null = null;
 
   try {
     const raw = await decryptSecretsFile(secretsPath);
@@ -84,6 +105,10 @@ export async function prepareMergedSecrets(
         `[secret_io] force-overwriting ${secretsPath}: ${err instanceof Error ? err.message : String(err)}`,
       );
       forced = true;
+      forceReason =
+        err instanceof EncryptedFileWithoutKeyError
+          ? 'encrypted_no_key'
+          : 'undecryptable_existing';
     } else if (err instanceof EncryptedFileWithoutKeyError) {
       throw err;
     } else {
@@ -117,5 +142,6 @@ export async function prepareMergedSecrets(
     plaintext: JSON.stringify(data, null, 2) + '\n',
     existed,
     forced,
+    forceReason,
   };
 }

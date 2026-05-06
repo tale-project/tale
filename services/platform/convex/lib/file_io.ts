@@ -42,6 +42,10 @@ export function sha256(content: string): string {
   return createHash('sha256').update(content, 'utf-8').digest('hex');
 }
 
+function isFileNotFound(err: unknown): boolean {
+  return err instanceof Error && 'code' in err && err.code === 'ENOENT';
+}
+
 export async function isSymlink(filePath: string): Promise<boolean> {
   try {
     const stats = await lstat(filePath);
@@ -117,7 +121,7 @@ export async function atomicWrite(
     }
     await fsRename(tmpPath, filePath);
   } catch (err) {
-    await unlink(tmpPath).catch(() => {});
+    await cleanupTmp(tmpPath, 'atomicWrite');
     throw err;
   }
 }
@@ -156,7 +160,7 @@ export async function atomicWriteSecret(
     }
     await fsRename(tmpPath, filePath);
   } catch (err) {
-    await unlink(tmpPath).catch(() => {});
+    await cleanupTmp(tmpPath, 'atomicWriteSecret');
     throw err;
   }
 }
@@ -191,9 +195,23 @@ export async function atomicWriteBuffer(
     }
     await fsRename(tmpPath, filePath);
   } catch (err) {
-    await unlink(tmpPath).catch(() => {});
+    await cleanupTmp(tmpPath, 'atomicWriteBuffer');
     throw err;
   }
+}
+
+/**
+ * Best-effort cleanup of a temp file after a failed atomic write. Swallows
+ * ENOENT (the temp may already have been renamed away) but logs anything
+ * else — leaving an unlink failure silent risks leaking a half-written
+ * credentials tmp into the secrets dir indefinitely.
+ */
+async function cleanupTmp(tmpPath: string, label: string): Promise<void> {
+  await unlink(tmpPath).catch((err: unknown) => {
+    if (!isFileNotFound(err)) {
+      console.warn(`[${label}] tmp cleanup failed for ${tmpPath}`, err);
+    }
+  });
 }
 
 /**
@@ -215,7 +233,13 @@ export async function pruneHistory(
 
   const toDelete = jsonFiles.slice(0, jsonFiles.length - maxEntries);
   await Promise.all(
-    toDelete.map((f) => unlink(path.join(historyDir, f)).catch(() => {})),
+    toDelete.map((f) =>
+      unlink(path.join(historyDir, f)).catch((err: unknown) => {
+        if (!isFileNotFound(err)) {
+          console.warn(`[pruneHistory] failed to unlink ${f}`, err);
+        }
+      }),
+    ),
   );
 }
 
@@ -329,10 +353,6 @@ export function serializeJson(data: object): string {
     ),
   );
   return JSON.stringify(cleaned, null, 2) + '\n';
-}
-
-function isFileNotFound(err: unknown): boolean {
-  return err instanceof Error && 'code' in err && err.code === 'ENOENT';
 }
 
 /**

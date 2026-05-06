@@ -377,7 +377,7 @@ export function ProviderAddPanel({
   const [overwritePrompt, setOverwritePrompt] = useState<{
     kind: 'encrypted_no_key' | 'undecryptable_existing';
     path: string;
-    message: string;
+    reason?: string;
     pendingFormData: FormData;
   } | null>(null);
   const [creating, setCreating] = useState(false);
@@ -399,29 +399,29 @@ export function ProviderAddPanel({
     async (data: FormData, force: boolean) => {
       setCreating(true);
       try {
-        if (!force) {
-          // First attempt also creates the config; on retry the config already
-          // exists (saveProvider is idempotent — last-writer-wins) so re-running
-          // it is harmless.
-          await saveProvider({
-            orgSlug: 'default',
-            providerName: data.name,
-            config: {
-              displayName: data.displayName,
-              baseUrl: data.baseUrl,
-              models: data.models.map((m) => ({
-                id: m.id,
-                displayName: m.displayName,
-                tags: m.tags,
-              })),
-            },
-          });
-        }
+        // Save the secret FIRST. Until the secret save succeeds (possibly
+        // after a force-confirm round-trip), the provider config is not
+        // written — so cancelling the overwrite dialog leaves zero state on
+        // disk instead of a half-baked config-without-secret entry that
+        // would otherwise show in the provider list with no way to flag it.
         await saveProviderSecret({
           orgSlug: 'default',
           providerName: data.name,
           apiKey: data.apiKey,
           force: force || undefined,
+        });
+        await saveProvider({
+          orgSlug: 'default',
+          providerName: data.name,
+          config: {
+            displayName: data.displayName,
+            baseUrl: data.baseUrl,
+            models: data.models.map((m) => ({
+              id: m.id,
+              displayName: m.displayName,
+              tags: m.tags,
+            })),
+          },
         });
         setOverwritePrompt(null);
         finalizeProvider(data.name);
@@ -434,11 +434,18 @@ export function ProviderAddPanel({
         ) {
           setOverwritePrompt({
             kind: error.data.kind,
-            path: error.data.path,
-            message: error.data.message,
+            path: typeof error.data.path === 'string' ? error.data.path : '',
+            reason:
+              typeof error.data.reason === 'string'
+                ? error.data.reason
+                : undefined,
             pendingFormData: data,
           });
         } else {
+          // Non-overwrite failure (e.g. saveProvider zod-shape on second
+          // step, network error). Clear any open confirm dialog so the toast
+          // isn't hidden behind it.
+          setOverwritePrompt(null);
           console.error(error);
           toast({
             title: t('providers.createFailed'),
@@ -831,7 +838,7 @@ export function ProviderAddPanel({
                 })
               : t('providers.overwriteUndecryptableDescription', {
                   path: overwritePrompt.path,
-                  reason: overwritePrompt.message,
+                  reason: overwritePrompt.reason ?? '',
                 })
             : ''
         }

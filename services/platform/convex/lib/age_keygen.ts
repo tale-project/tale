@@ -37,21 +37,27 @@ export function deriveAgePublicKey(secretKey: string): string {
 }
 
 /**
- * Resolve the active age secret key from env. Prefers `SOPS_AGE_KEY` (inline
- * key bytes); falls back to the first non-comment `AGE-SECRET-KEY-1...` line
- * inside the file at `SOPS_AGE_KEY_FILE`. Returns `null` when neither yields
- * a usable key — callers decide whether that means plaintext mode or an error.
+ * Resolve all age secret keys configured in env, in source order. Reads
+ * `SOPS_AGE_KEY` (single inline key) first; if absent, parses every
+ * non-comment `AGE-SECRET-KEY-1...` line in the file at `SOPS_AGE_KEY_FILE`.
+ * Returns `[]` when nothing is configured — callers decide whether that
+ * means plaintext mode or an error.
+ *
+ * Multiple keys in `SOPS_AGE_KEY_FILE` are supported and returned in file
+ * order. `resolveAgeRecipients()` then derives one public recipient per key
+ * and `saveProviderSecret` encrypts to all of them, so new ciphertext is
+ * decryptable by any key in the file. This is the rotation primitive — see
+ * the JSDoc on `resolveAgeRecipients` for the operator-facing flow.
  *
  * The file format matches the `age` CLI convention: one key per line, `#`
- * comments allowed. We take the first key line so a multi-key file still
- * works (we don't try every key — sops-e would only use one anyway).
+ * comments allowed.
  */
-export function resolveAgeSecretKey(): string | null {
+export function resolveAgeSecretKeys(): string[] {
   const inline = process.env.SOPS_AGE_KEY?.trim();
-  if (inline) return inline;
+  if (inline) return [inline];
 
   const keyFile = process.env.SOPS_AGE_KEY_FILE?.trim();
-  if (!keyFile) return null;
+  if (!keyFile) return [];
 
   let contents: string;
   try {
@@ -62,10 +68,34 @@ export function resolveAgeSecretKey(): string | null {
       { cause: err },
     );
   }
+  const keys: string[] = [];
   for (const line of contents.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
-    if (trimmed.toUpperCase().startsWith('AGE-SECRET-KEY-1')) return trimmed;
+    if (trimmed.toUpperCase().startsWith('AGE-SECRET-KEY-1'))
+      keys.push(trimmed);
   }
-  return null;
+  return keys;
+}
+
+/**
+ * Derive one age public recipient per secret key configured in env. Returns
+ * recipients in source order. `[]` when nothing is configured.
+ *
+ * Encrypt-to-all rotation flow:
+ *   1. Append a new key to `SOPS_AGE_KEY_FILE`.
+ *   2. Re-save each provider secret via Settings → AI providers. Each save
+ *      now produces ciphertext readable by both old AND new keys.
+ *   3. Once every provider has been re-saved, remove the old key from the
+ *      file. New saves only encrypt to the new recipient; existing files
+ *      continue to decrypt because sops walks all keys in the file.
+ *
+ * Caveat: rotation is operator-driven and incremental. Adding a key but
+ * skipping step 2 leaves existing ciphertexts bound to the OLD recipient
+ * only — they'll keep decrypting fine (old key is still there), but a future
+ * "remove old key" step will lock you out of those files. The UI's "save"
+ * action is the rotation trigger.
+ */
+export function resolveAgeRecipients(): string[] {
+  return resolveAgeSecretKeys().map(deriveAgePublicKey);
 }

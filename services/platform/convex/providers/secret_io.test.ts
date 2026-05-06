@@ -57,6 +57,7 @@ describe('prepareMergedSecrets', () => {
     );
 
     expect(result.forced).toBe(true);
+    expect(result.forceReason).toBe('undecryptable_existing');
     expect(result.existed).toBe(false);
     expect(JSON.parse(result.plaintext)).toEqual({ apiKey: 'sk-new' });
     expect(warn).toHaveBeenCalled();
@@ -76,6 +77,7 @@ describe('prepareMergedSecrets', () => {
     );
 
     expect(result.forced).toBe(true);
+    expect(result.forceReason).toBe('encrypted_no_key');
     expect(JSON.parse(result.plaintext)).toEqual({ apiKey: 'sk-new' });
   });
 
@@ -90,6 +92,7 @@ describe('prepareMergedSecrets', () => {
 
     expect(result.existed).toBe(false);
     expect(result.forced).toBe(false);
+    expect(result.forceReason).toBeNull();
     expect(JSON.parse(result.plaintext)).toEqual({
       apiKey: 'sk-new',
       modelKeys: { 'gpt-4': 'sk-model' },

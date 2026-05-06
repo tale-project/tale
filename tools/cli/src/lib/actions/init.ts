@@ -250,31 +250,24 @@ export async function init(options: InitOptions): Promise<void> {
     logger.blank();
     const envResult = await ensureEnv({ deployDir: target });
 
-    // Persist the OpenRouter API key collected during env setup. Encrypt with
-    // SOPS when an age key is configured; otherwise write plaintext at 0600
-    // (the operator chose plaintext mode by leaving SOPS_AGE_KEY unset, and
-    // silently dropping the key they just typed would be the worst UX).
-    if (envResult.openrouterKey) {
+    // Persist the OpenRouter API key collected during env setup as a SOPS-
+    // encrypted file. `ensureEnv` always provisions a SOPS age keypair at
+    // init time, so `agePublicKey` is invariably present here. Operators who
+    // want plaintext-mode storage do so by clearing `SOPS_AGE_KEY` in .env
+    // after init and re-saving keys via Settings → AI providers; the
+    // encrypted-vs-plaintext mode is a runtime save-path decision, not an
+    // init-time choice.
+    if (envResult.openrouterKey && envResult.agePublicKey) {
       const secretsPath = join(target, 'providers', 'openrouter.secrets.json');
-      if (envResult.agePublicKey) {
-        const { sopsEncryptJson } = await import('../crypto/sops-encrypt');
-        const encrypted = await sopsEncryptJson(
-          { apiKey: envResult.openrouterKey },
-          envResult.agePublicKey,
-        );
-        await writeFile(secretsPath, encrypted);
-        logger.success(
-          'Encrypted provider API key into providers/openrouter.secrets.json',
-        );
-      } else {
-        const plaintext =
-          JSON.stringify({ apiKey: envResult.openrouterKey }, null, 2) + '\n';
-        await writeFile(secretsPath, plaintext, { mode: 0o600 });
-        logger.success(
-          'Wrote plaintext provider API key into providers/openrouter.secrets.json (0600). ' +
-            'Set SOPS_AGE_KEY in .env to enable encryption.',
-        );
-      }
+      const { sopsEncryptJson } = await import('../crypto/sops-encrypt');
+      const encrypted = await sopsEncryptJson(
+        { apiKey: envResult.openrouterKey },
+        envResult.agePublicKey,
+      );
+      await writeFile(secretsPath, encrypted);
+      logger.success(
+        'Encrypted provider API key into providers/openrouter.secrets.json',
+      );
     }
   }
 

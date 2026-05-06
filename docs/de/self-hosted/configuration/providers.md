@@ -89,11 +89,17 @@ Wenn `SOPS_AGE_KEY` (oder `SOPS_AGE_KEY_FILE`) in `.env` gesetzt ist, speichert 
 }
 ```
 
-Zur Rotation verschlüssle die Datei mit dem neuen Empfänger neu (oder speichere über die UI, um mit dem aktuellen Schlüssel neu zu verschlüsseln) und starte neu.
+**Schlüsselrotation** nutzt die Datei-Form der Variable. Mit `SOPS_AGE_KEY_FILE`, das auf eine Datei mit einem oder mehreren age-Schlüsseln zeigt (einer pro Zeile, `#`-Kommentare erlaubt):
+
+1. Hänge den neuen age-Schlüssel als neue Zeile in der Schlüsseldatei an.
+2. Speichere jeden API-Schlüssel jedes Anbieters über **Einstellungen > KI-Anbieter** erneut. Jedes Speichern erzeugt nun Geheimtext, der sowohl mit dem alten ALS auch dem neuen Schlüssel lesbar ist.
+3. Wenn jeder Anbieter neu gespeichert wurde, entferne den alten Schlüssel aus der Datei. Neue Speicherungen verschlüsseln nur noch für den neuen Empfänger; bestehende Dateien lassen sich weiterhin entschlüsseln, da sops alle Schlüssel in der Datei durchläuft.
+
+Die inline-Form `SOPS_AGE_KEY` unterstützt keine Mehrfachschlüssel — wechsle zu `SOPS_AGE_KEY_FILE` für Rotation.
 
 ### Klartext-Modus (`SOPS_AGE_KEY` nicht gesetzt)
 
-Wenn die Variable fehlt, liest und schreibt Tale Secrets als Klartext-JSON mit Datei-Modus `0600`. Dieser Modus eignet sich für selbst gehostete Setups, die Credentials bereits extern verwalten (Kubernetes Secrets, Vault-injizierte Dateien, gemountete Bind-Volumes usw.):
+`tale init` legt `SOPS_AGE_KEY` immer an, daher erreichst du den Klartext-Modus, indem du `SOPS_AGE_KEY` (und nicht `SOPS_AGE_KEY_FILE`) in `.env` nach dem Init löschst und Schlüssel über **Einstellungen > KI-Anbieter** neu speicherst. Neue Speicherungen erzeugen Klartext-JSON mit Datei-Modus `0600`. Dieser Modus eignet sich für selbst gehostete Setups, die Credentials bereits extern verwalten (Kubernetes Secrets, Vault-injizierte Dateien, gemountete Bind-Volumes usw.):
 
 ```json
 { "apiKey": "sk-…" }

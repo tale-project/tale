@@ -89,11 +89,17 @@ Quand `SOPS_AGE_KEY` (ou `SOPS_AGE_KEY_FILE`) est défini dans `.env`, Tale stoc
 }
 ```
 
-Pour faire tourner la clé, rechiffre le fichier avec le nouveau destinataire (ou enregistre via l’UI pour rechiffrer avec la clé courante) et redémarre.
+**La rotation des clés** utilise la forme fichier de la variable. Avec `SOPS_AGE_KEY_FILE` pointant vers un fichier contenant une ou plusieurs clés age (une par ligne, commentaires `#` autorisés) :
+
+1. Ajoute la nouvelle clé age comme nouvelle ligne dans le fichier de clés.
+2. Réenregistre la clé d’API de chaque fournisseur via **Paramètres > Fournisseurs IA**. Chaque enregistrement produit désormais un texte chiffré lisible à la fois avec l’ancienne ET la nouvelle clé.
+3. Une fois tous les fournisseurs réenregistrés, retire l’ancienne clé du fichier. Les nouveaux enregistrements ne chiffrent plus que pour le nouveau destinataire ; les fichiers existants continuent de se déchiffrer car sops parcourt toutes les clés du fichier.
+
+La forme inline `SOPS_AGE_KEY` ne supporte pas plusieurs clés — passe à `SOPS_AGE_KEY_FILE` pour la rotation.
 
 ### Mode clair (`SOPS_AGE_KEY` non défini)
 
-Quand la variable est absente, Tale lit et écrit les secrets en JSON clair avec un mode de fichier `0600`. Ce mode est destiné aux setups auto-hébergés qui gèrent déjà les credentials en externe (Kubernetes Secrets, fichiers injectés par Vault, volumes bind montés, etc.) :
+`tale init` provisionne toujours `SOPS_AGE_KEY`, donc on atteint le mode clair en effaçant `SOPS_AGE_KEY` (et en ne définissant pas `SOPS_AGE_KEY_FILE`) dans `.env` après l’init, puis en réenregistrant les clés via **Paramètres > Fournisseurs IA**. Les nouveaux enregistrements produisent du JSON en clair avec un mode de fichier `0600`. Ce mode est destiné aux setups auto-hébergés qui gèrent déjà les credentials en externe (Kubernetes Secrets, fichiers injectés par Vault, volumes bind montés, etc.) :
 
 ```json
 { "apiKey": "sk-…" }

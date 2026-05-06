@@ -4,7 +4,15 @@ import { IconButton } from '@tale/ui/icon-button';
 import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
-import { ChevronRight, Loader2, Pencil, Trash2, X, Zap } from 'lucide-react';
+import {
+  AlertTriangle,
+  ChevronRight,
+  Loader2,
+  Pencil,
+  Trash2,
+  X,
+  Zap,
+} from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 
 import {
@@ -16,6 +24,7 @@ import {
   TableRow,
 } from '@/app/components/ui/data-display/table';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { Alert } from '@/app/components/ui/feedback/alert';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -302,8 +311,19 @@ function ApiKeySection({
 }) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const { data: maskedKey } = useHasProviderSecret(orgSlug, providerName);
+  const { data: maskedKey, error: secretError } = useHasProviderSecret(
+    orgSlug,
+    providerName,
+  );
   const hasSecret = maskedKey != null;
+  const encryptedNoKey =
+    secretError instanceof ConvexError &&
+    secretError.data?.code === 'PROVIDER_SECRET_ENCRYPTED_NO_KEY';
+  const encryptedNoKeyPath = encryptedNoKey
+    ? typeof secretError.data?.path === 'string'
+      ? secretError.data.path
+      : ''
+    : '';
   const saveSecret = useSaveProviderSecret();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
@@ -312,7 +332,7 @@ function ApiKeySection({
   const [overwritePrompt, setOverwritePrompt] = useState<{
     kind: 'encrypted_no_key' | 'undecryptable_existing';
     path: string;
-    message: string;
+    reason?: string;
   } | null>(null);
   const apiKeyInputRef = useRef<HTMLInputElement>(null);
 
@@ -341,10 +361,15 @@ function ApiKeySection({
           // operator can opt into discarding the unreadable existing file.
           setOverwritePrompt({
             kind: err.data.kind,
-            path: err.data.path,
-            message: err.data.message,
+            path: typeof err.data.path === 'string' ? err.data.path : '',
+            reason:
+              typeof err.data.reason === 'string' ? err.data.reason : undefined,
           });
         } else {
+          // Non-overwrite failure during retry: clear the stuck dialog before
+          // toasting so the destructive ConfirmDialog doesn't sit open behind
+          // a toast.
+          setOverwritePrompt(null);
           toast({
             title: t('providers.secretSaveFailed'),
             variant: 'destructive',
@@ -371,6 +396,16 @@ function ApiKeySection({
 
   return (
     <>
+      {encryptedNoKey && (
+        <Alert
+          variant="destructive"
+          icon={AlertTriangle}
+          title={t('providers.encryptedNoKeyTitle')}
+          description={t('providers.encryptedNoKeyDescription', {
+            path: encryptedNoKeyPath,
+          })}
+        />
+      )}
       <Card contentClassName="p-5">
         <HStack gap={4} align="center">
           <Text className="w-40 shrink-0 text-sm font-semibold">
@@ -513,7 +548,7 @@ function ApiKeySection({
                 })
               : t('providers.overwriteUndecryptableDescription', {
                   path: overwritePrompt.path,
-                  reason: overwritePrompt.message,
+                  reason: overwritePrompt.reason ?? '',
                 })
             : ''
         }

@@ -89,11 +89,17 @@ When `SOPS_AGE_KEY` (or `SOPS_AGE_KEY_FILE`) is set in `.env`, Tale stores secre
 }
 ```
 
-To rotate, re-encrypt the file with the new recipient (or save through the UI to re-encrypt with the current key) and restart.
+**Key rotation** uses the file form of the env var. With `SOPS_AGE_KEY_FILE` pointing at a file containing one or more age secret keys (one per line, `#` comments allowed):
+
+1. Append the new age key as a new line in the key file.
+2. Re-save each provider's API key through **Settings > Providers**. Each save now produces ciphertext readable by both the old AND new keys.
+3. Once every provider has been re-saved, remove the old key from the file. New saves only encrypt to the new recipient; existing files continue to decrypt because sops walks all keys in the file.
+
+The inline `SOPS_AGE_KEY` form does not support multiple keys — switch to `SOPS_AGE_KEY_FILE` for rotation.
 
 ### Plaintext mode (`SOPS_AGE_KEY` not set)
 
-When the env var is absent, Tale reads and writes secrets as plaintext JSON at file mode `0600`. This mode is intended for self-hosted setups that already manage credentials externally (Kubernetes secrets, Vault-injected files, mounted bind volumes, etc.):
+`tale init` always provisions `SOPS_AGE_KEY`, so plaintext mode is reached by clearing `SOPS_AGE_KEY` (and not setting `SOPS_AGE_KEY_FILE`) in `.env` post-init, then re-saving keys through **Settings > Providers**. New saves produce plaintext JSON at file mode `0600`. This mode is intended for self-hosted setups that already manage credentials externally (Kubernetes secrets, Vault-injected files, mounted bind volumes, etc.):
 
 ```json
 { "apiKey": "sk-…" }

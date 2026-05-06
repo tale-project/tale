@@ -17,9 +17,10 @@ import { ConvexError, v } from 'convex/values';
 
 import type { ProviderSecrets } from '../../lib/shared/schemas/providers';
 import { providerJsonSchema } from '../../lib/shared/schemas/providers';
-import { action, internalAction } from '../_generated/server';
+import { internal } from '../_generated/api';
+import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { authComponent } from '../auth';
-import { deriveAgePublicKey, resolveAgeSecretKey } from '../lib/age_keygen';
+import { resolveAgeRecipients } from '../lib/age_keygen';
 import {
   atomicWrite,
   atomicWriteSecret,
@@ -32,6 +33,7 @@ import {
   hasSopsKey,
   invalidateSecretsCache,
 } from '../lib/sops';
+import { requireOrgMembership } from './auth';
 import { NoProviderAvailableError } from './errors';
 import type { ProviderJson, ProviderReadResult } from './file_utils';
 import {
@@ -58,6 +60,11 @@ import {
 function maskApiKey(key: string): string {
   if (key.length <= 9) return '••••••••••';
   return key.slice(0, 6) + '••••••' + key.slice(-3);
+}
+
+/** True iff `err` is a Node ErrnoException with the given code. */
+function isErrnoCode(err: unknown, code: string): boolean {
+  return err instanceof Error && 'code' in err && err.code === code;
 }
 
 async function readProviderFile(
@@ -179,12 +186,15 @@ export const readProvider = action({
   ): Promise<
     ProviderReadResult & { maskedModelKeys?: Record<string, string> }
   > => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    await requireOrgMembership(ctx, args.orgSlug);
     const result = await readProviderFile(args.orgSlug, args.providerName);
     if (!result.ok) return result;
 
-    // Attach masked per-model API keys (modelId → masked key)
+    // Attach masked per-model API keys (modelId → masked key). Failures here
+    // — including encrypted-no-key — degrade silently so the rest of the page
+    // still renders. The actionable encrypted-no-key signal lives on
+    // `hasProviderSecret` (whose entire purpose is the secret state); the API
+    // Key section consumes that and renders the banner.
     const maskedModelKeys: Record<string, string> = {};
     try {
       const secretsPath = resolveProviderSecretsPath(
@@ -201,9 +211,6 @@ export const readProvider = action({
         }
       }
     } catch (err) {
-      // Don't mask "encrypted but no key" as "no overrides" — surface the
-      // actionable error to the single-provider edit page.
-      if (err instanceof EncryptedFileWithoutKeyError) throw err;
       console.warn(
         `Provider "${args.providerName}": failed to read model key overrides`,
         err instanceof Error ? err.message : String(err),
@@ -218,8 +225,7 @@ export const listProviders = action({
   args: { orgSlug: v.string() },
   returns: v.any(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    await requireOrgMembership(ctx, args.orgSlug);
 
     const dir = resolveProvidersDir(args.orgSlug);
     let entries: string[];
@@ -286,8 +292,7 @@ export const saveProvider = action({
   args: { orgSlug: v.string(), providerName: v.string(), config: v.any() },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    await requireOrgMembership(ctx, args.orgSlug);
 
     if (!validateProviderName(args.providerName))
       throw new Error(`Invalid provider name: ${args.providerName}`);
@@ -303,8 +308,7 @@ export const deleteProvider = action({
   args: { orgSlug: v.string(), providerName: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    await requireOrgMembership(ctx, args.orgSlug);
     const filePath = resolveProviderFilePath(args.orgSlug, args.providerName);
     const secretsPath = resolveProviderSecretsPath(
       args.orgSlug,
@@ -318,6 +322,11 @@ export const deleteProvider = action({
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always have .code
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     });
+    // Drop any cached plaintext for the deleted secrets file. Without this,
+    // the in-memory cache holds rotated/deleted credentials until process
+    // restart (next read would ENOENT before reaching the cache, so this is
+    // a memory-residency concern, not a stale-serve risk).
+    invalidateSecretsCache(secretsPath);
     return null;
   },
 });
@@ -649,8 +658,7 @@ export const getAllProviderConfigs = action({
   args: { orgSlug: v.string() },
   returns: v.any(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    await requireOrgMembership(ctx, args.orgSlug);
 
     const dir = resolveProvidersDir(args.orgSlug);
     let entries: string[];
@@ -705,6 +713,8 @@ export const fetchProviderModels = action({
   args: { baseUrl: v.string(), apiKey: v.string() },
   returns: v.array(v.object({ id: v.string() })),
   handler: async (ctx, args): Promise<Array<{ id: string }>> => {
+    // No orgSlug here — this action probes an arbitrary URL with the user's
+    // own pasted apiKey, no filesystem read. Authenticated check only.
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -1101,8 +1111,7 @@ export const testProviderConnection = action({
     skipped: v.array(v.object({ modelId: v.string(), reason: v.string() })),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    await requireOrgMembership(ctx, args.orgSlug);
 
     if (!validateProviderName(args.providerName))
       throw new Error(`Invalid provider name: ${args.providerName}`);
@@ -1213,8 +1222,7 @@ export const saveProviderSecret = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    const auth = await requireOrgMembership(ctx, args.orgSlug);
 
     if (!validateProviderName(args.providerName))
       throw new Error(`Invalid provider name: ${args.providerName}`);
@@ -1232,24 +1240,27 @@ export const saveProviderSecret = action({
       | undefined;
 
     let plaintext: string;
+    let prepared: Awaited<ReturnType<typeof prepareMergedSecrets>>;
     try {
-      const prepared = await prepareMergedSecrets(
+      prepared = await prepareMergedSecrets(
         secretsPath,
         { apiKey: args.apiKey, modelKeys: incomingModelKeys },
         { force: args.force },
       );
       plaintext = prepared.plaintext;
     } catch (err) {
-      // Convert the typed refuse-overwrite errors to a ConvexError carrying
-      // a structured discriminator. The UI reads `error.data.kind` to decide
+      // Convert typed refuse-overwrite errors to ConvexError carrying a
+      // structured discriminator. The UI reads `error.data.kind` to decide
       // whether to render the "overwrite anyway?" confirm dialog and re-call
-      // with `force: true`.
+      // with `force: true`. `data.reason` carries the raw inner cause for
+      // the dialog body — the wrapper Error.message is intentionally NOT
+      // forwarded because it already embeds path + meta-instructions that
+      // would duplicate against the i18n template.
       if (err instanceof EncryptedFileWithoutKeyError) {
         throw new ConvexError({
           code: 'PROVIDER_SECRET_REFUSED_OVERWRITE',
           kind: 'encrypted_no_key',
           path: secretsPath,
-          message: err.message,
         });
       }
       if (err instanceof UndecryptableExistingSecretError) {
@@ -1257,7 +1268,7 @@ export const saveProviderSecret = action({
           code: 'PROVIDER_SECRET_REFUSED_OVERWRITE',
           kind: 'undecryptable_existing',
           path: secretsPath,
-          message: err.message,
+          reason: err.reason,
         });
       }
       throw err;
@@ -1266,19 +1277,23 @@ export const saveProviderSecret = action({
     if (!encryptMode) {
       await atomicWriteSecret(secretsPath, plaintext);
       invalidateSecretsCache(secretsPath);
+      await maybeAuditForceOverwrite(ctx, args, secretsPath, prepared, auth);
       return null;
     }
 
-    // Read the active age secret key. resolveAgeSecretKey honors both
-    // SOPS_AGE_KEY (inline) and SOPS_AGE_KEY_FILE (path), keeping the encrypt
-    // path consistent with what hasSopsKey() and the sops CLI itself accept.
-    const sopsAgeKey = resolveAgeSecretKey();
-    if (!sopsAgeKey) {
+    // Resolve all age recipients from env. With multiple keys in
+    // `SOPS_AGE_KEY_FILE`, sops -e encrypts to all of them — new ciphertext
+    // is decryptable by any key in the file. This is the rotation primitive:
+    // append a new key, re-save each provider via the UI, then remove the
+    // old key. Decrypt path walks all keys naturally, so existing files keep
+    // working through the transition.
+    const recipients = resolveAgeRecipients();
+    if (recipients.length === 0) {
       throw new Error(
         'No age secret key available. Set SOPS_AGE_KEY (inline) or SOPS_AGE_KEY_FILE (path) in .env, or unset both to use plaintext mode.',
       );
     }
-    const agePublicKey = deriveAgePublicKey(sopsAgeKey);
+    const recipientArg = recipients.join(',');
 
     const { execFileSync } = await import('node:child_process');
     const { writeFileSync, unlinkSync, mkdtempSync, rmdirSync } =
@@ -1289,7 +1304,12 @@ export const saveProviderSecret = action({
     const tmpFile = path.join(tmpDir, 'plain.json');
     let encrypted: string;
     try {
-      writeFileSync(tmpFile, plaintext, 'utf-8');
+      // mkdtempSync gives us a 0o700 parent dir, so other users can't
+      // traverse to read this file even at default 0o644 mode. Belt-and-
+      // suspenders 0o600 anyway — matches atomicWriteSecret and means the
+      // mode bit is correct even if a future change to the parent dir mode
+      // regresses.
+      writeFileSync(tmpFile, plaintext, { encoding: 'utf-8', mode: 0o600 });
       encrypted = execFileSync(
         'sops',
         [
@@ -1299,7 +1319,7 @@ export const saveProviderSecret = action({
           '--output-type',
           'json',
           '--age',
-          agePublicKey,
+          recipientArg,
           tmpFile,
         ],
         {
@@ -1316,20 +1336,86 @@ export const saveProviderSecret = action({
         { cause: err },
       );
     } finally {
+      // Split the cleanup so a failed unlink (which would leak the plaintext
+      // API key into /tmp until the systemd-tmpfiles reaper sweeps in ~10
+      // days) surfaces as a warn rather than getting silently swallowed.
       try {
         unlinkSync(tmpFile);
+      } catch (cleanupErr) {
+        if (!isErrnoCode(cleanupErr, 'ENOENT')) {
+          console.warn(
+            `[saveProviderSecret] failed to unlink plaintext tmp file ${tmpFile}`,
+            cleanupErr,
+          );
+        }
+      }
+      try {
         rmdirSync(tmpDir);
-      } catch {
-        // best-effort cleanup
+      } catch (cleanupErr) {
+        if (!isErrnoCode(cleanupErr, 'ENOENT')) {
+          console.warn(
+            `[saveProviderSecret] failed to rmdir tmp dir ${tmpDir}`,
+            cleanupErr,
+          );
+        }
       }
     }
 
     await atomicWriteSecret(secretsPath, encrypted);
     invalidateSecretsCache(secretsPath);
+    await maybeAuditForceOverwrite(ctx, args, secretsPath, prepared, auth);
 
     return null;
   },
 });
+
+/**
+ * Write a `force_overwrite_provider_secret` audit row when the operator just
+ * discarded a previously-undecryptable on-disk file. No-op on the normal
+ * (non-force) save path — the audit table only sees the destructive case so
+ * the noise floor stays low. Mirrors integrations/credential_mutations.ts
+ * audit-on-state-change pattern.
+ *
+ * Failures here are best-effort: a credential write that succeeded should
+ * not be reported as failed because the audit log was unreachable. We log
+ * the failure to the server console instead.
+ */
+async function maybeAuditForceOverwrite(
+  ctx: ActionCtx,
+  args: { orgSlug: string; providerName: string; force?: boolean },
+  secretsPath: string,
+  prepared: Awaited<ReturnType<typeof prepareMergedSecrets>>,
+  auth: Awaited<ReturnType<typeof requireOrgMembership>>,
+): Promise<void> {
+  if (!args.force || !prepared.forced) return;
+  try {
+    await ctx.runMutation(
+      internal.audit_logs.internal_mutations.createAuditLog,
+      {
+        organizationId: auth.orgId,
+        actorId: auth.userId,
+        actorEmail: auth.email,
+        actorRole: auth.member.role,
+        actorType: 'user',
+        action: 'force_overwrite_provider_secret',
+        category: 'security',
+        resourceType: 'provider',
+        resourceId: args.providerName,
+        resourceName: args.providerName,
+        status: 'success',
+        metadata: {
+          forceReason: prepared.forceReason ?? 'unknown',
+          path: secretsPath,
+        },
+      },
+    );
+  } catch (err) {
+    console.warn(
+      `[saveProviderSecret] failed to write force-overwrite audit log for ${args.providerName}`,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
 
 /**
  * Check if a provider has a secrets file configured.
@@ -1343,8 +1429,7 @@ export const hasProviderSecret = action({
   },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args): Promise<string | null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    await requireOrgMembership(ctx, args.orgSlug);
 
     const secretsPath = resolveProviderSecretsPath(
       args.orgSlug,
@@ -1373,8 +1458,14 @@ export const hasProviderSecret = action({
       return maskApiKey(key);
     } catch (err) {
       // Don't lie about "Configured" status when the file is encrypted-no-key
-      // — surface the actionable error so the UI can offer "overwrite anyway".
-      if (err instanceof EncryptedFileWithoutKeyError) throw err;
+      // — surface the actionable error as a structured ConvexError so the UI
+      // can dispatch on `error.data.code` and render an Alert banner.
+      if (err instanceof EncryptedFileWithoutKeyError) {
+        throw new ConvexError({
+          code: 'PROVIDER_SECRET_ENCRYPTED_NO_KEY',
+          path: secretsPath,
+        });
+      }
       // Other failures (zod-shape, decrypt-with-wrong-key): file exists but
       // unusable. Still mask as configured to avoid losing the "click Save"
       // affordance — the actual save will surface a clearer error.
