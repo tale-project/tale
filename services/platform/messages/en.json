@@ -275,7 +275,6 @@
       "role": "Role",
       "joined": "Joined",
       "automation": "Automation",
-      "version": "Version",
       "document": "Document",
       "size": "Size",
       "ragStatus": "RAG status",
@@ -2527,7 +2526,6 @@
   },
   "products": {
     "title": "Products",
-    "searchPlaceholder": "Search products",
     "addButton": "Add product",
     "importMenu": {
       "fromDevice": "From your device",
@@ -2612,7 +2610,6 @@
   },
   "customers": {
     "title": "Customers",
-    "searchPlaceholder": "Search customers",
     "filter": {
       "source": {
         "manual": "Manual",
@@ -2678,7 +2675,6 @@
   },
   "vendors": {
     "title": "Vendors",
-    "searchPlaceholder": "Search vendors",
     "addVendors": "Add vendors",
     "uploadVendors": "Upload vendors",
     "importForm": {
@@ -2729,7 +2725,6 @@
   },
   "websites": {
     "title": "Websites",
-    "searchPlaceholder": "Search websites",
     "addButton": "Add website",
     "addWebsite": "Add website",
     "editWebsite": "Edit website",

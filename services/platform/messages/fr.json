@@ -275,7 +275,6 @@
       "role": "Rôle",
       "joined": "Inscrit",
       "automation": "Automatisation",
-      "version": "Version",
       "document": "Document",
       "size": "Taille",
       "ragStatus": "Statut RAG",
@@ -2527,7 +2526,6 @@
   },
   "products": {
     "title": "Produits",
-    "searchPlaceholder": "Rechercher des produits",
     "addButton": "Ajouter un produit",
     "importMenu": {
       "fromDevice": "Depuis ton appareil",
@@ -2612,7 +2610,6 @@
   },
   "customers": {
     "title": "Clients",
-    "searchPlaceholder": "Rechercher des clients",
     "filter": {
       "source": {
         "manual": "Manuel",
@@ -2678,7 +2675,6 @@
   },
   "vendors": {
     "title": "Fournisseurs",
-    "searchPlaceholder": "Rechercher des fournisseurs",
     "addVendors": "Ajouter des fournisseurs",
     "uploadVendors": "Téléverser des fournisseurs",
     "importForm": {
@@ -2729,7 +2725,6 @@
   },
   "websites": {
     "title": "Sites web",
-    "searchPlaceholder": "Rechercher des sites web",
     "addButton": "Ajouter un site web",
     "addWebsite": "Ajouter un site web",
     "editWebsite": "Modifier le site web",
