@@ -7,11 +7,8 @@ import { BarChart3, Network } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
-import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import { useListWorkflows } from '../hooks/file-queries';
@@ -74,8 +71,7 @@ export function AutomationsTable({
     organizationId,
     'installed',
   );
-  const { columns, searchPlaceholder } =
-    useAutomationsTableConfig(organizationId);
+  const { columns } = useAutomationsTableConfig(organizationId);
 
   useEffect(() => {
     const handleWorkflowUpdated = () => void refetch();
