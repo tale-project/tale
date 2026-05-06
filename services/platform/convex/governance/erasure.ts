@@ -13,10 +13,13 @@
  *
  * Refusals:
  *   - Caller is not an org admin → `forbidden`.
- *   - One of the targets is currently under a `legalHold` (Phase 8) →
- *     `LEGAL_HOLD_BLOCKS_ERASURE` with the held items list. Phase 8
- *     wires the actual hold table; until then the check is a no-op
- *     placeholder so the contract is in place.
+ *   - The org has an active org-wide legal hold OR any of the subject's
+ *     threads is held → `LEGAL_HOLD_BLOCKS_ERASURE` with the held items
+ *     list. GDPR Art 17(3)(e) explicitly carves out legal-claims
+ *     preservation as an erasure exception, so we fail-closed: any hold
+ *     on the subject's data refuses the entire request rather than
+ *     proceeding with the unheld subset (which would silently spoliate
+ *     held neighbors and confuse the eventual receipt).
  *
  * Audit:
  *   Every erasure writes `category='admin' subtype='gdpr_erasure_executed'`
@@ -32,6 +35,7 @@ import { authComponent } from '../auth';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
+import { loadActiveHolds } from './legal_hold';
 
 /**
  * Erase a single thread (all messages, artifacts, todos, feedback,
@@ -107,26 +111,69 @@ export const requestErasure = mutation({
       .collect();
     const userThreads = threads.filter((t) => t.userId === args.userId);
 
-    // Phase-8 placeholder: legal hold check would refuse erasure for
-    // held threads here. For now no holds exist; future code:
-    //   const holds = await loadActiveHolds(ctx, args.organizationId);
-    //   const blocked = userThreads.filter(t => holds.threadIds.has(t.threadId));
-    const blocked: string[] = [];
+    // Legal-hold gate. GDPR Art 17(3)(e) preserves data subject to legal
+    // claims; FRCP 37(e) makes destruction during a preservation duty
+    // sanctionable. Refuse the whole request when ANY of the subject's
+    // threads is held (or the org is under a global hold) so the eventual
+    // erasure receipt cannot lie about coverage.
+    const holds = await loadActiveHolds(ctx, args.organizationId);
+    const heldThreadIds: string[] = [];
+    for (const t of userThreads) {
+      if (holds.threadIds.has(t.threadId)) heldThreadIds.push(t.threadId);
+    }
+    if (holds.orgHeld || heldThreadIds.length > 0) {
+      // Audit the refusal — compliance teams need a record of attempted
+      // erasure that was blocked by an active hold.
+      await createAuditLog(ctx, {
+        organizationId: args.organizationId,
+        actorId: callerId,
+        actorEmail: authUser.email ?? '',
+        actorType: 'user',
+        action: 'gdpr_erasure_blocked_by_hold',
+        category: 'admin',
+        resourceType: 'user',
+        resourceId: args.userId,
+        resourceName: args.userId,
+        status: 'failure',
+        errorMessage: 'LEGAL_HOLD_BLOCKS_ERASURE',
+        newState: {
+          reason: args.reason,
+          orgHeld: holds.orgHeld,
+          heldThreadIds,
+        },
+      });
+      throw new ConvexError({
+        code: 'LEGAL_HOLD_BLOCKS_ERASURE',
+        message: holds.orgHeld
+          ? 'Org is under an active legal hold — release the hold before requesting erasure.'
+          : 'One or more of the subject’s threads are under an active legal hold.',
+        orgHeld: holds.orgHeld,
+        heldThreadIds,
+      });
+    }
 
     let erased = 0;
     for (const thread of userThreads) {
       // Loop on cascade until done (paged helper).
       let attempts = 0;
+      let cascadeDone = false;
       while (attempts++ < 50) {
         const result = await cascadeDeleteThreadChildren(ctx, {
           threadId: thread.threadId,
           organizationId: args.organizationId,
         });
-        if (result.done) break;
+        if (result.done) {
+          cascadeDone = true;
+          break;
+        }
       }
-      erased += 1;
+      // Only count threads whose cascade actually completed. Partial
+      // cascades (>50 pages of children remaining) leave residue and
+      // must NOT be reported as erased — the receipt would lie.
+      if (cascadeDone) erased += 1;
     }
 
+    const partial = erased < userThreads.length;
     await createAuditLog(ctx, {
       organizationId: args.organizationId,
       actorId: callerId,
@@ -137,14 +184,18 @@ export const requestErasure = mutation({
       resourceType: 'user',
       resourceId: args.userId,
       resourceName: args.userId,
-      status: 'success',
+      status: partial ? 'failure' : 'success',
+      errorMessage: partial
+        ? `Erasure incomplete: ${userThreads.length - erased} thread(s) hit cascade page-limit and need a follow-up run.`
+        : undefined,
       newState: {
         reason: args.reason,
         threadsErased: erased,
-        threadsBlocked: blocked,
+        threadsTargeted: userThreads.length,
+        threadsBlocked: heldThreadIds,
       },
     });
 
-    return { threadsErased: erased, threadsBlocked: blocked };
+    return { threadsErased: erased, threadsBlocked: heldThreadIds };
   },
 });
