@@ -156,17 +156,24 @@ describe('fetchDocumentComparison', () => {
   it('sends POST request with correct body', async () => {
     await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
 
+    // ragFetch wraps init.headers in a `new Headers(...)` and adds the
+    // bearer token + redirect:'manual' + AbortSignal — so we assert on
+    // method/body and verify the Content-Type via the Headers instance.
     expect(globalThis.fetch).toHaveBeenCalledWith(
       `${RAG_URL}/api/v1/documents/compare`,
       expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           base_file_id: BASE_FILE_ID,
           comparison_file_id: COMP_FILE_ID,
         }),
       }),
     );
+    const init = vi.mocked(globalThis.fetch).mock.calls[0]?.[1] as
+      | (RequestInit & { headers?: Headers })
+      | undefined;
+    expect(init?.headers).toBeInstanceOf(Headers);
+    expect(init?.headers?.get('content-type')).toBe('application/json');
   });
 
   it('includes max_changes in body when provided', async () => {

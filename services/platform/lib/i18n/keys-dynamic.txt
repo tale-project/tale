@@ -15,3 +15,11 @@ metadata
 # the UI (only inherited from the org creator), so the regex scanner can't
 # see it.
 settings.roles.owner
+
+# Phase-12 confidentiality-notice smart-trigger heuristics. The keys are
+# defined alongside the data-classification ack flow but the trigger UI
+# (composer-side detector for sensitive extensions / large-paste) hasn't
+# shipped yet — keys are intentionally pre-translated so the feature can
+# wire up without an i18n round trip. Allow-listed until the consumer
+# lands.
+dataNotice.smartTrigger

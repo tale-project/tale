@@ -21,6 +21,12 @@ vi.mock('../../../_generated/api', () => ({
 
 vi.mock('../../../lib/helpers/rag_config', () => ({
   getRagConfig: () => ({ serviceUrl: 'http://mock-rag:8001' }),
+  // Source migrated from raw fetch + getRagConfig to ragFetch (commit
+  // ea2d3f1a3); the test still asserts on globalThis.fetch shape, so the
+  // mock just forwards to it. Skips the real auth + SSRF guard because
+  // they require process.env wiring this test doesn't set up.
+  ragFetch: (path: string, init?: RequestInit & { timeoutMs?: number }) =>
+    globalThis.fetch(`http://mock-rag:8001${path}`, init),
 }));
 
 const originalFetch = globalThis.fetch;
