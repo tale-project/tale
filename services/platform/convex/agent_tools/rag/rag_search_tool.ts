@@ -192,6 +192,24 @@ RESPONSE (list_indexed):
         const start = args.chunkStart ?? 1;
         const end = args.chunkEnd ?? start + DEFAULT_PAGE_SIZE - 1;
 
+        // Authorize the requested fileId against the agent's scope. The
+        // RAG service treats `file_id` as a global identifier, so without
+        // this gate any agent could read any indexed chunk in any org by
+        // guessing/leaking a `_storage` id (cross-org IDOR). The `search`
+        // branch already routes through `resolveFileIds`; mirror that for
+        // single-document retrieval.
+        const allowedFileIds = await resolveFileIds(ctx, undefined);
+        if (!allowedFileIds.includes(args.fileId)) {
+          debugLog('tool:rag_search retrieve refused (out of scope)', {
+            fileId: args.fileId,
+            scopeSize: allowedFileIds.length,
+          });
+          return {
+            success: false,
+            response: 'File is not in the agent’s authorized scope.',
+          };
+        }
+
         debugLog('tool:rag_search retrieve start', {
           fileId: args.fileId,
           chunkStart: start,
