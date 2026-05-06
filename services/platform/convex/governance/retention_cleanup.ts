@@ -95,7 +95,11 @@ async function cleanupDocuments(
 
     await ctx.runMutation(
       internal.governance.internal_mutations_retention.deleteExpiredDocument,
-      { documentId: doc._id, organizationId: org.organizationId },
+      {
+        documentId: doc._id,
+        organizationId: org.organizationId,
+        cutoffMs,
+      },
     );
   }
 }
@@ -184,7 +188,11 @@ async function cleanupChatHistory(
     while (true) {
       const result = await ctx.runMutation(
         internal.governance.internal_mutations_retention.deleteExpiredThread,
-        { threadMetadataId: thread._id, organizationId: org.organizationId },
+        {
+          threadMetadataId: thread._id,
+          organizationId: org.organizationId,
+          cutoffMs,
+        },
       );
       if (result.done) break;
       attempts += 1;
@@ -284,7 +292,11 @@ async function cleanupWorkflowLogs(
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredWorkflowExecution,
-      { executionId: execution._id, organizationId: org.organizationId },
+      {
+        executionId: execution._id,
+        organizationId: org.organizationId,
+        cutoffMs,
+      },
     );
   }
 
@@ -296,7 +308,11 @@ async function cleanupWorkflowLogs(
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredWorkflowTriggerLog,
-      { triggerLogId: log._id, organizationId: org.organizationId },
+      {
+        triggerLogId: log._id,
+        organizationId: org.organizationId,
+        cutoffMs,
+      },
     );
   }
 }
@@ -328,7 +344,11 @@ async function cleanupUsageLedger(
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredUsageLedgerRow,
-      { rowId: row._id, organizationId: org.organizationId },
+      {
+        rowId: row._id,
+        organizationId: org.organizationId,
+        cutoffMs,
+      },
     );
   }
 }
@@ -359,7 +379,11 @@ async function cleanupChatFilterEvents(
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredChatFilterEvent,
-      { eventId: row._id, organizationId: org.organizationId },
+      {
+        eventId: row._id,
+        organizationId: org.organizationId,
+        cutoffMs,
+      },
     );
   }
 }
@@ -388,7 +412,11 @@ async function cleanupPromptTemplates(
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredPromptTemplate,
-      { rowId: row._id, organizationId: org.organizationId },
+      {
+        rowId: row._id,
+        organizationId: org.organizationId,
+        cutoffMs,
+      },
     );
   }
 }
@@ -417,7 +445,11 @@ async function cleanupMessageFeedback(
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredMessageFeedback,
-      { rowId: row._id, organizationId: org.organizationId },
+      {
+        rowId: row._id,
+        organizationId: org.organizationId,
+        cutoffMs,
+      },
     );
   }
 }
@@ -446,7 +478,11 @@ async function cleanupMemoryAudit(
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredMemoryAuditRow,
-      { rowId: row._id, organizationId: org.organizationId },
+      {
+        rowId: row._id,
+        organizationId: org.organizationId,
+        cutoffMs,
+      },
     );
   }
 }
@@ -480,7 +516,11 @@ async function cleanupCustomers(
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention.deleteExpiredCustomer,
-      { rowId: row._id, organizationId: org.organizationId },
+      {
+        rowId: row._id,
+        organizationId: org.organizationId,
+        cutoffMs,
+      },
     );
   }
 }
@@ -508,7 +548,11 @@ async function cleanupVendors(
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention.deleteExpiredVendor,
-      { rowId: row._id, organizationId: org.organizationId },
+      {
+        rowId: row._id,
+        organizationId: org.organizationId,
+        cutoffMs,
+      },
     );
   }
 }
@@ -537,7 +581,11 @@ async function cleanupExternalConversations(
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredExternalConversation,
-      { rowId: row._id, organizationId: org.organizationId },
+      {
+        rowId: row._id,
+        organizationId: org.organizationId,
+        cutoffMs,
+      },
     );
   }
 }
