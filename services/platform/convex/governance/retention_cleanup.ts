@@ -10,7 +10,7 @@ import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { ragFetch } from '../lib/helpers/rag_config';
 import type { ActiveHolds } from './legal_hold';
-import { isRetentionDisabled } from './retention_floors';
+import { clampConfigToBounds, isRetentionDisabled } from './retention_floors';
 
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_TEMP_RETENTION_HOURS = 24;
@@ -21,8 +21,12 @@ function parseConfig(config: unknown): RetentionPolicyConfig | null {
   if (!isRecord(config) || typeof config['retentionDays'] !== 'number') {
     return null;
   }
+  // Defense-in-depth: clamp every per-category retention value to current
+  // effective bounds before downstream cleanup reads it. This catches rows
+  // persisted under an older env config that would otherwise bypass a
+  // freshly tightened ceiling. See `retention_floors.clampConfigToBounds`.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape validated above
-  return config as unknown as RetentionPolicyConfig;
+  return clampConfigToBounds(config as unknown as RetentionPolicyConfig);
 }
 
 interface OrgPolicy {
@@ -58,6 +62,12 @@ async function cleanupDocuments(
 ): Promise<void> {
   if (!org.config.enabled) return;
 
+  // Parity with sibling category guards. Schema rejects 0 (zod min(1)), but
+  // legacy rows or unclamped pre-bound values could still reach here; treat
+  // ≤0 as "disabled" rather than `cutoffMs = now` which would mass-delete.
+  const days = org.config.retentionDays;
+  if (typeof days !== 'number' || days <= 0) return;
+
   if (holds.orgHeld) {
     console.info(
       `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping documents cleanup`,
@@ -65,7 +75,7 @@ async function cleanupDocuments(
     return;
   }
 
-  const cutoffMs = Date.now() - org.config.retentionDays * DAY_MS;
+  const cutoffMs = Date.now() - days * DAY_MS;
   const expiredDocs = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredDocuments,
     { organizationId: org.organizationId, cutoffMs, batchSize },
@@ -184,17 +194,40 @@ async function cleanupAuditLogs(
   ctx: ActionCtx,
   org: OrgPolicy,
   batchSize: number,
+  deadlineMs: number,
 ): Promise<void> {
   if (!org.config.auditLogsEnabled) return;
   const days = org.config.auditLogRetentionDays;
   if (typeof days !== 'number' || days <= 0) return;
 
   const olderThanTimestamp = Date.now() - days * DAY_MS;
-  await ctx.runMutation(internal.audit_logs.internal_mutations.deleteOldLogs, {
-    organizationId: org.organizationId,
-    olderThanTimestamp,
-    batchSize,
-  });
+  // High-volume orgs generate more rows/day than `batchSize` can drain in a
+  // single mutation call; without this loop the audit-log table grows
+  // perpetually past its retention window. Two bounds:
+  //  - per-call iteration cap (defense-in-depth against runaway loops)
+  //  - shared run deadline so this category yields back to the dispatcher
+  //    instead of starving every later category of the 25-min budget.
+  const MAX_BATCHES = 200;
+  for (let i = 0; i < MAX_BATCHES; i++) {
+    if (Date.now() > deadlineMs) {
+      console.info(
+        `[RetentionCleanup] org ${org.organizationId} auditLogs cleanup hit run deadline after ${i} batches; will resume next run`,
+      );
+      return;
+    }
+    const result = await ctx.runMutation(
+      internal.audit_logs.internal_mutations.deleteOldLogs,
+      {
+        organizationId: org.organizationId,
+        olderThanTimestamp,
+        batchSize,
+      },
+    );
+    if (!result.hasMore) return;
+  }
+  console.warn(
+    `[RetentionCleanup] org ${org.organizationId} auditLogs cleanup hit MAX_BATCHES=${MAX_BATCHES}; backlog remains for next run`,
+  );
 }
 
 async function cleanupWorkflowLogs(
@@ -601,6 +634,13 @@ export const runOrgRetentionCleanup = internalAction({
 
     const startedAt = Date.now();
     let runError: string | undefined;
+    // When the budget-exhaust branch schedules a continuation, the run row
+    // must stay open (`completedAt === undefined`) so that the continuation's
+    // `getOpenRunForOrg` lookup can resume from the recorded cursor. Without
+    // this flag, the unconditional `completeRetentionRun` in `finally` writes
+    // `completedAt`, the continuation reads `null`, and the loop restarts at
+    // category 0 every time — defeating the entire resume mechanism.
+    let scheduledContinuation = false;
 
     try {
       const rawPolicies = await ctx.runQuery(
@@ -647,6 +687,7 @@ export const runOrgRetentionCleanup = internalAction({
         config,
       };
       const batchSize = config.batchSize ?? DEFAULT_BATCH_SIZE;
+      const deadlineMs = startedAt + PER_RUN_BUDGET_MS;
       const { organizationId } = org;
 
       // Phase 8: effect any approved release whose 24h cooldown has
@@ -695,7 +736,7 @@ export const runOrgRetentionCleanup = internalAction({
         },
         {
           name: 'auditLogs',
-          run: () => cleanupAuditLogs(ctx, org, batchSize),
+          run: () => cleanupAuditLogs(ctx, org, batchSize, deadlineMs),
         },
         {
           name: 'workflowLogs',
@@ -767,6 +808,7 @@ export const runOrgRetentionCleanup = internalAction({
               resumeRunId: claimedRunId,
             },
           );
+          scheduledContinuation = true;
           console.info(
             `[RetentionCleanup] org ${organizationId} time-budget exhausted at category=${cat.name}; continuation scheduled`,
           );
@@ -789,12 +831,16 @@ export const runOrgRetentionCleanup = internalAction({
         err,
       );
     } finally {
-      // Mark complete regardless — the next dispatcher fire will start
-      // fresh tomorrow. A continuation explicitly re-uses this id.
-      await ctx.runMutation(
-        internal.governance.retention_runs.completeRetentionRun,
-        { runId: claimedRunId, error: runError },
-      );
+      // Leave the run open when a continuation was scheduled — the next
+      // invocation needs `getOpenRunForOrg` to find an in-flight row to
+      // resume from its recorded cursor. The continuation (or its `catch`)
+      // is responsible for closing the row eventually.
+      if (!scheduledContinuation) {
+        await ctx.runMutation(
+          internal.governance.retention_runs.completeRetentionRun,
+          { runId: claimedRunId, error: runError },
+        );
+      }
     }
 
     return null;

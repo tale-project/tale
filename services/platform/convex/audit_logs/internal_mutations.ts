@@ -50,7 +50,12 @@ async function signCheckpoint(payload: {
     cryptoKey,
     enc.encode(canonical),
   );
-  return Buffer.from(sig).toString('hex');
+  // V8 mutation runtime does NOT reliably provide `Buffer`; this file has no
+  // `'use node'` directive (mutations run in Convex V8). Use the same hex
+  // pattern as `lib/helpers/audit_hash.ts:computeAuditHash`.
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 export const createAuditLog = internalMutation({

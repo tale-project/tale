@@ -112,12 +112,16 @@ export type UploadPolicyConfig = z.infer<typeof uploadPolicyConfigSchema>;
 
 export const retentionPolicyConfigSchema = z.object({
   enabled: z.boolean(),
-  retentionDays: z.number().nonnegative(),
-  batchSize: z.number().nonnegative().optional(),
+  // Parity with the per-category fields below. `0` would collapse the
+  // documents-cleanup cutoff to `Date.now()` and instantly mass-delete every
+  // document in the org; reject at the schema layer (defense-in-depth on top
+  // of `clampConfigToBounds` and the `cleanupDocuments` runtime guard).
+  retentionDays: z.number().int().min(1).max(3650),
+  batchSize: z.number().int().min(1).max(10_000).optional(),
   userTempEnabled: z.boolean().optional(),
-  userTempRetentionHours: z.number().nonnegative().optional(),
+  userTempRetentionHours: z.number().int().min(1).max(720).optional(),
   agentTempEnabled: z.boolean().optional(),
-  agentTempRetentionHours: z.number().nonnegative().optional(),
+  agentTempRetentionHours: z.number().int().min(1).max(720).optional(),
   chatHistoryEnabled: z.boolean().optional(),
   chatHistoryRetentionDays: z.number().int().min(1).max(3650).optional(),
   auditLogsEnabled: z.boolean().optional(),

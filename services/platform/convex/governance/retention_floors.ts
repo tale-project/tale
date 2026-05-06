@@ -17,8 +17,9 @@
  * land inside `[effective_min, effective_max]`. `governance/mutations.ts`
  * `upsertPolicy` rejects out-of-bounds values with `RETENTION_BELOW_FLOOR`
  * or `RETENTION_EXCEEDS_CEILING`. The cleanup runner additionally clamps
- * at runtime so previously-stored values that were valid under an older
- * env config can't bypass a newly-tightened ceiling.
+ * at runtime via `clampConfigToBounds` so previously-stored values that
+ * were valid under an older env config can't bypass a newly-tightened
+ * ceiling.
  *
  * `TALE_RETENTION_DISABLED=true` short-circuits the cleanup action with
  * a single warn-log (operator kill-switch for migration windows / debug).
@@ -193,6 +194,15 @@ function parseEnvNumber(name: string): number | null {
   if (raw === undefined || raw === '') return null;
   const n = Number.parseInt(raw, 10);
   if (!Number.isFinite(n) || n < 0) return null;
+  // `0` is rejected: there is no valid retention config that admits 0 days,
+  // and silently honoring `0` collapses `Math.min(code_max, 0) = 0`, which
+  // bricks every retention-policy save with `RETENTION_EXCEEDS_CEILING`.
+  // Treat as operator misconfiguration; fail loud.
+  if (n === 0) {
+    throw new Error(
+      `${name}=0 is not a valid retention bound. Unset the variable to use the code default, or set a positive integer.`,
+    );
+  }
   return n;
 }
 
@@ -299,4 +309,51 @@ export function clampToBounds(
   if (value < bounds.min) return bounds.min;
   if (value > bounds.max) return bounds.max;
   return value;
+}
+
+/**
+ * Map of every retention-config field to its `RetentionCategory`. Drives
+ * `clampConfigToBounds` so an org's stored values never bypass a freshly
+ * tightened env ceiling, even when the row was persisted under the old
+ * config.
+ */
+const CONFIG_FIELD_TO_CATEGORY: Record<string, RetentionCategory> = {
+  retentionDays: 'documents',
+  userTempRetentionHours: 'userTempHours',
+  agentTempRetentionHours: 'agentTempHours',
+  chatHistoryRetentionDays: 'chatHistory',
+  auditLogRetentionDays: 'auditLog',
+  workflowLogRetentionDays: 'workflowLog',
+  usageLedgerRetentionDays: 'usageLedger',
+  loginAttemptRetentionDays: 'loginAttempt',
+  chatFilterEventsRetentionDays: 'chatFilterEvents',
+  promptTemplatesRetentionDays: 'promptTemplates',
+  messageFeedbackRetentionDays: 'messageFeedback',
+  memoryAuditRetentionDays: 'memoryAudit',
+  customersRetentionDays: 'customers',
+  vendorsRetentionDays: 'vendors',
+  externalConversationsRetentionDays: 'externalConversations',
+  messageMetadataRetentionDays: 'messageMetadata',
+};
+
+/**
+ * Clamp every retention-config field to current effective bounds. Returns
+ * a shallow-cloned config; original is unchanged. Fields absent from the
+ * input or whose value is non-numeric are left untouched. Use immediately
+ * after `parseConfig` succeeds; downstream cleanup reads clamped values.
+ */
+export function clampConfigToBounds<C extends Record<string, unknown>>(
+  config: C,
+): C {
+  const out = { ...config };
+  for (const [field, category] of Object.entries(CONFIG_FIELD_TO_CATEGORY)) {
+    const value = out[field];
+    if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+    const clamped = clampToBounds(category, value);
+    if (clamped !== value) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- field exists on out (just read above)
+      (out as Record<string, unknown>)[field] = clamped;
+    }
+  }
+  return out;
 }
