@@ -20,6 +20,8 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Text } from '@/app/components/ui/typography/text';
+import { DataNoticeAckModal } from '@/app/features/governance/components/data-notice-ack-modal';
+import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -638,6 +640,13 @@ export function ChatInput({
           </HStack>
         </div>
       </FileUpload.DropZone>
+
+      <DataNoticeFooter
+        organizationId={organizationId}
+        context="chat"
+        className="pt-1 pb-1"
+      />
+      <DataNoticeAckModal organizationId={organizationId} />
 
       {previewImage && (
         <ImagePreviewDialog

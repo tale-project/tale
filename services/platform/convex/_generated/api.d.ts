@@ -337,6 +337,7 @@ import type * as governance_pii_index from "../governance/pii/index.js";
 import type * as governance_pii_pii_detector from "../governance/pii/pii_detector.js";
 import type * as governance_pii_pii_masker from "../governance/pii/pii_masker.js";
 import type * as governance_pii_pii_patterns from "../governance/pii/pii_patterns.js";
+import type * as governance_policy_acknowledgements from "../governance/policy_acknowledgements.js";
 import type * as governance_precheck from "../governance/precheck.js";
 import type * as governance_queries from "../governance/queries.js";
 import type * as governance_regex_safety from "../governance/regex_safety.js";
@@ -1378,6 +1379,7 @@ declare const fullApi: ApiFromModules<{
   "governance/pii/pii_detector": typeof governance_pii_pii_detector;
   "governance/pii/pii_masker": typeof governance_pii_pii_masker;
   "governance/pii/pii_patterns": typeof governance_pii_pii_patterns;
+  "governance/policy_acknowledgements": typeof governance_policy_acknowledgements;
   "governance/precheck": typeof governance_precheck;
   "governance/queries": typeof governance_queries;
   "governance/regex_safety": typeof governance_regex_safety;

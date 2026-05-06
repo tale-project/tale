@@ -292,6 +292,32 @@ export const auditLogCheckpointsTable = defineTable({
 }).index('by_organizationId_createdAt', ['organizationId', 'createdAt']);
 
 /**
+ * Phase 12 — one-time acknowledgment of the data-classification notice.
+ *
+ * When the `data_classification_notice` policy has
+ * `requireAcknowledgment: true`, every member must explicitly accept
+ * the current notice once. Re-acknowledgment is forced when the org
+ * admin bumps `version` (which itself happens automatically when the
+ * notice text is edited).
+ *
+ * Querying: `(userId, organizationId, policyType)` → most-recent row.
+ * If `policyVersion < currentVersion`, the modal re-fires.
+ */
+export const policyAcknowledgementsTable = defineTable({
+  userId: v.string(),
+  organizationId: v.string(),
+  policyType: v.string(),
+  policyVersion: v.number(),
+  acknowledgedAt: v.number(),
+})
+  .index('by_user_org_policy', ['userId', 'organizationId', 'policyType'])
+  .index('by_org_policy_version', [
+    'organizationId',
+    'policyType',
+    'policyVersion',
+  ]);
+
+/**
  * Phase 7 — retention run state.
  *
  * One row per (organizationId, runId) tracking the in-flight cleanup

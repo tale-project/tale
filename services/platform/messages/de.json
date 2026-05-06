@@ -4062,5 +4062,23 @@
       "deleted": "Gelöscht.",
       "preferencesUpdated": "Einstellungen aktualisiert."
     }
+  },
+  "dataNotice": {
+    "default": "Behandeln Sie diesen Chat wie eine E-Mail — vermeiden Sie Kundendaten, Zugangsdaten und unveröffentlichte Informationen.",
+    "footer": {
+      "ariaLabel": "Vertraulichkeitshinweis"
+    },
+    "ack": {
+      "title": "Hinweis zum Umgang mit Daten",
+      "body": "Bitte lesen Sie die Datenrichtlinie Ihrer Organisation, bevor Sie fortfahren.",
+      "confirm": "Verstanden",
+      "later": "Später"
+    },
+    "smartTrigger": {
+      "largePaste": "Sie haben einen großen Textblock eingefügt. Bitte stellen Sie sicher, dass er keine Zugangsdaten oder Kundendaten enthält, bevor Sie senden.",
+      "sensitiveExtension": "Diese Dateierweiterung ({ext}) enthält häufig Geheimnisse. Bitte vor dem Hochladen bestätigen.",
+      "sendAnyway": "Trotzdem senden",
+      "edit": "Bearbeiten"
+    }
   }
 }

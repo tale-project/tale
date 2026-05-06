@@ -4062,5 +4062,23 @@
       "deleted": "Supprimé.",
       "preferencesUpdated": "Préférences mises à jour."
     }
+  },
+  "dataNotice": {
+    "default": "Traitez cette conversation comme un e-mail — évitez les données clients, les identifiants et les informations non publiées.",
+    "footer": {
+      "ariaLabel": "Avis de confidentialité"
+    },
+    "ack": {
+      "title": "Avis sur le traitement des données",
+      "body": "Avant de continuer, veuillez consulter la politique de données de votre organisation.",
+      "confirm": "J'ai compris",
+      "later": "Plus tard"
+    },
+    "smartTrigger": {
+      "largePaste": "Vous avez collé un bloc de texte volumineux. Veuillez confirmer qu'il ne contient ni identifiants ni données clients avant de l'envoyer.",
+      "sensitiveExtension": "Cette extension de fichier ({ext}) contient souvent des secrets. Veuillez confirmer avant le téléchargement.",
+      "sendAnyway": "Envoyer quand même",
+      "edit": "Modifier"
+    }
   }
 }
