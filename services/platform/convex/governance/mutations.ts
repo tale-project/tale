@@ -48,6 +48,47 @@ function readRotationDays(config: unknown): number {
   return typeof value === 'number' ? value : 0;
 }
 
+/**
+ * Detect retention-policy shortening between two config snapshots.
+ * Returns a human-readable summary of which categories were reduced,
+ * or `null` when nothing was shortened (admin extending or unchanged).
+ *
+ * "Shortening" is per-category — extending category A while shortening
+ * B still triggers the cooldown (the dangerous direction is the one
+ * that destroys evidence).
+ */
+function detectRetentionShortening(
+  oldConfig: unknown,
+  newConfig: unknown,
+): string | null {
+  if (!isRecord(oldConfig) || !isRecord(newConfig)) return null;
+  const checks: Array<[string, string]> = [
+    ['retentionDays', 'documents'],
+    ['userTempRetentionHours', 'user temp files'],
+    ['agentTempRetentionHours', 'agent temp files'],
+    ['chatHistoryRetentionDays', 'chat history'],
+    ['auditLogRetentionDays', 'audit log'],
+    ['workflowLogRetentionDays', 'workflow logs'],
+    ['usageLedgerRetentionDays', 'usage ledger'],
+    ['loginAttemptRetentionDays', 'login attempts'],
+    ['chatFilterEventsRetentionDays', 'chat filter events'],
+    ['promptTemplatesRetentionDays', 'prompt templates'],
+    ['messageFeedbackRetentionDays', 'message feedback'],
+    ['memoryAuditRetentionDays', 'memory audit'],
+    ['deletionGraceDays', 'deletion grace'],
+  ];
+  const reduced: string[] = [];
+  for (const [key, label] of checks) {
+    const oldVal = oldConfig[key];
+    const newVal = newConfig[key];
+    if (typeof oldVal !== 'number' || typeof newVal !== 'number') continue;
+    if (newVal < oldVal) {
+      reduced.push(`${label} (${oldVal} → ${newVal})`);
+    }
+  }
+  return reduced.length === 0 ? null : `Reduced: ${reduced.join('; ')}`;
+}
+
 function computeNextEffectiveAt(
   policyType: string,
   nextConfig: unknown,
@@ -253,6 +294,55 @@ export const upsertPolicy = mutation({
       )
       .first();
 
+    // Phase 3 — cooldown on retention shortening.
+    //
+    // If `retention_policy` is being saved AND any `*RetentionDays`
+    // value is being REDUCED, defer the change by writing a row to
+    // `retentionPolicyPendingChanges`. Until `appliesAt`, cleanup
+    // continues using the OLD config snapshot. After `appliesAt` the
+    // pending row is removed and the new config takes effect.
+    //
+    // This shrinks the operator-as-attacker window: a compromised
+    // admin token can no longer immediately destroy evidence by
+    // shortening audit retention to its 365-day floor; ops/security
+    // teams have a 7-day window to notice + cancel.
+    if (
+      args.policyType === 'retention_policy' &&
+      existing &&
+      isRecord(existing.config)
+    ) {
+      const summary = detectRetentionShortening(existing.config, args.config);
+      if (summary) {
+        const cooldownMs = 7 * 24 * 60 * 60 * 1000; // 7 days
+        await ctx.db.insert('retentionPolicyPendingChanges', {
+          organizationId: args.organizationId,
+          appliesAt: Date.now() + cooldownMs,
+          oldConfig: existing.config,
+          newConfig: args.config,
+          requestedBy: String(authUser._id),
+          requestedAt: Date.now(),
+          summary,
+        });
+        await createAuditLog(ctx, {
+          organizationId: args.organizationId,
+          actorId: String(authUser._id),
+          actorEmail: authUser.email,
+          actorType: 'user',
+          action: 'policy.retention_shortening_pending',
+          category: 'security',
+          resourceType: 'governance_policy',
+          resourceId: String(existing._id),
+          resourceName: 'retention_policy',
+          newState: { summary, appliesAt: Date.now() + cooldownMs },
+          status: 'success',
+        });
+        // The new config still gets persisted onto the row so admins see
+        // their requested values in the editor, BUT cleanup reads the
+        // pending row's `oldConfig` until `appliesAt` (see
+        // retention_cleanup.ts).
+      }
+    }
+
     // For password_policy, track when rotation first became active so we
     // can grant a grace window (credential expiry is computed off the
     // later of account.passwordChangedAt and policy.effectiveAt).
@@ -318,5 +408,80 @@ export const upsertPolicy = mutation({
     });
 
     return policyId;
+  },
+});
+
+/**
+ * Cancel a pending retention-shortening before it takes effect.
+ * Admin-only. After this the new (shortened) values that were saved
+ * onto the policy row are reverted to the snapshot's `oldConfig`.
+ */
+export const cancelPendingRetentionChange = mutation({
+  args: {
+    organizationId: v.string(),
+    pendingId: v.id('retentionPolicyPendingChanges'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'unauthenticated',
+        message: 'Sign in required.',
+      });
+    }
+    const callerId = String(authUser._id);
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: callerId,
+      email: authUser.email ?? '',
+    });
+    if (!isAdmin(member.role)) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only admins can cancel pending retention changes.',
+      });
+    }
+
+    const pending = await ctx.db.get(args.pendingId);
+    if (!pending || pending.organizationId !== args.organizationId) {
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'Pending change does not exist.',
+      });
+    }
+
+    // Revert the policy row to the snapshot's oldConfig.
+    const policyRow = await ctx.db
+      .query('governancePolicies')
+      .withIndex('by_org_policyType', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('policyType', 'retention_policy'),
+      )
+      .first();
+    if (policyRow) {
+      await ctx.db.patch(policyRow._id, {
+        config: pending.oldConfig,
+        updatedAt: Date.now(),
+        updatedBy: callerId,
+      });
+    }
+    await ctx.db.delete(args.pendingId);
+
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: callerId,
+      actorEmail: authUser.email ?? '',
+      actorType: 'user',
+      action: 'policy.retention_shortening_cancelled',
+      category: 'security',
+      resourceType: 'governance_policy',
+      resourceId: String(args.pendingId),
+      resourceName: 'retention_policy',
+      newState: { summary: pending.summary },
+      status: 'success',
+    });
+
+    return null;
   },
 });

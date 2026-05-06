@@ -344,6 +344,7 @@ import type * as governance_resolve_budget_context from "../governance/resolve_b
 import type * as governance_resolve_default_model from "../governance/resolve_default_model.js";
 import type * as governance_retention_cleanup from "../governance/retention_cleanup.js";
 import type * as governance_retention_floors from "../governance/retention_floors.js";
+import type * as governance_retention_runs from "../governance/retention_runs.js";
 import type * as governance_sanitize from "../governance/sanitize.js";
 import type * as governance_stream_transform from "../governance/stream_transform.js";
 import type * as governance_upload_enforcement from "../governance/upload_enforcement.js";
@@ -1384,6 +1385,7 @@ declare const fullApi: ApiFromModules<{
   "governance/resolve_default_model": typeof governance_resolve_default_model;
   "governance/retention_cleanup": typeof governance_retention_cleanup;
   "governance/retention_floors": typeof governance_retention_floors;
+  "governance/retention_runs": typeof governance_retention_runs;
   "governance/sanitize": typeof governance_sanitize;
   "governance/stream_transform": typeof governance_stream_transform;
   "governance/upload_enforcement": typeof governance_upload_enforcement;

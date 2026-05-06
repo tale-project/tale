@@ -223,3 +223,79 @@ export const auditLogCheckpointsTable = defineTable({
   signature: v.optional(v.string()),
   createdAt: v.number(),
 }).index('by_organizationId_createdAt', ['organizationId', 'createdAt']);
+
+/**
+ * Phase 7 — retention run state.
+ *
+ * One row per (organizationId, runId) tracking the in-flight cleanup
+ * pass. `runOrgRetentionCleanup` checks this BEFORE doing work — if
+ * the most recent row for an org is < 23h old AND has no `completedAt`,
+ * the new run skips (prevents duplicate-fire when the previous day's
+ * run is still draining a backlog).
+ *
+ * `lastCursor` is a structured object capturing `(category, step?,
+ * lastCreationTime?)` so a worker that hits the 25-min time budget
+ * can self-schedule continuation with the cursor and pick up where it
+ * left off — never restart from the top.
+ *
+ * `lastError` records any non-fatal error from the last category for
+ * the operator UI to surface as a "retention had problems on org X"
+ * banner.
+ */
+export const retentionRunsTable = defineTable({
+  organizationId: v.string(),
+  startedAt: v.number(),
+  /** ms since epoch; set when the worker fully finishes every category. */
+  completedAt: v.optional(v.number()),
+  /** Cursor for resume on time-budget exhaustion or scheduled
+   *  continuation. `category` lists which cleanup category to resume;
+   *  `step` is the cascade child-table step inside chat-history;
+   *  `lastCreationTime` is the resumption point inside that step. */
+  lastCursor: v.optional(
+    v.object({
+      category: v.string(),
+      step: v.optional(v.string()),
+      lastCreationTime: v.optional(v.number()),
+    }),
+  ),
+  lastError: v.optional(v.string()),
+  /** Cumulative count of rows processed in this run — for telemetry. */
+  processedCount: v.optional(v.number()),
+})
+  .index('by_organizationId_startedAt', ['organizationId', 'startedAt'])
+  .index('by_completedAt', ['completedAt']);
+
+/**
+ * Phase 3 — pending-change cooldown for retention shortening.
+ *
+ * When `upsertPolicy` REDUCES any `*RetentionDays` value, instead of
+ * applying immediately a row is inserted here with `appliesAt = now +
+ * cooldownMs`. Until `appliesAt`, the cleanup runner continues using
+ * the OLD value (read from the `oldConfig` snapshot). After
+ * `appliesAt`, the cooldown row is removed and the new value takes
+ * effect on the next run.
+ *
+ * Rationale: if an attacker compromises an admin token, they can
+ * shorten audit retention to its floor (365d) and immediately destroy
+ * evidence. The cooldown gives ops/security teams a 7-30 day window
+ * to notice + cancel the change before it bites.
+ *
+ * Admins can cancel a pending change via `cancelPendingRetentionChange`.
+ */
+export const retentionPolicyPendingChangesTable = defineTable({
+  organizationId: v.string(),
+  /** When the pending change becomes effective. Cleanup uses old config
+   *  while now < appliesAt; uses new config and removes this row when
+   *  now >= appliesAt. */
+  appliesAt: v.number(),
+  /** Snapshot of the previous-effective config so cleanup can keep
+   *  using it during the cooldown window. */
+  oldConfig: jsonRecordValidator,
+  /** Snapshot of the new config that will take effect at appliesAt. */
+  newConfig: jsonRecordValidator,
+  requestedBy: v.string(),
+  requestedAt: v.number(),
+  /** Plain-language summary of which categories were shortened, for
+   *  the admin UI banner + notification email. */
+  summary: v.string(),
+}).index('by_organizationId_appliesAt', ['organizationId', 'appliesAt']);

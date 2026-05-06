@@ -5,6 +5,7 @@ import { v } from 'convex/values';
 import type { RetentionPolicyConfig } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { getRagConfig } from '../lib/helpers/rag_config';
@@ -53,8 +54,16 @@ async function cleanupDocuments(
   ctx: ActionCtx,
   org: OrgPolicy,
   batchSize: number,
+  holds: ActiveHolds,
 ): Promise<void> {
   if (!org.config.enabled) return;
+
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping documents cleanup`,
+    );
+    return;
+  }
 
   const cutoffMs = Date.now() - org.config.retentionDays * DAY_MS;
   const expiredDocs = await ctx.runQuery(
@@ -63,6 +72,13 @@ async function cleanupDocuments(
   );
 
   for (const doc of expiredDocs) {
+    if (holds.documentIds.has(doc._id)) {
+      console.info(
+        `[RetentionCleanup] document ${doc._id} on legal hold — skipping`,
+      );
+      continue;
+    }
+
     if (doc.fileId) {
       await deleteRagEntry(doc.fileId, `document ${doc._id}`);
     }
@@ -264,6 +280,72 @@ async function cleanupChatFilterEvents(
   }
 }
 
+async function cleanupPromptTemplates(
+  ctx: ActionCtx,
+  org: OrgPolicy,
+  batchSize: number,
+): Promise<void> {
+  if (!org.config.promptTemplatesEnabled) return;
+  const days = org.config.promptTemplatesRetentionDays;
+  if (typeof days !== 'number' || days <= 0) return;
+  const cutoffMs = Date.now() - days * DAY_MS;
+  const expired = await ctx.runQuery(
+    internal.governance.internal_queries.listExpiredPromptTemplates,
+    { organizationId: org.organizationId, cutoffMs, batchSize },
+  );
+  for (const row of expired) {
+    await ctx.runMutation(
+      internal.governance.internal_mutations_retention
+        .deleteExpiredPromptTemplate,
+      { rowId: row._id, organizationId: org.organizationId },
+    );
+  }
+}
+
+async function cleanupMessageFeedback(
+  ctx: ActionCtx,
+  org: OrgPolicy,
+  batchSize: number,
+): Promise<void> {
+  if (!org.config.messageFeedbackEnabled) return;
+  const days = org.config.messageFeedbackRetentionDays;
+  if (typeof days !== 'number' || days <= 0) return;
+  const cutoffMs = Date.now() - days * DAY_MS;
+  const expired = await ctx.runQuery(
+    internal.governance.internal_queries.listExpiredMessageFeedback,
+    { organizationId: org.organizationId, cutoffMs, batchSize },
+  );
+  for (const row of expired) {
+    await ctx.runMutation(
+      internal.governance.internal_mutations_retention
+        .deleteExpiredMessageFeedback,
+      { rowId: row._id, organizationId: org.organizationId },
+    );
+  }
+}
+
+async function cleanupMemoryAudit(
+  ctx: ActionCtx,
+  org: OrgPolicy,
+  batchSize: number,
+): Promise<void> {
+  if (!org.config.memoryAuditEnabled) return;
+  const days = org.config.memoryAuditRetentionDays;
+  if (typeof days !== 'number' || days <= 0) return;
+  const cutoffMs = Date.now() - days * DAY_MS;
+  const expired = await ctx.runQuery(
+    internal.governance.internal_queries.listExpiredMemoryAuditRows,
+    { organizationId: org.organizationId, cutoffMs, batchSize },
+  );
+  for (const row of expired) {
+    await ctx.runMutation(
+      internal.governance.internal_mutations_retention
+        .deleteExpiredMemoryAuditRow,
+      { rowId: row._id, organizationId: org.organizationId },
+    );
+  }
+}
+
 // Login attempts are email-scoped (not org-scoped). Run as a single pass
 // using the strictest (shortest) retention across any org that has the
 // flag enabled. If no org enabled it, skip entirely.
@@ -343,8 +425,17 @@ function jitterMsForOrg(organizationId: string): number {
  * `ctx.scheduler.runAfter(jitterMs, …)`, isolating per-org failures and
  * bounding each invocation's runtime.
  */
+/** 25-min budget gives a 5-min margin under the 30-min self-hosted action ceiling. */
+const PER_RUN_BUDGET_MS = 25 * 60 * 1000;
+
 export const runOrgRetentionCleanup = internalAction({
-  args: { organizationId: v.string() },
+  args: {
+    organizationId: v.string(),
+    /** Set when this invocation is a continuation from a prior run that
+     *  exhausted its time budget. The worker resumes from `lastCursor`
+     *  on the existing retention-run row instead of claiming a new one. */
+    resumeRunId: v.optional(v.id('retentionRuns')),
+  },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     if (isRetentionDisabled()) {
@@ -353,65 +444,206 @@ export const runOrgRetentionCleanup = internalAction({
       );
       return null;
     }
-    const rawPolicies = await ctx.runQuery(
-      internal.governance.internal_queries.listRetentionPolicies,
-      {},
-    );
-    const policy = rawPolicies.find(
-      (p) => p.organizationId === args.organizationId,
-    );
-    if (!policy) return null;
-    const config = parseConfig(policy.config);
-    if (!config) return null;
 
-    const org: OrgPolicy = {
-      organizationId: policy.organizationId,
-      config,
-    };
-    const batchSize = config.batchSize ?? DEFAULT_BATCH_SIZE;
-    const { organizationId } = org;
+    // Phase 7 — claim or resume an in-flight retention run row. Concurrent
+    // dispatcher fires (cron overlap) or accidental scheduler duplication
+    // get short-circuited at this point.
+    let runId: Id<'retentionRuns'> | null = null;
+    let resumeCursor:
+      | { category: string; step?: string; lastCreationTime?: number }
+      | undefined;
+    if (args.resumeRunId) {
+      runId = args.resumeRunId;
+      const open = await ctx.runQuery(
+        internal.governance.retention_runs.getOpenRunForOrg,
+        { organizationId: args.organizationId },
+      );
+      resumeCursor =
+        open && open._id === args.resumeRunId ? open.lastCursor : undefined;
+    } else {
+      runId = await ctx.runMutation(
+        internal.governance.retention_runs.claimRetentionRun,
+        { organizationId: args.organizationId },
+      );
+      if (!runId) {
+        console.info(
+          `[RetentionCleanup] org ${args.organizationId} skipped — previous run still in-flight`,
+        );
+        return null;
+      }
+    }
+    const claimedRunId = runId;
 
-    // Phase 8: pre-fetch every active legal hold ONCE per cleanup run.
-    // O(holds) — typically dozens, not thousands — gives O(1) skip
-    // checks during cascade. Holds placed mid-run protect the *next*
-    // run; the brief window is acceptable per ISO 27050 since cleanup
-    // is daily.
-    const holdRows = await ctx.runQuery(
-      internal.governance.legal_hold_internal.loadActiveHoldsForOrg,
-      { organizationId },
-    );
-    const holds: ActiveHolds = {
-      orgHeld: holdRows.orgHeld,
-      threadIds: new Set(holdRows.threadIds),
-      documentIds: new Set(holdRows.documentIds),
-      executionIds: new Set(holdRows.executionIds),
-      userMembershipIds: new Set(holdRows.userMembershipIds),
-    };
+    const startedAt = Date.now();
+    let runError: string | undefined;
 
-    await runCategory('documents', organizationId, () =>
-      cleanupDocuments(ctx, org, batchSize),
-    );
-    await runCategory('userTempFiles', organizationId, () =>
-      cleanupTempFiles(ctx, org, 'user', batchSize),
-    );
-    await runCategory('agentTempFiles', organizationId, () =>
-      cleanupTempFiles(ctx, org, 'agent', batchSize),
-    );
-    await runCategory('chatHistory', organizationId, () =>
-      cleanupChatHistory(ctx, org, batchSize, holds),
-    );
-    await runCategory('auditLogs', organizationId, () =>
-      cleanupAuditLogs(ctx, org, batchSize),
-    );
-    await runCategory('workflowLogs', organizationId, () =>
-      cleanupWorkflowLogs(ctx, org, batchSize),
-    );
-    await runCategory('chatFilterEvents', organizationId, () =>
-      cleanupChatFilterEvents(ctx, org, batchSize),
-    );
-    await runCategory('usageLedger', organizationId, () =>
-      cleanupUsageLedger(ctx, org, batchSize),
-    );
+    try {
+      const rawPolicies = await ctx.runQuery(
+        internal.governance.internal_queries.listRetentionPolicies,
+        {},
+      );
+      const policy = rawPolicies.find(
+        (p) => p.organizationId === args.organizationId,
+      );
+      if (!policy) return null;
+
+      // Phase 3 — pending-change cooldown.
+      // If there's a `retentionPolicyPendingChanges` row for this org:
+      //   - appliesAt in the future → use OLD config (cooldown active).
+      //   - appliesAt elapsed       → finalize (delete pending row) +
+      //                                use NEW config from policy row.
+      const pending = await ctx.runQuery(
+        internal.governance.internal_queries.getPendingRetentionChange,
+        { organizationId: args.organizationId },
+      );
+      let effectiveRawConfig: unknown = policy.config;
+      if (pending) {
+        if (pending.appliesAt > Date.now()) {
+          effectiveRawConfig = pending.oldConfig;
+          console.info(
+            `[RetentionCleanup] org ${args.organizationId} retention shortening pending until ${new Date(pending.appliesAt).toISOString()} — using oldConfig (${pending.summary})`,
+          );
+        } else {
+          await ctx.runMutation(
+            internal.governance.internal_mutations_retention
+              .finalizePendingRetentionChange,
+            {
+              pendingId: pending._id,
+              organizationId: args.organizationId,
+            },
+          );
+        }
+      }
+      const config = parseConfig(effectiveRawConfig);
+      if (!config) return null;
+
+      const org: OrgPolicy = {
+        organizationId: policy.organizationId,
+        config,
+      };
+      const batchSize = config.batchSize ?? DEFAULT_BATCH_SIZE;
+      const { organizationId } = org;
+
+      // Phase 8: pre-fetch every active legal hold ONCE per cleanup run.
+      const holdRows = await ctx.runQuery(
+        internal.governance.legal_hold_internal.loadActiveHoldsForOrg,
+        { organizationId },
+      );
+      const holds: ActiveHolds = {
+        orgHeld: holdRows.orgHeld,
+        threadIds: new Set(holdRows.threadIds),
+        documentIds: new Set(holdRows.documentIds),
+        executionIds: new Set(holdRows.executionIds),
+        userMembershipIds: new Set(holdRows.userMembershipIds),
+      };
+
+      // Sequenced category list. We honor the resumeCursor by skipping
+      // categories that ran to completion in a prior continuation.
+      const categories: Array<{
+        name: string;
+        run: () => Promise<void>;
+      }> = [
+        {
+          name: 'documents',
+          run: () => cleanupDocuments(ctx, org, batchSize, holds),
+        },
+        {
+          name: 'userTempFiles',
+          run: () => cleanupTempFiles(ctx, org, 'user', batchSize),
+        },
+        {
+          name: 'agentTempFiles',
+          run: () => cleanupTempFiles(ctx, org, 'agent', batchSize),
+        },
+        {
+          name: 'chatHistory',
+          run: () => cleanupChatHistory(ctx, org, batchSize, holds),
+        },
+        {
+          name: 'auditLogs',
+          run: () => cleanupAuditLogs(ctx, org, batchSize),
+        },
+        {
+          name: 'workflowLogs',
+          run: () => cleanupWorkflowLogs(ctx, org, batchSize),
+        },
+        {
+          name: 'chatFilterEvents',
+          run: () => cleanupChatFilterEvents(ctx, org, batchSize),
+        },
+        {
+          name: 'promptTemplates',
+          run: () => cleanupPromptTemplates(ctx, org, batchSize),
+        },
+        {
+          name: 'messageFeedback',
+          run: () => cleanupMessageFeedback(ctx, org, batchSize),
+        },
+        {
+          name: 'memoryAudit',
+          run: () => cleanupMemoryAudit(ctx, org, batchSize),
+        },
+        {
+          name: 'usageLedger',
+          run: () => cleanupUsageLedger(ctx, org, batchSize),
+        },
+      ];
+
+      const skipUntilIndex = resumeCursor
+        ? categories.findIndex((c) => c.name === resumeCursor!.category)
+        : -1;
+
+      for (let i = 0; i < categories.length; i++) {
+        if (skipUntilIndex >= 0 && i < skipUntilIndex) continue;
+        const cat = categories[i];
+
+        // Time budget — schedule continuation if we'd risk hitting the
+        // 30-min action ceiling.
+        if (Date.now() - startedAt > PER_RUN_BUDGET_MS) {
+          await ctx.runMutation(
+            internal.governance.retention_runs.recordRetentionRunCheckpoint,
+            {
+              runId: claimedRunId,
+              cursor: { category: cat.name },
+            },
+          );
+          await ctx.scheduler.runAfter(
+            0,
+            internal.governance.retention_cleanup.runOrgRetentionCleanup,
+            {
+              organizationId: args.organizationId,
+              resumeRunId: claimedRunId,
+            },
+          );
+          console.info(
+            `[RetentionCleanup] org ${organizationId} time-budget exhausted at category=${cat.name}; continuation scheduled`,
+          );
+          return null;
+        }
+
+        await runCategory(cat.name, organizationId, cat.run);
+        await ctx.runMutation(
+          internal.governance.retention_runs.recordRetentionRunCheckpoint,
+          {
+            runId: claimedRunId,
+            cursor: { category: cat.name },
+          },
+        );
+      }
+    } catch (err) {
+      runError = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[RetentionCleanup] org ${args.organizationId} failed:`,
+        err,
+      );
+    } finally {
+      // Mark complete regardless — the next dispatcher fire will start
+      // fresh tomorrow. A continuation explicitly re-uses this id.
+      await ctx.runMutation(
+        internal.governance.retention_runs.completeRetentionRun,
+        { runId: claimedRunId, error: runError },
+      );
+    }
 
     return null;
   },

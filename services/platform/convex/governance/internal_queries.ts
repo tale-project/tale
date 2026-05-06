@@ -275,6 +275,112 @@ export const listExpiredWorkflowTriggerLogs = internalQuery({
   },
 });
 
+/**
+ * Look up the active pending-shortening row for an org's retention
+ * policy. Returns `null` when no pending row exists OR the pending row's
+ * `appliesAt` has elapsed (in which case the cooldown is over and the
+ * caller should sweep the row + use the new config).
+ */
+export const getPendingRetentionChange = internalQuery({
+  args: { organizationId: v.string() },
+  returns: v.union(
+    v.object({
+      _id: v.id('retentionPolicyPendingChanges'),
+      appliesAt: v.number(),
+      oldConfig: v.any(),
+      newConfig: v.any(),
+      summary: v.string(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('retentionPolicyPendingChanges')
+      .withIndex('by_organizationId_appliesAt', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .order('desc')
+      .first();
+    if (!row) return null;
+    return {
+      _id: row._id,
+      appliesAt: row.appliesAt,
+      oldConfig: row.oldConfig,
+      newConfig: row.newConfig,
+      summary: row.summary,
+    };
+  },
+});
+
+export const listExpiredPromptTemplates = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('promptTemplates')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      // Skip global-scope templates — they're operator content, not
+      // org content, so per-org retention shouldn't reach them.
+      if (row.scope === 'global') continue;
+      if (row._creationTime >= args.cutoffMs) continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
+export const listExpiredMessageFeedback = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('messageFeedback')
+      .withIndex('by_org_createdAt', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (row._creationTime >= args.cutoffMs) continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
+export const listExpiredMemoryAuditRows = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('userMemoryAuditLog')
+      .withIndex('by_org_at', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (row._creationTime >= args.cutoffMs) continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
 export const listExpiredChatFilterEvents = internalQuery({
   args: {
     organizationId: v.string(),

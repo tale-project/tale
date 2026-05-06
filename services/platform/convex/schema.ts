@@ -31,6 +31,8 @@ import {
   governancePoliciesTable,
   governanceSecretsTable,
   legalHoldsTable,
+  retentionPolicyPendingChangesTable,
+  retentionRunsTable,
   usageLedgerTable,
 } from './governance/schema';
 import { integrationCredentialsTable } from './integrations/credentials_schema';
@@ -85,6 +87,8 @@ export default defineSchema({
   governanceSecrets: governanceSecretsTable,
   legalHolds: legalHoldsTable,
   auditLogCheckpoints: auditLogCheckpointsTable,
+  retentionRuns: retentionRunsTable,
+  retentionPolicyPendingChanges: retentionPolicyPendingChangesTable,
   chatFilterEvents: chatFilterEventsTable,
   usageLedger: usageLedgerTable,
   promptTemplates: promptTemplatesTable,

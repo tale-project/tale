@@ -198,6 +198,94 @@ export const deleteExpiredWorkflowTriggerLog = internalMutation({
   },
 });
 
+/**
+ * Sweep an expired pending-retention-shortening row. After `appliesAt`
+ * has elapsed the cooldown is over; the policy row already holds the
+ * new config (saved at upsert time), so all this does is remove the
+ * pending marker. Idempotent.
+ */
+export const finalizePendingRetentionChange = internalMutation({
+  args: {
+    pendingId: v.id('retentionPolicyPendingChanges'),
+    organizationId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.pendingId);
+    if (!row || row.organizationId !== args.organizationId) return null;
+    if (row.appliesAt > Date.now()) return null;
+    await ctx.db.delete(args.pendingId);
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: 'system',
+      actorEmail: 'system@tale.so',
+      actorType: 'system',
+      action: 'policy.retention_shortening_applied',
+      category: 'security',
+      resourceType: 'governance_policy',
+      resourceId: String(args.pendingId),
+      resourceName: 'retention_policy',
+      newState: { summary: row.summary },
+      status: 'success',
+    });
+    return null;
+  },
+});
+
+export const deleteExpiredPromptTemplate = internalMutation({
+  args: {
+    rowId: v.id('promptTemplates'),
+    organizationId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.rowId);
+    if (!row) return null;
+    await ctx.db.delete(args.rowId);
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: 'system',
+      actorEmail: 'system@tale.so',
+      actorType: 'system',
+      action: 'prompt_template.retention_deleted',
+      category: 'data',
+      resourceType: 'prompt_template',
+      resourceId: String(args.rowId),
+      resourceName: row.title ?? 'Untitled',
+      status: 'success',
+    });
+    return null;
+  },
+});
+
+export const deleteExpiredMessageFeedback = internalMutation({
+  args: {
+    rowId: v.id('messageFeedback'),
+    organizationId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.rowId);
+    if (!row) return null;
+    await ctx.db.delete(args.rowId);
+    return null;
+  },
+});
+
+export const deleteExpiredMemoryAuditRow = internalMutation({
+  args: {
+    rowId: v.id('userMemoryAuditLog'),
+    organizationId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.rowId);
+    if (!row) return null;
+    await ctx.db.delete(args.rowId);
+    return null;
+  },
+});
+
 export const deleteExpiredChatFilterEvent = internalMutation({
   args: {
     eventId: v.id('chatFilterEvents'),
