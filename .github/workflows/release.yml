@@ -53,9 +53,7 @@ jobs:
           echo "- **Version Number**: ${{ steps.version.outputs.version_number }}" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Build and push each service image per architecture.
-  # Blacksmith caches layers on sticky disks automatically.
-  # max-parallel caps concurrent Blacksmith runners during a release.
+  # Build and push each service image per architecture on native runners.
   # ---------------------------------------------------------------------------
   build:
     name: Build ${{ matrix.service.name }} (${{ matrix.arch.name }})
@@ -78,20 +76,12 @@ jobs:
           - { name: proxy }
           - { name: convex }
         arch:
-          - {
-              name: amd64,
-              runner: blacksmith-2vcpu-ubuntu-2404,
-              platform: linux/amd64,
-            }
-          - {
-              name: arm64,
-              runner: blacksmith-2vcpu-ubuntu-2404-arm,
-              platform: linux/arm64,
-            }
+          - { name: amd64, runner: ubuntu-latest, platform: linux/amd64 }
+          - { name: arm64, runner: ubuntu-24.04-arm, platform: linux/arm64 }
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Reclaim disk space
         if: matrix.service.name == 'platform' || matrix.service.name == 'rag' || matrix.service.name == 'crawler' || matrix.service.name == 'convex'
@@ -100,7 +90,7 @@ jobs:
           sudo docker image prune -af
 
       - name: Setup Docker builder
-        uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Login to GHCR
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
@@ -116,7 +106,7 @@ jobs:
           echo "revision=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
-        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
           file: services/${{ matrix.service.name }}/Dockerfile
@@ -138,7 +128,7 @@ jobs:
   container-test:
     name: Container test gate
     needs: [prepare, build]
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
@@ -146,7 +136,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Reclaim disk space
         run: |
