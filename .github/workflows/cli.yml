@@ -27,7 +27,7 @@ jobs:
   # ---------------------------------------------------------------------------
   prepare:
     name: Prepare
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 3
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -46,7 +46,7 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Build the CLI binary for each target platform.
-  # linux -> Blacksmith (cheap+fast). macos/windows -> GitHub-hosted.
+  # All platforms run on GitHub-hosted runners (free for public repos).
   # ---------------------------------------------------------------------------
   build:
     name: Build (${{ matrix.platform }})
@@ -57,7 +57,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: blacksmith-4vcpu-ubuntu-2404
+          - os: ubuntu-latest
             platform: linux
             build_script: build:linux
             binary: tale
@@ -143,7 +143,7 @@ jobs:
     name: Attach to release
     needs: build
     if: ${{ github.event_name == 'workflow_dispatch' }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
