@@ -11,9 +11,9 @@ import { type ChangeEvent, useEffect, useRef, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { REGION_FORMAT_LOCALE, type Region } from '@/lib/pricing/region';
 
-export const MIN_USERS = 25;
-export const SLIDER_MAX_USERS = 1000;
-export const SLIDER_TICKS: readonly number[] = [
+const MIN_USERS = 25;
+const SLIDER_MAX_USERS = 1000;
+const SLIDER_TICKS: readonly number[] = [
   100, 200, 300, 400, 500, 600, 700, 800, 900,
 ];
 const MIN_TIP_DURATION_MS = 2500;
@@ -29,7 +29,7 @@ function tickPositionLeft(value: number, min: number, max: number): string {
   return `calc(${clampedPct.toFixed(2)}% ${sign} ${Math.abs(offset).toFixed(2)}px)`;
 }
 
-export interface UserCountControlProps {
+interface UserCountControlProps {
   value: number;
   onChange: (next: number) => void;
   region: Region;
