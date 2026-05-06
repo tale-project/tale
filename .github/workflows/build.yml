@@ -44,7 +44,7 @@ jobs:
   # ---------------------------------------------------------------------------
   changes:
     name: Detect changes
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
       contents: read
@@ -54,7 +54,7 @@ jobs:
       ci_tests: ${{ steps.filter.outputs.ci_tests }}
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Filter paths
         uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
@@ -89,15 +89,13 @@ jobs:
           echo "Services to build: ${SERVICES}"
 
   # ---------------------------------------------------------------------------
-  # Build each changed service's Docker image. Blacksmith caches layers on
-  # sticky disks automatically; no cache-from/cache-to directives needed.
-  # Draft PRs skip to save minutes.
+  # Build each changed service's Docker image. Draft PRs skip to save minutes.
   # ---------------------------------------------------------------------------
   build:
     name: Build ${{ matrix.service }}
     needs: changes
     if: needs.changes.outputs.services != '[]' && github.event.pull_request.draft != true
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
@@ -108,10 +106,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Docker builder
-        uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Resolve build metadata
         id: meta
@@ -120,7 +118,7 @@ jobs:
           echo "revision=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Build image
-        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
           file: services/${{ matrix.service }}/Dockerfile
@@ -141,14 +139,14 @@ jobs:
     name: Smoke test
     needs: changes
     if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     timeout-minutes: 20
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Reclaim disk space
         run: |
@@ -186,14 +184,14 @@ jobs:
     name: Validate images
     needs: changes
     if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     timeout-minutes: 15
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Reclaim disk space
         run: |
@@ -215,7 +213,7 @@ jobs:
     name: Scan ${{ matrix.service }}
     needs: changes
     if: github.event_name == 'push' && needs.changes.outputs.services != '[]'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
@@ -228,13 +226,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Docker builder
-        uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Build image for scan
-        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
           file: services/${{ matrix.service }}/Dockerfile
@@ -273,14 +271,14 @@ jobs:
     name: Storybook
     needs: changes
     if: contains(fromJson(needs.changes.outputs.services), 'platform') && github.event.pull_request.draft != true
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
 
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@41cdeedae8edb2e684ba22896a5fd2a3cb85db6b # v1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
