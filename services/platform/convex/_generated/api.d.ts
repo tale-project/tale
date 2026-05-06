@@ -323,6 +323,8 @@ import type * as governance_helpers from "../governance/helpers.js";
 import type * as governance_internal_mutations from "../governance/internal_mutations.js";
 import type * as governance_internal_mutations_retention from "../governance/internal_mutations_retention.js";
 import type * as governance_internal_queries from "../governance/internal_queries.js";
+import type * as governance_legal_hold from "../governance/legal_hold.js";
+import type * as governance_legal_hold_internal from "../governance/legal_hold_internal.js";
 import type * as governance_model_access_enforcement from "../governance/model_access_enforcement.js";
 import type * as governance_moderation_provider_http_client from "../governance/moderation_provider/http_client.js";
 import type * as governance_moderation_provider_index from "../governance/moderation_provider/index.js";
@@ -1361,6 +1363,8 @@ declare const fullApi: ApiFromModules<{
   "governance/internal_mutations": typeof governance_internal_mutations;
   "governance/internal_mutations_retention": typeof governance_internal_mutations_retention;
   "governance/internal_queries": typeof governance_internal_queries;
+  "governance/legal_hold": typeof governance_legal_hold;
+  "governance/legal_hold_internal": typeof governance_legal_hold_internal;
   "governance/model_access_enforcement": typeof governance_model_access_enforcement;
   "governance/moderation_provider/http_client": typeof governance_moderation_provider_http_client;
   "governance/moderation_provider/index": typeof governance_moderation_provider_index;

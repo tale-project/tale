@@ -122,3 +122,100 @@ export const usageLedgerTable = defineTable({
     'granularity',
     'periodKey',
   ]);
+
+/**
+ * Legal hold (Phase 8) — preservation flag for compliance / eDiscovery.
+ *
+ * When a row exists for a (organizationId, targetType, targetId) tuple
+ * AND `releasedAt === undefined`, the retention cleanup runner refuses
+ * to physically delete the matching entity. The hold is **sticky**:
+ * `restoreChatThread` also refuses while a hold is active.
+ *
+ * Target types:
+ *   - `'thread'`        — a chat thread (and all its descendants by
+ *                         cascade-protection: cleanup short-circuits
+ *                         before recursing into children).
+ *   - `'document'`      — a knowledge-hub document.
+ *   - `'execution'`     — a workflow execution.
+ *   - `'userMembership'`— protect everything authored by a given user
+ *                         (not yet wired to enforcement; placeholder
+ *                         for the custodian-hold pattern).
+ *   - `'org'`           — protect every entity in the org (cleanup
+ *                         skips the entire org's pass when present).
+ *
+ * Bundle 3 ships this minimum-viable shape:
+ *   - place + release as separate mutations
+ *   - `loadActiveHolds(ctx, orgId)` pre-fetched per cleanup run
+ *   - cascade-protection in retention Pass B
+ *
+ * Deferred to a follow-up (per the v2 plan, intentionally scoped down):
+ *   - dual-control approval flow on release (`legalHoldReleaseRequestsTable`)
+ *   - matter grouping (`legalMattersTable`)
+ *   - bulk place + custodian-resolve + UI search picker
+ */
+export const legalHoldsTable = defineTable({
+  organizationId: v.string(),
+  targetType: v.union(
+    v.literal('thread'),
+    v.literal('document'),
+    v.literal('execution'),
+    v.literal('userMembership'),
+    v.literal('org'),
+  ),
+  /** _id (or threadId for `'thread'`) of the held entity. */
+  targetId: v.string(),
+  /** Required free-text from the placing admin. */
+  reason: v.string(),
+  /** Optional matter / case grouping (free-text for now; future:
+   *  `v.id('legalMatters')`). */
+  matterRef: v.optional(v.string()),
+  placedBy: v.string(),
+  placedAt: v.number(),
+  /** When set, the hold is no longer active and the entity returns to
+   *  normal retention semantics. Released holds are RETAINED for the
+   *  audit trail — never physically deleted. */
+  releasedAt: v.optional(v.number()),
+  releasedBy: v.optional(v.string()),
+  releaseReason: v.optional(v.string()),
+})
+  .index('by_organizationId', ['organizationId'])
+  .index('by_organizationId_targetType', ['organizationId', 'targetType'])
+  .index('by_target', ['organizationId', 'targetType', 'targetId']);
+
+/**
+ * Audit-log integrity checkpoint (Phase 9).
+ *
+ * `audit_logs/internal_mutations.deleteOldLogs` (formerly
+ * `archiveOldLogs`) hard-deletes rows past retention. Without a
+ * checkpoint, the SHA-256 hash chain (audit_logs/helpers.ts) breaks
+ * silently at the cutoff — pre-archive tampering becomes undetectable.
+ *
+ * Each checkpoint signs:
+ *   - the chain's last `integrityHash` value as of the cleanup run
+ *   - the count of rows deleted
+ *   - the timestamp of the newest deleted row
+ *
+ * `verify_integrity.ts` walks checkpoint→checkpoint when the chain
+ * starts with a previousHash whose row is gone, so tampering across
+ * an archive boundary still surfaces as a mismatch.
+ *
+ * Bundle 3 ships the schema + cleanup writes a checkpoint row each
+ * time it deletes; signing with a deploy-key is deferred to a
+ * follow-up (today the checkpoint is unsigned but tamper-evident
+ * because the chain hash itself is content-addressed).
+ */
+export const auditLogCheckpointsTable = defineTable({
+  organizationId: v.string(),
+  /** SHA-256 hash of the last DELETED row's chain head. */
+  lastDeletedHash: v.string(),
+  /** SHA-256 hash of the first RETAINED row's previousHash field, so the
+   *  retained chain can be re-anchored to this checkpoint. */
+  firstRetainedPreviousHash: v.optional(v.string()),
+  /** Newest `_creationTime` among deleted rows. */
+  maxDeletedTimestamp: v.number(),
+  /** Count of rows deleted in this batch. */
+  deletedCount: v.number(),
+  /** Set when bundle-3-follow-up wires the deploy-key signing. */
+  signature: v.optional(v.string()),
+  createdAt: v.number(),
+}).index('by_organizationId_createdAt', ['organizationId', 'createdAt']);

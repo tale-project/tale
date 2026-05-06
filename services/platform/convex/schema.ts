@@ -27,8 +27,10 @@ import { messageFeedbackTable } from './feedback/schema';
 import { fileMetadataTable } from './file_metadata/schema';
 import { foldersTable } from './folders/schema';
 import {
+  auditLogCheckpointsTable,
   governancePoliciesTable,
   governanceSecretsTable,
+  legalHoldsTable,
   usageLedgerTable,
 } from './governance/schema';
 import { integrationCredentialsTable } from './integrations/credentials_schema';
@@ -81,6 +83,8 @@ export default defineSchema({
   auditLogs: auditLogsTable,
   governancePolicies: governancePoliciesTable,
   governanceSecrets: governanceSecretsTable,
+  legalHolds: legalHoldsTable,
+  auditLogCheckpoints: auditLogCheckpointsTable,
   chatFilterEvents: chatFilterEventsTable,
   usageLedger: usageLedgerTable,
   promptTemplates: promptTemplatesTable,

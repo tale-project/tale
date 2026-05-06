@@ -8,6 +8,7 @@ import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { getRagConfig } from '../lib/helpers/rag_config';
+import type { ActiveHolds } from './legal_hold';
 import { isRetentionDisabled } from './retention_floors';
 
 const DEFAULT_BATCH_SIZE = 100;
@@ -110,10 +111,20 @@ async function cleanupChatHistory(
   ctx: ActionCtx,
   org: OrgPolicy,
   batchSize: number,
+  holds: ActiveHolds,
 ): Promise<void> {
   if (!org.config.chatHistoryEnabled) return;
   const days = org.config.chatHistoryRetentionDays;
   if (typeof days !== 'number' || days <= 0) return;
+
+  // Whole-org hold short-circuits the entire category — nothing in this
+  // org should be physically deleted while it's preserved.
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} is on legal hold — skipping chatHistory cleanup`,
+    );
+    return;
+  }
 
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
@@ -122,6 +133,15 @@ async function cleanupChatHistory(
   );
 
   for (const thread of expired) {
+    // Per-thread hold check. The threadMetadata row's `threadId` (not
+    // the Convex `_id`) is the hold target — that's what admins paste
+    // into the place-hold UI and what audit logs record.
+    if (holds.threadIds.has(thread.threadId)) {
+      console.info(
+        `[RetentionCleanup] thread ${thread.threadId} is on legal hold — skipping`,
+      );
+      continue;
+    }
     // cascadeDeleteThreadChildren is page-bounded (PAGE_SIZE = 200 rows
     // per child table); for very large threads it returns
     // `{ done: false, remaining > 0 }`. Re-invoke until done.
@@ -154,7 +174,7 @@ async function cleanupAuditLogs(
   if (typeof days !== 'number' || days <= 0) return;
 
   const olderThanTimestamp = Date.now() - days * DAY_MS;
-  await ctx.runMutation(internal.audit_logs.internal_mutations.archiveOldLogs, {
+  await ctx.runMutation(internal.audit_logs.internal_mutations.deleteOldLogs, {
     organizationId: org.organizationId,
     olderThanTimestamp,
     batchSize,
@@ -351,6 +371,23 @@ export const runOrgRetentionCleanup = internalAction({
     const batchSize = config.batchSize ?? DEFAULT_BATCH_SIZE;
     const { organizationId } = org;
 
+    // Phase 8: pre-fetch every active legal hold ONCE per cleanup run.
+    // O(holds) — typically dozens, not thousands — gives O(1) skip
+    // checks during cascade. Holds placed mid-run protect the *next*
+    // run; the brief window is acceptable per ISO 27050 since cleanup
+    // is daily.
+    const holdRows = await ctx.runQuery(
+      internal.governance.legal_hold_internal.loadActiveHoldsForOrg,
+      { organizationId },
+    );
+    const holds: ActiveHolds = {
+      orgHeld: holdRows.orgHeld,
+      threadIds: new Set(holdRows.threadIds),
+      documentIds: new Set(holdRows.documentIds),
+      executionIds: new Set(holdRows.executionIds),
+      userMembershipIds: new Set(holdRows.userMembershipIds),
+    };
+
     await runCategory('documents', organizationId, () =>
       cleanupDocuments(ctx, org, batchSize),
     );
@@ -361,7 +398,7 @@ export const runOrgRetentionCleanup = internalAction({
       cleanupTempFiles(ctx, org, 'agent', batchSize),
     );
     await runCategory('chatHistory', organizationId, () =>
-      cleanupChatHistory(ctx, org, batchSize),
+      cleanupChatHistory(ctx, org, batchSize, holds),
     );
     await runCategory('auditLogs', organizationId, () =>
       cleanupAuditLogs(ctx, org, batchSize),
