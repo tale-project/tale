@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
@@ -12,6 +12,7 @@ from tale_shared.logging import suppress_health_check_logs
 from tale_telemetry import init_telemetry, shutdown_telemetry
 
 from . import __version__
+from .auth import verify_internal_token, warn_if_default_token_in_use
 from .config import settings
 from .models import ErrorResponse
 from .routers import documents_router, health_router, llm_cache_router, search_router
@@ -40,6 +41,10 @@ async def lifespan(app: FastAPI):
     logger.info("Version: {}", __version__)
     logger.info("Host: {}:{}", settings.host, settings.port)
     logger.info("Log level: {}", settings.log_level)
+
+    # Emit SECURITY warning if the baked-in default internal token is in use.
+    # If RAG_REQUIRE_CUSTOM_INTERNAL_TOKEN=true this raises and stops startup.
+    warn_if_default_token_in_use()
 
     try:
         await rag_service.initialize()
@@ -121,9 +126,18 @@ async def general_exception_handler(_request, exc):
     )
 
 
-# Include routers
+# Include routers.
+# Health router is mounted WITHOUT the internal-token dependency so liveness
+# and readiness probes (docker / k8s) keep working with no auth headers.
+# Every other router requires `Authorization: Bearer ${RAG_INTERNAL_TOKEN}`.
 app.include_router(health_router)
-app.include_router(documents_router)
-app.include_router(search_router)
-app.include_router(llm_cache_router)
+app.include_router(documents_router, dependencies=[Depends(verify_internal_token)])
+app.include_router(search_router, dependencies=[Depends(verify_internal_token)])
+app.include_router(llm_cache_router, dependencies=[Depends(verify_internal_token)])
 init_telemetry(app)
+
+
+@app.get("/", include_in_schema=False)
+async def root() -> dict[str, str]:
+    """Root endpoint — exempt from auth so liveness probes can hit it."""
+    return {"service": "tale-rag", "version": __version__, "status": "ok"}

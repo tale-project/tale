@@ -1,4 +1,5 @@
 import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
+import { ragFetch } from '../../../lib/helpers/rag_config';
 
 const MAX_CHUNK_WINDOW = 200;
 /** Stop fetching once accumulated content exceeds this size (~15K tokens). */
@@ -22,7 +23,6 @@ export interface DocumentChunksResult {
 }
 
 export async function fetchDocumentChunks(
-  serviceUrl: string,
   fileId: string,
 ): Promise<DocumentChunksResult> {
   const allChunks: Array<{ index: number; content: string }> = [];
@@ -33,9 +33,9 @@ export async function fetchDocumentChunks(
 
   while (true) {
     const chunkEnd = chunkStart + MAX_CHUNK_WINDOW - 1;
-    const url = `${serviceUrl}/api/v1/documents/${encodeURIComponent(fileId)}/content?return_chunks=true&chunk_start=${chunkStart}&chunk_end=${chunkEnd}`;
-
-    const response = await fetch(url);
+    const response = await ragFetch(
+      `/api/v1/documents/${encodeURIComponent(fileId)}/content?return_chunks=true&chunk_start=${chunkStart}&chunk_end=${chunkEnd}`,
+    );
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');

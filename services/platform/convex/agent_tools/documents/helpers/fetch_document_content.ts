@@ -1,4 +1,5 @@
 import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
+import { ragFetch } from '../../../lib/helpers/rag_config';
 
 const MAX_CONTENT_CHARS = 50_000;
 const FETCH_TIMEOUT_MS = 60_000;
@@ -35,7 +36,6 @@ export interface FetchDocumentContentOptions {
  * Shared between agent tool (retrieve_document) and workflow action (document action).
  */
 export async function fetchDocumentContent(
-  ragServiceUrl: string,
   fileId: string,
   options?: FetchDocumentContentOptions,
 ): Promise<DocumentContentResult> {
@@ -50,14 +50,10 @@ export async function fetchDocumentContent(
     params.set('return_chunks', 'true');
   }
   const query = params.toString();
-  const url = `${ragServiceUrl}/api/v1/documents/${encodeURIComponent(fileId)}/content${query ? `?${query}` : ''}`;
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const path = `/api/v1/documents/${encodeURIComponent(fileId)}/content${query ? `?${query}` : ''}`;
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
+    const response = await ragFetch(path, { timeoutMs: FETCH_TIMEOUT_MS });
 
     if (response.status === 404) {
       throw new Error(
@@ -100,9 +96,10 @@ export async function fetchDocumentContent(
       chunks: result.chunks,
     };
   } catch (error) {
-    clearTimeout(timeoutId);
-
-    if (error instanceof Error && error.name === 'AbortError') {
+    if (
+      error instanceof Error &&
+      (error.name === 'AbortError' || error.name === 'TimeoutError')
+    ) {
       throw new Error(
         `RAG service timed out after ${FETCH_TIMEOUT_MS / 1000}s while retrieving document "${fileId}".`,
         { cause: error },

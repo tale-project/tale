@@ -23,7 +23,6 @@ function ensureExtension(fileName: string, contentType: string): string {
 
 export async function uploadDocument(
   ctx: ActionCtx,
-  ragServiceUrl: string,
   fileId: string,
   options?: {
     sync?: boolean;
@@ -63,7 +62,6 @@ export async function uploadDocument(
   );
 
   return uploadFile({
-    ragServiceUrl,
     file,
     filename: fileName,
     contentType,

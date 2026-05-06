@@ -5,7 +5,7 @@ import { v } from 'convex/values';
 import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
-import { getRagConfig } from '../lib/helpers/rag_config';
+import { ragFetch } from '../lib/helpers/rag_config';
 
 /**
  * Check RAG indexing status for a list of files and update fileMetadata.
@@ -22,18 +22,13 @@ export const checkFileRagStatuses = action({
   handler: async (ctx, args): Promise<null> => {
     if (args.storageIds.length === 0) return null;
 
-    const ragUrl = getRagConfig().serviceUrl;
-    if (!ragUrl) return null;
-
-    const url = `${ragUrl}/api/v1/documents/statuses`;
-
     let body: unknown;
     try {
-      const response = await fetch(url, {
+      const response = await ragFetch('/api/v1/documents/statuses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file_ids: args.storageIds }),
-        signal: AbortSignal.timeout(10_000),
+        timeoutMs: 10_000,
       });
 
       if (!response.ok) {

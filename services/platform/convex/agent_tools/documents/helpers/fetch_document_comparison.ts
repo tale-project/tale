@@ -1,4 +1,5 @@
 import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
+import { ragFetch } from '../../../lib/helpers/rag_config';
 
 const FETCH_TIMEOUT_MS = 120_000;
 
@@ -108,13 +109,10 @@ function mapChangeBlock(block: RagChangeBlock): ChangeBlock {
  * Compare two documents by ID via the RAG service's deterministic diff endpoint.
  */
 export async function fetchDocumentComparison(
-  ragServiceUrl: string,
   baseFileId: string,
   comparisonFileId: string,
   maxChanges?: number,
 ): Promise<DocumentComparisonResult> {
-  const url = `${ragServiceUrl}/api/v1/documents/compare`;
-
   const body: Record<string, unknown> = {
     base_file_id: baseFileId,
     comparison_file_id: comparisonFileId,
@@ -123,17 +121,13 @@ export async function fetchDocumentComparison(
     body.max_changes = maxChanges;
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
   try {
-    const response = await fetch(url, {
+    const response = await ragFetch('/api/v1/documents/compare', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      signal: controller.signal,
+      timeoutMs: FETCH_TIMEOUT_MS,
     });
-    clearTimeout(timeoutId);
 
     if (response.status === 404) {
       const errorText = await response.text().catch(() => '');
@@ -157,9 +151,10 @@ export async function fetchDocumentComparison(
     const result = await fetchJson<RagCompareResponse>(response);
     return mapRagResponse(result);
   } catch (error) {
-    clearTimeout(timeoutId);
-
-    if (error instanceof Error && error.name === 'AbortError') {
+    if (
+      error instanceof Error &&
+      (error.name === 'AbortError' || error.name === 'TimeoutError')
+    ) {
       throw new Error(
         `RAG service timed out after ${FETCH_TIMEOUT_MS / 1000}s while comparing documents.`,
         { cause: error },
@@ -201,7 +196,6 @@ function mapRagResponse(result: RagCompareResponse): DocumentComparisonResult {
  * function to avoid passing large Blobs through function parameters.
  */
 export async function fetchDocumentComparisonByUrls(
-  ragServiceUrl: string,
   baseFileUrl: string,
   baseFileName: string,
   comparisonFileUrl: string,
@@ -226,8 +220,6 @@ export async function fetchDocumentComparisonByUrls(
     compResponse.blob(),
   ]);
 
-  const url = `${ragServiceUrl}/api/v1/documents/compare-files`;
-
   const formData = new FormData();
   formData.append('base_file', baseBlob, baseFileName);
   formData.append('comparison_file', compBlob, comparisonFileName);
@@ -235,16 +227,12 @@ export async function fetchDocumentComparisonByUrls(
     formData.append('max_changes', String(maxChanges));
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
   try {
-    const response = await fetch(url, {
+    const response = await ragFetch('/api/v1/documents/compare-files', {
       method: 'POST',
       body: formData,
-      signal: controller.signal,
+      timeoutMs: FETCH_TIMEOUT_MS,
     });
-    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
@@ -256,9 +244,10 @@ export async function fetchDocumentComparisonByUrls(
     const result = await fetchJson<RagCompareResponse>(response);
     return mapRagResponse(result);
   } catch (error) {
-    clearTimeout(timeoutId);
-
-    if (error instanceof Error && error.name === 'AbortError') {
+    if (
+      error instanceof Error &&
+      (error.name === 'AbortError' || error.name === 'TimeoutError')
+    ) {
       throw new Error(
         `RAG service timed out after ${FETCH_TIMEOUT_MS / 1000}s while comparing files.`,
         { cause: error },

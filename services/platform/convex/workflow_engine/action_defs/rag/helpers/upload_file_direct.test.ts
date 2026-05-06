@@ -1,13 +1,27 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
+import { _resetRagConfigForTests } from '../../../../lib/helpers/rag_config';
 import { uploadFile } from './upload_file_direct';
 
 const RAG_URL = 'http://rag:8000';
+
+beforeAll(() => {
+  process.env.RAG_URL = RAG_URL;
+  process.env.RAG_INTERNAL_TOKEN = 'test-token';
+  _resetRagConfigForTests();
+});
 const FILE_ID = 'doc-abc-123';
 
 function defaultArgs() {
   return {
-    ragServiceUrl: RAG_URL,
     file: new Blob(['test-content'], { type: 'text/plain' }),
     filename: 'test.txt',
     contentType: 'text/plain',

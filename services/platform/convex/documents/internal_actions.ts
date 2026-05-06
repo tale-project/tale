@@ -8,7 +8,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
 import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
-import { getRagConfig } from '../lib/helpers/rag_config';
+import { ragFetch } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 import type { GenerateDocxResult } from './generate_docx';
 import * as DocumentsHelpers from './helpers';
@@ -193,17 +193,14 @@ export const checkRagDocumentStatus = internalAction({
       return null;
     }
 
-    const ragUrl = getRagConfig().serviceUrl;
-    const url = `${ragUrl}/api/v1/documents/statuses`;
-
     try {
-      const response = await fetch(url, {
+      const response = await ragFetch('/api/v1/documents/statuses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           file_ids: [document.fileId],
         }),
-        signal: AbortSignal.timeout(10000),
+        timeoutMs: 10_000,
       });
 
       if (response.status === 429) {
@@ -387,7 +384,6 @@ export const deleteDocumentFromRag = internalAction({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const attempt = args.attempt ?? 0;
-    const ragUrl = getRagConfig().serviceUrl;
 
     const document = await ctx.runQuery(
       internal.documents.internal_queries.getDocumentByIdRaw,
@@ -405,12 +401,9 @@ export const deleteDocumentFromRag = internalAction({
 
     let ragSuccess = false;
     try {
-      const response = await fetch(
-        `${ragUrl}/api/v1/documents/${encodeURIComponent(ragKey)}`,
-        {
-          method: 'DELETE',
-          signal: AbortSignal.timeout(60000),
-        },
+      const response = await ragFetch(
+        `/api/v1/documents/${encodeURIComponent(ragKey)}`,
+        { method: 'DELETE', timeoutMs: 60_000 },
       );
 
       if (response.ok) {
@@ -543,13 +536,11 @@ export const reindexDocumentInRag = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const ragUrl = getRagConfig().serviceUrl;
-
     // Delete old RAG entry (ignore 404 — may not have been indexed)
     try {
-      const response = await fetch(
-        `${ragUrl}/api/v1/documents/${encodeURIComponent(args.oldFileId)}`,
-        { method: 'DELETE', signal: AbortSignal.timeout(60000) },
+      const response = await ragFetch(
+        `/api/v1/documents/${encodeURIComponent(args.oldFileId)}`,
+        { method: 'DELETE', timeoutMs: 60_000 },
       );
       if (!response.ok && response.status !== 404) {
         console.warn(

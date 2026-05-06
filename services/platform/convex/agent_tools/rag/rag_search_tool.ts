@@ -20,7 +20,7 @@ import { z } from 'zod/v4';
 import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
-import { getRagConfig } from '../../lib/helpers/rag_config';
+import { ragFetch } from '../../lib/helpers/rag_config';
 import type { ToolDefinition } from '../types';
 import {
   formatSearchResults,
@@ -198,9 +198,9 @@ RESPONSE (list_indexed):
           chunkEnd: end,
         });
 
-        const ragServiceUrl = getRagConfig().serviceUrl;
-        const url = `${ragServiceUrl}/api/v1/documents/${encodeURIComponent(args.fileId)}/content?return_chunks=true&chunk_start=${start}&chunk_end=${end}`;
-        const response = await fetch(url);
+        const response = await ragFetch(
+          `/api/v1/documents/${encodeURIComponent(args.fileId)}/content?return_chunks=true&chunk_start=${start}&chunk_end=${end}`,
+        );
 
         if (!response.ok) {
           const errorText = await response.text().catch(() => '');
@@ -276,9 +276,6 @@ RESPONSE (list_indexed):
         };
       }
 
-      const ragServiceUrl = getRagConfig().serviceUrl;
-      const url = `${ragServiceUrl}/api/v1/search`;
-
       const payload = {
         query: args.query,
         file_ids: fileIds,
@@ -293,11 +290,9 @@ RESPONSE (list_indexed):
       });
 
       try {
-        const response = await fetch(url, {
+        const response = await ragFetch('/api/v1/search', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
 

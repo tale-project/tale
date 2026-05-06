@@ -8,7 +8,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
-import { getRagConfig } from '../lib/helpers/rag_config';
+import { ragFetch } from '../lib/helpers/rag_config';
 import type { ActiveHolds } from './legal_hold';
 import { isRetentionDisabled } from './retention_floors';
 
@@ -31,12 +31,12 @@ interface OrgPolicy {
 }
 
 async function deleteRagEntry(fileId: string, label: string): Promise<void> {
-  const ragUrl = getRagConfig().serviceUrl;
   try {
-    const res = await fetch(
-      `${ragUrl}/api/v1/documents/${encodeURIComponent(fileId)}`,
-      { method: 'DELETE', signal: AbortSignal.timeout(30000) },
+    const res = await ragFetch(
+      `/api/v1/documents/${encodeURIComponent(fileId)}`,
+      { method: 'DELETE', timeoutMs: 10_000 },
     );
+    // 404 is success on DELETE — already gone.
     if (!res.ok && res.status !== 404) {
       console.warn(
         `[RetentionCleanup] RAG DELETE returned ${res.status} for ${label}`,

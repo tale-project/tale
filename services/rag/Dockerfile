@@ -136,6 +136,13 @@ ENV TALE_VERSION=${VERSION} \
     RAG_LOG_LEVEL=info \
     RAG_CHUNK_SIZE=2048 \
     RAG_CHUNK_OVERLAP=200 \
+    # Internal-token default — matches the bake in services/convex/Dockerfile
+    # so a fresh `docker compose up` works without operator setup. Production
+    # operators MUST override RAG_INTERNAL_TOKEN to a unique secret. Startup
+    # logs a loud SECURITY warning every restart while the default is active.
+    # Set RAG_REQUIRE_CUSTOM_INTERNAL_TOKEN=true to refuse to start with the
+    # default (strict production posture).
+    RAG_INTERNAL_TOKEN=tale-rag-dev-only \
     DO_NOT_TRACK=1 \
     TALE_PLATFORM_SHARED_CONFIG_DIR=/app/platform-config
 
@@ -174,6 +181,13 @@ ENV TALE_VERSION=${VERSION} \
     RAG_LOG_LEVEL=info \
     RAG_CHUNK_SIZE=2048 \
     RAG_CHUNK_OVERLAP=200 \
+    # Internal-token default — matches the bake in services/convex/Dockerfile
+    # so a fresh `docker compose up` works without operator setup. Production
+    # operators MUST override RAG_INTERNAL_TOKEN to a unique secret. Startup
+    # logs a loud SECURITY warning every restart while the default is active.
+    # Set RAG_REQUIRE_CUSTOM_INTERNAL_TOKEN=true to refuse to start with the
+    # default (strict production posture).
+    RAG_INTERNAL_TOKEN=tale-rag-dev-only \
     DO_NOT_TRACK=1 \
     TALE_PLATFORM_SHARED_CONFIG_DIR=/app/platform-config
 

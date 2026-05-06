@@ -3,7 +3,6 @@ import type { z } from 'zod/v4';
 
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
-import { getRagConfig } from '../../../lib/helpers/rag_config';
 import { toId } from '../../../lib/type_cast_helpers';
 import type { documentRetrieveArgs } from '../document_retrieve_tool';
 import {
@@ -89,9 +88,7 @@ export async function retrieveDocument(
     }
   }
 
-  const ragServiceUrl = getRagConfig().serviceUrl;
-
-  const result = await fetchDocumentContent(ragServiceUrl, args.fileId, {
+  const result = await fetchDocumentContent(args.fileId, {
     chunkStart: args.chunkStart,
     chunkEnd: args.chunkEnd,
   });

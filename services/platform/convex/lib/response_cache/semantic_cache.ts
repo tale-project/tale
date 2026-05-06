@@ -7,7 +7,7 @@
  * Gracefully degrades if the RAG service is unavailable.
  */
 
-import { getRagConfig } from '../helpers/rag_config';
+import { ragFetch } from '../helpers/rag_config';
 
 const TIMEOUT_MS = 10_000;
 
@@ -31,11 +31,7 @@ export async function lookupSemanticCache(params: {
   similarityThreshold?: number;
 }): Promise<SemanticCacheHit | null> {
   try {
-    const { serviceUrl } = getRagConfig();
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-    const response = await fetch(`${serviceUrl}/api/v1/llm-cache/lookup`, {
+    const response = await ragFetch('/api/v1/llm-cache/lookup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -45,9 +41,8 @@ export async function lookupSemanticCache(params: {
         similarity_threshold:
           params.similarityThreshold ?? DEFAULT_SIMILARITY_THRESHOLD,
       }),
-      signal: controller.signal,
+      timeoutMs: TIMEOUT_MS,
     });
-    clearTimeout(timeout);
 
     if (!response.ok) return null;
 
@@ -103,11 +98,7 @@ export async function storeSemanticCache(params: {
   organizationId?: string;
 }): Promise<void> {
   try {
-    const { serviceUrl } = getRagConfig();
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-    await fetch(`${serviceUrl}/api/v1/llm-cache/store`, {
+    await ragFetch('/api/v1/llm-cache/store', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -121,9 +112,8 @@ export async function storeSemanticCache(params: {
         user_id: params.userId,
         organization_id: params.organizationId,
       }),
-      signal: controller.signal,
+      timeoutMs: TIMEOUT_MS,
     });
-    clearTimeout(timeout);
   } catch {
     // Fire-and-forget: don't fail the response if cache store fails
   }

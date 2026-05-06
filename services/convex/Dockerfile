@@ -94,7 +94,14 @@ ENV NODE_ENV=production \
     # Root config directory consumed by Convex actions (file-based configs).
     # Sub-dirs (agents/workflows/integrations/providers) are derived inside
     # Convex via `convex/*/file_utils.ts` — no need to set them explicitly.
-    TALE_CONFIG_DIR=/app/data
+    TALE_CONFIG_DIR=/app/data \
+    # Internal-token default for talking to the RAG service. Matches the
+    # bake in services/rag/Dockerfile so a fresh `docker compose up` works
+    # without operator setup. Production operators MUST override
+    # RAG_INTERNAL_TOKEN to a unique secret on BOTH the platform and RAG
+    # containers (they must match). Convex logs print a SECURITY warning
+    # while the default is in use.
+    RAG_INTERNAL_TOKEN=tale-rag-dev-only
 
 # ----------------------------------------------------------------------------
 # Convex Dashboard (Next.js standalone) — served as /convex-dashboard via Caddy

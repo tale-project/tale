@@ -1,7 +1,7 @@
+import { ragFetch } from '../../../../lib/helpers/rag_config';
 import type { RagUploadResult } from './types';
 
 export interface UploadFileArgs {
-  ragServiceUrl: string;
   file: Blob;
   filename: string;
   contentType: string;
@@ -25,7 +25,6 @@ const SYNC_TIMEOUT_MS = 120_000;
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export async function uploadFile({
-  ragServiceUrl,
   file,
   filename,
   contentType,
@@ -46,20 +45,15 @@ export async function uploadFile({
     JSON.stringify({ ...metadata, content_type: contentType }),
   );
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
+  const path = sync
+    ? '/api/v1/documents/upload?sync=true'
+    : '/api/v1/documents/upload';
 
-  const uploadUrl = sync
-    ? `${ragServiceUrl}/api/v1/documents/upload?sync=true`
-    : `${ragServiceUrl}/api/v1/documents/upload`;
-
-  const response = await fetch(uploadUrl, {
+  const response = await ragFetch(path, {
     method: 'POST',
     body: formData,
-    signal: controller.signal,
+    timeoutMs: effectiveTimeout,
   });
-
-  clearTimeout(timeoutId);
 
   if (!response.ok) {
     const errorText = await response.text();

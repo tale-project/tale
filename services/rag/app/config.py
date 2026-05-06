@@ -22,6 +22,18 @@ class Settings(BaseServiceSettings):
     # Override base defaults
     port: int = 8001
 
+    # Internal auth token shared with the platform service.
+    # Default `tale-rag-dev-only` matches the value baked into the RAG and
+    # platform Docker images so a fresh `docker compose up` works with no
+    # config. Production operators MUST override via env / compose / k8s
+    # secret. When the default is in use, startup logs a loud SECURITY
+    # warning every restart (see main.py).
+    internal_token: str = "tale-rag-dev-only"
+
+    # When true, refuse to start with the default internal token (strict
+    # production posture). Default false so dev / eval / local just works.
+    require_custom_internal_token: bool = False
+
     # Database pool sizing
     database_pool_min: int = 2
     database_pool_max: int = 10

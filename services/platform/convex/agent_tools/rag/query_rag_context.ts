@@ -11,7 +11,7 @@
 
 import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../lib/debug_log';
-import { getRagConfig } from '../../lib/helpers/rag_config';
+import { getRagConfig, ragFetch } from '../../lib/helpers/rag_config';
 import {
   extractCitationsFromSearchResults,
   formatSearchResults,
@@ -154,7 +154,6 @@ export async function queryRagContext(
 ): Promise<RagContextResult | undefined> {
   try {
     const ragServiceUrl = getRagConfig().serviceUrl;
-    const url = `${ragServiceUrl}/api/v1/search`;
 
     // Build expanded query with conversation context
     const expandedQuery = buildExpandedQuery(userMessage, recentMessages);
@@ -189,11 +188,9 @@ export async function queryRagContext(
       }
       requestPayload.file_ids = options.fileIds;
 
-      const response = await fetch(url, {
+      const response = await ragFetch('/api/v1/search', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestPayload),
         signal: fetchSignal,
       });

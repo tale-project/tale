@@ -1,6 +1,21 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterEach,
+} from 'vitest';
 
+import { _resetRagConfigForTests } from '../../../../lib/helpers/rag_config';
 import { deleteDocumentById } from './delete_document';
+
+beforeAll(() => {
+  process.env.RAG_URL = 'http://rag:8000';
+  process.env.RAG_INTERNAL_TOKEN = 'test-token';
+  _resetRagConfigForTests();
+});
 
 describe('deleteDocumentById', () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
@@ -38,7 +53,6 @@ describe('deleteDocumentById', () => {
     });
 
     await deleteDocumentById({
-      ragServiceUrl: 'http://rag:8000',
       fileId: 'doc-123',
     });
 
@@ -56,7 +70,6 @@ describe('deleteDocumentById', () => {
     });
 
     const result = await deleteDocumentById({
-      ragServiceUrl: 'http://rag:8000',
       fileId: 'doc-abc',
     });
 
@@ -70,7 +83,6 @@ describe('deleteDocumentById', () => {
     mockFetch({ detail: 'not found' }, 400);
 
     const result = await deleteDocumentById({
-      ragServiceUrl: 'http://rag:8000',
       fileId: 'doc-fail',
     });
 
@@ -82,7 +94,6 @@ describe('deleteDocumentById', () => {
     mockFetch({ success: true, deleted_count: 0, deleted_data_ids: [] });
 
     await deleteDocumentById({
-      ragServiceUrl: 'http://rag:8000',
       fileId: 'doc/with spaces',
     });
 
