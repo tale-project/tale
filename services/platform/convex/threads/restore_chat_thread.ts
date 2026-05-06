@@ -12,8 +12,9 @@
  * Refuses if:
  *   - the thread's children have been cascade-deleted (Pass B already ran);
  *     in that case there's nothing to restore.
- *   - a future Phase-8 legalHold guard would also refuse here, but that
- *     code lands with Bundle 3.
+ *   - the thread is under an active legalHold — restore would defeat the
+ *     freeze (the user could resume editing/deleting messages on a hold
+ *     target). Throws `LEGAL_HOLD_BLOCKS_RESTORE`.
  *
  * The agent-component thread is NOT touched here (it stays in whatever
  * state the user-delete or retention path left it). If a future restore
@@ -28,6 +29,7 @@ import { ConvexError, v } from 'convex/values';
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
+import { loadActiveHolds } from '../governance/legal_hold';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
@@ -96,6 +98,23 @@ export const restoreChatThread = mutation({
       });
     }
     // Legacy `'deleted'` rows: same gate as `'trashed'`.
+
+    // Legal-hold gate. Restore would re-open a held thread for edits,
+    // defeating the preservation contract. Refuse — owner / admin must
+    // wait for the hold to be released through the dual-control flow.
+    if (metadata.organizationId !== undefined) {
+      const holds = await loadActiveHolds(ctx, metadata.organizationId);
+      if (holds.orgHeld || holds.threadIds.has(metadata.threadId)) {
+        throw new ConvexError({
+          code: 'LEGAL_HOLD_BLOCKS_RESTORE',
+          message: holds.orgHeld
+            ? 'Org is under an active legal hold — restore is blocked until the hold is released.'
+            : 'Thread is under an active legal hold — restore is blocked until the hold is released.',
+          threadId: metadata.threadId,
+          orgHeld: holds.orgHeld,
+        });
+      }
+    }
 
     // Restore: clear status + statusChangedAt; un-archive the agent thread.
     await ctx.db.patch(metadata._id, {
