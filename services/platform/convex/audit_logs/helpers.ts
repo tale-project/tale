@@ -215,6 +215,15 @@ export async function createAuditLog(
     previousHash: previousHash || undefined,
   });
 
+  // Patch the predecessor with our id so concurrent writers serialize
+  // via Convex OCC. Two transactions that both read `lastEntry` and
+  // both try to patch it conflict at commit time; the loser auto-
+  // retries, re-reads `lastEntry` (which is now the row inserted by
+  // the winner), and chains correctly off it instead of forking.
+  if (lastEntry) {
+    await ctx.db.patch(lastEntry._id, { chainSuccessor: auditLogId });
+  }
+
   return auditLogId;
 }
 

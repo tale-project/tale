@@ -60,6 +60,14 @@ export const auditLogsTable = defineTable({
 
   integrityHash: v.optional(v.string()),
   previousHash: v.optional(v.string()),
+  /**
+   * Forward-link to the next row in the per-org chain. Set by
+   * `createAuditLog` after it inserts a successor; reading + patching
+   * the predecessor row in the same mutation forces concurrent
+   * audit-writers to serialize via Convex OCC, so the chain cannot
+   * fork (round-2 v05 M1 finding).
+   */
+  chainSuccessor: v.optional(v.id('auditLogs')),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_timestamp', ['organizationId', 'timestamp'])
