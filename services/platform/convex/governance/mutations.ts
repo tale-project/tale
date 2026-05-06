@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import {
   budgetConfigSchema,
@@ -21,6 +21,11 @@ import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import {
+  type RetentionCategory,
+  RetentionBoundsViolation,
+  assertWithinBounds,
+} from './retention_floors';
 import { GOVERNANCE_POLICY_TYPES } from './schema';
 
 const policyTypeValidator = v.union(
@@ -125,6 +130,44 @@ export const upsertPolicy = mutation({
         throw new Error(
           `Invalid retention policy configuration: ${parsed.error.message}`,
         );
+      }
+      // Env-floor / env-ceiling enforcement: operator-set bounds via
+      // `TALE_RETENTION_*_MIN_DAYS` / `_MAX_DAYS` are non-negotiable.
+      // Throws RETENTION_BELOW_FLOOR or RETENTION_EXCEEDS_CEILING with
+      // structured error data so the UI can render an inline field error
+      // pointing at the exact category.
+      const cfg = parsed.data;
+      const checks: Array<[RetentionCategory, number | undefined]> = [
+        ['documents', cfg.retentionDays],
+        ['userTempHours', cfg.userTempRetentionHours],
+        ['agentTempHours', cfg.agentTempRetentionHours],
+        ['chatHistory', cfg.chatHistoryRetentionDays],
+        ['auditLog', cfg.auditLogRetentionDays],
+        ['workflowLog', cfg.workflowLogRetentionDays],
+        ['usageLedger', cfg.usageLedgerRetentionDays],
+        ['loginAttempt', cfg.loginAttemptRetentionDays],
+        ['chatFilterEvents', cfg.chatFilterEventsRetentionDays],
+        ['promptTemplates', cfg.promptTemplatesRetentionDays],
+        ['messageFeedback', cfg.messageFeedbackRetentionDays],
+        ['memoryAudit', cfg.memoryAuditRetentionDays],
+      ];
+      for (const [cat, val] of checks) {
+        if (val === undefined) continue;
+        try {
+          assertWithinBounds(cat, val);
+        } catch (err) {
+          if (err instanceof RetentionBoundsViolation) {
+            throw new ConvexError({
+              code: err.code,
+              category: err.category,
+              requested: err.requested,
+              bound: err.bound,
+              source: err.source,
+              message: err.message,
+            });
+          }
+          throw err;
+        }
       }
     }
 

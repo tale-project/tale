@@ -198,6 +198,25 @@ export const deleteExpiredWorkflowTriggerLog = internalMutation({
   },
 });
 
+export const deleteExpiredChatFilterEvent = internalMutation({
+  args: {
+    eventId: v.id('chatFilterEvents'),
+    organizationId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.eventId);
+    if (!row) {
+      return null;
+    }
+    await ctx.db.delete(args.eventId);
+    // No per-row audit log here — chatFilterEvents are themselves a
+    // telemetry stream; retention deletions of telemetry would create
+    // log spam. The cleanup run summary is sufficient.
+    return null;
+  },
+});
+
 export const deleteExpiredUsageLedgerRow = internalMutation({
   args: {
     rowId: v.id('usageLedger'),

@@ -91,15 +91,31 @@ export const retentionPolicyConfigSchema = z.object({
   chatHistoryEnabled: z.boolean().optional(),
   chatHistoryRetentionDays: z.number().int().min(1).max(3650).optional(),
   auditLogsEnabled: z.boolean().optional(),
-  auditLogRetentionDays: z.number().int().min(30).max(365).optional(),
+  // Audit floor raised to 365 days per PCI DSS Req 10.5.1 / SOC 2 / ISO
+  // 27001 baseline. Operators with HIPAA can extend up to 10 years via
+  // the env-var ceiling; the in-code minimum is non-negotiable.
+  auditLogRetentionDays: z.number().int().min(365).max(3650).optional(),
   workflowLogsEnabled: z.boolean().optional(),
   workflowLogRetentionDays: z.number().int().min(1).max(365).optional(),
   usageLedgerEnabled: z.boolean().optional(),
   usageLedgerRetentionDays: z.number().int().min(30).max(3650).optional(),
   loginAttemptsEnabled: z.boolean().optional(),
-  loginAttemptRetentionDays: z.number().int().min(7).max(365).optional(),
+  // Login-event floor raised to 90 days for security forensics.
+  loginAttemptRetentionDays: z.number().int().min(90).max(365).optional(),
   chatFilterEventsEnabled: z.boolean().optional(),
   chatFilterEventsRetentionDays: z.number().int().min(1).max(365).optional(),
+  // New categories (Phase 5 — coverage extension):
+  promptTemplatesEnabled: z.boolean().optional(),
+  promptTemplatesRetentionDays: z.number().int().min(30).max(3650).optional(),
+  messageFeedbackEnabled: z.boolean().optional(),
+  messageFeedbackRetentionDays: z.number().int().min(30).max(3650).optional(),
+  memoryAuditEnabled: z.boolean().optional(),
+  memoryAuditRetentionDays: z.number().int().min(30).max(3650).optional(),
+  // Cross-cutting grace window for soft-deleted rows. graceDays=0 means
+  // Pass A also hard-deletes (no trash window); graceDays>0 keeps rows
+  // visible in admin Trash for that many days before Pass B physically
+  // removes them.
+  deletionGraceDays: z.number().int().min(0).max(90).optional(),
 });
 export type RetentionPolicyConfig = z.infer<typeof retentionPolicyConfigSchema>;
 

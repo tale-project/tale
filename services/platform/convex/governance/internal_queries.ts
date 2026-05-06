@@ -275,6 +275,28 @@ export const listExpiredWorkflowTriggerLogs = internalQuery({
   },
 });
 
+export const listExpiredChatFilterEvents = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('chatFilterEvents')
+      .withIndex('by_org_createdAt', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (row._creationTime >= args.cutoffMs) continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
 export const listExpiredUsageLedgerRows = internalQuery({
   args: {
     organizationId: v.string(),

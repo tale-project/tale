@@ -8,6 +8,7 @@ import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { getRagConfig } from '../lib/helpers/rag_config';
+import { isRetentionDisabled } from './retention_floors';
 
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_TEMP_RETENTION_HOURS = 24;
@@ -220,6 +221,29 @@ async function cleanupUsageLedger(
   }
 }
 
+async function cleanupChatFilterEvents(
+  ctx: ActionCtx,
+  org: OrgPolicy,
+  batchSize: number,
+): Promise<void> {
+  if (!org.config.chatFilterEventsEnabled) return;
+  const days = org.config.chatFilterEventsRetentionDays;
+  if (typeof days !== 'number' || days <= 0) return;
+
+  const cutoffMs = Date.now() - days * DAY_MS;
+  const expired = await ctx.runQuery(
+    internal.governance.internal_queries.listExpiredChatFilterEvents,
+    { organizationId: org.organizationId, cutoffMs, batchSize },
+  );
+  for (const row of expired) {
+    await ctx.runMutation(
+      internal.governance.internal_mutations_retention
+        .deleteExpiredChatFilterEvent,
+      { eventId: row._id, organizationId: org.organizationId },
+    );
+  }
+}
+
 // Login attempts are email-scoped (not org-scoped). Run as a single pass
 // using the strictest (shortest) retention across any org that has the
 // flag enabled. If no org enabled it, skip entirely.
@@ -303,6 +327,12 @@ export const runOrgRetentionCleanup = internalAction({
   args: { organizationId: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    if (isRetentionDisabled()) {
+      console.warn(
+        '[RetentionCleanup] TALE_RETENTION_DISABLED=true — skipping run',
+      );
+      return null;
+    }
     const rawPolicies = await ctx.runQuery(
       internal.governance.internal_queries.listRetentionPolicies,
       {},
@@ -339,6 +369,9 @@ export const runOrgRetentionCleanup = internalAction({
     await runCategory('workflowLogs', organizationId, () =>
       cleanupWorkflowLogs(ctx, org, batchSize),
     );
+    await runCategory('chatFilterEvents', organizationId, () =>
+      cleanupChatFilterEvents(ctx, org, batchSize),
+    );
     await runCategory('usageLedger', organizationId, () =>
       cleanupUsageLedger(ctx, org, batchSize),
     );
@@ -351,6 +384,12 @@ export const runRetentionCleanup = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx): Promise<null> => {
+    if (isRetentionDisabled()) {
+      console.warn(
+        '[RetentionCleanup] TALE_RETENTION_DISABLED=true — skipping run',
+      );
+      return null;
+    }
     const rawPolicies = await ctx.runQuery(
       internal.governance.internal_queries.listRetentionPolicies,
       {},

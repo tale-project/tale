@@ -315,6 +315,7 @@ import type * as governance_chat_filter_index from "../governance/chat_filter/in
 import type * as governance_cost_estimation from "../governance/cost_estimation.js";
 import type * as governance_default_model_query from "../governance/default_model_query.js";
 import type * as governance_entra_attribute_matcher from "../governance/entra_attribute_matcher.js";
+import type * as governance_erasure from "../governance/erasure.js";
 import type * as governance_feature_enforcement from "../governance/feature_enforcement.js";
 import type * as governance_filter_outcome from "../governance/filter_outcome.js";
 import type * as governance_get_org_usage_metrics from "../governance/get_org_usage_metrics.js";
@@ -340,6 +341,7 @@ import type * as governance_regex_safety from "../governance/regex_safety.js";
 import type * as governance_resolve_budget_context from "../governance/resolve_budget_context.js";
 import type * as governance_resolve_default_model from "../governance/resolve_default_model.js";
 import type * as governance_retention_cleanup from "../governance/retention_cleanup.js";
+import type * as governance_retention_floors from "../governance/retention_floors.js";
 import type * as governance_sanitize from "../governance/sanitize.js";
 import type * as governance_stream_transform from "../governance/stream_transform.js";
 import type * as governance_upload_enforcement from "../governance/upload_enforcement.js";
@@ -1351,6 +1353,7 @@ declare const fullApi: ApiFromModules<{
   "governance/cost_estimation": typeof governance_cost_estimation;
   "governance/default_model_query": typeof governance_default_model_query;
   "governance/entra_attribute_matcher": typeof governance_entra_attribute_matcher;
+  "governance/erasure": typeof governance_erasure;
   "governance/feature_enforcement": typeof governance_feature_enforcement;
   "governance/filter_outcome": typeof governance_filter_outcome;
   "governance/get_org_usage_metrics": typeof governance_get_org_usage_metrics;
@@ -1376,6 +1379,7 @@ declare const fullApi: ApiFromModules<{
   "governance/resolve_budget_context": typeof governance_resolve_budget_context;
   "governance/resolve_default_model": typeof governance_resolve_default_model;
   "governance/retention_cleanup": typeof governance_retention_cleanup;
+  "governance/retention_floors": typeof governance_retention_floors;
   "governance/sanitize": typeof governance_sanitize;
   "governance/stream_transform": typeof governance_stream_transform;
   "governance/upload_enforcement": typeof governance_upload_enforcement;
