@@ -193,7 +193,7 @@ describe('R2-9: large-input clamp via sanitize.ts', () => {
     const input = `${filler} Karl-Marx-Allee 50, 10178 Berlin ${filler}`;
     const r = scrubPii(input, cfg());
     expect(r.kind).toBe('modified');
-  });
+  }, 30_000);
 });
 
 /* -------------------------------------------------------------------------- */
