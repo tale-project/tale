@@ -1051,10 +1051,9 @@ function ModelsSection({
                     setForm((f) => ({
                       ...f,
                       imageGenerationMode:
-                        value === 'default'
-                          ? ''
-                          : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- value is one of the option values defined below
-                            (value as 'images-api' | 'chat-multimodal'),
+                        value === 'images-api' || value === 'chat-multimodal'
+                          ? value
+                          : '',
                     }))
                   }
                   options={[

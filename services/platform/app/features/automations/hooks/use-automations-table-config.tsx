@@ -62,7 +62,7 @@ export function useAutomationsTableConfig(organizationId: string) {
           const ms = row.original.createdAtMs;
           return (
             <Text as="span" variant="caption">
-              {ms ? formatDate(new Date(ms), 'medium') : '—'}
+              {ms !== undefined ? formatDate(new Date(ms), 'medium') : '—'}
             </Text>
           );
         },
