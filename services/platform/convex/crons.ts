@@ -38,6 +38,19 @@ crons.cron(
   {},
 );
 
+// Effect approved legal-hold releases standalone — runs even when the
+// retention kill-switch (`TALE_RETENTION_DISABLED`) is set, and is not
+// gated on a successful per-category sweep. Without this, a maker-
+// checker release that has cleared its 24h cooldown can stall
+// indefinitely (compliance regression). Picks an off-peak hour so it
+// doesn't compete with the main 04:00 sweep.
+crons.cron(
+  'effect approved legal-hold releases (daily)',
+  '0 1 * * *',
+  internal.governance.retention_cleanup.effectReleasesOnly,
+  {},
+);
+
 // LLM response cache cleanup - purge expired entries hourly
 crons.cron(
   'purge expired LLM response cache (hourly)',

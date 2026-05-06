@@ -694,18 +694,26 @@ async function cleanupLoginAttemptsGlobal(
   }
 }
 
+interface CategoryError {
+  name: string;
+  error: string;
+}
+
 async function runCategory(
   name: string,
   organizationId: string,
   fn: () => Promise<void>,
+  errors: CategoryError[],
 ): Promise<void> {
   try {
     await fn();
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     console.warn(
       `[RetentionCleanup] Category '${name}' failed for org ${organizationId}:`,
       error,
     );
+    errors.push({ name, error: msg });
   }
 }
 
@@ -789,6 +797,11 @@ export const runOrgRetentionCleanup = internalAction({
     // `completedAt`, the continuation reads `null`, and the loop restarts at
     // category 0 every time — defeating the entire resume mechanism.
     let scheduledContinuation = false;
+    // Per-category failures are aggregated here; previously runCategory
+    // swallowed silently and `lastError` stayed `undefined` even when every
+    // category crashed. Operator dashboard now sees `lastError` populated
+    // with `cat:msg; cat:msg…` summaries.
+    const categoryErrors: CategoryError[] = [];
 
     try {
       const rawPolicies = await ctx.runQuery(
@@ -841,7 +854,9 @@ export const runOrgRetentionCleanup = internalAction({
       // Phase 8: effect any approved release whose 24h cooldown has
       // elapsed BEFORE we pre-fetch holds, so a freshly-effective
       // release doesn't continue protecting its target for an extra
-      // day.
+      // day. NOTE: also called from `effectReleasesOnly` below as a
+      // standalone path so the kill-switch (TALE_RETENTION_DISABLED)
+      // and per-category failures can never starve approved releases.
       await ctx.runMutation(
         internal.governance.legal_hold.effectApprovedReleases,
         { organizationId },
@@ -963,7 +978,7 @@ export const runOrgRetentionCleanup = internalAction({
           return null;
         }
 
-        await runCategory(cat.name, organizationId, cat.run);
+        await runCategory(cat.name, organizationId, cat.run, categoryErrors);
         await ctx.runMutation(
           internal.governance.retention_runs.recordRetentionRunCheckpoint,
           {
@@ -979,6 +994,16 @@ export const runOrgRetentionCleanup = internalAction({
         err,
       );
     } finally {
+      // Surface per-category failures in `lastError` so the operator
+      // dashboard reflects partial success accurately. A try-block
+      // throw still wins (it's typically a wider failure) but if all
+      // 14 categories crash and the outer try succeeds, the run is
+      // no longer reported green.
+      if (runError === undefined && categoryErrors.length > 0) {
+        runError = categoryErrors
+          .map((e) => `${e.name}: ${e.error}`)
+          .join('; ');
+      }
       // Leave the run open when a continuation was scheduled — the next
       // invocation needs `getOpenRunForOrg` to find an in-flight row to
       // resume from its recorded cursor. The continuation (or its `catch`)
@@ -1031,10 +1056,49 @@ export const runRetentionCleanup = internalAction({
       );
     }
 
-    await runCategory('loginAttempts', 'global', () =>
-      cleanupLoginAttemptsGlobal(ctx, orgsWithPolicies, DEFAULT_BATCH_SIZE),
+    await runCategory(
+      'loginAttempts',
+      'global',
+      () =>
+        cleanupLoginAttemptsGlobal(ctx, orgsWithPolicies, DEFAULT_BATCH_SIZE),
+      [],
     );
 
+    return null;
+  },
+});
+
+/**
+ * Standalone path that effects approved legal-hold releases for every
+ * org without running retention cleanup. Independent of the
+ * `TALE_RETENTION_DISABLED` kill-switch and independent of per-category
+ * failures, so a maker-checker release that has cleared its 24h cooldown
+ * cannot stall indefinitely just because retention itself is paused.
+ *
+ * Wire to a separate cron (e.g. `0 1 * * *`) parallel to the main
+ * retention cron.
+ */
+export const effectReleasesOnly = internalAction({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx): Promise<null> => {
+    const rawPolicies = await ctx.runQuery(
+      internal.governance.internal_queries.listRetentionPolicies,
+      {},
+    );
+    for (const policy of rawPolicies) {
+      try {
+        await ctx.runMutation(
+          internal.governance.legal_hold.effectApprovedReleases,
+          { organizationId: policy.organizationId },
+        );
+      } catch (error) {
+        console.warn(
+          `[RetentionCleanup] effectReleasesOnly failed for org ${policy.organizationId}:`,
+          error,
+        );
+      }
+    }
     return null;
   },
 });
