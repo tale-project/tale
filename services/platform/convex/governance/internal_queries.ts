@@ -359,6 +359,29 @@ export const listExpiredMessageFeedback = internalQuery({
   },
 });
 
+/**
+ * Phase 11 — twoFactorAttempts parity sweep. The table is keyed by
+ * userId only (no organizationId, no createdAt — uses _creationTime).
+ * A "stuck" row is one where the last activity (`lastFailureAt`) was
+ * more than `cutoffMs` ago AND the user is no longer locked.
+ */
+export const listExpiredTwoFactorAttempts = internalQuery({
+  args: { cutoffMs: v.number(), batchSize: v.number() },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db.query('twoFactorAttempts')) {
+      if (row.lastFailureAt >= args.cutoffMs) continue;
+      // Skip rows still in active lockout — clearing them would let
+      // an attacker bypass the lockout window.
+      if (row.lockedUntil !== null && row.lockedUntil > Date.now()) continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
 export const listExpiredCustomers = internalQuery({
   args: {
     organizationId: v.string(),

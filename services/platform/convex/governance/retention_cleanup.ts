@@ -443,22 +443,34 @@ async function cleanupMessageMetadata(
   }
 }
 
-// Login attempts are email-scoped (not org-scoped). Run as a single pass
-// using the strictest (shortest) retention across any org that has the
-// flag enabled. If no org enabled it, skip entirely.
+/**
+ * Phase 11 — login attempts re-frame.
+ *
+ * Was: cross-org retention computed as `Math.min(...enabledDays)` —
+ * an org with `loginAttemptRetentionDays = 7` would silently truncate
+ * the forensics window for an email that ALSO logs into a separate
+ * org configured for 90 days. That's a GDPR Art 26 (joint controllers)
+ * violation: each controller documents its own retention.
+ *
+ * Now: `loginAttempts` and `loginBlockCounters` are reframed as
+ * **operational state** with a fixed 30-day TTL — long enough to
+ * carry rate-limit context but short enough to limit blast radius.
+ * Per-org `loginAttemptRetentionDays` config no longer governs this
+ * sweep (the editor's UI exposes a help-text note explaining that
+ * forensics live in the per-org `auditLogs` stream, which honors the
+ * org's own auditLogRetentionDays).
+ *
+ * `cleanupLoginAttemptsGlobal` runs unconditionally now (no per-org
+ * opt-in), once per dispatcher invocation, with the fixed TTL.
+ */
+const LOGIN_ATTEMPTS_FIXED_TTL_DAYS = 30;
+
 async function cleanupLoginAttemptsGlobal(
   ctx: ActionCtx,
-  policies: OrgPolicy[],
+  _policies: OrgPolicy[], // kept for backward compat; ignored
   batchSize: number,
 ): Promise<void> {
-  const enabledDays = policies
-    .filter((p) => p.config.loginAttemptsEnabled)
-    .map((p) => p.config.loginAttemptRetentionDays)
-    .filter((d): d is number => typeof d === 'number' && d > 0);
-
-  if (enabledDays.length === 0) return;
-  const minDays = Math.min(...enabledDays);
-  const cutoffMs = Date.now() - minDays * DAY_MS;
+  const cutoffMs = Date.now() - LOGIN_ATTEMPTS_FIXED_TTL_DAYS * DAY_MS;
 
   const expiredAttempts = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredLoginAttempts,
@@ -481,6 +493,22 @@ async function cleanupLoginAttemptsGlobal(
       internal.governance.internal_mutations_retention
         .deleteExpiredLoginBlockCounter,
       { counterId: counter._id },
+    );
+  }
+
+  // Phase 11: parity for twoFactorAttempts. Round-2 verification
+  // flagged the asymmetry — loginAttempts had a retention cron sweep
+  // but 2FA attempts only had on-success-clear, so users who failed
+  // 2FA and never came back left a permanently-stuck row.
+  const expiredTwoFactor = await ctx.runQuery(
+    internal.governance.internal_queries.listExpiredTwoFactorAttempts,
+    { cutoffMs, batchSize },
+  );
+  for (const attempt of expiredTwoFactor) {
+    await ctx.runMutation(
+      internal.governance.internal_mutations_retention
+        .deleteExpiredTwoFactorAttempt,
+      { attemptId: attempt._id },
     );
   }
 }

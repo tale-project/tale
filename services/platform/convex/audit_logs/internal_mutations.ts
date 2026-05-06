@@ -9,6 +9,50 @@ import {
   auditLogStatusValidator,
 } from './validators';
 
+/**
+ * HMAC-SHA256 sign the checkpoint contents with the operator's
+ * deploy-time signing key. Returns `undefined` when no key is set —
+ * the chain is still tamper-evident via the SHA-256 chain; the
+ * signature is defense-in-depth against an attacker who can both
+ * delete the chain prefix AND forge a checkpoint over it.
+ *
+ * Key rotation: when an operator rotates `TALE_AUDIT_SIGNING_KEY`,
+ * older checkpoints verify against the old key (kept in
+ * `TALE_AUDIT_SIGNING_KEY_PREVIOUS` until the next rotation cycle).
+ * `verify_integrity.ts` tries both during walk.
+ */
+async function signCheckpoint(payload: {
+  organizationId: string;
+  lastDeletedHash: string;
+  firstRetainedPreviousHash: string | undefined;
+  maxDeletedTimestamp: number;
+  deletedCount: number;
+}): Promise<string | undefined> {
+  const key = process.env.TALE_AUDIT_SIGNING_KEY;
+  if (!key) return undefined;
+  const canonical = JSON.stringify({
+    organizationId: payload.organizationId,
+    lastDeletedHash: payload.lastDeletedHash,
+    firstRetainedPreviousHash: payload.firstRetainedPreviousHash ?? null,
+    maxDeletedTimestamp: payload.maxDeletedTimestamp,
+    deletedCount: payload.deletedCount,
+  });
+  const enc = new TextEncoder();
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(key),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const sig = await crypto.subtle.sign(
+    'HMAC',
+    cryptoKey,
+    enc.encode(canonical),
+  );
+  return Buffer.from(sig).toString('hex');
+}
+
 export const createAuditLog = internalMutation({
   args: {
     organizationId: v.string(),
@@ -127,13 +171,27 @@ export const deleteOldLogs = internalMutation({
         .order('asc')
         .first();
 
+      // Phase 9 — deploy-key signature. The signing key lives in
+      // `TALE_AUDIT_SIGNING_KEY` (operator-set, ideally rotated via
+      // SOPS in production). Without a key the checkpoint is still
+      // written but `signature` stays undefined — the chain is
+      // tamper-evident through the SHA-256 chain itself; the signature
+      // is defense-in-depth against an attacker who can both delete a
+      // chain row AND write a fresh checkpoint over it.
+      const signature = await signCheckpoint({
+        organizationId: args.organizationId,
+        lastDeletedHash,
+        firstRetainedPreviousHash: firstRetained?.previousHash,
+        maxDeletedTimestamp,
+        deletedCount,
+      });
       await ctx.db.insert('auditLogCheckpoints', {
         organizationId: args.organizationId,
         lastDeletedHash,
         firstRetainedPreviousHash: firstRetained?.previousHash,
         maxDeletedTimestamp,
         deletedCount,
-        // signature: deferred until deploy-key signing lands.
+        signature,
         createdAt: Date.now(),
       });
 

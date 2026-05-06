@@ -232,6 +232,17 @@ export const finalizePendingRetentionChange = internalMutation({
   },
 });
 
+export const deleteExpiredTwoFactorAttempt = internalMutation({
+  args: { attemptId: v.id('twoFactorAttempts') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.attemptId);
+    if (!row) return null;
+    await ctx.db.delete(args.attemptId);
+    return null;
+  },
+});
+
 export const deleteExpiredCustomer = internalMutation({
   args: {
     rowId: v.id('customers'),
