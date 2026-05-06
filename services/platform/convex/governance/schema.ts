@@ -128,6 +128,73 @@ export const usageLedgerTable = defineTable({
   ]);
 
 /**
+ * Phase 8 — eDiscovery matter grouping.
+ *
+ * Multiple legal holds typically cluster around one case ("Alice v.
+ * Company 2026"). The matter row gives counsel one handle to:
+ *   - close out an entire case at once (release every linked hold)
+ *   - filter the legal-hold UI by case number
+ *   - export a chain-of-custody artefact per case (future)
+ *
+ * Holds without an explicit matter use the synthetic "default" matter
+ * (created lazily); holds keyed to a real case use `legalHolds.matterRef`
+ * pointing at this row's `_id`.
+ */
+export const legalMattersTable = defineTable({
+  organizationId: v.string(),
+  /** Free-text human-readable case name. */
+  name: v.string(),
+  /** Optional external case number / docket reference. */
+  caseNumber: v.optional(v.string()),
+  description: v.optional(v.string()),
+  status: v.union(v.literal('open'), v.literal('closed')),
+  createdBy: v.string(),
+  createdAt: v.number(),
+  closedBy: v.optional(v.string()),
+  closedAt: v.optional(v.number()),
+})
+  .index('by_organizationId', ['organizationId'])
+  .index('by_organizationId_status', ['organizationId', 'status']);
+
+/**
+ * Phase 8 — dual-control release request.
+ *
+ * Releasing a legal hold is the high-risk operation: a malicious admin
+ * can release + immediately delete to destroy evidence. Maker-checker
+ * pattern: admin A files a release request; admin B (must be a
+ * different user) approves; the release takes effect after a 24h
+ * cooldown (env-tunable via `TALE_LEGAL_HOLD_RELEASE_COOLDOWN_HOURS`)
+ * giving compliance teams time to react if either admin was
+ * compromised.
+ *
+ * Single-admin orgs: refuse release unless
+ * `TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true` set. Loud audit warning when
+ * used.
+ */
+export const legalHoldReleaseRequestsTable = defineTable({
+  organizationId: v.string(),
+  holdId: v.id('legalHolds'),
+  requestedBy: v.string(),
+  requestedAt: v.number(),
+  reason: v.string(),
+  status: v.union(
+    v.literal('pending'),
+    v.literal('approved'),
+    v.literal('rejected'),
+    v.literal('effected'),
+  ),
+  approvedBy: v.optional(v.string()),
+  approvedAt: v.optional(v.number()),
+  /** ms since epoch when the release becomes effective (approval + cooldown). */
+  effectiveAt: v.optional(v.number()),
+  rejectedBy: v.optional(v.string()),
+  rejectedAt: v.optional(v.number()),
+  rejectReason: v.optional(v.string()),
+})
+  .index('by_holdId', ['holdId'])
+  .index('by_organizationId_status', ['organizationId', 'status']);
+
+/**
  * Legal hold (Phase 8) — preservation flag for compliance / eDiscovery.
  *
  * When a row exists for a (organizationId, targetType, targetId) tuple

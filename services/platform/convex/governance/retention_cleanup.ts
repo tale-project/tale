@@ -524,6 +524,15 @@ export const runOrgRetentionCleanup = internalAction({
       const batchSize = config.batchSize ?? DEFAULT_BATCH_SIZE;
       const { organizationId } = org;
 
+      // Phase 8: effect any approved release whose 24h cooldown has
+      // elapsed BEFORE we pre-fetch holds, so a freshly-effective
+      // release doesn't continue protecting its target for an extra
+      // day.
+      await ctx.runMutation(
+        internal.governance.legal_hold.effectApprovedReleases,
+        { organizationId },
+      );
+
       // Phase 8: pre-fetch every active legal hold ONCE per cleanup run.
       const holdRows = await ctx.runQuery(
         internal.governance.legal_hold_internal.loadActiveHoldsForOrg,
