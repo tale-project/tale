@@ -3107,6 +3107,87 @@
       "enabled": "Activé",
       "retentionDays": "Jours de rétention",
       "retentionHours": "Heures de rétention",
+      "envDisabled": "La rétention est actuellement désactivée par l'opérateur (TALE_RETENTION_DISABLED=true). Le nettoyage ne s'exécutera pas tant que la variable d'environnement n'est pas retirée.",
+      "boundHelper": "L'opérateur limite cette valeur à {min}-{max} {unit}.",
+      "errors": {
+        "belowFloor": "En dessous du plancher de l'opérateur (min {bound} {unit}).",
+        "exceedsCeiling": "Au-dessus du plafond de l'opérateur (max {bound} {unit})."
+      },
+      "preset": {
+        "title": "Préréglage de rétention",
+        "description": "Choisissez un profil recommandé ou personnalisez chaque catégorie individuellement. Passer à Standard ou Strict écrase chaque valeur ci-dessous.",
+        "standard": "Standard",
+        "standardDescription": "Valeurs par défaut raisonnables pour la plupart des équipes (90 j chat, 365 j documents, 730 j audit, 30 j de grâce).",
+        "strict": "Strict",
+        "strictDescription": "Fenêtres de rétention divisées par deux + 7 jours de grâce. À utiliser lorsque la conformité ou les coûts de stockage exigent une suppression agressive.",
+        "custom": "Personnalisé",
+        "customDescription": "Réglez chaque catégorie individuellement ci-dessous."
+      },
+      "group": {
+        "userContent": {
+          "title": "Contenu utilisateur",
+          "description": "Historique de chat, documents, modèles de prompts, fiches clients/fournisseurs et autres données personnelles propres à l'organisation."
+        },
+        "operationalLogs": {
+          "title": "Journaux opérationnels",
+          "description": "Exécutions de workflows et lignes du registre analytique. Données dérivées à faible PII."
+        },
+        "securityAudit": {
+          "title": "Sécurité & audit",
+          "description": "Journal d'audit, forensique de connexion, télémétrie chat-filter, audit de personnalisation. Plancher fixé par l'opérateur et les baselines de conformité."
+        }
+      },
+      "deletionGrace": {
+        "label": "Période de grâce (jours)",
+        "helper": "0 = Pass A supprime immédiatement (pas de fenêtre corbeille). >0 garde les lignes visibles dans la corbeille admin pendant ce nombre de jours avant que Pass B ne les supprime physiquement."
+      },
+      "timeline": {
+        "ariaLabel": "Visualisation du cycle de vie de suppression",
+        "activeLabel": "Actif",
+        "activeSub": "Visible, entièrement accessible",
+        "trashedLabel": "Corbeille / Expiré",
+        "trashedSub": "Grâce de {days} jour(s), restaurable",
+        "skipTrashLabel": "Sauté",
+        "skipTrashSub": "graceDays = 0",
+        "permanentLabel": "Supprimé définitivement",
+        "permanentSub": "Ligne + descendants effacés",
+        "graceConnector": "après la fenêtre de rétention",
+        "noGraceConnector": "pas de fenêtre de grâce",
+        "cascadeConnector": "suppression en cascade"
+      },
+      "pendingChange": {
+        "title": "Une réduction de rétention est en attente.",
+        "applyIn": "s'applique dans {days} jour(s).",
+        "cancel": "Annuler"
+      },
+      "promptTemplates": {
+        "title": "Modèles de prompts",
+        "description": "Prompts enregistrés (limités à l'organisation). Les modèles globaux sont du contenu opérateur et ne sont pas gérés par la rétention."
+      },
+      "messageFeedback": {
+        "title": "Feedback de messages",
+        "description": "Pouces/commentaires laissés sur les messages d'agent. Les commentaires en texte libre peuvent contenir du contenu utilisateur cité."
+      },
+      "memoryAudit": {
+        "title": "Journal d'audit des mémoires",
+        "description": "Journal des modifications des mémoires de personnalisation (proposées, approuvées, modifiées, ignorées, supprimées)."
+      },
+      "customers": {
+        "title": "Clients",
+        "description": "Fiches CRM par organisation : nom, e-mail, adresse, locale, métadonnées."
+      },
+      "vendors": {
+        "title": "Fournisseurs",
+        "description": "Fiches fournisseurs par organisation : nom, e-mail, téléphone, adresse, notes en texte libre."
+      },
+      "externalConversations": {
+        "title": "Conversations externes",
+        "description": "Boîte de réception de canal client de haut niveau (intégrations e-mail/chat). Cascade vers les corps de messages."
+      },
+      "messageMetadata": {
+        "title": "Métadonnées de messages",
+        "description": "Raisonnement par message, fenêtre de contexte de prompt complète, E/S d'outils. Données dérivées à fort PII."
+      },
       "chatHistory": {
         "title": "Historique de chat",
         "description": "Supprime automatiquement les conversations avec les agents (threads de chat) plus anciennes que la période de rétention. Le contenu des messages dans le composant agent est archivé. La suppression est irréversible.",

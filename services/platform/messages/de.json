@@ -3182,6 +3182,87 @@
       "enabled": "Aktiviert",
       "retentionDays": "Aufbewahrungstage",
       "retentionHours": "Aufbewahrungsstunden",
+      "envDisabled": "Aufbewahrung ist derzeit vom Operator deaktiviert (TALE_RETENTION_DISABLED=true). Bereinigung läuft erst, wenn das Env-Flag entfernt wurde.",
+      "boundHelper": "Operator beschränkt dies auf {min}-{max} {unit}.",
+      "errors": {
+        "belowFloor": "Unter Operator-Untergrenze (min {bound} {unit}).",
+        "exceedsCeiling": "Über Operator-Obergrenze (max {bound} {unit})."
+      },
+      "preset": {
+        "title": "Aufbewahrungs-Voreinstellung",
+        "description": "Wählen Sie ein empfohlenes Profil oder passen Sie jede Kategorie einzeln an. Der Wechsel zu Standard oder Strikt überschreibt alle Werte unten.",
+        "standard": "Standard",
+        "standardDescription": "Sinnvolle Standardwerte für die meisten Teams (90 Tage Chat, 365 Tage Dokumente, 730 Tage Audit, 30 Tage Schonfrist).",
+        "strict": "Strikt",
+        "strictDescription": "Halbierte Aufbewahrungsfenster + 7 Tage Schonfrist. Verwenden Sie dies, wenn Compliance oder Speicherkosten aggressive Löschung erfordern.",
+        "custom": "Benutzerdefiniert",
+        "customDescription": "Jede Kategorie unten einzeln einstellen."
+      },
+      "group": {
+        "userContent": {
+          "title": "Nutzerinhalte",
+          "description": "Chat-Verlauf, Dokumente, Prompt-Vorlagen, Kunden-/Lieferantendatensätze und andere org-eigene PII."
+        },
+        "operationalLogs": {
+          "title": "Operative Protokolle",
+          "description": "Workflow-Ausführungen und Analytics-Ledger. Abgeleitete Daten mit niedrigerem PII-Anteil."
+        },
+        "securityAudit": {
+          "title": "Sicherheit & Audit",
+          "description": "Audit-Log, Login-Forensik, Chat-Filter-Telemetrie, Personalisierungs-Audit. Untergrenze durch Operator- und Compliance-Baselines fixiert."
+        }
+      },
+      "deletionGrace": {
+        "label": "Schonfrist (Tage)",
+        "helper": "0 = Pass A löscht sofort permanent (kein Trash-Fenster). >0 hält Einträge so viele Tage im Admin-Trash sichtbar, bevor Pass B sie physisch entfernt."
+      },
+      "timeline": {
+        "ariaLabel": "Visualisierung des Lösch-Lebenszyklus",
+        "activeLabel": "Aktiv",
+        "activeSub": "Sichtbar, voll zugänglich",
+        "trashedLabel": "Im Papierkorb / Abgelaufen",
+        "trashedSub": "{days}-Tage-Schonfrist, wiederherstellbar",
+        "skipTrashLabel": "Übersprungen",
+        "skipTrashSub": "graceDays = 0",
+        "permanentLabel": "Endgültig gelöscht",
+        "permanentSub": "Eintrag + Nachfahren weg",
+        "graceConnector": "nach Aufbewahrungsfenster",
+        "noGraceConnector": "kein Schonfrist-Fenster",
+        "cascadeConnector": "Kaskaden-Löschung"
+      },
+      "pendingChange": {
+        "title": "Eine Aufbewahrungsverkürzung steht aus.",
+        "applyIn": "wird in {days} Tag(en) wirksam.",
+        "cancel": "Abbrechen"
+      },
+      "promptTemplates": {
+        "title": "Prompt-Vorlagen",
+        "description": "Gespeicherte Prompts (org-scoped). Globale Vorlagen sind Operator-Inhalte und werden nicht aufbewahrungsverwaltet."
+      },
+      "messageFeedback": {
+        "title": "Nachrichten-Feedback",
+        "description": "Daumen/Kommentare zu Agenten-Nachrichten. Freitext-Kommentare können zitierten Nutzerinhalt enthalten."
+      },
+      "memoryAudit": {
+        "title": "Memory-Audit-Log",
+        "description": "Änderungsprotokoll von Personalisierungs-Memories (vorgeschlagen, genehmigt, bearbeitet, verworfen, gelöscht)."
+      },
+      "customers": {
+        "title": "Kunden",
+        "description": "Pro-Org CRM-Datensätze: Name, E-Mail, Adresse, Locale, Metadaten."
+      },
+      "vendors": {
+        "title": "Lieferanten",
+        "description": "Pro-Org Lieferantendatensätze: Name, E-Mail, Telefon, Adresse, Freitext-Notizen."
+      },
+      "externalConversations": {
+        "title": "Externe Konversationen",
+        "description": "Top-Level-Kundenkanal-Posteingang (E-Mail/Chat-Integrationen). Kaskadiert zu Nachrichteninhalten."
+      },
+      "messageMetadata": {
+        "title": "Nachrichten-Metadaten",
+        "description": "Pro-Nachricht Reasoning, vollständiges Prompt-Kontextfenster, Tool-I/O. Stark PII-haltige abgeleitete Daten."
+      },
       "chatHistory": {
         "title": "Chat-Verlauf",
         "description": "Konversationen mit Agents (Chat-Threads), die älter als die Aufbewahrungsfrist sind, automatisch löschen. Nachrichteninhalte in der Agent-Komponente werden archiviert. Die Löschung ist unumkehrbar.",

@@ -3182,6 +3182,87 @@
       "enabled": "Enabled",
       "retentionDays": "Retention days",
       "retentionHours": "Retention hours",
+      "envDisabled": "Retention is currently disabled by the operator (TALE_RETENTION_DISABLED=true). Cleanup will not run until the env flag is removed.",
+      "boundHelper": "Operator caps this at {min}-{max} {unit}.",
+      "errors": {
+        "belowFloor": "Below operator floor (min {bound} {unit}).",
+        "exceedsCeiling": "Exceeds operator ceiling (max {bound} {unit})."
+      },
+      "preset": {
+        "title": "Retention preset",
+        "description": "Pick a recommended profile or customize each category individually. Switching to Standard or Strict overwrites every per-category value below.",
+        "standard": "Standard",
+        "standardDescription": "Sane defaults for most teams (90-day chat, 365-day documents, 730-day audit, 30-day grace).",
+        "strict": "Strict",
+        "strictDescription": "Halved retention windows + 7-day grace. Use when compliance or storage costs require aggressive deletion.",
+        "custom": "Custom",
+        "customDescription": "Tune each category individually below."
+      },
+      "group": {
+        "userContent": {
+          "title": "User content",
+          "description": "Chat history, documents, prompt templates, customer/vendor records, and other org-owned PII."
+        },
+        "operationalLogs": {
+          "title": "Operational logs",
+          "description": "Workflow executions and analytics ledger rows. Lower-PII derived data."
+        },
+        "securityAudit": {
+          "title": "Security & audit",
+          "description": "Audit log, login forensics, chat-filter telemetry, personalization audit. Floor pinned by operator + compliance baselines."
+        }
+      },
+      "deletionGrace": {
+        "label": "Grace period (days)",
+        "helper": "0 = Pass A immediately hard-deletes (no trash window). >0 keeps rows visible in admin Trash for that many days before Pass B physically removes them."
+      },
+      "timeline": {
+        "ariaLabel": "Deletion lifecycle visualization",
+        "activeLabel": "Active",
+        "activeSub": "Visible, fully accessible",
+        "trashedLabel": "Trashed / Expired",
+        "trashedSub": "{days}-day grace, restorable",
+        "skipTrashLabel": "Skipped",
+        "skipTrashSub": "graceDays = 0",
+        "permanentLabel": "Permanently deleted",
+        "permanentSub": "Row + descendants gone",
+        "graceConnector": "after retention window",
+        "noGraceConnector": "no grace window",
+        "cascadeConnector": "cascade delete"
+      },
+      "pendingChange": {
+        "title": "A retention reduction is pending.",
+        "applyIn": "applies in {days} day(s).",
+        "cancel": "Cancel"
+      },
+      "promptTemplates": {
+        "title": "Prompt templates",
+        "description": "Saved prompts (org-scoped). Global-scope templates are operator content and are not retention-managed."
+      },
+      "messageFeedback": {
+        "title": "Message feedback",
+        "description": "Thumbs/comments left on agent messages. Free-text comments may contain quoted user content."
+      },
+      "memoryAudit": {
+        "title": "Memory audit log",
+        "description": "Change-log of personalization memories (proposed, approved, edited, dismissed, deleted)."
+      },
+      "customers": {
+        "title": "Customers",
+        "description": "Per-org CRM records: name, email, address, locale, metadata."
+      },
+      "vendors": {
+        "title": "Vendors",
+        "description": "Per-org vendor records: name, email, phone, address, free-text notes."
+      },
+      "externalConversations": {
+        "title": "External conversations",
+        "description": "Top-level customer-channel inbox (email/chat integrations). Cascades to message bodies."
+      },
+      "messageMetadata": {
+        "title": "Message metadata",
+        "description": "Per-message reasoning, full prompt context window, tool I/O. High-PII derived data; sweep follows the message's thread retention."
+      },
       "chatHistory": {
         "title": "Chat history",
         "description": "Automatically delete chat threads (conversations with agents) older than the retention period. Message contents in the agent component are archived. Deletion is irreversible.",

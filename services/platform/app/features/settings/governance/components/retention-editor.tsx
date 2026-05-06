@@ -4,6 +4,7 @@ import { Skeleton } from '@tale/ui/skeleton';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { Input } from '@/app/components/ui/forms/input';
+import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
@@ -19,7 +20,22 @@ import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import {
+  useRetentionBounds,
+  type CategoryBounds,
+} from '../hooks/use-retention-bounds';
+import {
+  buildPresetConfig,
+  type CategoryDef,
+  type CategoryGroup,
+  type CategoryId,
+  GROUP_ORDER,
+  type Preset,
+  RETENTION_CATEGORIES,
+  categoriesInGroup,
+} from './retention-categories';
 import { RetentionPendingBanner } from './retention-pending-banner';
+import { RetentionTimeline } from './retention-timeline';
 
 interface RetentionEditorProps {
   organizationId: string;
@@ -34,65 +50,31 @@ function parseRetentionConfig(policy: unknown): RetentionPolicyConfig {
   return { enabled: false, retentionDays: 90 };
 }
 
-/** Per-section skeleton: matches SectionHeader(items-center, gap-4) + Switch(label + h-[1.15rem] w-8 pill) + optional body. */
-function retentionSectionSkeleton(withBody: boolean): ReactNode {
+/**
+ * Read structured `data` off a Convex error without `instanceof
+ * ConvexError`. Vite chunk splitting can produce multiple ConvexError
+ * class copies, breaking instanceof — duck-type instead.
+ */
+function readConvexErrorData(
+  err: unknown,
+): Record<string, unknown> | undefined {
+  if (err == null || typeof err !== 'object') return undefined;
+  if (!('data' in err)) return undefined;
+  const data = (err as { data: unknown }).data;
+  if (data == null || typeof data !== 'object') return undefined;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- data is runtime-checked above
+  return data as Record<string, unknown>;
+}
+
+function skeletonRow(): ReactNode {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <Skeleton className="h-6 w-40" />
-          <Skeleton className="h-4 w-80 max-w-full" />
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <Skeleton className="h-3.5 w-14" />
-          <Skeleton className="h-[1.15rem] w-8 rounded-full" />
-        </div>
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-1">
+        <Skeleton className="h-5 w-44" />
+        <Skeleton className="h-4 w-72 max-w-full" />
       </div>
-      {withBody && (
-        <div className="flex max-w-xs flex-col gap-1.5">
-          <Skeleton className="h-3.5 w-28" />
-          <Skeleton className="h-8 w-full rounded-md" />
-          <Skeleton className="mt-0.5 h-3 w-48 max-w-full" />
-        </div>
-      )}
+      <Skeleton className="h-8 w-24 rounded-md" />
     </div>
-  );
-}
-
-interface RetentionSectionProps {
-  title: string;
-  description: string;
-  enabled: boolean;
-  onToggle: (checked: boolean) => void;
-  toggleDisabled: boolean;
-  /** Body is hidden entirely when `enabled` is false. */
-  children: ReactNode;
-}
-
-function RetentionSection({
-  title,
-  description,
-  enabled,
-  onToggle,
-  toggleDisabled,
-  children,
-}: RetentionSectionProps) {
-  const { t } = useT('governance');
-  return (
-    <PageSection
-      title={title}
-      description={description}
-      action={
-        <Switch
-          label={t('retentionPolicy.enabled')}
-          checked={enabled}
-          onCheckedChange={onToggle}
-          disabled={toggleDisabled}
-        />
-      }
-    >
-      {enabled && children}
-    </PageSection>
   );
 }
 
@@ -105,6 +87,7 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
     organizationId,
     'retention_policy',
   );
+  const { bounds, retentionDisabled } = useRetentionBounds(organizationId);
   const upsertMutation = useUpsertGovernancePolicy();
 
   const savedConfig = useMemo(
@@ -112,73 +95,36 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
     [policy],
   );
 
+  // Single piece of state holds the FULL effective config. Avoids the
+  // 16-pair `useState` explosion the previous editor had and keeps the
+  // preset switch + per-category edits coherent.
   const initializedRef = useRef(false);
-  const [enabled, setEnabled] = useState(false);
-  const [retentionDays, setRetentionDays] = useState(0);
-  const [userTempEnabled, setUserTempEnabled] = useState(false);
-  const [userTempRetentionHours, setUserTempRetentionHours] = useState(0);
-  const [agentTempEnabled, setAgentTempEnabled] = useState(false);
-  const [agentTempRetentionHours, setAgentTempRetentionHours] = useState(0);
-  const [chatHistoryEnabled, setChatHistoryEnabled] = useState(false);
-  const [chatHistoryRetentionDays, setChatHistoryRetentionDays] = useState(0);
-  const [auditLogsEnabled, setAuditLogsEnabled] = useState(false);
-  const [auditLogRetentionDays, setAuditLogRetentionDays] = useState(0);
-  const [workflowLogsEnabled, setWorkflowLogsEnabled] = useState(false);
-  const [workflowLogRetentionDays, setWorkflowLogRetentionDays] = useState(0);
-  const [usageLedgerEnabled, setUsageLedgerEnabled] = useState(false);
-  const [usageLedgerRetentionDays, setUsageLedgerRetentionDays] = useState(0);
-  const [loginAttemptsEnabled, setLoginAttemptsEnabled] = useState(false);
-  const [loginAttemptRetentionDays, setLoginAttemptRetentionDays] = useState(0);
+  const [config, setConfig] = useState<RetentionPolicyConfig>(savedConfig);
+  const [preset, setPreset] = useState<Preset>('custom');
+  const [errors, setErrors] = useState<Map<CategoryId, string>>(new Map());
 
   if (!isLoading && !initializedRef.current) {
     initializedRef.current = true;
-    setEnabled(savedConfig.enabled);
-    setRetentionDays(savedConfig.retentionDays);
-    setUserTempEnabled(savedConfig.userTempEnabled ?? false);
-    setUserTempRetentionHours(savedConfig.userTempRetentionHours ?? 24);
-    setAgentTempEnabled(savedConfig.agentTempEnabled ?? false);
-    setAgentTempRetentionHours(savedConfig.agentTempRetentionHours ?? 24);
-    setChatHistoryEnabled(savedConfig.chatHistoryEnabled ?? false);
-    setChatHistoryRetentionDays(savedConfig.chatHistoryRetentionDays ?? 90);
-    setAuditLogsEnabled(savedConfig.auditLogsEnabled ?? false);
-    setAuditLogRetentionDays(savedConfig.auditLogRetentionDays ?? 90);
-    setWorkflowLogsEnabled(savedConfig.workflowLogsEnabled ?? false);
-    setWorkflowLogRetentionDays(savedConfig.workflowLogRetentionDays ?? 30);
-    setUsageLedgerEnabled(savedConfig.usageLedgerEnabled ?? false);
-    setUsageLedgerRetentionDays(savedConfig.usageLedgerRetentionDays ?? 365);
-    setLoginAttemptsEnabled(savedConfig.loginAttemptsEnabled ?? false);
-    setLoginAttemptRetentionDays(savedConfig.loginAttemptRetentionDays ?? 90);
+    setConfig(savedConfig);
   }
 
   const cannotManage = ability.cannot('write', 'orgSettings');
-  const toggleDisabled = cannotManage || upsertMutation.isPending;
+  const inputDisabled = cannotManage || upsertMutation.isPending;
 
-  const saveConfig = useCallback(
-    async (patch: Partial<RetentionPolicyConfig>) => {
-      const fullConfig: RetentionPolicyConfig = {
-        enabled,
-        retentionDays,
-        userTempEnabled,
-        userTempRetentionHours,
-        agentTempEnabled,
-        agentTempRetentionHours,
-        chatHistoryEnabled,
-        chatHistoryRetentionDays,
-        auditLogsEnabled,
-        auditLogRetentionDays,
-        workflowLogsEnabled,
-        workflowLogRetentionDays,
-        usageLedgerEnabled,
-        usageLedgerRetentionDays,
-        loginAttemptsEnabled,
-        loginAttemptRetentionDays,
-        ...patch,
-      };
+  const persist = useCallback(
+    async (next: RetentionPolicyConfig, errorContext?: CategoryId) => {
       try {
         await upsertMutation.mutateAsync({
           organizationId,
           policyType: 'retention_policy',
-          config: fullConfig,
+          config: next,
+        });
+        setErrors((prev) => {
+          if (!errorContext) return prev;
+          if (!prev.has(errorContext)) return prev;
+          const m = new Map(prev);
+          m.delete(errorContext);
+          return m;
         });
         toast({
           title: t('toastSavedTitle'),
@@ -186,6 +132,45 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
           variant: 'success',
         });
       } catch (error: unknown) {
+        const errData = readConvexErrorData(error);
+        const code =
+          typeof errData?.code === 'string' ? errData.code : undefined;
+        const offending =
+          typeof errData?.category === 'string'
+            ? (errData.category as CategoryId)
+            : errorContext;
+        if (
+          (code === 'RETENTION_BELOW_FLOOR' ||
+            code === 'RETENTION_EXCEEDS_CEILING') &&
+          offending
+        ) {
+          // Inline error: stash the message against the offending category
+          // so the row's Input renders red border + helper text. No toast
+          // for this — toasts are reserved for unexpected failures.
+          const bound =
+            typeof errData?.bound === 'number' ? errData.bound : null;
+          const requested =
+            typeof errData?.requested === 'number' ? errData.requested : null;
+          const msg =
+            code === 'RETENTION_BELOW_FLOOR'
+              ? t(
+                  'retentionPolicy.errors.belowFloor',
+                  'Below operator floor (min {bound} {unit}).',
+                  { bound: bound ?? '?', unit: '' },
+                )
+              : t(
+                  'retentionPolicy.errors.exceedsCeiling',
+                  'Exceeds operator ceiling (max {bound} {unit}).',
+                  { bound: bound ?? '?', unit: '' },
+                );
+          void requested;
+          setErrors((prev) => {
+            const m = new Map(prev);
+            m.set(offending, msg);
+            return m;
+          });
+          return;
+        }
         const message =
           error instanceof Error ? error.message : 'Failed to save';
         toast({
@@ -195,301 +180,310 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
         });
       }
     },
-    [
-      organizationId,
-      upsertMutation,
-      toast,
-      t,
-      enabled,
-      retentionDays,
-      userTempEnabled,
-      userTempRetentionHours,
-      agentTempEnabled,
-      agentTempRetentionHours,
-      chatHistoryEnabled,
-      chatHistoryRetentionDays,
-      auditLogsEnabled,
-      auditLogRetentionDays,
-      workflowLogsEnabled,
-      workflowLogRetentionDays,
-      usageLedgerEnabled,
-      usageLedgerRetentionDays,
-      loginAttemptsEnabled,
-      loginAttemptRetentionDays,
-    ],
+    [organizationId, upsertMutation, toast, t],
+  );
+
+  const onPresetChange = useCallback(
+    (next: Preset) => {
+      setPreset(next);
+      if (next === 'custom') return;
+      const patch = buildPresetConfig(next);
+      const merged = { ...config, ...patch } as RetentionPolicyConfig;
+      setConfig(merged);
+      void persist(merged);
+    },
+    [config, persist],
+  );
+
+  const updateField = useCallback(
+    <K extends keyof RetentionPolicyConfig>(
+      field: K,
+      value: RetentionPolicyConfig[K],
+      categoryForError?: CategoryId,
+    ) => {
+      setConfig((prev) => {
+        const next = { ...prev, [field]: value };
+        void persist(next, categoryForError);
+        return next;
+      });
+    },
+    [persist],
   );
 
   if (isLoading || !initializedRef.current) {
     return (
       <div aria-busy="true" className="flex flex-col gap-6">
-        {retentionSectionSkeleton(true)}
-        {retentionSectionSkeleton(false)}
-        {retentionSectionSkeleton(true)}
+        {skeletonRow()}
+        {skeletonRow()}
+        {skeletonRow()}
       </div>
     );
   }
 
   return (
     <Stack gap={6}>
+      {retentionDisabled && (
+        <div className="border-warning bg-warning/10 rounded border p-3">
+          <Text className="text-sm">
+            {t(
+              'retentionPolicy.envDisabled',
+              'Retention is currently disabled by the operator (TALE_RETENTION_DISABLED=true). Cleanup will not run until the env flag is removed.',
+            )}
+          </Text>
+        </div>
+      )}
+
       <RetentionPendingBanner organizationId={organizationId} />
-      <RetentionSection
-        title={t('retentionPolicy.chatHistory.title')}
-        description={t('retentionPolicy.chatHistory.description')}
-        enabled={chatHistoryEnabled}
-        toggleDisabled={toggleDisabled}
-        onToggle={(checked) => {
-          setChatHistoryEnabled(checked);
-          void saveConfig({ chatHistoryEnabled: checked });
-        }}
-      >
-        <div className="max-w-xs">
-          <Input
-            label={t('retentionPolicy.retentionDays')}
-            type="number"
-            value={chatHistoryRetentionDays}
-            onChange={(e) =>
-              setChatHistoryRetentionDays(
-                e.target.value ? Number(e.target.value) : 0,
-              )
-            }
-            onBlur={() => void saveConfig({ chatHistoryRetentionDays })}
-            disabled={cannotManage}
-            size="sm"
-            placeholder={t('retentionPolicy.chatHistory.placeholder')}
-            min={1}
-            max={3650}
-          />
-          <Text className="text-muted-foreground mt-1 text-xs">
-            {t('retentionPolicy.chatHistory.helper')}
-          </Text>
-        </div>
-      </RetentionSection>
 
-      <RetentionSection
-        title={t('retentionPolicy.documents.title')}
-        description={t('retentionPolicy.documents.description')}
-        enabled={enabled}
-        toggleDisabled={toggleDisabled}
-        onToggle={(checked) => {
-          setEnabled(checked);
-          void saveConfig({ enabled: checked });
-        }}
+      {/* Preset selector */}
+      <PageSection
+        title={t('retentionPolicy.preset.title', 'Retention preset')}
+        description={t(
+          'retentionPolicy.preset.description',
+          'Pick a recommended profile or customize each category individually. Switching to Standard or Strict overwrites every per-category value below.',
+        )}
       >
-        <div className="max-w-xs">
-          <Input
-            label={t('retentionPolicy.retentionDays')}
-            type="number"
-            value={retentionDays}
-            onChange={(e) =>
-              setRetentionDays(e.target.value ? Number(e.target.value) : 0)
-            }
-            onBlur={() => void saveConfig({ retentionDays })}
-            disabled={cannotManage}
-            size="sm"
-            placeholder={t('retentionPolicy.documents.placeholder')}
-            min={0}
-          />
-          <Text className="text-muted-foreground mt-1 text-xs">
-            {t('retentionPolicy.documents.helper')}
-          </Text>
-        </div>
-      </RetentionSection>
+        <RadioGroup
+          value={preset}
+          onValueChange={(v) => onPresetChange(v as Preset)}
+          options={[
+            {
+              value: 'standard',
+              label: t('retentionPolicy.preset.standard', 'Standard'),
+              description: t(
+                'retentionPolicy.preset.standardDescription',
+                'Sane defaults for most teams (90-day chat, 365-day documents, 730-day audit, 30-day grace).',
+              ),
+            },
+            {
+              value: 'strict',
+              label: t('retentionPolicy.preset.strict', 'Strict'),
+              description: t(
+                'retentionPolicy.preset.strictDescription',
+                'Halved retention windows + 7-day grace. Use when compliance or storage costs require aggressive deletion.',
+              ),
+            },
+            {
+              value: 'custom',
+              label: t('retentionPolicy.preset.custom', 'Custom'),
+              description: t(
+                'retentionPolicy.preset.customDescription',
+                'Tune each category individually below.',
+              ),
+            },
+          ]}
+          disabled={inputDisabled}
+        />
+      </PageSection>
 
-      <RetentionSection
-        title={t('retentionPolicy.userTemp.title')}
-        description={t('retentionPolicy.userTemp.description')}
-        enabled={userTempEnabled}
-        toggleDisabled={toggleDisabled}
-        onToggle={(checked) => {
-          setUserTempEnabled(checked);
-          void saveConfig({ userTempEnabled: checked });
-        }}
-      >
-        <div className="max-w-xs">
-          <Input
-            label={t('retentionPolicy.retentionHours')}
-            type="number"
-            value={userTempRetentionHours}
-            onChange={(e) =>
-              setUserTempRetentionHours(
-                e.target.value ? Number(e.target.value) : 0,
-              )
-            }
-            onBlur={() => void saveConfig({ userTempRetentionHours })}
-            disabled={cannotManage}
-            size="sm"
-            placeholder={t('retentionPolicy.userTemp.placeholder')}
-            min={0}
+      {/* Per-group sections + Deletion Behavior */}
+      {GROUP_ORDER.map((group) =>
+        group === 'deletionBehavior' ? (
+          <PageSection
+            key={group}
+            title={t(
+              `retentionPolicy.group.${group}.title`,
+              'Deletion behavior',
+            )}
+            description={t(
+              `retentionPolicy.group.${group}.description`,
+              'How long trashed/expired rows stay restorable before they hard-delete.',
+            )}
+          >
+            <Stack gap={4}>
+              <div className="max-w-xs">
+                <Input
+                  label={t(
+                    'retentionPolicy.deletionGrace.label',
+                    'Grace period (days)',
+                  )}
+                  type="number"
+                  value={config.deletionGraceDays ?? 30}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      deletionGraceDays: e.target.value
+                        ? Number(e.target.value)
+                        : 0,
+                    }))
+                  }
+                  onBlur={() =>
+                    updateField(
+                      'deletionGraceDays',
+                      config.deletionGraceDays ?? 30,
+                    )
+                  }
+                  disabled={inputDisabled}
+                  size="sm"
+                  min={0}
+                  max={90}
+                  description={t(
+                    'retentionPolicy.deletionGrace.helper',
+                    '0 = Pass A immediately hard-deletes (no trash window). >0 keeps rows visible in admin Trash for that many days before Pass B physically removes them.',
+                  )}
+                />
+              </div>
+              <RetentionTimeline graceDays={config.deletionGraceDays ?? 30} />
+            </Stack>
+          </PageSection>
+        ) : (
+          <CategoryGroupSection
+            key={group}
+            group={group}
+            config={config}
+            errors={errors}
+            bounds={bounds}
+            inputDisabled={inputDisabled}
+            updateField={updateField}
+            setConfig={setConfig}
           />
-          <Text className="text-muted-foreground mt-1 text-xs">
-            {t('retentionPolicy.userTemp.helper')}
-          </Text>
-        </div>
-      </RetentionSection>
-
-      <RetentionSection
-        title={t('retentionPolicy.agentTemp.title')}
-        description={t('retentionPolicy.agentTemp.description')}
-        enabled={agentTempEnabled}
-        toggleDisabled={toggleDisabled}
-        onToggle={(checked) => {
-          setAgentTempEnabled(checked);
-          void saveConfig({ agentTempEnabled: checked });
-        }}
-      >
-        <div className="max-w-xs">
-          <Input
-            label={t('retentionPolicy.retentionHours')}
-            type="number"
-            value={agentTempRetentionHours}
-            onChange={(e) =>
-              setAgentTempRetentionHours(
-                e.target.value ? Number(e.target.value) : 0,
-              )
-            }
-            onBlur={() => void saveConfig({ agentTempRetentionHours })}
-            disabled={cannotManage}
-            size="sm"
-            placeholder={t('retentionPolicy.agentTemp.placeholder')}
-            min={0}
-          />
-          <Text className="text-muted-foreground mt-1 text-xs">
-            {t('retentionPolicy.agentTemp.helper')}
-          </Text>
-        </div>
-      </RetentionSection>
-
-      <RetentionSection
-        title={t('retentionPolicy.workflowLogs.title')}
-        description={t('retentionPolicy.workflowLogs.description')}
-        enabled={workflowLogsEnabled}
-        toggleDisabled={toggleDisabled}
-        onToggle={(checked) => {
-          setWorkflowLogsEnabled(checked);
-          void saveConfig({ workflowLogsEnabled: checked });
-        }}
-      >
-        <div className="max-w-xs">
-          <Input
-            label={t('retentionPolicy.retentionDays')}
-            type="number"
-            value={workflowLogRetentionDays}
-            onChange={(e) =>
-              setWorkflowLogRetentionDays(
-                e.target.value ? Number(e.target.value) : 0,
-              )
-            }
-            onBlur={() => void saveConfig({ workflowLogRetentionDays })}
-            disabled={cannotManage}
-            size="sm"
-            placeholder={t('retentionPolicy.workflowLogs.placeholder')}
-            min={1}
-            max={365}
-          />
-          <Text className="text-muted-foreground mt-1 text-xs">
-            {t('retentionPolicy.workflowLogs.helper')}
-          </Text>
-        </div>
-      </RetentionSection>
-
-      <RetentionSection
-        title={t('retentionPolicy.auditLogs.title')}
-        description={t('retentionPolicy.auditLogs.description')}
-        enabled={auditLogsEnabled}
-        toggleDisabled={toggleDisabled}
-        onToggle={(checked) => {
-          setAuditLogsEnabled(checked);
-          void saveConfig({ auditLogsEnabled: checked });
-        }}
-      >
-        <div className="max-w-xs">
-          <Input
-            label={t('retentionPolicy.retentionDays')}
-            type="number"
-            value={auditLogRetentionDays}
-            onChange={(e) =>
-              setAuditLogRetentionDays(
-                e.target.value ? Number(e.target.value) : 0,
-              )
-            }
-            onBlur={() => void saveConfig({ auditLogRetentionDays })}
-            disabled={cannotManage}
-            size="sm"
-            placeholder={t('retentionPolicy.auditLogs.placeholder')}
-            min={30}
-            max={365}
-          />
-          <Text className="text-muted-foreground mt-1 text-xs">
-            {t('retentionPolicy.auditLogs.helper')}
-          </Text>
-        </div>
-      </RetentionSection>
-
-      <RetentionSection
-        title={t('retentionPolicy.usageLedger.title')}
-        description={t('retentionPolicy.usageLedger.description')}
-        enabled={usageLedgerEnabled}
-        toggleDisabled={toggleDisabled}
-        onToggle={(checked) => {
-          setUsageLedgerEnabled(checked);
-          void saveConfig({ usageLedgerEnabled: checked });
-        }}
-      >
-        <div className="max-w-xs">
-          <Input
-            label={t('retentionPolicy.retentionDays')}
-            type="number"
-            value={usageLedgerRetentionDays}
-            onChange={(e) =>
-              setUsageLedgerRetentionDays(
-                e.target.value ? Number(e.target.value) : 0,
-              )
-            }
-            onBlur={() => void saveConfig({ usageLedgerRetentionDays })}
-            disabled={cannotManage}
-            size="sm"
-            placeholder={t('retentionPolicy.usageLedger.placeholder')}
-            min={30}
-            max={3650}
-          />
-          <Text className="text-muted-foreground mt-1 text-xs">
-            {t('retentionPolicy.usageLedger.helper')}
-          </Text>
-        </div>
-      </RetentionSection>
-
-      <RetentionSection
-        title={t('retentionPolicy.loginAttempts.title')}
-        description={t('retentionPolicy.loginAttempts.description')}
-        enabled={loginAttemptsEnabled}
-        toggleDisabled={toggleDisabled}
-        onToggle={(checked) => {
-          setLoginAttemptsEnabled(checked);
-          void saveConfig({ loginAttemptsEnabled: checked });
-        }}
-      >
-        <div className="max-w-xs">
-          <Input
-            label={t('retentionPolicy.retentionDays')}
-            type="number"
-            value={loginAttemptRetentionDays}
-            onChange={(e) =>
-              setLoginAttemptRetentionDays(
-                e.target.value ? Number(e.target.value) : 0,
-              )
-            }
-            onBlur={() => void saveConfig({ loginAttemptRetentionDays })}
-            disabled={cannotManage}
-            size="sm"
-            placeholder={t('retentionPolicy.loginAttempts.placeholder')}
-            min={7}
-            max={365}
-          />
-          <Text className="text-muted-foreground mt-1 text-xs">
-            {t('retentionPolicy.loginAttempts.helper')}
-          </Text>
-        </div>
-      </RetentionSection>
+        ),
+      )}
     </Stack>
+  );
+}
+
+interface GroupSectionProps {
+  group: CategoryGroup;
+  config: RetentionPolicyConfig;
+  errors: Map<CategoryId, string>;
+  bounds: Map<CategoryId, CategoryBounds>;
+  inputDisabled: boolean;
+  updateField: <K extends keyof RetentionPolicyConfig>(
+    field: K,
+    value: RetentionPolicyConfig[K],
+    categoryForError?: CategoryId,
+  ) => void;
+  setConfig: React.Dispatch<React.SetStateAction<RetentionPolicyConfig>>;
+}
+
+function CategoryGroupSection({
+  group,
+  config,
+  errors,
+  bounds,
+  inputDisabled,
+  updateField,
+  setConfig,
+}: GroupSectionProps) {
+  const { t } = useT('governance');
+  const cats = categoriesInGroup(group);
+  if (cats.length === 0) return null;
+  return (
+    <PageSection
+      title={t(`retentionPolicy.group.${group}.title`, group)}
+      description={t(`retentionPolicy.group.${group}.description`, '')}
+    >
+      <Stack gap={4}>
+        {cats.map((cat) => (
+          <CategoryRow
+            key={cat.id}
+            cat={cat}
+            config={config}
+            error={errors.get(cat.id)}
+            bound={bounds.get(cat.id)}
+            inputDisabled={inputDisabled}
+            updateField={updateField}
+            setConfig={setConfig}
+          />
+        ))}
+      </Stack>
+    </PageSection>
+  );
+}
+
+interface CategoryRowProps {
+  cat: CategoryDef;
+  config: RetentionPolicyConfig;
+  error?: string;
+  bound: CategoryBounds | undefined;
+  inputDisabled: boolean;
+  updateField: GroupSectionProps['updateField'];
+  setConfig: GroupSectionProps['setConfig'];
+}
+
+function CategoryRow({
+  cat,
+  config,
+  error,
+  bound,
+  inputDisabled,
+  updateField,
+  setConfig,
+}: CategoryRowProps) {
+  const { t } = useT('governance');
+  const enabled =
+    cat.enabledKey !== undefined ? Boolean(config[cat.enabledKey]) : true;
+  const value =
+    (config[cat.configKey] as number | undefined) ?? cat.standardDefault;
+
+  const unitLabel =
+    cat.unit === 'hours'
+      ? t('retentionPolicy.retentionHours', 'Retention (hours)')
+      : t('retentionPolicy.retentionDays', 'Retention (days)');
+
+  const helper =
+    bound && bound.source === 'env'
+      ? t(
+          'retentionPolicy.boundHelper',
+          'Operator caps this at {min}-{max} {unit}.',
+          { min: bound.min, max: bound.max, unit: cat.unit },
+        )
+      : t(
+          `retentionPolicy.${cat.i18nKey}.helper`,
+          undefined as unknown as string,
+        );
+
+  return (
+    <div className="border-border/50 flex flex-col gap-3 border-b border-dashed pb-4 last:border-b-0 last:pb-0">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <Text className="text-sm font-medium">
+            {t(`retentionPolicy.${cat.i18nKey}.title`, cat.id)}
+          </Text>
+          <Text className="text-muted-foreground text-xs">
+            {t(`retentionPolicy.${cat.i18nKey}.description`, '')}
+          </Text>
+        </div>
+        {cat.enabledKey ? (
+          <Switch
+            label={t('retentionPolicy.enabled', 'Enabled')}
+            checked={enabled}
+            onCheckedChange={(checked) => {
+              setConfig((prev) => ({
+                ...prev,
+                [cat.enabledKey as keyof RetentionPolicyConfig]: checked,
+              }));
+              updateField(
+                cat.enabledKey as keyof RetentionPolicyConfig,
+                checked as RetentionPolicyConfig[keyof RetentionPolicyConfig],
+              );
+            }}
+            disabled={inputDisabled}
+          />
+        ) : null}
+      </div>
+      {enabled && (
+        <div className="max-w-xs">
+          <Input
+            label={unitLabel}
+            type="number"
+            value={value}
+            min={bound?.min}
+            max={bound?.max}
+            onChange={(e) => {
+              const next = e.target.value ? Number(e.target.value) : 0;
+              setConfig((prev) => ({ ...prev, [cat.configKey]: next }));
+            }}
+            onBlur={() => updateField(cat.configKey, value, cat.id)}
+            disabled={inputDisabled}
+            size="sm"
+            errorMessage={error}
+            isInvalid={Boolean(error)}
+            description={helper && helper.trim() !== '' ? helper : undefined}
+          />
+        </div>
+      )}
+    </div>
   );
 }
