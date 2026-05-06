@@ -5,10 +5,10 @@ import {
   getArray,
   isRecord,
 } from '../../../../../lib/utils/type-guards';
+import { ragFetch } from '../../../../lib/helpers/rag_config';
 import type { RagDeleteResult } from './types';
 
 export interface DeleteDocumentByIdArgs {
-  ragServiceUrl: string;
   fileId: string;
   timeoutMs?: number;
 }
@@ -21,23 +21,16 @@ export interface DeleteDocumentByIdArgs {
  * the document (recordId from the platform).
  */
 export async function deleteDocumentById({
-  ragServiceUrl,
   fileId,
   timeoutMs = 60000,
 }: DeleteDocumentByIdArgs): Promise<RagDeleteResult> {
   const startTime = Date.now();
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
-    const url = `${ragServiceUrl}/api/v1/documents/${encodeURIComponent(fileId)}`;
-    const response = await fetch(url, {
-      method: 'DELETE',
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
+    const response = await ragFetch(
+      `/api/v1/documents/${encodeURIComponent(fileId)}`,
+      { method: 'DELETE', timeoutMs },
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -62,7 +55,6 @@ export async function deleteDocumentById({
       timestamp: Date.now(),
     };
   } catch (error) {
-    clearTimeout(timeoutId);
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       success: false,

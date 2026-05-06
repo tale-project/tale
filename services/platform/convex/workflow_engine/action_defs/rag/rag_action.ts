@@ -3,9 +3,9 @@ import { v } from 'convex/values';
 import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
 import type { SearchResponse } from '../../../agent_tools/rag/format_search_results';
 import { fetchDocumentChunks } from '../../../agent_tools/rag/helpers/fetch_document_chunks';
+import { ragFetch } from '../../../lib/helpers/rag_config';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { deleteDocumentById } from './helpers/delete_document';
-import { getRagConfig } from './helpers/get_rag_config';
 import type { RagActionParams } from './helpers/types';
 import { uploadDocument } from './helpers/upload_document';
 
@@ -44,48 +44,32 @@ export const ragAction: ActionDefinition<RagActionParams> = {
 
   async execute(ctx, params) {
     const startTime = Date.now();
-    const { serviceUrl } = getRagConfig();
 
     // Backward compatibility: map old param names from user-created workflows
     const migratedParams = migrateParams(params);
 
     switch (migratedParams.operation) {
       case 'upload_document': {
-        const result = await uploadDocument(
-          ctx,
-          serviceUrl,
-          migratedParams.fileId,
-          {
-            sync: migratedParams.sync,
-            fileName: migratedParams.fileName,
-            contentType: migratedParams.contentType,
-          },
-        );
+        const result = await uploadDocument(ctx, migratedParams.fileId, {
+          sync: migratedParams.sync,
+          fileName: migratedParams.fileName,
+          contentType: migratedParams.contentType,
+        });
         return { ...result, executionTimeMs: Date.now() - startTime };
       }
       case 'delete_document': {
         const result = await deleteDocumentById({
-          ragServiceUrl: serviceUrl,
           fileId: migratedParams.fileId,
         });
         return { ...result, executionTimeMs: Date.now() - startTime };
       }
       case 'get_chunks': {
-        const result = await fetchDocumentChunks(
-          serviceUrl,
-          migratedParams.fileId,
-        );
+        const result = await fetchDocumentChunks(migratedParams.fileId);
         return { ...result, executionTimeMs: Date.now() - startTime };
       }
       case 'search': {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(
-          () => controller.abort(),
-          SEARCH_TIMEOUT_MS,
-        );
-
         try {
-          const response = await fetch(`${serviceUrl}/api/v1/search`, {
+          const response = await ragFetch('/api/v1/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -95,9 +79,8 @@ export const ragAction: ActionDefinition<RagActionParams> = {
               similarity_threshold: migratedParams.similarityThreshold ?? 0.0,
               include_metadata: true,
             }),
-            signal: controller.signal,
+            timeoutMs: SEARCH_TIMEOUT_MS,
           });
-          clearTimeout(timeoutId);
 
           if (!response.ok) {
             const errorText = await response.text().catch(() => '');
@@ -114,8 +97,10 @@ export const ragAction: ActionDefinition<RagActionParams> = {
             executionTimeMs: Date.now() - startTime,
           };
         } catch (error) {
-          clearTimeout(timeoutId);
-          if (error instanceof Error && error.name === 'AbortError') {
+          if (
+            error instanceof Error &&
+            (error.name === 'AbortError' || error.name === 'TimeoutError')
+          ) {
             throw new Error(
               `RAG search timed out after ${SEARCH_TIMEOUT_MS / 1000}s`,
               { cause: error },

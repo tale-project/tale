@@ -7,7 +7,7 @@ import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
-import { getRagConfig } from '../lib/helpers/rag_config';
+import { ragFetch } from '../lib/helpers/rag_config';
 
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_TEMP_RETENTION_HOURS = 24;
@@ -27,10 +27,29 @@ interface OrgPolicy {
   config: RetentionPolicyConfig;
 }
 
+async function deleteRagEntry(fileId: string, label: string): Promise<void> {
+  try {
+    const res = await ragFetch(
+      `/api/v1/documents/${encodeURIComponent(fileId)}`,
+      { method: 'DELETE', timeoutMs: 10_000 },
+    );
+    // 404 is success on DELETE — already gone.
+    if (!res.ok && res.status !== 404) {
+      console.warn(
+        `[RetentionCleanup] RAG DELETE returned ${res.status} for ${label}`,
+      );
+    }
+  } catch (error) {
+    console.warn(
+      `[RetentionCleanup] Failed to delete RAG entry for ${label}:`,
+      error,
+    );
+  }
+}
+
 async function cleanupDocuments(
   ctx: ActionCtx,
   org: OrgPolicy,
-  ragUrl: string,
   batchSize: number,
 ): Promise<void> {
   if (!org.config.enabled) return;
@@ -43,17 +62,7 @@ async function cleanupDocuments(
 
   for (const doc of expiredDocs) {
     if (doc.fileId) {
-      try {
-        await fetch(
-          `${ragUrl}/api/v1/documents/${encodeURIComponent(doc.fileId)}`,
-          { method: 'DELETE', signal: AbortSignal.timeout(30000) },
-        );
-      } catch (error) {
-        console.warn(
-          `[RetentionCleanup] Failed to delete RAG entry for document ${doc._id}:`,
-          error,
-        );
-      }
+      await deleteRagEntry(doc.fileId, `document ${doc._id}`);
     }
 
     await ctx.runMutation(
@@ -67,7 +76,6 @@ async function cleanupTempFiles(
   ctx: ActionCtx,
   org: OrgPolicy,
   source: 'user' | 'agent',
-  ragUrl: string,
   batchSize: number,
 ): Promise<void> {
   const enabled =
@@ -88,17 +96,7 @@ async function cleanupTempFiles(
   );
 
   for (const file of expiredFiles) {
-    try {
-      await fetch(
-        `${ragUrl}/api/v1/documents/${encodeURIComponent(file.storageId)}`,
-        { method: 'DELETE', signal: AbortSignal.timeout(30000) },
-      );
-    } catch (error) {
-      console.warn(
-        `[RetentionCleanup] Failed to delete RAG entry for temp file ${file._id}:`,
-        error,
-      );
-    }
+    await deleteRagEntry(file.storageId, `temp file ${file._id}`);
 
     await ctx.runMutation(
       internal.governance.internal_mutations_retention.deleteExpiredTempFile,
@@ -283,20 +281,18 @@ export const runRetentionCleanup = internalAction({
       });
     }
 
-    const ragUrl = getRagConfig().serviceUrl;
-
     for (const org of orgsWithPolicies) {
       const batchSize = org.config.batchSize ?? DEFAULT_BATCH_SIZE;
       const { organizationId } = org;
 
       await runCategory('documents', organizationId, () =>
-        cleanupDocuments(ctx, org, ragUrl, batchSize),
+        cleanupDocuments(ctx, org, batchSize),
       );
       await runCategory('userTempFiles', organizationId, () =>
-        cleanupTempFiles(ctx, org, 'user', ragUrl, batchSize),
+        cleanupTempFiles(ctx, org, 'user', batchSize),
       );
       await runCategory('agentTempFiles', organizationId, () =>
-        cleanupTempFiles(ctx, org, 'agent', ragUrl, batchSize),
+        cleanupTempFiles(ctx, org, 'agent', batchSize),
       );
       await runCategory('chatHistory', organizationId, () =>
         cleanupChatHistory(ctx, org, batchSize),

@@ -6,7 +6,6 @@ import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { fetchDocumentComparisonByUrls } from '../agent_tools/documents/helpers/fetch_document_comparison';
 import { authComponent } from '../auth';
-import { getRagConfig } from '../lib/helpers/rag_config';
 import { toId } from '../lib/type_cast_helpers';
 
 export const compareDocuments = action({
@@ -34,15 +33,12 @@ export const compareDocuments = action({
       throw new Error('Unauthorized: not a member of this organization');
     }
 
-    const { serviceUrl } = getRagConfig();
-
     const [baseFileUrl, compFileUrl] = await Promise.all([
       resolveStorageUrl(ctx, args.baseStorageId),
       resolveStorageUrl(ctx, args.comparisonStorageId),
     ]);
 
     return await fetchDocumentComparisonByUrls(
-      serviceUrl,
       baseFileUrl,
       args.baseFileName,
       compFileUrl,

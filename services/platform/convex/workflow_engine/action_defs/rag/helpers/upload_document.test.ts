@@ -72,7 +72,7 @@ describe('uploadDocument', () => {
     const ctx = createCtx();
     mockFetchOk();
 
-    await uploadDocument(ctx as never, RAG_URL, FILE_ID);
+    await uploadDocument(ctx as never, FILE_ID);
 
     expect(ctx.storage.getUrl).toHaveBeenCalledWith(FILE_ID);
   });
@@ -80,9 +80,9 @@ describe('uploadDocument', () => {
   it('throws when storage.getUrl returns null', async () => {
     const ctx = createCtx(null);
 
-    await expect(
-      uploadDocument(ctx as never, RAG_URL, FILE_ID),
-    ).rejects.toThrow(`File URL not available: ${FILE_ID}`);
+    await expect(uploadDocument(ctx as never, FILE_ID)).rejects.toThrow(
+      `File URL not available: ${FILE_ID}`,
+    );
   });
 
   it('throws when file download fails with non-ok response', async () => {
@@ -92,18 +92,18 @@ describe('uploadDocument', () => {
       status: 404,
     });
 
-    await expect(
-      uploadDocument(ctx as never, RAG_URL, FILE_ID),
-    ).rejects.toThrow('Failed to download file: 404');
+    await expect(uploadDocument(ctx as never, FILE_ID)).rejects.toThrow(
+      'Failed to download file: 404',
+    );
   });
 
   it('throws when fileMetadata is not found', async () => {
     const ctx = createCtx('https://storage.example.com/file', null);
     mockFetchOk();
 
-    await expect(
-      uploadDocument(ctx as never, RAG_URL, FILE_ID),
-    ).rejects.toThrow('File metadata not found');
+    await expect(uploadDocument(ctx as never, FILE_ID)).rejects.toThrow(
+      'File metadata not found',
+    );
   });
 
   it('uses fileName and contentType from fileMetadata', async () => {
@@ -114,7 +114,7 @@ describe('uploadDocument', () => {
     });
     mockFetchOk();
 
-    await uploadDocument(ctx as never, RAG_URL, FILE_ID);
+    await uploadDocument(ctx as never, FILE_ID);
 
     expect(uploadFileMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -133,7 +133,7 @@ describe('uploadDocument', () => {
     });
     mockFetchOk();
 
-    await uploadDocument(ctx as never, RAG_URL, FILE_ID, {
+    await uploadDocument(ctx as never, FILE_ID, {
       fileName: 'override.pdf',
       contentType: 'application/pdf',
     });
@@ -153,7 +153,7 @@ describe('uploadDocument', () => {
     });
     mockFetchOk();
 
-    await uploadDocument(ctx as never, RAG_URL, FILE_ID);
+    await uploadDocument(ctx as never, FILE_ID);
 
     expect(uploadFileMock).toHaveBeenCalledWith(
       expect.objectContaining({ filename: 'report.pdf' }),
@@ -164,7 +164,7 @@ describe('uploadDocument', () => {
     const ctx = createCtx();
     mockFetchOk();
 
-    await uploadDocument(ctx as never, RAG_URL, FILE_ID, { sync: true });
+    await uploadDocument(ctx as never, FILE_ID, { sync: true });
 
     expect(uploadFileMock).toHaveBeenCalledWith(
       expect.objectContaining({ sync: true }),
@@ -175,7 +175,7 @@ describe('uploadDocument', () => {
     const ctx = createCtx();
     mockFetchOk();
 
-    await uploadDocument(ctx as never, RAG_URL, FILE_ID);
+    await uploadDocument(ctx as never, FILE_ID);
 
     expect(uploadFileMock).toHaveBeenCalledWith(
       expect.objectContaining({ sync: false }),
@@ -186,11 +186,10 @@ describe('uploadDocument', () => {
     const ctx = createCtx();
     mockFetchOk();
 
-    await uploadDocument(ctx as never, RAG_URL, FILE_ID);
+    await uploadDocument(ctx as never, FILE_ID);
 
     expect(uploadFileMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        ragServiceUrl: RAG_URL,
         fileId: FILE_ID,
       }),
     );
@@ -200,7 +199,7 @@ describe('uploadDocument', () => {
     const ctx = createCtx();
     mockFetchOk();
 
-    await uploadDocument(ctx as never, RAG_URL, FILE_ID);
+    await uploadDocument(ctx as never, FILE_ID);
 
     const callArgs = uploadFileMock.mock.calls[0][0];
     expect(callArgs.file).toBeInstanceOf(Blob);

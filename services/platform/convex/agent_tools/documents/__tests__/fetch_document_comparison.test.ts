@@ -1,8 +1,23 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
+import { _resetRagConfigForTests } from '../../../lib/helpers/rag_config';
 import { fetchDocumentComparison } from '../helpers/fetch_document_comparison';
 
 const RAG_URL = 'http://mock-rag:8001';
+
+beforeAll(() => {
+  process.env.RAG_URL = RAG_URL;
+  process.env.RAG_INTERNAL_TOKEN = 'test-token';
+  _resetRagConfigForTests();
+});
 const BASE_FILE_ID = 'file-base-123';
 const COMP_FILE_ID = 'file-comp-456';
 
@@ -67,11 +82,7 @@ afterEach(() => {
 
 describe('fetchDocumentComparison', () => {
   it('returns correctly mapped result on happy path', async () => {
-    const result = await fetchDocumentComparison(
-      RAG_URL,
-      BASE_FILE_ID,
-      COMP_FILE_ID,
-    );
+    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
 
     expect(result.baseDocument).toEqual({
       fileId: BASE_FILE_ID,
@@ -94,11 +105,7 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('maps change blocks with all diff item fields', async () => {
-    const result = await fetchDocumentComparison(
-      RAG_URL,
-      BASE_FILE_ID,
-      COMP_FILE_ID,
-    );
+    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
 
     expect(result.changeBlocks).toHaveLength(1);
     const block = result.changeBlocks[0];
@@ -137,11 +144,7 @@ describe('fetchDocumentComparison', () => {
       }),
     );
 
-    const result = await fetchDocumentComparison(
-      RAG_URL,
-      BASE_FILE_ID,
-      COMP_FILE_ID,
-    );
+    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
 
     const item = result.changeBlocks[0].items[0];
     expect(item.inlineDiff).toBeNull();
@@ -151,7 +154,7 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('sends POST request with correct body', async () => {
-    await fetchDocumentComparison(RAG_URL, BASE_FILE_ID, COMP_FILE_ID);
+    await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
       `${RAG_URL}/api/v1/documents/compare`,
@@ -167,7 +170,7 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('includes max_changes in body when provided', async () => {
-    await fetchDocumentComparison(RAG_URL, BASE_FILE_ID, COMP_FILE_ID, 50);
+    await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID, 50);
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
       expect.anything(),
@@ -182,7 +185,7 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('omits max_changes from body when not provided', async () => {
-    await fetchDocumentComparison(RAG_URL, BASE_FILE_ID, COMP_FILE_ID);
+    await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
       expect.anything(),
@@ -204,7 +207,7 @@ describe('fetchDocumentComparison', () => {
     );
 
     await expect(
-      fetchDocumentComparison(RAG_URL, BASE_FILE_ID, COMP_FILE_ID),
+      fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID),
     ).rejects.toThrow('Document not found during comparison');
   });
 
@@ -219,7 +222,7 @@ describe('fetchDocumentComparison', () => {
     );
 
     await expect(
-      fetchDocumentComparison(RAG_URL, BASE_FILE_ID, COMP_FILE_ID),
+      fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID),
     ).rejects.toThrow('Invalid comparison request');
   });
 
@@ -234,7 +237,7 @@ describe('fetchDocumentComparison', () => {
     );
 
     await expect(
-      fetchDocumentComparison(RAG_URL, BASE_FILE_ID, COMP_FILE_ID),
+      fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID),
     ).rejects.toThrow('RAG service error (500)');
   });
 
@@ -249,7 +252,7 @@ describe('fetchDocumentComparison', () => {
     );
 
     await expect(
-      fetchDocumentComparison(RAG_URL, BASE_FILE_ID, COMP_FILE_ID),
+      fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID),
     ).rejects.toThrow('timed out after 120s');
   });
 
@@ -260,7 +263,7 @@ describe('fetchDocumentComparison', () => {
     );
 
     await expect(
-      fetchDocumentComparison(RAG_URL, BASE_FILE_ID, COMP_FILE_ID),
+      fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID),
     ).rejects.toThrow('Failed to fetch');
   });
 
@@ -280,11 +283,7 @@ describe('fetchDocumentComparison', () => {
       }),
     );
 
-    const result = await fetchDocumentComparison(
-      RAG_URL,
-      BASE_FILE_ID,
-      COMP_FILE_ID,
-    );
+    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
 
     expect(result.changeBlocks).toEqual([]);
     expect(result.stats.unchanged).toBe(5);
@@ -293,11 +292,7 @@ describe('fetchDocumentComparison', () => {
   it('handles truncated response', async () => {
     mockFetchSuccess(createRagCompareResponse({ truncated: true }));
 
-    const result = await fetchDocumentComparison(
-      RAG_URL,
-      BASE_FILE_ID,
-      COMP_FILE_ID,
-    );
+    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
 
     expect(result.truncated).toBe(true);
   });
@@ -317,11 +312,7 @@ describe('fetchDocumentComparison', () => {
       }),
     );
 
-    const result = await fetchDocumentComparison(
-      RAG_URL,
-      BASE_FILE_ID,
-      COMP_FILE_ID,
-    );
+    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
 
     expect(result.stats.highDivergence).toBe(true);
   });
@@ -334,11 +325,7 @@ describe('fetchDocumentComparison', () => {
       }),
     );
 
-    const result = await fetchDocumentComparison(
-      RAG_URL,
-      BASE_FILE_ID,
-      COMP_FILE_ID,
-    );
+    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
 
     expect(result.baseDocument.title).toBeNull();
     expect(result.comparisonDocument.title).toBeNull();
@@ -376,11 +363,7 @@ describe('fetchDocumentComparison', () => {
       }),
     );
 
-    const result = await fetchDocumentComparison(
-      RAG_URL,
-      BASE_FILE_ID,
-      COMP_FILE_ID,
-    );
+    const result = await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
 
     expect(result.changeBlocks).toHaveLength(2);
     expect(result.changeBlocks[0].items[0].type).toBe('deleted');
@@ -388,7 +371,7 @@ describe('fetchDocumentComparison', () => {
   });
 
   it('passes AbortSignal to fetch', async () => {
-    await fetchDocumentComparison(RAG_URL, BASE_FILE_ID, COMP_FILE_ID);
+    await fetchDocumentComparison(BASE_FILE_ID, COMP_FILE_ID);
 
     const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
     const options = fetchCall?.[1];

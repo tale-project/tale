@@ -17,7 +17,6 @@ import { fetchDocumentComparisonByUrls } from '../../../agent_tools/documents/he
 import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fetch_document_content';
 import { getDocumentEffectiveDate } from '../../../documents/transform_to_document_item';
 import type { DocumentMetadata } from '../../../documents/types';
-import { getRagConfig } from '../../../lib/helpers/rag_config';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import { jsonRecordValidator } from '../../../lib/validators/json';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
@@ -268,8 +267,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       }
 
       case 'retrieve': {
-        const { serviceUrl } = getRagConfig();
-        return await fetchDocumentContent(serviceUrl, params.fileId, {
+        return await fetchDocumentContent(params.fileId, {
           chunkStart: params.chunkStart,
           chunkEnd: params.chunkEnd,
           returnChunks: params.returnChunks,
@@ -302,8 +300,6 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       }
 
       case 'compare': {
-        const { serviceUrl } = getRagConfig();
-
         const [baseFileUrl, compFileUrl] = await Promise.all([
           resolveStorageUrl(ctx, params.baseFileId),
           resolveStorageUrl(ctx, params.comparisonFileId),
@@ -318,7 +314,6 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
               ]);
 
         return await fetchDocumentComparisonByUrls(
-          serviceUrl,
           baseFileUrl,
           baseFileName,
           compFileUrl,
