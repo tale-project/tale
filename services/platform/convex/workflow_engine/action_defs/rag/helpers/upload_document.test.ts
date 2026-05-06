@@ -30,7 +30,6 @@ function createCtx(
   };
 }
 
-const RAG_URL = 'http://rag:8000';
 const FILE_ID = 'storage-id-123';
 
 const UPLOAD_RESULT = {

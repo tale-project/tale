@@ -739,9 +739,11 @@ export const runOrgRetentionCleanup = internalAction({
         },
       ];
 
-      const skipUntilIndex = resumeCursor
-        ? categories.findIndex((c) => c.name === resumeCursor!.category)
-        : -1;
+      const cursorCategory = resumeCursor?.category;
+      const skipUntilIndex =
+        cursorCategory !== undefined
+          ? categories.findIndex((c) => c.name === cursorCategory)
+          : -1;
 
       for (let i = 0; i < categories.length; i++) {
         if (skipUntilIndex >= 0 && i < skipUntilIndex) continue;

@@ -31,7 +31,6 @@ import {
   type CategoryId,
   GROUP_ORDER,
   type Preset,
-  RETENTION_CATEGORIES,
   categoriesInGroup,
 } from './retention-categories';
 import { RetentionPendingBanner } from './retention-pending-banner';
@@ -99,9 +98,9 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
   // 16-pair `useState` explosion the previous editor had and keeps the
   // preset switch + per-category edits coherent.
   const initializedRef = useRef(false);
-  const [config, setConfig] = useState<RetentionPolicyConfig>(savedConfig);
+  const [config, setConfig] = useState(savedConfig);
   const [preset, setPreset] = useState<Preset>('custom');
-  const [errors, setErrors] = useState<Map<CategoryId, string>>(new Map());
+  const [errors, setErrors] = useState(new Map<CategoryId, string>());
 
   if (!isLoading && !initializedRef.current) {
     initializedRef.current = true;
@@ -137,7 +136,8 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
           typeof errData?.code === 'string' ? errData.code : undefined;
         const offending =
           typeof errData?.category === 'string'
-            ? (errData.category as CategoryId)
+            ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- backend RETENTION_BELOW_FLOOR/EXCEEDS_CEILING errors set category to a RetentionCategory value
+              (errData.category as CategoryId)
             : errorContext;
         if (
           (code === 'RETENTION_BELOW_FLOOR' ||
@@ -245,7 +245,10 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
       >
         <RadioGroup
           value={preset}
-          onValueChange={(v) => onPresetChange(v as Preset)}
+          onValueChange={(v) =>
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options below are the only values the RadioGroup can emit
+            onPresetChange(v as Preset)
+          }
           options={[
             {
               value: 'standard',
@@ -412,10 +415,10 @@ function CategoryRow({
   setConfig,
 }: CategoryRowProps) {
   const { t } = useT('governance');
-  const enabled =
-    cat.enabledKey !== undefined ? Boolean(config[cat.enabledKey]) : true;
-  const value =
-    (config[cat.configKey] as number | undefined) ?? cat.standardDefault;
+  const { enabledKey, configKey } = cat;
+  const enabled = enabledKey !== undefined ? Boolean(config[enabledKey]) : true;
+  const rawValue = config[configKey];
+  const value = typeof rawValue === 'number' ? rawValue : cat.standardDefault;
 
   const unitLabel =
     cat.unit === 'hours'
@@ -429,10 +432,7 @@ function CategoryRow({
           'Operator caps this at {min}-{max} {unit}.',
           { min: bound.min, max: bound.max, unit: cat.unit },
         )
-      : t(
-          `retentionPolicy.${cat.i18nKey}.helper`,
-          undefined as unknown as string,
-        );
+      : t(`retentionPolicy.${cat.i18nKey}.helper`, '');
 
   return (
     <div className="border-border/50 flex flex-col gap-3 border-b border-dashed pb-4 last:border-b-0 last:pb-0">
@@ -445,17 +445,17 @@ function CategoryRow({
             {t(`retentionPolicy.${cat.i18nKey}.description`, '')}
           </Text>
         </div>
-        {cat.enabledKey ? (
+        {enabledKey ? (
           <Switch
             label={t('retentionPolicy.enabled', 'Enabled')}
             checked={enabled}
             onCheckedChange={(checked) => {
               setConfig((prev) => ({
                 ...prev,
-                [cat.enabledKey as keyof RetentionPolicyConfig]: checked,
+                [enabledKey]: checked,
               }));
               updateField(
-                cat.enabledKey as keyof RetentionPolicyConfig,
+                enabledKey,
                 checked as RetentionPolicyConfig[keyof RetentionPolicyConfig],
               );
             }}
@@ -473,9 +473,9 @@ function CategoryRow({
             max={bound?.max}
             onChange={(e) => {
               const next = e.target.value ? Number(e.target.value) : 0;
-              setConfig((prev) => ({ ...prev, [cat.configKey]: next }));
+              setConfig((prev) => ({ ...prev, [configKey]: next }));
             }}
-            onBlur={() => updateField(cat.configKey, value, cat.id)}
+            onBlur={() => updateField(configKey, value, cat.id)}
             disabled={inputDisabled}
             size="sm"
             errorMessage={error}

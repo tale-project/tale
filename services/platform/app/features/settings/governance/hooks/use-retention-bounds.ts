@@ -45,7 +45,9 @@ export function useRetentionBounds(organizationId: string | undefined) {
     const bounds = (result.data?.bounds ?? []) as RawBound[];
     const out = new Map<CategoryId, CategoryBounds>();
     for (const b of bounds) {
-      out.set(b.category as CategoryId, {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- backend returns RetentionCategory ids which are CategoryId by contract
+      const id = b.category as CategoryId;
+      out.set(id, {
         min: b.min,
         max: b.max,
         default: b.default,

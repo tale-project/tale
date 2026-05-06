@@ -56,7 +56,6 @@ export const dataNoticeConfigSchema = z.object({
   /** Bump to force re-acknowledgment of the notice. */
   version: z.number().int().nonnegative().default(1),
 });
-export type DataNoticeConfig = z.infer<typeof dataNoticeConfigSchema>;
 
 export const budgetRuleSchema = z.object({
   scope: z.enum(['user', 'team', 'role', 'org', 'default']),

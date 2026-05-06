@@ -116,18 +116,12 @@ export function isHeld(
   targetId: string,
 ): boolean {
   if (holds.orgHeld) return true;
-  switch (targetType) {
-    case 'thread':
-      return holds.threadIds.has(targetId);
-    case 'document':
-      return holds.documentIds.has(targetId);
-    case 'execution':
-      return holds.executionIds.has(targetId);
-    case 'userMembership':
-      return holds.userMembershipIds.has(targetId);
-    case 'org':
-      return holds.orgHeld;
-  }
+  if (targetType === 'thread') return holds.threadIds.has(targetId);
+  if (targetType === 'document') return holds.documentIds.has(targetId);
+  if (targetType === 'execution') return holds.executionIds.has(targetId);
+  if (targetType === 'userMembership')
+    return holds.userMembershipIds.has(targetId);
+  return false;
 }
 
 export { EMPTY_HOLDS as _EMPTY_HOLDS_FOR_TESTS };

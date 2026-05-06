@@ -219,9 +219,9 @@ export function getRetentionBounds(
 
 /** Snapshot of every category's effective bounds. */
 export function getAllRetentionBounds(): EffectiveBounds[] {
-  return (Object.keys(RETENTION_DEFAULTS) as RetentionCategory[]).map(
-    getRetentionBounds,
-  );
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.keys widens to string[] but RETENTION_DEFAULTS keys are exhaustively RetentionCategory
+  const categories = Object.keys(RETENTION_DEFAULTS) as RetentionCategory[];
+  return categories.map(getRetentionBounds);
 }
 
 /**

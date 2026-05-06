@@ -1,9 +1,9 @@
 ---
 title: Aufbewahrungs-Konfiguration
-description: Konfigurieren Sie, wie lange Konversationen, Dateien, Audit-Einträge und Ausführungen aufbewahrt werden.
+description: Konfiguriere, wie lange Konversationen, Dateien, Audit-Einträge und Ausführungen aufbewahrt werden.
 ---
 
-Tale verfügt über eine zentrale Aufbewahrungs-Konfiguration, die für alle Datendomänen gilt — Chat-Konversationen, hochgeladene Dateien, Audit-Logs, Workflow-Ausführungen und Analytics-Einträge. Die Standardwerte sind für die meisten Deployments angemessen; passen Sie sie an, wenn Compliance, Kosten oder Datenschutzregeln andere Einstellungen erfordern.
+Tale verfügt über eine zentrale Aufbewahrungs-Konfiguration, die für alle Datendomänen gilt — Chat-Konversationen, hochgeladene Dateien, Audit-Logs, Workflow-Ausführungen und Analytics-Einträge. Die Standardwerte sind für die meisten Deployments angemessen; passe sie an, wenn Compliance, Kosten oder Datenschutzregeln andere Einstellungen erfordern.
 
 Die Aufbewahrung kann an zwei Stellen konfiguriert werden:
 
@@ -12,7 +12,7 @@ Die Aufbewahrung kann an zwei Stellen konfiguriert werden:
 
 ## Umgebungsvariablen
 
-Diese gelten für jede Organisation auf dem Deployment. Alle Werte sind in Tagen, sofern nicht anders angegeben. Paaren Sie `_MIN_DAYS` und `_MAX_DAYS` pro Kategorie — Operatoren können die Standardwerte verschärfen, aber niemals lockern.
+Diese gelten für jede Organisation auf dem Deployment. Alle Werte sind in Tagen, sofern nicht anders angegeben. Paare `_MIN_DAYS` und `_MAX_DAYS` pro Kategorie — Operatoren können die Standardwerte verschärfen, aber niemals lockern.
 
 | Variable                                                   | Standard min | Standard max | Steuert                                                                                                      |
 | ---------------------------------------------------------- | ------------ | ------------ | ------------------------------------------------------------------------------------------------------------ |
@@ -56,7 +56,7 @@ Wenn ein `legalHolds`-Eintrag für `(organizationId, targetType, targetId)` exis
 
 Target-Typen: `thread`, `document`, `execution`, `userMembership`, `org`. Ein gesamt-org Hold (`targetType: 'org'`) kurzschließt den gesamten Cleanup-Pass für diese Org.
 
-Holds werden via `placeLegalHold` platziert und via maker-checker Flow released (`requestLegalHoldRelease` + `approveLegalHoldRelease`, Approver muss vom Requester abweichen, 24h Cooldown nach Approval). Released Holds bleiben in der Tabelle für die Audit-Spur erhalten — niemals physisch gelöscht.
+Holds werden via `placeLegalHold` platziert und via maker-checker Flow released (`requestLegalHoldRelease` + `approveLegalHoldRelease`, der Genehmigende muss vom Anfragenden abweichen, 24h Cooldown nach der Genehmigung). Released Holds bleiben in der Tabelle für die Audit-Spur erhalten — niemals physisch gelöscht.
 
 ## GDPR Art 17 Löschung
 
@@ -64,6 +64,15 @@ Für verifizierte Subject-Erasure-Anfragen kann ein Admin `requestErasure(organi
 
 Audit-Subtyp `gdpr_erasure_executed` (`category: 'admin'`) erfasst Akteur, Grund, gelöschte Threads und etwaige durch Hold blockierte Items.
 
-## Vertraulichkeitshinweis
+## Was gelöscht wird
 
-Admins können einen pro-Org Vertraulichkeitshinweis konfigurieren, der im Chat-Composer-Footer und Upload-Dialog gerendert wird. Bei `requireAcknowledgment: true` muss jeder Nutzer den aktuellen Hinweis explizit einmal akzeptieren; die Re-Acknowledgment wird erzwungen, wenn der Admin die `version` bumped.
+- Zeilen werden aus der Datenbank gelöscht.
+- Zugehörige Dateien werden aus dem Object Storage gelöscht.
+- Vector-Embeddings für gelöschte Dokumente werden aus dem Knowledge-Store entfernt.
+- Bei der Chat-Verlauf-Aufbewahrung wird jede Nachfolge-Zeile (Nachrichten, Metadata, Todos, Feedback, Artifacts usw.) per Cascade über den geteilten `cascadeDeleteThreadChildren`-Helper gelöscht, sodass User-Delete und Retention-Delete niemals auseinanderdriften.
+- Die Audit-Log-Aufbewahrung schreibt an jeder Batch-Grenze einen `auditLogCheckpoints`-Eintrag, sodass die SHA-256-Hash-Chain verifizierbar bleibt.
+
+## Verwandt
+
+- [Umgebungsvariablen-Referenz](/self-hosted/configuration/environment-reference) — vollständige Liste der Tale-Umgebungsvariablen.
+- [Governance](/platform/admin/governance) — Pro-Org-Aufbewahrungseinstellungen und Legal-Hold-Verwaltung.

@@ -56,7 +56,7 @@ export async function cascadeDeleteThreadChildren(
   args: { threadId: string; organizationId: string | undefined },
 ): Promise<{ done: boolean; remaining: number }> {
   const { threadId, organizationId } = args;
-  let remaining = 0;
+  const remaining = 0;
 
   // 1. messageMetadata — paged
   const metadataPage = await ctx.db

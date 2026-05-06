@@ -73,7 +73,11 @@ export function useDataClassificationNotice(
         ? config.requireAcknowledgment
         : false,
     messages: isRecord(config.messages)
-      ? (config.messages as Record<string, string>)
+      ? Object.fromEntries(
+          Object.entries(config.messages).filter(
+            (entry): entry is [string, string] => typeof entry[1] === 'string',
+          ),
+        )
       : undefined,
     version: typeof config.version === 'number' ? config.version : 1,
   };

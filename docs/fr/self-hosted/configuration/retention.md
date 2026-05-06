@@ -64,6 +64,15 @@ Pour les demandes d'effacement vérifiées, un admin peut appeler `requestErasur
 
 Sous-type d'audit `gdpr_erasure_executed` (`category: 'admin'`) enregistre acteur, raison, threads effacés et toute liste d'éléments bloqués par conservation.
 
-## Avis de confidentialité
+## Ce qui est supprimé
 
-Les administrateurs peuvent configurer un avis de confidentialité par organisation rendu dans le pied de page du compositeur de chat et la boîte de dialogue de téléversement. Avec `requireAcknowledgment: true`, chaque utilisateur doit accepter explicitement l'avis actuel une fois ; la ré-acceptation est forcée lorsque l'admin incrémente la `version`.
+- Les lignes sont supprimées de la base de données.
+- Les fichiers associés sont supprimés du stockage d'objets.
+- Les embeddings vectoriels des documents supprimés sont retirés du knowledge store.
+- Pour la rétention de l'historique de chat, chaque ligne descendante (messages, metadata, todos, feedback, artifacts, etc.) est supprimée en cascade via le helper partagé `cascadeDeleteThreadChildren`, afin que la suppression utilisateur et la suppression de rétention ne divergent jamais sur les tables nettoyées.
+- La rétention des journaux d'audit écrit une ligne `auditLogCheckpoints` à chaque limite de batch afin que la chaîne de hash SHA-256 reste vérifiable.
+
+## Voir aussi
+
+- [Référence des variables d'environnement](/self-hosted/configuration/environment-reference) — liste complète des variables d'environnement de Tale.
+- [Gouvernance](/platform/admin/governance) — paramètres de rétention par organisation et gestion des conservations légales.
