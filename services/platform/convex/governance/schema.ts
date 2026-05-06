@@ -237,8 +237,11 @@ export const legalHoldsTable = defineTable({
   targetId: v.string(),
   /** Required free-text from the placing admin. */
   reason: v.string(),
-  /** Optional matter / case grouping (free-text for now; future:
-   *  `v.id('legalMatters')`). */
+  /** Optional matter / case grouping. Free-text key into the
+   *  `legalMattersTable` (the `matterRef` is the matter's stable code,
+   *  not the row id, so an admin can rename a matter without rewriting
+   *  every linked hold). Indexed by `by_matterRef` to support
+   *  `closeLegalMatter`'s fan-out release and per-matter UI views. */
   matterRef: v.optional(v.string()),
   placedBy: v.string(),
   placedAt: v.number(),
@@ -251,7 +254,8 @@ export const legalHoldsTable = defineTable({
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_targetType', ['organizationId', 'targetType'])
-  .index('by_target', ['organizationId', 'targetType', 'targetId']);
+  .index('by_target', ['organizationId', 'targetType', 'targetId'])
+  .index('by_organizationId_matterRef', ['organizationId', 'matterRef']);
 
 /**
  * Audit-log integrity checkpoint (Phase 9).
@@ -354,6 +358,10 @@ export const retentionRunsTable = defineTable({
   lastError: v.optional(v.string()),
   /** Cumulative count of rows processed in this run — for telemetry. */
   processedCount: v.optional(v.number()),
+  /** Updated each time `recordRetentionRunCheckpoint` advances; lets the
+   *  stale-run reaper distinguish a still-working continuation from a
+   *  truly crashed run without waiting the full 23h absolute timeout. */
+  lastHeartbeatAt: v.optional(v.number()),
 })
   .index('by_organizationId_startedAt', ['organizationId', 'startedAt'])
   .index('by_completedAt', ['completedAt']);

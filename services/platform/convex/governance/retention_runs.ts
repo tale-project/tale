@@ -23,7 +23,12 @@ import { authComponent } from '../auth';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
-const STALE_RUN_AGE_MS = 23 * 60 * 60 * 1000; // 23h
+const STALE_RUN_AGE_MS = 23 * 60 * 60 * 1000; // 23h absolute ceiling
+// A live worker checkpoints between every category and on continuation
+// scheduling; a 30-min heartbeat gap means the worker crashed (or the host
+// ran out of compute) and we shouldn't keep blocking the next dispatch
+// for the remainder of the 23h absolute window.
+const STALE_HEARTBEAT_MS = 30 * 60 * 1000;
 
 const cursorValidator = v.object({
   category: v.string(),
@@ -47,23 +52,34 @@ export const claimRetentionRun = internalMutation({
 
     if (recent && recent.completedAt === undefined) {
       const age = now - recent.startedAt;
-      if (age < STALE_RUN_AGE_MS) {
-        // In-flight, fresh — skip this dispatch.
+      // Backwards-compat: rows persisted before lastHeartbeatAt landed
+      // fall back to startedAt — they keep the 23h absolute behavior.
+      const heartbeatAge =
+        recent.lastHeartbeatAt !== undefined
+          ? now - recent.lastHeartbeatAt
+          : age;
+      if (age < STALE_RUN_AGE_MS && heartbeatAge < STALE_HEARTBEAT_MS) {
+        // In-flight + still heartbeating — skip this dispatch.
         return null;
       }
-      // Stale uncompleted run (process crashed mid-cleanup); mark it
-      // failed so the runs panel shows the gap, then claim a new run.
+      // Either the absolute 23h deadline passed, or the worker stopped
+      // checkpointing for >30 min (process crash / host OOM); mark the
+      // row failed so the runs panel shows the gap, then claim a new
+      // run.
       await ctx.db.patch(recent._id, {
         completedAt: now,
         lastError:
           recent.lastError ??
-          `Run abandoned (no completion within ${STALE_RUN_AGE_MS / 1000 / 60 / 60}h).`,
+          (age >= STALE_RUN_AGE_MS
+            ? `Run abandoned (no completion within ${STALE_RUN_AGE_MS / 1000 / 60 / 60}h).`
+            : `Run abandoned (no heartbeat within ${STALE_HEARTBEAT_MS / 1000 / 60} min).`),
       });
     }
 
     return await ctx.db.insert('retentionRuns', {
       organizationId: args.organizationId,
       startedAt: now,
+      lastHeartbeatAt: now,
       processedCount: 0,
     });
   },
@@ -79,19 +95,20 @@ export const recordRetentionRunCheckpoint = internalMutation({
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.runId);
     if (!row) return null;
+    // Always touch the heartbeat — every checkpoint is a liveness signal
+    // even when no cursor or processed delta is supplied.
     const patch: {
       lastCursor?: typeof row.lastCursor;
       processedCount?: number;
-    } = {};
+      lastHeartbeatAt: number;
+    } = { lastHeartbeatAt: Date.now() };
     if (args.cursor !== undefined) {
       patch.lastCursor = args.cursor;
     }
     if (args.processedDelta !== undefined) {
       patch.processedCount = (row.processedCount ?? 0) + args.processedDelta;
     }
-    if (Object.keys(patch).length > 0) {
-      await ctx.db.patch(args.runId, patch);
-    }
+    await ctx.db.patch(args.runId, patch);
     return null;
   },
 });

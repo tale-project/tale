@@ -304,15 +304,16 @@ export const deleteExpiredExternalConversation = internalMutation({
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.rowId);
     if (!row) return null;
-    // Cascade: drop child conversation messages first.
+    // Cascade: drop child conversation messages first. Use the
+    // by_conversationId index so we scan only the rows of interest
+    // instead of every conversationMessages row in the org.
     let scanned = 0;
     const MAX_PAGE = 200;
     for await (const msg of ctx.db
       .query('conversationMessages')
-      .withIndex('by_organizationId_and_deliveredAt', (q) =>
-        q.eq('organizationId', args.organizationId),
+      .withIndex('by_conversationId_and_deliveredAt', (q) =>
+        q.eq('conversationId', args.rowId),
       )) {
-      if (msg.conversationId !== args.rowId) continue;
       await ctx.db.delete(msg._id);
       scanned++;
       if (scanned >= MAX_PAGE) break;
