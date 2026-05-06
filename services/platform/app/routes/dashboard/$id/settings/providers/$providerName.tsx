@@ -3,7 +3,6 @@ import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { Skeleton } from '@tale/ui/skeleton';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ConvexError } from 'convex/values';
 import {
   AlertTriangle,
   ChevronRight,
@@ -54,31 +53,93 @@ export const Route = createFileRoute(
   component: ProviderDetailRoute,
 });
 
+/**
+ * Read structured `data` off a Convex action error without `instanceof
+ * ConvexError`. Vite HMR / chunk splitting can produce multiple copies of the
+ * `ConvexError` class — the prototype-chain check then returns false even
+ * though the error IS a ConvexError. The UI only needs the structural shape
+ * (`{ data: { code, ... } }`), so check that directly.
+ */
+function readConvexErrorData(
+  err: unknown,
+): Record<string, unknown> | undefined {
+  if (err == null || typeof err !== 'object') return undefined;
+  if (!('data' in err)) return undefined;
+  const data = (err as { data: unknown }).data;
+  if (data == null || typeof data !== 'object') return undefined;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- data is a runtime-checked object; downstream reads narrow per-field
+  return data as Record<string, unknown>;
+}
+
 function ProviderDetailRoute() {
   const { t } = useT('settings');
   const { id: organizationId, providerName } = Route.useParams();
   const { data: organization, isLoading: isOrgLoading } =
     useOrganization(organizationId);
   const orgSlug = organization?.slug ?? '';
-  const { data, isLoading } = useReadProvider(orgSlug, providerName);
+  // Fire readProvider and hasProviderSecret in parallel as soon as orgSlug
+  // is known. Keeping hasProviderSecret at route level (instead of inside
+  // ApiKeySection) breaks a 3-step request waterfall — the encrypted-no-key
+  // banner appears in roughly max(read, has) instead of read+has, and shows
+  // even while the body skeleton is still rendering.
+  const enabled = !!orgSlug;
+  const { data, isLoading } = useReadProvider(orgSlug, providerName, {
+    enabled,
+  });
+  const { data: maskedKey, error: secretError } = useHasProviderSecret(
+    orgSlug,
+    providerName,
+    { enabled },
+  );
+
+  // Structural check (not `instanceof ConvexError`): Vite HMR / chunk
+  // splitting can produce multiple copies of the ConvexError class so the
+  // prototype-chain check fails even when the error IS one.
+  const errorData = readConvexErrorData(secretError);
+  const encryptedNoKey = errorData?.code === 'PROVIDER_SECRET_ENCRYPTED_NO_KEY';
+  const encryptedNoKeyPath =
+    encryptedNoKey && typeof errorData?.path === 'string' ? errorData.path : '';
+
+  const banner = encryptedNoKey ? (
+    <div className="px-4 pt-6">
+      <Alert
+        variant="destructive"
+        icon={AlertTriangle}
+        title={t('providers.encryptedNoKeyTitle')}
+        description={t('providers.encryptedNoKeyDescription', {
+          path: encryptedNoKeyPath,
+        })}
+      />
+    </div>
+  ) : null;
 
   if (isOrgLoading || isLoading) {
-    return <ProviderDetailSkeleton />;
+    return (
+      <>
+        {banner}
+        <ProviderDetailSkeleton />
+      </>
+    );
   }
 
   if (!data?.ok) {
     return (
-      <Stack gap={4} className="p-6">
-        <Text variant="muted">
-          {t('providers.providerNotFound', { name: providerName })}
-        </Text>
-        <Link
-          to="/dashboard/$id/settings/providers"
-          params={{ id: organizationId }}
-        >
-          <Button variant="secondary">{t('providers.backToProviders')}</Button>
-        </Link>
-      </Stack>
+      <>
+        {banner}
+        <Stack gap={4} className="p-6">
+          <Text variant="muted">
+            {t('providers.providerNotFound', { name: providerName })}
+          </Text>
+          <Link
+            to="/dashboard/$id/settings/providers"
+            params={{ id: organizationId }}
+          >
+            <Button variant="secondary">
+              {t('providers.backToProviders')}
+            </Button>
+          </Link>
+        </Stack>
+      </>
     );
   }
 
@@ -87,10 +148,12 @@ function ProviderDetailRoute() {
       providerName={providerName}
       initialConfig={data.config}
     >
+      {banner}
       <ProviderDetailContent
         organizationId={organizationId}
         orgSlug={orgSlug}
         providerName={providerName}
+        maskedKey={maskedKey ?? null}
         maskedModelKeys={data.maskedModelKeys ?? {}}
       />
     </ProviderConfigProvider>
@@ -155,11 +218,13 @@ function ProviderDetailContent({
   organizationId,
   orgSlug,
   providerName,
+  maskedKey,
   maskedModelKeys,
 }: {
   organizationId: string;
   orgSlug: string;
   providerName: string;
+  maskedKey: string | null;
   maskedModelKeys: Record<string, string>;
 }) {
   const { t } = useT('settings');
@@ -182,7 +247,11 @@ function ProviderDetailContent({
       </HStack>
 
       <GeneralSection providerName={providerName} />
-      <ApiKeySection orgSlug={orgSlug} providerName={providerName} />
+      <ApiKeySection
+        orgSlug={orgSlug}
+        providerName={providerName}
+        maskedKey={maskedKey}
+      />
       <ModelsSection
         orgSlug={orgSlug}
         providerName={providerName}
@@ -305,25 +374,15 @@ function GeneralSection({ providerName }: { providerName: string }) {
 function ApiKeySection({
   orgSlug,
   providerName,
+  maskedKey,
 }: {
   orgSlug: string;
   providerName: string;
+  maskedKey: string | null;
 }) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const { data: maskedKey, error: secretError } = useHasProviderSecret(
-    orgSlug,
-    providerName,
-  );
   const hasSecret = maskedKey != null;
-  const encryptedNoKey =
-    secretError instanceof ConvexError &&
-    secretError.data?.code === 'PROVIDER_SECRET_ENCRYPTED_NO_KEY';
-  const encryptedNoKeyPath = encryptedNoKey
-    ? typeof secretError.data?.path === 'string'
-      ? secretError.data.path
-      : ''
-    : '';
   const saveSecret = useSaveProviderSecret();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
@@ -351,19 +410,18 @@ function ApiKeySection({
         setDialogOpen(false);
         setOverwritePrompt(null);
       } catch (err) {
+        const data = readConvexErrorData(err);
         if (
-          err instanceof ConvexError &&
-          err.data?.code === 'PROVIDER_SECRET_REFUSED_OVERWRITE' &&
-          (err.data.kind === 'encrypted_no_key' ||
-            err.data.kind === 'undecryptable_existing')
+          data?.code === 'PROVIDER_SECRET_REFUSED_OVERWRITE' &&
+          (data.kind === 'encrypted_no_key' ||
+            data.kind === 'undecryptable_existing')
         ) {
           // Server refused the overwrite — surface the confirm dialog so the
           // operator can opt into discarding the unreadable existing file.
           setOverwritePrompt({
-            kind: err.data.kind,
-            path: typeof err.data.path === 'string' ? err.data.path : '',
-            reason:
-              typeof err.data.reason === 'string' ? err.data.reason : undefined,
+            kind: data.kind,
+            path: typeof data.path === 'string' ? data.path : '',
+            reason: typeof data.reason === 'string' ? data.reason : undefined,
           });
         } else {
           // Non-overwrite failure during retry: clear the stuck dialog before
@@ -396,16 +454,6 @@ function ApiKeySection({
 
   return (
     <>
-      {encryptedNoKey && (
-        <Alert
-          variant="destructive"
-          icon={AlertTriangle}
-          title={t('providers.encryptedNoKeyTitle')}
-          description={t('providers.encryptedNoKeyDescription', {
-            path: encryptedNoKeyPath,
-          })}
-        />
-      )}
       <Card contentClassName="p-5">
         <HStack gap={4} align="center">
           <Text className="w-40 shrink-0 text-sm font-semibold">
@@ -460,10 +508,11 @@ function ApiKeySection({
         size="md"
         hideClose
         className="flex flex-col gap-0 p-0"
-        onOpenAutoFocus={(e) => {
-          e.preventDefault();
-          requestAnimationFrame(() => apiKeyInputRef.current?.focus());
-        }}
+        // Skip Radix's default (focus first tabbable, which would be the X
+        // close button in the header). Native `autoFocus` on the Input below
+        // takes over — it lands on mount, before Radix FocusScope or any
+        // browser password-manager overlay can race for focus.
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <HStack
           justify="between"
@@ -498,6 +547,7 @@ function ApiKeySection({
               )}
               <Input
                 ref={apiKeyInputRef}
+                autoFocus
                 type="password"
                 label={t('providers.apiKey')}
                 placeholder={t('providers.apiKeyEnter')}

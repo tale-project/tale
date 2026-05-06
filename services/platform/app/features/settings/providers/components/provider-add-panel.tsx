@@ -5,7 +5,6 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { useNavigate } from '@tanstack/react-router';
-import { ConvexError } from 'convex/values';
 import { Loader2, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
@@ -53,6 +52,22 @@ interface ProviderAddPanelProps {
 
 function emptyModel(): ModelEntry {
   return { id: '', displayName: '', tags: ['chat'] };
+}
+
+/**
+ * Read structured `data` off a Convex action error without `instanceof
+ * ConvexError`. See $providerName.tsx for rationale (Vite chunk splitting
+ * can produce multiple ConvexError class copies, breaking instanceof).
+ */
+function readConvexErrorData(
+  err: unknown,
+): Record<string, unknown> | undefined {
+  if (err == null || typeof err !== 'object') return undefined;
+  if (!('data' in err)) return undefined;
+  const data = (err as { data: unknown }).data;
+  if (data == null || typeof data !== 'object') return undefined;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- data is a runtime-checked object; downstream reads narrow per-field
+  return data as Record<string, unknown>;
 }
 
 /** Derive a readable display name from a model ID (e.g. "gpt-4o" → "GPT-4o"). */
@@ -426,19 +441,17 @@ export function ProviderAddPanel({
         setOverwritePrompt(null);
         finalizeProvider(data.name);
       } catch (error) {
+        const errData = readConvexErrorData(error);
         if (
-          error instanceof ConvexError &&
-          error.data?.code === 'PROVIDER_SECRET_REFUSED_OVERWRITE' &&
-          (error.data.kind === 'encrypted_no_key' ||
-            error.data.kind === 'undecryptable_existing')
+          errData?.code === 'PROVIDER_SECRET_REFUSED_OVERWRITE' &&
+          (errData.kind === 'encrypted_no_key' ||
+            errData.kind === 'undecryptable_existing')
         ) {
           setOverwritePrompt({
-            kind: error.data.kind,
-            path: typeof error.data.path === 'string' ? error.data.path : '',
+            kind: errData.kind,
+            path: typeof errData.path === 'string' ? errData.path : '',
             reason:
-              typeof error.data.reason === 'string'
-                ? error.data.reason
-                : undefined,
+              typeof errData.reason === 'string' ? errData.reason : undefined,
             pendingFormData: data,
           });
         } else {

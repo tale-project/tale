@@ -7,28 +7,45 @@ import { api } from '@/convex/_generated/api';
 // invalidated by SSE file events and mutation onSuccess)
 // ---------------------------------------------------------------------------
 
-export function useListProviders(orgSlug: string) {
+interface QueryOptions {
+  /** When false the query is paused — used to skip the "orgSlug not yet
+   * resolved" first render so the action doesn't fire with an empty slug. */
+  enabled?: boolean;
+}
+
+export function useListProviders(orgSlug: string, options?: QueryOptions) {
   const { data, isLoading, error, refetch } = useActionQuery(
     configKeys.list('providers', orgSlug),
     api.providers.file_actions.listProviders,
     { orgSlug },
+    options,
   );
   return { providers: data ?? [], isLoading, error, refetch };
 }
 
-export function useReadProvider(orgSlug: string, providerName: string) {
+export function useReadProvider(
+  orgSlug: string,
+  providerName: string,
+  options?: QueryOptions,
+) {
   return useActionQuery(
     configKeys.detail('providers', orgSlug, providerName),
     api.providers.file_actions.readProvider,
     { orgSlug, providerName },
+    options,
   );
 }
 
-export function useHasProviderSecret(orgSlug: string, providerName: string) {
+export function useHasProviderSecret(
+  orgSlug: string,
+  providerName: string,
+  options?: QueryOptions,
+) {
   return useActionQuery(
     ['config', 'providers', orgSlug, providerName, 'secret'],
     api.providers.file_actions.hasProviderSecret,
     { orgSlug, providerName },
+    options,
   );
 }
 
@@ -36,10 +53,12 @@ export function useHasModelSecret(
   orgSlug: string,
   providerName: string,
   modelId: string,
+  options?: QueryOptions,
 ) {
   return useActionQuery(
     ['config', 'providers', orgSlug, providerName, 'model-secret', modelId],
     api.providers.file_actions.hasProviderSecret,
     { orgSlug, providerName, modelId },
+    options,
   );
 }
