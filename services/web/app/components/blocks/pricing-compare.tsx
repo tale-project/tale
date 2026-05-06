@@ -1,7 +1,13 @@
 import { Button } from '@tale/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@tale/ui/tooltip';
 import { Link } from '@tanstack/react-router';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Check, Minus } from 'lucide-react';
+import { Check, HelpCircle, Minus } from 'lucide-react';
 import { type ReactNode } from 'react';
 
 import {
@@ -24,7 +30,8 @@ type Cell =
 
 interface DataRow {
   kind: 'data';
-  label: string;
+  label: ReactNode;
+  rowKey?: string;
   cells: Record<TierKey, Cell>;
 }
 
@@ -119,6 +126,32 @@ export function PricingCompare({ region }: PricingCompareProps) {
       label: t('compare.rows.piiRedaction'),
       cells: { community: check, enterprise: check },
     },
+    {
+      kind: 'data',
+      rowKey: 'customDpa',
+      label: (
+        <span className="inline-flex items-center gap-1.5">
+          {t('compare.rows.customDpa')}
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={t('compare.rows.customDpaInfo')}
+                  className="text-fg-muted hover:text-fg-base focus-visible:ring-accent-base/30 inline-flex h-4 w-4 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  <HelpCircle className="h-3.5 w-3.5" strokeWidth={2} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs text-center">
+                {t('compare.rows.customDpaInfo')}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </span>
+      ),
+      cells: { community: dash, enterprise: check },
+    },
 
     { kind: 'section', label: t('compare.categories.support') },
     {
@@ -129,11 +162,6 @@ export function PricingCompare({ region }: PricingCompareProps) {
     {
       kind: 'data',
       label: t('compare.rows.phoneSupport'),
-      cells: { community: dash, enterprise: check },
-    },
-    {
-      kind: 'data',
-      label: t('compare.rows.whatsappSupport'),
       cells: { community: dash, enterprise: check },
     },
     {
@@ -184,7 +212,20 @@ export function PricingCompare({ region }: PricingCompareProps) {
     {
       kind: 'span',
       label: t('extras.training.title'),
-      content: t('extras.training.description'),
+      content: (
+        <>
+          {t('extras.training.description')}{' '}
+          <a
+            href="https://www.edoobox.com/de/Ruler/AI%20Training.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-fg-base font-medium underline underline-offset-4"
+          >
+            {t('extras.training.linkLabel')}
+          </a>
+          {t('extras.training.suffix')}
+        </>
+      ),
     },
     {
       kind: 'span',
@@ -247,6 +288,7 @@ export function PricingCompare({ region }: PricingCompareProps) {
     return {
       kind: 'data',
       label: row.label,
+      rowKey: row.rowKey,
       cells: {
         community: renderCell(row.cells.community, yesLabel, noLabel),
         enterprise: renderCell(row.cells.enterprise, yesLabel, noLabel),

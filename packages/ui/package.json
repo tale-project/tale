@@ -12,6 +12,7 @@
     "./textarea": "./src/components/forms/textarea.tsx",
     "./label": "./src/components/forms/label.tsx",
     "./checkbox": "./src/components/forms/checkbox.tsx",
+    "./slider": "./src/components/forms/slider.tsx",
     "./field": "./src/components/forms/field.tsx",
     "./badge": "./src/components/feedback/badge.tsx",
     "./spinner": "./src/components/feedback/spinner.tsx",

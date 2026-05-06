@@ -3,9 +3,11 @@ import { formatCurrency } from '@tale/ui/format';
 import { Link } from '@tanstack/react-router';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Check } from 'lucide-react';
+import { useState } from 'react';
 
 import type { Billing } from '@/app/components/blocks/pricing-section';
 import { TierCard } from '@/app/components/blocks/tier-card';
+import { UserCountControl } from '@/app/components/blocks/user-count-control';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -19,6 +21,8 @@ const easeOut = [0.22, 1, 0.36, 1] as const;
 
 const PER_USER_MONTHLY: Record<Region, number> = { CH: 15, DE: 17 };
 const STORAGE_PER_TB_MONTHLY: Record<Region, number> = { CH: 10, DE: 12 };
+
+const DEFAULT_USERS = 50;
 
 const BILLINGS: readonly Billing[] = ['yearly', 'monthly'] as const;
 
@@ -35,7 +39,6 @@ const ENTERPRISE_FEATURES = [
   'enterprise.feature3',
   'enterprise.feature4',
   'enterprise.feature5',
-  'enterprise.feature6',
   'enterprise.feature7',
 ] as const;
 
@@ -46,20 +49,16 @@ interface PricingTiersProps {
   onRegionChange: (next: Region) => void;
 }
 
-function formatPerUserMonthly(region: Region): string {
-  return formatCurrency(PER_USER_MONTHLY[region], {
+function formatMoney(amount: number, region: Region): string {
+  return formatCurrency(amount, {
     currency: REGION_CURRENCY[region],
     locale: REGION_FORMAT_LOCALE[region],
     maximumFractionDigits: 0,
   });
 }
 
-function formatStoragePrice(region: Region): string {
-  return formatCurrency(STORAGE_PER_TB_MONTHLY[region], {
-    currency: REGION_CURRENCY[region],
-    locale: REGION_FORMAT_LOCALE[region],
-    maximumFractionDigits: 0,
-  });
+function formatUserCount(count: number, region: Region): string {
+  return new Intl.NumberFormat(REGION_FORMAT_LOCALE[region]).format(count);
 }
 
 interface SegmentedControlProps<T extends string> {
@@ -132,8 +131,13 @@ export function PricingTiers({
   const reduceMotion = useReducedMotion();
   const fadeInitial = reduceMotion ? false : { opacity: 0, y: 24 };
 
-  const enterprisePrice = formatPerUserMonthly(region);
-  const storagePrice = formatStoragePrice(region);
+  const [users, setUsers] = useState(DEFAULT_USERS);
+
+  const perUserMonthly = PER_USER_MONTHLY[region];
+  const totalMonthly = perUserMonthly * users;
+  const enterprisePrice = formatMoney(totalMonthly, region);
+  const perUserPrice = formatMoney(perUserMonthly, region);
+  const storagePrice = formatMoney(STORAGE_PER_TB_MONTHLY[region], region);
 
   return (
     <section className="border-border-base scroll-mt-16 border-b py-20">
@@ -177,6 +181,8 @@ export function PricingTiers({
             renderLabel={(opt) => t(`region.${opt}`)}
           />
         </div>
+
+        <UserCountControl value={users} onChange={setUsers} region={region} />
 
         <div className="border-border-base mx-auto mt-12 grid max-w-[800px] grid-cols-1 items-stretch overflow-hidden border lg:grid-cols-2">
           <TierCard
@@ -269,6 +275,15 @@ export function PricingTiers({
               </ul>
               <p
                 className="text-fg-muted mt-1 text-xs"
+                style={{ letterSpacing: '-0.18px', lineHeight: 1.5 }}
+              >
+                {t('enterprise.userBreakdown', {
+                  count: formatUserCount(users, region),
+                  perUser: perUserPrice,
+                })}
+              </p>
+              <p
+                className="text-fg-muted text-xs"
                 style={{ letterSpacing: '-0.18px', lineHeight: 1.5 }}
               >
                 {t('enterprise.storageAddOn', { price: storagePrice })}

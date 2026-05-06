@@ -202,6 +202,10 @@
       "monthly": "Monatlich abgerechnet",
       "yearly": "Jährlich abgerechnet · 2 Monate gratis"
     },
+    "users": {
+      "label": "Anzahl der Nutzer",
+      "minTooltip": "Mindestens 25 Nutzer"
+    },
     "region": {
       "ariaLabel": "Währung",
       "CH": "CHF",
@@ -222,16 +226,16 @@
     "enterprise": {
       "name": "Enterprise",
       "deployment": "Cloud oder selbst gehostet",
-      "priceSuffix": "/Nutzer/Monat + MwSt.",
+      "priceSuffix": "/Monat + MwSt.",
       "storageAddOn": "+ {price}/TB/Monat zusätzlicher Speicher",
+      "userBreakdown": "{count} Nutzer × {perUser}/Nutzer/Monat",
       "tagline": "Vollständig verwaltet, skalierbar und produktionsbereit — gebaut für geschäftskritische private KI.",
       "cta": "Kontakt aufnehmen",
       "feature1": "Selbst gehostet oder Cloud",
       "feature2": "Professionell gewartet (ISO 27001 & SOC 2 zertifiziert)",
       "feature3": "DSGVO-konform",
-      "feature4": "E-Mail-, Telefon-/SMS-, WhatsApp- und Remote-Support",
+      "feature4": "E-Mail-, Telefon- und Remote-Support",
       "feature5": "Installation und laufende Wartung",
-      "feature6": "Individuelle Entwicklung & Beratung verfügbar",
       "feature7": "Einfluss auf die Produkt-Roadmap"
     },
     "compare": {
@@ -241,7 +245,7 @@
         "deployment": "Bereitstellung",
         "compliance": "Compliance",
         "support": "Support",
-        "installation": "Installation",
+        "installation": "Standardinstallation",
         "maintenance": "Wartung",
         "customDevelopment": "Individuelle Entwicklung",
         "consulting": "Beratung",
@@ -274,9 +278,10 @@
         "gdpr": "DSGVO-konform",
         "iso": "ISO 27001 und SOC 2 zertifiziert",
         "piiRedaction": "PII-Schwärzung",
+        "customDpa": "Individueller AVV",
+        "customDpaInfo": "Wir akzeptieren auch individuelle Auftragsverarbeitungsverträge mit unseren Kunden.",
         "emailSupport": "E-Mail-Support",
-        "phoneSupport": "Telefon-/SMS-Support",
-        "whatsappSupport": "WhatsApp-Support",
+        "phoneSupport": "Telefon-Support",
         "remoteSupport": "Remote-Support"
       },
       "cellLabels": {
@@ -287,8 +292,9 @@
     "extras": {
       "training": {
         "title": "KI-Schulungen",
-        "description": "Schulungen, die Ihr Team befähigen, reale KI-Lösungen zu entwickeln und einzusetzen — entdecken Sie unsere KI-Schulungen.",
-        "cta": "KI-Schulungen"
+        "description": "Schulungen, die Ihr Team befähigen, reale KI-Lösungen zu entwickeln und einzusetzen — entdecken Sie unsere",
+        "linkLabel": "KI-Schulungen",
+        "suffix": "."
       },
       "hardware": {
         "title": "Hardware",
@@ -297,7 +303,7 @@
       },
       "cloudProviders": {
         "title": "Cloud-KI-Anbieter",
-        "description": "Wir unterstützen alle großen Cloud-KI-Anbieter — bessere Preise, höhere Verfügbarkeit und nutzungsbasierte Abrechnung."
+        "description": "Wir unterstützen alle großen Cloud-KI-Anbieter in EU/CH — bessere Preise, höhere Verfügbarkeit und nutzungsbasierte Abrechnung."
       }
     },
     "terms": {

@@ -13,7 +13,9 @@ export interface CompareTier<TK extends string> {
 
 export interface CompareDataRow<TK extends string> {
   kind: 'data';
-  label: string;
+  label: ReactNode;
+  /** Stable string used for React keys (label may be a ReactNode). */
+  rowKey?: string;
   cells: Record<TK, ReactNode>;
 }
 
@@ -149,7 +151,7 @@ export function CompareTable<TK extends string>({
             }
             return (
               <tr
-                key={`data-${row.label}-${idx}`}
+                key={`data-${row.rowKey ?? idx}`}
                 className="border-border-base border-b last:border-b-0"
               >
                 <th
