@@ -7,11 +7,15 @@ import {
   formatNumber,
 } from './format';
 
-// Intl.NumberFormat inserts a non-breaking space (U+00A0) between the
-// currency token and the digits in many locales. The component renders it
-// fine in HTML; in tests we normalize so the assertions read naturally.
+// Intl.NumberFormat inserts a non-breaking space (U+00A0 or U+202F) between
+// the currency token and the digits in many locales. The component renders
+// HTML fine; in tests we normalize so the assertions read naturally.
+//
+// Swiss-German grouping is the right-single-quotation mark (U+2019) per
+// CLDR, but older Node ICU builds emit a plain ASCII apostrophe instead.
+// Normalize both to U+2019 so the tests pass on either runtime.
 function normalize(value: string): string {
-  return value.replace(/ /g, ' ').replace(/ /g, ' ');
+  return value.replace(/ /g, ' ').replace(/ /g, ' ').replace(/'/g, '’');
 }
 
 describe('formatNumber', () => {
@@ -20,7 +24,7 @@ describe('formatNumber', () => {
   });
 
   it('uses apostrophe grouping for Swiss German', () => {
-    expect(formatNumber(1199, { locale: 'de-CH' })).toBe('1’199');
+    expect(normalize(formatNumber(1199, { locale: 'de-CH' }))).toBe('1’199');
   });
 
   it('respects fraction digit options', () => {
