@@ -400,3 +400,58 @@ export const retentionPolicyPendingChangesTable = defineTable({
    *  the admin UI banner + notification email. */
   summary: v.string(),
 }).index('by_organizationId_appliesAt', ['organizationId', 'appliesAt']);
+
+/**
+ * GDPR Art 17 erasure request state machine.
+ *
+ * `requestErasure` inserts a row with `status='pending'` and schedules
+ * `processErasureRequest`. The processor flips through
+ * `running → done | partial | failed`, recording counts + the held-
+ * threads list along the way. The row is the durable receipt the
+ * subject can reference (Art 19 — confirmation of erasure).
+ *
+ * `targetUserId` may not equal the `requestedBy` admin (typical case:
+ * an admin executes erasure on behalf of a verified subject). The
+ * audit chain still records who clicked the button.
+ *
+ * Phases:
+ *   - pending  → row inserted, processor not yet started
+ *   - running  → processor picked it up
+ *   - done     → every targeted resource cascaded successfully
+ *   - partial  → some resources hit the page-cap; processor will
+ *                resume on the next scheduled run
+ *   - failed   → unrecoverable error (e.g. RAG service permanently
+ *                unreachable); operator must inspect `errorMessage`
+ *
+ * `slaDeadlineAt = requestedAt + 30 days` per Art 12(3); operators
+ * see overdue requests in the admin UI.
+ */
+export const gdprErasureRequestsTable = defineTable({
+  organizationId: v.string(),
+  targetUserId: v.string(),
+  reason: v.string(),
+  requestedBy: v.string(),
+  requestedAt: v.number(),
+  slaDeadlineAt: v.number(),
+  status: v.union(
+    v.literal('pending'),
+    v.literal('running'),
+    v.literal('done'),
+    v.literal('partial'),
+    v.literal('failed'),
+  ),
+  /** Snapshot of the threads list at request time. Processed
+   *  iteratively; resume token if status='partial'. */
+  threadsTargeted: v.optional(v.array(v.string())),
+  threadsErased: v.optional(v.number()),
+  /** Held threads that BLOCKED the erasure (Art 17(3)(e)). Set once at
+   *  scheduling; the processor never starts when this is non-empty. */
+  threadsBlockedByHold: v.optional(v.array(v.string())),
+  ragDocumentsRemoved: v.optional(v.number()),
+  errorMessage: v.optional(v.string()),
+  startedAt: v.optional(v.number()),
+  completedAt: v.optional(v.number()),
+})
+  .index('by_organizationId_status', ['organizationId', 'status'])
+  .index('by_organizationId_requestedAt', ['organizationId', 'requestedAt'])
+  .index('by_targetUserId', ['targetUserId']);

@@ -28,6 +28,7 @@ import { fileMetadataTable } from './file_metadata/schema';
 import { foldersTable } from './folders/schema';
 import {
   auditLogCheckpointsTable,
+  gdprErasureRequestsTable,
   governancePoliciesTable,
   governanceSecretsTable,
   legalHoldReleaseRequestsTable,
@@ -94,6 +95,7 @@ export default defineSchema({
   auditLogCheckpoints: auditLogCheckpointsTable,
   retentionRuns: retentionRunsTable,
   retentionPolicyPendingChanges: retentionPolicyPendingChangesTable,
+  gdprErasureRequests: gdprErasureRequestsTable,
   policyAcknowledgements: policyAcknowledgementsTable,
   chatFilterEvents: chatFilterEventsTable,
   usageLedger: usageLedgerTable,

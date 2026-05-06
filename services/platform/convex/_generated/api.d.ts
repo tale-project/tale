@@ -445,6 +445,7 @@ import type * as lib_helpers_audit_hash from "../lib/helpers/audit_hash.js";
 import type * as lib_helpers_build_audit_context from "../lib/helpers/build_audit_context.js";
 import type * as lib_helpers_count_items_in_org from "../lib/helpers/count_items_in_org.js";
 import type * as lib_helpers_has_records_in_org from "../lib/helpers/has_records_in_org.js";
+import type * as lib_helpers_pii_hash from "../lib/helpers/pii_hash.js";
 import type * as lib_helpers_public_storage_url from "../lib/helpers/public_storage_url.js";
 import type * as lib_helpers_rag_config from "../lib/helpers/rag_config.js";
 import type * as lib_helpers_status_priority from "../lib/helpers/status_priority.js";
@@ -1485,6 +1486,7 @@ declare const fullApi: ApiFromModules<{
   "lib/helpers/build_audit_context": typeof lib_helpers_build_audit_context;
   "lib/helpers/count_items_in_org": typeof lib_helpers_count_items_in_org;
   "lib/helpers/has_records_in_org": typeof lib_helpers_has_records_in_org;
+  "lib/helpers/pii_hash": typeof lib_helpers_pii_hash;
   "lib/helpers/public_storage_url": typeof lib_helpers_public_storage_url;
   "lib/helpers/rag_config": typeof lib_helpers_rag_config;
   "lib/helpers/status_priority": typeof lib_helpers_status_priority;

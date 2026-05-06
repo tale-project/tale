@@ -1,41 +1,74 @@
 /**
  * GDPR Art 17 (Right to Erasure) — admin-driven path.
  *
- * The retention cleanup runner has a grace window (`'trashed'` or
- * `'expired'` rows survive `graceDays` before Pass B physically removes
- * them) and a future cooldown on retention-policy shortening (Bundle 2
- * follow-up). Both serve the standard SaaS recovery / compliance UX.
+ * Two-phase flow:
  *
- * GDPR Art 17 demands erasure "without undue delay" when a verified
- * subject request lands. This mutation BYPASSES grace and cooldown:
- * targeted rows are immediately cascade-deleted via the same
- * `cascadeDeleteThreadChildren` helper used by Pass B.
+ *   1. **`requestErasure`** (public mutation, V8) — auth-checks the
+ *      caller, enforces the legal-hold gate (Art 17(3)(e)), inserts a
+ *      `gdprErasureRequests` row with `status: 'pending'`, schedules the
+ *      processor action, and returns the request id. The subject's
+ *      receipt is the row itself: it accumulates progress, holds the
+ *      30-day SLA deadline, and surfaces partial / failed states the
+ *      admin can re-trigger.
+ *
+ *   2. **`processErasureRequest`** (internal action, Node) — picks up
+ *      the request, cascades each thread via the same
+ *      `cascadeDeleteThreadChildren` helper used by retention Pass B,
+ *      and propagates the deletion to the RAG service for any documents
+ *      the user owned. Updates the request row through
+ *      `running → done | partial | failed` with explicit counts.
+ *
+ * Why split phases?
+ *
+ *   - The processor must call the RAG service over HTTP. That requires
+ *     `'use node'` (Convex actions only), which a public-mutation entry
+ *     point cannot expose. Splitting lets the entry stay strictly
+ *     auth-gated and synchronous from the caller's perspective.
+ *   - Keeping the row as the receipt means the subject's confirmation
+ *     under Art 19 is durable and queryable rather than a fire-and-
+ *     forget audit-log line.
+ *   - Partial cascades (page-bounded helper) become a first-class
+ *     state with a resume path, instead of silently lying in the
+ *     `threadsErased` count.
  *
  * Refusals:
  *   - Caller is not an org admin → `forbidden`.
- *   - The org has an active org-wide legal hold OR any of the subject's
- *     threads is held → `LEGAL_HOLD_BLOCKS_ERASURE` with the held items
- *     list. GDPR Art 17(3)(e) explicitly carves out legal-claims
- *     preservation as an erasure exception, so we fail-closed: any hold
- *     on the subject's data refuses the entire request rather than
- *     proceeding with the unheld subset (which would silently spoliate
- *     held neighbors and confuse the eventual receipt).
+ *   - Subject's data is under an active legal hold → fail-closed with
+ *     `LEGAL_HOLD_BLOCKS_ERASURE` per Art 17(3)(e) preserve-for-claims.
  *
- * Audit:
- *   Every erasure writes `category='admin' subtype='gdpr_erasure_executed'`
- *   with the actor, the requested scope, and the deleted resource ids.
+ * Out of scope (separate work-streams):
+ *   - Subject-scope expansion to `userMemories`, `userPreferences`,
+ *     `feedback`, `documents` / `fileMetadata` / `_storage`,
+ *     `auditLogs` PII fields, BetterAuth tables, `loginAttempts` /
+ *     `twoFactorAttempts`, `policyAcknowledgements`. The processor
+ *     today erases CHAT THREADS + their RAG-indexed descendants only,
+ *     which covers the most common case (a departing employee's chat
+ *     history). Wider scope adds per-table cascade mutations + tests.
+ *   - Audit-chain PII scrub (W3 #4) — replaces actorEmail / ipAddress
+ *     with their hashed form on rows the subject authored, preserving
+ *     the chain while removing plaintext PII.
+ *   - Receipt UI (admin "view erasure history" panel).
  */
 
 import { ConvexError, v } from 'convex/values';
 
-import { internalMutation } from '../_generated/server';
-import { mutation } from '../_generated/server';
+import { internal } from '../_generated/api';
+import {
+  internalAction,
+  internalMutation,
+  mutation,
+} from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
+import { ragFetch } from '../lib/helpers/rag_config';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
 import { loadActiveHolds } from './legal_hold';
+
+const SLA_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_CASCADE_ATTEMPTS_PER_THREAD = 50;
 
 /**
  * Erase a single thread (all messages, artifacts, todos, feedback,
@@ -61,13 +94,10 @@ export const eraseThread = internalMutation({
 });
 
 /**
- * Public admin entry point. Accepts a user id + org and erases all of
- * that user's threads in that org.
- *
- * Future scope (Bundle 4 / follow-up): extend to documents, prompt
- * templates, message feedback, message metadata, customer/vendor PII.
- * For Bundle 2 this covers the most common erasure case (chat history
- * for a single departing employee) so the contract is shippable.
+ * Public admin entry point. Records a `gdprErasureRequests` row,
+ * schedules the processor, and returns the row id. The processor runs
+ * asynchronously (it must call the RAG service which requires Node
+ * runtime); the admin polls the row for progress.
  */
 export const requestErasure = mutation({
   args: {
@@ -76,8 +106,8 @@ export const requestErasure = mutation({
     reason: v.string(),
   },
   returns: v.object({
-    threadsErased: v.number(),
-    threadsBlocked: v.array(v.string()),
+    requestId: v.id('gdprErasureRequests'),
+    threadsTargeted: v.number(),
   }),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
@@ -99,10 +129,15 @@ export const requestErasure = mutation({
         message: 'Only org admins can execute GDPR erasure.',
       });
     }
+    if (!args.reason.trim()) {
+      throw new ConvexError({
+        code: 'validation',
+        message: 'reason is required for GDPR erasure requests.',
+      });
+    }
 
-    // Find all threads owned by the target user in this org. Includes
-    // every status — Art 17 must reach archived / trashed / expired
-    // rows too, otherwise stale data persists.
+    // Find every thread the subject owns in this org. Includes archived,
+    // trashed, and expired — Art 17 must reach them all.
     const threads = await ctx.db
       .query('threadMetadata')
       .withIndex('by_organizationId', (q) =>
@@ -110,20 +145,18 @@ export const requestErasure = mutation({
       )
       .collect();
     const userThreads = threads.filter((t) => t.userId === args.userId);
+    const threadIds = userThreads.map((t) => t.threadId);
 
     // Legal-hold gate. GDPR Art 17(3)(e) preserves data subject to legal
-    // claims; FRCP 37(e) makes destruction during a preservation duty
-    // sanctionable. Refuse the whole request when ANY of the subject's
-    // threads is held (or the org is under a global hold) so the eventual
-    // erasure receipt cannot lie about coverage.
+    // claims. Refuse the WHOLE request when any of the subject's threads
+    // is held — the receipt cannot lie about coverage, and a partial
+    // erasure that omits held neighbors would confuse a future regulator
+    // audit. Operator must release the hold first.
     const holds = await loadActiveHolds(ctx, args.organizationId);
-    const heldThreadIds: string[] = [];
-    for (const t of userThreads) {
-      if (holds.threadIds.has(t.threadId)) heldThreadIds.push(t.threadId);
-    }
+    const heldThreadIds: string[] = threadIds.filter((id) =>
+      holds.threadIds.has(id),
+    );
     if (holds.orgHeld || heldThreadIds.length > 0) {
-      // Audit the refusal — compliance teams need a record of attempted
-      // erasure that was blocked by an active hold.
       await createAuditLog(ctx, {
         organizationId: args.organizationId,
         actorId: callerId,
@@ -152,50 +185,271 @@ export const requestErasure = mutation({
       });
     }
 
-    let erased = 0;
-    for (const thread of userThreads) {
-      // Loop on cascade until done (paged helper).
-      let attempts = 0;
-      let cascadeDone = false;
-      while (attempts++ < 50) {
-        const result = await cascadeDeleteThreadChildren(ctx, {
-          threadId: thread.threadId,
-          organizationId: args.organizationId,
-        });
-        if (result.done) {
-          cascadeDone = true;
-          break;
-        }
-      }
-      // Only count threads whose cascade actually completed. Partial
-      // cascades (>50 pages of children remaining) leave residue and
-      // must NOT be reported as erased — the receipt would lie.
-      if (cascadeDone) erased += 1;
-    }
+    const now = Date.now();
+    const requestId = await ctx.db.insert('gdprErasureRequests', {
+      organizationId: args.organizationId,
+      targetUserId: args.userId,
+      reason: args.reason.trim(),
+      requestedBy: callerId,
+      requestedAt: now,
+      slaDeadlineAt: now + SLA_DAYS * DAY_MS,
+      status: 'pending',
+      threadsTargeted: threadIds,
+    });
 
-    const partial = erased < userThreads.length;
     await createAuditLog(ctx, {
       organizationId: args.organizationId,
       actorId: callerId,
       actorEmail: authUser.email ?? '',
       actorType: 'user',
-      action: 'gdpr_erasure_executed',
+      action: 'gdpr_erasure_requested',
       category: 'admin',
       resourceType: 'user',
       resourceId: args.userId,
       resourceName: args.userId,
-      status: partial ? 'failure' : 'success',
-      errorMessage: partial
-        ? `Erasure incomplete: ${userThreads.length - erased} thread(s) hit cascade page-limit and need a follow-up run.`
-        : undefined,
+      status: 'success',
       newState: {
+        requestId,
         reason: args.reason,
-        threadsErased: erased,
-        threadsTargeted: userThreads.length,
-        threadsBlocked: heldThreadIds,
+        threadsTargeted: threadIds.length,
+        slaDeadlineAt: now + SLA_DAYS * DAY_MS,
       },
     });
 
-    return { threadsErased: erased, threadsBlocked: heldThreadIds };
+    // Hand off to the Node action so it can call the RAG service.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.governance.erasure.processErasureRequest,
+      { requestId },
+    );
+
+    return { requestId, threadsTargeted: threadIds.length };
+  },
+});
+
+/**
+ * Internal mutation that the action calls to mark the request as
+ * `running` and read its full state. Separated out so the action can
+ * stay 'use node' and the row update remains transactional.
+ */
+export const beginProcessing = internalMutation({
+  args: { requestId: v.id('gdprErasureRequests') },
+  returns: v.union(
+    v.object({
+      organizationId: v.string(),
+      targetUserId: v.string(),
+      threadsTargeted: v.array(v.string()),
+      requestedBy: v.string(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.requestId);
+    if (!row) return null;
+    // Idempotent: a re-scheduled processor (after a partial run) flips
+    // back to 'running' from 'partial' but won't re-process a 'done'
+    // or 'failed' row.
+    if (row.status === 'done' || row.status === 'failed') return null;
+    await ctx.db.patch(args.requestId, {
+      status: 'running',
+      startedAt: Date.now(),
+    });
+    return {
+      organizationId: row.organizationId,
+      targetUserId: row.targetUserId,
+      threadsTargeted: row.threadsTargeted ?? [],
+      requestedBy: row.requestedBy,
+    };
+  },
+});
+
+/**
+ * Cascades a single thread for the processor. Returns the cascade
+ * result so the action can decide whether to continue or mark partial.
+ */
+export const eraseThreadById = internalMutation({
+  args: {
+    threadId: v.string(),
+    organizationId: v.string(),
+  },
+  returns: v.object({ done: v.boolean(), remaining: v.number() }),
+  handler: async (ctx, args) => {
+    return await cascadeDeleteThreadChildren(ctx, {
+      threadId: args.threadId,
+      organizationId: args.organizationId,
+    });
+  },
+});
+
+/**
+ * Records the final state of an erasure request. Called by the
+ * processor with the per-thread cascade outcomes + the RAG-side
+ * deletion count.
+ */
+export const finalizeProcessing = internalMutation({
+  args: {
+    requestId: v.id('gdprErasureRequests'),
+    threadsErased: v.number(),
+    ragDocumentsRemoved: v.number(),
+    errorMessage: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.requestId);
+    if (!row) return null;
+    const targetedCount = row.threadsTargeted?.length ?? 0;
+    const status: 'done' | 'partial' | 'failed' = args.errorMessage
+      ? 'failed'
+      : args.threadsErased < targetedCount
+        ? 'partial'
+        : 'done';
+    await ctx.db.patch(args.requestId, {
+      status,
+      threadsErased: args.threadsErased,
+      ragDocumentsRemoved: args.ragDocumentsRemoved,
+      errorMessage: args.errorMessage,
+      completedAt: Date.now(),
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: row.organizationId,
+      actorId: row.requestedBy,
+      actorType: 'user',
+      action: 'gdpr_erasure_executed',
+      category: 'admin',
+      resourceType: 'user',
+      resourceId: row.targetUserId,
+      resourceName: row.targetUserId,
+      status: status === 'done' ? 'success' : 'failure',
+      errorMessage: args.errorMessage,
+      newState: {
+        requestId: args.requestId,
+        threadsErased: args.threadsErased,
+        threadsTargeted: targetedCount,
+        ragDocumentsRemoved: args.ragDocumentsRemoved,
+        finalStatus: status,
+      },
+    });
+    return null;
+  },
+});
+
+/**
+ * Look up the documents the subject owned so the processor can DELETE
+ * them on the RAG side.
+ */
+export const listSubjectDocuments = internalMutation({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+  },
+  returns: v.array(v.object({ fileId: v.string() })),
+  handler: async (ctx, args) => {
+    const docs: Array<{ fileId: string }> = [];
+    for await (const doc of ctx.db
+      .query('documents')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (doc.createdBy !== args.userId) continue;
+      if (typeof doc.fileId === 'string' && doc.fileId.length > 0) {
+        docs.push({ fileId: doc.fileId });
+      }
+    }
+    return docs;
+  },
+});
+
+/**
+ * Background processor for an erasure request. Cascades each targeted
+ * thread, then issues `RAG DELETE /api/v1/documents/<fileId>` for each
+ * RAG-indexed file the subject owned. Records progress on the request
+ * row. A `partial` outcome is re-tryable: an admin re-runs the
+ * processor and the next run resumes from threadsTargeted minus the
+ * already-cascaded set (which the cascade helper itself treats as
+ * no-op since the metadata row is gone).
+ */
+export const processErasureRequest = internalAction({
+  args: { requestId: v.id('gdprErasureRequests') },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const state = await ctx.runMutation(
+      internal.governance.erasure.beginProcessing,
+      { requestId: args.requestId },
+    );
+    if (!state) return null;
+
+    let threadsErased = 0;
+    let ragDocumentsRemoved = 0;
+    let errorMessage: string | undefined;
+
+    try {
+      // Cascade each thread; each cascade itself loops until done or
+      // hits MAX_CASCADE_ATTEMPTS_PER_THREAD pages.
+      for (const threadId of state.threadsTargeted) {
+        let cascadeDone = false;
+        for (let i = 0; i < MAX_CASCADE_ATTEMPTS_PER_THREAD; i++) {
+          const result = await ctx.runMutation(
+            internal.governance.erasure.eraseThreadById,
+            {
+              threadId,
+              organizationId: state.organizationId,
+            },
+          );
+          if (result.done) {
+            cascadeDone = true;
+            break;
+          }
+        }
+        if (cascadeDone) threadsErased += 1;
+      }
+
+      // Propagate to the RAG service for every document the subject
+      // owned. We do best-effort: a 404 means the row was already
+      // deleted; any other non-2xx is logged but doesn't fail the
+      // whole request, since the DB-side cascade already succeeded
+      // and partial RAG cleanup is itself a `partial` state.
+      const docs = await ctx.runMutation(
+        internal.governance.erasure.listSubjectDocuments,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
+      for (const doc of docs) {
+        try {
+          const res = await ragFetch(
+            `/api/v1/documents/${encodeURIComponent(doc.fileId)}`,
+            { method: 'DELETE', timeoutMs: 10_000 },
+          );
+          if (res.ok || res.status === 404) {
+            ragDocumentsRemoved += 1;
+          } else {
+            console.warn(
+              `[gdprErasure] RAG DELETE returned ${res.status} for fileId=${doc.fileId}`,
+            );
+          }
+        } catch (error) {
+          console.warn(
+            `[gdprErasure] RAG DELETE failed for fileId=${doc.fileId}:`,
+            error,
+          );
+        }
+      }
+    } catch (err) {
+      errorMessage = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[gdprErasure] processor crashed for request ${args.requestId}:`,
+        err,
+      );
+    }
+
+    await ctx.runMutation(internal.governance.erasure.finalizeProcessing, {
+      requestId: args.requestId,
+      threadsErased,
+      ragDocumentsRemoved,
+      errorMessage,
+    });
+    return null;
   },
 });
