@@ -40,7 +40,11 @@ export type RetentionCategory =
   | 'chatFilterEvents'
   | 'promptTemplates'
   | 'messageFeedback'
-  | 'memoryAudit';
+  | 'memoryAudit'
+  | 'customers'
+  | 'vendors'
+  | 'externalConversations'
+  | 'messageMetadata';
 
 interface BoundDef {
   min: number;
@@ -143,6 +147,34 @@ export const RETENTION_DEFAULTS: Record<RetentionCategory, BoundDef> = {
     max: 3650,
     default: 365,
     envPrefix: 'TALE_RETENTION_MEMORY_AUDIT',
+    unit: 'days',
+  },
+  customers: {
+    min: 30,
+    max: 3650,
+    default: 730,
+    envPrefix: 'TALE_RETENTION_CUSTOMERS',
+    unit: 'days',
+  },
+  vendors: {
+    min: 30,
+    max: 3650,
+    default: 730,
+    envPrefix: 'TALE_RETENTION_VENDORS',
+    unit: 'days',
+  },
+  externalConversations: {
+    min: 30,
+    max: 3650,
+    default: 730,
+    envPrefix: 'TALE_RETENTION_EXTERNAL_CONVERSATIONS',
+    unit: 'days',
+  },
+  messageMetadata: {
+    min: 30,
+    max: 3650,
+    default: 365,
+    envPrefix: 'TALE_RETENTION_MESSAGE_METADATA',
     unit: 'days',
   },
 };

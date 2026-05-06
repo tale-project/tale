@@ -142,6 +142,20 @@ export const retentionPolicyConfigSchema = z.object({
   messageFeedbackRetentionDays: z.number().int().min(30).max(3650).optional(),
   memoryAuditEnabled: z.boolean().optional(),
   memoryAuditRetentionDays: z.number().int().min(30).max(3650).optional(),
+  // Phase 10 — PII-bearing tables.
+  customersEnabled: z.boolean().optional(),
+  customersRetentionDays: z.number().int().min(30).max(3650).optional(),
+  vendorsEnabled: z.boolean().optional(),
+  vendorsRetentionDays: z.number().int().min(30).max(3650).optional(),
+  externalConversationsEnabled: z.boolean().optional(),
+  externalConversationsRetentionDays: z
+    .number()
+    .int()
+    .min(30)
+    .max(3650)
+    .optional(),
+  messageMetadataEnabled: z.boolean().optional(),
+  messageMetadataRetentionDays: z.number().int().min(30).max(3650).optional(),
   // Cross-cutting grace window for soft-deleted rows. graceDays=0 means
   // Pass A also hard-deletes (no trash window); graceDays>0 keeps rows
   // visible in admin Trash for that many days before Pass B physically

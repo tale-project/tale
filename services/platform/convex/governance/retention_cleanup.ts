@@ -346,6 +346,103 @@ async function cleanupMemoryAudit(
   }
 }
 
+// Phase 10 — PII tables. customers / vendors / external conversations /
+// messageMetadata. Each follows the same simple retention shape: list
+// expired rows by `_creationTime < cutoff`, delete them. No cascade
+// (these tables don't own descendants except `conversations` which
+// cascades to `conversationMessages` via the dedicated mutation).
+
+async function cleanupCustomers(
+  ctx: ActionCtx,
+  org: OrgPolicy,
+  batchSize: number,
+): Promise<void> {
+  if (!org.config.customersEnabled) return;
+  const days = org.config.customersRetentionDays;
+  if (typeof days !== 'number' || days <= 0) return;
+  const cutoffMs = Date.now() - days * DAY_MS;
+  const expired = await ctx.runQuery(
+    internal.governance.internal_queries.listExpiredCustomers,
+    { organizationId: org.organizationId, cutoffMs, batchSize },
+  );
+  for (const row of expired) {
+    await ctx.runMutation(
+      internal.governance.internal_mutations_retention.deleteExpiredCustomer,
+      { rowId: row._id, organizationId: org.organizationId },
+    );
+  }
+}
+
+async function cleanupVendors(
+  ctx: ActionCtx,
+  org: OrgPolicy,
+  batchSize: number,
+): Promise<void> {
+  if (!org.config.vendorsEnabled) return;
+  const days = org.config.vendorsRetentionDays;
+  if (typeof days !== 'number' || days <= 0) return;
+  const cutoffMs = Date.now() - days * DAY_MS;
+  const expired = await ctx.runQuery(
+    internal.governance.internal_queries.listExpiredVendors,
+    { organizationId: org.organizationId, cutoffMs, batchSize },
+  );
+  for (const row of expired) {
+    await ctx.runMutation(
+      internal.governance.internal_mutations_retention.deleteExpiredVendor,
+      { rowId: row._id, organizationId: org.organizationId },
+    );
+  }
+}
+
+async function cleanupExternalConversations(
+  ctx: ActionCtx,
+  org: OrgPolicy,
+  batchSize: number,
+): Promise<void> {
+  if (!org.config.externalConversationsEnabled) return;
+  const days = org.config.externalConversationsRetentionDays;
+  if (typeof days !== 'number' || days <= 0) return;
+  const cutoffMs = Date.now() - days * DAY_MS;
+  const expired = await ctx.runQuery(
+    internal.governance.internal_queries.listExpiredExternalConversations,
+    { organizationId: org.organizationId, cutoffMs, batchSize },
+  );
+  for (const row of expired) {
+    await ctx.runMutation(
+      internal.governance.internal_mutations_retention
+        .deleteExpiredExternalConversation,
+      { rowId: row._id, organizationId: org.organizationId },
+    );
+  }
+}
+
+async function cleanupMessageMetadata(
+  ctx: ActionCtx,
+  org: OrgPolicy,
+  batchSize: number,
+): Promise<void> {
+  if (!org.config.messageMetadataEnabled) return;
+  const days = org.config.messageMetadataRetentionDays;
+  if (typeof days !== 'number' || days <= 0) return;
+  const cutoffMs = Date.now() - days * DAY_MS;
+  // Note: messageMetadata has no `organizationId` field today (Phase 10
+  // backfill is a follow-up). Until then, retention sweeps it via
+  // `_creationTime` only — but ONLY removes rows whose `threadId`
+  // resolves to a threadMetadata row in this org. The internal query
+  // does the join.
+  const expired = await ctx.runQuery(
+    internal.governance.internal_queries.listExpiredMessageMetadataForOrg,
+    { organizationId: org.organizationId, cutoffMs, batchSize },
+  );
+  for (const row of expired) {
+    await ctx.runMutation(
+      internal.governance.internal_mutations_retention
+        .deleteExpiredMessageMetadata,
+      { rowId: row._id },
+    );
+  }
+}
+
 // Login attempts are email-scoped (not org-scoped). Run as a single pass
 // using the strictest (shortest) retention across any org that has the
 // flag enabled. If no org enabled it, skip entirely.
@@ -591,6 +688,22 @@ export const runOrgRetentionCleanup = internalAction({
         {
           name: 'memoryAudit',
           run: () => cleanupMemoryAudit(ctx, org, batchSize),
+        },
+        {
+          name: 'customers',
+          run: () => cleanupCustomers(ctx, org, batchSize),
+        },
+        {
+          name: 'vendors',
+          run: () => cleanupVendors(ctx, org, batchSize),
+        },
+        {
+          name: 'externalConversations',
+          run: () => cleanupExternalConversations(ctx, org, batchSize),
+        },
+        {
+          name: 'messageMetadata',
+          run: () => cleanupMessageMetadata(ctx, org, batchSize),
         },
         {
           name: 'usageLedger',

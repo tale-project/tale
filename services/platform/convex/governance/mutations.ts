@@ -75,6 +75,10 @@ function detectRetentionShortening(
     ['promptTemplatesRetentionDays', 'prompt templates'],
     ['messageFeedbackRetentionDays', 'message feedback'],
     ['memoryAuditRetentionDays', 'memory audit'],
+    ['customersRetentionDays', 'customers'],
+    ['vendorsRetentionDays', 'vendors'],
+    ['externalConversationsRetentionDays', 'external conversations'],
+    ['messageMetadataRetentionDays', 'message metadata'],
     ['deletionGraceDays', 'deletion grace'],
   ];
   const reduced: string[] = [];
@@ -192,6 +196,10 @@ export const upsertPolicy = mutation({
         ['promptTemplates', cfg.promptTemplatesRetentionDays],
         ['messageFeedback', cfg.messageFeedbackRetentionDays],
         ['memoryAudit', cfg.memoryAuditRetentionDays],
+        ['customers', cfg.customersRetentionDays],
+        ['vendors', cfg.vendorsRetentionDays],
+        ['externalConversations', cfg.externalConversationsRetentionDays],
+        ['messageMetadata', cfg.messageMetadataRetentionDays],
       ];
       for (const [cat, val] of checks) {
         if (val === undefined) continue;

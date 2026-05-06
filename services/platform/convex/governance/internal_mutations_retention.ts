@@ -232,6 +232,116 @@ export const finalizePendingRetentionChange = internalMutation({
   },
 });
 
+export const deleteExpiredCustomer = internalMutation({
+  args: {
+    rowId: v.id('customers'),
+    organizationId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.rowId);
+    if (!row) return null;
+    await ctx.db.delete(args.rowId);
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: 'system',
+      actorEmail: 'system@tale.so',
+      actorType: 'system',
+      action: 'customer.retention_deleted',
+      category: 'data',
+      resourceType: 'customer',
+      resourceId: String(args.rowId),
+      resourceName: row.name ?? row.email ?? 'Untitled',
+      status: 'success',
+    });
+    return null;
+  },
+});
+
+export const deleteExpiredVendor = internalMutation({
+  args: {
+    rowId: v.id('vendors'),
+    organizationId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.rowId);
+    if (!row) return null;
+    await ctx.db.delete(args.rowId);
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: 'system',
+      actorEmail: 'system@tale.so',
+      actorType: 'system',
+      action: 'vendor.retention_deleted',
+      category: 'data',
+      resourceType: 'vendor',
+      resourceId: String(args.rowId),
+      resourceName: row.name ?? row.email ?? 'Untitled',
+      status: 'success',
+    });
+    return null;
+  },
+});
+
+export const deleteExpiredExternalConversation = internalMutation({
+  args: {
+    rowId: v.id('conversations'),
+    organizationId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.rowId);
+    if (!row) return null;
+    // Cascade: drop child conversation messages first.
+    let scanned = 0;
+    const MAX_PAGE = 200;
+    for await (const msg of ctx.db
+      .query('conversationMessages')
+      .withIndex('by_organizationId_and_deliveredAt', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (msg.conversationId !== args.rowId) continue;
+      await ctx.db.delete(msg._id);
+      scanned++;
+      if (scanned >= MAX_PAGE) break;
+    }
+    if (scanned >= MAX_PAGE) {
+      // More children remain; leave the conversation row in place so
+      // the next pass picks it up + deletes more children before
+      // finally removing the parent.
+      return null;
+    }
+    await ctx.db.delete(args.rowId);
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: 'system',
+      actorEmail: 'system@tale.so',
+      actorType: 'system',
+      action: 'external_conversation.retention_deleted',
+      category: 'data',
+      resourceType: 'conversation',
+      resourceId: String(args.rowId),
+      resourceName: row.subject ?? 'Untitled',
+      status: 'success',
+    });
+    return null;
+  },
+});
+
+export const deleteExpiredMessageMetadata = internalMutation({
+  args: {
+    rowId: v.id('messageMetadata'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.rowId);
+    if (!row) return null;
+    await ctx.db.delete(args.rowId);
+    return null;
+  },
+});
+
 export const deleteExpiredPromptTemplate = internalMutation({
   args: {
     rowId: v.id('promptTemplates'),

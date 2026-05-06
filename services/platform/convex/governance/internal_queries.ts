@@ -359,6 +359,113 @@ export const listExpiredMessageFeedback = internalQuery({
   },
 });
 
+export const listExpiredCustomers = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('customers')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (row._creationTime >= args.cutoffMs) continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
+export const listExpiredVendors = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('vendors')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (row._creationTime >= args.cutoffMs) continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
+export const listExpiredExternalConversations = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('conversations')
+      .withIndex('by_org_lastMessageAt', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (row._creationTime >= args.cutoffMs) continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
+/**
+ * Phase 10 — messageMetadata has no organizationId field today (the
+ * proper backfill migration is a follow-up). Until then we walk the
+ * rows by threadId join. The join is bounded by batchSize so we never
+ * exceed the per-query scan limit.
+ */
+export const listExpiredMessageMetadataForOrg = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    // Build a small set of threadIds owned by this org so we can filter
+    // messageMetadata rows. Bounded by batchSize × 4 to stay well under
+    // the per-query scan limit while still catching enough orphans.
+    const orgThreadIds = new Set<string>();
+    let scanned = 0;
+    for await (const t of ctx.db
+      .query('threadMetadata')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      orgThreadIds.add(t.threadId);
+      scanned++;
+      if (scanned >= args.batchSize * 4) break;
+    }
+    const rows = [];
+    // Now walk messageMetadata; until backfill, this iterates all rows.
+    // We stop after a single batch to keep latency bounded.
+    for await (const row of ctx.db.query('messageMetadata')) {
+      if (row._creationTime >= args.cutoffMs) continue;
+      if (!orgThreadIds.has(row.threadId)) continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
 export const listExpiredMemoryAuditRows = internalQuery({
   args: {
     organizationId: v.string(),
