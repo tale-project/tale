@@ -199,6 +199,15 @@ export const listExpiredDocuments = internalQuery({
   },
 });
 
+/**
+ * Threads eligible for Pass-A retention sweep: status === 'active' AND
+ * the thread hasn't been touched since `cutoffMs`. With deletionGraceDays
+ * === 0 the cleanup runner cascades these directly; with graceDays > 0
+ * it flips them to status='expired' so they enter the admin-Trash window
+ * before `listGraceExpiredThreads` picks them up later.
+ *
+ * Treats rows with no `status` field (legacy data pre-trash) as 'active'.
+ */
 export const listExpiredThreads = internalQuery({
   args: {
     organizationId: v.string(),
@@ -213,8 +222,52 @@ export const listExpiredThreads = internalQuery({
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
+      // Skip rows that are NOT active. Trashed/expired/archived/deleted
+      // rows have their own lifecycle (Pass B for trashed/expired,
+      // user-controlled for archived) and must not be cascaded by the
+      // active-aging path.
+      const status = thread.status ?? 'active';
+      if (status !== 'active') continue;
+
       const ts = thread.updatedAt ?? thread.createdAt;
       if (ts >= args.cutoffMs) continue;
+
+      threads.push(thread);
+      if (threads.length >= args.batchSize) {
+        break;
+      }
+    }
+    return threads;
+  },
+});
+
+/**
+ * Pass-B retention sweep: threads that are 'trashed' or 'expired' AND
+ * whose statusChangedAt is older than `graceCutoffMs`. The cleanup
+ * runner cascades these (via deleteExpiredThread → cascadeDeleteThreadChildren).
+ *
+ * Rows whose `statusChangedAt` is missing fall back to `_creationTime`
+ * — that's the conservative bound, treating them as already-eligible
+ * once they passed normal retention.
+ */
+export const listGraceExpiredThreads = internalQuery({
+  args: {
+    organizationId: v.string(),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const threads = [];
+    for await (const thread of ctx.db
+      .query('threadMetadata')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      const status = thread.status ?? 'active';
+      if (status !== 'trashed' && status !== 'expired') continue;
+      const ts = thread.statusChangedAt ?? thread._creationTime;
+      if (ts >= args.graceCutoffMs) continue;
 
       threads.push(thread);
       if (threads.length >= args.batchSize) {

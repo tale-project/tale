@@ -165,18 +165,64 @@ async function cleanupChatHistory(
   }
 
   const cutoffMs = Date.now() - days * DAY_MS;
-  const expired = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredThreads,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
+  const graceDays = org.config.deletionGraceDays ?? 0;
 
-  for (const thread of expired) {
+  // Pass A — when a grace window is configured, flip active expired
+  // threads to status='expired' (no cascade yet). They land in the
+  // admin Trash bucket for `graceDays` before Pass B physically removes
+  // them, giving operators time to restore in case retention was
+  // shortened in error.
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredThreads,
+      { organizationId: org.organizationId, cutoffMs, batchSize },
+    );
+    for (const thread of passA) {
+      if (holds.threadIds.has(thread.threadId)) {
+        console.info(
+          `[RetentionCleanup] thread ${thread.threadId} on legal hold — skipping pass A`,
+        );
+        continue;
+      }
+      await ctx.runMutation(
+        internal.governance.internal_mutations_retention.markThreadExpired,
+        {
+          threadMetadataId: thread._id,
+          organizationId: org.organizationId,
+          cutoffMs,
+        },
+      );
+    }
+  }
+
+  // Pass B — cascade-delete threads whose grace has elapsed.
+  // graceDays === 0 short-circuits the trash UX entirely: we list
+  // active rows past the retention cutoff and cascade them directly,
+  // matching the pre-Bundle-3 behavior. graceDays > 0 lists trashed
+  // OR expired rows whose statusChangedAt is older than `now -
+  // graceDays * DAY_MS`.
+  const passB =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries.listGraceExpiredThreads,
+          {
+            organizationId: org.organizationId,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredThreads,
+          { organizationId: org.organizationId, cutoffMs, batchSize },
+        );
+
+  for (const thread of passB) {
     // Per-thread hold check. The threadMetadata row's `threadId` (not
     // the Convex `_id`) is the hold target — that's what admins paste
     // into the place-hold UI and what audit logs record.
     if (holds.threadIds.has(thread.threadId)) {
       console.info(
-        `[RetentionCleanup] thread ${thread.threadId} is on legal hold — skipping`,
+        `[RetentionCleanup] thread ${thread.threadId} on legal hold — skipping pass B`,
       );
       continue;
     }

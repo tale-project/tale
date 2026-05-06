@@ -166,6 +166,68 @@ export const deleteExpiredTempFile = internalMutation({
   },
 });
 
+/**
+ * Pass-A retention soft-flip: an active thread that's past its
+ * retention window gets `status='expired'` so it enters the admin
+ * Trash window for `deletionGraceDays` before the next sweep cascades
+ * it. Idempotent: if the row is already trashed/expired/deleted, no-op.
+ */
+export const markThreadExpired = internalMutation({
+  args: {
+    threadMetadataId: v.id('threadMetadata'),
+    organizationId: v.string(),
+    cutoffMs: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const thread = await ctx.db.get(args.threadMetadataId);
+    if (!thread) return null;
+
+    const guard = await assertSafeRetentionDelete(ctx, {
+      rowOrganizationId: thread.organizationId,
+      expectedOrganizationId: args.organizationId,
+      rowEffectiveMs:
+        thread.updatedAt ?? thread.createdAt ?? thread._creationTime,
+      cutoffMs: args.cutoffMs,
+      targetType: 'thread',
+      targetId: thread.threadId,
+    });
+    if (!guard.proceed) {
+      console.info(
+        `[RetentionCleanup] skipping markThreadExpired(${thread.threadId}): ${guard.reason}`,
+      );
+      return null;
+    }
+
+    // Only flip from 'active' (or unset legacy rows). Don't reset
+    // statusChangedAt for rows already in the trash/expired window —
+    // that would extend the grace clock indefinitely.
+    const status = thread.status ?? 'active';
+    if (status !== 'active') return null;
+
+    const now = Date.now();
+    await ctx.db.patch(args.threadMetadataId, {
+      status: 'expired',
+      statusChangedAt: now,
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: 'system',
+      actorEmail: 'system@tale.so',
+      actorType: 'system',
+      action: 'chat_history.retention_expired',
+      category: 'data',
+      resourceType: 'thread',
+      resourceId: thread.threadId,
+      resourceName: thread.title ?? 'Untitled',
+      status: 'success',
+      newState: { previousStatus: status, newStatus: 'expired' },
+    });
+    return null;
+  },
+});
+
 export const deleteExpiredThread = internalMutation({
   args: {
     threadMetadataId: v.id('threadMetadata'),
