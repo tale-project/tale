@@ -35,7 +35,7 @@ Innerhalb der Operator-Grenzen kann ein Org-Admin jede Kategorie unabhängig in 
 
 ## Wie die Löschung läuft
 
-Der Löschjob läuft nächtlich um 03:00 UTC. Der Top-Level-Dispatcher schedulet eine separate Per-Org-Cleanup mit deterministischem 0-15 Minuten hash-basiertem Stagger, sodass RAG und DB nicht bei jedem Cron-Tick einen Thundering-Herd-Burst sehen.
+Der Löschjob läuft nächtlich um 04:00 UTC. Der Top-Level-Dispatcher schedulet eine separate Per-Org-Cleanup mit deterministischem 0-15 Minuten hash-basiertem Stagger, sodass RAG und DB nicht bei jedem Cron-Tick einen Thundering-Herd-Burst sehen. Ein paralleler Cron um 01:00 UTC führt `effectReleasesOnly` aus, damit genehmigte Legal-Hold-Freigaben nach Ablauf ihrer 24h-Cooldown auch dann wirksam werden, wenn Retention via `TALE_RETENTION_DISABLED` pausiert ist.
 
 Für jede Org laufen alle Kategorien in Prioritätsreihenfolge:
 

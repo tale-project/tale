@@ -35,7 +35,7 @@ Dans les bornes de l'opérateur, un admin d'org peut configurer chaque catégori
 
 ## Comment fonctionne la suppression
 
-Le job de suppression s'exécute chaque nuit à 03:00 UTC. Le dispatcher de haut niveau planifie un nettoyage par organisation séparé avec un décalage déterministe basé sur le hash de 0 à 15 minutes, afin que RAG et la base de données ne voient pas une rafale de type thundering-herd à chaque tick cron.
+Le job de suppression s'exécute chaque nuit à 04:00 UTC. Le dispatcher de haut niveau planifie un nettoyage par organisation séparé avec un décalage déterministe basé sur le hash de 0 à 15 minutes, afin que RAG et la base de données ne voient pas une rafale de type thundering-herd à chaque tick cron. Un cron parallèle à 01:00 UTC exécute `effectReleasesOnly` pour que les libérations de legal-hold approuvées prennent effet après leur cooldown de 24h, même quand la rétention est mise en pause via `TALE_RETENTION_DISABLED`.
 
 Pour chaque organisation, toutes les catégories s'exécutent dans l'ordre de priorité :
 

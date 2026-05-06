@@ -1931,7 +1931,7 @@
     "moreActions": "Plus d'actions",
     "deleteChat": "Supprimer le chat",
     "deleteConfirmation": "Es-tu sûr de vouloir supprimer {title} ?",
-    "deletePermanentMessage": "Cette action est irréversible. Le chat sera définitivement supprimé.",
+    "deletePermanentMessage": "Déplacer le chat vers la corbeille. Vous pouvez le restaurer pendant la période de grâce de l'organisation ; ensuite la rétention supprime définitivement le chat et ses messages.",
     "deleteFailed": "Échec de la suppression du chat",
     "archive": "Archiver",
     "unarchive": "Désarchiver",
@@ -3135,6 +3135,10 @@
         "securityAudit": {
           "title": "Sécurité & audit",
           "description": "Journal d'audit, forensique de connexion, télémétrie chat-filter, audit de personnalisation. Plancher fixé par l'opérateur et les baselines de conformité."
+        },
+        "deletionBehavior": {
+          "title": "Comportement de suppression",
+          "description": "Combien de temps les lignes mises à la corbeille / expirées restent restaurables dans la corbeille admin avant suppression définitive."
         }
       },
       "deletionGrace": {
@@ -3187,6 +3191,12 @@
       "messageMetadata": {
         "title": "Métadonnées de messages",
         "description": "Raisonnement par message, fenêtre de contexte de prompt complète, E/S d'outils. Données dérivées à fort PII."
+      },
+      "chatFilterEvents": {
+        "title": "Événements chat-filter",
+        "description": "Télémétrie des déclencheurs de filtre de contenu (PII, profanité, règles personnalisées). Utile pour ajuster le filtre ; contient des extraits de messages cités.",
+        "placeholder": "ex. 90",
+        "helper": "Les lignes de télémétrie de filtre plus anciennes seront supprimées."
       },
       "chatHistory": {
         "title": "Historique de chat",

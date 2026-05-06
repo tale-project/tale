@@ -1931,7 +1931,7 @@
     "moreActions": "More actions",
     "deleteChat": "Delete chat",
     "deleteConfirmation": "Are you sure you want to delete {title}?",
-    "deletePermanentMessage": "This action cannot be undone. The chat will be permanently deleted.",
+    "deletePermanentMessage": "Move chat to Trash. You can restore it for the org's grace period; after that retention permanently deletes the chat and its messages.",
     "deleteFailed": "Failed to delete chat",
     "archive": "Archive",
     "unarchive": "Unarchive",
@@ -3210,6 +3210,10 @@
         "securityAudit": {
           "title": "Security & audit",
           "description": "Audit log, login forensics, chat-filter telemetry, personalization audit. Floor pinned by operator + compliance baselines."
+        },
+        "deletionBehavior": {
+          "title": "Deletion behavior",
+          "description": "How long trashed/expired rows stay restorable in admin Trash before they hard-delete."
         }
       },
       "deletionGrace": {
@@ -3262,6 +3266,12 @@
       "messageMetadata": {
         "title": "Message metadata",
         "description": "Per-message reasoning, full prompt context window, tool I/O. High-PII derived data; sweep follows the message's thread retention."
+      },
+      "chatFilterEvents": {
+        "title": "Chat filter events",
+        "description": "Telemetry for content-filter triggers (PII, profanity, custom rules). Useful for tuning the filter; carries quoted message excerpts.",
+        "placeholder": "e.g. 90",
+        "helper": "Filter-event telemetry rows older than this will be deleted."
       },
       "chatHistory": {
         "title": "Chat history",

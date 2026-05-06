@@ -43,7 +43,12 @@ export interface ResolvedDataNotice {
 export function useDataClassificationNotice(
   organizationId: string | undefined,
 ): ResolvedDataNotice {
-  const { t, i18n } = useTranslation();
+  // Each top-level key in messages/{locale}.json is a separate i18next
+  // namespace; calling useTranslation() with no arg binds to the default
+  // namespace ('translation'), which doesn't exist in this app — so the
+  // DE/FR fallbacks under `dataNotice.default` were unreachable and the
+  // hook always returned the inline English fallback regardless of locale.
+  const { t, i18n } = useTranslation('dataNotice');
   const policy = useConvexQuery(
     api.governance.queries.getPolicy,
     organizationId
@@ -52,7 +57,7 @@ export function useDataClassificationNotice(
   );
 
   const fallback = t(
-    'dataNotice.default',
+    'default',
     'Treat this chat as you would email — avoid customer data, credentials, and unreleased information.',
   );
 

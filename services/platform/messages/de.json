@@ -1931,7 +1931,7 @@
     "moreActions": "Weitere Aktionen",
     "deleteChat": "Chat löschen",
     "deleteConfirmation": "Möchtest du {title} wirklich löschen?",
-    "deletePermanentMessage": "Diese Aktion kann nicht rückgängig gemacht werden. Der Chat wird dauerhaft gelöscht.",
+    "deletePermanentMessage": "Chat in den Papierkorb verschieben. Sie können ihn während der Schonfrist der Org wiederherstellen; danach löscht die Retention den Chat und seine Nachrichten endgültig.",
     "deleteFailed": "Chat konnte nicht gelöscht werden",
     "archive": "Archivieren",
     "unarchive": "Dearchivieren",
@@ -3210,6 +3210,10 @@
         "securityAudit": {
           "title": "Sicherheit & Audit",
           "description": "Audit-Log, Login-Forensik, Chat-Filter-Telemetrie, Personalisierungs-Audit. Untergrenze durch Operator- und Compliance-Baselines fixiert."
+        },
+        "deletionBehavior": {
+          "title": "Löschverhalten",
+          "description": "Wie lange in den Papierkorb verschobene/abgelaufene Einträge im Admin-Papierkorb wiederherstellbar bleiben, bevor sie endgültig gelöscht werden."
         }
       },
       "deletionGrace": {
@@ -3262,6 +3266,12 @@
       "messageMetadata": {
         "title": "Nachrichten-Metadaten",
         "description": "Pro-Nachricht Reasoning, vollständiges Prompt-Kontextfenster, Tool-I/O. Stark PII-haltige abgeleitete Daten."
+      },
+      "chatFilterEvents": {
+        "title": "Chat-Filter-Ereignisse",
+        "description": "Telemetrie für Content-Filter-Auslöser (PII, Profanität, eigene Regeln). Nützlich zum Tuning des Filters; enthält zitierte Nachrichtenausschnitte.",
+        "placeholder": "z. B. 90",
+        "helper": "Filter-Ereignis-Telemetrie älter als dies wird gelöscht."
       },
       "chatHistory": {
         "title": "Chat-Verlauf",

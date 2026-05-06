@@ -118,15 +118,25 @@ describe('deleteChatThread', () => {
     );
   });
 
-  it('should archive threadMetadata when present', async () => {
+  it('should soft-trash threadMetadata when present (user-trash mode)', async () => {
     const summary = JSON.stringify({ chatType: 'general' });
     const { ctx, mockPatch, dbQueryChain } = createMockCtx(summary);
-    const mockRecord = { _id: 'meta_1' };
+    // dbQueryChain.first is consulted twice: once for legalHolds (no row,
+    // returns the same default-undefined), once for threadMetadata.
+    const mockRecord = { _id: 'meta_1', organizationId: undefined };
     dbQueryChain.first.mockResolvedValue(mockRecord);
 
     await deleteChatThread(ctx, 'parent_1');
 
-    expect(mockPatch).toHaveBeenCalledWith('meta_1', { status: 'deleted' });
+    // Default mode is 'user-trash': flips status to 'trashed' AND sets
+    // statusChangedAt. We don't pin the timestamp so just assert shape.
+    expect(mockPatch).toHaveBeenCalledWith(
+      'meta_1',
+      expect.objectContaining({
+        status: 'trashed',
+        statusChangedAt: expect.any(Number),
+      }),
+    );
   });
 
   it('should not patch threadMetadata when not found', async () => {

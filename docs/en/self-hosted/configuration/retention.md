@@ -35,7 +35,7 @@ Within the operator's bounds, an org admin can configure each category independe
 
 ## How deletion runs
 
-The deletion job runs nightly at 03:00 UTC. The top-level dispatcher schedules a separate per-org cleanup with a deterministic 0–15 minute hash-based stagger so RAG and DB don't see a thundering-herd burst on every cron tick.
+The deletion job runs nightly at 04:00 UTC. The top-level dispatcher schedules a separate per-org cleanup with a deterministic 0–15 minute hash-based stagger so RAG and DB don't see a thundering-herd burst on every cron tick. A sibling cron at 01:00 UTC runs `effectReleasesOnly` so approved legal-hold releases past their 24h cooldown still take effect even when retention is paused via `TALE_RETENTION_DISABLED`.
 
 For each org, every category runs in priority order:
 
@@ -56,7 +56,11 @@ When a `legalHolds` row exists for `(organizationId, targetType, targetId)` AND 
 
 Target types: `thread`, `document`, `execution`, `userMembership`, `org`. A whole-org hold (`targetType: 'org'`) short-circuits the entire cleanup pass for that org.
 
-Holds are placed via `placeLegalHold` and released via `releaseLegalHold` (admin only on both). Released holds are RETAINED in the table for the audit trail — never physically deleted.
+Holds are placed via `placeLegalHold` (admin only). Release is a TWO-STEP maker-checker flow: any admin files via `requestLegalHoldRelease`, and a DIFFERENT admin approves via `approveLegalHoldRelease`. Approval imposes a 24h cooldown (configurable via `TALE_LEGAL_HOLD_RELEASE_COOLDOWN_HOURS`) plus a 5-minute minimum delay between request and approval to defeat chained-call attacks. `rejectLegalHoldRelease` is the rejection path. Self-approval is refused unless the operator opts in by setting `TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true` (single-admin deployments) — the audit log records `legal_hold_release_approved_self` so the bypass is loud. Released holds are RETAINED in the table for the audit trail — never physically deleted.
+
+Org-scoped holds (`targetType: 'org'`, the "halt all retention" hold) require dual-control by default; placement is refused unless `TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true` is set.
+
+Closing a `legalMatter` via `closeLegalMatter` automatically files a pending release request for every linked active hold (matched by `matterRef`). Approval still requires a second admin per linked hold — matter close does NOT auto-release.
 
 The cleanup runner pre-fetches every active hold ONCE per run, so in-flight runs see a consistent snapshot. Holds placed mid-run protect the _next_ run; the brief window is acceptable per ISO 27050 since cleanup is daily.
 

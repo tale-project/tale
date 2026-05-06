@@ -719,7 +719,7 @@ async function runCategory(
 
 /**
  * Deterministic 0-15min stagger keyed by orgId. Two orgs run by the same
- * 03:00 UTC cron land at different real times, so RAG and DB don't see a
+ * 04:00 UTC cron land at different real times, so RAG and DB don't see a
  * thundering-herd on every cron tick. Hash is FNV-1a-style: stable across
  * processes (no Math.random), so the same org runs at the same wall-clock
  * offset every day — useful for operator log triage.
