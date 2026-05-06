@@ -21,6 +21,7 @@ type SkeletonType =
   | 'badge'
   | 'id-copy'
   | 'avatar-text'
+  | 'icon-text'
   | 'action'
   | 'switch';
 
@@ -219,6 +220,13 @@ export function DataTableSkeleton<TData = unknown, TValue = unknown>({
                       <Skeleton className="h-3.5 w-full max-w-48" />
                       <Skeleton className="h-3 w-2/3 max-w-24" />
                     </Stack>
+                  </HStack>
+                );
+              } else if (skeletonType === 'icon-text') {
+                cellContent = (
+                  <HStack gap={3}>
+                    <Skeleton className="size-4 shrink-0 rounded" />
+                    <Skeleton className="h-3.5 w-full max-w-48" />
                   </HStack>
                 );
               } else if (col.align === 'right') {

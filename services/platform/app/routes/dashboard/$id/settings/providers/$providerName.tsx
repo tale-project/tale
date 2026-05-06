@@ -26,6 +26,7 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Alert } from '@/app/components/ui/feedback/alert';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
+import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Card } from '@/app/components/ui/layout/card';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
@@ -1042,34 +1043,28 @@ function ModelsSection({
                 />
               )}
               {form.tags.includes('image-generation') && (
-                <Stack gap={3}>
-                  <div>
-                    <label className="text-foreground mb-1 block text-xs font-medium">
-                      {t('providers.imageGenerationMode')}
-                    </label>
-                    <select
-                      className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
-                      value={form.imageGenerationMode}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- select option values are constrained to the empty string or one of the two enum variants
-                          imageGenerationMode: e.target
-                            .value as ModelFormState['imageGenerationMode'],
-                        }))
-                      }
-                    >
-                      <option value="">
-                        images-api ({t('providers.default')})
-                      </option>
-                      <option value="images-api">images-api</option>
-                      <option value="chat-multimodal">chat-multimodal</option>
-                    </select>
-                    <Text className="text-muted-foreground mt-1 text-xs">
-                      {t('providers.imageGenerationModeHelp')}
-                    </Text>
-                  </div>
-                </Stack>
+                <Select
+                  label={t('providers.imageGenerationMode')}
+                  description={t('providers.imageGenerationModeHelp')}
+                  value={form.imageGenerationMode || 'default'}
+                  onValueChange={(value) =>
+                    setForm((f) => ({
+                      ...f,
+                      imageGenerationMode:
+                        value === 'images-api' || value === 'chat-multimodal'
+                          ? value
+                          : '',
+                    }))
+                  }
+                  options={[
+                    {
+                      value: 'default',
+                      label: `images-api (${t('providers.default')})`,
+                    },
+                    { value: 'images-api', label: 'images-api' },
+                    { value: 'chat-multimodal', label: 'chat-multimodal' },
+                  ]}
+                />
               )}
               <HStack gap={3}>
                 <Input

@@ -197,6 +197,7 @@ export function LogInPage() {
       toast({
         title: t('login.toast.success'),
         variant: 'success',
+        position: 'top-center',
       });
 
       await queryClient
@@ -210,6 +211,7 @@ export function LogInPage() {
       toast({
         title: tCommon('errors.somethingWentWrong'),
         variant: 'destructive',
+        position: 'top-center',
       });
     }
   };
@@ -235,7 +237,6 @@ export function LogInPage() {
             <Input
               id="email"
               type="email"
-              size="lg"
               label={t('email')}
               placeholder={t('emailPlaceholder')}
               disabled={isSubmitting}
@@ -249,13 +250,29 @@ export function LogInPage() {
             <Input
               id="password"
               type="password"
-              size="lg"
               label={t('password')}
               placeholder={t('passwordPlaceholder')}
               disabled={isSubmitting}
               autoComplete="current-password"
               className="shadow-xs"
-              description={t('login.forgotPassword')}
+              description={
+                <span className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    onClick={() =>
+                      toast({
+                        title: t('login.forgotPasswordToast.title'),
+                        description: t('login.forgotPasswordToast.description'),
+                        position: 'top-center',
+                      })
+                    }
+                  >
+                    {t('login.forgotPassword')}
+                  </Button>
+                </span>
+              }
               {...form.register('password', {
                 onChange: () => setLoginError(null),
               })}
@@ -271,12 +288,7 @@ export function LogInPage() {
               </p>
             )}
 
-            <Button
-              type="submit"
-              size="lg"
-              fullWidth
-              disabled={isSubmitting || !isValid}
-            >
+            <Button type="submit" fullWidth disabled={isSubmitting || !isValid}>
               {isSubmitting ? t('login.signingIn') : t('login.loginButton')}
             </Button>
           </Form>
@@ -289,7 +301,6 @@ export function LogInPage() {
             <Button
               onClick={handleSsoLogin}
               variant="secondary"
-              size="lg"
               fullWidth
               disabled={isSubmitting}
             >

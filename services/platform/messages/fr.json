@@ -244,7 +244,7 @@
     },
     "automations": {
       "title": "Aucune automatisation pour l'instant",
-      "description": "Décris ton flux de travail et laisse ton IA l'automatiser"
+      "description": "Crée ta première automatisation pour commencer"
     },
     "agents": {
       "title": "Aucun agent pour l'instant",
@@ -275,7 +275,6 @@
       "role": "Rôle",
       "joined": "Inscrit",
       "automation": "Automatisation",
-      "version": "Version",
       "document": "Document",
       "size": "Taille",
       "ragStatus": "Statut RAG",
@@ -372,7 +371,11 @@
       "accountLockedSeconds": "Compte temporairement verrouillé. Réessaie dans {seconds, plural, one {# seconde} other {# secondes}}, ou contacte un administrateur.",
       "accountLockedMinutes": "Compte temporairement verrouillé. Réessaie dans {minutes, plural, one {# minute} other {# minutes}}, ou contacte un administrateur.",
       "accountLockedHours": "Compte temporairement verrouillé. Réessaie dans {hours, plural, one {# heure} other {# heures}}, ou contacte un administrateur.",
-      "forgotPassword": "Mot de passe oublié ? Contacte un administrateur pour obtenir de l'aide.",
+      "forgotPassword": "Mot de passe oublié ?",
+      "forgotPasswordToast": {
+        "title": "Contacte ton administrateur",
+        "description": "La réinitialisation du mot de passe est gérée par ton organisation."
+      },
       "toast": {
         "success": "Connecté avec succès"
       }
@@ -1313,6 +1316,7 @@
     "search": {
       "placeholder": "Rechercher des automatisations"
     },
+    "entityLabel": "automatisations",
     "createWithAI": "Créer une automatisation avec l'IA",
     "navigation": {
       "editor": "Éditeur",

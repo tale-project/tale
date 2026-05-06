@@ -163,7 +163,7 @@ export function DataTableFilters({
               onChange={(e) => search.onChange(e.target.value)}
               wrapperClassName={cn(
                 'flex-1 sm:flex-none',
-                search.className ?? 'w-full sm:w-[18.75rem]',
+                search.className ?? 'w-full sm:max-w-[16rem]',
               )}
             />
           )}

@@ -168,18 +168,40 @@ export function IntegrationPanel({
           </Stack>
 
           {isDetailsMode ? (
-            <IntegrationActiveView
-              integration={integration}
-              isSql={manage.isSql}
-              busy={manage.busy}
-              isSavingOAuth2={manage.isSavingOAuth2}
-              hasOAuth2Config={manage.hasOAuth2Config}
-              testResult={manage.testResult}
-              secretBindings={manage.secretBindings}
-              editableConfigFields={manage.editableConfigFields}
-              onReauthorize={manage.handleReauthorize}
-              onDismissTestResult={() => manage.setTestResult(null)}
-            />
+            <Stack gap={4}>
+              <IntegrationActiveView
+                integration={integration}
+                isSql={manage.isSql}
+                busy={manage.busy}
+                isSavingOAuth2={manage.isSavingOAuth2}
+                hasOAuth2Config={manage.hasOAuth2Config}
+                testResult={manage.testResult}
+                secretBindings={manage.secretBindings}
+                editableConfigFields={manage.editableConfigFields}
+                onReauthorize={manage.handleReauthorize}
+                onDismissTestResult={() => manage.setTestResult(null)}
+              />
+              <HStack justify="end" align="center">
+                <Button
+                  variant="secondary"
+                  onClick={manage.handleTestConnection}
+                  disabled={manage.busy}
+                >
+                  {manage.isTesting
+                    ? t('integrations.manageDialog.testingConnection')
+                    : t('integrations.manageDialog.testConnection')}
+                </Button>
+              </HStack>
+              <button
+                type="button"
+                onClick={() => manage.setConfirmDelete(true)}
+                disabled={manage.busy}
+                className="text-destructive hover:text-destructive/80 flex items-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="size-3.5" />
+                {t('integrations.panel.deleteIntegration')}
+              </button>
+            </Stack>
           ) : (
             <IntegrationCredentialsForm
               integration={integration}
@@ -232,42 +254,23 @@ export function IntegrationPanel({
 
       <div className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4">
         {isDetailsMode ? (
-          <Stack gap={3}>
-            <HStack justify="between" align="center">
-              <button
-                type="button"
-                onClick={() => setConfirmDisconnect(true)}
-                disabled={manage.busy}
-                className="text-muted-foreground hover:text-foreground text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                {manage.isSubmitting ? (
-                  <HStack gap={2} align="center">
-                    <Loader2 className="size-3.5 animate-spin" />
-                    {t('integrations.disconnecting')}
-                  </HStack>
-                ) : (
-                  t('integrations.disconnect')
-                )}
-              </button>
-              <Button
-                onClick={manage.handleTestConnection}
-                disabled={manage.busy}
-              >
-                {manage.isTesting
-                  ? t('integrations.manageDialog.testingConnection')
-                  : t('integrations.manageDialog.testConnection')}
-              </Button>
-            </HStack>
+          <HStack justify="start" align="center">
             <button
               type="button"
-              onClick={() => manage.setConfirmDelete(true)}
+              onClick={() => setConfirmDisconnect(true)}
               disabled={manage.busy}
-              className="text-destructive hover:text-destructive/80 flex items-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-50"
+              className="text-muted-foreground hover:text-foreground text-sm font-medium transition-colors disabled:opacity-50"
             >
-              <Trash2 className="size-3.5" />
-              {t('integrations.panel.deleteIntegration')}
+              {manage.isSubmitting ? (
+                <HStack gap={2} align="center">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  {t('integrations.disconnecting')}
+                </HStack>
+              ) : (
+                t('integrations.disconnect')
+              )}
             </button>
-          </Stack>
+          </HStack>
         ) : (
           <HStack justify="end" align="center">
             <Button

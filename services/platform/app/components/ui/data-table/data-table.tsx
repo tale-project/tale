@@ -65,7 +65,14 @@ interface ColumnMeta {
   isAction?: boolean;
   hasAvatar?: boolean;
   skeleton?: {
-    type?: 'text' | 'badge' | 'id-copy' | 'avatar-text' | 'action' | 'switch';
+    type?:
+      | 'text'
+      | 'badge'
+      | 'id-copy'
+      | 'avatar-text'
+      | 'icon-text'
+      | 'action'
+      | 'switch';
   };
   align?: 'left' | 'center' | 'right';
 }
@@ -489,6 +496,13 @@ export function DataTable<TData, TValue = unknown>({
                         <Skeleton className="h-3.5 w-full max-w-48" />
                         <Skeleton className="h-3 w-2/3 max-w-24" />
                       </Stack>
+                    </HStack>
+                  );
+                } else if (skeletonType === 'icon-text') {
+                  cellContent = (
+                    <HStack gap={3}>
+                      <Skeleton className="size-4 shrink-0 rounded" />
+                      <Skeleton className="h-3.5 w-full max-w-48" />
                     </HStack>
                   );
                 } else if (align === 'right') {

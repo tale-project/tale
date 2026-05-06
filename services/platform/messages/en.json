@@ -244,7 +244,7 @@
     },
     "automations": {
       "title": "No automations yet",
-      "description": "Describe your workflow and let your AI automate it"
+      "description": "Create your first automation to get started"
     },
     "agents": {
       "title": "No agents yet",
@@ -275,7 +275,6 @@
       "role": "Role",
       "joined": "Joined",
       "automation": "Automation",
-      "version": "Version",
       "document": "Document",
       "size": "Size",
       "ragStatus": "RAG status",
@@ -372,7 +371,11 @@
       "accountLockedSeconds": "Account temporarily locked. Try again in {seconds, plural, one {# second} other {# seconds}}, or contact an administrator.",
       "accountLockedMinutes": "Account temporarily locked. Try again in {minutes, plural, one {# minute} other {# minutes}}, or contact an administrator.",
       "accountLockedHours": "Account temporarily locked. Try again in {hours, plural, one {# hour} other {# hours}}, or contact an administrator.",
-      "forgotPassword": "Forgot password? Contact an admin for assistance.",
+      "forgotPassword": "Forgot password?",
+      "forgotPasswordToast": {
+        "title": "Contact your administrator",
+        "description": "Password reset is managed by your organization."
+      },
       "toast": {
         "success": "Signed in successfully"
       }
@@ -1313,6 +1316,7 @@
     "search": {
       "placeholder": "Search automations"
     },
+    "entityLabel": "automations",
     "createWithAI": "Create automation with AI",
     "navigation": {
       "editor": "Editor",

@@ -6,6 +6,7 @@ import { Folder, Workflow } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { Text } from '@/app/components/ui/typography/text';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
 import { AutomationRowActions } from '../components/automation-row-actions';
@@ -14,6 +15,7 @@ import type { AutomationTableItem } from '../components/automations-table';
 export function useAutomationsTableConfig(organizationId: string) {
   const { t: tTables } = useT('tables');
   const { t: tAutomations } = useT('automations');
+  const { formatDate } = useFormatDate();
 
   const columns = useMemo<ColumnDef<AutomationTableItem>[]>(
     () => [
@@ -21,7 +23,7 @@ export function useAutomationsTableConfig(organizationId: string) {
         id: 'name',
         header: tTables('headers.automation'),
         size: 300,
-        meta: { hasAvatar: false },
+        meta: { hasAvatar: false, skeleton: { type: 'icon-text' } },
         cell: ({ row }) => {
           if (row.original.type === 'folder') {
             return (
@@ -45,25 +47,22 @@ export function useAutomationsTableConfig(organizationId: string) {
         },
       },
       {
-        id: 'version',
-        header: () => (
-          <span className="block w-full text-right">
-            {tTables('headers.version')}
-          </span>
-        ),
-        size: 100,
-        meta: { headerLabel: tTables('headers.version'), align: 'right' },
+        id: 'created',
+        header: tTables('headers.created'),
+        size: 140,
+        meta: { headerLabel: tTables('headers.created') },
         cell: ({ row }) => {
           if (row.original.type === 'folder') {
             return (
-              <Text as="span" variant="muted" className="block text-right">
+              <Text as="span" variant="muted">
                 —
               </Text>
             );
           }
+          const ms = row.original.createdAtMs;
           return (
-            <Text as="span" variant="caption" className="block text-right">
-              {row.original.version}
+            <Text as="span" variant="caption">
+              {ms !== undefined ? formatDate(new Date(ms), 'medium') : '—'}
             </Text>
           );
         },
@@ -71,7 +70,12 @@ export function useAutomationsTableConfig(organizationId: string) {
       {
         id: 'actions',
         size: 50,
-        meta: { noTruncate: true },
+        header: () => null,
+        meta: {
+          noTruncate: true,
+          isAction: true,
+          skeleton: { type: 'action' },
+        },
         cell: ({ row }) => {
           if (row.original.type === 'folder') return null;
           return (
@@ -93,7 +97,7 @@ export function useAutomationsTableConfig(organizationId: string) {
         },
       },
     ],
-    [tTables, organizationId],
+    [tTables, organizationId, formatDate],
   );
 
   return {

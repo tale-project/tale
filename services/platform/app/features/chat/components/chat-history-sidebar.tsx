@@ -289,11 +289,11 @@ export function ChatHistorySidebar({
                 <Text
                   as="div"
                   variant="muted"
-                  className="text-foreground font-medium"
+                  className="text-foreground font-medium text-nowrap"
                 >
                   {t('history.empty')}
                 </Text>
-                <Text as="div" variant="caption">
+                <Text as="div" variant="caption" className="text-nowrap">
                   {t('history.emptySubtitle')}
                 </Text>
               </div>
