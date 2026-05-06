@@ -27,10 +27,29 @@ interface OrgPolicy {
   config: RetentionPolicyConfig;
 }
 
+async function deleteRagEntry(fileId: string, label: string): Promise<void> {
+  const ragUrl = getRagConfig().serviceUrl;
+  try {
+    const res = await fetch(
+      `${ragUrl}/api/v1/documents/${encodeURIComponent(fileId)}`,
+      { method: 'DELETE', signal: AbortSignal.timeout(30000) },
+    );
+    if (!res.ok && res.status !== 404) {
+      console.warn(
+        `[RetentionCleanup] RAG DELETE returned ${res.status} for ${label}`,
+      );
+    }
+  } catch (error) {
+    console.warn(
+      `[RetentionCleanup] Failed to delete RAG entry for ${label}:`,
+      error,
+    );
+  }
+}
+
 async function cleanupDocuments(
   ctx: ActionCtx,
   org: OrgPolicy,
-  ragUrl: string,
   batchSize: number,
 ): Promise<void> {
   if (!org.config.enabled) return;
@@ -43,17 +62,7 @@ async function cleanupDocuments(
 
   for (const doc of expiredDocs) {
     if (doc.fileId) {
-      try {
-        await fetch(
-          `${ragUrl}/api/v1/documents/${encodeURIComponent(doc.fileId)}`,
-          { method: 'DELETE', signal: AbortSignal.timeout(30000) },
-        );
-      } catch (error) {
-        console.warn(
-          `[RetentionCleanup] Failed to delete RAG entry for document ${doc._id}:`,
-          error,
-        );
-      }
+      await deleteRagEntry(doc.fileId, `document ${doc._id}`);
     }
 
     await ctx.runMutation(
@@ -67,7 +76,6 @@ async function cleanupTempFiles(
   ctx: ActionCtx,
   org: OrgPolicy,
   source: 'user' | 'agent',
-  ragUrl: string,
   batchSize: number,
 ): Promise<void> {
   const enabled =
@@ -88,17 +96,7 @@ async function cleanupTempFiles(
   );
 
   for (const file of expiredFiles) {
-    try {
-      await fetch(
-        `${ragUrl}/api/v1/documents/${encodeURIComponent(file.storageId)}`,
-        { method: 'DELETE', signal: AbortSignal.timeout(30000) },
-      );
-    } catch (error) {
-      console.warn(
-        `[RetentionCleanup] Failed to delete RAG entry for temp file ${file._id}:`,
-        error,
-      );
-    }
+    await deleteRagEntry(file.storageId, `temp file ${file._id}`);
 
     await ctx.runMutation(
       internal.governance.internal_mutations_retention.deleteExpiredTempFile,
@@ -123,10 +121,25 @@ async function cleanupChatHistory(
   );
 
   for (const thread of expired) {
-    await ctx.runMutation(
-      internal.governance.internal_mutations_retention.deleteExpiredThread,
-      { threadMetadataId: thread._id, organizationId: org.organizationId },
-    );
+    // cascadeDeleteThreadChildren is page-bounded (PAGE_SIZE = 200 rows
+    // per child table); for very large threads it returns
+    // `{ done: false, remaining > 0 }`. Re-invoke until done.
+    let attempts = 0;
+    const MAX_ATTEMPTS = 50; // 200 × 50 = 10k pages per child = 2M rows max
+    while (true) {
+      const result = await ctx.runMutation(
+        internal.governance.internal_mutations_retention.deleteExpiredThread,
+        { threadMetadataId: thread._id, organizationId: org.organizationId },
+      );
+      if (result.done) break;
+      attempts += 1;
+      if (attempts >= MAX_ATTEMPTS) {
+        console.warn(
+          `[RetentionCleanup] Thread ${thread._id} cascade did not complete in ${MAX_ATTEMPTS} attempts; will resume on next run.`,
+        );
+        break;
+      }
+    }
   }
 }
 
@@ -264,6 +277,76 @@ async function runCategory(
   }
 }
 
+/**
+ * Deterministic 0-15min stagger keyed by orgId. Two orgs run by the same
+ * 03:00 UTC cron land at different real times, so RAG and DB don't see a
+ * thundering-herd on every cron tick. Hash is FNV-1a-style: stable across
+ * processes (no Math.random), so the same org runs at the same wall-clock
+ * offset every day — useful for operator log triage.
+ */
+function jitterMsForOrg(organizationId: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < organizationId.length; i++) {
+    hash ^= organizationId.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash % (15 * 60 * 1000); // 0 – 15 min
+}
+
+/**
+ * Per-org cleanup: runs every retention category for one org. Wrapped in
+ * its own action so the top-level dispatcher can schedule it via
+ * `ctx.scheduler.runAfter(jitterMs, …)`, isolating per-org failures and
+ * bounding each invocation's runtime.
+ */
+export const runOrgRetentionCleanup = internalAction({
+  args: { organizationId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const rawPolicies = await ctx.runQuery(
+      internal.governance.internal_queries.listRetentionPolicies,
+      {},
+    );
+    const policy = rawPolicies.find(
+      (p) => p.organizationId === args.organizationId,
+    );
+    if (!policy) return null;
+    const config = parseConfig(policy.config);
+    if (!config) return null;
+
+    const org: OrgPolicy = {
+      organizationId: policy.organizationId,
+      config,
+    };
+    const batchSize = config.batchSize ?? DEFAULT_BATCH_SIZE;
+    const { organizationId } = org;
+
+    await runCategory('documents', organizationId, () =>
+      cleanupDocuments(ctx, org, batchSize),
+    );
+    await runCategory('userTempFiles', organizationId, () =>
+      cleanupTempFiles(ctx, org, 'user', batchSize),
+    );
+    await runCategory('agentTempFiles', organizationId, () =>
+      cleanupTempFiles(ctx, org, 'agent', batchSize),
+    );
+    await runCategory('chatHistory', organizationId, () =>
+      cleanupChatHistory(ctx, org, batchSize),
+    );
+    await runCategory('auditLogs', organizationId, () =>
+      cleanupAuditLogs(ctx, org, batchSize),
+    );
+    await runCategory('workflowLogs', organizationId, () =>
+      cleanupWorkflowLogs(ctx, org, batchSize),
+    );
+    await runCategory('usageLedger', organizationId, () =>
+      cleanupUsageLedger(ctx, org, batchSize),
+    );
+
+    return null;
+  },
+});
+
 export const runRetentionCleanup = internalAction({
   args: {},
   returns: v.null(),
@@ -283,32 +366,14 @@ export const runRetentionCleanup = internalAction({
       });
     }
 
-    const ragUrl = getRagConfig().serviceUrl;
-
+    // Dispatcher: schedule a per-org cleanup with a deterministic 0-15min
+    // jitter. The dispatcher itself returns in seconds — workers run in
+    // parallel under the scheduler, so org A's cleanup can't block org B.
     for (const org of orgsWithPolicies) {
-      const batchSize = org.config.batchSize ?? DEFAULT_BATCH_SIZE;
-      const { organizationId } = org;
-
-      await runCategory('documents', organizationId, () =>
-        cleanupDocuments(ctx, org, ragUrl, batchSize),
-      );
-      await runCategory('userTempFiles', organizationId, () =>
-        cleanupTempFiles(ctx, org, 'user', ragUrl, batchSize),
-      );
-      await runCategory('agentTempFiles', organizationId, () =>
-        cleanupTempFiles(ctx, org, 'agent', ragUrl, batchSize),
-      );
-      await runCategory('chatHistory', organizationId, () =>
-        cleanupChatHistory(ctx, org, batchSize),
-      );
-      await runCategory('auditLogs', organizationId, () =>
-        cleanupAuditLogs(ctx, org, batchSize),
-      );
-      await runCategory('workflowLogs', organizationId, () =>
-        cleanupWorkflowLogs(ctx, org, batchSize),
-      );
-      await runCategory('usageLedger', organizationId, () =>
-        cleanupUsageLedger(ctx, org, batchSize),
+      await ctx.scheduler.runAfter(
+        jitterMsForOrg(org.organizationId),
+        internal.governance.retention_cleanup.runOrgRetentionCleanup,
+        { organizationId: org.organizationId },
       );
     }
 

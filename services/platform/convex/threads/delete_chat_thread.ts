@@ -26,7 +26,14 @@ export async function deleteChatThread(
     .first();
 
   if (existing) {
-    await ctx.db.patch(existing._id, { status: 'deleted' });
+    // User-initiated delete: enter the user-visible Trash. status='trashed'
+    // distinguishes from retention-policy auto-deletion (status='expired'),
+    // which is admin-only-visible. Both states are grace-windowed by
+    // `statusChangedAt`; retention Pass B hard-deletes when grace elapses.
+    await ctx.db.patch(existing._id, {
+      status: 'trashed',
+      statusChangedAt: Date.now(),
+    });
   }
 
   // Cascade: drop any agent-webhook `user` → threadId mapping rows pointing

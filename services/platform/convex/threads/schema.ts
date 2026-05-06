@@ -8,6 +8,14 @@ export const threadMetadataTable = defineTable({
   userId: v.string(),
   chatType: chatTypeValidator,
   status: threadStatusValidator,
+  /**
+   * Timestamp of the last `status` transition. Required for the retention
+   * grace-window math: a `trashed`/`expired` row hard-deletes when
+   * `now - statusChangedAt > graceDays`. `optional` for backward-compat
+   * with rows written before this field was introduced; treat missing as
+   * "no grace timer started" (cleanup falls back to `_creationTime`).
+   */
+  statusChangedAt: v.optional(v.number()),
   title: v.optional(v.string()),
   createdAt: v.number(),
   generationStatus: v.optional(

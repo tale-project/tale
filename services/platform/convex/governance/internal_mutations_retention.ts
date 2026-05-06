@@ -1,9 +1,9 @@
 import { v } from 'convex/values';
 
-import { components } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { deleteStorageWithMetadata } from '../file_metadata/helpers';
+import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
 
 export const deleteExpiredDocument = internalMutation({
   args: {
@@ -84,41 +84,39 @@ export const deleteExpiredThread = internalMutation({
     threadMetadataId: v.id('threadMetadata'),
     organizationId: v.string(),
   },
-  returns: v.null(),
+  returns: v.object({
+    done: v.boolean(),
+    remaining: v.number(),
+  }),
   handler: async (ctx, args) => {
     const thread = await ctx.db.get(args.threadMetadataId);
     if (!thread) {
-      return null;
+      return { done: true, remaining: 0 };
     }
 
-    try {
-      await ctx.runMutation(components.agent.threads.updateThread, {
-        threadId: thread.threadId,
-        patch: { status: 'archived' },
-      });
-    } catch (error) {
-      console.warn(
-        `[RetentionCleanup] Failed to archive agent thread ${thread.threadId}:`,
-        error,
-      );
-    }
-
-    await ctx.db.delete(args.threadMetadataId);
-
-    await createAuditLog(ctx, {
+    // Use the shared cascade helper so user-delete and retention-delete
+    // can never drift on which descendant tables get cleaned up.
+    const result = await cascadeDeleteThreadChildren(ctx, {
+      threadId: thread.threadId,
       organizationId: args.organizationId,
-      actorId: 'system',
-      actorEmail: 'system@tale.so',
-      actorType: 'system',
-      action: 'chat_history.retention_deleted',
-      category: 'data',
-      resourceType: 'thread',
-      resourceId: thread.threadId,
-      resourceName: thread.title ?? 'Untitled',
-      status: 'success',
     });
 
-    return null;
+    if (result.done) {
+      await createAuditLog(ctx, {
+        organizationId: args.organizationId,
+        actorId: 'system',
+        actorEmail: 'system@tale.so',
+        actorType: 'system',
+        action: 'chat_history.retention_deleted',
+        category: 'data',
+        resourceType: 'thread',
+        resourceId: thread.threadId,
+        resourceName: thread.title ?? 'Untitled',
+        status: 'success',
+      });
+    }
+
+    return result;
   },
 });
 

@@ -15,9 +15,25 @@ export const messageRoleValidator = v.union(
   v.literal('assistant'),
 );
 
+/**
+ * Thread lifecycle states:
+ *   - `active`            — visible in main list, normal use
+ *   - `archived`          — user-archived, round-trippable via `unarchiveChatThread`
+ *   - `trashed`           — user-deleted (visible in user Trash, restorable by owner/admin)
+ *   - `expired`           — retention-policy auto-deleted (admin-only Trash, restorable by admin)
+ *   - `deleted`           — DEPRECATED (legacy tombstone). Treated as `trashed` for read paths
+ *                           pending one-shot migration. New writes use `trashed`/`expired`.
+ *
+ * `trashed` and `expired` are both grace-windowed by `statusChangedAt`; once
+ * `now - statusChangedAt > graceDays`, retention Pass B physically deletes
+ * the row + cascades children. Origin only affects user-visibility and
+ * restore-permission, not physical disposal.
+ */
 export const threadStatusValidator = v.union(
   v.literal('active'),
   v.literal('archived'),
+  v.literal('trashed'),
+  v.literal('expired'),
   v.literal('deleted'),
 );
 
