@@ -1,10 +1,11 @@
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { TaleLogo } from '@tale/ui/logo';
-import { Link, useRouterState } from '@tanstack/react-router';
+import { useRouterState } from '@tanstack/react-router';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 
+import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
@@ -134,27 +135,27 @@ export function SiteHeader() {
     >
       <SiteContainer>
         <div className="flex h-16 items-center justify-between gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr]">
-          <Link
+          <LocalizedLink
             to="/"
             aria-label={t('homeAriaLabel')}
             className="text-fg-base lg:justify-self-start"
           >
             <TaleLogo />
-          </Link>
+          </LocalizedLink>
 
           <nav
             aria-label={t('ariaLabel')}
             className="hidden items-center gap-12 lg:flex lg:justify-self-center"
           >
             {NAV_ITEMS.map((item) => (
-              <Link
+              <LocalizedLink
                 key={item.key}
                 to={item.to}
                 hash={item.hash}
                 className="text-fg-muted hover:text-fg-base text-sm transition-colors"
               >
                 {t(item.key)}
-              </Link>
+              </LocalizedLink>
             ))}
           </nav>
 
@@ -169,7 +170,9 @@ export function SiteHeader() {
               </a>
             </Button>
             <Button asChild size="sm">
-              <Link to="/request-demo">{t('requestDemo')}</Link>
+              <LocalizedLink to="/request-demo">
+                {t('requestDemo')}
+              </LocalizedLink>
             </Button>
           </div>
 
@@ -219,7 +222,7 @@ export function SiteHeader() {
                 className="flex flex-col gap-2 py-6"
               >
                 {NAV_ITEMS.map((item) => (
-                  <Link
+                  <LocalizedLink
                     key={item.key}
                     to={item.to}
                     hash={item.hash}
@@ -227,7 +230,7 @@ export function SiteHeader() {
                     className="text-fg-base hover:bg-bg-muted rounded-md px-3 py-3 text-base font-medium transition-colors"
                   >
                     {t(item.key)}
-                  </Link>
+                  </LocalizedLink>
                 ))}
                 <div className="mt-2 flex flex-col gap-2">
                   <Button asChild variant="secondary" fullWidth>
@@ -241,9 +244,12 @@ export function SiteHeader() {
                     </a>
                   </Button>
                   <Button asChild fullWidth>
-                    <Link to="/request-demo" onClick={() => setOpen(false)}>
+                    <LocalizedLink
+                      to="/request-demo"
+                      onClick={() => setOpen(false)}
+                    >
                       {t('requestDemo')}
-                    </Link>
+                    </LocalizedLink>
                   </Button>
                 </div>
               </motion.div>

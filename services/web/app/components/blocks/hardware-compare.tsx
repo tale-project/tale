@@ -1,5 +1,4 @@
 import { Button } from '@tale/ui/button';
-import { Link } from '@tanstack/react-router';
 import { motion, useReducedMotion } from 'framer-motion';
 
 import {
@@ -7,6 +6,7 @@ import {
   type CompareRow,
   type CompareTier,
 } from '@/app/components/blocks/compare-table';
+import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
@@ -39,7 +39,9 @@ export function HardwareCompare() {
         fullWidth
         className="hidden sm:inline-flex"
       >
-        <Link to="/request-demo">{t(`tiers.${key}.cta`)}</Link>
+        <LocalizedLink to="/request-demo">
+          {t(`tiers.${key}.cta`)}
+        </LocalizedLink>
       </Button>
     ),
   }));
@@ -63,12 +65,12 @@ export function HardwareCompare() {
       content: (
         <>
           {t('extras.software.description')}{' '}
-          <Link
+          <LocalizedLink
             to="/pricing"
             className="text-fg-base font-medium underline underline-offset-4"
           >
             {t('extras.software.linkLabel')}
-          </Link>
+          </LocalizedLink>
           {t('extras.software.suffix')}
         </>
       ),

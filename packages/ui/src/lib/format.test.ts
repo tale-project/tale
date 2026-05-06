@@ -7,15 +7,19 @@ import {
   formatNumber,
 } from './format';
 
-// Intl.NumberFormat inserts a non-breaking space (U+00A0 or U+202F) between
-// the currency token and the digits in many locales. The component renders
-// HTML fine; in tests we normalize so the assertions read naturally.
-//
-// Swiss-German grouping is the right-single-quotation mark (U+2019) per
-// CLDR, but older Node ICU builds emit a plain ASCII apostrophe instead.
-// Normalize both to U+2019 so the tests pass on either runtime.
+// Intl.NumberFormat output varies subtly across ICU builds: it can use a
+// non-breaking space (U+00A0) or a narrow no-break space (U+202F) before
+// the currency digits, and Swiss locales use a typographic right single
+// quote (U+2019) for grouping on full-ICU runtimes but fall back to a
+// plain apostrophe (U+0027) on slim-ICU runtimes (the CI Node image is
+// one such environment). The component renders all variants correctly in
+// HTML — we normalize here so the assertions stay readable and pass on
+// every runtime.
 function normalize(value: string): string {
-  return value.replace(/ /g, ' ').replace(/ /g, ' ').replace(/'/g, '’');
+  return value
+    .replace(/ /g, ' ')
+    .replace(/ /g, ' ')
+    .replace(/[‘’]/g, "'");
 }
 
 describe('formatNumber', () => {
@@ -24,7 +28,7 @@ describe('formatNumber', () => {
   });
 
   it('uses apostrophe grouping for Swiss German', () => {
-    expect(normalize(formatNumber(1199, { locale: 'de-CH' }))).toBe('1’199');
+    expect(normalize(formatNumber(1199, { locale: 'de-CH' }))).toBe("1'199");
   });
 
   it('respects fraction digit options', () => {
@@ -60,7 +64,7 @@ describe('formatCurrency', () => {
       }),
     );
     expect(result).toContain('CHF');
-    expect(result).toContain('1’199');
+    expect(result).toContain("1'199");
   });
 
   it('renders € for EUR with narrowSymbol', () => {

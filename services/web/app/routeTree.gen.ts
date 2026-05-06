@@ -13,7 +13,13 @@ import { Route as RequestDemoRouteImport } from './routes/request-demo';
 import { Route as PricingRouteImport } from './routes/pricing';
 import { Route as HardwarePricingRouteImport } from './routes/hardware-pricing';
 import { Route as ContactRouteImport } from './routes/contact';
+import { Route as LangRouteImport } from './routes/$lang';
 import { Route as IndexRouteImport } from './routes/index';
+import { Route as LangIndexRouteImport } from './routes/$lang/index';
+import { Route as LangRequestDemoRouteImport } from './routes/$lang/request-demo';
+import { Route as LangPricingRouteImport } from './routes/$lang/pricing';
+import { Route as LangHardwarePricingRouteImport } from './routes/$lang/hardware-pricing';
+import { Route as LangContactRouteImport } from './routes/$lang/contact';
 
 const RequestDemoRoute = RequestDemoRouteImport.update({
   id: '/request-demo',
@@ -35,18 +41,54 @@ const ContactRoute = ContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any);
+const LangRoute = LangRouteImport.update({
+  id: '/$lang',
+  path: '/$lang',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any);
+const LangIndexRoute = LangIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LangRoute,
+} as any);
+const LangRequestDemoRoute = LangRequestDemoRouteImport.update({
+  id: '/request-demo',
+  path: '/request-demo',
+  getParentRoute: () => LangRoute,
+} as any);
+const LangPricingRoute = LangPricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => LangRoute,
+} as any);
+const LangHardwarePricingRoute = LangHardwarePricingRouteImport.update({
+  id: '/hardware-pricing',
+  path: '/hardware-pricing',
+  getParentRoute: () => LangRoute,
+} as any);
+const LangContactRoute = LangContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => LangRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
+  '/$lang': typeof LangRouteWithChildren;
   '/contact': typeof ContactRoute;
   '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
+  '/$lang/contact': typeof LangContactRoute;
+  '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
+  '/$lang/pricing': typeof LangPricingRoute;
+  '/$lang/request-demo': typeof LangRequestDemoRoute;
+  '/$lang/': typeof LangIndexRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
@@ -54,36 +96,70 @@ export interface FileRoutesByTo {
   '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
+  '/$lang/contact': typeof LangContactRoute;
+  '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
+  '/$lang/pricing': typeof LangPricingRoute;
+  '/$lang/request-demo': typeof LangRequestDemoRoute;
+  '/$lang': typeof LangIndexRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   '/': typeof IndexRoute;
+  '/$lang': typeof LangRouteWithChildren;
   '/contact': typeof ContactRoute;
   '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
+  '/$lang/contact': typeof LangContactRoute;
+  '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
+  '/$lang/pricing': typeof LangPricingRoute;
+  '/$lang/request-demo': typeof LangRequestDemoRoute;
+  '/$lang/': typeof LangIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | '/'
+    | '/$lang'
     | '/contact'
     | '/hardware-pricing'
     | '/pricing'
-    | '/request-demo';
+    | '/request-demo'
+    | '/$lang/contact'
+    | '/$lang/hardware-pricing'
+    | '/$lang/pricing'
+    | '/$lang/request-demo'
+    | '/$lang/';
   fileRoutesByTo: FileRoutesByTo;
-  to: '/' | '/contact' | '/hardware-pricing' | '/pricing' | '/request-demo';
-  id:
-    | '__root__'
+  to:
     | '/'
     | '/contact'
     | '/hardware-pricing'
     | '/pricing'
-    | '/request-demo';
+    | '/request-demo'
+    | '/$lang/contact'
+    | '/$lang/hardware-pricing'
+    | '/$lang/pricing'
+    | '/$lang/request-demo'
+    | '/$lang';
+  id:
+    | '__root__'
+    | '/'
+    | '/$lang'
+    | '/contact'
+    | '/hardware-pricing'
+    | '/pricing'
+    | '/request-demo'
+    | '/$lang/contact'
+    | '/$lang/hardware-pricing'
+    | '/$lang/pricing'
+    | '/$lang/request-demo'
+    | '/$lang/';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
+  LangRoute: typeof LangRouteWithChildren;
   ContactRoute: typeof ContactRoute;
   HardwarePricingRoute: typeof HardwarePricingRoute;
   PricingRoute: typeof PricingRoute;
@@ -120,6 +196,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/$lang': {
+      id: '/$lang';
+      path: '/$lang';
+      fullPath: '/$lang';
+      preLoaderRoute: typeof LangRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/': {
       id: '/';
       path: '/';
@@ -127,11 +210,65 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/$lang/': {
+      id: '/$lang/';
+      path: '/';
+      fullPath: '/$lang/';
+      preLoaderRoute: typeof LangIndexRouteImport;
+      parentRoute: typeof LangRoute;
+    };
+    '/$lang/request-demo': {
+      id: '/$lang/request-demo';
+      path: '/request-demo';
+      fullPath: '/$lang/request-demo';
+      preLoaderRoute: typeof LangRequestDemoRouteImport;
+      parentRoute: typeof LangRoute;
+    };
+    '/$lang/pricing': {
+      id: '/$lang/pricing';
+      path: '/pricing';
+      fullPath: '/$lang/pricing';
+      preLoaderRoute: typeof LangPricingRouteImport;
+      parentRoute: typeof LangRoute;
+    };
+    '/$lang/hardware-pricing': {
+      id: '/$lang/hardware-pricing';
+      path: '/hardware-pricing';
+      fullPath: '/$lang/hardware-pricing';
+      preLoaderRoute: typeof LangHardwarePricingRouteImport;
+      parentRoute: typeof LangRoute;
+    };
+    '/$lang/contact': {
+      id: '/$lang/contact';
+      path: '/contact';
+      fullPath: '/$lang/contact';
+      preLoaderRoute: typeof LangContactRouteImport;
+      parentRoute: typeof LangRoute;
+    };
   }
 }
 
+interface LangRouteChildren {
+  LangContactRoute: typeof LangContactRoute;
+  LangHardwarePricingRoute: typeof LangHardwarePricingRoute;
+  LangPricingRoute: typeof LangPricingRoute;
+  LangRequestDemoRoute: typeof LangRequestDemoRoute;
+  LangIndexRoute: typeof LangIndexRoute;
+}
+
+const LangRouteChildren: LangRouteChildren = {
+  LangContactRoute: LangContactRoute,
+  LangHardwarePricingRoute: LangHardwarePricingRoute,
+  LangPricingRoute: LangPricingRoute,
+  LangRequestDemoRoute: LangRequestDemoRoute,
+  LangIndexRoute: LangIndexRoute,
+};
+
+const LangRouteWithChildren = LangRoute._addFileChildren(LangRouteChildren);
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LangRoute: LangRouteWithChildren,
   ContactRoute: ContactRoute,
   HardwarePricingRoute: HardwarePricingRoute,
   PricingRoute: PricingRoute,

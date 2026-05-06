@@ -202,6 +202,10 @@
       "monthly": "Billed monthly",
       "yearly": "Billed yearly · 2 months free"
     },
+    "users": {
+      "label": "Number of users",
+      "minTooltip": "Minimum is 25 users"
+    },
     "region": {
       "ariaLabel": "Currency",
       "CH": "CHF",
@@ -222,16 +226,16 @@
     "enterprise": {
       "name": "Enterprise",
       "deployment": "Cloud or self-hosted",
-      "priceSuffix": "/user/month + VAT",
+      "priceSuffix": "/month + VAT",
       "storageAddOn": "+ {price}/TB/month additional storage",
+      "userBreakdown": "{count} users × {perUser}/user/month",
       "tagline": "Fully managed, scalable, and production-ready — built for mission-critical private AI.",
       "cta": "Contact us",
       "feature1": "Self-hosted or cloud",
       "feature2": "Professionally maintained (ISO 27001 & SOC 2 certified)",
       "feature3": "GDPR compliant",
-      "feature4": "Email, phone/SMS, WhatsApp & remote support",
+      "feature4": "Email, phone & remote support",
       "feature5": "Installation & ongoing maintenance",
-      "feature6": "Custom development & consulting available",
       "feature7": "Influence on product roadmap"
     },
     "compare": {
@@ -241,7 +245,7 @@
         "deployment": "Deployment",
         "compliance": "Compliance",
         "support": "Support",
-        "installation": "Installation",
+        "installation": "Standard installation",
         "maintenance": "Maintenance",
         "customDevelopment": "Custom development",
         "consulting": "Consulting",
@@ -274,9 +278,10 @@
         "gdpr": "GDPR compliant",
         "iso": "ISO 27001 & SOC 2 certified",
         "piiRedaction": "PII redaction",
+        "customDpa": "Custom DPA",
+        "customDpaInfo": "We also accept custom Data Processing Agreements with our customers.",
         "emailSupport": "Email support",
-        "phoneSupport": "Phone/SMS support",
-        "whatsappSupport": "WhatsApp support",
+        "phoneSupport": "Phone support",
         "remoteSupport": "Remote support"
       },
       "cellLabels": {
@@ -287,8 +292,9 @@
     "extras": {
       "training": {
         "title": "AI trainings",
-        "description": "Training courses that equip your team with the skills to build and deploy real-world AI solutions — explore our AI training courses.",
-        "cta": "AI training courses"
+        "description": "Training courses that equip your team with the skills to build and deploy real-world AI solutions — explore our",
+        "linkLabel": "AI training courses",
+        "suffix": "."
       },
       "hardware": {
         "title": "Hardware",
@@ -297,7 +303,7 @@
       },
       "cloudProviders": {
         "title": "Cloud AI providers",
-        "description": "We support all major cloud AI providers — better pricing, higher uptime, and usage-based billing."
+        "description": "We support all major cloud AI providers in EU/CH — better pricing, higher uptime, and usage-based billing."
       }
     },
     "terms": {
