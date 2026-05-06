@@ -5,10 +5,26 @@ import { components, internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
 import type { ThreadSummaryWithSubThreads } from '../agent_tools/sub_agents/helpers/types';
 import { loadActiveHolds } from '../governance/legal_hold';
+import { cascadeDeleteThreadChildren } from './cascade_helpers';
+
+/**
+ * Mode determines what "delete" means for this thread:
+ *
+ * - **`user-trash`** (default) — user-initiated soft delete. Flips
+ *   status to `'trashed'`, preserves the row for the grace window so
+ *   the user can restore from Trash.
+ * - **`internal-cascade`** — non-user, ephemeral internal cleanup
+ *   (e.g. arena Thread B after a winner is selected). Hard-deletes
+ *   immediately via `cascadeDeleteThreadChildren`; never enters Trash
+ *   because there is no user-facing surface that would expect a
+ *   recoverable artifact for these rows.
+ */
+export type DeleteMode = 'user-trash' | 'internal-cascade';
 
 export async function deleteChatThread(
   ctx: MutationCtx,
   threadId: string,
+  mode: DeleteMode = 'user-trash',
 ): Promise<void> {
   const thread = await ctx.runQuery(components.agent.threads.getThread, {
     threadId,
@@ -44,6 +60,21 @@ export async function deleteChatThread(
     }
   }
 
+  if (mode === 'internal-cascade') {
+    // Hard-delete path for internal callers (e.g. arena Thread B
+    // cleanup). Bypasses Trash entirely; ephemeral internal artifacts
+    // would otherwise pollute the user's Trash with rows they never
+    // saw and can't reason about.
+    await cascadeDeleteThreadChildren(ctx, {
+      threadId,
+      organizationId: existing?.organizationId,
+    });
+    // cascade_helpers handles the threadMetadata + agent-component
+    // thread + webhook-mapping cleanup transactionally; nothing more
+    // for this caller to do.
+    return;
+  }
+
   await ctx.runMutation(components.agent.threads.updateThread, {
     threadId,
     patch: { status: 'archived' },
@@ -54,10 +85,15 @@ export async function deleteChatThread(
     // distinguishes from retention-policy auto-deletion (status='expired'),
     // which is admin-only-visible. Both states are grace-windowed by
     // `statusChangedAt`; retention Pass B hard-deletes when grace elapses.
-    await ctx.db.patch(existing._id, {
-      status: 'trashed',
-      statusChangedAt: Date.now(),
-    });
+    // Idempotent on `statusChangedAt`: don't reset the grace clock if
+    // the thread is already trashed/expired (defeats a grace-extension
+    // attack where a user re-trashes to keep the row alive forever).
+    if (existing.status !== 'trashed' && existing.status !== 'expired') {
+      await ctx.db.patch(existing._id, {
+        status: 'trashed',
+        statusChangedAt: Date.now(),
+      });
+    }
   }
 
   // Cascade: drop any agent-webhook `user` → threadId mapping rows pointing

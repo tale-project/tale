@@ -417,8 +417,10 @@ export const cleanupArenaBranch = mutation({
       }
     }
 
-    // Delete Thread B
-    await deleteChatThreadHelper(ctx, args.threadIdB);
+    // Delete Thread B — arena losers are ephemeral internal artifacts.
+    // Use the internal-cascade mode so it does NOT enter the user's
+    // Trash (the user never saw Thread B as a separate entity).
+    await deleteChatThreadHelper(ctx, args.threadIdB, 'internal-cascade');
 
     // Remove all branch links for Thread B (there may be multiple from old
     // data written before createArenaBranchLink was made idempotent).
