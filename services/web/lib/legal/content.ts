@@ -1,13 +1,13 @@
 import type { SupportedLocale } from '../i18n/locales';
 import { isLegalSlug, type LegalSlug } from './slugs';
 
-export interface LegalFrontmatter {
+interface LegalFrontmatter {
   title: string;
   description: string;
   noindex: boolean;
 }
 
-export interface LegalDocument {
+interface LegalDocument {
   slug: LegalSlug;
   locale: SupportedLocale;
   frontmatter: LegalFrontmatter;
