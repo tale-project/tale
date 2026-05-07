@@ -43,10 +43,6 @@ export interface GenerateResponseConfig {
   instructions?: string;
   /** Formatted tool definitions for context window display (not sent to LLM) */
   toolsSummary?: string;
-  /** Whether response caching is enabled. Default false (opt-in). */
-  responseCacheEnabled?: boolean;
-  /** Cache TTL in milliseconds (default 24 hours) */
-  responseCacheTtlMs?: number;
   /** Governance-enforced max context tokens (overrides agent config maxHistoryTokens) */
   maxContextTokens?: number;
   /** Per-agent personalization injection mode: 'on' (default) or 'off' */

@@ -85,7 +85,15 @@ export const restoreChatThread = mutation({
           { userId, email: authUser.email ?? '' },
         );
         orgAdmin = isAdmin(member.role);
-      } catch {
+      } catch (err) {
+        // getOrganizationMember throws on non-membership and on storage
+        // errors. Either way the caller is not an admin of this org.
+        // Log the unexpected variant so a backend outage isn't silently
+        // collapsed into "not an admin".
+        console.warn(
+          '[restoreChatThread] org-admin lookup failed; treating as non-admin',
+          err,
+        );
         orgAdmin = false;
       }
     }
@@ -97,13 +105,19 @@ export const restoreChatThread = mutation({
           'Retention-expired threads can only be restored by an organization admin.',
       });
     }
-    if (status === 'trashed' && !isOwner && !orgAdmin) {
+    // 'trashed' (current code path) and legacy 'deleted' rows share the
+    // same owner-or-admin gate. Without the explicit 'deleted' branch
+    // any signed-in user could resurrect a legacy hard-delete record.
+    if (
+      (status === 'trashed' || status === 'deleted') &&
+      !isOwner &&
+      !orgAdmin
+    ) {
       throw new ConvexError({
         code: 'forbidden',
         message: 'You do not have permission to restore this thread.',
       });
     }
-    // Legacy `'deleted'` rows: same gate as `'trashed'`.
 
     // Legal-hold gate. Restore would re-open a held thread for edits,
     // defeating the preservation contract. Refuse — owner / admin must

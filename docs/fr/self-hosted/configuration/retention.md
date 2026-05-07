@@ -128,7 +128,7 @@ Pour chaque organisation, toutes les catégories s'exécutent dans l'ordre de pr
 7. Événements chat-filter
 8. Usage ledger
 
-Les tentatives de connexion sont email-scoped (pas org-scoped) et s'exécutent en un seul passage global avec un TTL fixe de 30 jours.
+Les tentatives de connexion sont email-scoped (pas org-scoped) et s'exécutent en un seul passage global avec un TTL fixe de 30 jours. La configuration par organisation `loginAttemptRetentionDays` ne régit pas ce passage, et le TTL n'est intentionnellement pas configurable par variable d'environnement afin de maintenir un seuil forensique uniforme pour les enquêtes de force brute sur tous les déploiements.
 
 ## Conservation légale (Legal Hold)
 
@@ -154,5 +154,5 @@ Sous-type d'audit `gdpr_erasure_executed` (`category: 'admin'`) enregistre acteu
 
 ## Voir aussi
 
-- [Référence des variables d'environnement](/self-hosted/configuration/environment-reference) — liste complète des variables d'environnement de Tale.
-- [Gouvernance](/platform/admin/governance) — paramètres de rétention par organisation et gestion des conservations légales.
+- [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference) — liste complète des variables d'environnement de Tale.
+- [Gouvernance](/fr/platform/admin/governance) — paramètres de rétention par organisation et gestion des conservations légales.

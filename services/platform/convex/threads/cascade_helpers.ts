@@ -153,25 +153,46 @@ export async function cascadeDeleteThreadChildren(
     return { done: false, remaining: 1 };
   }
 
-  // 4. threadBranches — three different id fields point at this thread
-  for (const indexName of ['by_rootThreadId', 'by_branchThreadId'] as const) {
-    const branchesPage = await ctx.db
-      .query('threadBranches')
-      .withIndex(
-        indexName,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the index name is a constant string literal
-        (q) =>
-          indexName === 'by_rootThreadId'
-            ? q.eq('rootThreadId', threadId)
-            : q.eq('branchThreadId', threadId),
-      )
-      .take(PAGE_SIZE);
-    for (const row of branchesPage) {
-      await ctx.db.delete(row._id);
-    }
-    if (branchesPage.length === PAGE_SIZE) {
-      return { done: false, remaining: 1 };
-    }
+  // 4. threadBranches — three different id fields point at this thread.
+  //    Iterate by_rootThreadId, by_branchThreadId, AND
+  //    by_parentThreadId_forkAfterMessageId so a thread that is the
+  //    parent of a branch (but not the root or the branch itself) is
+  //    not orphaned. Without the parentThreadId pass, cascading thread
+  //    A leaves a `threadBranches` row pointing parentThreadId=A in
+  //    place even though A is gone.
+  const rootBranchesPage = await ctx.db
+    .query('threadBranches')
+    .withIndex('by_rootThreadId', (q) => q.eq('rootThreadId', threadId))
+    .take(PAGE_SIZE);
+  for (const row of rootBranchesPage) {
+    await ctx.db.delete(row._id);
+  }
+  if (rootBranchesPage.length === PAGE_SIZE) {
+    return { done: false, remaining: 1 };
+  }
+
+  const branchBranchesPage = await ctx.db
+    .query('threadBranches')
+    .withIndex('by_branchThreadId', (q) => q.eq('branchThreadId', threadId))
+    .take(PAGE_SIZE);
+  for (const row of branchBranchesPage) {
+    await ctx.db.delete(row._id);
+  }
+  if (branchBranchesPage.length === PAGE_SIZE) {
+    return { done: false, remaining: 1 };
+  }
+
+  const parentBranchesPage = await ctx.db
+    .query('threadBranches')
+    .withIndex('by_parentThreadId_forkAfterMessageId', (q) =>
+      q.eq('parentThreadId', threadId),
+    )
+    .take(PAGE_SIZE);
+  for (const row of parentBranchesPage) {
+    await ctx.db.delete(row._id);
+  }
+  if (parentBranchesPage.length === PAGE_SIZE) {
+    return { done: false, remaining: 1 };
   }
 
   // 5. messageFeedback

@@ -75,8 +75,6 @@ export interface AgentJsonConfig {
   roleRestriction?: 'admin_developer';
   conversationStarters?: string[];
   visibleInChat?: boolean;
-  responseCacheEnabled?: boolean;
-  responseCacheTtlMs?: number;
   i18n?: Record<string, AgentI18nOverrides>;
 }
 

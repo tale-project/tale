@@ -26,6 +26,7 @@ import {
 } from '../hooks/use-retention-bounds';
 import { RetentionBoundsProposalBanner } from './retention-bounds-proposal-banner';
 import {
+  RETENTION_CATEGORIES,
   buildPresetConfig,
   type CategoryDef,
   type CategoryGroup,
@@ -150,21 +151,24 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
           // for this — toasts are reserved for unexpected failures.
           const bound =
             typeof errData?.bound === 'number' ? errData.bound : null;
-          const requested =
-            typeof errData?.requested === 'number' ? errData.requested : null;
+          // Unit lookup mirrors the per-row hint at the bottom of the
+          // editor (`bound?.unit ?? unitForCategoryId(...)`). Without this
+          // the rendered message reads "min 365 " — the trailing space
+          // where the unit should be.
+          const unit =
+            bounds.get(offending)?.unit ?? unitForCategoryId(offending);
           const msg =
             code === 'RETENTION_BELOW_FLOOR'
               ? t(
                   'retentionPolicy.errors.belowFloor',
                   'Below operator floor (min {bound} {unit}).',
-                  { bound: bound ?? '?', unit: '' },
+                  { bound: bound ?? '?', unit },
                 )
               : t(
                   'retentionPolicy.errors.exceedsCeiling',
                   'Exceeds operator ceiling (max {bound} {unit}).',
-                  { bound: bound ?? '?', unit: '' },
+                  { bound: bound ?? '?', unit },
                 );
-          void requested;
           setErrors((prev) => {
             const m = new Map(prev);
             m.set(offending, msg);
@@ -181,7 +185,7 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
         });
       }
     },
-    [organizationId, upsertMutation, toast, t],
+    [organizationId, upsertMutation, toast, t, bounds],
   );
 
   const onPresetChange = useCallback(
@@ -189,11 +193,41 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
       setPreset(next);
       if (next === 'custom') return;
       const patch = buildPresetConfig(next);
-      const merged = { ...config, ...patch } as RetentionPolicyConfig;
+      // Clamp every preset numeric to the operator-installed bounds
+      // BEFORE persisting. Without this, a preset value below an env-
+      // tightened floor (e.g. operator set min=500 days, preset writes
+      // 365) trips RETENTION_BELOW_FLOOR on the server. The error path
+      // is generic (no per-field message), so the operator sees a toast
+      // with no indication of which categories were rejected. Clamping
+      // up front converts that failure into a successful save with
+      // values that respect the operator's caps.
+      const clampedPatch: Record<string, unknown> = { ...patch };
+      let clampedAny = false;
+      for (const cat of RETENTION_CATEGORIES) {
+        const bound = bounds.get(cat.id);
+        const raw = clampedPatch[cat.configKey as string];
+        if (typeof raw !== 'number' || !bound) continue;
+        const clamped = Math.max(bound.min, Math.min(bound.max, raw));
+        if (clamped !== raw) {
+          clampedPatch[cat.configKey as string] = clamped;
+          clampedAny = true;
+        }
+      }
+      if (clampedAny) {
+        toast({
+          title: t('toastSavedTitle'),
+          description: t(
+            'retentionPolicy.presetClamped',
+            'Preset values above your operator caps were clamped before save.',
+          ),
+          variant: 'default',
+        });
+      }
+      const merged = { ...config, ...clampedPatch } as RetentionPolicyConfig;
       setConfig(merged);
       void persist(merged);
     },
-    [config, persist],
+    [config, persist, bounds, toast, t],
   );
 
   const updateField = useCallback(

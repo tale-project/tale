@@ -624,9 +624,7 @@
         "sectionAdvanced": "Avancé",
         "sectionAdvancedDescription": "Ajuste le comportement d'exécution de l'agent.",
         "timeoutMinutes": "Délai d'exécution (minutes)",
-        "timeoutMinutesHelp": "Durée maximale d'exécution de l'agent par message. Augmente pour les tâches impliquant de nombreuses opérations sur les fichiers ou des délégations à des sous-agents.",
-        "responseCache": "Mettre les réponses en cache",
-        "responseCacheHelp": "Quand la même requête est envoyée à nouveau dans un contexte similaire, renvoyer la réponse précédemment générée au lieu de relancer le modèle. Économise du coût et de la latence au prix de la fraîcheur."
+        "timeoutMinutesHelp": "Durée maximale d'exécution de l'agent par message. Augmente pour les tâches impliquant de nombreuses opérations sur les fichiers ou des délégations à des sous-agents."
       },
       "conversationStarters": {
         "title": "Amorces de conversation",
@@ -3104,6 +3102,7 @@
     },
     "retentionPolicy": {
       "saved": "La politique de rétention a été mise à jour",
+      "presetClamped": "Les valeurs du profil dépassant les limites de l'opérateur ont été ajustées avant l'enregistrement.",
       "enabled": "Activé",
       "retentionDays": "Jours de rétention",
       "retentionHours": "Heures de rétention",

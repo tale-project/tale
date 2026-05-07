@@ -202,9 +202,14 @@ export const recordFailure = internalMutation({
         // we do NOT include the namespace prefix in storage.
         titleKey: 'accountLocked',
         bodyKey: 'lockoutDetails',
+        // `notifications` rows have no TTL today — they live indefinitely
+        // until dismissed. Storing plaintext email + raw IP would leak
+        // PII for years past the 30-day `loginAttempts` window. Mirror
+        // the audit chain's peppered shape so the notification carries
+        // the same opaque identifiers an admin would investigate from.
         params: {
-          email,
-          ip: args.ip ?? 'unknown',
+          email: auditEmail,
+          ip: auditIp ?? 'unknown',
           consecutiveFailures: newFailures,
         },
       });

@@ -212,7 +212,11 @@ async function cleanupTempFiles(
 
     await ctx.runMutation(
       internal.governance.internal_mutations_retention.deleteExpiredTempFile,
-      { fileMetadataId: file._id },
+      {
+        fileMetadataId: file._id,
+        organizationId: org.organizationId,
+        cutoffMs,
+      },
     );
     processed += 1;
   }
@@ -316,7 +320,14 @@ async function cleanupChatHistory(
         {
           threadMetadataId: thread._id,
           organizationId: org.organizationId,
-          cutoffMs,
+          // For grace-expired Pass B (graceDays > 0), the inclusion gate
+          // is `statusChangedAt < graceCutoffMs` — which the query
+          // already enforces. Re-checking content age (`updatedAt >=
+          // cutoffMs`) at the mutation layer would permanently skip any
+          // recently-active thread the user just trashed, defeating the
+          // grace-then-purge contract. Skip TOCTOU here; cross-org and
+          // hold gates still fire inside the mutation.
+          cutoffMs: graceDays > 0 ? undefined : cutoffMs,
         },
       );
       if (result.done) {
@@ -440,6 +451,17 @@ async function cleanupWorkflowLogs(
     { organizationId: org.organizationId, cutoffMs, batchSize },
   );
   for (const log of expiredTriggerLogs) {
+    // Action-layer preview: skip held executions without the mutation
+    // round-trip. Mutation re-checks under TOCTOU to cover races.
+    if (
+      log.wfExecutionId &&
+      holds.executionIds.has(String(log.wfExecutionId))
+    ) {
+      console.info(
+        `[RetentionCleanup] execution ${String(log.wfExecutionId)} on legal hold — skipping trigger log ${String(log._id)}`,
+      );
+      continue;
+    }
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredWorkflowTriggerLog,
@@ -778,10 +800,19 @@ async function cleanupMessageMetadata(
   );
   let processed = 0;
   for (const row of expired) {
+    // Action-layer thread-hold preview: skip without invoking the
+    // mutation when the snapshot already reports a hold. The mutation
+    // re-reads holds as defense-in-depth (covers a hold placed mid-loop).
+    if (holds.threadIds.has(row.threadId)) {
+      console.info(
+        `[RetentionCleanup] thread ${row.threadId} on legal hold — skipping messageMetadata row ${String(row._id)}`,
+      );
+      continue;
+    }
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredMessageMetadata,
-      { rowId: row._id },
+      { rowId: row._id, organizationId: org.organizationId },
     );
     processed += 1;
   }
@@ -812,7 +843,6 @@ const LOGIN_ATTEMPTS_FIXED_TTL_DAYS = 30;
 
 async function cleanupLoginAttemptsGlobal(
   ctx: ActionCtx,
-  _policies: OrgPolicy[], // kept for backward compat; ignored
   batchSize: number,
 ): Promise<number> {
   const cutoffMs = Date.now() - LOGIN_ATTEMPTS_FIXED_TTL_DAYS * DAY_MS;
@@ -1158,14 +1188,23 @@ export const runOrgRetentionCleanup = internalAction({
           cat.run,
           categoryErrors,
         );
-        await ctx.runMutation(
-          internal.governance.retention_runs.recordRetentionRunCheckpoint,
-          {
-            runId: claimedRunId,
-            cursor: { category: cat.name },
-            processedDelta: processedDelta > 0 ? processedDelta : undefined,
-          },
-        );
+        // Heartbeat + processed-count update only. Do NOT write a cursor
+        // here: the resume loop above uses `i < skipUntilIndex`, which
+        // re-runs the cursor category. The budget-exhaust branch above
+        // is the only legitimate cursor writer (it records "next category
+        // to run"). A post-completion cursor would re-run the just-
+        // completed category on the next continuation — harmless when
+        // mutations are idempotent, but doubles the work and inflates
+        // processedCount.
+        if (processedDelta > 0) {
+          await ctx.runMutation(
+            internal.governance.retention_runs.recordRetentionRunCheckpoint,
+            {
+              runId: claimedRunId,
+              processedDelta,
+            },
+          );
+        }
       }
     } catch (err) {
       runError = err instanceof Error ? err.message : String(err);
@@ -1242,8 +1281,7 @@ export const runRetentionCleanup = internalAction({
     await runCategory(
       'loginAttempts',
       'global',
-      () =>
-        cleanupLoginAttemptsGlobal(ctx, orgsWithPolicies, DEFAULT_BATCH_SIZE),
+      () => cleanupLoginAttemptsGlobal(ctx, DEFAULT_BATCH_SIZE),
       [],
     );
 

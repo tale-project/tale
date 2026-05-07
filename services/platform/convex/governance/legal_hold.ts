@@ -18,6 +18,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import type { Id } from '../_generated/dataModel';
 import { internalMutation, mutation } from '../_generated/server';
 import type { QueryCtx, MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
@@ -32,6 +33,45 @@ const HOLD_TARGET_TYPES = [
   'userMembership',
   'org',
 ] as const;
+
+/**
+ * Escape hatch for single-admin deployments where dual-control on
+ * org-scoped holds and on the maker-checker release flow can't be
+ * exercised. Defined at module scope so every reader (placement,
+ * release, approve) hits the same flag without forward-ref hazards.
+ */
+const SINGLE_ADMIN_OK_ENV = 'TALE_LEGAL_HOLD_SINGLE_ADMIN_OK';
+
+/**
+ * `legalHolds.matterRef` is a free-text string (no schema-level FK to
+ * `legalMatters` because legacy rows pre-date the table). Validate at
+ * write time that the supplied ref does point at an existing matter
+ * in the same org, so `closeLegalMatter`'s fan-out cannot be silently
+ * orphaned by a typo.
+ */
+async function assertMatterRefBelongsToOrg(
+  ctx: MutationCtx,
+  matterRef: string,
+  organizationId: string,
+): Promise<void> {
+  // Convex's `ctx.db.get` would throw on an invalid Id format; we
+  // accept any string from the wire and degrade to a not-found error.
+  let matter: Awaited<ReturnType<typeof ctx.db.get<'legalMatters'>>> | null =
+    null;
+  try {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- matterRef is a string from the wire; the wrapping try/catch handles a non-Id input
+    matter = await ctx.db.get(matterRef as Id<'legalMatters'>);
+  } catch {
+    matter = null;
+  }
+  if (!matter || matter.organizationId !== organizationId) {
+    throw new ConvexError({
+      code: 'MATTER_NOT_FOUND',
+      message: `matterRef does not point at an existing matter in this organization.`,
+      matterRef,
+    });
+  }
+}
 
 const targetTypeValidator = v.union(
   ...HOLD_TARGET_TYPES.map((t) => v.literal(t)),
@@ -202,6 +242,18 @@ export const placeLegalHold = mutation({
       });
     }
 
+    // FK gate: matterRef is stored as `String(matter._id)`. Reject any
+    // ref that does not resolve to an existing matter in the same org
+    // — `closeLegalMatter`'s fan-out depends on the index match, so a
+    // typo silently orphans the hold from its matter.
+    if (args.matterRef !== undefined) {
+      await assertMatterRefBelongsToOrg(
+        ctx,
+        args.matterRef,
+        args.organizationId,
+      );
+    }
+
     const now = Date.now();
     const holdId = await ctx.db.insert('legalHolds', {
       organizationId: args.organizationId,
@@ -327,8 +379,6 @@ export const requestLegalHoldRelease = mutation({
     return requestId;
   },
 });
-
-const SINGLE_ADMIN_OK_ENV = 'TALE_LEGAL_HOLD_SINGLE_ADMIN_OK';
 
 /**
  * Minimum elapsed time between a release request and its approval.
@@ -702,6 +752,25 @@ export const bulkPlaceLegalHold = mutation({
         });
         continue;
       }
+      if (h.matterRef !== undefined) {
+        try {
+          await assertMatterRefBelongsToOrg(
+            ctx,
+            h.matterRef,
+            args.organizationId,
+          );
+        } catch (err) {
+          skipped.push({
+            targetType: h.targetType,
+            targetId: h.targetId,
+            reason:
+              err instanceof ConvexError
+                ? 'matterRef not found in this organization'
+                : 'matterRef validation failed',
+          });
+          continue;
+        }
+      }
       const holdId = await ctx.db.insert('legalHolds', {
         organizationId: args.organizationId,
         targetType: h.targetType,
@@ -806,10 +875,36 @@ export const upsertLegalMatter = mutation({
           message: 'Matter does not exist.',
         });
       }
+      const newName = args.name.trim();
       await ctx.db.patch(args.matterId, {
-        name: args.name.trim(),
+        name: newName,
         caseNumber: args.caseNumber,
         description: args.description,
+      });
+      // Audit the rename / case-number change so a regulator review
+      // can reconstruct who changed what about the matter, not just
+      // who created it. Only fields editable here are reported.
+      await createAuditLog(ctx, {
+        organizationId: args.organizationId,
+        actorId: callerId,
+        actorEmail: authUser.email ?? '',
+        actorType: 'user',
+        action: 'legal_matter_updated',
+        category: 'admin',
+        resourceType: 'legal_matter',
+        resourceId: String(args.matterId),
+        resourceName: newName,
+        status: 'success',
+        previousState: {
+          name: existing.name,
+          caseNumber: existing.caseNumber,
+          description: existing.description,
+        },
+        newState: {
+          name: newName,
+          caseNumber: args.caseNumber,
+          description: args.description,
+        },
       });
       return args.matterId;
     }

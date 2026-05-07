@@ -625,9 +625,7 @@
         "sectionAdvanced": "Advanced",
         "sectionAdvancedDescription": "Fine-tune agent execution behavior.",
         "timeoutMinutes": "Execution timeout (minutes)",
-        "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations.",
-        "responseCache": "Cache responses",
-        "responseCacheHelp": "When the same prompt is sent again under similar context, return the previously generated response instead of re-running the model. Saves cost and latency at the price of freshness."
+        "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations."
       },
       "conversationStarters": {
         "title": "Conversation starters",
@@ -3179,6 +3177,7 @@
     },
     "retentionPolicy": {
       "saved": "Retention policy has been updated",
+      "presetClamped": "Preset values outside your operator caps were clamped before save.",
       "enabled": "Enabled",
       "retentionDays": "Retention days",
       "retentionHours": "Retention hours",

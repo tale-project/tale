@@ -463,10 +463,6 @@ import type * as lib_pagination_index from "../lib/pagination/index.js";
 import type * as lib_pagination_types from "../lib/pagination/types.js";
 import type * as lib_rate_limiter_helpers from "../lib/rate_limiter/helpers.js";
 import type * as lib_rate_limiter_index from "../lib/rate_limiter/index.js";
-import type * as lib_response_cache_cache_key from "../lib/response_cache/cache_key.js";
-import type * as lib_response_cache_internal_mutations from "../lib/response_cache/internal_mutations.js";
-import type * as lib_response_cache_internal_queries from "../lib/response_cache/internal_queries.js";
-import type * as lib_response_cache_normalize from "../lib/response_cache/normalize.js";
 import type * as lib_rest_helpers from "../lib/rest/helpers.js";
 import type * as lib_rls_auth_assert_self_and_org_member from "../lib/rls/auth/assert_self_and_org_member.js";
 import type * as lib_rls_auth_can_access_thread from "../lib/rls/auth/can_access_thread.js";
@@ -736,7 +732,6 @@ import type * as threads_internal_mutations from "../threads/internal_mutations.
 import type * as threads_internal_queries from "../threads/internal_queries.js";
 import type * as threads_list_archived_threads from "../threads/list_archived_threads.js";
 import type * as threads_list_threads from "../threads/list_threads.js";
-import type * as threads_list_trashed_threads from "../threads/list_trashed_threads.js";
 import type * as threads_mutations from "../threads/mutations.js";
 import type * as threads_queries from "../threads/queries.js";
 import type * as threads_rest_api from "../threads/rest_api.js";
@@ -856,7 +851,6 @@ import type * as workflow_engine_action_defs_integration_integration_action from
 import type * as workflow_engine_action_defs_onedrive_onedrive_action from "../workflow_engine/action_defs/onedrive/onedrive_action.js";
 import type * as workflow_engine_action_defs_product_product_action from "../workflow_engine/action_defs/product/product_action.js";
 import type * as workflow_engine_action_defs_rag_helpers_delete_document from "../workflow_engine/action_defs/rag/helpers/delete_document.js";
-import type * as workflow_engine_action_defs_rag_helpers_get_rag_config from "../workflow_engine/action_defs/rag/helpers/get_rag_config.js";
 import type * as workflow_engine_action_defs_rag_helpers_types from "../workflow_engine/action_defs/rag/helpers/types.js";
 import type * as workflow_engine_action_defs_rag_helpers_upload_document from "../workflow_engine/action_defs/rag/helpers/upload_document.js";
 import type * as workflow_engine_action_defs_rag_helpers_upload_file_direct from "../workflow_engine/action_defs/rag/helpers/upload_file_direct.js";
@@ -1509,10 +1503,6 @@ declare const fullApi: ApiFromModules<{
   "lib/pagination/types": typeof lib_pagination_types;
   "lib/rate_limiter/helpers": typeof lib_rate_limiter_helpers;
   "lib/rate_limiter/index": typeof lib_rate_limiter_index;
-  "lib/response_cache/cache_key": typeof lib_response_cache_cache_key;
-  "lib/response_cache/internal_mutations": typeof lib_response_cache_internal_mutations;
-  "lib/response_cache/internal_queries": typeof lib_response_cache_internal_queries;
-  "lib/response_cache/normalize": typeof lib_response_cache_normalize;
   "lib/rest/helpers": typeof lib_rest_helpers;
   "lib/rls/auth/assert_self_and_org_member": typeof lib_rls_auth_assert_self_and_org_member;
   "lib/rls/auth/can_access_thread": typeof lib_rls_auth_can_access_thread;
@@ -1782,7 +1772,6 @@ declare const fullApi: ApiFromModules<{
   "threads/internal_queries": typeof threads_internal_queries;
   "threads/list_archived_threads": typeof threads_list_archived_threads;
   "threads/list_threads": typeof threads_list_threads;
-  "threads/list_trashed_threads": typeof threads_list_trashed_threads;
   "threads/mutations": typeof threads_mutations;
   "threads/queries": typeof threads_queries;
   "threads/rest_api": typeof threads_rest_api;
@@ -1902,7 +1891,6 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/action_defs/onedrive/onedrive_action": typeof workflow_engine_action_defs_onedrive_onedrive_action;
   "workflow_engine/action_defs/product/product_action": typeof workflow_engine_action_defs_product_product_action;
   "workflow_engine/action_defs/rag/helpers/delete_document": typeof workflow_engine_action_defs_rag_helpers_delete_document;
-  "workflow_engine/action_defs/rag/helpers/get_rag_config": typeof workflow_engine_action_defs_rag_helpers_get_rag_config;
   "workflow_engine/action_defs/rag/helpers/types": typeof workflow_engine_action_defs_rag_helpers_types;
   "workflow_engine/action_defs/rag/helpers/upload_document": typeof workflow_engine_action_defs_rag_helpers_upload_document;
   "workflow_engine/action_defs/rag/helpers/upload_file_direct": typeof workflow_engine_action_defs_rag_helpers_upload_file_direct;

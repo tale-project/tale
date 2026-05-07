@@ -128,7 +128,7 @@ Für jede Org laufen alle Kategorien in Prioritätsreihenfolge:
 7. Chat-Filter-Events
 8. Usage-Ledger
 
-Login-Versuche sind email-scoped (nicht org-scoped) und laufen als ein einzelner globaler Pass mit fester 30-Tage-TTL.
+Login-Versuche sind email-scoped (nicht org-scoped) und laufen als ein einzelner globaler Pass mit fester 30-Tage-TTL. Die Pro-Org-Konfiguration `loginAttemptRetentionDays` steuert diesen Sweep nicht, und die TTL ist absichtlich nicht per Env konfigurierbar, damit die forensische Untergrenze für Brute-Force-Untersuchungen über alle Deployments hinweg einheitlich bleibt.
 
 ## Legal Hold (Aufbewahrungspflicht)
 
@@ -154,5 +154,5 @@ Audit-Subtyp `gdpr_erasure_executed` (`category: 'admin'`) erfasst Akteur, Grund
 
 ## Verwandt
 
-- [Umgebungsvariablen-Referenz](/self-hosted/configuration/environment-reference) — vollständige Liste der Tale-Umgebungsvariablen.
-- [Governance](/platform/admin/governance) — Pro-Org-Aufbewahrungseinstellungen und Legal-Hold-Verwaltung.
+- [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference) — vollständige Liste der Tale-Umgebungsvariablen.
+- [Governance](/de/platform/admin/governance) — Pro-Org-Aufbewahrungseinstellungen und Legal-Hold-Verwaltung.

@@ -34,10 +34,13 @@ let warnedNoPepper = false;
 function readPepper(): string | null {
   const raw = process.env[PEPPER_ENV];
   if (!raw || raw.length < 16) {
-    if (!warnedNoPepper && (raw ?? '').length === 0) {
+    if (!warnedNoPepper) {
       warnedNoPepper = true;
+      const reason = !raw
+        ? 'unset'
+        : `too short (${raw.length} chars; need >= 16)`;
       console.warn(
-        `[SECURITY] ${PEPPER_ENV} is unset — login-attempt audit rows are written with plaintext email + IP. ` +
+        `[SECURITY] ${PEPPER_ENV} is ${reason} — login-attempt audit rows are written with plaintext email + IP. ` +
           `Set ${PEPPER_ENV} to a unique secret (>= 16 chars) before exposing the deployment to real users.`,
       );
     }

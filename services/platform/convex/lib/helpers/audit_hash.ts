@@ -15,9 +15,21 @@
 
 /**
  * Fields excluded from hash computation because they are part of the
- * hash chain metadata itself, not the record payload.
+ * hash chain metadata itself (or post-write annotations), not the
+ * record payload that the writer signed.
+ *
+ * `chainSuccessor` is patched onto a row by its successor's insert, so
+ * it cannot be in the writer's hash input. `piiScrubbedAt` is patched
+ * by the scrub pipeline and similarly post-dates the original signature.
+ * Including either in the verifier's hash input would diverge from the
+ * writer and report every patched row as tampered.
  */
-const EXCLUDED_FIELDS = new Set(['integrityHash', 'previousHash']);
+const EXCLUDED_FIELDS = new Set([
+  'integrityHash',
+  'previousHash',
+  'chainSuccessor',
+  'piiScrubbedAt',
+]);
 
 function isRecord(val: unknown): val is Record<string, unknown> {
   return typeof val === 'object' && val !== null && !Array.isArray(val);

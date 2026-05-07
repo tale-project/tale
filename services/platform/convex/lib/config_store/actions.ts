@@ -31,31 +31,3 @@ export const readRetentionConfig = internalAction({
     return retentionStore.read(args.orgSlug);
   },
 });
-
-export const writeRetentionConfig = internalAction({
-  args: {
-    orgSlug: v.string(),
-    config: v.any(),
-  },
-  returns: v.null(),
-  handler: async (_ctx, args) => {
-    // Re-parse at the action boundary so the inner store.write receives
-    // a validated `RetentionDefaultsConfig` instead of the `any` that
-    // crosses the Convex action wire. Cheap; double-parse with the
-    // store's own Zod check is acceptable for an admin-frequency path.
-    const parsed = retentionDefaultsConfigSchema.safeParse(args.config);
-    if (!parsed.success) {
-      throw new Error(`Invalid retention config: ${parsed.error.message}`);
-    }
-    await retentionStore.write(args.orgSlug, parsed.data);
-    return null;
-  },
-});
-
-export const listRetentionConfigs = internalAction({
-  args: {},
-  returns: v.array(v.object({ orgSlug: v.string() })),
-  handler: async () => {
-    return retentionStore.list();
-  },
-});

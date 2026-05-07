@@ -214,6 +214,7 @@ export const verifyIntegrity = query({
         scrubbedSubjectId: cp.scrubbedSubjectId,
         scrubbedRowCount: cp.scrubbedRowCount,
         signature: cp.signature,
+        signatureVersion: cp.signatureVersion,
         createdAt: cp.createdAt,
       });
     }
@@ -359,23 +360,20 @@ export const verifyIntegrity = query({
       const actorId = typeof entry.actorId === 'string' ? entry.actorId : null;
       let isScrubbed = false;
       if (piiScrubbed === true || actorId !== null) {
-        if (actorId !== null) {
+        if (piiScrubbed === true && actorId !== null) {
           const windows = subjectScrubWindows.get(actorId);
           if (
             windows &&
             windows.some((w) => entry.timestamp <= w.maxTimestamp)
           ) {
             isScrubbed = true;
-          } else if (
-            piiScrubbed === true &&
-            unsignedScrubSubjects.has(actorId)
-          ) {
+          } else if (unsignedScrubSubjects.has(actorId)) {
             isScrubbed = true;
             unsignedScrubCount++;
-          } else if (piiScrubbed === true && !hasSigningKey) {
+          } else if (!hasSigningKey) {
             // No signing key configured at all — accept the legacy
-            // unsigned scrub but surface in the count. Operators who
-            // configure a key after this point will see this go to 0.
+            // unsigned scrub but surface in the count. Outer guard
+            // already enforces piiScrubbed === true.
             isScrubbed = true;
             unsignedScrubCount++;
           }

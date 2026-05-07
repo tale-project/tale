@@ -184,10 +184,16 @@ export const updateChatThread = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
       throw new Error('Unauthenticated');
     }
+
+    // Cross-tenant gate, same rationale as deleteChatThread above:
+    // updateChatThreadHelper looks up by threadId and is blind to caller
+    // identity, so any signed-in user could rename any thread without
+    // this assertion.
+    await assertThreadAccess(ctx, args.threadId, identity);
 
     await updateChatThreadHelper(ctx, args.threadId, args.title);
     return null;
@@ -222,10 +228,16 @@ export const archiveChatThread = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
       throw new Error('Unauthenticated');
     }
+
+    // Cross-tenant gate, same rationale as deleteChatThread above:
+    // archiveChatThreadHelper is blind to caller identity, so without
+    // this assertion any signed-in user could archive any thread by
+    // guessing the threadId.
+    await assertThreadAccess(ctx, args.threadId, identity);
 
     await archiveChatThreadHelper(ctx, args.threadId);
     return null;
@@ -238,10 +250,13 @@ export const unarchiveChatThread = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
       throw new Error('Unauthenticated');
     }
+
+    // Cross-tenant gate, same rationale as archiveChatThread above.
+    await assertThreadAccess(ctx, args.threadId, identity);
 
     await unarchiveChatThreadHelper(ctx, args.threadId);
     return null;

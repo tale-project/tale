@@ -79,8 +79,6 @@ export function toSerializableConfig(
     structuredResponsesEnabled: config.structuredResponsesEnabled ?? false,
     timeoutMs: config.timeoutMs,
     outputReserve: config.outputReserve,
-    responseCacheEnabled: config.responseCacheEnabled,
-    responseCacheTtlMs: config.responseCacheTtlMs,
     fallbackModels:
       config.supportedModels.length > 1
         ? config.supportedModels.slice(1)

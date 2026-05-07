@@ -153,11 +153,26 @@ export const deleteExpiredDocument = internalMutation({
 export const deleteExpiredTempFile = internalMutation({
   args: {
     fileMetadataId: v.id('fileMetadata'),
+    organizationId: v.string(),
+    cutoffMs: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const metadata = await ctx.db.get(args.fileMetadataId);
     if (!metadata) {
+      return null;
+    }
+
+    const guard = await assertSafeRetentionDelete(ctx, {
+      rowOrganizationId: metadata.organizationId,
+      expectedOrganizationId: args.organizationId,
+      rowEffectiveMs: metadata._creationTime,
+      cutoffMs: args.cutoffMs,
+    });
+    if (!guard.proceed) {
+      console.info(
+        `[RetentionCleanup] skipping deleteExpiredTempFile(${String(args.fileMetadataId)}): ${guard.reason}`,
+      );
       return null;
     }
 
@@ -369,6 +384,15 @@ export const deleteExpiredWorkflowTriggerLog = internalMutation({
       expectedOrganizationId: args.organizationId,
       rowEffectiveMs: log._creationTime,
       cutoffMs: args.cutoffMs,
+      // A trigger log is the provenance record for an execution; if
+      // that execution is on legal hold, the trigger row must survive
+      // alongside it.
+      ...(log.wfExecutionId
+        ? {
+            targetType: 'execution' as const,
+            targetId: String(log.wfExecutionId),
+          }
+        : {}),
     });
     if (!guard.proceed) {
       console.info(
@@ -714,11 +738,32 @@ export const deleteExpiredExternalConversation = internalMutation({
 export const deleteExpiredMessageMetadata = internalMutation({
   args: {
     rowId: v.id('messageMetadata'),
+    organizationId: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.rowId);
     if (!row) return null;
+
+    // messageMetadata has no organizationId field today (Phase 10
+    // backfill is a follow-up), so cross-org guarding goes via the
+    // thread join. Mutation-layer hold re-read covers the snapshot
+    // race against legal hold placement on either the org or the
+    // owning thread.
+    const holds = await loadActiveHolds(ctx, args.organizationId);
+    if (holds.orgHeld) {
+      console.info(
+        `[RetentionCleanup] skipping deleteExpiredMessageMetadata(${String(args.rowId)}): org legal hold`,
+      );
+      return null;
+    }
+    if (holds.threadIds.has(row.threadId)) {
+      console.info(
+        `[RetentionCleanup] skipping deleteExpiredMessageMetadata(${String(args.rowId)}): thread ${row.threadId} on legal hold`,
+      );
+      return null;
+    }
+
     await ctx.db.delete(args.rowId);
     return null;
   },

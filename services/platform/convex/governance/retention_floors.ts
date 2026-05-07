@@ -197,6 +197,20 @@ function applyEnvTighteningWithMap(
   const maxRaw = Math.min(base.max, envMax ?? Number.POSITIVE_INFINITY);
   const defaultVal = envDefault ?? base.default;
 
+  // Operator misconfiguration: env _MIN > env _MAX (or env _MIN > file
+  // max, or env _MAX < file min) produces an unsatisfiable bounds
+  // window. `clampToBounds` would silently return `min` (which itself
+  // exceeds `max`); `assertWithinBounds` would reject every value.
+  // Fail loudly at config-load with both env names so the operator can
+  // fix the typo, instead of letting the broken bounds reach runtime.
+  if (min > maxRaw) {
+    const minLabel = minBinding.envName ?? 'file.min';
+    const maxLabel = maxBinding.envName ?? 'file.max';
+    throw new Error(
+      `Retention env config for ${category} is unsatisfiable: effective min (${min}) > max (${Number.isFinite(maxRaw) ? maxRaw : base.max}). Check ${minLabel} and ${maxLabel}.`,
+    );
+  }
+
   return {
     category,
     min,

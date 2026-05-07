@@ -625,9 +625,7 @@
         "sectionAdvanced": "Erweitert",
         "sectionAdvancedDescription": "Ausführungsverhalten des Agents feinabstimmen.",
         "timeoutMinutes": "Ausführungs-Timeout (Minuten)",
-        "timeoutMinutesHelp": "Maximale Laufzeit des Agents pro Nachricht. Erhöhe den Wert für Aufgaben mit vielen Dateioperationen oder Sub-Agent-Delegationen.",
-        "responseCache": "Antworten zwischenspeichern",
-        "responseCacheHelp": "Wenn dieselbe Anfrage in ähnlichem Kontext erneut gestellt wird, die zuvor generierte Antwort zurückgeben statt das Modell erneut auszuführen. Spart Kosten und Latenz auf Kosten der Aktualität."
+        "timeoutMinutesHelp": "Maximale Laufzeit des Agents pro Nachricht. Erhöhe den Wert für Aufgaben mit vielen Dateioperationen oder Sub-Agent-Delegationen."
       },
       "conversationStarters": {
         "title": "Gesprächseinstiege",
@@ -1931,7 +1929,7 @@
     "moreActions": "Weitere Aktionen",
     "deleteChat": "Chat löschen",
     "deleteConfirmation": "Möchtest du {title} wirklich löschen?",
-    "deletePermanentMessage": "Chat in den Papierkorb verschieben. Sie können ihn während der Schonfrist der Org wiederherstellen; danach löscht die Retention den Chat und seine Nachrichten endgültig.",
+    "deletePermanentMessage": "Chat in den Papierkorb verschieben. Du kannst ihn während der Schonfrist der Org wiederherstellen; danach löscht die Aufbewahrungsrichtlinie den Chat und seine Nachrichten endgültig.",
     "deleteFailed": "Chat konnte nicht gelöscht werden",
     "archive": "Archivieren",
     "unarchive": "Dearchivieren",
@@ -3179,6 +3177,7 @@
     },
     "retentionPolicy": {
       "saved": "Aufbewahrungsrichtlinie wurde aktualisiert",
+      "presetClamped": "Voreinstellungswerte außerhalb deiner Operator-Grenzen wurden vor dem Speichern angepasst.",
       "enabled": "Aktiviert",
       "retentionDays": "Aufbewahrungstage",
       "retentionHours": "Aufbewahrungsstunden",
@@ -3190,11 +3189,11 @@
       },
       "preset": {
         "title": "Aufbewahrungs-Voreinstellung",
-        "description": "Wählen Sie ein empfohlenes Profil oder passen Sie jede Kategorie einzeln an. Der Wechsel zu Standard oder Strikt überschreibt alle Werte unten.",
+        "description": "Wähle ein empfohlenes Profil oder passe jede Kategorie einzeln an. Mit dem Wechsel zu Standard oder Strikt werden alle Werte unten überschrieben.",
         "standard": "Standard",
         "standardDescription": "Sinnvolle Standardwerte für die meisten Teams (90 Tage Chat, 365 Tage Dokumente, 730 Tage Audit, 30 Tage Schonfrist).",
         "strict": "Strikt",
-        "strictDescription": "Halbierte Aufbewahrungsfenster + 7 Tage Schonfrist. Verwenden Sie dies, wenn Compliance oder Speicherkosten aggressive Löschung erfordern.",
+        "strictDescription": "Halbierte Aufbewahrungsfenster + 7 Tage Schonfrist. Nimm dies, wenn Compliance oder Speicherkosten aggressive Löschung erfordern.",
         "custom": "Benutzerdefiniert",
         "customDescription": "Jede Kategorie unten einzeln einstellen."
       },

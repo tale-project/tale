@@ -184,6 +184,11 @@ export async function queryRagContext(
 
       if (!options?.fileIds || options.fileIds.length === 0) {
         debugLog('No file IDs provided, skipping RAG query');
+        // Without this, the controller fires `controller.abort()`
+        // RAG_REQUEST_TIMEOUT_MS later against no in-flight fetch — a
+        // resource leak and an unhandled-rejection source under stricter
+        // test runners.
+        clearTimeout(timeoutId);
         return undefined;
       }
       requestPayload.file_ids = options.fileIds;

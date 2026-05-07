@@ -326,7 +326,10 @@ deploy_convex_functions() {
   if [ ${#failed_vars[@]} -gt 0 ]; then
     log_warn "Failed env vars:"
     for v in "${failed_vars[@]}"; do
-      echo "    - $v (value length: ${#v} / ${#!v})"
+      # `${#v}` is the name length. Indirect value-length lookup
+      # (`${#!v}`) is invalid bash and would crash this loop under
+      # `set -eo pipefail`, taking the entrypoint with it.
+      echo "    - $v (name length: ${#v})"
     done
     echo "  Possible causes: name > 40 chars / value > 8 KB / invalid characters"
   fi

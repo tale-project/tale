@@ -237,11 +237,12 @@ export const legalHoldsTable = defineTable({
   targetId: v.string(),
   /** Required free-text from the placing admin. */
   reason: v.string(),
-  /** Optional matter / case grouping. Free-text key into the
-   *  `legalMattersTable` (the `matterRef` is the matter's stable code,
-   *  not the row id, so an admin can rename a matter without rewriting
-   *  every linked hold). Indexed by `by_matterRef` to support
-   *  `closeLegalMatter`'s fan-out release and per-matter UI views. */
+  /** Optional matter / case grouping. Stored as `String(matter._id)`
+   *  so `closeLegalMatter`'s fan-out release can look up linked holds
+   *  by matter id without an FK migration. `placeLegalHold` and
+   *  `bulkPlaceLegalHold` validate the ref points at an existing
+   *  `legalMatters` row in the same org before writing it. Indexed by
+   *  `by_matterRef` to support fan-out release and per-matter views. */
   matterRef: v.optional(v.string()),
   placedBy: v.string(),
   placedAt: v.number(),
@@ -340,13 +341,7 @@ export const policyAcknowledgementsTable = defineTable({
   policyType: v.string(),
   policyVersion: v.number(),
   acknowledgedAt: v.number(),
-})
-  .index('by_user_org_policy', ['userId', 'organizationId', 'policyType'])
-  .index('by_org_policy_version', [
-    'organizationId',
-    'policyType',
-    'policyVersion',
-  ]);
+}).index('by_user_org_policy', ['userId', 'organizationId', 'policyType']);
 
 /**
  * Phase 7 — retention run state.
@@ -389,9 +384,7 @@ export const retentionRunsTable = defineTable({
    *  stale-run reaper distinguish a still-working continuation from a
    *  truly crashed run without waiting the full 23h absolute timeout. */
   lastHeartbeatAt: v.optional(v.number()),
-})
-  .index('by_organizationId_startedAt', ['organizationId', 'startedAt'])
-  .index('by_completedAt', ['completedAt']);
+}).index('by_organizationId_startedAt', ['organizationId', 'startedAt']);
 
 /**
  * Phase 3 — pending-change cooldown for retention shortening.
@@ -513,15 +506,20 @@ export const gdprErasureRequestsTable = defineTable({
   /** Held threads that BLOCKED the erasure (Art 17(3)(e)). Set once at
    *  scheduling; the processor never starts when this is non-empty. */
   threadsBlockedByHold: v.optional(v.array(v.string())),
+  /** Held documents that BLOCKED the erasure (Art 17(3)(e)). Set once at
+   *  scheduling alongside `threadsBlockedByHold`. */
+  documentsBlockedByHold: v.optional(v.array(v.string())),
   ragDocumentsRemoved: v.optional(v.number()),
   /** Count of `documents` rows physically deleted by the subject-scope
    *  erasure helper. Should equal the number of fileIds passed to RAG
    *  delete in a clean run. */
   documentsErased: v.optional(v.number()),
+  /** Count of `documents` rows the processor skipped because a hold was
+   *  placed between `requestErasure` (which scheduled the run) and the
+   *  processor's mid-flight re-read. Non-zero forces `status='partial'`
+   *  so operators see the gap. */
+  documentsSkippedByHold: v.optional(v.number()),
   errorMessage: v.optional(v.string()),
   startedAt: v.optional(v.number()),
   completedAt: v.optional(v.number()),
-})
-  .index('by_organizationId_status', ['organizationId', 'status'])
-  .index('by_organizationId_requestedAt', ['organizationId', 'requestedAt'])
-  .index('by_targetUserId', ['targetUserId']);
+}).index('by_organizationId_status', ['organizationId', 'status']);

@@ -144,7 +144,14 @@ export const getPolicyAcknowledgement = query({
         userId,
         email: authUser.email ?? '',
       });
-    } catch {
+    } catch (err) {
+      // Non-membership AND infrastructure errors collapse to "no row".
+      // Log the unexpected variant so a backend hiccup isn't silently
+      // mistaken for "user is not a member of this org".
+      console.warn(
+        '[getPolicyAcknowledgement] org-membership lookup failed; returning null',
+        err,
+      );
       return null;
     }
     const row = await ctx.db

@@ -71,29 +71,6 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_CASCADE_ATTEMPTS_PER_THREAD = 50;
 
 /**
- * Erase a single thread (all messages, artifacts, todos, feedback,
- * filter events, branches, sub-threads, and the metadata row itself)
- * immediately. Skips grace + skips cooldown.
- *
- * Wraps `cascadeDeleteThreadChildren` in a loop because the helper is
- * paged at PAGE_SIZE rows per child table.
- */
-export const eraseThread = internalMutation({
-  args: {
-    threadId: v.string(),
-    organizationId: v.string(),
-  },
-  returns: v.object({ done: v.boolean(), remaining: v.number() }),
-  handler: async (ctx, args) => {
-    const result = await cascadeDeleteThreadChildren(ctx, {
-      threadId: args.threadId,
-      organizationId: args.organizationId,
-    });
-    return result;
-  },
-});
-
-/**
  * Public admin entry point. Records a `gdprErasureRequests` row,
  * schedules the processor, and returns the row id. The processor runs
  * asynchronously (it must call the RAG service which requires Node
@@ -147,16 +124,38 @@ export const requestErasure = mutation({
     const userThreads = threads.filter((t) => t.userId === args.userId);
     const threadIds = userThreads.map((t) => t.threadId);
 
+    // Subject's own `documents` rows (uploads). The `documents` table
+    // has its own legal-hold target type, so an Art 17 request that
+    // would erase a held document must be blocked at request time —
+    // not at execution time, since the receipt would otherwise lie
+    // about coverage.
+    const subjectDocuments = await ctx.db
+      .query('documents')
+      .withIndex('by_organizationId_and_createdBy', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('createdBy', args.userId),
+      )
+      .collect();
+    const subjectDocumentIds = subjectDocuments.map((d) => String(d._id));
+
     // Legal-hold gate. GDPR Art 17(3)(e) preserves data subject to legal
     // claims. Refuse the WHOLE request when any of the subject's threads
-    // is held — the receipt cannot lie about coverage, and a partial
-    // erasure that omits held neighbors would confuse a future regulator
-    // audit. Operator must release the hold first.
+    // OR documents are held — the receipt cannot lie about coverage, and
+    // a partial erasure that omits held neighbors would confuse a future
+    // regulator audit. Operator must release the hold first.
     const holds = await loadActiveHolds(ctx, args.organizationId);
     const heldThreadIds: string[] = threadIds.filter((id) =>
       holds.threadIds.has(id),
     );
-    if (holds.orgHeld || heldThreadIds.length > 0) {
+    const heldDocumentIds: string[] = subjectDocumentIds.filter((id) =>
+      holds.documentIds.has(id),
+    );
+    if (
+      holds.orgHeld ||
+      heldThreadIds.length > 0 ||
+      heldDocumentIds.length > 0
+    ) {
       await createAuditLog(ctx, {
         organizationId: args.organizationId,
         actorId: callerId,
@@ -173,15 +172,19 @@ export const requestErasure = mutation({
           reason: args.reason,
           orgHeld: holds.orgHeld,
           heldThreadIds,
+          heldDocumentIds,
         },
       });
       throw new ConvexError({
         code: 'LEGAL_HOLD_BLOCKS_ERASURE',
         message: holds.orgHeld
           ? 'Org is under an active legal hold — release the hold before requesting erasure.'
-          : 'One or more of the subject’s threads are under an active legal hold.',
+          : heldThreadIds.length > 0
+            ? 'One or more of the subject’s threads are under an active legal hold.'
+            : 'One or more of the subject’s documents are under an active legal hold.',
         orgHeld: holds.orgHeld,
         heldThreadIds,
+        heldDocumentIds,
       });
     }
 
@@ -292,6 +295,7 @@ export const finalizeProcessing = internalMutation({
     threadsErased: v.number(),
     ragDocumentsRemoved: v.number(),
     documentsErased: v.optional(v.number()),
+    documentsSkippedByHold: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
   },
   returns: v.null(),
@@ -299,9 +303,13 @@ export const finalizeProcessing = internalMutation({
     const row = await ctx.db.get(args.requestId);
     if (!row) return null;
     const targetedCount = row.threadsTargeted?.length ?? 0;
+    const skippedByHold = args.documentsSkippedByHold ?? 0;
+    // A run that skipped any document because a hold landed mid-flight
+    // is `partial` even when every thread cascaded successfully —
+    // operator must release the hold and re-trigger to honor the receipt.
     const status: 'done' | 'partial' | 'failed' = args.errorMessage
       ? 'failed'
-      : args.threadsErased < targetedCount
+      : args.threadsErased < targetedCount || skippedByHold > 0
         ? 'partial'
         : 'done';
     await ctx.db.patch(args.requestId, {
@@ -309,6 +317,7 @@ export const finalizeProcessing = internalMutation({
       threadsErased: args.threadsErased,
       ragDocumentsRemoved: args.ragDocumentsRemoved,
       documentsErased: args.documentsErased,
+      documentsSkippedByHold: skippedByHold > 0 ? skippedByHold : undefined,
       errorMessage: args.errorMessage,
       completedAt: Date.now(),
     });
@@ -330,6 +339,7 @@ export const finalizeProcessing = internalMutation({
         threadsTargeted: targetedCount,
         ragDocumentsRemoved: args.ragDocumentsRemoved,
         documentsErased: args.documentsErased ?? 0,
+        documentsSkippedByHold: skippedByHold,
         finalStatus: status,
       },
     });
@@ -356,9 +366,16 @@ export const eraseSubjectDocuments = internalMutation({
   returns: v.object({
     rows: v.number(),
     fileIds: v.array(v.string()),
+    skippedByHold: v.number(),
   }),
   handler: async (ctx, args) => {
+    // Defense-in-depth: requestErasure already refuses to schedule when
+    // a subject document is on hold. A hold placed between scheduling
+    // and processor run still has to win — re-read holds inside this
+    // mutation and skip the row rather than racing to delete it.
+    const holds = await loadActiveHolds(ctx, args.organizationId);
     let rows = 0;
+    let skippedByHold = 0;
     const fileIds: string[] = [];
     for await (const doc of ctx.db
       .query('documents')
@@ -367,13 +384,17 @@ export const eraseSubjectDocuments = internalMutation({
           .eq('organizationId', args.organizationId)
           .eq('createdBy', args.userId),
       )) {
+      if (holds.orgHeld || holds.documentIds.has(String(doc._id))) {
+        skippedByHold++;
+        continue;
+      }
       if (typeof doc.fileId === 'string' && doc.fileId.length > 0) {
         fileIds.push(doc.fileId);
       }
       await ctx.db.delete(doc._id);
       rows++;
     }
-    return { rows, fileIds };
+    return { rows, fileIds, skippedByHold };
   },
 });
 
@@ -605,6 +626,7 @@ export const processErasureRequest = internalAction({
     let threadsErased = 0;
     let ragDocumentsRemoved = 0;
     let documentsErased = 0;
+    let documentsSkippedByHold = 0;
     let errorMessage: string | undefined;
 
     try {
@@ -643,6 +665,7 @@ export const processErasureRequest = internalAction({
         },
       );
       documentsErased = docResult.rows;
+      documentsSkippedByHold = docResult.skippedByHold;
       for (const fileId of docResult.fileIds) {
         try {
           const res = await ragFetch(
@@ -757,6 +780,7 @@ export const processErasureRequest = internalAction({
       threadsErased,
       ragDocumentsRemoved,
       documentsErased,
+      documentsSkippedByHold,
       errorMessage,
     });
     return null;

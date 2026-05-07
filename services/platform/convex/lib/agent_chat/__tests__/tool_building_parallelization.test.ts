@@ -53,11 +53,6 @@ vi.mock('../../../_generated/api', () => ({
         isPersonalizationActiveForChat: 'mock-isPersonalizationActiveForChat',
       },
     },
-    lib: {
-      response_cache: {
-        internal_queries: { lookupCache: 'mock-lookupCache' },
-      },
-    },
   },
 }));
 

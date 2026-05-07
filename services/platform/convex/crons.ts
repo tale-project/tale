@@ -51,14 +51,6 @@ crons.cron(
   {},
 );
 
-// LLM response cache cleanup - purge expired entries hourly
-crons.cron(
-  'purge expired LLM response cache (hourly)',
-  '0 * * * *',
-  internal.lib.response_cache.internal_mutations.purgeExpired,
-  {},
-);
-
 // Plan-review TTL - cancel pending human_input approvals older than 30 min
 // so research runs never hang indefinitely on user input.
 crons.cron(

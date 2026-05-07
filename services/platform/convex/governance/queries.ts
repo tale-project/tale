@@ -100,7 +100,7 @@ export const getPolicy = query({
       throw new Error(`Reading ${args.policyType} requires admin role.`);
     }
 
-    return ctx.db
+    const policy = await ctx.db
       .query('governancePolicies')
       .withIndex('by_org_policyType', (q) =>
         q
@@ -108,6 +108,27 @@ export const getPolicy = query({
           .eq('policyType', args.policyType),
       )
       .first();
+
+    // Cooldown overlay: when a retention shortening is in flight, the
+    // live row carries the new (shortened) config but the cleanup
+    // runner uses `pending.oldConfig` until the cooldown elapses. Any
+    // other read of the row (the editor itself, future features) must
+    // see the same effective config the cleanup runner does — otherwise
+    // the UI shows the new values immediately while data is still being
+    // retained at the old window. Overlay only for retention_policy.
+    if (policy && args.policyType === 'retention_policy') {
+      const pending = await ctx.db
+        .query('retentionPolicyPendingChanges')
+        .withIndex('by_organizationId_appliesAt', (q) =>
+          q.eq('organizationId', args.organizationId),
+        )
+        .order('desc')
+        .first();
+      if (pending && pending.appliesAt > Date.now()) {
+        return { ...policy, config: pending.oldConfig };
+      }
+    }
+    return policy;
   },
 });
 
