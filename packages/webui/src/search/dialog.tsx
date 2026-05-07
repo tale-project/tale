@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { cn } from '@tale/ui/cn';
 import { useNavigate } from '@tanstack/react-router';
 import { ArrowRight, FileText, Search, X } from 'lucide-react';
-import { type KeyboardEvent, useEffect, useState } from 'react';
+import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 
 import { useDebounce } from '../hooks/use-debounce';
 import { search } from './client';
@@ -54,6 +54,9 @@ export function SearchDialog({
   const [results, setResults] = useState<ResultRow[]>([]);
   const [active, setActive] = useState(0);
   const navigate = useNavigate();
+  const listboxId = useId();
+  const optionIdPrefix = useId();
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
     if (!debounced.trim()) {
@@ -79,6 +82,12 @@ export function SearchDialog({
       setActive(0);
     }
   }, [open]);
+
+  // Scroll the active option into view when arrowing through results.
+  useEffect(() => {
+    const node = optionRefs.current[active];
+    if (node) node.scrollIntoView({ block: 'nearest' });
+  }, [active]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (results.length === 0) return;
@@ -117,18 +126,26 @@ export function SearchDialog({
               onKeyDown={onKeyDown}
               autoFocus
               placeholder={labels.placeholder}
-              className="text-fg-base placeholder:text-fg-muted h-12 flex-1 bg-transparent text-sm outline-none"
+              className="text-fg-base placeholder:text-fg-muted focus-visible:ring-fg-base/30 h-12 flex-1 rounded-md bg-transparent text-sm outline-none focus-visible:ring-1"
               aria-label={labels.placeholder}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={results.length > 0}
+              aria-controls={listboxId}
+              aria-activedescendant={
+                results.length > 0 ? `${optionIdPrefix}-${active}` : undefined
+              }
             />
             <Dialog.Close
               aria-label={labels.close}
-              className="text-fg-muted hover:text-fg-base size-7 shrink-0 rounded-md transition-colors"
+              className="text-fg-muted hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base size-7 shrink-0 rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
             >
               <X aria-hidden className="size-4" />
             </Dialog.Close>
           </div>
 
           <ul
+            id={listboxId}
             role="listbox"
             aria-label={labels.title}
             className="max-h-[50vh] overflow-y-auto py-2"
@@ -147,7 +164,11 @@ export function SearchDialog({
                   <button
                     type="button"
                     role="option"
+                    id={`${optionIdPrefix}-${i}`}
                     aria-selected={i === active}
+                    ref={(node) => {
+                      optionRefs.current[i] = node;
+                    }}
                     onMouseEnter={() => setActive(i)}
                     onClick={() => {
                       onOpenChange(false);

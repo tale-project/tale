@@ -1,6 +1,6 @@
 import { Button } from '@tale/ui/button';
 import { ThumbsDown, ThumbsUp } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -19,7 +19,19 @@ export function DocsFeedback({ pageId }: DocsFeedbackProps) {
   const { t } = useT('docs');
   const [submitted, setSubmitted] = useState<'up' | 'down' | null>(null);
 
+  // Reset / restore widget state when navigating between docs pages.
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(`docs:feedback:${pageId}`);
+      setSubmitted(stored === 'up' || stored === 'down' ? stored : null);
+    } catch (error) {
+      console.warn('[docs-feedback] localStorage unavailable', error);
+      setSubmitted(null);
+    }
+  }, [pageId]);
+
   const submit = async (vote: 'up' | 'down') => {
+    if (submitted) return;
     setSubmitted(vote);
     try {
       window.localStorage.setItem(`docs:feedback:${pageId}`, vote);

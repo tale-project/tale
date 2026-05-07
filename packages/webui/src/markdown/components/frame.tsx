@@ -15,8 +15,10 @@ export function Frame({ caption, children, className }: FrameProps) {
         className,
       )}
     >
-      <div className="bg-bg-base overflow-hidden rounded-md">{children}</div>
-      {caption ? (
+      <div className="bg-bg-base overflow-hidden rounded-md [&_img]:h-auto [&_img]:w-full">
+        {children}
+      </div>
+      {caption?.trim() ? (
         <figcaption className="text-fg-muted mt-2 text-center text-xs">
           {caption}
         </figcaption>

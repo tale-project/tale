@@ -13,14 +13,14 @@ export function DocsFooter() {
             href="https://tale.dev"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-fg-base transition-colors"
+            className="hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base rounded-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           >
             tale.dev
           </a>
           <Link
             // oxlint-disable-next-line typescript/no-explicit-any -- runtime-typed router target
             to={'/llms.txt' as any}
-            className="hover:text-fg-base transition-colors"
+            className="hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base rounded-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           >
             llms.txt
           </Link>
@@ -28,7 +28,7 @@ export function DocsFooter() {
             href="https://github.com/tale-project/tale"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-fg-base transition-colors"
+            className="hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base rounded-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           >
             GitHub
           </a>

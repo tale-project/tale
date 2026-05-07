@@ -20,15 +20,15 @@ Click **Use** on any prompt to insert its content into the chat input.
 1. Open the Prompt Library and click the **plus** icon.
 2. Fill in the form:
 
-| Field           | Required    | Description                                           |
-| --------------- | ----------- | ----------------------------------------------------- |
-| **Title**       | Yes         | A short name for the prompt                           |
-| **Content**     | Yes         | The prompt text. Displayed in a monospace font        |
-| **Description** | No          | Brief explanation of what the prompt does             |
-| **Visibility**  | Yes         | Who can see this prompt (see [Scopes](#scopes) below) |
-| **Team**        | Conditional | Required when visibility is set to Team               |
-| **Category**    | No          | A label like "writing", "analysis", or "coding"       |
-| **Tags**        | No          | Comma-separated keywords for search and organization  |
+   | Field           | Required    | Description                                           |
+   | --------------- | ----------- | ----------------------------------------------------- |
+   | **Title**       | Yes         | A short name for the prompt                           |
+   | **Content**     | Yes         | The prompt text. Displayed in a monospace font        |
+   | **Description** | No          | Brief explanation of what the prompt does             |
+   | **Visibility**  | Yes         | Who can see this prompt (see [Scopes](#scopes) below) |
+   | **Team**        | Conditional | Required when visibility is set to Team               |
+   | **Category**    | No          | A label like "writing", "analysis", or "coding"       |
+   | **Tags**        | No          | Comma-separated keywords for search and organization  |
 
 3. Click **Create**.
 

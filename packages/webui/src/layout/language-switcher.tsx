@@ -13,6 +13,21 @@ const BASE_LOCALES = [
   'fr',
 ] as const satisfies readonly SupportedLocale[];
 
+function appendHashAndSearch(
+  url: string,
+  search: string | undefined,
+  hash: string | undefined,
+): string {
+  let out = url;
+  if (search && search.length > 0 && search !== '?') {
+    out += search.startsWith('?') ? search : `?${search}`;
+  }
+  if (hash && hash.length > 0 && hash !== '#') {
+    out += hash.startsWith('#') ? hash : `#${hash}`;
+  }
+  return out;
+}
+
 interface LanguageSwitcherProps {
   /** Compute the destination URL when the user picks a different locale.
    *  Receives the current pathname so each app can apply its own routing
@@ -54,12 +69,16 @@ export function LanguageSwitcher({
 }: LanguageSwitcherProps) {
   const { t } = useT('languageSwitcher');
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const searchStr = useRouterState({ select: (s) => s.location.searchStr });
+  const hash = useRouterState({ select: (s) => s.location.hash });
   const navigate = useNavigate();
   const currentLocale = readCurrentLocale(pathname);
 
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const menuId = useId();
 
   useEffect(() => {
@@ -71,8 +90,27 @@ export function LanguageSwitcher({
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault();
         setOpen(false);
         buttonRef.current?.focus();
+        return;
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setActiveIndex((i) => {
+          const next = (i + 1) % BASE_LOCALES.length;
+          itemRefs.current[next]?.focus();
+          return next;
+        });
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setActiveIndex((i) => {
+          const next = (i - 1 + BASE_LOCALES.length) % BASE_LOCALES.length;
+          itemRefs.current[next]?.focus();
+          return next;
+        });
       }
     };
     document.addEventListener('mousedown', onPointerDown);
@@ -83,11 +121,21 @@ export function LanguageSwitcher({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const idx = BASE_LOCALES.indexOf(currentLocale);
+    const start = idx >= 0 ? idx : 0;
+    setActiveIndex(start);
+    // Focus the active item once the menu mounts.
+    queueMicrotask(() => itemRefs.current[start]?.focus());
+  }, [open, currentLocale]);
+
   const handleSelect = (target: SupportedLocale) => {
     setOpen(false);
     buttonRef.current?.focus();
     if (target === currentLocale) return;
-    const url = resolveLocaleUrl(target, pathname);
+    const base = resolveLocaleUrl(target, pathname);
+    const url = appendHashAndSearch(base, searchStr, hash);
     // oxlint-disable-next-line typescript/no-explicit-any -- runtime-typed router target
     void navigate({ to: url } as any);
   };
@@ -102,7 +150,7 @@ export function LanguageSwitcher({
         aria-controls={menuId}
         aria-label={t('ariaLabel')}
         onClick={() => setOpen((v) => !v)}
-        className="border-border-base bg-bg-base text-fg-muted hover:text-fg-base hover:border-border-strong inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-current/20"
+        className="border-border-base bg-bg-base text-fg-muted hover:text-fg-base hover:border-border-strong focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         <LocaleFlag
           locale={currentLocale}
@@ -124,17 +172,21 @@ export function LanguageSwitcher({
           aria-label={t('ariaLabel')}
           className="border-border-base bg-bg-base absolute right-0 z-30 mt-2 flex min-w-[180px] flex-col overflow-hidden rounded-md border py-1 shadow-lg"
         >
-          {BASE_LOCALES.map((code) => {
+          {BASE_LOCALES.map((code, index) => {
             const isActive = code === currentLocale;
             return (
               <li key={code}>
                 <button
+                  ref={(el) => {
+                    itemRefs.current[index] = el;
+                  }}
                   type="button"
                   role="menuitem"
+                  tabIndex={index === activeIndex ? 0 : -1}
                   aria-current={isActive ? 'true' : undefined}
                   onClick={() => handleSelect(code)}
                   className={cn(
-                    'hover:bg-bg-elevated flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors',
+                    'hover:bg-bg-elevated focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
                     isActive ? 'text-fg-base font-medium' : 'text-fg-muted',
                   )}
                 >

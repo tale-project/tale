@@ -18,10 +18,16 @@ export interface DocPage {
   body: string;
 }
 
-const rawModules: Record<string, string> = import.meta.glob(
-  '../../app/content/**/*.{md,mdx}',
-  { query: '?raw', import: 'default', eager: true },
-);
+// Vite replaces `import.meta.env.SSR` with a literal boolean at build time so
+// the unused branch is dead-code-eliminated. SSR builds keep the eager raw
+// glob so `entry-server.tsx` can synchronously render every page during the
+// prerender step. Client builds use a lazy glob: each markdown file becomes a
+// dynamic chunk instead of being inlined into the main JS bundle, then we
+// resolve them all up-front via top-level await so callers still see a fully
+// populated synchronous map. The lazy chunks remain off the main bundle, so
+// the client only pays for content it actually downloads (HTTP/2 multiplexes
+// the per-file requests, and Vite often groups tiny files into shared chunks).
+const SSR = (import.meta as ImportMeta & { env: { SSR?: boolean } }).env.SSR;
 
 const ALL_LOCALE_SET: ReadonlySet<string> = new Set(ALL_LOCALES);
 
@@ -42,9 +48,9 @@ function normaliseFrontmatter(
   };
 }
 
-const documents = buildDocumentMap();
-
-function buildDocumentMap(): Map<string, DocPage> {
+function buildDocumentMap(
+  rawModules: Record<string, string>,
+): Map<string, DocPage> {
   const out = new Map<string, DocPage>();
   for (const [path, raw] of Object.entries(rawModules)) {
     const match = /\/content\/([^/]+)\/(.+)\.mdx?$/.exec(path);
@@ -61,6 +67,36 @@ function buildDocumentMap(): Map<string, DocPage> {
   }
   return out;
 }
+
+async function loadDocuments(): Promise<Map<string, DocPage>> {
+  if (SSR) {
+    const eager: Record<string, string> = import.meta.glob(
+      '../../app/content/**/*.{md,mdx}',
+      { query: '?raw', import: 'default', eager: true },
+    );
+    return buildDocumentMap(eager);
+  }
+  // Client build: produce one dynamic chunk per markdown file and resolve them
+  // all in parallel. Without `eager: true`, Vite emits each `.md`/`.mdx` as a
+  // separate JS module that the main bundle imports on demand.
+  const lazy = import.meta.glob('../../app/content/**/*.{md,mdx}', {
+    query: '?raw',
+    import: 'default',
+  }) as unknown as Record<string, () => Promise<string>>;
+  const entries = await Promise.all(
+    Object.entries(lazy).map(
+      async ([path, load]) => [path, await load()] as const,
+    ),
+  );
+  return buildDocumentMap(Object.fromEntries(entries));
+}
+
+// Top-level await: blocks consumers of this module until every markdown file
+// has been fetched. On SSR this resolves synchronously after a single eager
+// glob; on the client it awaits N parallel dynamic imports — slightly delays
+// hydration but keeps the prerendered HTML visible meanwhile and preserves
+// the synchronous `getDocPage` / `listDocPages` API that callers expect.
+const documents = await loadDocuments();
 
 const FALLBACK_CHAIN: Record<Locale, readonly Locale[]> = {
   en: ['en'],

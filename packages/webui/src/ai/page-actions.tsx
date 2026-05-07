@@ -63,6 +63,7 @@ export function PageActions({
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuId = useId();
 
   useEffect(() => {
@@ -73,7 +74,10 @@ export function PageActions({
       }
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
     };
     document.addEventListener('mousedown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
@@ -113,10 +117,13 @@ export function PageActions({
           ) : (
             <Copy className="size-3.5" aria-hidden />
           )}
-          <span>{copied ? labels.copied : labels.copyPage}</span>
+          <span aria-live="polite">
+            {copied ? labels.copied : labels.copyPage}
+          </span>
         </Button>
       ) : null}
       <Button
+        ref={triggerRef}
         type="button"
         size="sm"
         variant="secondary"
@@ -142,6 +149,7 @@ export function PageActions({
               href={markdownUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
               className="text-fg-muted hover:bg-bg-elevated hover:text-fg-base flex items-center gap-2 px-3 py-2 transition-colors"
             >
               <FileText className="size-3.5" aria-hidden />
@@ -154,6 +162,7 @@ export function PageActions({
               href={chatGptUrl(markdownUrl)}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
               className="text-fg-muted hover:bg-bg-elevated hover:text-fg-base flex items-center gap-2 px-3 py-2 transition-colors"
             >
               <ExternalLink className="size-3.5" aria-hidden />
@@ -166,6 +175,7 @@ export function PageActions({
               href={claudeUrl(markdownUrl)}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
               className="text-fg-muted hover:bg-bg-elevated hover:text-fg-base flex items-center gap-2 px-3 py-2 transition-colors"
             >
               <ExternalLink className="size-3.5" aria-hidden />
@@ -176,6 +186,7 @@ export function PageActions({
             <a
               role="menuitem"
               href={cursorUrl(markdownUrl)}
+              onClick={() => setOpen(false)}
               className="text-fg-muted hover:bg-bg-elevated hover:text-fg-base flex items-center gap-2 px-3 py-2 transition-colors"
             >
               <ExternalLink className="size-3.5" aria-hidden />

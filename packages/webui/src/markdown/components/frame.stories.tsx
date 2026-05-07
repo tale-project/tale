@@ -22,3 +22,37 @@ export const Screenshot: Story = {
     ),
   },
 };
+
+export const NoCaption: Story = {
+  args: {
+    children: (
+      <div className="bg-bg-elevated flex h-48 w-full items-center justify-center text-sm">
+        no caption — figcaption should not render
+      </div>
+    ),
+  },
+};
+
+export const EmptyCaption: Story = {
+  args: {
+    caption: '   ',
+    children: (
+      <div className="bg-bg-elevated flex h-48 w-full items-center justify-center text-sm">
+        whitespace caption — figcaption should not render
+      </div>
+    ),
+  },
+};
+
+export const WithImage: Story = {
+  args: {
+    caption: 'Native image — lazy-loaded, alt passed through',
+    children: (
+      <img
+        alt="Placeholder landscape"
+        loading="lazy"
+        src="https://placehold.co/800x300/png"
+      />
+    ),
+  },
+};

@@ -28,7 +28,27 @@ export const SingleOpen: Story = {
   },
 };
 
-export const Group: StoryObj = {
+export const RichContent: Story = {
+  args: {
+    title: 'Embedded markdown content',
+    defaultOpen: true,
+    children: (
+      <div className="space-y-2">
+        <p>
+          The panel accepts arbitrary children, including paragraphs, lists, and
+          inline <code>code</code>.
+        </p>
+        <ul className="list-disc pl-5">
+          <li>Bullet one</li>
+          <li>Bullet two</li>
+        </ul>
+      </div>
+    ),
+  },
+};
+
+export const Group: StoryObj<typeof meta> = {
+  args: { title: '' },
   render: () => (
     <AccordionGroup>
       <Accordion title="What does Tale do?">
@@ -40,6 +60,19 @@ export const Group: StoryObj = {
       <Accordion title="Is it open source?">
         Yes — see the GitHub repo for the source.
       </Accordion>
+    </AccordionGroup>
+  ),
+};
+
+export const GroupWithDefaultOpen: StoryObj<typeof meta> = {
+  args: { title: '' },
+  render: () => (
+    <AccordionGroup>
+      <Accordion title="First item">First panel content.</Accordion>
+      <Accordion title="Second item (open by default)" defaultOpen>
+        Only one accordion can be open at a time within a group.
+      </Accordion>
+      <Accordion title="Third item">Third panel content.</Accordion>
     </AccordionGroup>
   ),
 };

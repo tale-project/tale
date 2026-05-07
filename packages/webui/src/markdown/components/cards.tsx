@@ -1,42 +1,70 @@
 import { cn } from '@tale/ui/cn';
 import { Link } from '@tanstack/react-router';
 import { ArrowUpRight } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { DynamicIcon, type IconName } from 'lucide-react/dynamic';
+import { type ReactNode, isValidElement } from 'react';
 
 interface CardProps {
-  title: string;
-  icon?: ReactNode;
+  title?: string;
+  /**
+   * Either a rendered ReactNode (Storybook / direct JSX usage) or a kebab-case
+   * Lucide icon name string (Mintlify-style markdown authoring, e.g.
+   * `<Card icon="cloud" />`). Unknown names render nothing.
+   */
+  icon?: ReactNode | string;
   href?: string;
   children?: ReactNode;
   className?: string;
 }
 
+function renderIcon(icon: ReactNode | string | undefined): ReactNode {
+  if (icon == null || icon === '') return null;
+  if (typeof icon === 'string') {
+    return <DynamicIcon name={icon as IconName} className="size-4" />;
+  }
+  if (isValidElement(icon)) return icon;
+  return null;
+}
+
 export function Card({ title, icon, href, children, className }: CardProps) {
+  const renderedIcon = renderIcon(icon);
+  const trimmedTitle = title?.trim();
   const inner = (
     <>
-      <div className="flex items-center gap-2">
-        {icon ? (
-          <span aria-hidden className="text-fg-base">
-            {icon}
-          </span>
-        ) : null}
-        <h3 className="text-fg-base text-base font-semibold">{title}</h3>
-        {href ? (
-          <ArrowUpRight
-            aria-hidden
-            className="text-fg-muted ml-auto size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-          />
-        ) : null}
-      </div>
+      {(renderedIcon || trimmedTitle || href) && (
+        <div className="flex items-center gap-2">
+          {renderedIcon ? (
+            <span aria-hidden className="text-fg-base">
+              {renderedIcon}
+            </span>
+          ) : null}
+          {trimmedTitle ? (
+            <h3 className="text-fg-base text-base font-semibold">
+              {trimmedTitle}
+            </h3>
+          ) : null}
+          {href ? (
+            <ArrowUpRight
+              aria-hidden
+              className="text-fg-muted ml-auto size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            />
+          ) : null}
+        </div>
+      )}
       {children ? (
-        <div className="text-fg-muted mt-2 text-sm leading-relaxed">
+        <div
+          className={cn(
+            'text-fg-muted text-sm leading-relaxed',
+            trimmedTitle || renderedIcon ? 'mt-2' : null,
+          )}
+        >
           {children}
         </div>
       ) : null}
     </>
   );
   const baseCls = cn(
-    'border-border-base bg-bg-base hover:border-border-strong group flex flex-col rounded-lg border p-4 transition-colors',
+    'border-border-base bg-bg-base hover:border-border-strong hover:bg-bg-elevated/50 group flex flex-col rounded-lg border p-4 transition-colors',
     className,
   );
   if (!href) return <div className={baseCls}>{inner}</div>;

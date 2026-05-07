@@ -61,6 +61,41 @@ export const Landing: Story = {
     ),
 };
 
+export const ThreeColumns: Story = {
+  render: () =>
+    withRouter(
+      <CardGroup cols={3}>
+        <Card title="One" href="/one">
+          First column.
+        </Card>
+        <Card title="Two" href="/two">
+          Second column.
+        </Card>
+        <Card title="Three" href="/three">
+          Third column.
+        </Card>
+      </CardGroup>,
+    ),
+};
+
+// Mintlify-style: icon prop is a kebab-case Lucide name string.
+export const StringIcons: Story = {
+  render: () =>
+    withRouter(
+      <CardGroup cols={2}>
+        <Card title="Cloud" icon="cloud" href="/cloud">
+          Resolves the kebab-case Lucide name at runtime.
+        </Card>
+        <Card title="Server" icon="server-cog" href="/self-hosted">
+          Useful when authored in plain markdown.
+        </Card>
+        <Card title="Unknown icon" icon="not-a-real-icon" href="/x">
+          Unknown names fall back to no icon (no crash).
+        </Card>
+      </CardGroup>,
+    ),
+};
+
 export const ExternalLink: Story = {
   render: () =>
     withRouter(
@@ -68,6 +103,19 @@ export const ExternalLink: Story = {
         <Card title="GitHub" href="https://github.com/tale-project/tale">
           Source on GitHub.
         </Card>
+      </CardGroup>,
+    ),
+};
+
+// Title-less + children-less cards should render gracefully.
+export const Empty: Story = {
+  render: () =>
+    withRouter(
+      <CardGroup cols={2}>
+        <Card title="" href="/empty-title">
+          A card with an empty title still renders its description.
+        </Card>
+        <Card title="No body" href="/no-body" />
       </CardGroup>,
     ),
 };

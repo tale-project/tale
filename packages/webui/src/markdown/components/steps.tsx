@@ -37,7 +37,7 @@ export function Steps({ children }: StepsProps) {
         >
           <span
             aria-hidden
-            className="border-border-base bg-bg-elevated text-fg-base absolute top-0 -left-[42px] flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold"
+            className="border-border-base bg-bg-elevated text-fg-base absolute top-0 -left-9.5 flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold"
           >
             {i + 1}
           </span>
@@ -46,7 +46,7 @@ export function Steps({ children }: StepsProps) {
               {item.props.title}
             </h3>
           ) : null}
-          <div className="text-fg-muted leading-relaxed">
+          <div className="text-fg-muted space-y-2 leading-relaxed *:first:mt-0 *:last:mb-0">
             {item.props.children}
           </div>
         </li>

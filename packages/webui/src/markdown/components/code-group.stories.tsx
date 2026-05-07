@@ -35,17 +35,34 @@ requests.post(
     json={"agentId": "agt_123"},
 )`;
 
+// One very wide line so the active panel must scroll horizontally.
+const WIDE = `const url = 'https://api.tale.dev/v1/threads?agentId=agt_123&include=messages,annotations,tool_calls,citations,metadata&format=verbose&limit=100&order=desc&cursor=eyJpZCI6ImNtX2FiYzEyMyJ9';`;
+
 export const ApiExamples: Story = {
   render: () => (
     <CodeGroup>
-      <CodeBlock code={CURL} language="bash" filename="curl" hideCopy />
-      <CodeBlock
-        code={TYPESCRIPT}
-        language="typescript"
-        filename="typescript"
-        hideCopy
-      />
-      <CodeBlock code={PYTHON} language="python" filename="python" hideCopy />
+      <CodeBlock code={CURL} language="bash" filename="curl" />
+      <CodeBlock code={TYPESCRIPT} language="typescript" filename="Node.js" />
+      <CodeBlock code={PYTHON} language="python" filename="Python" />
+    </CodeGroup>
+  ),
+};
+
+export const LanguageOnlyLabels: Story = {
+  render: () => (
+    <CodeGroup>
+      <CodeBlock code={CURL} language="bash" />
+      <CodeBlock code={TYPESCRIPT} language="typescript" />
+      <CodeBlock code={PYTHON} language="python" />
+    </CodeGroup>
+  ),
+};
+
+export const HorizontalScrollInActiveTab: Story = {
+  render: () => (
+    <CodeGroup>
+      <CodeBlock code={WIDE} language="typescript" filename="long.ts" />
+      <CodeBlock code={PYTHON} language="python" filename="short.py" />
     </CodeGroup>
   ),
 };

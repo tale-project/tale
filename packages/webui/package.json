@@ -30,6 +30,7 @@
     "./markdown/code-block": "./src/markdown/code-block.tsx",
     "./markdown/anchored-heading": "./src/markdown/anchored-heading.tsx",
     "./markdown/extract-toc": "./src/markdown/extract-toc.ts",
+    "./markdown/reading-time": "./src/markdown/reading-time.ts",
     "./markdown/components/callout": "./src/markdown/components/callout.tsx",
     "./markdown/components/code-group": "./src/markdown/components/code-group.tsx",
     "./markdown/components/tabs": "./src/markdown/components/tabs.tsx",

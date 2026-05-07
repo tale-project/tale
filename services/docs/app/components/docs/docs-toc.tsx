@@ -31,8 +31,33 @@ export function DocsToc({ entries }: DocsTocProps) {
       const el = document.getElementById(entry.id);
       if (el) observer.observe(el);
     }
-    return () => observer.disconnect();
+    // Force-activate the last heading once we hit the bottom of the page,
+    // because the IntersectionObserver's bottom-30% trigger zone misses
+    // headings that have already scrolled past it.
+    const onScroll = () => {
+      const scrolledToBottom =
+        window.innerHeight + window.scrollY >=
+        document.documentElement.scrollHeight - 2;
+      if (scrolledToBottom) {
+        const last = entries[entries.length - 1];
+        if (last) setActiveId(last.id);
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('scroll', onScroll);
+    };
   }, [entries]);
+
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    e.preventDefault();
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setActiveId(id);
+    if (history.replaceState) history.replaceState(null, '', `#${id}`);
+  };
 
   if (entries.length === 0) return null;
 
@@ -49,6 +74,7 @@ export function DocsToc({ entries }: DocsTocProps) {
           <li key={entry.id} className={entry.level === 3 ? 'pl-3' : undefined}>
             <a
               href={`#${entry.id}`}
+              onClick={(e) => handleClick(e, entry.id)}
               className={cn(
                 'block leading-tight transition-colors',
                 activeId === entry.id

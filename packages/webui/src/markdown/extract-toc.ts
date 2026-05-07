@@ -29,7 +29,24 @@ export function extractToc(body: string): TocEntry[] {
     const match = /^(#{2,3})\s+(.*?)\s*#*\s*$/.exec(line);
     if (!match) continue;
     const level = match[1].length === 2 ? 2 : 3;
-    const text = match[2].replace(/`/g, '').trim();
+    // Strip the markdown formatting that ReactMarkdown unwraps before
+    // AnchoredHeading sees the text, otherwise the TOC slug diverges
+    // from the rendered DOM id and the anchor link 404s.
+    const text = match[2]
+      // ![alt](url) -> alt (run before the link strip below — otherwise
+      // the link rule turns `![alt](url)` into `!alt` and the image
+      // pattern can't match the leading `!` anymore).
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+      // [label](url) / [label][ref] -> label
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/\[([^\]]+)\]\[[^\]]*\]/g, '$1')
+      // **bold**, *em*, __bold__, _em_, ~~strike~~
+      .replace(/(\*\*|__)(.*?)\1/g, '$2')
+      .replace(/(\*|_)(.*?)\1/g, '$2')
+      .replace(/~~(.*?)~~/g, '$1')
+      // inline code
+      .replace(/`([^`]*)`/g, '$1')
+      .trim();
     if (!text) continue;
     entries.push({ level, text, id: slugifyHeading(text) });
   }

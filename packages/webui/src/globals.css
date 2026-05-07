@@ -1,8 +1,6 @@
 @import '@tale/ui/globals.css';
-@import '@fontsource/inter/400.css';
-@import '@fontsource/inter/500.css';
-@import '@fontsource/inter/600.css';
-@import '@fontsource/inter/700.css';
+
+@source '../src/**/*.{ts,tsx}';
 
 @theme {
   --color-background: hsl(var(--background));

@@ -39,12 +39,22 @@ function resolveDocsLocaleUrl(
 export function DocsHeader({ locale, onOpenSearch }: DocsHeaderProps) {
   const { t } = useT('nav');
   const [scrolled, setScrolled] = useState(false);
+  const [isMac, setIsMac] = useState(true);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    // Detect macOS to choose between ⌘K and Ctrl+K hint. Use the modern
+    // userAgentData when available, falling back to navigator.platform.
+    const platform =
+      // oxlint-disable-next-line typescript/no-explicit-any -- userAgentData is not yet in lib.dom
+      (navigator as any).userAgentData?.platform ?? navigator.platform ?? '';
+    setIsMac(/mac|iphone|ipad|ipod/i.test(platform));
   }, []);
 
   return (
@@ -61,7 +71,7 @@ export function DocsHeader({ locale, onOpenSearch }: DocsHeaderProps) {
           // oxlint-disable-next-line typescript/no-explicit-any -- runtime-typed router target
           to={docPath(locale, 'index') as any}
           aria-label={t('homeAriaLabel')}
-          className="text-fg-base"
+          className="text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base rounded-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
         >
           <TaleLogo />
         </Link>
@@ -74,12 +84,12 @@ export function DocsHeader({ locale, onOpenSearch }: DocsHeaderProps) {
             type="button"
             onClick={onOpenSearch}
             aria-label={t('openSearch')}
-            className="border-border-base text-fg-muted hover:text-fg-base hover:border-border-strong inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm transition-colors"
+            className="border-border-base text-fg-muted hover:text-fg-base hover:border-border-strong focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           >
             <Search aria-hidden className="size-3.5" />
             <span className="hidden sm:inline">{t('searchPlaceholder')}</span>
             <kbd className="border-border-base hidden rounded border px-1.5 py-0.5 font-mono text-[10px] sm:inline">
-              ⌘K
+              {isMac ? '⌘K' : 'Ctrl K'}
             </kbd>
           </button>
           <LanguageSwitcher resolveLocaleUrl={resolveDocsLocaleUrl} />

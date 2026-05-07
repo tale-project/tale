@@ -1,6 +1,7 @@
 import { cn } from '@tale/ui/cn';
 import { useTheme } from '@tale/ui/theme';
 import { Monitor, Moon, Sun } from 'lucide-react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { useT } from '../i18n/client';
@@ -36,6 +37,7 @@ export function ThemeSwitcher({ className }: ThemeSwitcherProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLUListElement | null>(null);
   const menuId = useId();
 
   useEffect(() => {
@@ -59,6 +61,45 @@ export function ThemeSwitcher({ className }: ThemeSwitcherProps) {
     };
   }, [open]);
 
+  // When the menu opens, move focus to the active item so Arrow keys work
+  // immediately and screen readers announce the menu.
+  useEffect(() => {
+    if (!open) return;
+    const items = menuRef.current?.querySelectorAll<HTMLButtonElement>(
+      'button[role="menuitemradio"]',
+    );
+    if (!items || items.length === 0) return;
+    const activeIndex = ORDER.indexOf(theme as Theme);
+    const target = items[activeIndex >= 0 ? activeIndex : 0];
+    target?.focus();
+  }, [open, theme]);
+
+  const onMenuKeyDown = (event: ReactKeyboardEvent<HTMLUListElement>) => {
+    const items = menuRef.current?.querySelectorAll<HTMLButtonElement>(
+      'button[role="menuitemradio"]',
+    );
+    if (!items || items.length === 0) return;
+    const list = Array.from(items);
+    const currentIndex = list.indexOf(
+      document.activeElement as HTMLButtonElement,
+    );
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      const next = list[(currentIndex + 1 + list.length) % list.length];
+      next?.focus();
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      const prev = list[(currentIndex - 1 + list.length) % list.length];
+      prev?.focus();
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      list[0]?.focus();
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      list[list.length - 1]?.focus();
+    }
+  };
+
   return (
     <div ref={containerRef} className={cn('relative', className)}>
       <button
@@ -69,15 +110,17 @@ export function ThemeSwitcher({ className }: ThemeSwitcherProps) {
         aria-controls={menuId}
         aria-label={t('ariaLabel')}
         onClick={() => setOpen((v) => !v)}
-        className="border-border-base bg-bg-base text-fg-muted hover:text-fg-base hover:border-border-strong inline-flex size-9 cursor-pointer items-center justify-center rounded-md border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-current/20"
+        className="border-border-base bg-bg-base text-fg-muted hover:text-fg-base hover:border-border-strong focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base inline-flex size-9 cursor-pointer items-center justify-center rounded-md border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
       >
         <ActiveIcon aria-hidden className="size-4" />
       </button>
       {open ? (
         <ul
+          ref={menuRef}
           id={menuId}
           role="menu"
           aria-label={t('ariaLabel')}
+          onKeyDown={onMenuKeyDown}
           className="border-border-base bg-bg-base absolute right-0 z-30 mt-2 flex min-w-[160px] flex-col overflow-hidden rounded-md border py-1 shadow-lg"
         >
           {ORDER.map((option) => {
@@ -95,7 +138,7 @@ export function ThemeSwitcher({ className }: ThemeSwitcherProps) {
                     buttonRef.current?.focus();
                   }}
                   className={cn(
-                    'hover:bg-bg-elevated flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors',
+                    'hover:bg-bg-elevated focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
                     isActive ? 'text-fg-base font-medium' : 'text-fg-muted',
                   )}
                 >

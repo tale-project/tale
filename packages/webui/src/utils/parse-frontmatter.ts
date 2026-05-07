@@ -27,13 +27,17 @@ export function parseFrontmatter(raw: string): ParseResult {
     if (!key) continue;
     let value = line.slice(colon + 1).trim();
     if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
+      (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) ||
+      (value.length >= 2 && value.startsWith("'") && value.endsWith("'"))
     ) {
       value = value.slice(1, -1);
       fm[key] = value;
       continue;
     }
+    // Strip YAML trailing comments on unquoted values: ` # ...` to end of line.
+    // Only when `#` is preceded by whitespace, matching YAML semantics.
+    const commentMatch = /\s#.*$/.exec(value);
+    if (commentMatch) value = value.slice(0, commentMatch.index).trimEnd();
     if (value === 'true' || value === 'false') {
       fm[key] = value === 'true';
       continue;

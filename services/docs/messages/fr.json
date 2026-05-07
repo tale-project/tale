@@ -3,6 +3,8 @@
     "docs": "Documentation",
     "homeAriaLabel": "Accueil de la documentation Tale",
     "openSearch": "Ouvrir la recherche",
+    "openMenu": "Ouvrir le menu de navigation",
+    "closeMenu": "Fermer le menu de navigation",
     "searchPlaceholder": "Rechercher dans la documentation",
     "githubAriaLabel": "Tale sur GitHub",
     "requestDemo": "Demander une démo",
@@ -40,7 +42,16 @@
     "feedbackYes": "Oui",
     "feedbackNo": "Non",
     "feedbackThanks": "Merci pour ton retour.",
-    "editOnGithub": "Modifier sur GitHub"
+    "editOnGithub": "Modifier sur GitHub",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "readingTime": "{minutes} min de lecture",
+    "lastUpdated": "Mis à jour le {date}",
+    "notFoundTitle": "Page introuvable",
+    "notFoundBody": "Nous n'avons pas trouvé cette page. Une des suggestions ci-dessous correspond peut-être – sinon, lance la recherche.",
+    "notFoundSuggestions": "Vouliez-vous dire",
+    "notFoundBackHome": "Retour à l'accueil de la documentation",
+    "backToTop": "Retour en haut"
   },
   "languageSwitcher": {
     "ariaLabel": "Changer de langue",

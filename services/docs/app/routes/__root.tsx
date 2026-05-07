@@ -9,7 +9,9 @@ import { useEffect, useState } from 'react';
 
 import { DocsFooter } from '@/app/components/docs/docs-footer';
 import { DocsHeader } from '@/app/components/docs/docs-header';
+import { DocsMobileNav } from '@/app/components/docs/docs-mobile-nav';
 import { DocsSidebar } from '@/app/components/docs/docs-sidebar';
+import { ScrollToTop } from '@/app/components/docs/scroll-to-top';
 import { i18n } from '@/lib/i18n/i18n';
 import {
   detectInitialLocale,
@@ -75,9 +77,10 @@ function RootLayout() {
   const activeSlug = activeSlugFromPathname(pathname);
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="bg-bg-base text-fg-base flex min-h-screen flex-col">
       <SkipLink>Skip to main content</SkipLink>
       <DocsHeader locale={locale} onOpenSearch={() => setSearchOpen(true)} />
+      <DocsMobileNav locale={locale} activeSlug={activeSlug} />
       <div className="mx-auto flex w-full max-w-[1400px] flex-1 px-5 md:px-8">
         <DocsSidebar locale={locale} activeSlug={activeSlug} />
         <main
@@ -90,6 +93,7 @@ function RootLayout() {
         </main>
       </div>
       <DocsFooter />
+      <ScrollToTop />
       <SearchDialog
         locale={locale}
         open={searchOpen}

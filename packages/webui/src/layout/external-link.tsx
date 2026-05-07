@@ -19,14 +19,17 @@ export function ExternalLink({
     <a
       target="_blank"
       rel="noopener noreferrer"
-      className={cn('inline-flex items-baseline gap-1', className)}
+      className={cn(
+        'group inline-flex items-baseline gap-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fg-base/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base',
+        className,
+      )}
       {...rest}
     >
       <span>{children}</span>
       {showIcon ? (
         <ExternalLinkIcon
           aria-hidden
-          className="size-3 shrink-0 self-center opacity-70"
+          className="size-3 shrink-0 self-center opacity-50 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
         />
       ) : null}
     </a>

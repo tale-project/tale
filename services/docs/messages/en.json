@@ -3,6 +3,8 @@
     "docs": "Docs",
     "homeAriaLabel": "Tale documentation home",
     "openSearch": "Open search",
+    "openMenu": "Open navigation menu",
+    "closeMenu": "Close navigation menu",
     "searchPlaceholder": "Search documentation",
     "githubAriaLabel": "Tale on GitHub",
     "requestDemo": "Request demo",
@@ -40,7 +42,16 @@
     "feedbackYes": "Yes",
     "feedbackNo": "No",
     "feedbackThanks": "Thanks for the feedback.",
-    "editOnGithub": "Edit on GitHub"
+    "editOnGithub": "Edit on GitHub",
+    "previous": "Previous",
+    "next": "Next",
+    "readingTime": "{minutes} min read",
+    "lastUpdated": "Last updated {date}",
+    "notFoundTitle": "Page not found",
+    "notFoundBody": "We couldn't find that page. Maybe one of these is what you were looking for, or try the search.",
+    "notFoundSuggestions": "Did you mean",
+    "notFoundBackHome": "Back to docs home",
+    "backToTop": "Back to top"
   },
   "languageSwitcher": {
     "ariaLabel": "Switch language",

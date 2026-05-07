@@ -6,7 +6,15 @@ const meta = {
   title: 'webui/markdown/Tabs',
   component: Tabs,
   tags: ['autodocs'],
-  parameters: { layout: 'padded' },
+  parameters: {
+    layout: 'padded',
+    docs: {
+      description: {
+        component:
+          'Tabbed content following the WAI-ARIA tab pattern: arrow keys move focus between tabs, Home/End jump to first/last, and Tab moves focus into the active panel. Only the active tab is in the tab order (roving tabindex).',
+      },
+    },
+  },
 } satisfies Meta<typeof Tabs>;
 
 export default meta;
@@ -31,6 +39,19 @@ export const ThreePlatforms: Story = {
           Download the latest release from{' '}
           <a href="https://github.com/tale-project/tale/releases">GitHub</a>.
         </p>
+      </Tab>
+    </Tabs>
+  ),
+};
+
+export const TwoTabs: Story = {
+  render: () => (
+    <Tabs>
+      <Tab title="Overview">
+        <p>High-level summary of the feature.</p>
+      </Tab>
+      <Tab title="Details">
+        <p>In-depth implementation notes and edge cases.</p>
       </Tab>
     </Tabs>
   ),

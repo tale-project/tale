@@ -13,6 +13,13 @@ interface DocumentMeta {
   siteUrl: string;
   /** Optional OpenGraph image URL. */
   ogImage?: string;
+  /**
+   * Optional fallback OpenGraph image URL used when `ogImage` is not set.
+   * Should be an absolute URL (or a path resolved against `siteUrl`) pointing
+   * to a 1200×630 PNG so crawlers always have a social card to render.
+   * Example: `${siteUrl}/images/og-default.png`.
+   */
+  defaultOgImage?: string;
   /** Set `noindex,nofollow` for legal-style pages. */
   noindex?: boolean;
   /** When provided, emit hreflang alternates per locale. */
@@ -94,6 +101,7 @@ export function useDocumentMeta({
   siteName = 'Tale',
   siteUrl,
   ogImage,
+  defaultOgImage,
   noindex,
   hreflang,
   jsonLd,
@@ -103,6 +111,7 @@ export function useDocumentMeta({
       ? title
       : `${title} | ${siteName}`;
     document.title = fullTitle;
+    const resolvedOgImage = ogImage ?? defaultOgImage;
 
     setMeta('meta[name="description"]', 'name', 'description', description);
     setMeta('meta[property="og:title"]', 'property', 'og:title', fullTitle);
@@ -123,7 +132,7 @@ export function useDocumentMeta({
       'meta[name="twitter:card"]',
       'name',
       'twitter:card',
-      ogImage ? 'summary_large_image' : 'summary',
+      resolvedOgImage ? 'summary_large_image' : 'summary',
     );
     setMeta('meta[name="twitter:title"]', 'name', 'twitter:title', fullTitle);
     setMeta(
@@ -132,9 +141,19 @@ export function useDocumentMeta({
       'twitter:description',
       description,
     );
-    if (ogImage) {
-      setMeta('meta[property="og:image"]', 'property', 'og:image', ogImage);
-      setMeta('meta[name="twitter:image"]', 'name', 'twitter:image', ogImage);
+    if (resolvedOgImage) {
+      setMeta(
+        'meta[property="og:image"]',
+        'property',
+        'og:image',
+        resolvedOgImage,
+      );
+      setMeta(
+        'meta[name="twitter:image"]',
+        'name',
+        'twitter:image',
+        resolvedOgImage,
+      );
     }
 
     if (noindex) {
@@ -144,7 +163,13 @@ export function useDocumentMeta({
     }
 
     if (canonicalPath !== undefined) {
-      const canonical = `${siteUrl}${canonicalPath}`;
+      // Strip a trailing slash unless the path is exactly `/` so canonical
+      // and og:url are stable (e.g. `/pricing/` → `/pricing`).
+      const normalizedPath =
+        canonicalPath !== '/' && canonicalPath.endsWith('/')
+          ? canonicalPath.slice(0, -1)
+          : canonicalPath;
+      const canonical = `${siteUrl}${normalizedPath}`;
       setLink('canonical', canonical);
       setMeta('meta[property="og:url"]', 'property', 'og:url', canonical);
     } else {
@@ -173,6 +198,7 @@ export function useDocumentMeta({
     siteName,
     siteUrl,
     ogImage,
+    defaultOgImage,
     noindex,
     hreflang,
     jsonLd,

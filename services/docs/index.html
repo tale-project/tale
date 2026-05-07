@@ -40,6 +40,30 @@
     />
   </head>
   <body>
+    <script>
+      // Apply theme synchronously before React hydrates to avoid FOUC.
+      // Mirrors logic in @tale/ui ThemeProvider (storage key, system fallback).
+      (function () {
+        try {
+          var stored = localStorage.getItem('tale-theme');
+          var theme =
+            stored === 'light' || stored === 'dark' || stored === 'system'
+              ? stored
+              : 'system';
+          var resolved =
+            theme === 'system'
+              ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+              : theme;
+          var root = document.documentElement;
+          if (resolved === 'dark') root.classList.add('dark');
+          root.style.colorScheme = resolved;
+        } catch (_e) {
+          /* localStorage unavailable; fall through to React default */
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/app/main.tsx"></script>
   </body>

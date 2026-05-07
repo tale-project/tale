@@ -3,6 +3,8 @@
     "docs": "Dokumentation",
     "homeAriaLabel": "Tale Dokumentation Startseite",
     "openSearch": "Suche öffnen",
+    "openMenu": "Navigationsmenü öffnen",
+    "closeMenu": "Navigationsmenü schließen",
     "searchPlaceholder": "Dokumentation durchsuchen",
     "githubAriaLabel": "Tale auf GitHub",
     "requestDemo": "Demo anfragen",
@@ -34,13 +36,22 @@
   },
   "docs": {
     "onThisPage": "Auf dieser Seite",
-    "breadcrumbs": "Brotkrumen",
+    "breadcrumbs": "Brotkrumennavigation",
     "home": "Start",
     "wasThisHelpful": "War diese Seite hilfreich?",
     "feedbackYes": "Ja",
     "feedbackNo": "Nein",
     "feedbackThanks": "Danke für dein Feedback.",
-    "editOnGithub": "Auf GitHub bearbeiten"
+    "editOnGithub": "Auf GitHub bearbeiten",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "readingTime": "{minutes} Min. Lesezeit",
+    "lastUpdated": "Zuletzt aktualisiert am {date}",
+    "notFoundTitle": "Seite nicht gefunden",
+    "notFoundBody": "Diese Seite konnten wir nicht finden. Vielleicht hilft eine der folgenden Seiten weiter – oder nutze die Suche.",
+    "notFoundSuggestions": "Meintest du",
+    "notFoundBackHome": "Zurück zur Doku-Startseite",
+    "backToTop": "Nach oben"
   },
   "languageSwitcher": {
     "ariaLabel": "Sprache wechseln",

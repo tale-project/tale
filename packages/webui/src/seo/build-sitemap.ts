@@ -3,7 +3,48 @@
  * time by both `services/web` and `services/docs`.
  */
 
+import { execFileSync } from 'node:child_process';
+import * as path from 'node:path';
+
 import type { Locale } from '../i18n/locales';
+
+/**
+ * Returns the ISO-8601 commit time of the most recent git commit that
+ * touched `filePath`, suitable for use as a sitemap `<lastmod>` value.
+ *
+ * Pass `repoRoot` (an absolute path to the repository root) so the helper
+ * does not depend on `process.cwd()` — build scripts in different services
+ * may be invoked from different working directories.
+ *
+ * `filePath` may be absolute or relative; it is resolved against `repoRoot`
+ * before being passed to `git`. Falls back to the current time when:
+ *   - `.git/` is unavailable (e.g. CI shallow clones without history),
+ *   - the file is untracked / has no commits yet,
+ *   - the `git` binary is missing or fails for any other reason.
+ *
+ * Uses `node:child_process` which is supported in both Node and Bun.
+ */
+export function gitMtimeIso(filePath: string, repoRoot: string): string {
+  const absolute = path.isAbsolute(filePath)
+    ? filePath
+    : path.join(repoRoot, filePath);
+  try {
+    const out = execFileSync(
+      'git',
+      ['log', '-1', '--format=%cI', '--', absolute],
+      { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'] },
+    )
+      .toString()
+      .trim();
+    return out || new Date().toISOString();
+  } catch (error) {
+    console.warn(
+      `[build-sitemap] gitMtimeIso fallback for ${filePath}:`,
+      error instanceof Error ? error.message : error,
+    );
+    return new Date().toISOString();
+  }
+}
 
 export interface SitemapPage {
   /** Absolute URL for the canonical/default-locale variant of this page. */

@@ -1,10 +1,93 @@
-import type { ComponentPropsWithoutRef, ReactNode } from 'react';
+import { Link } from '@tanstack/react-router';
+import {
+  Children,
+  type ComponentPropsWithoutRef,
+  isValidElement,
+  type ReactNode,
+} from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { AnchoredHeading } from './anchored-heading';
 import { CodeBlock } from './code-block';
+import { Callout } from './components/callout';
 import { Mermaid } from './components/mermaid';
+
+type AlertTone = 'note' | 'tip' | 'info' | 'warning' | 'danger';
+
+const ALERT_TYPE_TO_TONE: Record<string, AlertTone> = {
+  NOTE: 'note',
+  TIP: 'tip',
+  IMPORTANT: 'info',
+  WARNING: 'warning',
+  CAUTION: 'danger',
+};
+
+const ALERT_PATTERN = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*\n?/;
+
+/**
+ * Walk a blockquote's children to detect a GFM alert marker (`[!NOTE]` etc.)
+ * in the first paragraph's first text node. Returns the matched tone and a new
+ * children array with the marker (and its trailing `<br>` if present) stripped.
+ */
+function detectAlert(
+  children: ReactNode,
+): { tone: AlertTone; rest: ReactNode } | null {
+  const arr = Children.toArray(children);
+  // Find the first paragraph (skip whitespace text nodes).
+  const firstParaIdx = arr.findIndex(
+    (node) =>
+      isValidElement(node) &&
+      (node.type === 'p' ||
+        (typeof node.type === 'string' && node.type === 'p')),
+  );
+  if (firstParaIdx === -1) return null;
+  const firstPara = arr[firstParaIdx];
+  if (!isValidElement(firstPara)) return null;
+  const paraProps = firstPara.props as { children?: ReactNode };
+  const paraChildren = Children.toArray(paraProps.children);
+  const firstChild = paraChildren[0];
+  if (typeof firstChild !== 'string') return null;
+  const match = ALERT_PATTERN.exec(firstChild);
+  if (!match) return null;
+  const tone = ALERT_TYPE_TO_TONE[match[1]];
+  if (!tone) return null;
+
+  // Strip the marker and any immediately-following whitespace/<br> nodes.
+  const trimmedFirst = firstChild.slice(match[0].length).replace(/^\s+/, '');
+  const newParaChildren: ReactNode[] = [];
+  if (trimmedFirst.length > 0) newParaChildren.push(trimmedFirst);
+  for (let i = 1; i < paraChildren.length; i++) {
+    const node = paraChildren[i];
+    // Skip a leading <br/> that GFM-alert syntax emits between marker and body.
+    if (
+      newParaChildren.length === 0 &&
+      isValidElement(node) &&
+      (node.type === 'br' ||
+        (typeof node.type === 'string' && node.type === 'br'))
+    ) {
+      continue;
+    }
+    newParaChildren.push(node);
+  }
+
+  // Re-render the first paragraph with the marker stripped (or drop it if
+  // empty). We can't clone the element directly through react-markdown's
+  // component map, so just emit a new <p>; the outer Callout styles `[&_p]`.
+  const replacement: ReactNode =
+    newParaChildren.length === 0 ? null : (
+      <p
+        key="alert-first"
+        className="my-2 leading-relaxed first:mt-0 last:mb-0"
+      >
+        {newParaChildren}
+      </p>
+    );
+  const newArr = arr
+    .map((node, i) => (i === firstParaIdx ? replacement : node))
+    .filter((node) => node !== null);
+  return { tone, rest: newArr };
+}
 
 interface MarkdownProps {
   children: string;
@@ -50,34 +133,118 @@ const baseComponents: Components = {
     <p className="text-fg-muted my-4 leading-relaxed">{children}</p>
   ),
   ul: ({ children }) => (
-    <ul className="text-fg-muted my-4 list-disc space-y-1.5 pl-6">
+    <ul className="text-fg-muted my-4 list-disc space-y-1.5 pl-6 [&_ol]:my-1 [&_ul]:my-1 [&_ul]:list-[circle] [&_ul_ul]:list-[square]">
       {children}
     </ul>
   ),
-  ol: ({ children }) => (
-    <ol className="text-fg-muted my-4 list-decimal space-y-1.5 pl-6">
+  ol: ({ children, start }: ComponentPropsWithoutRef<'ol'>) => (
+    <ol
+      start={start}
+      className="text-fg-muted my-4 list-decimal space-y-1.5 pl-6 [&_ol]:my-1 [&_ol]:list-[lower-alpha] [&_ol_ol]:list-[lower-roman] [&_ul]:my-1"
+    >
       {children}
     </ol>
   ),
-  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-  a: ({ href, children }: ComponentPropsWithoutRef<'a'>) => (
-    <a
-      href={href}
-      target={href?.startsWith('http') ? '_blank' : undefined}
-      rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}
-      className="text-fg-base underline underline-offset-4 hover:no-underline"
+  li: ({ children, value, className }: ComponentPropsWithoutRef<'li'>) => {
+    // `remark-gfm` tags task-list `<li>`s with `task-list-item`. Strip the
+    // bullet so the inline checkbox aligns flush with the rest of the list.
+    const isTask =
+      typeof className === 'string' && className.includes('task-list-item');
+    return (
+      <li
+        value={value}
+        className={
+          isTask
+            ? '-ml-6 flex list-none items-start gap-2 leading-relaxed [&>input]:mt-1.5'
+            : 'leading-relaxed'
+        }
+      >
+        {children}
+      </li>
+    );
+  },
+  input: ({
+    type,
+    checked,
+    disabled,
+    ...rest
+  }: ComponentPropsWithoutRef<'input'>) => {
+    if (type === 'checkbox') {
+      return (
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          readOnly
+          className="border-border-base text-accent-base focus:ring-accent-base/40 size-4 shrink-0 rounded accent-current"
+          {...rest}
+        />
+      );
+    }
+    return <input type={type} {...rest} />;
+  },
+  details: ({ children, ...rest }: ComponentPropsWithoutRef<'details'>) => (
+    <details
+      className="border-border-base bg-bg-elevated/40 my-4 rounded-lg border px-4 py-3 [&[open]>summary]:mb-2"
+      {...rest}
     >
       {children}
-    </a>
+    </details>
   ),
+  summary: ({ children, ...rest }: ComponentPropsWithoutRef<'summary'>) => (
+    <summary
+      className="text-fg-base hover:text-fg-base/90 cursor-pointer list-none font-medium select-none [&::-webkit-details-marker]:hidden"
+      {...rest}
+    >
+      {children}
+    </summary>
+  ),
+  a: ({ href, children }: ComponentPropsWithoutRef<'a'>) => {
+    const isExternal =
+      typeof href === 'string' &&
+      (href.startsWith('http://') || href.startsWith('https://'));
+    const isHash = typeof href === 'string' && href.startsWith('#');
+    const className =
+      'text-fg-base underline underline-offset-4 hover:no-underline';
+    if (!href || isExternal || isHash) {
+      return (
+        <a
+          href={href}
+          target={isExternal ? '_blank' : undefined}
+          rel={isExternal ? 'noopener noreferrer' : undefined}
+          className={className}
+        >
+          {children}
+        </a>
+      );
+    }
+    return (
+      <Link
+        // oxlint-disable-next-line typescript/no-explicit-any -- runtime-typed router target
+        to={href as any}
+        className={className}
+      >
+        {children}
+      </Link>
+    );
+  },
   strong: ({ children }) => (
     <strong className="text-fg-base font-semibold">{children}</strong>
   ),
-  blockquote: ({ children }) => (
-    <blockquote className="border-accent-base bg-bg-elevated/40 text-fg-base [&_p]:text-fg-base my-6 border-l-4 px-5 py-2">
-      {children}
-    </blockquote>
-  ),
+  blockquote: ({ children }) => {
+    // GFM alerts (`> [!NOTE]`, `> [!WARNING]`, etc.) are parsed by `remark-gfm`
+    // as ordinary blockquotes — the marker survives as the first text node of
+    // the first paragraph. Detect it here and swap to a styled <Callout>.
+    const alert = detectAlert(children);
+    if (alert) {
+      return <Callout tone={alert.tone}>{alert.rest}</Callout>;
+    }
+    return (
+      <blockquote className="border-accent-base bg-bg-elevated/40 text-fg-base [&_p]:text-fg-base my-6 border-l-4 px-5 py-2">
+        {children}
+      </blockquote>
+    );
+  },
   code: ({ children, className }: ComponentPropsWithoutRef<'code'>) => {
     const isBlock =
       typeof className === 'string' && className.includes('language-');
@@ -106,12 +273,10 @@ const baseComponents: Components = {
     </div>
   ),
   thead: ({ children }) => <thead>{children}</thead>,
-  tbody: ({ children }) => (
-    <tbody className="[&>tr:hover]:bg-bg-elevated/60 [&>tr]:transition-colors">
-      {children}
-    </tbody>
+  tbody: ({ children }) => <tbody>{children}</tbody>,
+  tr: ({ children }) => (
+    <tr className="hover:bg-bg-elevated/70 transition-colors">{children}</tr>
   ),
-  tr: ({ children }) => <tr>{children}</tr>,
   th: ({ children }) => (
     <th className="border-border-base bg-bg-elevated text-fg-base border px-3 py-2 text-left font-semibold">
       {children}

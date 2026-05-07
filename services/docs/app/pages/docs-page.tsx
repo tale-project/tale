@@ -3,6 +3,7 @@ import { pageAsMarkdown } from '@tale/webui/llm/page-as-markdown';
 import { mintlifyComponents } from '@tale/webui/markdown/components/registry';
 import { extractToc } from '@tale/webui/markdown/extract-toc';
 import { Markdown } from '@tale/webui/markdown/markdown';
+import { readingTimeMinutes } from '@tale/webui/markdown/reading-time';
 import { useDocumentMeta } from '@tale/webui/seo/document-meta';
 import {
   buildArticleJsonLd,
@@ -18,6 +19,7 @@ import { EditOnGithub } from '@/app/components/docs/edit-on-github';
 import { getDocPage, listDocPages } from '@/lib/content/loader';
 import { flattenNav } from '@/lib/content/nav';
 import { docMarkdownUrl, docPath, docUrl, SITE_URL } from '@/lib/content/paths';
+import { useT } from '@/lib/i18n/client';
 import { BASE_LOCALES, type SupportedLocale } from '@/lib/i18n/locales';
 
 interface DocsPageProps {
@@ -80,6 +82,7 @@ function buildAlternates(
 }
 
 export function DocsPage({ locale, slug }: DocsPageProps) {
+  const { t } = useT('docs');
   const doc = getDocPage(locale, slug);
   const breadcrumbs = useMemo(
     () => buildBreadcrumbs(locale, slug),
@@ -91,6 +94,28 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
   const path = docPath(locale, slug);
   const url = docUrl(locale, slug);
   const markdownUrl = docMarkdownUrl(locale, slug);
+  const readingTime = useMemo(
+    () => (doc ? readingTimeMinutes(doc.body) : 0),
+    [doc],
+  );
+  // `updatedAt` isn't part of the typed `DocFrontmatter` shape yet, but pages
+  // can opt-in by adding an ISO-8601 string in their YAML front matter. We
+  // surface the date when present and otherwise hide that meta entry so the
+  // bar stays compact.
+  const updatedAtRaw = (doc?.frontmatter as { updatedAt?: unknown } | undefined)
+    ?.updatedAt;
+  const updatedAtIso =
+    typeof updatedAtRaw === 'string' && updatedAtRaw.length > 0
+      ? updatedAtRaw
+      : null;
+  const formattedUpdatedAt = useMemo(() => {
+    if (!updatedAtIso) return null;
+    const parsed = new Date(updatedAtIso);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(
+      parsed,
+    );
+  }, [locale, updatedAtIso]);
   const rawMarkdown = doc
     ? pageAsMarkdown({
         frontmatter: {
@@ -149,8 +174,8 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
     <div className="flex gap-10">
       <div className="min-w-0 flex-1">
         <DocsBreadcrumbs locale={locale} crumbs={breadcrumbs} />
-        <div className="flex items-start justify-between gap-4">
-          <header>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <header className="min-w-0 flex-1">
             <h1
               className="text-fg-base text-3xl font-semibold tracking-tight md:text-4xl"
               style={{ letterSpacing: '-0.4px', lineHeight: 1.15 }}
@@ -162,6 +187,15 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
                 {doc.frontmatter.description}
               </p>
             ) : null}
+            <p className="text-fg-subtle mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+              <span>{t('readingTime', { minutes: readingTime })}</span>
+              {formattedUpdatedAt ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{t('lastUpdated', { date: formattedUpdatedAt })}</span>
+                </>
+              ) : null}
+            </p>
           </header>
           <PageActions
             pageUrl={url}

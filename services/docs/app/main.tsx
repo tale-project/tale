@@ -1,3 +1,4 @@
+import '@fontsource-variable/inter';
 import { ThemeProvider } from '@tale/webui/theme';
 import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';

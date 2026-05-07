@@ -23,6 +23,7 @@
     "test:watch": "bunx vitest"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "5.2.8",
     "@tale/ui": "workspace:*",
     "@tale/webui": "workspace:*"
   },

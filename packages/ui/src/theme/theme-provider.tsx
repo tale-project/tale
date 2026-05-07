@@ -56,13 +56,18 @@ export function ThemeProvider({
   children,
   defaultTheme = 'system',
 }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>(defaultTheme);
-  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>('light');
+  // Lazy initializer reads localStorage on the very first render in the
+  // browser so React's first paint matches the pre-hydration inline script
+  // in index.html. On the server we fall back to `defaultTheme`.
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return defaultTheme;
+    return readStoredTheme();
+  });
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(() =>
+    getSystemTheme(),
+  );
 
   useEffect(() => {
-    setThemeState(readStoredTheme());
-    setSystemTheme(getSystemTheme());
-
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const onChange = (event: MediaQueryListEvent) => {
       setSystemTheme(event.matches ? 'dark' : 'light');

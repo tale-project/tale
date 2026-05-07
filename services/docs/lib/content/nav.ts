@@ -228,3 +228,45 @@ export function flattenNav(): { slug: string }[] {
   }
   return out;
 }
+
+/**
+ * Resolve the slug that comes before `slug` in the flattened nav order.
+ *
+ * Returns `null` if `slug` is the first page in the nav, or if `slug`
+ * is not present in the nav at all (e.g. an orphan markdown file).
+ *
+ * @example
+ * getPrevSlug('self-hosted/install/linux-server')
+ * // => 'self-hosted/install/quickstart'
+ *
+ * @example
+ * getPrevSlug('index')
+ * // => null  (first page)
+ */
+export function getPrevSlug(slug: string): string | null {
+  const flat = flattenNav();
+  const idx = flat.findIndex((p) => p.slug === slug);
+  if (idx <= 0) return null;
+  return flat[idx - 1]?.slug ?? null;
+}
+
+/**
+ * Resolve the slug that comes after `slug` in the flattened nav order.
+ *
+ * Returns `null` if `slug` is the last page in the nav, or if `slug`
+ * is not present in the nav at all (e.g. an orphan markdown file).
+ *
+ * @example
+ * getNextSlug('self-hosted/install/quickstart')
+ * // => 'self-hosted/install/linux-server'
+ *
+ * @example
+ * getNextSlug('develop/contributing-docker')
+ * // => null  (last page)
+ */
+export function getNextSlug(slug: string): string | null {
+  const flat = flattenNav();
+  const idx = flat.findIndex((p) => p.slug === slug);
+  if (idx === -1 || idx >= flat.length - 1) return null;
+  return flat[idx + 1]?.slug ?? null;
+}
