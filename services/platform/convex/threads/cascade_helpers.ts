@@ -30,9 +30,13 @@
 
 import { components } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
+import { createAuditLog } from '../audit_logs/helpers';
 import type { ActiveHolds } from '../governance/legal_hold';
 import { loadActiveHolds } from '../governance/legal_hold';
 import { parseSubThreadIds } from './delete_chat_thread';
+
+// Audit actions emitted by this file. Keep grep-able:
+//   chat_thread.cascade_skipped_hold
 
 const PAGE_SIZE = 200;
 
@@ -84,9 +88,25 @@ export async function cascadeDeleteThreadChildren(
   if (organizationId !== undefined) {
     const holds = args.holds ?? (await loadActiveHolds(ctx, organizationId));
     if (holds.orgHeld || holds.threadIds.has(threadId)) {
-      console.info(
-        `[cascade_helpers] thread ${threadId} on legal hold — skipping cascade`,
-      );
+      // Emit a real audit row so the chain reflects "we attempted to
+      // cascade and refused due to hold". Without this, the verifier /
+      // operator UI sees no record of the skip — only a console line —
+      // which makes "did this thread get deleted?" forensics fragile.
+      await createAuditLog(ctx, {
+        organizationId,
+        actorId: 'system',
+        actorType: 'system',
+        action: 'chat_thread.cascade_skipped_hold',
+        category: 'data',
+        resourceType: 'thread',
+        resourceId: threadId,
+        resourceName: threadId,
+        status: 'denied',
+        metadata: {
+          orgHeld: holds.orgHeld,
+          threadHeld: holds.threadIds.has(threadId),
+        },
+      });
       return { done: true, remaining: 0 };
     }
     // Stash for the sub-thread recursion below so we don't re-fetch.

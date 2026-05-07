@@ -2,6 +2,13 @@ import { ConvexError } from 'convex/values';
 
 import { components } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
+import { createAuditLog } from '../audit_logs/helpers';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+
+// Audit actions emitted by this file. Keep grep-able so future readers
+// can trace lifecycle events end-to-end.
+//   chat_thread.archived
+//   chat_thread.unarchived
 
 export async function archiveChatThread(
   ctx: MutationCtx,
@@ -27,6 +34,21 @@ export async function archiveChatThread(
 
   if (existing) {
     await ctx.db.patch(existing._id, { status: 'archived' });
+    if (existing.organizationId) {
+      const identity = await getAuthUserIdentity(ctx);
+      await createAuditLog(ctx, {
+        organizationId: existing.organizationId,
+        actorId: identity?.userId ?? 'system',
+        actorEmail: identity?.email,
+        actorType: identity ? 'user' : 'system',
+        action: 'chat_thread.archived',
+        category: 'data',
+        resourceType: 'thread',
+        resourceId: threadId,
+        resourceName: existing.title ?? threadId,
+        status: 'success',
+      });
+    }
   }
 }
 
@@ -63,7 +85,23 @@ export async function unarchiveChatThread(
         currentStatus: existing.status,
       });
     }
+    const wasArchived = existing.status === 'archived';
     await ctx.db.patch(existing._id, { status: 'active' });
+    if (wasArchived && existing.organizationId) {
+      const identity = await getAuthUserIdentity(ctx);
+      await createAuditLog(ctx, {
+        organizationId: existing.organizationId,
+        actorId: identity?.userId ?? 'system',
+        actorEmail: identity?.email,
+        actorType: identity ? 'user' : 'system',
+        action: 'chat_thread.unarchived',
+        category: 'data',
+        resourceType: 'thread',
+        resourceId: threadId,
+        resourceName: existing.title ?? threadId,
+        status: 'success',
+      });
+    }
   }
 
   await ctx.runMutation(components.agent.threads.updateThread, {

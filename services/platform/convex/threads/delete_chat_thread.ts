@@ -4,8 +4,14 @@ import { parseJson } from '../../lib/utils/type-cast-helpers';
 import { components, internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
 import type { ThreadSummaryWithSubThreads } from '../agent_tools/sub_agents/helpers/types';
+import { createAuditLog } from '../audit_logs/helpers';
 import { loadActiveHolds } from '../governance/legal_hold';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { cascadeDeleteThreadChildren } from './cascade_helpers';
+
+// Audit actions emitted by this file. Keep grep-able:
+//   chat_thread.trashed         — user-initiated soft delete (mode='user-trash')
+//   chat_thread.cascade_deleted — internal hard delete (mode='internal-cascade')
 
 /**
  * Mode determines what "delete" means for this thread:
@@ -65,6 +71,21 @@ export async function deleteChatThread(
     // cleanup). Bypasses Trash entirely; ephemeral internal artifacts
     // would otherwise pollute the user's Trash with rows they never
     // saw and can't reason about.
+    if (existing?.organizationId) {
+      // Audit BEFORE cascade — once cascade returns, the thread row is
+      // gone and we'd lose the orgId/title for the audit row.
+      await createAuditLog(ctx, {
+        organizationId: existing.organizationId,
+        actorId: 'system',
+        actorType: 'system',
+        action: 'chat_thread.cascade_deleted',
+        category: 'data',
+        resourceType: 'thread',
+        resourceId: threadId,
+        resourceName: existing.title ?? threadId,
+        status: 'success',
+      });
+    }
     await cascadeDeleteThreadChildren(ctx, {
       threadId,
       organizationId: existing?.organizationId,
@@ -93,6 +114,21 @@ export async function deleteChatThread(
         status: 'trashed',
         statusChangedAt: Date.now(),
       });
+      if (existing.organizationId) {
+        const identity = await getAuthUserIdentity(ctx);
+        await createAuditLog(ctx, {
+          organizationId: existing.organizationId,
+          actorId: identity?.userId ?? 'system',
+          actorEmail: identity?.email,
+          actorType: identity ? 'user' : 'system',
+          action: 'chat_thread.trashed',
+          category: 'data',
+          resourceType: 'thread',
+          resourceId: threadId,
+          resourceName: existing.title ?? threadId,
+          status: 'success',
+        });
+      }
     }
   }
 

@@ -28,10 +28,16 @@ import { ConvexError, v } from 'convex/values';
 
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
+import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
 import { loadActiveHolds } from '../governance/legal_hold';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+
+// Audit actions emitted by this file. Keep grep-able:
+//   chat_thread.restored_by_user
+//   chat_thread.restored_by_admin
+//   chat_thread.retention_override_restore
 
 export const restoreChatThread = mutation({
   args: {
@@ -127,17 +133,28 @@ export const restoreChatThread = mutation({
       patch: { status: 'active' },
     });
 
-    // Audit log writer is added in Bundle 1 follow-up; for now, console
-    // trail keeps the operation traceable in deploy logs.
-    const subtype =
+    const action =
       status === 'expired'
         ? 'chat_thread.retention_override_restore'
         : isOwner
           ? 'chat_thread.restored_by_user'
           : 'chat_thread.restored_by_admin';
-    console.info(
-      `[restoreChatThread] ${subtype} thread=${args.threadId} by=${userId} previousStatus=${status}`,
-    );
+    if (metadata.organizationId) {
+      await createAuditLog(ctx, {
+        organizationId: metadata.organizationId,
+        actorId: userId,
+        actorEmail: authUser.email ?? undefined,
+        actorType: 'user',
+        action,
+        category: 'data',
+        resourceType: 'thread',
+        resourceId: args.threadId,
+        resourceName: metadata.title ?? args.threadId,
+        status: 'success',
+        previousState: { status },
+        newState: { status: 'active' },
+      });
+    }
 
     return null;
   },
