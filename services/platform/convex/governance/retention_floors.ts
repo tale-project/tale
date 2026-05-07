@@ -212,14 +212,16 @@ function parseEnvNumber(name: string): number | null {
   if (raw === undefined || raw === '') return null;
   const n = Number.parseInt(raw, 10);
   if (!Number.isFinite(n) || n < 0) return null;
-  // `0` is rejected: there is no valid retention config that admits 0 days,
-  // and silently honoring `0` collapses `Math.min(code_max, 0) = 0`, which
-  // bricks every retention-policy save with `RETENTION_EXCEEDS_CEILING`.
-  // Treat as operator misconfiguration; fail loud.
+  // `0` is invalid (silently honoring it would collapse `Math.min(code_max, 0)
+  // = 0` and brick every retention save with `RETENTION_EXCEEDS_CEILING`).
+  // Throwing here would propagate uncaught through getRetentionBounds and
+  // brick every save / cleanup / bounds query deployment-wide on a single
+  // operator typo. Log loudly and fall back to the code default instead.
   if (n === 0) {
-    throw new Error(
-      `${name}=0 is not a valid retention bound. Unset the variable to use the code default, or set a positive integer.`,
+    console.error(
+      `[retention_floors] ${name}=0 is not a valid retention bound; ignoring and using code default. Unset the variable or set a positive integer.`,
     );
+    return null;
   }
   return n;
 }
