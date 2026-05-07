@@ -21,21 +21,38 @@ import {
  * `TALE_AUDIT_SIGNING_KEY_PREVIOUS` until the next rotation cycle).
  * `verify_integrity.ts` tries both during walk.
  */
+/**
+ * Signature payload schema version. v1 (the original) signed only the
+ * cut-window descriptor. v2 also binds `subtype` and `scrubbedSubjectId`,
+ * so an attacker who captures a `retention` checkpoint's HMAC cannot
+ * replay it as a forged `pii_scrub` checkpoint with an arbitrary subject
+ * id. Verifier dispatches by version; v1 stays valid for the lifetime
+ * of historical rows (audit chain is append-only).
+ */
+const SIGNATURE_VERSION = 2 as const;
+
 async function signCheckpoint(payload: {
   organizationId: string;
+  subtype: 'retention' | 'pii_scrub';
   lastDeletedHash: string;
   firstRetainedPreviousHash: string | undefined;
   maxDeletedTimestamp: number;
   deletedCount: number;
+  scrubbedSubjectId: string | undefined;
 }): Promise<string | undefined> {
   const key = process.env.TALE_AUDIT_SIGNING_KEY;
   if (!key) return undefined;
+  // v2 canonical form. Field order is significant — DO NOT reorder, and
+  // append new fields at the end if v3 is ever introduced. The verifier
+  // re-builds the same string from stored row fields.
   const canonical = JSON.stringify({
     organizationId: payload.organizationId,
     lastDeletedHash: payload.lastDeletedHash,
     firstRetainedPreviousHash: payload.firstRetainedPreviousHash ?? null,
     maxDeletedTimestamp: payload.maxDeletedTimestamp,
     deletedCount: payload.deletedCount,
+    subtype: payload.subtype,
+    scrubbedSubjectId: payload.scrubbedSubjectId ?? null,
   });
   const enc = new TextEncoder();
   const cryptoKey = await crypto.subtle.importKey(
@@ -185,18 +202,22 @@ export const deleteOldLogs = internalMutation({
       // chain row AND write a fresh checkpoint over it.
       const signature = await signCheckpoint({
         organizationId: args.organizationId,
+        subtype: 'retention',
         lastDeletedHash,
         firstRetainedPreviousHash: firstRetained?.previousHash,
         maxDeletedTimestamp,
         deletedCount,
+        scrubbedSubjectId: undefined,
       });
       await ctx.db.insert('auditLogCheckpoints', {
         organizationId: args.organizationId,
+        subtype: 'retention',
         lastDeletedHash,
         firstRetainedPreviousHash: firstRetained?.previousHash,
         maxDeletedTimestamp,
         deletedCount,
         signature,
+        signatureVersion: signature ? SIGNATURE_VERSION : undefined,
         createdAt: Date.now(),
       });
 
@@ -292,13 +313,19 @@ export const scrubSubjectAuditLogs = internalMutation({
     if (scrubbedRowCount === 0) return { scrubbedRowCount: 0 };
 
     // Insert a signed boundary so the verifier knows hash recomputes
-    // on scrubbed rows are expected to mismatch.
+    // on scrubbed rows are expected to mismatch. v2 binds `subtype` and
+    // `scrubbedSubjectId` into the HMAC payload so the signature
+    // attests *which* subject's rows the scrub authorized — without
+    // this, a captured retention HMAC could be replayed with arbitrary
+    // subject ids.
     const signature = await signCheckpoint({
       organizationId: args.organizationId,
+      subtype: 'pii_scrub',
       lastDeletedHash: lastScrubbedHash,
       firstRetainedPreviousHash: undefined,
       maxDeletedTimestamp: maxScrubbedTimestamp,
       deletedCount: scrubbedRowCount,
+      scrubbedSubjectId: args.userId,
     });
     await ctx.db.insert('auditLogCheckpoints', {
       organizationId: args.organizationId,
@@ -310,6 +337,7 @@ export const scrubSubjectAuditLogs = internalMutation({
       scrubbedSubjectId: args.userId,
       scrubbedRowCount,
       signature,
+      signatureVersion: signature ? SIGNATURE_VERSION : undefined,
       createdAt: now,
     });
 

@@ -43,6 +43,7 @@ interface CheckpointRow {
   scrubbedSubjectId?: string;
   scrubbedRowCount?: number;
   signature?: string;
+  signatureVersion?: 1 | 2;
   createdAt: number;
 }
 
@@ -70,15 +71,24 @@ function constantTimeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-function canonicalCheckpointPayload(row: {
-  organizationId: string;
-  lastDeletedHash: string;
-  firstRetainedPreviousHash?: string | undefined;
-  maxDeletedTimestamp: number;
-  deletedCount: number;
-}): string {
+function canonicalCheckpointPayload(row: CheckpointRow): string {
   // MUST mirror the canonicalization used by `signCheckpoint` in
   // audit_logs/internal_mutations.ts. Field order is significant.
+  // Dispatch by stored signatureVersion so historical v1 checkpoints
+  // keep verifying after the v2 upgrade. Default (no version field) is
+  // v1 — that's what every pre-upgrade row carries.
+  const version = row.signatureVersion ?? 1;
+  if (version === 2) {
+    return JSON.stringify({
+      organizationId: row.organizationId,
+      lastDeletedHash: row.lastDeletedHash,
+      firstRetainedPreviousHash: row.firstRetainedPreviousHash ?? null,
+      maxDeletedTimestamp: row.maxDeletedTimestamp,
+      deletedCount: row.deletedCount,
+      subtype: row.subtype ?? 'retention',
+      scrubbedSubjectId: row.scrubbedSubjectId ?? null,
+    });
+  }
   return JSON.stringify({
     organizationId: row.organizationId,
     lastDeletedHash: row.lastDeletedHash,
@@ -124,6 +134,24 @@ export const verifyIntegrity = query({
     valid: v.boolean(),
     verifiedCount: v.number(),
     checkpointsVerified: v.number(),
+    /**
+     * `true` when the walk hit `maxEntries` before consuming the live
+     * chain — caller should bump `maxEntries` or page from
+     * `lastVerifiedTimestamp + 1`. Without this flag, a long chain
+     * returned `valid: true` after only verifying the oldest 1000 rows,
+     * silently masking any tampering after that boundary.
+     */
+    truncated: v.boolean(),
+    /** Timestamp of the last row the walk verified — useful for paging. */
+    lastVerifiedTimestamp: v.optional(v.number()),
+    /**
+     * Count of rows that verified ONLY because their `piiScrubbed` flag
+     * was set without a corresponding signed scrub checkpoint covering
+     * them. When the deployment has a signing key, this should always
+     * be 0 in production; non-zero indicates legacy unsigned scrubs OR
+     * an attempted forgery against an unkeyed deployment.
+     */
+    unsignedScrubCount: v.number(),
     firstBrokenAt: v.optional(
       v.object({
         logId: v.string(),
@@ -157,6 +185,11 @@ export const verifyIntegrity = query({
     const maxEntries = args.maxEntries ?? 1000;
     let verifiedCount = 0;
     let checkpointsVerified = 0;
+    let unsignedScrubCount = 0;
+    let lastVerifiedTimestamp: number | undefined;
+    const signingKey = process.env[SIGNING_KEY_ENV];
+    const hasSigningKey =
+      typeof signingKey === 'string' && signingKey.length > 0;
 
     // 1. Load every checkpoint for this org, ordered by createdAt asc.
     //    Each represents a retention cut: rows older than the cut were
@@ -193,6 +226,9 @@ export const verifyIntegrity = query({
           valid: false,
           verifiedCount,
           checkpointsVerified,
+          truncated: false,
+          unsignedScrubCount,
+          lastVerifiedTimestamp,
           checkpointMismatch: {
             checkpointId: cp._id,
             reason: 'HMAC signature does not match the active or previous key.',
@@ -204,6 +240,9 @@ export const verifyIntegrity = query({
           valid: false,
           verifiedCount,
           checkpointsVerified,
+          truncated: false,
+          unsignedScrubCount,
+          lastVerifiedTimestamp,
           checkpointMismatch: {
             checkpointId: cp._id,
             reason:
@@ -214,7 +253,10 @@ export const verifyIntegrity = query({
       checkpointsVerified++;
     }
 
-    // 3. Load the live chain (oldest first) up to `maxEntries`.
+    // 3. Load the live chain (oldest first) up to `maxEntries`. Track
+    //    truncation explicitly: returning `valid: true` for a long
+    //    chain that we only walked the head of would silently mask
+    //    tampering past the cut.
     const entries: Array<{
       _id: string;
       timestamp: number;
@@ -222,14 +264,18 @@ export const verifyIntegrity = query({
       previousHash?: string;
       [key: string]: unknown;
     }> = [];
+    let truncated = false;
     for await (const log of ctx.db
       .query('auditLogs')
       .withIndex('by_organizationId_and_timestamp', (q) =>
         q.eq('organizationId', args.organizationId),
       )
       .order('asc')) {
+      if (entries.length >= maxEntries) {
+        truncated = true;
+        break;
+      }
       entries.push({ ...log, _id: String(log._id) });
-      if (entries.length >= maxEntries) break;
     }
 
     // 4. Re-anchor across deletion boundaries. The chain head's
@@ -244,19 +290,46 @@ export const verifyIntegrity = query({
     let previousExpectedHash = '';
     let isFirstEntry = true;
 
-    // Build a Set of subject ids that have been audit-PII-scrubbed for
-    // this org so we can skip hash recompute on those rows. The
-    // verifier still walks past them; the previousExpectedHash chain
-    // continues from their stored integrityHash (the row's _existence_
-    // and chain order is preserved by the scrub, only the body is
-    // blanked, and the integrityHash field on disk reflects the
-    // pre-scrub canonical, which the chain forward-link still uses).
-    const scrubbedSubjects = new Set<string>();
+    // Build per-subject scrub windows from SIGNED pii_scrub checkpoints
+    // only. A row carrying `actorId === X` is allowed to skip hash
+    // recompute only when there is a signed checkpoint covering
+    // `(X, timestamp ≤ maxDeletedTimestamp)`. Without this scoping
+    // (the prior membership-only Set), a single pii_scrub checkpoint
+    // for subject X authorized hash skip on every row that subject ever
+    // touched, including future rows the checkpoint never attested.
+    // Unsigned legacy scrub checkpoints are tracked separately below.
+    type ScrubWindow = { maxTimestamp: number; checkpointId: string };
+    const subjectScrubWindows = new Map<string, ScrubWindow[]>();
+    const unsignedScrubSubjects = new Set<string>();
     for (const cp of checkpoints) {
-      if (cp.subtype === 'pii_scrub' && cp.scrubbedSubjectId !== undefined) {
-        scrubbedSubjects.add(cp.scrubbedSubjectId);
+      if (cp.subtype !== 'pii_scrub' || cp.scrubbedSubjectId === undefined) {
+        continue;
+      }
+      if (cp.signature) {
+        const list = subjectScrubWindows.get(cp.scrubbedSubjectId) ?? [];
+        list.push({
+          maxTimestamp: cp.maxDeletedTimestamp,
+          checkpointId: cp._id,
+        });
+        subjectScrubWindows.set(cp.scrubbedSubjectId, list);
+      } else {
+        // Pre-signing-key checkpoints (or deployments that never set
+        // TALE_AUDIT_SIGNING_KEY) cannot attest the scrub authority.
+        // We still let the verifier accept them (otherwise upgrading to
+        // signed checkpoints would fail every historical chain), but
+        // the count surfaces in the return so operators see the
+        // unsigned trust window.
+        unsignedScrubSubjects.add(cp.scrubbedSubjectId);
       }
     }
+
+    // Anchor pick: the most recent checkpoint (highest createdAt) that
+    // matches the head's previousHash. `Array.find` would have picked
+    // the OLDEST match, allowing an attacker to delete mid-chain rows
+    // and re-anchor to a stale checkpoint. Sort once, descending.
+    const anchorCandidates = [...checkpoints].sort(
+      (a, b) => b.createdAt - a.createdAt,
+    );
 
     for (const entry of entries) {
       if (!entry.integrityHash) {
@@ -277,19 +350,48 @@ export const verifyIntegrity = query({
 
       // Scrubbed rows: chain order + previousHash linkage stays intact,
       // but recomputing the SHA-256 over the now-blanked body would
-      // mismatch. Trust the stored integrityHash (boundary attested by
-      // the corresponding pii_scrub checkpoint) and continue the walk.
-      const isScrubbed =
-        piiScrubbed === true ||
-        (typeof entry.actorId === 'string' &&
-          scrubbedSubjects.has(entry.actorId));
+      // mismatch. Trust the stored integrityHash only when there is a
+      // signed pii_scrub checkpoint whose subject matches this row's
+      // actorId AND whose maxDeletedTimestamp is at or after this row.
+      // A bare `piiScrubbed: true` flag with no covering window is
+      // suspicious and fails closed (recompute), unless the deployment
+      // has no signing key configured at all (legacy unsigned mode).
+      const actorId = typeof entry.actorId === 'string' ? entry.actorId : null;
+      let isScrubbed = false;
+      if (piiScrubbed === true || actorId !== null) {
+        if (actorId !== null) {
+          const windows = subjectScrubWindows.get(actorId);
+          if (
+            windows &&
+            windows.some((w) => entry.timestamp <= w.maxTimestamp)
+          ) {
+            isScrubbed = true;
+          } else if (
+            piiScrubbed === true &&
+            unsignedScrubSubjects.has(actorId)
+          ) {
+            isScrubbed = true;
+            unsignedScrubCount++;
+          } else if (piiScrubbed === true && !hasSigningKey) {
+            // No signing key configured at all — accept the legacy
+            // unsigned scrub but surface in the count. Operators who
+            // configure a key after this point will see this go to 0.
+            isScrubbed = true;
+            unsignedScrubCount++;
+          }
+        } else if (piiScrubbed === true && !hasSigningKey) {
+          isScrubbed = true;
+          unsignedScrubCount++;
+        }
+      }
 
       if (isFirstEntry) {
         // Anchor the head: if previousHash references a row that no
-        // longer exists, look for a checkpoint whose `lastDeletedHash`
-        // matches. That's the cut where the prior row was deleted.
+        // longer exists, look for the MOST RECENT checkpoint whose
+        // anchor hashes match. Picking any match (Array.find) would let
+        // an attacker re-anchor a forged head to a stale checkpoint.
         if (entryPreviousHash !== '') {
-          const anchor = checkpoints.find(
+          const anchor = anchorCandidates.find(
             (cp) =>
               cp.firstRetainedPreviousHash === entryPreviousHash ||
               cp.lastDeletedHash === entryPreviousHash,
@@ -299,6 +401,9 @@ export const verifyIntegrity = query({
               valid: false,
               verifiedCount,
               checkpointsVerified,
+              truncated,
+              unsignedScrubCount,
+              lastVerifiedTimestamp,
               firstBrokenAt: {
                 logId: _id,
                 timestamp: entry.timestamp,
@@ -317,6 +422,9 @@ export const verifyIntegrity = query({
           valid: false,
           verifiedCount,
           checkpointsVerified,
+          truncated,
+          unsignedScrubCount,
+          lastVerifiedTimestamp,
           firstBrokenAt: {
             logId: _id,
             timestamp: entry.timestamp,
@@ -333,6 +441,9 @@ export const verifyIntegrity = query({
             valid: false,
             verifiedCount,
             checkpointsVerified,
+            truncated,
+            unsignedScrubCount,
+            lastVerifiedTimestamp,
             firstBrokenAt: {
               logId: _id,
               timestamp: entry.timestamp,
@@ -344,9 +455,17 @@ export const verifyIntegrity = query({
       }
 
       previousExpectedHash = integrityHash;
+      lastVerifiedTimestamp = entry.timestamp;
       verifiedCount++;
     }
 
-    return { valid: true, verifiedCount, checkpointsVerified };
+    return {
+      valid: true,
+      verifiedCount,
+      checkpointsVerified,
+      truncated,
+      unsignedScrubCount,
+      lastVerifiedTimestamp,
+    };
   },
 });
