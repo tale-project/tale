@@ -16,10 +16,12 @@ import { Route as ContactRouteImport } from './routes/contact';
 import { Route as LangRouteImport } from './routes/$lang';
 import { Route as IndexRouteImport } from './routes/index';
 import { Route as LangIndexRouteImport } from './routes/$lang/index';
+import { Route as LegalSlugRouteImport } from './routes/legal/$slug';
 import { Route as LangRequestDemoRouteImport } from './routes/$lang/request-demo';
 import { Route as LangPricingRouteImport } from './routes/$lang/pricing';
 import { Route as LangHardwarePricingRouteImport } from './routes/$lang/hardware-pricing';
 import { Route as LangContactRouteImport } from './routes/$lang/contact';
+import { Route as LangLegalSlugRouteImport } from './routes/$lang/legal/$slug';
 
 const RequestDemoRoute = RequestDemoRouteImport.update({
   id: '/request-demo',
@@ -56,6 +58,11 @@ const LangIndexRoute = LangIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LangRoute,
 } as any);
+const LegalSlugRoute = LegalSlugRouteImport.update({
+  id: '/legal/$slug',
+  path: '/legal/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const LangRequestDemoRoute = LangRequestDemoRouteImport.update({
   id: '/request-demo',
   path: '/request-demo',
@@ -76,6 +83,11 @@ const LangContactRoute = LangContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => LangRoute,
 } as any);
+const LangLegalSlugRoute = LangLegalSlugRouteImport.update({
+  id: '/legal/$slug',
+  path: '/legal/$slug',
+  getParentRoute: () => LangRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
@@ -88,7 +100,9 @@ export interface FileRoutesByFullPath {
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
+  '/legal/$slug': typeof LegalSlugRoute;
   '/$lang/': typeof LangIndexRoute;
+  '/$lang/legal/$slug': typeof LangLegalSlugRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
@@ -100,7 +114,9 @@ export interface FileRoutesByTo {
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
+  '/legal/$slug': typeof LegalSlugRoute;
   '/$lang': typeof LangIndexRoute;
+  '/$lang/legal/$slug': typeof LangLegalSlugRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -114,7 +130,9 @@ export interface FileRoutesById {
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
   '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
+  '/legal/$slug': typeof LegalSlugRoute;
   '/$lang/': typeof LangIndexRoute;
+  '/$lang/legal/$slug': typeof LangLegalSlugRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -129,7 +147,9 @@ export interface FileRouteTypes {
     | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
-    | '/$lang/';
+    | '/legal/$slug'
+    | '/$lang/'
+    | '/$lang/legal/$slug';
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
@@ -141,7 +161,9 @@ export interface FileRouteTypes {
     | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
-    | '/$lang';
+    | '/legal/$slug'
+    | '/$lang'
+    | '/$lang/legal/$slug';
   id:
     | '__root__'
     | '/'
@@ -154,7 +176,9 @@ export interface FileRouteTypes {
     | '/$lang/hardware-pricing'
     | '/$lang/pricing'
     | '/$lang/request-demo'
-    | '/$lang/';
+    | '/legal/$slug'
+    | '/$lang/'
+    | '/$lang/legal/$slug';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -164,6 +188,7 @@ export interface RootRouteChildren {
   HardwarePricingRoute: typeof HardwarePricingRoute;
   PricingRoute: typeof PricingRoute;
   RequestDemoRoute: typeof RequestDemoRoute;
+  LegalSlugRoute: typeof LegalSlugRoute;
 }
 
 declare module '@tanstack/react-router' {
@@ -217,6 +242,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangIndexRouteImport;
       parentRoute: typeof LangRoute;
     };
+    '/legal/$slug': {
+      id: '/legal/$slug';
+      path: '/legal/$slug';
+      fullPath: '/legal/$slug';
+      preLoaderRoute: typeof LegalSlugRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/$lang/request-demo': {
       id: '/$lang/request-demo';
       path: '/request-demo';
@@ -245,6 +277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangContactRouteImport;
       parentRoute: typeof LangRoute;
     };
+    '/$lang/legal/$slug': {
+      id: '/$lang/legal/$slug';
+      path: '/legal/$slug';
+      fullPath: '/$lang/legal/$slug';
+      preLoaderRoute: typeof LangLegalSlugRouteImport;
+      parentRoute: typeof LangRoute;
+    };
   }
 }
 
@@ -254,6 +293,7 @@ interface LangRouteChildren {
   LangPricingRoute: typeof LangPricingRoute;
   LangRequestDemoRoute: typeof LangRequestDemoRoute;
   LangIndexRoute: typeof LangIndexRoute;
+  LangLegalSlugRoute: typeof LangLegalSlugRoute;
 }
 
 const LangRouteChildren: LangRouteChildren = {
@@ -262,6 +302,7 @@ const LangRouteChildren: LangRouteChildren = {
   LangPricingRoute: LangPricingRoute,
   LangRequestDemoRoute: LangRequestDemoRoute,
   LangIndexRoute: LangIndexRoute,
+  LangLegalSlugRoute: LangLegalSlugRoute,
 };
 
 const LangRouteWithChildren = LangRoute._addFileChildren(LangRouteChildren);
@@ -273,6 +314,7 @@ const rootRouteChildren: RootRouteChildren = {
   HardwarePricingRoute: HardwarePricingRoute,
   PricingRoute: PricingRoute,
   RequestDemoRoute: RequestDemoRoute,
+  LegalSlugRoute: LegalSlugRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

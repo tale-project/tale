@@ -32,6 +32,11 @@
     "homeAriaLabel": "Tale home",
     "skipToMain": "Skip to main content"
   },
+  "legal": {
+    "downloadPdf": "Download PDF",
+    "downloadPdfAria": "Download {title} as PDF",
+    "notFound": "This document is not available."
+  },
   "footer": {
     "product": "Product",
     "resources": "Resources",
@@ -227,7 +232,7 @@
       "name": "Enterprise",
       "deployment": "Cloud or self-hosted",
       "priceSuffix": "/month + VAT",
-      "storageAddOn": "+ {price}/TB/month additional storage",
+      "storageAddOn": "1 TB + {price}/TB/month additional storage",
       "userBreakdown": "{count} users × {perUser}/user/month",
       "tagline": "Fully managed, scalable, and production-ready — built for mission-critical private AI.",
       "cta": "Contact us",
@@ -298,12 +303,13 @@
       },
       "hardware": {
         "title": "Hardware",
-        "description": "For self-hosting, we offer flexible hardware options — renting, buying, or financing.",
-        "cta": "Hardware pricing"
+        "prefix": "For self-hosting, we offer",
+        "linkLabel": "flexible hardware options",
+        "suffix": " — renting, buying, or financing."
       },
       "cloudProviders": {
         "title": "Cloud AI providers",
-        "description": "We support all major cloud AI providers in EU/CH — better pricing, higher uptime, and usage-based billing."
+        "description": "We support OpenAI, Anthropic, Gemini, and other major cloud AI providers in EU/CH — better pricing, higher uptime, and usage-based billing."
       }
     },
     "terms": {
@@ -395,8 +401,8 @@
     "extras": {
       "software": {
         "title": "Software & services",
-        "description": "For installation, support, and professional services, we offer flexible options. See our",
-        "linkLabel": "pricing",
+        "prefix": "For installation, support, and professional services, we offer",
+        "linkLabel": "flexible options",
         "suffix": "."
       }
     },

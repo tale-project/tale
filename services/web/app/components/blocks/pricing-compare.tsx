@@ -188,20 +188,14 @@ export function PricingCompare({ region }: PricingCompareProps) {
       },
     },
     {
-      kind: 'data',
+      kind: 'span',
       label: t('compare.categories.customDevelopment'),
-      cells: {
-        community: text(hourlyRate),
-        enterprise: text(hourlyRate),
-      },
+      content: hourlyRate,
     },
     {
-      kind: 'data',
+      kind: 'span',
       label: t('compare.categories.consulting'),
-      cells: {
-        community: text(hourlyRate),
-        enterprise: text(hourlyRate),
-      },
+      content: hourlyRate,
     },
     {
       kind: 'data',
@@ -232,14 +226,14 @@ export function PricingCompare({ region }: PricingCompareProps) {
       label: t('extras.hardware.title'),
       content: (
         <>
-          {t('extras.hardware.description').replace(/\s*$/, '')}{' '}
+          {t('extras.hardware.prefix')}{' '}
           <LocalizedLink
             to="/hardware-pricing"
             className="text-fg-base font-medium underline underline-offset-4"
           >
-            {t('extras.hardware.cta')}
+            {t('extras.hardware.linkLabel')}
           </LocalizedLink>
-          .
+          {t('extras.hardware.suffix')}
         </>
       ),
     },

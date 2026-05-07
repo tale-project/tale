@@ -10,6 +10,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { enumerateLegalRoutes } from './legal-routes';
+
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SCRIPT_DIR, '..');
 const DIST = resolve(ROOT, 'dist');
@@ -21,7 +23,7 @@ interface RouteSeo {
   description: string;
 }
 
-const ROUTES: RouteSeo[] = [
+const STATIC_ROUTES: RouteSeo[] = [
   {
     url: '/',
     title: 'Tale: The Sovereign AI Platform',
@@ -105,7 +107,16 @@ async function main(): Promise<void> {
     render: (url: string) => Promise<{ html: string }>;
   };
 
-  for (const route of ROUTES) {
+  const legalRoutes: RouteSeo[] = (await enumerateLegalRoutes()).map(
+    (route) => ({
+      url: route.url,
+      title: route.title ? `${route.title} | Tale` : 'Tale',
+      description: route.description,
+    }),
+  );
+  const routes: RouteSeo[] = [...STATIC_ROUTES, ...legalRoutes];
+
+  for (const route of routes) {
     process.stdout.write(`prerender ${route.url} ... `);
     const { html } = await mod.render(route.url);
     const withSeo = injectSeo(template, route);

@@ -64,7 +64,7 @@ export function HardwareCompare() {
       label: t('extras.software.title'),
       content: (
         <>
-          {t('extras.software.description')}{' '}
+          {t('extras.software.prefix')}{' '}
           <LocalizedLink
             to="/pricing"
             className="text-fg-base font-medium underline underline-offset-4"
