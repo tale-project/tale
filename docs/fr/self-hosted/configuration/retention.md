@@ -14,25 +14,24 @@ La rétention peut être configurée à deux endroits :
 
 Elles s'appliquent à toutes les organisations du déploiement. Toutes les valeurs sont en jours sauf indication contraire. Couplez `_MIN_DAYS` et `_MAX_DAYS` par catégorie — les opérateurs peuvent resserrer les valeurs par défaut mais jamais les assouplir.
 
-| Variable                                               | Min défaut | Max défaut | Régit                                                                                                                           |
-| ------------------------------------------------------ | ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `TALE_RETENTION_CONVERSATIONS_MIN_DAYS` / `_MAX_DAYS`  | `1`        | `3650`     | Conversations et leurs messages.                                                                                                |
-| `TALE_RETENTION_FILES_MIN_DAYS` / `_MAX_DAYS`          | `30`       | `3650`     | Fichiers téléversés (chat ou base de connaissances).                                                                            |
-| `TALE_RETENTION_AUDIT_MIN_DAYS` / `_MAX_DAYS`          | `365`      | `3650`     | Entrées de journal d'audit. Min codé en dur à 365 j (PCI/SOC2/ISO baseline) — l'opérateur ne peut qu'AUGMENTER.                 |
-| `TALE_RETENTION_EXECUTIONS_MIN_DAYS` / `_MAX_DAYS`     | `1`        | `365`      | Détails d'exécution de workflow.                                                                                                |
-| `TALE_RETENTION_ANALYTICS_MIN_DAYS` / `_MAX_DAYS`      | `30`       | `3650`     | Lignes analytiques par requête.                                                                                                 |
-| `TALE_RETENTION_LOGIN_ATTEMPTS_MIN_DAYS` / `_MAX_DAYS` | `90`       | `365`      | Enregistrements forensiques d'échecs de connexion. Min relevé à 90 j.                                                           |
-| `TALE_RETENTION_CHAT_FILTER_MIN_DAYS` / `_MAX_DAYS`    | `1`        | `365`      | Télémétrie chat-filter (PII / liste de mots / modération).                                                                      |
-| `TALE_RETENTION_PROMPTS_MIN_DAYS` / `_MAX_DAYS`        | `30`       | `3650`     | Modèles de prompts enregistrés (org-scope).                                                                                     |
-| `TALE_RETENTION_FEEDBACK_MIN_DAYS` / `_MAX_DAYS`       | `30`       | `3650`     | Feedbacks par message. Peut contenir du contenu utilisateur cité.                                                               |
-| `TALE_RETENTION_MEMORY_AUDIT_MIN_DAYS` / `_MAX_DAYS`   | `30`       | `3650`     | Journal des changements de la mémoire de personnalisation.                                                                      |
-| `TALE_RETENTION_CUSTOMERS_MIN_DAYS` / `_MAX_DAYS`      | `30`       | `3650`     | Fiches client CRM (nom, e-mail, adresse, locale, métadonnées).                                                                  |
-| `TALE_RETENTION_VENDORS_MIN_DAYS` / `_MAX_DAYS`        | `30`       | `3650`     | Fiches fournisseurs (nom, e-mail, téléphone, adresse, notes).                                                                   |
-| `TALE_RETENTION_INBOX_MIN_DAYS` / `_MAX_DAYS`          | `30`       | `3650`     | Boîte de réception canal client externe (intégrations e-mail/chat) + corps de messages cascadés.                                |
-| `TALE_RETENTION_MSG_META_MIN_DAYS` / `_MAX_DAYS`       | `30`       | `3650`     | Raisonnement par message, fenêtre de contexte de prompt, E/S d'outils. Données dérivées à fort PII.                             |
-| `TALE_RETENTION_USER_TEMP_MIN_HOURS` / `_MAX_HOURS`    | `1`        | `720`      | Fichiers temporaires côté utilisateur (heures).                                                                                 |
-| `TALE_RETENTION_AGENT_TEMP_MIN_HOURS` / `_MAX_HOURS`   | `1`        | `720`      | Fichiers temporaires côté agent (heures).                                                                                       |
-| `TALE_RETENTION_DISABLED`                              | `false`    | —          | Lorsque `true`, le job de nettoyage est no-op avec un warn-log. Coupe-circuit opérateur pour les fenêtres de migration / debug. |
+| Variable                                              | Min défaut | Max défaut | Régit                                                                                                                           |
+| ----------------------------------------------------- | ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `TALE_RETENTION_CONVERSATIONS_MIN_DAYS` / `_MAX_DAYS` | `1`        | `3650`     | Conversations et leurs messages.                                                                                                |
+| `TALE_RETENTION_FILES_MIN_DAYS` / `_MAX_DAYS`         | `30`       | `3650`     | Fichiers téléversés (chat ou base de connaissances).                                                                            |
+| `TALE_RETENTION_AUDIT_MIN_DAYS` / `_MAX_DAYS`         | `365`      | `3650`     | Entrées de journal d'audit. Min codé en dur à 365 j (PCI/SOC2/ISO baseline) — l'opérateur ne peut qu'AUGMENTER.                 |
+| `TALE_RETENTION_EXECUTIONS_MIN_DAYS` / `_MAX_DAYS`    | `1`        | `365`      | Détails d'exécution de workflow.                                                                                                |
+| `TALE_RETENTION_ANALYTICS_MIN_DAYS` / `_MAX_DAYS`     | `30`       | `3650`     | Lignes analytiques par requête.                                                                                                 |
+| `TALE_RETENTION_CHAT_FILTER_MIN_DAYS` / `_MAX_DAYS`   | `1`        | `365`      | Télémétrie chat-filter (PII / liste de mots / modération).                                                                      |
+| `TALE_RETENTION_PROMPTS_MIN_DAYS` / `_MAX_DAYS`       | `30`       | `3650`     | Modèles de prompts enregistrés (org-scope).                                                                                     |
+| `TALE_RETENTION_FEEDBACK_MIN_DAYS` / `_MAX_DAYS`      | `30`       | `3650`     | Feedbacks par message. Peut contenir du contenu utilisateur cité.                                                               |
+| `TALE_RETENTION_MEMORY_AUDIT_MIN_DAYS` / `_MAX_DAYS`  | `30`       | `3650`     | Journal des changements de la mémoire de personnalisation.                                                                      |
+| `TALE_RETENTION_CUSTOMERS_MIN_DAYS` / `_MAX_DAYS`     | `30`       | `3650`     | Fiches client CRM (nom, e-mail, adresse, locale, métadonnées).                                                                  |
+| `TALE_RETENTION_VENDORS_MIN_DAYS` / `_MAX_DAYS`       | `30`       | `3650`     | Fiches fournisseurs (nom, e-mail, téléphone, adresse, notes).                                                                   |
+| `TALE_RETENTION_INBOX_MIN_DAYS` / `_MAX_DAYS`         | `30`       | `3650`     | Boîte de réception canal client externe (intégrations e-mail/chat) + corps de messages cascadés.                                |
+| `TALE_RETENTION_MSG_META_MIN_DAYS` / `_MAX_DAYS`      | `30`       | `3650`     | Raisonnement par message, fenêtre de contexte de prompt, E/S d'outils. Données dérivées à fort PII.                             |
+| `TALE_RETENTION_USER_TEMP_MIN_HOURS` / `_MAX_HOURS`   | `1`        | `720`      | Fichiers temporaires côté utilisateur (heures).                                                                                 |
+| `TALE_RETENTION_AGENT_TEMP_MIN_HOURS` / `_MAX_HOURS`  | `1`        | `720`      | Fichiers temporaires côté agent (heures).                                                                                       |
+| `TALE_RETENTION_DISABLED`                             | `false`    | —          | Lorsque `true`, le job de nettoyage est no-op avec un warn-log. Coupe-circuit opérateur pour les fenêtres de migration / debug. |
 
 Les changements aux variables d'environnement prennent effet au **prochain redémarrage du backend** (`docker compose restart tale-convex`) — Convex met l'env en cache au démarrage du processus.
 
