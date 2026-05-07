@@ -657,12 +657,30 @@ export const bulkPlaceLegalHold = mutation({
     }> = [];
     const now = Date.now();
 
+    // Org-target dual-control gate: the single-place handler refuses
+    // `targetType: 'org'` unless TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true (a
+    // whole-org hold halts ALL retention for that tenant). Without
+    // re-running the gate here, a single admin could freeze the entire
+    // tenant by passing one `{targetType: 'org', ...}` entry through the
+    // bulk path. Read the env once outside the loop.
+    const singleAdminOk = process.env[SINGLE_ADMIN_OK_ENV] === 'true';
+
     for (const h of args.holds) {
       if (!h.reason.trim()) {
         skipped.push({
           targetType: h.targetType,
           targetId: h.targetId,
           reason: 'reason is required',
+        });
+        continue;
+      }
+      if (h.targetType === 'org' && !singleAdminOk) {
+        skipped.push({
+          targetType: h.targetType,
+          targetId: h.targetId,
+          reason:
+            'org-scoped holds require dual-control; use placeLegalHold or set ' +
+            `${SINGLE_ADMIN_OK_ENV}=true`,
         });
         continue;
       }
@@ -684,7 +702,7 @@ export const bulkPlaceLegalHold = mutation({
         });
         continue;
       }
-      await ctx.db.insert('legalHolds', {
+      const holdId = await ctx.db.insert('legalHolds', {
         organizationId: args.organizationId,
         targetType: h.targetType,
         targetId: h.targetId,
@@ -692,6 +710,28 @@ export const bulkPlaceLegalHold = mutation({
         matterRef: h.matterRef,
         placedBy: callerId,
         placedAt: now,
+      });
+      // Per-target audit row matching the single-place pattern. Without
+      // these, the bulk path leaves no per-hold record in the chain — only
+      // the summary row below — so a regulator asking "who placed this
+      // hold?" can only see "someone bulk-placed N at time T".
+      await createAuditLog(ctx, {
+        organizationId: args.organizationId,
+        actorId: callerId,
+        actorEmail: authUser.email ?? '',
+        actorType: 'user',
+        action: 'legal_hold_placed',
+        category: 'admin',
+        resourceType: h.targetType,
+        resourceId: h.targetId,
+        resourceName: h.targetId,
+        status: 'success',
+        newState: {
+          reason: h.reason.trim(),
+          matterRef: h.matterRef,
+          holdId,
+          via: 'bulk',
+        },
       });
       placed++;
     }
