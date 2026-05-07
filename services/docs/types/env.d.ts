@@ -6,7 +6,7 @@ interface ImportMetaEnv {
   readonly VITE_DOCS_BRANCH?: string;
   /**
    * Base URL of the GitHub repository (no trailing slash). The "Edit on
-   * GitHub" links append `/edit/<branch>/services/docs/app/content/<path>`.
+   * GitHub" links append `/edit/<branch>/docs/<path>`.
    * Defaults to the public Tale repo.
    */
   readonly VITE_DOCS_REPO_URL?: string;

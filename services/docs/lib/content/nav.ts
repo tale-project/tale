@@ -5,7 +5,7 @@
  *
  * Group labels resolve through the `nav.groups.*` namespace in the docs
  * message bundles so each locale renders its own copy. Slugs match the
- * on-disk layout under `app/content/<locale>/`. The navigation-parity
+ * on-disk layout under `/docs/<locale>/`. The navigation-parity
  * test (`tests/navigation-parity.test.ts`) checks that every entry
  * resolves to a real markdown file in every base locale.
  */

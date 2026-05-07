@@ -3,16 +3,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Helpers shared by the docs test suite. After the migration off Mintlify,
- * doc pages live under `services/docs/app/content/<locale>/...md` instead
- * of at the workspace root. The walker only ever descends into that
- * content tree.
+ * Helpers shared by the docs test suite. Doc pages live under `/docs/<locale>/...md`
+ * at the workspace root; the docs service lives at `services/docs/`. The walker
+ * only ever descends into the content tree.
  */
 export const DOCS_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
 );
-export const CONTENT_ROOT = path.join(DOCS_ROOT, 'app', 'content');
+export const CONTENT_ROOT = path.resolve(DOCS_ROOT, '..', '..', 'docs');
 
 const LOCALE_PATTERN = /^[a-z]{2}(?:-[A-Z]{2})?$/;
 
@@ -34,7 +33,7 @@ export function walkDocs(
   return out;
 }
 
-/** Top-level locale subdirectories under `app/content/`. */
+/** Top-level locale subdirectories under `/docs/`. */
 export function discoverLocales(): string[] {
   const out: string[] = [];
   if (!fs.existsSync(CONTENT_ROOT)) return out;

@@ -10,7 +10,7 @@ interface EditOnGithubProps {
 
 const DEFAULT_REPO_URL = 'https://github.com/tale-project/tale';
 const DEFAULT_BRANCH = 'main';
-const CONTENT_PATH_PREFIX = 'services/docs/app/content/';
+const CONTENT_PATH_PREFIX = 'docs/';
 
 // Resolve the repo URL and branch from Vite-exposed env vars so operators can
 // deploy preview/staging docs that link back to the right branch (or a fork).

@@ -53,7 +53,7 @@ function buildDocumentMap(
 ): Map<string, DocPage> {
   const out = new Map<string, DocPage>();
   for (const [path, raw] of Object.entries(rawModules)) {
-    const match = /\/content\/([^/]+)\/(.+)\.mdx?$/.exec(path);
+    const match = /\/docs\/([^/]+)\/(.+)\.mdx?$/.exec(path);
     if (!match) continue;
     const [, locale, slug] = match;
     if (!isLocale(locale)) continue;
@@ -71,7 +71,7 @@ function buildDocumentMap(
 async function loadDocuments(): Promise<Map<string, DocPage>> {
   if (SSR) {
     const eager: Record<string, string> = import.meta.glob(
-      '../../app/content/**/*.{md,mdx}',
+      '../../../../docs/**/*.{md,mdx}',
       { query: '?raw', import: 'default', eager: true },
     );
     return buildDocumentMap(eager);
@@ -79,7 +79,7 @@ async function loadDocuments(): Promise<Map<string, DocPage>> {
   // Client build: produce one dynamic chunk per markdown file and resolve them
   // all in parallel. Without `eager: true`, Vite emits each `.md`/`.mdx` as a
   // separate JS module that the main bundle imports on demand.
-  const lazy = import.meta.glob('../../app/content/**/*.{md,mdx}', {
+  const lazy = import.meta.glob('../../../../docs/**/*.{md,mdx}', {
     query: '?raw',
     import: 'default',
   }) as unknown as Record<string, () => Promise<string>>;

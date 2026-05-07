@@ -30,7 +30,7 @@ Paste this into the PR description. Empty boxes get rejected.
 
 - [ ] Ran `bun run check` (format, lint, typecheck, all tests).
 - [ ] Updated `services/platform/messages/{en,de,fr}.json` — or N/A.
-- [ ] Updated `services/docs/app/content/{en,de,fr}/` for every user-visible change — or N/A.
+- [ ] Updated `/docs/{en,de,fr}/` for every user-visible change — or N/A.
 - [ ] Ran `bun run --filter @tale/docs lint` and `bun run --filter @tale/docs test` — or N/A.
 - [ ] Updated [`README.md`](README.md), [`README.de.md`](README.de.md), [`README.fr.md`](README.fr.md) — or N/A.
 

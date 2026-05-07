@@ -10,6 +10,12 @@ export default defineConfig({
   },
   server: {
     port: 3002,
+    fs: {
+      // Markdown content lives at the workspace root (`/docs`), one level above
+      // this service. Allow Vite to serve files from the parent directories so
+      // `import.meta.glob('../../../../docs/**/*.md')` resolves during dev.
+      allow: ['../..'],
+    },
   },
   optimizeDeps: {
     include: [

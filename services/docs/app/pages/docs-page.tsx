@@ -12,7 +12,6 @@ import {
 import { useMemo } from 'react';
 
 import { DocsBreadcrumbs } from '@/app/components/docs/docs-breadcrumbs';
-import { DocsFeedback } from '@/app/components/docs/docs-feedback';
 import { DocsPrevNext } from '@/app/components/docs/docs-prev-next';
 import { DocsToc } from '@/app/components/docs/docs-toc';
 import { EditOnGithub } from '@/app/components/docs/edit-on-github';
@@ -215,7 +214,6 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
         <div className="mt-4 flex justify-end">
           <EditOnGithub contentPath={contentPath} />
         </div>
-        <DocsFeedback pageId={`${locale}:${slug}`} />
       </div>
       <DocsToc entries={tocEntries} />
     </div>
