@@ -1,0 +1,68 @@
+{
+  "nav": {
+    "docs": "Dokumentation",
+    "homeAriaLabel": "Tale Dokumentation Startseite",
+    "openSearch": "Suche öffnen",
+    "searchPlaceholder": "Dokumentation durchsuchen",
+    "githubAriaLabel": "Tale auf GitHub",
+    "requestDemo": "Demo anfragen",
+    "groups": {
+      "start": "Start",
+      "cloud": "Cloud",
+      "selfHosted": "Selbst gehostet",
+      "install": "Installation",
+      "configuration": "Konfiguration",
+      "operate": "Betrieb",
+      "observability": "Beobachtbarkeit",
+      "security": "Sicherheit",
+      "releaseNotes": "Release Notes",
+      "authentication": "Authentifizierung",
+      "platform": "Plattform",
+      "chat": "Chat",
+      "workspace": "Arbeitsbereich",
+      "agents": "Agents",
+      "automations": "Automatisierungen",
+      "knowledge": "Wissen",
+      "integrations": "Integrationen",
+      "member": "Mitglied",
+      "editor": "Redakteur",
+      "developer": "Entwickler",
+      "admin": "Verwaltung",
+      "tutorials": "Tutorials",
+      "develop": "Entwicklung"
+    }
+  },
+  "docs": {
+    "onThisPage": "Auf dieser Seite",
+    "breadcrumbs": "Brotkrumen",
+    "home": "Start",
+    "wasThisHelpful": "War diese Seite hilfreich?",
+    "feedbackYes": "Ja",
+    "feedbackNo": "Nein",
+    "feedbackThanks": "Danke für dein Feedback.",
+    "editOnGithub": "Auf GitHub bearbeiten"
+  },
+  "languageSwitcher": {
+    "ariaLabel": "Sprache wechseln",
+    "locales": {
+      "en": "English",
+      "de": "Deutsch",
+      "fr": "Français"
+    }
+  },
+  "themeSwitcher": {
+    "ariaLabel": "Design wechseln",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "System"
+  },
+  "footer": {
+    "copyrightLine1": "© {year} Tale. Alle Rechte vorbehalten.",
+    "footerNav": "Fußzeile"
+  },
+  "notFound": {
+    "title": "Seite nicht gefunden",
+    "description": "Die gesuchte Seite konnten wir nicht finden.",
+    "home": "Zurück zur Doku-Startseite"
+  }
+}

@@ -17,6 +17,7 @@
     "**/public/canvas-libs",
     "**/dist",
     "**/dist-ssr",
+    "**/search-index-*.json",
     "tools/plop/templates"
   ]
 }

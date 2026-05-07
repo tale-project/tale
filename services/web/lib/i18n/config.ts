@@ -1,1 +1,1 @@
-export const defaultLocale = 'en' as const;
+export { defaultLocale } from '@tale/webui/i18n/config';

@@ -7,7 +7,7 @@
   "scripts": {
     "setup": "echo 'Dependencies managed by root workspace'",
     "dev": "bun --bun vite",
-    "build": "bun --bun vite build && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr && bun --bun scripts/prerender.ts && bunx playwright install chromium && bun --bun scripts/generate-legal-pdfs.ts",
+    "build": "bun --bun vite build && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr && bun --bun scripts/prerender.ts && bun --bun scripts/build-llms-artifacts.ts && bunx playwright install chromium && bun --bun scripts/generate-legal-pdfs.ts",
     "build:client": "bun --bun vite build",
     "build:ssr": "bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr",
     "prerender": "bun --bun scripts/prerender.ts",
@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@tale/ui": "workspace:*",
+    "@tale/webui": "workspace:*",
     "react-markdown": "10.1.0",
     "remark-gfm": "4.0.1"
   },

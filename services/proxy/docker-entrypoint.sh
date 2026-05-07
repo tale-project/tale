@@ -34,9 +34,18 @@ SITE_URL=$(echo "${SITE_URL}" | sed 's|/\+$||')
 export BASE_PATH
 export SITE_URL
 
+# Docs subdomain origin (https://docs.<HOST> by default; override with DOCS_URL
+# in .env when the docs site lives on a different host).
+if [ -z "${DOCS_URL:-}" ]; then
+  DOCS_URL="https://docs.${HOST}"
+fi
+DOCS_URL=$(echo "${DOCS_URL}" | sed 's|/\+$||;s|^[[:space:]]*||;s|[[:space:]]*$||')
+export DOCS_URL
+
 echo "Domain Configuration:"
 echo "  HOST: ${HOST}"
 echo "  SITE_URL: ${SITE_URL}"
+echo "  DOCS_URL: ${DOCS_URL}"
 if [ -n "$BASE_PATH" ]; then
   echo "  BASE_PATH: ${BASE_PATH}"
 fi
@@ -86,13 +95,20 @@ if [ "${TLS_MODE:-selfsigned}" != "external" ] && echo "${SITE_URL}" | grep -qi 
   echo "  If running behind a TLS-terminating reverse proxy, set TLS_MODE=external." >&2
   exit 1
 fi
+if [ "${TLS_MODE:-selfsigned}" != "external" ] && echo "${DOCS_URL}" | grep -qi '^http://'; then
+  echo "Error: DOCS_URL must use https://. Plain HTTP is not supported." >&2
+  echo "  If running behind a TLS-terminating reverse proxy, set TLS_MODE=external." >&2
+  exit 1
+fi
 
 # Copy Caddyfile to writable location and apply TLS config
 cp "$CADDYFILE_SRC" "$CADDYFILE"
 sed -i "s|.*TLS_PLACEHOLDER.*|\\t${TLS_CONFIG}|" "$CADDYFILE"
 
-# Replace SITE_ORIGIN in Caddyfile with SITE_URL (no subpath in SITE_URL)
+# Replace SITE_ORIGIN in Caddyfile with SITE_URL (no subpath in SITE_URL).
+# DOCS_ORIGIN is the parallel host block for the docs site (docs.<HOST>).
 sed -i "s|{[\$]SITE_ORIGIN:[^}]*}|${SITE_URL}|" "$CADDYFILE"
+sed -i "s|{[\$]DOCS_ORIGIN:[^}]*}|${DOCS_URL}|" "$CADDYFILE"
 
 # Inject base path stripping for subpath deployments
 if [ -n "$BASE_PATH" ]; then
@@ -106,7 +122,10 @@ fi
 if [ "${TLS_MODE:-selfsigned}" = "external" ]; then
   CADDY_ADDR=$(echo "${SITE_URL}" | sed -E 's|^https://|http://|; s|:[0-9]+$||')
   sed -i "s|${SITE_URL}|${CADDY_ADDR}|" "$CADDYFILE"
-  echo "  Caddy listen address: ${CADDY_ADDR}"
+  DOCS_ADDR=$(echo "${DOCS_URL}" | sed -E 's|^https://|http://|; s|:[0-9]+$||')
+  sed -i "s|${DOCS_URL}|${DOCS_ADDR}|" "$CADDYFILE"
+  echo "  Caddy listen address (site): ${CADDY_ADDR}"
+  echo "  Caddy listen address (docs): ${DOCS_ADDR}"
 fi
 
 echo "  Caddyfile configured: ${TLS_CONFIG:-none}"

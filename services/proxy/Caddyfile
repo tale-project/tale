@@ -31,6 +31,47 @@
 	respond /health "OK" 200
 }
 
+# ============================================================================
+# Docs site (docs.tale.dev) — separate host block proxying to services/docs.
+# Caddy entrypoint substitutes both TLS_PLACEHOLDER lines and the
+# {$DOCS_ORIGIN} placeholder.
+# ============================================================================
+{$DOCS_ORIGIN:https://docs.tale.local} {
+	# TLS_PLACEHOLDER
+
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+
+	handle /health {
+		respond "OK" 200
+	}
+
+	encode gzip zstd
+
+	reverse_proxy docs:3002 {
+		health_uri /api/health
+		health_interval 5s
+		health_timeout 3s
+		health_status 200
+
+		fail_duration 10s
+		max_fails 2
+		unhealthy_status 500 502 503 504
+
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	header {
+		-Server
+	}
+}
+
 {$SITE_ORIGIN:https://tale.local} {
 	# TLS Configuration - This line is replaced by entrypoint based on TLS_MODE
 	# DO NOT MODIFY - entrypoint will replace this placeholder

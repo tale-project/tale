@@ -1,0 +1,68 @@
+{
+  "nav": {
+    "docs": "Documentation",
+    "homeAriaLabel": "Accueil de la documentation Tale",
+    "openSearch": "Ouvrir la recherche",
+    "searchPlaceholder": "Rechercher dans la documentation",
+    "githubAriaLabel": "Tale sur GitHub",
+    "requestDemo": "Demander une démo",
+    "groups": {
+      "start": "Commencer ici",
+      "cloud": "Cloud",
+      "selfHosted": "Auto-hébergé",
+      "install": "Installation",
+      "configuration": "Configuration",
+      "operate": "Exploitation",
+      "observability": "Observabilité",
+      "security": "Sécurité",
+      "releaseNotes": "Notes de version",
+      "authentication": "Authentification",
+      "platform": "Plateforme",
+      "chat": "Chat",
+      "workspace": "Espace de travail",
+      "agents": "Agents",
+      "automations": "Automatisations",
+      "knowledge": "Connaissances",
+      "integrations": "Intégrations",
+      "member": "Membre",
+      "editor": "Éditeur",
+      "developer": "Développeur",
+      "admin": "Administration",
+      "tutorials": "Tutoriels",
+      "develop": "Développement"
+    }
+  },
+  "docs": {
+    "onThisPage": "Sur cette page",
+    "breadcrumbs": "Fil d'Ariane",
+    "home": "Accueil",
+    "wasThisHelpful": "Cette page t'a-t-elle été utile ?",
+    "feedbackYes": "Oui",
+    "feedbackNo": "Non",
+    "feedbackThanks": "Merci pour ton retour.",
+    "editOnGithub": "Modifier sur GitHub"
+  },
+  "languageSwitcher": {
+    "ariaLabel": "Changer de langue",
+    "locales": {
+      "en": "English",
+      "de": "Deutsch",
+      "fr": "Français"
+    }
+  },
+  "themeSwitcher": {
+    "ariaLabel": "Changer de thème",
+    "light": "Clair",
+    "dark": "Sombre",
+    "system": "Système"
+  },
+  "footer": {
+    "copyrightLine1": "© {year} Tale. Tous droits réservés.",
+    "footerNav": "Pied de page"
+  },
+  "notFound": {
+    "title": "Page introuvable",
+    "description": "Nous n'avons pas trouvé la page demandée.",
+    "home": "Retour à l'accueil de la documentation"
+  }
+}

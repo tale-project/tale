@@ -2,7 +2,13 @@
 
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { LucideIcon } from 'lucide-react';
-import { forwardRef, ComponentPropsWithoutRef } from 'react';
+import {
+  forwardRef,
+  ComponentPropsWithoutRef,
+  cloneElement,
+  isValidElement,
+  type ReactElement,
+} from 'react';
 
 import { cn } from '../../lib/cn';
 import { Button, ButtonProps } from './button';
@@ -31,6 +37,15 @@ interface IconButtonProps
   iconClassName?: string;
   /** Accessible label for the button (required for accessibility) */
   'aria-label': string;
+  /**
+   * When true, render the underlying `<Button asChild>` so the IconButton
+   * can wrap a link or any other element via Radix `<Slot>`. The slot
+   * child must be a single React element that accepts the icon as its
+   * sole child — pass the actual link via `slotChild`.
+   */
+  asChild?: boolean;
+  /** When `asChild` is true, the element to slot into the IconButton. */
+  slotChild?: ReactElement;
 }
 
 export const IconButton = forwardRef<
@@ -45,18 +60,13 @@ export const IconButton = forwardRef<
       variant = 'ghost',
       className,
       'aria-label': ariaLabel,
+      asChild,
+      slotChild,
       ...props
     },
     ref,
-  ) => (
-    <Button
-      ref={ref}
-      variant={variant}
-      size="icon"
-      aria-label={ariaLabel}
-      className={cn(className)}
-      {...props}
-    >
+  ) => {
+    const iconNode = (
       <Icon
         className={cn(
           iconSizeVariants({ iconSize }),
@@ -65,7 +75,38 @@ export const IconButton = forwardRef<
         )}
         aria-hidden="true"
       />
-    </Button>
-  ),
+    );
+
+    if (asChild && isValidElement(slotChild)) {
+      // Wrap the consumer's slotChild (typically `<a>` or router `<Link>`)
+      // and inject the icon as its sole child via Radix Slot semantics.
+      return (
+        <Button
+          ref={ref}
+          asChild
+          variant={variant}
+          size="icon"
+          aria-label={ariaLabel}
+          className={cn(className)}
+          {...props}
+        >
+          {cloneElement(slotChild, undefined, iconNode)}
+        </Button>
+      );
+    }
+
+    return (
+      <Button
+        ref={ref}
+        variant={variant}
+        size="icon"
+        aria-label={ariaLabel}
+        className={cn(className)}
+        {...props}
+      >
+        {iconNode}
+      </Button>
+    );
+  },
 );
 IconButton.displayName = 'IconButton';

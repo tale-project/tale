@@ -61,6 +61,42 @@ export default {
       ],
       project: ['**/*.{ts,tsx}'],
     },
+    'services/docs': {
+      vite: {
+        config: ['vite.config.ts'],
+      },
+      entry: [
+        'app/entry-server.tsx',
+        'app/main.tsx',
+        'app/routes/**/*.tsx',
+        'scripts/**/*.ts',
+        'server.ts',
+      ],
+      project: ['**/*.{ts,tsx}'],
+    },
+    'packages/webui': {
+      storybook: {
+        config: ['.storybook/main.ts'],
+        entry: [
+          '.storybook/{main,manager,preview}.{ts,tsx}',
+          '**/*.stories.{ts,tsx}',
+        ],
+      },
+      entry: [
+        'src/**/*.{ts,tsx}',
+        'src/**/*.stories.{ts,tsx}',
+        'tailwind-preset.ts',
+      ],
+      project: ['**/*.{ts,tsx}'],
+      ignoreDependencies: [
+        '@storybook/addon-a11y',
+        '@storybook/addon-docs',
+        '@storybook/addon-themes',
+        '@storybook/react',
+        '@storybook/react-vite',
+        'storybook',
+      ],
+    },
     'packages/ui': {
       storybook: {
         config: ['.storybook/main.ts'],

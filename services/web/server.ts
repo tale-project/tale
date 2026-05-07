@@ -17,6 +17,16 @@ const TEAMS_WEBHOOK_URL = process.env.WEB_TEAMS_WEBHOOK_URL ?? '';
 const MAX_BODY_BYTES = 4 * 1024;
 const TEAMS_WEBHOOK_TIMEOUT_MS = 10_000;
 
+function contentTypeFor(path: string): string | null {
+  if (path.endsWith('.md')) return 'text/markdown; charset=utf-8';
+  if (path === '/llms.txt' || path === '/llms-full.txt') {
+    return 'text/plain; charset=utf-8';
+  }
+  if (path === '/robots.txt') return 'text/plain; charset=utf-8';
+  if (path === '/sitemap.xml') return 'application/xml; charset=utf-8';
+  return null;
+}
+
 function clientIp(request: Request): string {
   const fwd = request.headers.get('x-forwarded-for');
   if (fwd) {
@@ -142,7 +152,10 @@ Bun.serve({
       // Serve the static asset if it exists.
       const candidate = file(resolved);
       if (await candidate.exists()) {
-        return new Response(candidate);
+        const ct = contentTypeFor(url.pathname);
+        return new Response(candidate, {
+          headers: ct ? { 'content-type': ct } : undefined,
+        });
       }
       // Try the prerendered route HTML (e.g. /pricing → dist/pricing/index.html).
       const routeHtml = file(join(resolved, 'index.html'));

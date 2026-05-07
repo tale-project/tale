@@ -2,7 +2,7 @@
 
 The single contract for writing code in this repository. Read this file in full before your first change. Documentation rules live in [`docs/AGENTS.md`](docs/AGENTS.md); cross-locale terminology in [`.agents/TERMINOLOGY.md`](.agents/TERMINOLOGY.md).
 
-Tale is a monorepo on Bun workspaces (`@tale/platform`, `@tale/cli`, `@tale/crawler`, `@tale/rag`, `@tale/db`, `@tale/proxy`, `@tale/docs`). Every script runs through the workspace filter:
+Tale is a monorepo on Bun workspaces (`@tale/platform`, `@tale/cli`, `@tale/crawler`, `@tale/rag`, `@tale/db`, `@tale/proxy`, `@tale/web`, `@tale/docs`, `@tale/ui`, `@tale/webui`). The marketing site lives at `services/web/`; the documentation site at `services/docs/`; cross-site UI primitives, the markdown pipeline, and SEO/LLM helpers live at `packages/webui/`. Every script runs through the workspace filter:
 
 ```bash
 bun run --filter @tale/<workspace> <script>
@@ -30,8 +30,8 @@ Paste this into the PR description. Empty boxes get rejected.
 
 - [ ] Ran `bun run check` (format, lint, typecheck, all tests).
 - [ ] Updated `services/platform/messages/{en,de,fr}.json` — or N/A.
-- [ ] Updated `docs/{,de/,fr/}` for every user-visible change — or N/A.
-- [ ] Ran `bun run --filter @tale/docs lint` — or N/A.
+- [ ] Updated `services/docs/app/content/{en,de,fr}/` for every user-visible change — or N/A.
+- [ ] Ran `bun run --filter @tale/docs lint` and `bun run --filter @tale/docs test` — or N/A.
 - [ ] Updated [`README.md`](README.md), [`README.de.md`](README.de.md), [`README.fr.md`](README.fr.md) — or N/A.
 
 ## Non-negotiable rules
@@ -145,14 +145,15 @@ Read [`.agents/TERMINOLOGY.md`](.agents/TERMINOLOGY.md) for cross-locale rules a
 
 ## Documentation
 
-Docs are not a follow-up task. Every change a user would notice updates the docs in every locale in the same PR. Full rules — taxonomy, writing depth, locale workflow, verification — live in [`docs/AGENTS.md`](docs/AGENTS.md) and are loaded automatically for agents working under `docs/`.
+Docs are not a follow-up task. Every change a user would notice updates the docs in every locale in the same PR. Full rules — taxonomy, writing depth, locale workflow, verification — live in [`services/docs/AGENTS.md`](services/docs/AGENTS.md) and are loaded automatically for agents working under `services/docs/`.
 
-Before opening a PR that touches `docs/`:
+Before opening a PR that touches `services/docs/`:
 
 ```bash
 bun run --filter @tale/docs format    # oxfmt: normalize Markdown and JSON
-bun run --filter @tale/docs lint      # oxlint + Mintlify broken-link check
+bun run --filter @tale/docs lint      # oxlint
 bun run --filter @tale/docs test      # frontmatter, locale parity, terminology, navigation parity
+bun run --filter @tale/docs build     # search index, prerender, llms.txt, sitemap, robots.txt
 ```
 
 ## Accessibility

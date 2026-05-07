@@ -7,6 +7,7 @@ export default {
       [
         'platform',
         'web',
+        'docs',
         'cli',
         'crawler',
         'rag',
@@ -16,6 +17,7 @@ export default {
         'convex',
         'workflow',
         'ui',
+        'webui',
         'storybook',
         'design',
         'plop',

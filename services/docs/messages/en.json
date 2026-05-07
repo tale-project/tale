@@ -1,0 +1,68 @@
+{
+  "nav": {
+    "docs": "Docs",
+    "homeAriaLabel": "Tale documentation home",
+    "openSearch": "Open search",
+    "searchPlaceholder": "Search documentation",
+    "githubAriaLabel": "Tale on GitHub",
+    "requestDemo": "Request demo",
+    "groups": {
+      "start": "Start here",
+      "cloud": "Cloud",
+      "selfHosted": "Self-hosted",
+      "install": "Install",
+      "configuration": "Configuration",
+      "operate": "Operate",
+      "observability": "Observability",
+      "security": "Security",
+      "releaseNotes": "Release notes",
+      "authentication": "Authentication",
+      "platform": "Platform",
+      "chat": "Chat",
+      "workspace": "Workspace",
+      "agents": "Agents",
+      "automations": "Automations",
+      "knowledge": "Knowledge",
+      "integrations": "Integrations",
+      "member": "Member",
+      "editor": "Editor",
+      "developer": "Developer",
+      "admin": "Admin",
+      "tutorials": "Tutorials",
+      "develop": "Development"
+    }
+  },
+  "docs": {
+    "onThisPage": "On this page",
+    "breadcrumbs": "Breadcrumbs",
+    "home": "Home",
+    "wasThisHelpful": "Was this page helpful?",
+    "feedbackYes": "Yes",
+    "feedbackNo": "No",
+    "feedbackThanks": "Thanks for the feedback.",
+    "editOnGithub": "Edit on GitHub"
+  },
+  "languageSwitcher": {
+    "ariaLabel": "Switch language",
+    "locales": {
+      "en": "English",
+      "de": "Deutsch",
+      "fr": "Français"
+    }
+  },
+  "themeSwitcher": {
+    "ariaLabel": "Switch theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "footer": {
+    "copyrightLine1": "© {year} Tale. All rights reserved.",
+    "footerNav": "Footer"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "We couldn't find the page you were looking for.",
+    "home": "Back to docs home"
+  }
+}
