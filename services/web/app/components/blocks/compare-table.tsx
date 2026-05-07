@@ -132,7 +132,7 @@ export function CompareTable<TK extends string>({
               return (
                 <tr
                   key={`span-${row.label}-${idx}`}
-                  className="border-border-base border-b last:border-b-0"
+                  className="border-border-base hover:bg-bg-elevated/60 border-b transition-colors last:border-b-0"
                 >
                   <th
                     scope="row"
@@ -152,7 +152,7 @@ export function CompareTable<TK extends string>({
             return (
               <tr
                 key={`data-${row.rowKey ?? idx}`}
-                className="border-border-base border-b last:border-b-0"
+                className="border-border-base hover:bg-bg-elevated/60 border-b transition-colors last:border-b-0"
               >
                 <th
                   scope="row"

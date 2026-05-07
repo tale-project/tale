@@ -32,6 +32,11 @@
     "homeAriaLabel": "Accueil Tale",
     "skipToMain": "Aller au contenu principal"
   },
+  "legal": {
+    "downloadPdf": "Télécharger le PDF",
+    "downloadPdfAria": "Télécharger {title} en PDF",
+    "notFound": "Ce document n'est pas disponible."
+  },
   "footer": {
     "product": "Produit",
     "resources": "Ressources",
@@ -227,7 +232,7 @@
       "name": "Enterprise",
       "deployment": "Cloud ou auto-hébergé",
       "priceSuffix": "/mois + TVA",
-      "storageAddOn": "+ {price}/To/mois de stockage supplémentaire",
+      "storageAddOn": "1 To + {price}/To/mois de stockage supplémentaire",
       "userBreakdown": "{count} utilisateurs × {perUser}/utilisateur/mois",
       "tagline": "Entièrement géré, évolutif et prêt pour la production — conçu pour une IA privée critique.",
       "cta": "Nous contacter",
@@ -298,12 +303,13 @@
       },
       "hardware": {
         "title": "Matériel",
-        "description": "Pour l'auto-hébergement, nous proposons des options matérielles flexibles — location, achat ou financement.",
-        "cta": "Tarifs matériel"
+        "prefix": "Pour l'auto-hébergement, nous proposons des",
+        "linkLabel": "options matérielles flexibles",
+        "suffix": " — location, achat ou financement."
       },
       "cloudProviders": {
         "title": "Fournisseurs d'IA cloud",
-        "description": "Nous prenons en charge tous les grands fournisseurs d'IA cloud en UE/CH — meilleurs tarifs, meilleure disponibilité et facturation à l'usage."
+        "description": "Nous prenons en charge OpenAI, Anthropic, Gemini et d'autres grands fournisseurs d'IA cloud en UE/CH — meilleurs tarifs, meilleure disponibilité et facturation à l'usage."
       }
     },
     "terms": {
@@ -395,8 +401,8 @@
     "extras": {
       "software": {
         "title": "Logiciels & services",
-        "description": "Pour l'installation, le support et les services professionnels, nous proposons des options flexibles. Voir nos",
-        "linkLabel": "tarifs",
+        "prefix": "Pour l'installation, le support et les services professionnels, nous proposons des",
+        "linkLabel": "options flexibles",
         "suffix": "."
       }
     },

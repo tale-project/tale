@@ -35,6 +35,7 @@ const REGIONAL_OVERRIDES: ReadonlySet<string> = new Set([
 function getBrowserRegion(): string | null {
   if (typeof navigator === 'undefined') return null;
   const tag = navigator.language;
+  if (typeof tag !== 'string') return null;
   const dash = tag.indexOf('-');
   return dash >= 0 ? tag.slice(dash + 1).toUpperCase() : null;
 }

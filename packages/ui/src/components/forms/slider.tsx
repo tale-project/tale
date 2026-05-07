@@ -152,7 +152,7 @@ export const Slider = forwardRef<HTMLInputElement, SliderProps>(
           />
           <div
             aria-hidden
-            className="pointer-events-none absolute top-1/2 left-0 h-2 -translate-y-1/2 rounded-full bg-[color:var(--color-accent-base)] transition-[width] duration-75 ease-out"
+            className="pointer-events-none absolute top-1/2 left-0 h-2 -translate-y-1/2 rounded-full bg-[color:var(--color-accent-base)]"
             style={{ width: fillWidth }}
           />
 

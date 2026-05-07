@@ -32,6 +32,11 @@
     "homeAriaLabel": "Tale Startseite",
     "skipToMain": "Zum Hauptinhalt springen"
   },
+  "legal": {
+    "downloadPdf": "PDF herunterladen",
+    "downloadPdfAria": "{title} als PDF herunterladen",
+    "notFound": "Dieses Dokument ist nicht verfügbar."
+  },
   "footer": {
     "product": "Produkt",
     "resources": "Ressourcen",
@@ -227,7 +232,7 @@
       "name": "Enterprise",
       "deployment": "Cloud oder selbst gehostet",
       "priceSuffix": "/Monat + MwSt.",
-      "storageAddOn": "+ {price}/TB/Monat zusätzlicher Speicher",
+      "storageAddOn": "1 TB + {price}/TB/Monat zusätzlicher Speicher",
       "userBreakdown": "{count} Nutzer × {perUser}/Nutzer/Monat",
       "tagline": "Vollständig verwaltet, skalierbar und produktionsbereit — gebaut für geschäftskritische private KI.",
       "cta": "Kontakt aufnehmen",
@@ -298,12 +303,13 @@
       },
       "hardware": {
         "title": "Hardware",
-        "description": "Für Self-Hosting bieten wir flexible Hardware-Optionen — Miete, Kauf oder Finanzierung.",
-        "cta": "Hardware-Preise"
+        "prefix": "Für Self-Hosting bieten wir",
+        "linkLabel": "flexible Hardware-Optionen",
+        "suffix": " — Miete, Kauf oder Finanzierung."
       },
       "cloudProviders": {
         "title": "Cloud-KI-Anbieter",
-        "description": "Wir unterstützen alle großen Cloud-KI-Anbieter in EU/CH — bessere Preise, höhere Verfügbarkeit und nutzungsbasierte Abrechnung."
+        "description": "Wir unterstützen OpenAI, Anthropic, Gemini und andere große Cloud-KI-Anbieter in EU/CH — bessere Preise, höhere Verfügbarkeit und nutzungsbasierte Abrechnung."
       }
     },
     "terms": {
@@ -395,8 +401,8 @@
     "extras": {
       "software": {
         "title": "Software & Services",
-        "description": "Für Installation, Support und Professional Services bieten wir flexible Optionen. Siehe unsere",
-        "linkLabel": "Preise",
+        "prefix": "Für Installation, Support und Professional Services bieten wir",
+        "linkLabel": "flexible Optionen",
         "suffix": "."
       }
     },

@@ -245,15 +245,6 @@
               "develop/integrations",
               "develop/contributing-docker"
             ]
-          },
-          {
-            "group": "Legal",
-            "pages": [
-              "legal/privacy-policy",
-              "legal/personalization",
-              "legal/terms-of-service",
-              "legal/data-processing-agreement"
-            ]
           }
         ]
       },
@@ -450,15 +441,6 @@
               "de/develop/ai-assisted-development",
               "de/develop/integrations",
               "de/develop/contributing-docker"
-            ]
-          },
-          {
-            "group": "Rechtliches",
-            "pages": [
-              "de/legal/privacy-policy",
-              "de/legal/personalization",
-              "de/legal/terms-of-service",
-              "de/legal/data-processing-agreement"
             ]
           }
         ]
@@ -657,15 +639,6 @@
               "fr/develop/integrations",
               "fr/develop/contributing-docker"
             ]
-          },
-          {
-            "group": "Mentions légales",
-            "pages": [
-              "fr/legal/privacy-policy",
-              "fr/legal/personalization",
-              "fr/legal/terms-of-service",
-              "fr/legal/data-processing-agreement"
-            ]
           }
         ]
       }
@@ -725,15 +698,15 @@
         "items": [
           {
             "label": "Privacy policy",
-            "href": "/legal/privacy-policy"
+            "href": "https://tale.dev/legal/privacy-policy"
           },
           {
             "label": "Terms of service",
-            "href": "/legal/terms-of-service"
+            "href": "https://tale.dev/legal/terms-of-service"
           },
           {
             "label": "Data processing agreement",
-            "href": "/legal/data-processing-agreement"
+            "href": "https://tale.dev/legal/data-processing-agreement"
           }
         ]
       }
