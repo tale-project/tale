@@ -59,20 +59,20 @@ async function cleanupDocuments(
   org: OrgPolicy,
   batchSize: number,
   holds: ActiveHolds,
-): Promise<void> {
-  if (!org.config.enabled) return;
+): Promise<number> {
+  if (!org.config.enabled) return 0;
 
   // Parity with sibling category guards. Schema rejects 0 (zod min(1)), but
   // legacy rows or unclamped pre-bound values could still reach here; treat
   // ≤0 as "disabled" rather than `cutoffMs = now` which would mass-delete.
   const days = org.config.retentionDays;
-  if (typeof days !== 'number' || days <= 0) return;
+  if (typeof days !== 'number' || days <= 0) return 0;
 
   if (holds.orgHeld) {
     console.info(
       `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping documents cleanup`,
     );
-    return;
+    return 0;
   }
 
   const cutoffMs = Date.now() - days * DAY_MS;
@@ -81,6 +81,7 @@ async function cleanupDocuments(
     { organizationId: org.organizationId, cutoffMs, batchSize },
   );
 
+  let processed = 0;
   for (const doc of expiredDocs) {
     if (holds.documentIds.has(doc._id)) {
       console.info(
@@ -101,7 +102,9 @@ async function cleanupDocuments(
         cutoffMs,
       },
     );
+    processed += 1;
   }
+  return processed;
 }
 
 async function cleanupTempFiles(
@@ -110,18 +113,18 @@ async function cleanupTempFiles(
   source: 'user' | 'agent',
   batchSize: number,
   holds: ActiveHolds,
-): Promise<void> {
+): Promise<number> {
   const enabled =
     source === 'user'
       ? org.config.userTempEnabled
       : org.config.agentTempEnabled;
-  if (!enabled) return;
+  if (!enabled) return 0;
 
   if (holds.orgHeld) {
     console.info(
       `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping ${source} temp cleanup`,
     );
-    return;
+    return 0;
   }
 
   const hours =
@@ -135,6 +138,7 @@ async function cleanupTempFiles(
     { organizationId: org.organizationId, source, cutoffMs, batchSize },
   );
 
+  let processed = 0;
   for (const file of expiredFiles) {
     await deleteRagEntry(file.storageId, `temp file ${file._id}`);
 
@@ -142,7 +146,9 @@ async function cleanupTempFiles(
       internal.governance.internal_mutations_retention.deleteExpiredTempFile,
       { fileMetadataId: file._id },
     );
+    processed += 1;
   }
+  return processed;
 }
 
 async function cleanupChatHistory(
@@ -150,10 +156,10 @@ async function cleanupChatHistory(
   org: OrgPolicy,
   batchSize: number,
   holds: ActiveHolds,
-): Promise<void> {
-  if (!org.config.chatHistoryEnabled) return;
+): Promise<number> {
+  if (!org.config.chatHistoryEnabled) return 0;
   const days = org.config.chatHistoryRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return;
+  if (typeof days !== 'number' || days <= 0) return 0;
 
   // Whole-org hold short-circuits the entire category — nothing in this
   // org should be physically deleted while it's preserved.
@@ -161,11 +167,12 @@ async function cleanupChatHistory(
     console.info(
       `[RetentionCleanup] org ${org.organizationId} is on legal hold — skipping chatHistory cleanup`,
     );
-    return;
+    return 0;
   }
 
   const cutoffMs = Date.now() - days * DAY_MS;
   const graceDays = org.config.deletionGraceDays ?? 0;
+  let processed = 0;
 
   // Pass A — when a grace window is configured, flip active expired
   // threads to status='expired' (no cascade yet). They land in the
@@ -192,6 +199,9 @@ async function cleanupChatHistory(
           cutoffMs,
         },
       );
+      // Pass A flips status without cascading rows; count the soft
+      // transition so the operator panel reflects retention activity.
+      processed += 1;
     }
   }
 
@@ -231,6 +241,7 @@ async function cleanupChatHistory(
     // `{ done: false, remaining > 0 }`. Re-invoke until done.
     let attempts = 0;
     const MAX_ATTEMPTS = 50; // 200 × 50 = 10k pages per child = 2M rows max
+    let cascadeDone = false;
     while (true) {
       const result = await ctx.runMutation(
         internal.governance.internal_mutations_retention.deleteExpiredThread,
@@ -240,7 +251,10 @@ async function cleanupChatHistory(
           cutoffMs,
         },
       );
-      if (result.done) break;
+      if (result.done) {
+        cascadeDone = true;
+        break;
+      }
       attempts += 1;
       if (attempts >= MAX_ATTEMPTS) {
         console.warn(
@@ -249,7 +263,9 @@ async function cleanupChatHistory(
         break;
       }
     }
+    if (cascadeDone) processed += 1;
   }
+  return processed;
 }
 
 async function cleanupAuditLogs(
@@ -258,10 +274,10 @@ async function cleanupAuditLogs(
   batchSize: number,
   deadlineMs: number,
   holds: ActiveHolds,
-): Promise<void> {
-  if (!org.config.auditLogsEnabled) return;
+): Promise<number> {
+  if (!org.config.auditLogsEnabled) return 0;
   const days = org.config.auditLogRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return;
+  if (typeof days !== 'number' || days <= 0) return 0;
 
   // Audit-log spoliation is the canonical preservation-duty failure mode
   // (US FRCP 37(e), EU GDPR Art 21 challenge proceedings, ISO 27037).
@@ -270,7 +286,7 @@ async function cleanupAuditLogs(
     console.info(
       `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping audit log cleanup`,
     );
-    return;
+    return 0;
   }
 
   const olderThanTimestamp = Date.now() - days * DAY_MS;
@@ -281,12 +297,13 @@ async function cleanupAuditLogs(
   //  - shared run deadline so this category yields back to the dispatcher
   //    instead of starving every later category of the 25-min budget.
   const MAX_BATCHES = 200;
+  let processed = 0;
   for (let i = 0; i < MAX_BATCHES; i++) {
     if (Date.now() > deadlineMs) {
       console.info(
         `[RetentionCleanup] org ${org.organizationId} auditLogs cleanup hit run deadline after ${i} batches; will resume next run`,
       );
-      return;
+      return processed;
     }
     const result = await ctx.runMutation(
       internal.audit_logs.internal_mutations.deleteOldLogs,
@@ -296,11 +313,13 @@ async function cleanupAuditLogs(
         batchSize,
       },
     );
-    if (!result.hasMore) return;
+    processed += result.deletedCount;
+    if (!result.hasMore) return processed;
   }
   console.warn(
     `[RetentionCleanup] org ${org.organizationId} auditLogs cleanup hit MAX_BATCHES=${MAX_BATCHES}; backlog remains for next run`,
   );
+  return processed;
 }
 
 async function cleanupWorkflowLogs(
@@ -308,19 +327,20 @@ async function cleanupWorkflowLogs(
   org: OrgPolicy,
   batchSize: number,
   holds: ActiveHolds,
-): Promise<void> {
-  if (!org.config.workflowLogsEnabled) return;
+): Promise<number> {
+  if (!org.config.workflowLogsEnabled) return 0;
   const days = org.config.workflowLogRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return;
+  if (typeof days !== 'number' || days <= 0) return 0;
 
   if (holds.orgHeld) {
     console.info(
       `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping workflow log cleanup`,
     );
-    return;
+    return 0;
   }
 
   const cutoffMs = Date.now() - days * DAY_MS;
+  let processed = 0;
 
   const expiredExecutions = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredWorkflowExecutions,
@@ -344,6 +364,7 @@ async function cleanupWorkflowLogs(
         cutoffMs,
       },
     );
+    processed += 1;
   }
 
   const expiredTriggerLogs = await ctx.runQuery(
@@ -360,7 +381,9 @@ async function cleanupWorkflowLogs(
         cutoffMs,
       },
     );
+    processed += 1;
   }
+  return processed;
 }
 
 async function cleanupUsageLedger(
@@ -368,16 +391,16 @@ async function cleanupUsageLedger(
   org: OrgPolicy,
   batchSize: number,
   holds: ActiveHolds,
-): Promise<void> {
-  if (!org.config.usageLedgerEnabled) return;
+): Promise<number> {
+  if (!org.config.usageLedgerEnabled) return 0;
   const days = org.config.usageLedgerRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return;
+  if (typeof days !== 'number' || days <= 0) return 0;
 
   if (holds.orgHeld) {
     console.info(
       `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping usage ledger cleanup`,
     );
-    return;
+    return 0;
   }
 
   const cutoffMs = Date.now() - days * DAY_MS;
@@ -386,6 +409,7 @@ async function cleanupUsageLedger(
     { organizationId: org.organizationId, cutoffMs, batchSize },
   );
 
+  let processed = 0;
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
@@ -396,7 +420,9 @@ async function cleanupUsageLedger(
         cutoffMs,
       },
     );
+    processed += 1;
   }
+  return processed;
 }
 
 async function cleanupChatFilterEvents(
@@ -404,16 +430,16 @@ async function cleanupChatFilterEvents(
   org: OrgPolicy,
   batchSize: number,
   holds: ActiveHolds,
-): Promise<void> {
-  if (!org.config.chatFilterEventsEnabled) return;
+): Promise<number> {
+  if (!org.config.chatFilterEventsEnabled) return 0;
   const days = org.config.chatFilterEventsRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return;
+  if (typeof days !== 'number' || days <= 0) return 0;
 
   if (holds.orgHeld) {
     console.info(
       `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping chat filter events cleanup`,
     );
-    return;
+    return 0;
   }
 
   const cutoffMs = Date.now() - days * DAY_MS;
@@ -421,6 +447,7 @@ async function cleanupChatFilterEvents(
     internal.governance.internal_queries.listExpiredChatFilterEvents,
     { organizationId: org.organizationId, cutoffMs, batchSize },
   );
+  let processed = 0;
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
@@ -431,7 +458,9 @@ async function cleanupChatFilterEvents(
         cutoffMs,
       },
     );
+    processed += 1;
   }
+  return processed;
 }
 
 async function cleanupPromptTemplates(
@@ -439,21 +468,22 @@ async function cleanupPromptTemplates(
   org: OrgPolicy,
   batchSize: number,
   holds: ActiveHolds,
-): Promise<void> {
-  if (!org.config.promptTemplatesEnabled) return;
+): Promise<number> {
+  if (!org.config.promptTemplatesEnabled) return 0;
   const days = org.config.promptTemplatesRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return;
+  if (typeof days !== 'number' || days <= 0) return 0;
   if (holds.orgHeld) {
     console.info(
       `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping prompt templates cleanup`,
     );
-    return;
+    return 0;
   }
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredPromptTemplates,
     { organizationId: org.organizationId, cutoffMs, batchSize },
   );
+  let processed = 0;
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
@@ -464,7 +494,9 @@ async function cleanupPromptTemplates(
         cutoffMs,
       },
     );
+    processed += 1;
   }
+  return processed;
 }
 
 async function cleanupMessageFeedback(
@@ -472,21 +504,22 @@ async function cleanupMessageFeedback(
   org: OrgPolicy,
   batchSize: number,
   holds: ActiveHolds,
-): Promise<void> {
-  if (!org.config.messageFeedbackEnabled) return;
+): Promise<number> {
+  if (!org.config.messageFeedbackEnabled) return 0;
   const days = org.config.messageFeedbackRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return;
+  if (typeof days !== 'number' || days <= 0) return 0;
   if (holds.orgHeld) {
     console.info(
       `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping message feedback cleanup`,
     );
-    return;
+    return 0;
   }
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredMessageFeedback,
     { organizationId: org.organizationId, cutoffMs, batchSize },
   );
+  let processed = 0;
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
@@ -497,7 +530,9 @@ async function cleanupMessageFeedback(
         cutoffMs,
       },
     );
+    processed += 1;
   }
+  return processed;
 }
 
 async function cleanupMemoryAudit(
@@ -505,21 +540,22 @@ async function cleanupMemoryAudit(
   org: OrgPolicy,
   batchSize: number,
   holds: ActiveHolds,
-): Promise<void> {
-  if (!org.config.memoryAuditEnabled) return;
+): Promise<number> {
+  if (!org.config.memoryAuditEnabled) return 0;
   const days = org.config.memoryAuditRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return;
+  if (typeof days !== 'number' || days <= 0) return 0;
   if (holds.orgHeld) {
     console.info(
       `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping memory audit cleanup`,
     );
-    return;
+    return 0;
   }
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredMemoryAuditRows,
     { organizationId: org.organizationId, cutoffMs, batchSize },
   );
+  let processed = 0;
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
@@ -530,7 +566,9 @@ async function cleanupMemoryAudit(
         cutoffMs,
       },
     );
+    processed += 1;
   }
+  return processed;
 }
 
 // Phase 10 — PII tables. customers / vendors / external conversations /
@@ -544,21 +582,22 @@ async function cleanupCustomers(
   org: OrgPolicy,
   batchSize: number,
   holds: ActiveHolds,
-): Promise<void> {
-  if (!org.config.customersEnabled) return;
+): Promise<number> {
+  if (!org.config.customersEnabled) return 0;
   const days = org.config.customersRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return;
+  if (typeof days !== 'number' || days <= 0) return 0;
   if (holds.orgHeld) {
     console.info(
       `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping customers cleanup`,
     );
-    return;
+    return 0;
   }
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredCustomers,
     { organizationId: org.organizationId, cutoffMs, batchSize },
   );
+  let processed = 0;
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention.deleteExpiredCustomer,
@@ -568,7 +607,9 @@ async function cleanupCustomers(
         cutoffMs,
       },
     );
+    processed += 1;
   }
+  return processed;
 }
 
 async function cleanupVendors(
@@ -576,21 +617,22 @@ async function cleanupVendors(
   org: OrgPolicy,
   batchSize: number,
   holds: ActiveHolds,
-): Promise<void> {
-  if (!org.config.vendorsEnabled) return;
+): Promise<number> {
+  if (!org.config.vendorsEnabled) return 0;
   const days = org.config.vendorsRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return;
+  if (typeof days !== 'number' || days <= 0) return 0;
   if (holds.orgHeld) {
     console.info(
       `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping vendors cleanup`,
     );
-    return;
+    return 0;
   }
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredVendors,
     { organizationId: org.organizationId, cutoffMs, batchSize },
   );
+  let processed = 0;
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention.deleteExpiredVendor,
@@ -600,7 +642,9 @@ async function cleanupVendors(
         cutoffMs,
       },
     );
+    processed += 1;
   }
+  return processed;
 }
 
 async function cleanupExternalConversations(
@@ -608,21 +652,22 @@ async function cleanupExternalConversations(
   org: OrgPolicy,
   batchSize: number,
   holds: ActiveHolds,
-): Promise<void> {
-  if (!org.config.externalConversationsEnabled) return;
+): Promise<number> {
+  if (!org.config.externalConversationsEnabled) return 0;
   const days = org.config.externalConversationsRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return;
+  if (typeof days !== 'number' || days <= 0) return 0;
   if (holds.orgHeld) {
     console.info(
       `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping external conversations cleanup`,
     );
-    return;
+    return 0;
   }
   const cutoffMs = Date.now() - days * DAY_MS;
   const expired = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredExternalConversations,
     { organizationId: org.organizationId, cutoffMs, batchSize },
   );
+  let processed = 0;
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
@@ -633,7 +678,9 @@ async function cleanupExternalConversations(
         cutoffMs,
       },
     );
+    processed += 1;
   }
+  return processed;
 }
 
 async function cleanupMessageMetadata(
@@ -641,15 +688,15 @@ async function cleanupMessageMetadata(
   org: OrgPolicy,
   batchSize: number,
   holds: ActiveHolds,
-): Promise<void> {
-  if (!org.config.messageMetadataEnabled) return;
+): Promise<number> {
+  if (!org.config.messageMetadataEnabled) return 0;
   const days = org.config.messageMetadataRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return;
+  if (typeof days !== 'number' || days <= 0) return 0;
   if (holds.orgHeld) {
     console.info(
       `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping message metadata cleanup`,
     );
-    return;
+    return 0;
   }
   const cutoffMs = Date.now() - days * DAY_MS;
   // Note: messageMetadata has no `organizationId` field today (Phase 10
@@ -661,13 +708,16 @@ async function cleanupMessageMetadata(
     internal.governance.internal_queries.listExpiredMessageMetadataForOrg,
     { organizationId: org.organizationId, cutoffMs, batchSize },
   );
+  let processed = 0;
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredMessageMetadata,
       { rowId: row._id },
     );
+    processed += 1;
   }
+  return processed;
 }
 
 /**
@@ -696,8 +746,9 @@ async function cleanupLoginAttemptsGlobal(
   ctx: ActionCtx,
   _policies: OrgPolicy[], // kept for backward compat; ignored
   batchSize: number,
-): Promise<void> {
+): Promise<number> {
   const cutoffMs = Date.now() - LOGIN_ATTEMPTS_FIXED_TTL_DAYS * DAY_MS;
+  let processed = 0;
 
   const expiredAttempts = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredLoginAttempts,
@@ -709,6 +760,7 @@ async function cleanupLoginAttemptsGlobal(
         .deleteExpiredLoginAttempt,
       { attemptId: attempt._id },
     );
+    processed += 1;
   }
 
   const expiredCounters = await ctx.runQuery(
@@ -721,6 +773,7 @@ async function cleanupLoginAttemptsGlobal(
         .deleteExpiredLoginBlockCounter,
       { counterId: counter._id },
     );
+    processed += 1;
   }
 
   // Phase 11: parity for twoFactorAttempts. Round-2 verification
@@ -737,7 +790,9 @@ async function cleanupLoginAttemptsGlobal(
         .deleteExpiredTwoFactorAttempt,
       { attemptId: attempt._id },
     );
+    processed += 1;
   }
+  return processed;
 }
 
 interface CategoryError {
@@ -748,11 +803,11 @@ interface CategoryError {
 async function runCategory(
   name: string,
   organizationId: string,
-  fn: () => Promise<void>,
+  fn: () => Promise<number>,
   errors: CategoryError[],
-): Promise<void> {
+): Promise<number> {
   try {
-    await fn();
+    return await fn();
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.warn(
@@ -760,6 +815,7 @@ async function runCategory(
       error,
     );
     errors.push({ name, error: msg });
+    return 0;
   }
 }
 
@@ -925,7 +981,7 @@ export const runOrgRetentionCleanup = internalAction({
       // categories that ran to completion in a prior continuation.
       const categories: Array<{
         name: string;
-        run: () => Promise<void>;
+        run: () => Promise<number>;
       }> = [
         {
           name: 'documents',
@@ -1024,12 +1080,18 @@ export const runOrgRetentionCleanup = internalAction({
           return null;
         }
 
-        await runCategory(cat.name, organizationId, cat.run, categoryErrors);
+        const processedDelta = await runCategory(
+          cat.name,
+          organizationId,
+          cat.run,
+          categoryErrors,
+        );
         await ctx.runMutation(
           internal.governance.retention_runs.recordRetentionRunCheckpoint,
           {
             runId: claimedRunId,
             cursor: { category: cat.name },
+            processedDelta: processedDelta > 0 ? processedDelta : undefined,
           },
         );
       }
