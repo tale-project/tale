@@ -14,18 +14,25 @@ Retention can be configured in two places:
 
 These apply to every organisation on the deployment. All values are in days unless noted otherwise. Pair `_MIN_DAYS` and `_MAX_DAYS` per category — operators can tighten the defaults but never relax them.
 
-| Variable                                                   | Default min | Default max | Governs                                                                                                     |
-| ---------------------------------------------------------- | ----------- | ----------- | ----------------------------------------------------------------------------------------------------------- |
-| `TALE_RETENTION_CONVERSATIONS_MIN_DAYS` / `_MAX_DAYS`      | `1`         | `3650`      | Chat conversations and their messages.                                                                      |
-| `TALE_RETENTION_FILES_MIN_DAYS` / `_MAX_DAYS`              | `30`        | `3650`      | Uploaded files attached to chat or the knowledge base.                                                      |
-| `TALE_RETENTION_AUDIT_MIN_DAYS` / `_MAX_DAYS`              | `365`       | `3650`      | Audit log entries. Min hard-coded at 365d (PCI/SOC2/ISO baseline) — operator can only RAISE.                |
-| `TALE_RETENTION_EXECUTIONS_MIN_DAYS` / `_MAX_DAYS`         | `1`         | `365`       | Workflow execution detail.                                                                                  |
-| `TALE_RETENTION_ANALYTICS_MIN_DAYS` / `_MAX_DAYS`          | `30`        | `3650`      | Per-request usage analytics rows.                                                                           |
-| `TALE_RETENTION_LOGIN_ATTEMPTS_MIN_DAYS` / `_MAX_DAYS`     | `90`        | `365`       | Login failure forensic records. Min raised to 90d.                                                          |
-| `TALE_RETENTION_CHAT_FILTER_EVENTS_MIN_DAYS` / `_MAX_DAYS` | `1`         | `365`       | Chat-filter (PII / banned-word / moderation) telemetry.                                                     |
-| `TALE_RETENTION_USER_TEMP_MIN_HOURS` / `_MAX_HOURS`        | `1`         | `720`       | Ephemeral user-side temp files (hours).                                                                     |
-| `TALE_RETENTION_AGENT_TEMP_MIN_HOURS` / `_MAX_HOURS`       | `1`         | `720`       | Ephemeral agent-side temp files (hours).                                                                    |
-| `TALE_RETENTION_DISABLED`                                  | `false`     | —           | When `true`, the cleanup action no-ops with a warn-log. Operator kill-switch for migration windows / debug. |
+| Variable                                               | Default min | Default max | Governs                                                                                                     |
+| ------------------------------------------------------ | ----------- | ----------- | ----------------------------------------------------------------------------------------------------------- |
+| `TALE_RETENTION_CONVERSATIONS_MIN_DAYS` / `_MAX_DAYS`  | `1`         | `3650`      | Chat conversations and their messages.                                                                      |
+| `TALE_RETENTION_FILES_MIN_DAYS` / `_MAX_DAYS`          | `30`        | `3650`      | Uploaded files attached to chat or the knowledge base.                                                      |
+| `TALE_RETENTION_AUDIT_MIN_DAYS` / `_MAX_DAYS`          | `365`       | `3650`      | Audit log entries. Min hard-coded at 365d (PCI/SOC2/ISO baseline) — operator can only RAISE.                |
+| `TALE_RETENTION_EXECUTIONS_MIN_DAYS` / `_MAX_DAYS`     | `1`         | `365`       | Workflow execution detail.                                                                                  |
+| `TALE_RETENTION_ANALYTICS_MIN_DAYS` / `_MAX_DAYS`      | `30`        | `3650`      | Per-request usage analytics rows.                                                                           |
+| `TALE_RETENTION_LOGIN_ATTEMPTS_MIN_DAYS` / `_MAX_DAYS` | `90`        | `365`       | Login failure forensic records. Min raised to 90d.                                                          |
+| `TALE_RETENTION_CHAT_FILTER_MIN_DAYS` / `_MAX_DAYS`    | `1`         | `365`       | Chat-filter (PII / banned-word / moderation) telemetry.                                                     |
+| `TALE_RETENTION_PROMPTS_MIN_DAYS` / `_MAX_DAYS`        | `30`        | `3650`      | Saved prompt templates (org-scope only).                                                                    |
+| `TALE_RETENTION_FEEDBACK_MIN_DAYS` / `_MAX_DAYS`       | `30`        | `3650`      | Per-message thumbs / comments. May contain quoted user content.                                             |
+| `TALE_RETENTION_MEMORY_AUDIT_MIN_DAYS` / `_MAX_DAYS`   | `30`        | `3650`      | Personalization memory change-log.                                                                          |
+| `TALE_RETENTION_CUSTOMERS_MIN_DAYS` / `_MAX_DAYS`      | `30`        | `3650`      | CRM customer records (name, email, address, locale, metadata).                                              |
+| `TALE_RETENTION_VENDORS_MIN_DAYS` / `_MAX_DAYS`        | `30`        | `3650`      | Vendor records (name, email, phone, address, free-text notes).                                              |
+| `TALE_RETENTION_INBOX_MIN_DAYS` / `_MAX_DAYS`          | `30`        | `3650`      | External customer-channel inbox (email/chat integrations) + cascaded message bodies.                        |
+| `TALE_RETENTION_MSG_META_MIN_DAYS` / `_MAX_DAYS`       | `30`        | `3650`      | Per-message reasoning, prompt context window, tool I/O. High-PII derived data.                              |
+| `TALE_RETENTION_USER_TEMP_MIN_HOURS` / `_MAX_HOURS`    | `1`         | `720`       | Ephemeral user-side temp files (hours).                                                                     |
+| `TALE_RETENTION_AGENT_TEMP_MIN_HOURS` / `_MAX_HOURS`   | `1`         | `720`       | Ephemeral agent-side temp files (hours).                                                                    |
+| `TALE_RETENTION_DISABLED`                              | `false`     | —           | When `true`, the cleanup action no-ops with a warn-log. Operator kill-switch for migration windows / debug. |
 
 Changes to env vars take effect on **next backend restart** (`docker compose restart tale-convex`) — Convex caches env at process start.
 

@@ -14,18 +14,25 @@ Die Aufbewahrung kann an zwei Stellen konfiguriert werden:
 
 Diese gelten für jede Organisation auf dem Deployment. Alle Werte sind in Tagen, sofern nicht anders angegeben. Paare `_MIN_DAYS` und `_MAX_DAYS` pro Kategorie — Operatoren können die Standardwerte verschärfen, aber niemals lockern.
 
-| Variable                                                   | Standard min | Standard max | Steuert                                                                                                      |
-| ---------------------------------------------------------- | ------------ | ------------ | ------------------------------------------------------------------------------------------------------------ |
-| `TALE_RETENTION_CONVERSATIONS_MIN_DAYS` / `_MAX_DAYS`      | `1`          | `3650`       | Chat-Konversationen und ihre Nachrichten.                                                                    |
-| `TALE_RETENTION_FILES_MIN_DAYS` / `_MAX_DAYS`              | `30`         | `3650`       | Hochgeladene Dateien (Chat-Anhänge oder Wissensbasis).                                                       |
-| `TALE_RETENTION_AUDIT_MIN_DAYS` / `_MAX_DAYS`              | `365`        | `3650`       | Audit-Log-Einträge. Min hartcodiert auf 365 Tage (PCI/SOC2/ISO-Baseline) — Operator kann nur ERHÖHEN.        |
-| `TALE_RETENTION_EXECUTIONS_MIN_DAYS` / `_MAX_DAYS`         | `1`          | `365`        | Workflow-Ausführungsdetails.                                                                                 |
-| `TALE_RETENTION_ANALYTICS_MIN_DAYS` / `_MAX_DAYS`          | `30`         | `3650`       | Pro-Anfrage Usage-Analytics-Einträge.                                                                        |
-| `TALE_RETENTION_LOGIN_ATTEMPTS_MIN_DAYS` / `_MAX_DAYS`     | `90`         | `365`        | Login-Fehler Forensik-Einträge. Min auf 90 Tage erhöht.                                                      |
-| `TALE_RETENTION_CHAT_FILTER_EVENTS_MIN_DAYS` / `_MAX_DAYS` | `1`          | `365`        | Chat-Filter (PII / Wortliste / Moderation) Telemetrie.                                                       |
-| `TALE_RETENTION_USER_TEMP_MIN_HOURS` / `_MAX_HOURS`        | `1`          | `720`        | Temporäre nutzerseitige Dateien (Stunden).                                                                   |
-| `TALE_RETENTION_AGENT_TEMP_MIN_HOURS` / `_MAX_HOURS`       | `1`          | `720`        | Temporäre agentenseitige Dateien (Stunden).                                                                  |
-| `TALE_RETENTION_DISABLED`                                  | `false`      | —            | Wenn `true`, läuft der Cleanup-Prozess no-op mit warn-log. Operator-Notbremse für Migrationsfenster / Debug. |
+| Variable                                               | Standard min | Standard max | Steuert                                                                                                      |
+| ------------------------------------------------------ | ------------ | ------------ | ------------------------------------------------------------------------------------------------------------ |
+| `TALE_RETENTION_CONVERSATIONS_MIN_DAYS` / `_MAX_DAYS`  | `1`          | `3650`       | Chat-Konversationen und ihre Nachrichten.                                                                    |
+| `TALE_RETENTION_FILES_MIN_DAYS` / `_MAX_DAYS`          | `30`         | `3650`       | Hochgeladene Dateien (Chat-Anhänge oder Wissensbasis).                                                       |
+| `TALE_RETENTION_AUDIT_MIN_DAYS` / `_MAX_DAYS`          | `365`        | `3650`       | Audit-Log-Einträge. Min hartcodiert auf 365 Tage (PCI/SOC2/ISO-Baseline) — Operator kann nur ERHÖHEN.        |
+| `TALE_RETENTION_EXECUTIONS_MIN_DAYS` / `_MAX_DAYS`     | `1`          | `365`        | Workflow-Ausführungsdetails.                                                                                 |
+| `TALE_RETENTION_ANALYTICS_MIN_DAYS` / `_MAX_DAYS`      | `30`         | `3650`       | Pro-Anfrage Usage-Analytics-Einträge.                                                                        |
+| `TALE_RETENTION_LOGIN_ATTEMPTS_MIN_DAYS` / `_MAX_DAYS` | `90`         | `365`        | Login-Fehler Forensik-Einträge. Min auf 90 Tage erhöht.                                                      |
+| `TALE_RETENTION_CHAT_FILTER_MIN_DAYS` / `_MAX_DAYS`    | `1`          | `365`        | Chat-Filter (PII / Wortliste / Moderation) Telemetrie.                                                       |
+| `TALE_RETENTION_PROMPTS_MIN_DAYS` / `_MAX_DAYS`        | `30`         | `3650`       | Gespeicherte Prompt-Vorlagen (org-scope).                                                                    |
+| `TALE_RETENTION_FEEDBACK_MIN_DAYS` / `_MAX_DAYS`       | `30`         | `3650`       | Pro-Nachricht Daumen / Kommentare. Können zitierten Nutzerinhalt enthalten.                                  |
+| `TALE_RETENTION_MEMORY_AUDIT_MIN_DAYS` / `_MAX_DAYS`   | `30`         | `3650`       | Personalisierungs-Memory Änderungs-Log.                                                                      |
+| `TALE_RETENTION_CUSTOMERS_MIN_DAYS` / `_MAX_DAYS`      | `30`         | `3650`       | CRM-Kundendaten (Name, E-Mail, Adresse, Locale, Metadaten).                                                  |
+| `TALE_RETENTION_VENDORS_MIN_DAYS` / `_MAX_DAYS`        | `30`         | `3650`       | Lieferantendatensätze (Name, E-Mail, Telefon, Adresse, Freitext-Notizen).                                    |
+| `TALE_RETENTION_INBOX_MIN_DAYS` / `_MAX_DAYS`          | `30`         | `3650`       | Externer Kundenkanal-Posteingang (E-Mail/Chat-Integrationen) + kaskadierte Nachrichteninhalte.               |
+| `TALE_RETENTION_MSG_META_MIN_DAYS` / `_MAX_DAYS`       | `30`         | `3650`       | Pro-Nachricht Reasoning, Prompt-Kontextfenster, Tool-I/O. Stark PII-haltige abgeleitete Daten.               |
+| `TALE_RETENTION_USER_TEMP_MIN_HOURS` / `_MAX_HOURS`    | `1`          | `720`        | Temporäre nutzerseitige Dateien (Stunden).                                                                   |
+| `TALE_RETENTION_AGENT_TEMP_MIN_HOURS` / `_MAX_HOURS`   | `1`          | `720`        | Temporäre agentenseitige Dateien (Stunden).                                                                  |
+| `TALE_RETENTION_DISABLED`                              | `false`      | —            | Wenn `true`, läuft der Cleanup-Prozess no-op mit warn-log. Operator-Notbremse für Migrationsfenster / Debug. |
 
 Änderungen an Env-Variablen werden beim **nächsten Backend-Neustart** wirksam (`docker compose restart tale-convex`) — Convex cached Env beim Prozessstart.
 

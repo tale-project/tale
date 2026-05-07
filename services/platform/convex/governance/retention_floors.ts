@@ -126,21 +126,24 @@ export const RETENTION_DEFAULTS: Record<RetentionCategory, BoundDef> = {
     min: 1,
     max: 365,
     default: 90,
-    envPrefix: 'TALE_RETENTION_CHAT_FILTER_EVENTS',
+    // Convex caps env names at < 40 chars. Suffix `_MAX_HOURS` is 10
+    // chars, leaving 29 for the prefix → category portion ≤ 14. The
+    // legacy `_CHAT_FILTER_EVENTS` was 18 and crashed on read.
+    envPrefix: 'TALE_RETENTION_CHAT_FILTER',
     unit: 'days',
   },
   promptTemplates: {
     min: 30,
     max: 3650,
     default: 730,
-    envPrefix: 'TALE_RETENTION_PROMPT_TEMPLATES',
+    envPrefix: 'TALE_RETENTION_PROMPTS',
     unit: 'days',
   },
   messageFeedback: {
     min: 30,
     max: 3650,
     default: 365,
-    envPrefix: 'TALE_RETENTION_MESSAGE_FEEDBACK',
+    envPrefix: 'TALE_RETENTION_FEEDBACK',
     unit: 'days',
   },
   memoryAudit: {
@@ -168,14 +171,16 @@ export const RETENTION_DEFAULTS: Record<RetentionCategory, BoundDef> = {
     min: 30,
     max: 3650,
     default: 730,
-    envPrefix: 'TALE_RETENTION_EXTERNAL_CONVERSATIONS',
+    // Customer-channel inbox (email/chat integrations). Shortened to
+    // fit Convex's < 40-char env-name limit.
+    envPrefix: 'TALE_RETENTION_INBOX',
     unit: 'days',
   },
   messageMetadata: {
     min: 30,
     max: 3650,
     default: 365,
-    envPrefix: 'TALE_RETENTION_MESSAGE_METADATA',
+    envPrefix: 'TALE_RETENTION_MSG_META',
     unit: 'days',
   },
 };
@@ -190,7 +195,20 @@ export interface EffectiveBounds {
 }
 
 function parseEnvNumber(name: string): number | null {
-  const raw = process.env[name];
+  // Convex enforces env-var name length (< 40 chars). Defensive try/catch
+  // so a too-long name in this file (which would be a code bug, not an
+  // operator misconfig) doesn't crash every retention-bounds query
+  // across the deployment. Surfaces as a console warning instead.
+  let raw: string | undefined;
+  try {
+    raw = process.env[name];
+  } catch (error) {
+    console.warn(
+      `[retention_floors] process.env[${name}] threw — likely a too-long env name (>= 40 chars). Falling back to code default.`,
+      error,
+    );
+    return null;
+  }
   if (raw === undefined || raw === '') return null;
   const n = Number.parseInt(raw, 10);
   if (!Number.isFinite(n) || n < 0) return null;
