@@ -139,13 +139,12 @@ ENV TALE_VERSION=${VERSION} \
     DO_NOT_TRACK=1 \
     TALE_PLATFORM_SHARED_CONFIG_DIR=/app/platform-config
 
-# NOTE: RAG_INTERNAL_TOKEN is intentionally NOT baked into the image.
-# Operators MUST supply it via env / compose / k8s secret. The Python
-# `Settings` class still has a `tale-rag-dev-only` default for plain
-# unit tests, but the runtime image refuses to default-launch with it
-# (set `RAG_REQUIRE_CUSTOM_INTERNAL_TOKEN=true` or
-# `TALE_REQUIRE_CUSTOM_RAG_TOKEN=true` to enforce, recommended for any
-# non-dev deployment).
+# NOTE: RAG_AUTH_TOKEN is not baked into the image. If set on BOTH the
+# RAG container and the platform/convex container (values must match),
+# Bearer auth is enforced and mismatched/missing tokens return 401. If
+# unset, the service runs unauthenticated — only safe when the RAG port
+# is bound to a private network. Auth is presence-based: there is no
+# dev-only fallback token.
 
 # Expose port
 EXPOSE 8001
@@ -194,8 +193,8 @@ ENV TALE_VERSION=${VERSION} \
     DO_NOT_TRACK=1 \
     TALE_PLATFORM_SHARED_CONFIG_DIR=/app/platform-config
 
-# NOTE: RAG_INTERNAL_TOKEN is intentionally NOT baked into the image — see
-# the runtime stage above for the full rationale.
+# NOTE: RAG_AUTH_TOKEN is not baked into the image — see the runtime
+# stage above for the full rationale.
 
 EXPOSE 8001
 

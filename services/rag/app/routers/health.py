@@ -6,7 +6,7 @@ Two routers are exported:
   so docker / k8s liveness + readiness probes keep working with no
   config.
 - `protected_router` — `/config`. Mounted under
-  `Depends(verify_internal_token)`; previously bundled with the public
+  `Depends(verify_auth_token)`; previously bundled with the public
   router and accidentally unauthenticated, leaking model names, host /
   port, chunking params (round-2 v15 CRITICAL).
 """

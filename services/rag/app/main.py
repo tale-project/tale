@@ -12,7 +12,7 @@ from tale_shared.logging import suppress_health_check_logs
 from tale_telemetry import init_telemetry, shutdown_telemetry
 
 from . import __version__
-from .auth import verify_internal_token, warn_if_default_token_in_use
+from .auth import verify_auth_token, warn_if_auth_disabled
 from .config import settings
 from .models import ErrorResponse
 from .routers.documents import router as documents_router
@@ -49,9 +49,8 @@ async def lifespan(app: FastAPI):
     logger.info("Host: {}:{}", settings.host, settings.port)
     logger.info("Log level: {}", settings.log_level)
 
-    # Emit SECURITY warning if the baked-in default internal token is in use.
-    # If RAG_REQUIRE_CUSTOM_INTERNAL_TOKEN=true this raises and stops startup.
-    warn_if_default_token_in_use()
+    # Emit SECURITY warning if RAG_AUTH_TOKEN is unset (auth disabled).
+    warn_if_auth_disabled()
 
     try:
         await rag_service.initialize()
@@ -146,11 +145,12 @@ async def general_exception_handler(_request, exc):
 # `health_public_router` (`/`, `/health`) stays unauthenticated so liveness
 # and readiness probes (docker / k8s) work without auth headers.
 # `health_protected_router` (`/config`) and every other router require
-# `Authorization: Bearer ${RAG_INTERNAL_TOKEN}`.
+# `Authorization: Bearer ${RAG_AUTH_TOKEN}` when the env is set; the
+# `verify_auth_token` dependency self-skips when `RAG_AUTH_TOKEN` is unset.
 app.include_router(health_public_router)
-app.include_router(health_protected_router, dependencies=[Depends(verify_internal_token)])
-app.include_router(documents_router, dependencies=[Depends(verify_internal_token)])
-app.include_router(search_router, dependencies=[Depends(verify_internal_token)])
+app.include_router(health_protected_router, dependencies=[Depends(verify_auth_token)])
+app.include_router(documents_router, dependencies=[Depends(verify_auth_token)])
+app.include_router(search_router, dependencies=[Depends(verify_auth_token)])
 init_telemetry(app)
 
 

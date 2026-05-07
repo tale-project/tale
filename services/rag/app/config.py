@@ -4,7 +4,6 @@ Configuration is loaded from environment variables with the RAG_ prefix.
 LLM settings are read from provider configuration files.
 """
 
-from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
 from tale_shared.config import BaseServiceSettings
 
@@ -23,27 +22,12 @@ class Settings(BaseServiceSettings):
     # Override base defaults
     port: int = 8001
 
-    # Internal auth token shared with the platform service.
-    # Default `tale-rag-dev-only` matches the value baked into the RAG and
-    # platform Docker images so a fresh `docker compose up` works with no
-    # config. Production operators MUST override via env / compose / k8s
-    # secret. When the default is in use, startup logs a loud SECURITY
-    # warning every restart (see main.py).
-    internal_token: str = "tale-rag-dev-only"
-
-    # When true, refuse to start with the default internal token (strict
-    # production posture). Default false so dev / eval / local just works.
-    # Accepts both the RAG-side `RAG_REQUIRE_CUSTOM_INTERNAL_TOKEN` and
-    # the platform-side `TALE_REQUIRE_CUSTOM_RAG_TOKEN` so operators only
-    # have to set one env var to enforce strict mode on both sides of the
-    # wire (round-2 v15 H3 — env name unification).
-    require_custom_internal_token: bool = Field(
-        default=False,
-        validation_alias=AliasChoices(
-            "RAG_REQUIRE_CUSTOM_INTERNAL_TOKEN",
-            "TALE_REQUIRE_CUSTOM_RAG_TOKEN",
-        ),
-    )
+    # Shared-secret auth token. When set (via `RAG_AUTH_TOKEN` env), every
+    # request to the RAG service must carry `Authorization: Bearer <token>`
+    # and the platform-side `RAG_AUTH_TOKEN` must match. When unset, the
+    # service runs unauthenticated — only safe when the RAG port is bound
+    # to a private network. Startup logs a SECURITY warning if unset.
+    auth_token: str | None = None
 
     # Database pool sizing
     database_pool_min: int = 2

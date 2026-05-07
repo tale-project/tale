@@ -95,16 +95,13 @@ ENV NODE_ENV=production \
     # Sub-dirs (agents/workflows/integrations/providers) are derived inside
     # Convex via `convex/*/file_utils.ts` — no need to set them explicitly.
     TALE_CONFIG_DIR=/app/data
-    # NOTE: RAG_INTERNAL_TOKEN is intentionally NOT baked into the image
-    # (round-2 v15 finding). Operators MUST supply it via env / compose /
-    # k8s secret on BOTH the platform/convex container and the RAG
-    # container (the values must match). The platform-side
-    # `lib/helpers/rag_config.ts` reads `RAG_INTERNAL_TOKEN` from env at
-    # call time; missing/empty value yields a startup warning and `401`
-    # responses from the RAG service. Set
-    # `TALE_REQUIRE_CUSTOM_RAG_TOKEN=true` (single env, also accepted as
-    # `RAG_REQUIRE_CUSTOM_INTERNAL_TOKEN`) on the RAG container to refuse
-    # to start with the dev-only fallback default.
+    # NOTE: RAG_AUTH_TOKEN is not baked into the image. If set on BOTH
+    # the platform/convex container and the RAG container (values must
+    # match), every platform-to-RAG request carries
+    # `Authorization: Bearer ${RAG_AUTH_TOKEN}` and RAG rejects mismatches
+    # with 401. If unset, RAG runs unauthenticated — only safe when the
+    # RAG port is bound to a private network. Auth is presence-based:
+    # there is no dev-only fallback token.
 
 # ----------------------------------------------------------------------------
 # Convex Dashboard (Next.js standalone) — served as /convex-dashboard via Caddy

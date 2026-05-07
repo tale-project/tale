@@ -15,7 +15,7 @@ const RAG_URL = 'http://mock-rag:8001';
 
 beforeAll(() => {
   process.env.RAG_URL = RAG_URL;
-  process.env.RAG_INTERNAL_TOKEN = 'test-token';
+  process.env.RAG_AUTH_TOKEN = 'test-token';
   _resetRagConfigForTests();
 });
 const FILE_ID = 'file-storage-123';

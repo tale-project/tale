@@ -15,7 +15,7 @@ const RAG_URL = 'http://rag:8000';
 
 beforeAll(() => {
   process.env.RAG_URL = RAG_URL;
-  process.env.RAG_INTERNAL_TOKEN = 'test-token';
+  process.env.RAG_AUTH_TOKEN = 'test-token';
   _resetRagConfigForTests();
 });
 const FILE_ID = 'doc-abc-123';

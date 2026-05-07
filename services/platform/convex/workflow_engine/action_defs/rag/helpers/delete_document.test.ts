@@ -13,7 +13,7 @@ import { deleteDocumentById } from './delete_document';
 
 beforeAll(() => {
   process.env.RAG_URL = 'http://rag:8000';
-  process.env.RAG_INTERNAL_TOKEN = 'test-token';
+  process.env.RAG_AUTH_TOKEN = 'test-token';
   _resetRagConfigForTests();
 });
 

@@ -3,11 +3,15 @@ import ipaddr from 'ipaddr.js';
 export interface RagConfig {
   /** Full RAG base URL (e.g., `http://rag:8001`). */
   serviceUrl: string;
-  /** Bearer token sent on every request to RAG. */
-  internalToken: string;
+  /**
+   * Shared-secret Bearer token sent on every request to RAG. When
+   * undefined (env unset), no Authorization header is sent and the RAG
+   * service runs unauthenticated. When set, the value MUST match the
+   * RAG container's `RAG_AUTH_TOKEN`.
+   */
+  authToken: string | undefined;
 }
 
-const DEFAULT_INTERNAL_TOKEN = 'tale-rag-dev-only';
 const DEFAULT_SERVICE_URL = 'http://localhost:8001';
 
 /**
@@ -147,37 +151,29 @@ export function validateRagUrl(rawUrl: string): URL {
  *   - non-http(s) scheme
  *   - literal-IP host inside an SSRF-blocked CIDR (link-local / IMDS / 0.0.0.0/8)
  *   - hostname matching a known cloud-metadata endpoint
- *   - default token in use AND `TALE_REQUIRE_CUSTOM_RAG_TOKEN=true`
  *
- * Logs a SECURITY warning (once) when the default `tale-rag-dev-only` token
- * is in use without the require flag.
+ * Auth is presence-based: when `RAG_AUTH_TOKEN` is set, every request to
+ * RAG carries `Authorization: Bearer ${token}`; when unset, no header is
+ * sent and RAG runs open. Logs a SECURITY warning (once) when unset.
  */
 export function getRagConfig(): RagConfig {
   if (cached) return cached;
 
   const serviceUrl = process.env.RAG_URL || DEFAULT_SERVICE_URL;
-  const internalToken =
-    process.env.RAG_INTERNAL_TOKEN || DEFAULT_INTERNAL_TOKEN;
+  const authToken = process.env.RAG_AUTH_TOKEN || undefined;
 
   validateRagUrl(serviceUrl);
 
-  if (internalToken === DEFAULT_INTERNAL_TOKEN) {
-    if (process.env.TALE_REQUIRE_CUSTOM_RAG_TOKEN === 'true') {
-      throw new Error(
-        '[SECURITY] TALE_REQUIRE_CUSTOM_RAG_TOKEN=true but RAG_INTERNAL_TOKEN ' +
-          'is still the default (tale-rag-dev-only). Set RAG_INTERNAL_TOKEN to ' +
-          'a unique secret on both the platform and RAG containers.',
-      );
-    }
+  if (authToken === undefined) {
     console.warn(
-      '[SECURITY] Using default RAG_INTERNAL_TOKEN (tale-rag-dev-only). ' +
-        'Override RAG_INTERNAL_TOKEN to a unique secret before exposing the ' +
-        'RAG port to untrusted networks. Set TALE_REQUIRE_CUSTOM_RAG_TOKEN=true ' +
-        'to refuse to start with the default.',
+      '[SECURITY] RAG_AUTH_TOKEN unset — requests to the RAG service will ' +
+        'be unauthenticated. Set RAG_AUTH_TOKEN to a shared secret on both ' +
+        'the platform and RAG containers (values must match) to enable ' +
+        'Bearer auth.',
     );
   }
 
-  cached = { serviceUrl, internalToken };
+  cached = { serviceUrl, authToken };
   return cached;
 }
 
@@ -187,9 +183,10 @@ export function _resetRagConfigForTests(): void {
 }
 
 /**
- * Authenticated fetch against the RAG service. Always sets
- * `Authorization: Bearer ${internalToken}`, applies a default per-request
- * timeout, and accepts a path or a full URL.
+ * Fetch against the RAG service. Sets `Authorization: Bearer ${authToken}`
+ * when `RAG_AUTH_TOKEN` is configured; otherwise sends no Authorization
+ * header (RAG runs open). Applies a default per-request timeout and
+ * accepts a path starting with `/`.
  *
  * Works in both V8 and Node Convex runtimes (uses the global `fetch`).
  *
@@ -201,7 +198,7 @@ export async function ragFetch(
   path: string,
   init: RequestInit & { timeoutMs?: number } = {},
 ): Promise<Response> {
-  const { serviceUrl, internalToken } = getRagConfig();
+  const { serviceUrl, authToken } = getRagConfig();
   // The legacy `path.startsWith('http')` override branch was a future-bypass
   // foot-gun (a future caller could pass an absolute URL pointing anywhere
   // and skip the SSRF guard entirely). All current call sites pass relative
@@ -220,8 +217,8 @@ export async function ragFetch(
   validateRagUrl(url);
 
   const headers = new Headers(init.headers);
-  if (!headers.has('authorization')) {
-    headers.set('authorization', `Bearer ${internalToken}`);
+  if (authToken !== undefined && !headers.has('authorization')) {
+    headers.set('authorization', `Bearer ${authToken}`);
   }
 
   const timeoutMs = init.timeoutMs ?? 10_000;
@@ -236,7 +233,6 @@ export async function ragFetch(
 }
 
 export const _internal = {
-  DEFAULT_INTERNAL_TOKEN,
   DEFAULT_SERVICE_URL,
   SSRF_BLOCKED_CIDRS,
   SSRF_BLOCKED_CIDRS_V6,
