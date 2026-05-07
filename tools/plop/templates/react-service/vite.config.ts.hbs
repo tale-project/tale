@@ -18,8 +18,8 @@ export default defineConfig({
       'react/jsx-runtime',
       '@tanstack/react-router',
       '@tanstack/react-query',
-      'lucide-react',
       'framer-motion',
+      'lucide-react',
       'zod',
     ],
   },
@@ -27,6 +27,18 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     chunkSizeWarningLimit: 2000,
+  },
+  ssr: {
+    noExternal: [
+      '@tale/ui',
+      '@tale/webui',
+      '@tanstack/react-router',
+      'framer-motion',
+      'lucide-react',
+      'react-i18next',
+      'i18next',
+      'i18next-icu',
+    ],
   },
   plugins: [tanstackRouter(), viteReact()],
 });

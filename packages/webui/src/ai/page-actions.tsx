@@ -110,7 +110,7 @@ export function PageActions({
           variant="secondary"
           onClick={handleCopy}
           aria-label={copied ? labels.copied : labels.copyPage}
-          className="gap-1.5"
+          className="min-w-34 justify-center gap-1.5"
         >
           {copied ? (
             <Check className="size-3.5" aria-hidden />

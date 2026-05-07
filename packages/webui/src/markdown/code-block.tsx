@@ -1,7 +1,7 @@
 import { cn } from '@tale/ui/cn';
 import { useTheme } from '@tale/ui/theme';
 import { Check, Copy } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { highlightCode } from './shiki';
 
@@ -14,6 +14,8 @@ interface CodeBlockProps {
   hideCopy?: boolean;
   className?: string;
 }
+
+const LINE_NUMBER_THRESHOLD = 3;
 
 /**
  * Add per-line background tints to Shiki's diff output. Shiki wraps each
@@ -41,9 +43,20 @@ function applyDiffLineBackgrounds(html: string): string {
   return doc.body.innerHTML;
 }
 
+function countLines(code: string): number {
+  // Trim the trailing newline most fenced blocks carry so an N-line block
+  // doesn't render as N+1 numbers.
+  const normalised = code.endsWith('\n') ? code.slice(0, -1) : code;
+  return normalised.split('\n').length;
+}
+
 /**
  * Highlighted, copy-friendly code block. Falls back to a plain `<pre>`
  * while Shiki loads in the background so the layout never shifts.
+ *
+ * The copy button lives in the header bar (always rendered) so single-line
+ * blocks don't reflow when the button mounts. Line numbers appear for
+ * blocks with more than three lines — small snippets stay clean.
  */
 export function CodeBlock({
   code,
@@ -81,6 +94,22 @@ export function CodeBlock({
     }
   };
 
+  const lineCount = useMemo(() => countLines(code), [code]);
+  const showLineNumbers = lineCount > LINE_NUMBER_THRESHOLD;
+  const lineNumbers = useMemo(
+    () =>
+      showLineNumbers
+        ? Array.from({ length: lineCount }, (_, i) => i + 1)
+        : null,
+    [lineCount, showLineNumbers],
+  );
+
+  // Always render the header bar so the layout doesn't shift between
+  // labelled and bare blocks. The label slot collapses to whitespace when
+  // we have neither a filename nor a language tag.
+  const showHeader = true;
+  const headerLabel = filename ?? language ?? '';
+
   return (
     <div
       className={cn(
@@ -88,49 +117,61 @@ export function CodeBlock({
         className,
       )}
     >
-      {filename || language ? (
-        <div className="border-border-base text-fg-muted flex items-center justify-between border-b px-4 py-2 text-xs">
-          <span className="truncate font-mono">{filename ?? language}</span>
-          {language && filename ? (
-            <span className="font-mono opacity-60">{language}</span>
-          ) : null}
+      {showHeader ? (
+        <div className="border-border-base flex h-9 items-center justify-between gap-4 border-b px-3 text-xs">
+          <span className="text-fg-muted truncate font-mono">
+            {headerLabel}
+            {language && filename ? (
+              <span className="ml-2 opacity-60">{language}</span>
+            ) : null}
+          </span>
+          {hideCopy ? null : (
+            <button
+              type="button"
+              onClick={handleCopy}
+              disabled={copied}
+              aria-label={copied ? 'Copied' : 'Copy code'}
+              aria-live="polite"
+              // Fixed footprint so the icon swap doesn't reflow surrounding
+              // chrome. The label is announced via aria-label for SR users.
+              className={cn(
+                'text-fg-muted hover:text-fg-base hover:bg-bg-base/60 inline-flex size-7 shrink-0 items-center justify-center rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-current/20',
+                copied && 'text-emerald-600',
+              )}
+            >
+              {copied ? (
+                <Check className="size-3.5" aria-hidden />
+              ) : (
+                <Copy className="size-3.5" aria-hidden />
+              )}
+            </button>
+          )}
         </div>
       ) : null}
       <div className="relative">
-        {hideCopy ? null : (
-          <button
-            type="button"
-            onClick={handleCopy}
-            disabled={copied}
-            aria-label={copied ? 'Copied' : 'Copy code'}
-            aria-live="polite"
-            // The button stays visible at low opacity so the affordance is
-            // discoverable on touch devices, then ramps to full opacity on
-            // hover/focus or once the user has just copied.
-            className={cn(
-              'border-border-base bg-bg-base text-fg-muted absolute top-2 right-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-md border opacity-60 shadow-sm transition focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-current/20',
-              'hover:text-fg-base group-hover/code-block:opacity-100',
-              copied && 'cursor-default text-emerald-600 opacity-100',
-            )}
-          >
-            {copied ? (
-              <Check className="size-3.5" aria-hidden />
-            ) : (
-              <Copy className="size-3.5" aria-hidden />
-            )}
-          </button>
-        )}
-        {html ? (
-          <div
-            className="overflow-x-auto p-4 text-sm [&_.shiki-diff_.line]:-mx-4 [&_.shiki-diff_.line]:inline-block [&_.shiki-diff_.line]:w-[calc(100%+2rem)] [&_.shiki-diff_.line]:px-4 [&>pre]:m-0 [&>pre]:bg-transparent! [&>pre]:p-0"
-            // oxlint-disable-next-line react/no-danger -- Shiki output is HTML by design
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-        ) : (
-          <pre className="overflow-x-auto p-4 text-sm">
-            <code>{code}</code>
-          </pre>
-        )}
+        <div className="flex">
+          {showLineNumbers && lineNumbers ? (
+            <div
+              aria-hidden
+              className="border-border-base text-fg-subtle bg-bg-elevated/40 border-r px-3 py-4 text-right font-mono text-xs leading-[1.6] select-none"
+            >
+              {lineNumbers.map((n) => (
+                <div key={n}>{n}</div>
+              ))}
+            </div>
+          ) : null}
+          {html ? (
+            <div
+              className="min-w-0 flex-1 overflow-x-auto p-4 text-sm [&_.shiki-diff_.line]:-mx-4 [&_.shiki-diff_.line]:inline-block [&_.shiki-diff_.line]:w-[calc(100%+2rem)] [&_.shiki-diff_.line]:px-4 [&>pre]:m-0 [&>pre]:bg-transparent! [&>pre]:p-0 [&>pre>code>.line]:leading-[1.6]"
+              // oxlint-disable-next-line react/no-danger -- Shiki output is HTML by design
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          ) : (
+            <pre className="min-w-0 flex-1 overflow-x-auto p-4 text-sm leading-[1.6]">
+              <code>{code}</code>
+            </pre>
+          )}
+        </div>
       </div>
     </div>
   );

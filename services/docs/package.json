@@ -25,7 +25,8 @@
   "dependencies": {
     "@fontsource-variable/inter": "5.2.8",
     "@tale/ui": "workspace:*",
-    "@tale/webui": "workspace:*"
+    "@tale/webui": "workspace:*",
+    "framer-motion": "12.38.0"
   },
   "devDependencies": {
     "@types/bun": "1.3.11"

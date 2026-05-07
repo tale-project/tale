@@ -1,6 +1,6 @@
 import { Check, Link as LinkIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Children, isValidElement, useState } from 'react';
+import { Children, cloneElement, isValidElement, useState } from 'react';
 
 interface ChildrenContainer {
   children?: ReactNode;
@@ -17,6 +17,57 @@ export function nodeText(node: ReactNode): string {
     }
   });
   return out;
+}
+
+/**
+ * Pandoc-style explicit-id syntax at the end of a heading. Matches the
+ * trailing token `{#some-id}` (optionally with surrounding whitespace) so
+ * authors can override the auto-generated slug — handy for stable anchor
+ * URLs across renames or non-Latin headings.
+ */
+const EXPLICIT_ID_PATTERN = /\s*\{#([a-zA-Z0-9_-]+)\}\s*$/;
+
+export interface ExplicitIdResult {
+  id: string | null;
+  /** Children with the trailing `{#id}` token removed. */
+  children: ReactNode;
+}
+
+/**
+ * Walk a heading's children and pull out a trailing `{#custom-id}` token if
+ * one is present. Returns the id and a new children array with the token
+ * stripped from its terminal text node.
+ */
+export function extractExplicitId(children: ReactNode): ExplicitIdResult {
+  const arr = Children.toArray(children);
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const node = arr[i];
+    if (typeof node === 'string') {
+      const match = EXPLICIT_ID_PATTERN.exec(node);
+      if (match) {
+        const trimmed = node.slice(0, match.index).replace(/\s+$/, '');
+        const next =
+          trimmed.length > 0
+            ? [...arr.slice(0, i), trimmed, ...arr.slice(i + 1)]
+            : [...arr.slice(0, i), ...arr.slice(i + 1)];
+        return { id: match[1], children: next };
+      }
+      // Non-empty, non-whitespace text without the marker: stop searching —
+      // the marker must be the trailing token.
+      if (node.trim().length > 0) return { id: null, children };
+      continue;
+    }
+    if (isValidElement<ChildrenContainer>(node)) {
+      const inner = extractExplicitId(node.props.children);
+      if (inner.id) {
+        const replaced = cloneElement(node, undefined, inner.children);
+        const next = [...arr.slice(0, i), replaced, ...arr.slice(i + 1)];
+        return { id: inner.id, children: next };
+      }
+      return { id: null, children };
+    }
+  }
+  return { id: null, children };
 }
 
 /** GitHub-style heading slug: lower-case, alphanumerics + hyphens. */
@@ -54,7 +105,9 @@ export function AnchoredHeading({
   className,
   children,
 }: AnchoredHeadingProps) {
-  const id = slugifyHeading(children);
+  const explicit = extractExplicitId(children);
+  const renderedChildren = explicit.children;
+  const id = explicit.id ?? slugifyHeading(renderedChildren);
   const Tag = level;
   const [copied, setCopied] = useState(false);
 
@@ -74,7 +127,7 @@ export function AnchoredHeading({
   return (
     <Tag id={id} className={`group scroll-mt-24 ${className}`}>
       <a href={`#${id}`} className="text-fg-base no-underline">
-        {children}
+        {renderedChildren}
       </a>
       <button
         type="button"

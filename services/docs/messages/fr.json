@@ -1,13 +1,10 @@
 {
   "nav": {
-    "docs": "Documentation",
     "homeAriaLabel": "Accueil de la documentation Tale",
     "openSearch": "Ouvrir la recherche",
     "openMenu": "Ouvrir le menu de navigation",
     "closeMenu": "Fermer le menu de navigation",
     "searchPlaceholder": "Rechercher dans la documentation",
-    "githubAriaLabel": "Tale sur GitHub",
-    "requestDemo": "Demander une démo",
     "groups": {
       "start": "Commencer ici",
       "cloud": "Cloud",
@@ -64,8 +61,31 @@
     "system": "Système"
   },
   "footer": {
-    "copyrightLine1": "© {year} Tale. Tous droits réservés.",
-    "footerNav": "Pied de page"
+    "product": "Produit",
+    "resources": "Ressources",
+    "legal": "Mentions légales",
+    "features": "Fonctionnalités",
+    "pricing": "Tarifs",
+    "hardwarePricing": "Tarifs matériel",
+    "contact": "Contact",
+    "aiTraining": "Formations IA",
+    "serviceAgreement": "Contrat de service",
+    "hardwareAgreement": "Contrat matériel",
+    "privacyPolicy": "Politique de confidentialité",
+    "termsOfService": "Conditions d'utilisation",
+    "processingAgreement": "Contrat de sous-traitance",
+    "homeAriaLabel": "Accueil Tale",
+    "githubAriaLabel": "GitHub",
+    "llmsTxtLabel": "llms.txt",
+    "address": {
+      "company": "Ruler GmbH",
+      "street": "Seestrasse 4",
+      "city": "3700 Spiez",
+      "country": "Suisse",
+      "vatId": "CHE-186.532.610"
+    },
+    "copyrightLine1": "© {year} Tale par Ruler GmbH — certifié ISO 27001 et SOC 2.",
+    "copyrightLine2": "Tale est sous licence MIT — libre d'utilisation, de modification et de distribution."
   },
   "notFound": {
     "title": "Page introuvable",

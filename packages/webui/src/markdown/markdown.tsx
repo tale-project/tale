@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 
 import { AnchoredHeading } from './anchored-heading';
@@ -344,6 +345,11 @@ export function Markdown({ children, components, className }: MarkdownProps) {
     <div className={className}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        // `rehype-raw` reparses raw HTML embedded in markdown so authored
+        // tags like `<CodeGroup>`, `<Note>`, `<Card>` survive as hast nodes
+        // and reach the components map below. Without it those tags are
+        // dropped silently and only the prose between them renders.
+        rehypePlugins={[rehypeRaw]}
         components={{ ...baseComponents, ...components }}
       >
         {children}

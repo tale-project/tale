@@ -172,30 +172,8 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
   return (
     <div className="flex gap-10">
       <div className="min-w-0 flex-1">
-        <DocsBreadcrumbs locale={locale} crumbs={breadcrumbs} />
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <header className="min-w-0 flex-1">
-            <h1
-              className="text-fg-base text-3xl font-semibold tracking-tight md:text-4xl"
-              style={{ letterSpacing: '-0.4px', lineHeight: 1.15 }}
-            >
-              {doc.frontmatter.title}
-            </h1>
-            {doc.frontmatter.description ? (
-              <p className="text-fg-muted mt-2 text-base leading-relaxed">
-                {doc.frontmatter.description}
-              </p>
-            ) : null}
-            <p className="text-fg-subtle mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-              <span>{t('readingTime', { minutes: readingTime })}</span>
-              {formattedUpdatedAt ? (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span>{t('lastUpdated', { date: formattedUpdatedAt })}</span>
-                </>
-              ) : null}
-            </p>
-          </header>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <DocsBreadcrumbs locale={locale} crumbs={breadcrumbs} />
           <PageActions
             pageUrl={url}
             markdownUrl={markdownUrl}
@@ -203,6 +181,28 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
             className="shrink-0"
           />
         </div>
+        <header className="min-w-0">
+          <h1
+            className="text-fg-base text-3xl font-semibold tracking-tight md:text-4xl"
+            style={{ letterSpacing: '-0.4px', lineHeight: 1.15 }}
+          >
+            {doc.frontmatter.title}
+          </h1>
+          {doc.frontmatter.description ? (
+            <p className="text-fg-muted mt-2 text-base leading-relaxed">
+              {doc.frontmatter.description}
+            </p>
+          ) : null}
+          <p className="text-fg-subtle mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+            <span>{t('readingTime', { minutes: readingTime })}</span>
+            {formattedUpdatedAt ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{t('lastUpdated', { date: formattedUpdatedAt })}</span>
+              </>
+            ) : null}
+          </p>
+        </header>
         <Markdown
           // oxlint-disable-next-line typescript/no-explicit-any -- mintlify keys aren't HTML element tags; react-markdown's `Components` type only models built-in elements
           components={mintlifyComponents as any}

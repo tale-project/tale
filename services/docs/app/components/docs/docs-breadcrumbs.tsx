@@ -21,7 +21,10 @@ export function DocsBreadcrumbs({ locale, crumbs }: DocsBreadcrumbsProps) {
   // `buildBreadcrumbs` — there's no useful trail to show, so render nothing.
   if (crumbs.length === 0) return null;
   return (
-    <nav aria-label={t('breadcrumbs')} className="text-fg-muted mb-4 text-xs">
+    <nav
+      aria-label={t('breadcrumbs')}
+      className="text-fg-muted min-w-0 text-xs"
+    >
       <ol className="flex flex-wrap items-center gap-1">
         <li className="flex items-center">
           <Link

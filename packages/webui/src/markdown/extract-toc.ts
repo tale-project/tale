@@ -32,7 +32,17 @@ export function extractToc(body: string): TocEntry[] {
     // Strip the markdown formatting that ReactMarkdown unwraps before
     // AnchoredHeading sees the text, otherwise the TOC slug diverges
     // from the rendered DOM id and the anchor link 404s.
-    const text = match[2]
+    let rawText = match[2];
+    // Pandoc-style explicit-id token at the end (`{#custom-id}`). Pull it
+    // out so the TOC entry's `id` matches what AnchoredHeading renders;
+    // strip it from the visible label too.
+    let explicitId: string | undefined;
+    const idMatch = /\s*\{#([a-zA-Z0-9_-]+)\}\s*$/.exec(rawText);
+    if (idMatch) {
+      explicitId = idMatch[1];
+      rawText = rawText.slice(0, idMatch.index).replace(/\s+$/, '');
+    }
+    const text = rawText
       // ![alt](url) -> alt (run before the link strip below — otherwise
       // the link rule turns `![alt](url)` into `!alt` and the image
       // pattern can't match the leading `!` anymore).
@@ -48,7 +58,7 @@ export function extractToc(body: string): TocEntry[] {
       .replace(/`([^`]*)`/g, '$1')
       .trim();
     if (!text) continue;
-    entries.push({ level, text, id: slugifyHeading(text) });
+    entries.push({ level, text, id: explicitId ?? slugifyHeading(text) });
   }
   return entries;
 }

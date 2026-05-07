@@ -80,6 +80,13 @@ interface SiteHeaderProps {
   mobileNavId?: string;
   /** Callback fired when the user opens or closes the drawer. */
   onOpenChange?: (open: boolean) => void;
+  /**
+   * Override the inner content-width container. The default `SiteContainer`
+   * uses the marketing-site frame (max-w-[1280px], px-20 on desktop); docs
+   * pages need a wider, less-padded frame to align with the sidebar. Pass a
+   * custom className to opt out of the marketing defaults.
+   */
+  containerClassName?: string;
 }
 
 /**
@@ -100,6 +107,7 @@ export function SiteHeader({
   closeMenuLabel,
   mobileNavId = 'mobile-nav',
   onOpenChange,
+  containerClassName,
 }: SiteHeaderProps) {
   const reduceMotion = useReducedMotion();
   const [scrolled, setScrolled] = useState(false);
@@ -145,7 +153,7 @@ export function SiteHeader({
             : 'border-b border-transparent bg-transparent',
       )}
     >
-      <SiteContainer>
+      <SiteContainer className={containerClassName}>
         <div className="flex h-16 items-center justify-between gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr]">
           <div className="lg:justify-self-start">{logo}</div>
 
@@ -200,7 +208,7 @@ export function SiteHeader({
               }
               className="border-border-base bg-bg-base overflow-hidden border-t lg:hidden"
             >
-              <SiteContainer>
+              <SiteContainer className={containerClassName}>
                 <motion.div
                   initial={reduceMotion ? false : { opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}

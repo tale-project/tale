@@ -32,13 +32,24 @@ interface LanguageSwitcherProps {
   /** Compute the destination URL when the user picks a different locale.
    *  Receives the current pathname so each app can apply its own routing
    *  conventions (web uses canonical marketing routes; docs uses the
-   *  splat with optional `/de`, `/fr` prefix). */
-  resolveLocaleUrl: (
+   *  splat with optional `/de`, `/fr` prefix). Defaults to a prefix-based
+   *  resolver that matches both `services/web` and `services/docs`: drop
+   *  the existing locale segment and re-prefix non-English. */
+  resolveLocaleUrl?: (
     target: SupportedLocale,
     currentPathname: string,
   ) => string;
   /** Optional className passthrough for the trigger button. */
   className?: string;
+}
+
+function defaultResolveLocaleUrl(
+  target: SupportedLocale,
+  pathname: string,
+): string {
+  const canonical = stripLocalePrefix(pathname);
+  if (target === 'en') return canonical;
+  return canonical === '/' ? `/${target}` : `/${target}${canonical}`;
 }
 
 function stripLocalePrefix(pathname: string): string {
@@ -64,7 +75,7 @@ function readCurrentLocale(pathname: string): SupportedLocale {
  * (target, pathname) pair into the URL to navigate to.
  */
 export function LanguageSwitcher({
-  resolveLocaleUrl,
+  resolveLocaleUrl = defaultResolveLocaleUrl,
   className,
 }: LanguageSwitcherProps) {
   const { t } = useT('languageSwitcher');
