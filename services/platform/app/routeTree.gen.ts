@@ -66,7 +66,6 @@ import { Route as DashboardIdSettingsGovernanceSecurityMonitoringRouteImport } f
 import { Route as DashboardIdSettingsGovernancePoliciesLimitsRouteImport } from './routes/dashboard/$id/settings/governance/policies-limits'
 import { Route as DashboardIdSettingsGovernanceGuardrailsRouteImport } from './routes/dashboard/$id/settings/governance/guardrails'
 import { Route as DashboardIdSettingsGovernanceFeedbackRouteImport } from './routes/dashboard/$id/settings/governance/feedback'
-import { Route as DashboardIdSettingsGovernanceEnvironmentRouteImport } from './routes/dashboard/$id/settings/governance/environment'
 import { Route as DashboardIdSettingsGovernanceContentModelsRouteImport } from './routes/dashboard/$id/settings/governance/content-models'
 import { Route as DashboardIdChatSharedShareTokenRouteImport } from './routes/dashboard/$id/chat/shared/$shareToken'
 import { Route as DashboardIdAutomationsAmIdTriggersRouteImport } from './routes/dashboard/$id/automations/$amId/triggers'
@@ -395,12 +394,6 @@ const DashboardIdSettingsGovernanceFeedbackRoute =
     path: '/feedback',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
   } as any)
-const DashboardIdSettingsGovernanceEnvironmentRoute =
-  DashboardIdSettingsGovernanceEnvironmentRouteImport.update({
-    id: '/environment',
-    path: '/environment',
-    getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
-  } as any)
 const DashboardIdSettingsGovernanceContentModelsRoute =
   DashboardIdSettingsGovernanceContentModelsRouteImport.update({
     id: '/content-models',
@@ -526,7 +519,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute
   '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute
-  '/dashboard/$id/settings/governance/environment': typeof DashboardIdSettingsGovernanceEnvironmentRoute
   '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute
   '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute
@@ -586,7 +578,6 @@ export interface FileRoutesByTo {
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute
   '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute
-  '/dashboard/$id/settings/governance/environment': typeof DashboardIdSettingsGovernanceEnvironmentRoute
   '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute
   '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute
@@ -658,7 +649,6 @@ export interface FileRoutesById {
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute
   '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute
-  '/dashboard/$id/settings/governance/environment': typeof DashboardIdSettingsGovernanceEnvironmentRoute
   '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute
   '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute
   '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute
@@ -729,7 +719,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/triggers'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/settings/governance/content-models'
-    | '/dashboard/$id/settings/governance/environment'
     | '/dashboard/$id/settings/governance/feedback'
     | '/dashboard/$id/settings/governance/guardrails'
     | '/dashboard/$id/settings/governance/policies-limits'
@@ -789,7 +778,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/triggers'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/settings/governance/content-models'
-    | '/dashboard/$id/settings/governance/environment'
     | '/dashboard/$id/settings/governance/feedback'
     | '/dashboard/$id/settings/governance/guardrails'
     | '/dashboard/$id/settings/governance/policies-limits'
@@ -860,7 +848,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/triggers'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/settings/governance/content-models'
-    | '/dashboard/$id/settings/governance/environment'
     | '/dashboard/$id/settings/governance/feedback'
     | '/dashboard/$id/settings/governance/guardrails'
     | '/dashboard/$id/settings/governance/policies-limits'
@@ -1283,13 +1270,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdSettingsGovernanceFeedbackRouteImport
       parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
     }
-    '/dashboard/$id/settings/governance/environment': {
-      id: '/dashboard/$id/settings/governance/environment'
-      path: '/environment'
-      fullPath: '/dashboard/$id/settings/governance/environment'
-      preLoaderRoute: typeof DashboardIdSettingsGovernanceEnvironmentRouteImport
-      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
-    }
     '/dashboard/$id/settings/governance/content-models': {
       id: '/dashboard/$id/settings/governance/content-models'
       path: '/content-models'
@@ -1518,7 +1498,6 @@ const DashboardIdConversationsRouteWithChildren =
 
 interface DashboardIdSettingsGovernanceRouteRouteChildren {
   DashboardIdSettingsGovernanceContentModelsRoute: typeof DashboardIdSettingsGovernanceContentModelsRoute
-  DashboardIdSettingsGovernanceEnvironmentRoute: typeof DashboardIdSettingsGovernanceEnvironmentRoute
   DashboardIdSettingsGovernanceFeedbackRoute: typeof DashboardIdSettingsGovernanceFeedbackRoute
   DashboardIdSettingsGovernanceGuardrailsRoute: typeof DashboardIdSettingsGovernanceGuardrailsRoute
   DashboardIdSettingsGovernancePoliciesLimitsRoute: typeof DashboardIdSettingsGovernancePoliciesLimitsRoute
@@ -1531,8 +1510,6 @@ const DashboardIdSettingsGovernanceRouteRouteChildren: DashboardIdSettingsGovern
   {
     DashboardIdSettingsGovernanceContentModelsRoute:
       DashboardIdSettingsGovernanceContentModelsRoute,
-    DashboardIdSettingsGovernanceEnvironmentRoute:
-      DashboardIdSettingsGovernanceEnvironmentRoute,
     DashboardIdSettingsGovernanceFeedbackRoute:
       DashboardIdSettingsGovernanceFeedbackRoute,
     DashboardIdSettingsGovernanceGuardrailsRoute:
