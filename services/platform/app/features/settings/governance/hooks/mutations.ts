@@ -41,3 +41,40 @@ export function useTestModerationProvider() {
     api.governance.moderation_provider.test_action.testModerationProvider,
   );
 }
+
+/**
+ * Admin accepts the operator's proposed bound changes. On success,
+ * invalidates the proposal query so the banner clears immediately.
+ */
+export function useApplyBoundsProposal() {
+  const queryClient = useQueryClient();
+  return useConvexAction(
+    api.governance.retention_bounds_proposal.applyBoundsProposal,
+    {
+      onSuccess: (_data, variables) => {
+        void queryClient.invalidateQueries({
+          queryKey: ['retention-bounds-proposal', variables.organizationId],
+        });
+      },
+    },
+  );
+}
+
+/**
+ * Admin refuses the operator's proposed bound changes. Records the
+ * rejected hash; banner stays hidden until operator's effective hash
+ * diverges from BOTH applied and rejected. Same invalidation pattern.
+ */
+export function useRejectBoundsProposal() {
+  const queryClient = useQueryClient();
+  return useConvexAction(
+    api.governance.retention_bounds_proposal.rejectBoundsProposal,
+    {
+      onSuccess: (_data, variables) => {
+        void queryClient.invalidateQueries({
+          queryKey: ['retention-bounds-proposal', variables.organizationId],
+        });
+      },
+    },
+  );
+}

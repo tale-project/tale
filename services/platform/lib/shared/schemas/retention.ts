@@ -210,3 +210,52 @@ export const retentionDefaultsConfigSchema = z
 export type RetentionDefaultsConfig = z.infer<
   typeof retentionDefaultsConfigSchema
 >;
+
+/**
+ * Per-category effective bounds stored in `retentionAppliedBounds`. Only
+ * the two fields cleanup actually consumes (`min`, `max`) — display
+ * metadata, env-binding detail, and the `default` seed live in the file
+ * and are recomputed on each banner render.
+ */
+export interface AppliedBoundsByCategory {
+  // oxlint-disable-next-line typescript/consistent-indexed-object-style -- partial set of categories per org
+  [category: string]: { min: number; max: number };
+}
+
+/**
+ * Deterministic JSON of `bounds` with category keys sorted and per-bound
+ * field keys sorted (`max`, `min`). Identical content always serializes
+ * to the same string regardless of insertion order — feeds the SHA-256
+ * hash that detects file/env changes.
+ *
+ * Pure, sync, no zod — usable from V8 actions, Node actions, frontend.
+ */
+export function canonicalizeAppliedBounds(
+  bounds: AppliedBoundsByCategory,
+): string {
+  const cats = Object.keys(bounds).sort();
+  const entries = cats.map((cat) => {
+    const b = bounds[cat];
+    if (!b) return JSON.stringify(cat) + ':null';
+    // Two-field fixed shape; sort once for stability.
+    const inner = `{"max":${b.max},"min":${b.min}}`;
+    return JSON.stringify(cat) + ':' + inner;
+  });
+  return '{' + entries.join(',') + '}';
+}
+
+/**
+ * SHA-256 hex of `canonicalizeAppliedBounds(bounds)`. Async because
+ * `crypto.subtle.digest` is async; works in V8 (Convex), Node 20+,
+ * and browsers (banner can recompute client-side if needed).
+ */
+export async function hashAppliedBounds(
+  bounds: AppliedBoundsByCategory,
+): Promise<string> {
+  const canonical = canonicalizeAppliedBounds(bounds);
+  const data = new TextEncoder().encode(canonical);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}

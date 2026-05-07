@@ -3164,6 +3164,22 @@
         "applyIn": "s'applique dans {days} jour(s).",
         "cancel": "Annuler"
       },
+      "boundsProposal": {
+        "title": "L'opérateur a proposé des modifications des limites de rétention.",
+        "firstApplyTitle": "Les limites de rétention de l'opérateur nécessitent votre approbation initiale.",
+        "summary": "{tightened} modification(s) sur {total} resserrent la rétention. À examiner avant d'appliquer.",
+        "firstApplyDescription": "Aucune limite n'a encore été appliquée pour cette organisation. Examinez la configuration de l'opérateur et cliquez sur Appliquer pour activer la rétention.",
+        "applyLabel": "Appliquer",
+        "rejectLabel": "Refuser",
+        "reviewLabel": "Examiner les changements",
+        "hideDetails": "Masquer les détails",
+        "diffHeading": "Modifications des limites",
+        "impactHeading": "Impact sur vos valeurs enregistrées",
+        "diffRow": "{category} : {field} {from} → {to} ({direction})",
+        "impactRow": "{category} : {current} sera limité à {clamped}",
+        "appliedToast": "Proposition de limites appliquée. Le nettoyage utilisera les nouvelles limites à la prochaine exécution.",
+        "rejectedToast": "Proposition de limites refusée. Le nettoyage continue avec les limites précédentes."
+      },
       "promptTemplates": {
         "title": "Modèles de prompts",
         "description": "Prompts enregistrés (limités à l'organisation). Les modèles globaux sont du contenu opérateur et ne sont pas gérés par la rétention."

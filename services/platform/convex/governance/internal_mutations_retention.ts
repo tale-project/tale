@@ -401,6 +401,140 @@ export const deleteExpiredWorkflowTriggerLog = internalMutation({
  * new config (saved at upsert time), so all this does is remove the
  * pending marker. Idempotent.
  */
+/**
+ * Upsert the per-org applied bounds row + emit audit. Idempotent:
+ * re-applying the same hash leaves `appliedBounds` unchanged but
+ * refreshes `appliedAt` / `appliedBy`.
+ *
+ * Always clears `rejectedBoundsHash` / `rejectedAt` / `rejectedBy` —
+ * a fresh apply means any prior rejection is no longer the standing
+ * decision, so the next reject starts from a clean state.
+ *
+ * `auditAction` lets callers distinguish:
+ *   - `policy.retention_bounds_proposal_applied` (admin click)
+ *   - `policy.retention_bounds_initial_applied` (first-enable seed,
+ *      migration)
+ */
+export const upsertAppliedBounds = internalMutation({
+  args: {
+    organizationId: v.string(),
+    appliedBounds: v.any(),
+    appliedBoundsHash: v.string(),
+    actorId: v.string(),
+    actorEmail: v.optional(v.string()),
+    actorType: v.union(v.literal('user'), v.literal('system')),
+    auditAction: v.string(),
+  },
+  returns: v.id('retentionAppliedBounds'),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('retentionAppliedBounds')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    const now = Date.now();
+    let rowId;
+    let previousState: Record<string, unknown> | undefined;
+    if (existing) {
+      previousState = {
+        appliedBounds: existing.appliedBounds,
+        appliedBoundsHash: existing.appliedBoundsHash,
+      };
+      await ctx.db.patch(existing._id, {
+        appliedBounds: args.appliedBounds,
+        appliedBoundsHash: args.appliedBoundsHash,
+        appliedAt: now,
+        appliedBy: args.actorId,
+        rejectedBoundsHash: undefined,
+        rejectedAt: undefined,
+        rejectedBy: undefined,
+      });
+      rowId = existing._id;
+    } else {
+      rowId = await ctx.db.insert('retentionAppliedBounds', {
+        organizationId: args.organizationId,
+        appliedBounds: args.appliedBounds,
+        appliedBoundsHash: args.appliedBoundsHash,
+        appliedAt: now,
+        appliedBy: args.actorId,
+      });
+    }
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: args.actorId,
+      actorEmail: args.actorEmail,
+      actorType: args.actorType,
+      action: args.auditAction,
+      category: 'security',
+      resourceType: 'governance_policy',
+      resourceId: String(rowId),
+      resourceName: 'retention_bounds',
+      previousState,
+      newState: {
+        appliedBounds: args.appliedBounds,
+        appliedBoundsHash: args.appliedBoundsHash,
+      },
+      status: 'success',
+    });
+    return rowId;
+  },
+});
+
+/**
+ * Record the most recent rejection + emit audit. Banner stays hidden
+ * while the operator's current effective hash matches
+ * `rejectedBoundsHash` (and differs from `appliedBoundsHash`).
+ * `appliedBounds` itself is unchanged — cleanup keeps using the
+ * previously-agreed config.
+ */
+export const setRejectedBounds = internalMutation({
+  args: {
+    organizationId: v.string(),
+    rejectedBoundsHash: v.string(),
+    proposedBounds: v.any(),
+    actorId: v.string(),
+    actorEmail: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('retentionAppliedBounds')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    if (!existing) {
+      throw new Error(
+        `setRejectedBounds: no applied bounds row exists for org ${args.organizationId}`,
+      );
+    }
+    await ctx.db.patch(existing._id, {
+      rejectedBoundsHash: args.rejectedBoundsHash,
+      rejectedAt: Date.now(),
+      rejectedBy: args.actorId,
+    });
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: args.actorId,
+      actorEmail: args.actorEmail,
+      actorType: 'user',
+      action: 'policy.retention_bounds_proposal_rejected',
+      category: 'security',
+      resourceType: 'governance_policy',
+      resourceId: String(existing._id),
+      resourceName: 'retention_bounds',
+      previousState: { appliedBounds: existing.appliedBounds },
+      newState: {
+        rejectedBoundsHash: args.rejectedBoundsHash,
+        proposedBounds: args.proposedBounds,
+      },
+      status: 'success',
+    });
+    return null;
+  },
+});
+
 export const finalizePendingRetentionChange = internalMutation({
   args: {
     pendingId: v.id('retentionPolicyPendingChanges'),

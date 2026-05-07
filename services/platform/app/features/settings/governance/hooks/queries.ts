@@ -124,6 +124,25 @@ export function useModerationSecretStatus(organizationId: string) {
   );
 }
 
+/**
+ * Banner feed for the operator-side bounds proposal gate.
+ *
+ * One-shot fetch (TanStack Query, no Convex reactivity) — bounds change
+ * rarely and the banner only needs to refetch on mount + after the
+ * admin clicks Apply/Reject (mutation hooks invalidate this key).
+ *
+ * Returns `null` when nothing is pending: applied bounds match the
+ * operator's current effective bounds, OR the admin already rejected
+ * the current hash and the operator hasn't edited since.
+ */
+export function usePendingBoundsProposal(organizationId: string) {
+  return useActionQuery(
+    ['retention-bounds-proposal', organizationId],
+    api.governance.retention_bounds_proposal.getPendingBoundsProposal,
+    { organizationId },
+  );
+}
+
 export function useUploadPolicy(organizationId: string): UploadPolicyLimits {
   const { data: policy } = useGovernancePolicy(organizationId, 'upload_policy');
 

@@ -146,6 +146,25 @@ export const listRetentionPolicies = internalQuery({
   },
 });
 
+/**
+ * Per-org applied bounds row. Returns `null` when not yet seeded
+ * (pre-migration / first-enable not yet run). Cleanup treats `null` as
+ * "skip this org" — operator must seed first via the migration or by
+ * having an admin save retention policy in the editor.
+ */
+export const getAppliedBounds = internalQuery({
+  args: { organizationId: v.string() },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    return ctx.db
+      .query('retentionAppliedBounds')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+  },
+});
+
 export const listExpiredTempFiles = internalQuery({
   args: {
     organizationId: v.string(),

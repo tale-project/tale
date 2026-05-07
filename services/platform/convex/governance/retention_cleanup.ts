@@ -3,36 +3,19 @@
 import { v } from 'convex/values';
 
 import type { RetentionPolicyConfig } from '../../lib/shared/schemas/governance';
-import { retentionDefaultsConfigSchema } from '../../lib/shared/schemas/retention';
+import type { AppliedBoundsByCategory } from '../../lib/shared/schemas/retention';
 import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
-import { createFileConfigStore } from '../lib/config_store/store';
 import { ragFetch } from '../lib/helpers/rag_config';
-import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import type { ActiveHolds } from './legal_hold';
 import {
-  buildBoundsByCategory,
   clampConfigToBounds,
   isRetentionDisabled,
+  type EffectiveBoundDef,
 } from './retention_floors';
-
-// Cleanup runs in Node action context; reads the per-org bounds file
-// directly from disk via ConfigStore (no need to round-trip through
-// `ctx.runAction` since we're already in `'use node'`).
-const retentionStore = createFileConfigStore(
-  'retention',
-  retentionDefaultsConfigSchema,
-);
-
-async function loadOrgRetentionConfig(orgSlug: string) {
-  const own = await retentionStore.read(orgSlug);
-  if (own) return own;
-  if (orgSlug === 'default') return null;
-  return retentionStore.read('default');
-}
 
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_TEMP_RETENTION_HOURS = 24;
@@ -50,29 +33,68 @@ function hasValidConfigShape(config: unknown): config is RetentionPolicyConfig {
 }
 
 /**
- * Load the org's retention bounds file (with `default` fallback), build
- * the per-category effective-bounds map (env tightening applied), and
- * clamp the stored Convex policy values against it. Defense-in-depth
- * against rows persisted under older bounds that would otherwise
- * bypass freshly tightened limits.
+ * Look up the per-org `retentionAppliedBounds` snapshot and clamp the
+ * stored policy values against it. The applied row is the runtime
+ * source of truth — operator file/env edits do NOT take effect until
+ * an admin clicks Apply in the governance editor (see
+ * `governance/retention_bounds_proposal.ts`).
  *
- * Returns null when the bounds file is absent — cleanup for that org
- * is skipped (with a warning) until the operator installs the file.
+ * Returns null when:
+ *   - stored config is missing required shape
+ *   - the org has no applied bounds row yet (pre-migration / admin
+ *     hasn't enabled retention or seeded; cleanup safely skips with a
+ *     warning rather than falling back to file-as-bounds)
+ *
+ * The shape stored in `appliedBounds` is `Record<category, {min, max}>`,
+ * which `clampConfigToBounds` consumes directly.
  */
 async function clampStoredConfig(
-  orgSlug: string,
+  ctx: ActionCtx,
+  organizationId: string,
   config: unknown,
 ): Promise<RetentionPolicyConfig | null> {
   if (!hasValidConfigShape(config)) return null;
-  const orgBoundsConfig = await loadOrgRetentionConfig(orgSlug);
-  if (!orgBoundsConfig) {
+  const applied = await ctx.runQuery(
+    internal.governance.internal_queries.getAppliedBounds,
+    { organizationId },
+  );
+  if (!applied) {
     console.warn(
-      `[RetentionCleanup] org ${orgSlug} retention bounds file missing — skipping clamp + cleanup. Install $TALE_CONFIG_DIR/retention/default.json (or per-org file) to activate retention.`,
+      `[RetentionCleanup] org ${organizationId} has no applied retention bounds — skipping cleanup. Admin must Apply current bounds in governance editor (or run migrations/seed_applied_bounds:apply).`,
     );
     return null;
   }
-  const boundsByCategory = buildBoundsByCategory(orgBoundsConfig);
-  return clampConfigToBounds(boundsByCategory, config);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- v.any() round-trip; shape enforced by upsertAppliedBounds writers
+  const appliedBounds = applied.appliedBounds as AppliedBoundsByCategory;
+  return clampConfigToBounds(asEffectiveBoundsMap(appliedBounds), config);
+}
+
+/**
+ * Adapt the stored `{min, max}` shape to `clampConfigToBounds`'s
+ * `EffectiveBoundDef` signature. The clamp function only reads `min`
+ * and `max` (per [retention_floors.ts `clampToBounds`]); the rest is
+ * filler so the type lines up. Kept inline so callers don't have to
+ * fabricate a fake `EffectiveBoundDef` themselves.
+ */
+function asEffectiveBoundsMap(
+  bounds: AppliedBoundsByCategory,
+): Record<string, EffectiveBoundDef> {
+  const out: Record<string, EffectiveBoundDef> = {};
+  for (const [cat, b] of Object.entries(bounds)) {
+    out[cat] = {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime cat is always a RetentionCategory; static map is typed
+      category: cat as EffectiveBoundDef['category'],
+      min: b.min,
+      max: b.max,
+      default: b.min,
+      unit: cat.endsWith('Hours') ? 'hours' : 'days',
+      source: 'file',
+      minEnv: { envName: '', source: 'none', applied: false },
+      maxEnv: { envName: '', source: 'none', applied: false },
+      defaultEnv: { envName: '', source: 'none', applied: false },
+    };
+  }
+  return out;
 }
 
 interface OrgPolicy {
@@ -988,8 +1010,11 @@ export const runOrgRetentionCleanup = internalAction({
           );
         }
       }
-      const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-      const config = await clampStoredConfig(orgSlug, effectiveRawConfig);
+      const config = await clampStoredConfig(
+        ctx,
+        args.organizationId,
+        effectiveRawConfig,
+      );
       if (!config) return null;
 
       const org: OrgPolicy = {

@@ -24,6 +24,7 @@ import {
   useRetentionBounds,
   type CategoryBounds,
 } from '../hooks/use-retention-bounds';
+import { RetentionBoundsProposalBanner } from './retention-bounds-proposal-banner';
 import {
   buildPresetConfig,
   type CategoryDef,
@@ -233,6 +234,7 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
         </div>
       )}
 
+      <RetentionBoundsProposalBanner organizationId={organizationId} />
       <RetentionPendingBanner organizationId={organizationId} />
 
       {/* Preset selector */}

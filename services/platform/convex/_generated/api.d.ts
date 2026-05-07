@@ -344,6 +344,7 @@ import type * as governance_regex_safety from "../governance/regex_safety.js";
 import type * as governance_resolve_budget_context from "../governance/resolve_budget_context.js";
 import type * as governance_resolve_default_model from "../governance/resolve_default_model.js";
 import type * as governance_retention_actions from "../governance/retention_actions.js";
+import type * as governance_retention_bounds_proposal from "../governance/retention_bounds_proposal.js";
 import type * as governance_retention_cleanup from "../governance/retention_cleanup.js";
 import type * as governance_retention_floors from "../governance/retention_floors.js";
 import type * as governance_retention_runs from "../governance/retention_runs.js";
@@ -547,6 +548,7 @@ import type * as migrations_merge_audit_retention from "../migrations/merge_audi
 import type * as migrations_migrate_org_creators from "../migrations/migrate_org_creators.js";
 import type * as migrations_remove_deprecated_llm_fields from "../migrations/remove_deprecated_llm_fields.js";
 import type * as migrations_rename_org_slug from "../migrations/rename_org_slug.js";
+import type * as migrations_seed_applied_bounds from "../migrations/seed_applied_bounds.js";
 import type * as migrations_trigger_steps_to_start from "../migrations/trigger_steps_to_start.js";
 import type * as node_only_documents_internal_actions from "../node_only/documents/internal_actions.js";
 import type * as node_only_integration_sandbox_execute_integration_impl from "../node_only/integration_sandbox/execute_integration_impl.js";
@@ -1388,6 +1390,7 @@ declare const fullApi: ApiFromModules<{
   "governance/resolve_budget_context": typeof governance_resolve_budget_context;
   "governance/resolve_default_model": typeof governance_resolve_default_model;
   "governance/retention_actions": typeof governance_retention_actions;
+  "governance/retention_bounds_proposal": typeof governance_retention_bounds_proposal;
   "governance/retention_cleanup": typeof governance_retention_cleanup;
   "governance/retention_floors": typeof governance_retention_floors;
   "governance/retention_runs": typeof governance_retention_runs;
@@ -1591,6 +1594,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/migrate_org_creators": typeof migrations_migrate_org_creators;
   "migrations/remove_deprecated_llm_fields": typeof migrations_remove_deprecated_llm_fields;
   "migrations/rename_org_slug": typeof migrations_rename_org_slug;
+  "migrations/seed_applied_bounds": typeof migrations_seed_applied_bounds;
   "migrations/trigger_steps_to_start": typeof migrations_trigger_steps_to_start;
   "node_only/documents/internal_actions": typeof node_only_documents_internal_actions;
   "node_only/integration_sandbox/execute_integration_impl": typeof node_only_integration_sandbox_execute_integration_impl;

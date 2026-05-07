@@ -3239,6 +3239,22 @@
         "applyIn": "wird in {days} Tag(en) wirksam.",
         "cancel": "Abbrechen"
       },
+      "boundsProposal": {
+        "title": "Der Betreiber hat Änderungen an den Aufbewahrungsgrenzen vorgeschlagen.",
+        "firstApplyTitle": "Die Aufbewahrungsgrenzen des Betreibers benötigen Ihre erste Freigabe.",
+        "summary": "{tightened} von {total} Änderung(en) verschärfen die Aufbewahrung. Vor dem Anwenden prüfen.",
+        "firstApplyDescription": "Für diese Organisation wurden noch keine Grenzen angewendet. Prüfen Sie die Betreiberkonfiguration und klicken Sie auf Anwenden, um die Aufbewahrung zu aktivieren.",
+        "applyLabel": "Anwenden",
+        "rejectLabel": "Ablehnen",
+        "reviewLabel": "Änderungen prüfen",
+        "hideDetails": "Details ausblenden",
+        "diffHeading": "Grenzwertänderungen",
+        "impactHeading": "Auswirkung auf Ihre gespeicherten Werte",
+        "diffRow": "{category}: {field} {from} → {to} ({direction})",
+        "impactRow": "{category}: {current} wird auf {clamped} begrenzt",
+        "appliedToast": "Grenzwertvorschlag angewendet. Die Bereinigung verwendet beim nächsten Lauf die neuen Grenzen.",
+        "rejectedToast": "Grenzwertvorschlag abgelehnt. Die Bereinigung verwendet weiterhin die bisherigen Grenzen."
+      },
       "promptTemplates": {
         "title": "Prompt-Vorlagen",
         "description": "Gespeicherte Prompts (org-scoped). Globale Vorlagen sind Operator-Inhalte und werden nicht aufbewahrungsverwaltet."

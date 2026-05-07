@@ -17,6 +17,7 @@ import {
   uploadPolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-guards';
+import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation, mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
@@ -516,6 +517,31 @@ export const upsertRetentionPolicyInternal = internalMutation({
         : undefined,
       status: 'success',
     });
+
+    // First-enable seed: when no `retentionAppliedBounds` row exists for
+    // this org yet, the admin's first save IS their consent to the
+    // current operator bounds. Schedule the seed action (idempotent —
+    // a no-op when a row already exists) so cleanup has something to
+    // read from on its next run. Cannot run inline because file IO
+    // requires the Node action runtime.
+    const existingApplied = await ctx.db
+      .query('retentionAppliedBounds')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    if (!existingApplied) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.governance.retention_bounds_proposal.seedInitialBoundsInternal,
+        {
+          organizationId: args.organizationId,
+          actorId: args.actorId,
+          actorEmail: args.actorEmail,
+          actorType: 'user',
+        },
+      );
+    }
 
     return policyId;
   },

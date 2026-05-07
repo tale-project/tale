@@ -4,7 +4,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  type AppliedBoundsByCategory,
   RETENTION_CATEGORIES,
+  canonicalizeAppliedBounds,
+  hashAppliedBounds,
   retentionBoundDefSchema,
   retentionCategoryMetadataSchema,
   retentionDefaultsConfigSchema,
@@ -343,5 +346,78 @@ describe('retentionRootMetadataSchema', () => {
       label: 'not-allowed-at-root',
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('canonicalizeAppliedBounds', () => {
+  it('produces stable output regardless of category insertion order', () => {
+    const a: AppliedBoundsByCategory = {
+      auditLog: { min: 365, max: 3650 },
+      documents: { min: 30, max: 3650 },
+    };
+    const b: AppliedBoundsByCategory = {
+      documents: { min: 30, max: 3650 },
+      auditLog: { min: 365, max: 3650 },
+    };
+    expect(canonicalizeAppliedBounds(a)).toBe(canonicalizeAppliedBounds(b));
+  });
+
+  it('produces stable output regardless of field order within a bound', () => {
+    // Object literal key order is preserved in V8, so we exercise via
+    // Object.fromEntries with intentionally swapped pairs.
+    const a: AppliedBoundsByCategory = {
+      auditLog: Object.fromEntries([
+        ['min', 365],
+        ['max', 3650],
+      ]) as { min: number; max: number },
+    };
+    const b: AppliedBoundsByCategory = {
+      auditLog: Object.fromEntries([
+        ['max', 3650],
+        ['min', 365],
+      ]) as { min: number; max: number },
+    };
+    expect(canonicalizeAppliedBounds(a)).toBe(canonicalizeAppliedBounds(b));
+  });
+
+  it('changes output when min or max changes', () => {
+    const a: AppliedBoundsByCategory = {
+      auditLog: { min: 365, max: 3650 },
+    };
+    const b: AppliedBoundsByCategory = {
+      auditLog: { min: 365, max: 365 },
+    };
+    expect(canonicalizeAppliedBounds(a)).not.toBe(canonicalizeAppliedBounds(b));
+  });
+});
+
+describe('hashAppliedBounds', () => {
+  it('produces a 64-char hex string', async () => {
+    const hash = await hashAppliedBounds({
+      auditLog: { min: 365, max: 3650 },
+    });
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('returns identical hashes for equivalent inputs in different order', async () => {
+    const a = await hashAppliedBounds({
+      auditLog: { min: 365, max: 3650 },
+      documents: { min: 30, max: 3650 },
+    });
+    const b = await hashAppliedBounds({
+      documents: { min: 30, max: 3650 },
+      auditLog: { min: 365, max: 3650 },
+    });
+    expect(a).toBe(b);
+  });
+
+  it('returns different hashes when bounds differ', async () => {
+    const a = await hashAppliedBounds({
+      auditLog: { min: 365, max: 3650 },
+    });
+    const b = await hashAppliedBounds({
+      auditLog: { min: 365, max: 365 },
+    });
+    expect(a).not.toBe(b);
   });
 });

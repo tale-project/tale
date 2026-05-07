@@ -3239,6 +3239,22 @@
         "applyIn": "applies in {days} day(s).",
         "cancel": "Cancel"
       },
+      "boundsProposal": {
+        "title": "Operator has proposed retention bound changes.",
+        "firstApplyTitle": "Operator retention bounds need your initial approval.",
+        "summary": "{tightened} of {total} change(s) tighten retention. Review before applying.",
+        "firstApplyDescription": "No bounds have been applied for this organization yet. Review the operator config and Apply to start enforcing retention.",
+        "applyLabel": "Apply",
+        "rejectLabel": "Reject",
+        "reviewLabel": "Review changes",
+        "hideDetails": "Hide details",
+        "diffHeading": "Bound changes",
+        "impactHeading": "Impact on your stored values",
+        "diffRow": "{category}: {field} {from} → {to} ({direction})",
+        "impactRow": "{category}: {current} will clamp to {clamped}",
+        "appliedToast": "Bounds proposal applied. Cleanup will use new bounds on next run.",
+        "rejectedToast": "Bounds proposal rejected. Cleanup continues with previous bounds."
+      },
       "promptTemplates": {
         "title": "Prompt templates",
         "description": "Saved prompts (org-scoped). Global-scope templates are operator content and are not retention-managed."

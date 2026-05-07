@@ -429,6 +429,45 @@ export const retentionPolicyPendingChangesTable = defineTable({
 }).index('by_organizationId_appliesAt', ['organizationId', 'appliesAt']);
 
 /**
+ * Per-org snapshot of the retention bounds (`min`/`max`) that cleanup
+ * currently enforces. Decouples runtime cleanup from the live JSON
+ * file: file edits and env tightening become PROPOSALS, not directives.
+ *
+ * Detection: at query time (banner) or first-enable time, recompute
+ * effective bounds from file + env, hash the canonical JSON, compare
+ * against `appliedBoundsHash`. Mismatch ⇒ pending proposal.
+ *
+ * Banner gating rule:
+ *   show ⇔ proposedHash ≠ appliedBoundsHash
+ *        ∧ proposedHash ≠ rejectedBoundsHash
+ *
+ * Cleanup never reads the file for bounds — it reads `appliedBounds`.
+ * If the row is absent for an org (pre-migration / pre-first-enable),
+ * cleanup skips that org with a console warning.
+ */
+export const retentionAppliedBoundsTable = defineTable({
+  organizationId: v.string(),
+  /** Snapshot of effective bounds (post-env-tightening) keyed by
+   *  `RetentionCategory`. Shape per category: `{min, max}`. Only the
+   *  fields cleanup's `clampConfigToBounds` consumes are stored;
+   *  display metadata stays in the file. */
+  appliedBounds: jsonRecordValidator,
+  /** SHA-256 hex of `JSON.stringify(canonicalize(appliedBounds))`.
+   *  Canonicalization sorts category keys + field keys alphabetically
+   *  so identical content always hashes the same regardless of
+   *  insertion order. */
+  appliedBoundsHash: v.string(),
+  appliedAt: v.number(),
+  appliedBy: v.string(),
+  /** Most recently rejected proposal hash. Banner stays hidden while
+   *  the operator's current effective hash matches this. Cleared
+   *  whenever `appliedBoundsHash` changes (next reject starts fresh). */
+  rejectedBoundsHash: v.optional(v.string()),
+  rejectedAt: v.optional(v.number()),
+  rejectedBy: v.optional(v.string()),
+}).index('by_organizationId', ['organizationId']);
+
+/**
  * GDPR Art 17 erasure request state machine.
  *
  * `requestErasure` inserts a row with `status='pending'` and schedules
