@@ -303,6 +303,22 @@ export const auditLogCheckpointsTable = defineTable({
   scrubbedRowCount: v.optional(v.number()),
   /** Set when bundle-3-follow-up wires the deploy-key signing. */
   signature: v.optional(v.string()),
+  /**
+   * Signature payload schema version.
+   *
+   * - `1` (or absent): legacy payload — `{organizationId, lastDeletedHash,
+   *   firstRetainedPreviousHash, maxDeletedTimestamp, deletedCount}`. Bound
+   *   neither `subtype` nor `scrubbedSubjectId`, so a captured retention
+   *   HMAC could be replayed onto a forged `pii_scrub` checkpoint targeting
+   *   any subject.
+   * - `2`: payload also covers `subtype` and `scrubbedSubjectId`. Closes
+   *   the cross-subtype/subject replay window.
+   *
+   * The verifier dispatches by version so old v1 checkpoints keep
+   * verifying for the lifetime of the chain (audit chain is append-only
+   * — re-signing history would itself be a tamper).
+   */
+  signatureVersion: v.optional(v.union(v.literal(1), v.literal(2))),
   createdAt: v.number(),
 }).index('by_organizationId_createdAt', ['organizationId', 'createdAt']);
 
@@ -459,6 +475,10 @@ export const gdprErasureRequestsTable = defineTable({
    *  scheduling; the processor never starts when this is non-empty. */
   threadsBlockedByHold: v.optional(v.array(v.string())),
   ragDocumentsRemoved: v.optional(v.number()),
+  /** Count of `documents` rows physically deleted by the subject-scope
+   *  erasure helper. Should equal the number of fileIds passed to RAG
+   *  delete in a clean run. */
+  documentsErased: v.optional(v.number()),
   errorMessage: v.optional(v.string()),
   startedAt: v.optional(v.number()),
   completedAt: v.optional(v.number()),

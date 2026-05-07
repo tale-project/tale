@@ -291,6 +291,7 @@ export const finalizeProcessing = internalMutation({
     requestId: v.id('gdprErasureRequests'),
     threadsErased: v.number(),
     ragDocumentsRemoved: v.number(),
+    documentsErased: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
   },
   returns: v.null(),
@@ -307,6 +308,7 @@ export const finalizeProcessing = internalMutation({
       status,
       threadsErased: args.threadsErased,
       ragDocumentsRemoved: args.ragDocumentsRemoved,
+      documentsErased: args.documentsErased,
       errorMessage: args.errorMessage,
       completedAt: Date.now(),
     });
@@ -327,6 +329,7 @@ export const finalizeProcessing = internalMutation({
         threadsErased: args.threadsErased,
         threadsTargeted: targetedCount,
         ragDocumentsRemoved: args.ragDocumentsRemoved,
+        documentsErased: args.documentsErased ?? 0,
         finalStatus: status,
       },
     });
@@ -335,28 +338,42 @@ export const finalizeProcessing = internalMutation({
 });
 
 /**
- * Look up the documents the subject owned so the processor can DELETE
- * them on the RAG side.
+ * Erase every `documents` row the subject owns and return the fileIds so
+ * the processor can DELETE them on the RAG side. Replaces the prior
+ * read-only `listSubjectDocuments`, which collected fileIds but never
+ * deleted the row — leaving Art-17 PII (`title`, `content`, `metadata`,
+ * `createdBy`) behind on disk and a dangling foreign key to the now-
+ * removed RAG vector / `_storage` blob.
+ *
+ * Uses the `by_organizationId_and_createdBy` compound index so the scan
+ * is bounded to the subject's own rows, not the whole org.
  */
-export const listSubjectDocuments = internalMutation({
+export const eraseSubjectDocuments = internalMutation({
   args: {
     organizationId: v.string(),
     userId: v.string(),
   },
-  returns: v.array(v.object({ fileId: v.string() })),
+  returns: v.object({
+    rows: v.number(),
+    fileIds: v.array(v.string()),
+  }),
   handler: async (ctx, args) => {
-    const docs: Array<{ fileId: string }> = [];
+    let rows = 0;
+    const fileIds: string[] = [];
     for await (const doc of ctx.db
       .query('documents')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
+      .withIndex('by_organizationId_and_createdBy', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('createdBy', args.userId),
       )) {
-      if (doc.createdBy !== args.userId) continue;
       if (typeof doc.fileId === 'string' && doc.fileId.length > 0) {
-        docs.push({ fileId: doc.fileId });
+        fileIds.push(doc.fileId);
       }
+      await ctx.db.delete(doc._id);
+      rows++;
     }
-    return docs;
+    return { rows, fileIds };
   },
 });
 
@@ -587,6 +604,7 @@ export const processErasureRequest = internalAction({
 
     let threadsErased = 0;
     let ragDocumentsRemoved = 0;
+    let documentsErased = 0;
     let errorMessage: string | undefined;
 
     try {
@@ -610,34 +628,37 @@ export const processErasureRequest = internalAction({
         if (cascadeDone) threadsErased += 1;
       }
 
-      // Propagate to the RAG service for every document the subject
-      // owned. We do best-effort: a 404 means the row was already
-      // deleted; any other non-2xx is logged but doesn't fail the
-      // whole request, since the DB-side cascade already succeeded
-      // and partial RAG cleanup is itself a `partial` state.
-      const docs = await ctx.runMutation(
-        internal.governance.erasure.listSubjectDocuments,
+      // Erase the subject's `documents` rows AND collect the fileIds in
+      // one mutation, then propagate to the RAG service. The mutation is
+      // ordered before RAG so a partial RAG failure cannot resurrect the
+      // DB row on retry. RAG-side: best-effort — a 404 means the row was
+      // already deleted; any other non-2xx is logged but doesn't fail the
+      // whole request, since the DB-side cascade already succeeded and
+      // partial RAG cleanup is itself a `partial` state.
+      const docResult = await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectDocuments,
         {
           organizationId: state.organizationId,
           userId: state.targetUserId,
         },
       );
-      for (const doc of docs) {
+      documentsErased = docResult.rows;
+      for (const fileId of docResult.fileIds) {
         try {
           const res = await ragFetch(
-            `/api/v1/documents/${encodeURIComponent(doc.fileId)}`,
+            `/api/v1/documents/${encodeURIComponent(fileId)}`,
             { method: 'DELETE', timeoutMs: 10_000 },
           );
           if (res.ok || res.status === 404) {
             ragDocumentsRemoved += 1;
           } else {
             console.warn(
-              `[gdprErasure] RAG DELETE returned ${res.status} for fileId=${doc.fileId}`,
+              `[gdprErasure] RAG DELETE returned ${res.status} for fileId=${fileId}`,
             );
           }
         } catch (error) {
           console.warn(
-            `[gdprErasure] RAG DELETE failed for fileId=${doc.fileId}:`,
+            `[gdprErasure] RAG DELETE failed for fileId=${fileId}:`,
             error,
           );
         }
@@ -735,6 +756,7 @@ export const processErasureRequest = internalAction({
       requestId: args.requestId,
       threadsErased,
       ragDocumentsRemoved,
+      documentsErased,
       errorMessage,
     });
     return null;
