@@ -75,10 +75,6 @@ class Settings(BaseServiceSettings):
     semantic_cache_similarity_threshold: float = 0.95
     semantic_cache_ttl_hours: int = 24
 
-    # LLM response cache (semantic similarity)
-    llm_cache_similarity_threshold: float = 0.95
-    llm_cache_ttl_hours: int = 24
-
     # Re-ranking (cross-encoder)
     reranking_enabled: bool = False
     reranking_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"

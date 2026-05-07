@@ -1,6 +1,6 @@
 # @tale/rag
 
-FastAPI service that owns retrieval-augmented generation: ingest, embed, hybrid search (BM25 + vector), rerank, and an LLM semantic cache.
+FastAPI service that owns retrieval-augmented generation: ingest, embed, hybrid search (BM25 + vector), and rerank.
 
 ## Overview
 
@@ -16,7 +16,6 @@ Routers under `app/routers/`:
 
 - `documents` — upload, parse, chunk, embed, persist
 - `search` — hybrid retrieval with reranking
-- `llm_cache` — semantic LLM response cache
 - `health` — readiness and liveness
 
 ## Configuration
