@@ -52,7 +52,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import { internal } from '../_generated/api';
+import { components, internal } from '../_generated/api';
 import {
   internalAction,
   internalMutation,
@@ -361,6 +361,212 @@ export const listSubjectDocuments = internalMutation({
 });
 
 /**
+ * Per-table subject-scope erasure mutations.
+ *
+ * Each one cascades `(organizationId, targetUserId)`-keyed rows for one
+ * table, returns a delete count. The processor calls them in sequence
+ * after the chat-thread cascade so the user's footprint across
+ * personalization, feedback, telemetry, sync configs, and 2FA / login
+ * lockouts is removed alongside the chat history.
+ *
+ * BetterAuth user / account / session / verification rows are NOT
+ * touched here — those are owned by the auth component and need its
+ * admin-side delete-user flow to also wipe sessions in flight. A
+ * follow-up wires that through `authComponent`.
+ */
+export const eraseSubjectUserMemories = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let count = 0;
+    for await (const row of ctx.db
+      .query('userMemories')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (row.userId !== args.userId) continue;
+      await ctx.db.delete(row._id);
+      count++;
+    }
+    return count;
+  },
+});
+
+export const eraseSubjectUserPreferences = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let count = 0;
+    for await (const row of ctx.db
+      .query('userPreferences')
+      .withIndex('by_userId_organizationId', (q) =>
+        q.eq('userId', args.userId).eq('organizationId', args.organizationId),
+      )) {
+      await ctx.db.delete(row._id);
+      count++;
+    }
+    return count;
+  },
+});
+
+export const eraseSubjectMessageFeedback = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let count = 0;
+    for await (const row of ctx.db
+      .query('messageFeedback')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (row.userId !== args.userId) continue;
+      await ctx.db.delete(row._id);
+      count++;
+    }
+    return count;
+  },
+});
+
+export const eraseSubjectFileMetadata = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.object({ rows: v.number(), blobs: v.number() }),
+  handler: async (ctx, args) => {
+    let rows = 0;
+    let blobs = 0;
+    for await (const meta of ctx.db
+      .query('fileMetadata')
+      .withIndex('by_org_user', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('uploadedBy', args.userId),
+      )) {
+      // Delete the underlying _storage blob first; row delete after.
+      try {
+        await ctx.storage.delete(meta.storageId);
+        blobs++;
+      } catch (error) {
+        console.warn(
+          `[gdprErasure] storage.delete failed for ${String(meta.storageId)}:`,
+          error,
+        );
+      }
+      await ctx.db.delete(meta._id);
+      rows++;
+    }
+    return { rows, blobs };
+  },
+});
+
+export const eraseSubjectUsageLedger = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let count = 0;
+    for await (const row of ctx.db
+      .query('usageLedger')
+      .withIndex('by_org_user_period', (q) =>
+        q.eq('organizationId', args.organizationId).eq('userId', args.userId),
+      )) {
+      await ctx.db.delete(row._id);
+      count++;
+    }
+    return count;
+  },
+});
+
+export const eraseSubjectTwoFactorAttempts = internalMutation({
+  args: { userId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let count = 0;
+    for await (const row of ctx.db
+      .query('twoFactorAttempts')
+      .withIndex('by_userId', (q) => q.eq('userId', args.userId))) {
+      await ctx.db.delete(row._id);
+      count++;
+    }
+    return count;
+  },
+});
+
+export const eraseSubjectPolicyAcknowledgements = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let count = 0;
+    for await (const row of ctx.db
+      .query('policyAcknowledgements')
+      .withIndex('by_user_org_policy', (q) =>
+        q.eq('userId', args.userId).eq('organizationId', args.organizationId),
+      )) {
+      await ctx.db.delete(row._id);
+      count++;
+    }
+    return count;
+  },
+});
+
+export const eraseSubjectOnedrive = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let count = 0;
+    for await (const row of ctx.db
+      .query('onedriveSyncConfigs')
+      .withIndex('by_userId', (q) => q.eq('userId', args.userId))) {
+      if (row.organizationId !== args.organizationId) continue;
+      await ctx.db.delete(row._id);
+      count++;
+    }
+    return count;
+  },
+});
+
+/**
+ * Look up the subject's plaintext email so loginAttempts /
+ * loginBlockCounters (which are keyed on email, not userId) can be
+ * cleaned. Reads BetterAuth's user table via the adapter — the same
+ * pattern getOrganizationMember falls back to.
+ */
+export const lookupSubjectEmail = internalMutation({
+  args: { userId: v.string() },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+      model: 'user',
+      paginationOpts: { cursor: null, numItems: 1 },
+      where: [{ field: '_id', value: args.userId, operator: 'eq' }],
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Better Auth adapter returns generic shape
+    const user = (result?.page ?? [])[0] as { email?: string } | undefined;
+    return user?.email ?? null;
+  },
+});
+
+export const eraseSubjectLoginAttempts = internalMutation({
+  args: { email: v.string() },
+  returns: v.object({ attempts: v.number(), blockCounters: v.number() }),
+  handler: async (ctx, args) => {
+    const lower = args.email.toLowerCase();
+    let attempts = 0;
+    for await (const row of ctx.db
+      .query('loginAttempts')
+      .withIndex('by_email', (q) => q.eq('email', lower))) {
+      await ctx.db.delete(row._id);
+      attempts++;
+    }
+    let blockCounters = 0;
+    for await (const row of ctx.db
+      .query('loginBlockCounters')
+      .withIndex('by_email_window', (q) => q.eq('email', lower))) {
+      await ctx.db.delete(row._id);
+      blockCounters++;
+    }
+    return { attempts, blockCounters };
+  },
+});
+
+/**
  * Background processor for an erasure request. Cascades each targeted
  * thread, then issues `RAG DELETE /api/v1/documents/<fileId>` for each
  * RAG-indexed file the subject owned. Records progress on the request
@@ -436,6 +642,87 @@ export const processErasureRequest = internalAction({
           );
         }
       }
+
+      // Per-table subject scope. Each helper is idempotent (delete-if-
+      // exists on indexed lookups), so a re-tried processor run after a
+      // partial earlier run is safe. Counts surface in the audit log of
+      // finalizeProcessing for the receipt.
+      await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectUserMemories,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
+      await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectUserPreferences,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
+      await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectMessageFeedback,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
+      await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectFileMetadata,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
+      await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectUsageLedger,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
+      await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectTwoFactorAttempts,
+        { userId: state.targetUserId },
+      );
+      await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectPolicyAcknowledgements,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
+      await ctx.runMutation(internal.governance.erasure.eraseSubjectOnedrive, {
+        organizationId: state.organizationId,
+        userId: state.targetUserId,
+      });
+
+      // loginAttempts / loginBlockCounters are email-keyed (not
+      // userId-keyed). Look up the email via BetterAuth before the
+      // user row itself is touched.
+      const subjectEmail = await ctx.runMutation(
+        internal.governance.erasure.lookupSubjectEmail,
+        { userId: state.targetUserId },
+      );
+      if (subjectEmail) {
+        await ctx.runMutation(
+          internal.governance.erasure.eraseSubjectLoginAttempts,
+          { email: subjectEmail },
+        );
+      }
+
+      // Audit-chain PII scrub (W3 #4): wipe email / IP / UA / state
+      // payloads on auditLogs rows where the subject was the actor.
+      // Insert a signed checkpoint so the integrity verifier sees the
+      // boundary as intentional rather than tampering.
+      await ctx.runMutation(
+        internal.audit_logs.internal_mutations.scrubSubjectAuditLogs,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : String(err);
       console.error(

@@ -281,6 +281,14 @@ export const legalHoldsTable = defineTable({
  */
 export const auditLogCheckpointsTable = defineTable({
   organizationId: v.string(),
+  /**
+   * Boundary type. `'retention'` (default for pre-bundle rows) marks a
+   * cleanup-driven hard-delete cut. `'pii_scrub'` marks a GDPR Art 17
+   * subject-scope scrub of in-place rows; the chain hashes diverge but
+   * the verifier accepts the divergence when the corresponding
+   * checkpoint signature validates.
+   */
+  subtype: v.optional(v.union(v.literal('retention'), v.literal('pii_scrub'))),
   /** SHA-256 hash of the last DELETED row's chain head. */
   lastDeletedHash: v.string(),
   /** SHA-256 hash of the first RETAINED row's previousHash field, so the
@@ -290,6 +298,9 @@ export const auditLogCheckpointsTable = defineTable({
   maxDeletedTimestamp: v.number(),
   /** Count of rows deleted in this batch. */
   deletedCount: v.number(),
+  /** GDPR Art 17 fields, only populated when subtype === 'pii_scrub'. */
+  scrubbedSubjectId: v.optional(v.string()),
+  scrubbedRowCount: v.optional(v.number()),
   /** Set when bundle-3-follow-up wires the deploy-key signing. */
   signature: v.optional(v.string()),
   createdAt: v.number(),

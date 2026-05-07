@@ -229,3 +229,90 @@ export const deleteOldLogs = internalMutation({
  * during the rename window.
  */
 export const archiveOldLogs = deleteOldLogs;
+
+/**
+ * GDPR Art 17 audit-chain PII scrub.
+ *
+ * Strategy: KEEP the row (so the audit trail of "user X did Y at time
+ * T" remains for compliance / forensics), but blank the PII payload —
+ * `actorEmail`, `ipAddress`, `userAgent`, `previousState`, `newState`,
+ * `metadata`. The row is marked `piiScrubbed: true`, `piiScrubbedAt`
+ * captured. After scrubbing the per-org integrity chain hashes stop
+ * matching the canonical recompute on these rows; an
+ * `auditLogCheckpoints` row with `subtype: 'pii_scrub'` is inserted +
+ * signed so `verifyIntegrity` accepts the divergence as intentional.
+ *
+ * Per Art 17(3)(b)/(e), the row's existence (timestamp, action,
+ * resource type) is permitted to remain — the scrubbed body
+ * extinguishes the personal data while preserving the operator's
+ * compliance + accountability obligations.
+ *
+ * Idempotent: rows already marked `piiScrubbed: true` are skipped.
+ */
+export const scrubSubjectAuditLogs = internalMutation({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+  },
+  returns: v.object({ scrubbedRowCount: v.number() }),
+  handler: async (ctx, args) => {
+    let scrubbedRowCount = 0;
+    let lastScrubbedHash = '';
+    let maxScrubbedTimestamp = 0;
+    const now = Date.now();
+
+    for await (const log of ctx.db
+      .query('auditLogs')
+      .withIndex('by_organizationId_and_actorId', (q) =>
+        q.eq('organizationId', args.organizationId).eq('actorId', args.userId),
+      )) {
+      if (log.piiScrubbed === true) continue;
+      const patch: Partial<typeof log> & {
+        piiScrubbed: true;
+        piiScrubbedAt: number;
+      } = {
+        actorEmail: undefined,
+        actorRole: undefined,
+        ipAddress: undefined,
+        userAgent: undefined,
+        previousState: undefined,
+        newState: undefined,
+        metadata: undefined,
+        piiScrubbed: true,
+        piiScrubbedAt: now,
+      };
+      await ctx.db.patch(log._id, patch);
+      scrubbedRowCount++;
+      if (log.integrityHash) lastScrubbedHash = log.integrityHash;
+      if (log.timestamp > maxScrubbedTimestamp) {
+        maxScrubbedTimestamp = log.timestamp;
+      }
+    }
+
+    if (scrubbedRowCount === 0) return { scrubbedRowCount: 0 };
+
+    // Insert a signed boundary so the verifier knows hash recomputes
+    // on scrubbed rows are expected to mismatch.
+    const signature = await signCheckpoint({
+      organizationId: args.organizationId,
+      lastDeletedHash: lastScrubbedHash,
+      firstRetainedPreviousHash: undefined,
+      maxDeletedTimestamp: maxScrubbedTimestamp,
+      deletedCount: scrubbedRowCount,
+    });
+    await ctx.db.insert('auditLogCheckpoints', {
+      organizationId: args.organizationId,
+      subtype: 'pii_scrub',
+      lastDeletedHash: lastScrubbedHash,
+      firstRetainedPreviousHash: undefined,
+      maxDeletedTimestamp: maxScrubbedTimestamp,
+      deletedCount: scrubbedRowCount,
+      scrubbedSubjectId: args.userId,
+      scrubbedRowCount,
+      signature,
+      createdAt: now,
+    });
+
+    return { scrubbedRowCount };
+  },
+});

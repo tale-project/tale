@@ -68,6 +68,18 @@ export const auditLogsTable = defineTable({
    * fork (round-2 v05 M1 finding).
    */
   chainSuccessor: v.optional(v.id('auditLogs')),
+  /**
+   * GDPR Art 17 PII scrub marker. When true, `actorEmail`, `ipAddress`,
+   * `userAgent`, `previousState`, `newState`, and `metadata` have been
+   * cleared in place because the row's actor (or subject) exercised
+   * their right to erasure. The chain `integrityHash` no longer matches
+   * the canonical-record recompute on these rows — `verifyIntegrity`
+   * reads the corresponding `auditLogCheckpoints` row with
+   * `subtype: 'pii_scrub'` to confirm the divergence is bounded and
+   * signed by the operator's deploy-time key.
+   */
+  piiScrubbed: v.optional(v.boolean()),
+  piiScrubbedAt: v.optional(v.number()),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_timestamp', ['organizationId', 'timestamp'])

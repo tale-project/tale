@@ -35,10 +35,13 @@ interface CheckpointRow {
   _id: string;
   _creationTime: number;
   organizationId: string;
+  subtype?: 'retention' | 'pii_scrub';
   lastDeletedHash: string;
   firstRetainedPreviousHash?: string;
   maxDeletedTimestamp: number;
   deletedCount: number;
+  scrubbedSubjectId?: string;
+  scrubbedRowCount?: number;
   signature?: string;
   createdAt: number;
 }
@@ -170,10 +173,13 @@ export const verifyIntegrity = query({
         _id: String(cp._id),
         _creationTime: cp._creationTime,
         organizationId: cp.organizationId,
+        subtype: cp.subtype,
         lastDeletedHash: cp.lastDeletedHash,
         firstRetainedPreviousHash: cp.firstRetainedPreviousHash,
         maxDeletedTimestamp: cp.maxDeletedTimestamp,
         deletedCount: cp.deletedCount,
+        scrubbedSubjectId: cp.scrubbedSubjectId,
+        scrubbedRowCount: cp.scrubbedRowCount,
         signature: cp.signature,
         createdAt: cp.createdAt,
       });
@@ -238,6 +244,20 @@ export const verifyIntegrity = query({
     let previousExpectedHash = '';
     let isFirstEntry = true;
 
+    // Build a Set of subject ids that have been audit-PII-scrubbed for
+    // this org so we can skip hash recompute on those rows. The
+    // verifier still walks past them; the previousExpectedHash chain
+    // continues from their stored integrityHash (the row's _existence_
+    // and chain order is preserved by the scrub, only the body is
+    // blanked, and the integrityHash field on disk reflects the
+    // pre-scrub canonical, which the chain forward-link still uses).
+    const scrubbedSubjects = new Set<string>();
+    for (const cp of checkpoints) {
+      if (cp.subtype === 'pii_scrub' && cp.scrubbedSubjectId !== undefined) {
+        scrubbedSubjects.add(cp.scrubbedSubjectId);
+      }
+    }
+
     for (const entry of entries) {
       if (!entry.integrityHash) {
         // Pre-chain row. Skip — the chain officially begins at the first
@@ -245,9 +265,24 @@ export const verifyIntegrity = query({
         continue;
       }
 
-      const { integrityHash, previousHash, _id, _creationTime, ...record } =
-        entry;
+      const {
+        integrityHash,
+        previousHash,
+        _id,
+        _creationTime,
+        piiScrubbed,
+        ...record
+      } = entry;
       const entryPreviousHash = previousHash ?? '';
+
+      // Scrubbed rows: chain order + previousHash linkage stays intact,
+      // but recomputing the SHA-256 over the now-blanked body would
+      // mismatch. Trust the stored integrityHash (boundary attested by
+      // the corresponding pii_scrub checkpoint) and continue the walk.
+      const isScrubbed =
+        piiScrubbed === true ||
+        (typeof entry.actorId === 'string' &&
+          scrubbedSubjects.has(entry.actorId));
 
       if (isFirstEntry) {
         // Anchor the head: if previousHash references a row that no
@@ -291,19 +326,21 @@ export const verifyIntegrity = query({
         };
       }
 
-      const recomputed = await computeAuditHash(entryPreviousHash, record);
-      if (recomputed !== integrityHash) {
-        return {
-          valid: false,
-          verifiedCount,
-          checkpointsVerified,
-          firstBrokenAt: {
-            logId: _id,
-            timestamp: entry.timestamp,
-            expected: recomputed,
-            actual: integrityHash,
-          },
-        };
+      if (!isScrubbed) {
+        const recomputed = await computeAuditHash(entryPreviousHash, record);
+        if (recomputed !== integrityHash) {
+          return {
+            valid: false,
+            verifiedCount,
+            checkpointsVerified,
+            firstBrokenAt: {
+              logId: _id,
+              timestamp: entry.timestamp,
+              expected: recomputed,
+              actual: integrityHash,
+            },
+          };
+        }
       }
 
       previousExpectedHash = integrityHash;
