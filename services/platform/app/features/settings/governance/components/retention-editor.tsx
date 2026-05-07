@@ -18,7 +18,7 @@ import {
 } from '@/lib/shared/schemas/governance';
 import { isRecord } from '@/lib/utils/type-guards';
 
-import { useUpsertGovernancePolicy } from '../hooks/mutations';
+import { useUpsertRetentionPolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import {
   useRetentionBounds,
@@ -32,6 +32,7 @@ import {
   GROUP_ORDER,
   type Preset,
   categoriesInGroup,
+  unitForCategoryId,
 } from './retention-categories';
 import { RetentionPendingBanner } from './retention-pending-banner';
 import { RetentionTimeline } from './retention-timeline';
@@ -46,7 +47,7 @@ function parseRetentionConfig(policy: unknown): RetentionPolicyConfig {
   if (result.success) {
     return result.data;
   }
-  return { enabled: false, retentionDays: 90 };
+  return { retentionDays: 90 };
 }
 
 /**
@@ -87,7 +88,7 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
     'retention_policy',
   );
   const { bounds, retentionDisabled } = useRetentionBounds(organizationId);
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertRetentionPolicy();
 
   const savedConfig = useMemo(
     () => parseRetentionConfig(policy?.config),
@@ -115,7 +116,6 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
       try {
         await upsertMutation.mutateAsync({
           organizationId,
-          policyType: 'retention_policy',
           config: next,
         });
         setErrors((prev) => {
@@ -372,13 +372,32 @@ function CategoryGroupSection({
   const { t } = useT('governance');
   const cats = categoriesInGroup(group);
   if (cats.length === 0) return null;
+  // Honor `_meta.order` from the per-org JSON file: categories with an
+  // explicit `order` sort first (ascending); categories without sort
+  // after, preserving the platform `categoriesInGroup` order. Stable
+  // sort so ties between platform-default categories don't shuffle.
+  const sortedCats = [...cats].sort((a, b) => {
+    const oa = bounds.get(a.id)?.metadata?.order;
+    const ob = bounds.get(b.id)?.metadata?.order;
+    if (oa !== undefined && ob !== undefined) return oa - ob;
+    if (oa !== undefined) return -1;
+    if (ob !== undefined) return 1;
+    return 0;
+  });
+  // If every category in the group is `_meta.hidden`, skip the section
+  // entirely so the operator's hidden choice doesn't leave an empty
+  // PageSection rendering a header with no content.
+  const allHidden = sortedCats.every(
+    (cat) => bounds.get(cat.id)?.metadata?.hidden,
+  );
+  if (allHidden) return null;
   return (
     <PageSection
       title={t(`retentionPolicy.group.${group}.title`, group)}
       description={t(`retentionPolicy.group.${group}.description`, '')}
     >
       <Stack gap={4}>
-        {cats.map((cat) => (
+        {sortedCats.map((cat) => (
           <CategoryRow
             key={cat.id}
             cat={cat}
@@ -416,21 +435,43 @@ function CategoryRow({
 }: CategoryRowProps) {
   const { t } = useT('governance');
   const { enabledKey, configKey } = cat;
+
+  // `_meta.hidden`: operator opted to hide this category from the
+  // editor entirely. Skip render. Cleanup behavior is unchanged
+  // (the category still has bounds and gets cleaned up); the row
+  // is just not visible to the org admin.
+  if (bound?.metadata?.hidden) {
+    return null;
+  }
+
   const enabled = enabledKey !== undefined ? Boolean(config[enabledKey]) : true;
   const rawValue = config[configKey];
   const value = typeof rawValue === 'number' ? rawValue : cat.standardDefault;
 
+  // Backend JSON is the SoT for `unit`; the FE falls back to a
+  // synchronous derivation (id-suffix convention) only while bounds
+  // load. Schema refine guarantees the two agree.
+  const unit = bound?.unit ?? unitForCategoryId(cat.id);
+
   const unitLabel =
-    cat.unit === 'hours'
+    unit === 'hours'
       ? t('retentionPolicy.retentionHours', 'Retention (hours)')
       : t('retentionPolicy.retentionDays', 'Retention (days)');
+
+  // Operator's `_meta.label` / `_meta.help` shadow the platform i18n
+  // strings when present.
+  const titleText =
+    bound?.metadata?.label ?? t(`retentionPolicy.${cat.i18nKey}.title`, cat.id);
+  const descriptionText =
+    bound?.metadata?.help ??
+    t(`retentionPolicy.${cat.i18nKey}.description`, '');
 
   const helper =
     bound && bound.source === 'env'
       ? t(
           'retentionPolicy.boundHelper',
           'Operator caps this at {min}-{max} {unit}.',
-          { min: bound.min, max: bound.max, unit: cat.unit },
+          { min: bound.min, max: bound.max, unit },
         )
       : t(`retentionPolicy.${cat.i18nKey}.helper`, '');
 
@@ -438,12 +479,24 @@ function CategoryRow({
     <div className="border-border/50 flex flex-col gap-3 border-b border-dashed pb-4 last:border-b-0 last:pb-0">
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <Text className="text-sm font-medium">
-            {t(`retentionPolicy.${cat.i18nKey}.title`, cat.id)}
-          </Text>
+          <Text className="text-sm font-medium">{titleText}</Text>
           <Text className="text-muted-foreground text-xs">
-            {t(`retentionPolicy.${cat.i18nKey}.description`, '')}
+            {descriptionText}
           </Text>
+          {(bound?.minEnv?.applied || bound?.maxEnv?.applied) && (
+            <Text className="text-muted-foreground font-mono text-[10px]">
+              {t(
+                'retentionPolicy.envBoundHint',
+                'env-bound: {min}{minApplied} / {max}{maxApplied}',
+                {
+                  min: bound.minEnv.envName,
+                  minApplied: bound.minEnv.applied ? ' ✓' : '',
+                  max: bound.maxEnv.envName,
+                  maxApplied: bound.maxEnv.applied ? ' ✓' : '',
+                },
+              )}
+            </Text>
+          )}
         </div>
         {enabledKey ? (
           <Switch

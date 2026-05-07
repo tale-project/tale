@@ -4,6 +4,7 @@ import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { checkBudget } from './budget_enforcement';
 import {
   checkModelAccess,
@@ -751,5 +752,51 @@ export const getAccessibleModelsInternal = internalQuery({
       member.role,
       args.modelIds,
     );
+  },
+});
+
+/**
+ * Auth helper for V8 actions in governance/retention_actions.ts.
+ * Confirms the caller is a member of the org. Throws on missing
+ * membership. Returns the member row so the caller can inspect role.
+ */
+export const verifyOrgMember = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    email: v.string(),
+    name: v.optional(v.string()),
+  },
+  returns: v.object({ role: v.string() }),
+  handler: async (ctx, args) => {
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: args.userId,
+      email: args.email,
+      name: args.name,
+    });
+    return { role: member.role };
+  },
+});
+
+/**
+ * Auth helper for admin-only V8 actions. Returns null when the caller
+ * is a member but not an admin (caller throws an admin-required error).
+ */
+export const verifyOrgAdmin = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    email: v.string(),
+    name: v.optional(v.string()),
+  },
+  returns: v.union(v.null(), v.object({ role: v.string() })),
+  handler: async (ctx, args) => {
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: args.userId,
+      email: args.email,
+      name: args.name,
+    });
+    if (!isAdmin(member.role)) return null;
+    return { role: member.role };
   },
 });

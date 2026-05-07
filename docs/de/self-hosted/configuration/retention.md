@@ -5,39 +5,113 @@ description: Konfiguriere, wie lange Konversationen, Dateien, Audit-Einträge un
 
 Tale verfügt über eine zentrale Aufbewahrungs-Konfiguration, die für alle Datendomänen gilt — Chat-Konversationen, hochgeladene Dateien, Audit-Logs, Workflow-Ausführungen und Analytics-Einträge. Die Standardwerte sind für die meisten Deployments angemessen; passe sie an, wenn Compliance, Kosten oder Datenschutzregeln andere Einstellungen erfordern.
 
-Die Aufbewahrung kann an zwei Stellen konfiguriert werden:
+Aufbewahrungs-Grenzen werden in drei Schichten aufgelöst:
 
-- **Umgebungsvariablen** — vom Operator gesetzte Grenzen. Pro-Org-Admins können diese nicht aufweichen.
-- **Governance UI** — Werte pro Organisation innerhalb der Operator-Grenzen.
+- **Pro-Org-JSON-Datei** — operator-kontrollierte Baseline unter `$TALE_CONFIG_DIR/retention/{orgSlug}.json`. Die JSON-Datei ist die einzige Source of Truth. Wird beim ersten Start des Convex-Containers pro `TALE_VERSION` automatisch geseedet.
+- **Umgebungsvariablen** — vom Operator gesetztes Verschärfungs-Overlay über den Datei-Werten. Kann min/max nur verschärfen (Floor erhöhen, Ceiling senken); kann die Datei-Werte nicht aufweichen.
+- **Governance UI** — Werte pro Organisation innerhalb der effektiven Operator-Grenzen.
 
-## Umgebungsvariablen
+## Datei-basierte Pro-Org-Defaults
 
-Diese gelten für jede Organisation auf dem Deployment. Alle Werte sind in Tagen, sofern nicht anders angegeben. Paare `_MIN_DAYS` und `_MAX_DAYS` pro Kategorie — Operatoren können die Standardwerte verschärfen, aber niemals lockern.
+Pro-Org-Dateien liegen unter `$TALE_CONFIG_DIR/retention/`:
 
-| Variable                                              | Standard min | Standard max | Steuert                                                                                                      |
-| ----------------------------------------------------- | ------------ | ------------ | ------------------------------------------------------------------------------------------------------------ |
-| `TALE_RETENTION_CONVERSATIONS_MIN_DAYS` / `_MAX_DAYS` | `1`          | `3650`       | Chat-Konversationen und ihre Nachrichten.                                                                    |
-| `TALE_RETENTION_FILES_MIN_DAYS` / `_MAX_DAYS`         | `30`         | `3650`       | Hochgeladene Dateien (Chat-Anhänge oder Wissensbasis).                                                       |
-| `TALE_RETENTION_AUDIT_MIN_DAYS` / `_MAX_DAYS`         | `365`        | `3650`       | Audit-Log-Einträge. Min hartcodiert auf 365 Tage (PCI/SOC2/ISO-Baseline) — Operator kann nur ERHÖHEN.        |
-| `TALE_RETENTION_EXECUTIONS_MIN_DAYS` / `_MAX_DAYS`    | `1`          | `365`        | Workflow-Ausführungsdetails.                                                                                 |
-| `TALE_RETENTION_ANALYTICS_MIN_DAYS` / `_MAX_DAYS`     | `30`         | `3650`       | Pro-Anfrage Usage-Analytics-Einträge.                                                                        |
-| `TALE_RETENTION_CHAT_FILTER_MIN_DAYS` / `_MAX_DAYS`   | `1`          | `365`        | Chat-Filter (PII / Wortliste / Moderation) Telemetrie.                                                       |
-| `TALE_RETENTION_PROMPTS_MIN_DAYS` / `_MAX_DAYS`       | `30`         | `3650`       | Gespeicherte Prompt-Vorlagen (org-scope).                                                                    |
-| `TALE_RETENTION_FEEDBACK_MIN_DAYS` / `_MAX_DAYS`      | `30`         | `3650`       | Pro-Nachricht Daumen / Kommentare. Können zitierten Nutzerinhalt enthalten.                                  |
-| `TALE_RETENTION_MEMORY_AUDIT_MIN_DAYS` / `_MAX_DAYS`  | `30`         | `3650`       | Personalisierungs-Memory Änderungs-Log.                                                                      |
-| `TALE_RETENTION_CUSTOMERS_MIN_DAYS` / `_MAX_DAYS`     | `30`         | `3650`       | CRM-Kundendaten (Name, E-Mail, Adresse, Locale, Metadaten).                                                  |
-| `TALE_RETENTION_VENDORS_MIN_DAYS` / `_MAX_DAYS`       | `30`         | `3650`       | Lieferantendatensätze (Name, E-Mail, Telefon, Adresse, Freitext-Notizen).                                    |
-| `TALE_RETENTION_INBOX_MIN_DAYS` / `_MAX_DAYS`         | `30`         | `3650`       | Externer Kundenkanal-Posteingang (E-Mail/Chat-Integrationen) + kaskadierte Nachrichteninhalte.               |
-| `TALE_RETENTION_MSG_META_MIN_DAYS` / `_MAX_DAYS`      | `30`         | `3650`       | Pro-Nachricht Reasoning, Prompt-Kontextfenster, Tool-I/O. Stark PII-haltige abgeleitete Daten.               |
-| `TALE_RETENTION_USER_TEMP_MIN_HOURS` / `_MAX_HOURS`   | `1`          | `720`        | Temporäre nutzerseitige Dateien (Stunden).                                                                   |
-| `TALE_RETENTION_AGENT_TEMP_MIN_HOURS` / `_MAX_HOURS`  | `1`          | `720`        | Temporäre agentenseitige Dateien (Stunden).                                                                  |
-| `TALE_RETENTION_DISABLED`                             | `false`      | —            | Wenn `true`, läuft der Cleanup-Prozess no-op mit warn-log. Operator-Notbremse für Migrationsfenster / Debug. |
+- `default.json` — Aufbewahrungs-Grenzen + Initialwerte für die Bootstrap-Org. Der Slug der Default-Org ist hartcodiert auf `default`, daher passt die Datei zur `{orgSlug}.json`-Konvention ohne Sonderfall.
+- `{orgSlug}.json` (optional) — Pro-Org-Overrides für weitere Orgs. Wenn eine Org keine eigene Datei hat, fällt der Resolver auf `default.json` zurück.
+
+Jede Datei deklariert eine beliebige Teilmenge der 16 Aufbewahrungs-Kategorien plus einen optionalen **Root-Level**-`_metadata`-Block für das Env-Binding. Eine in der Datei vorhandene Kategorie MUSS alle drei Felder enthalten:
+
+```json
+{
+  "_metadata": {
+    "envPrefix": "TALE_RETENTION_",
+    "envNames": {
+      "AUDIT_MIN": "auditLog.min",
+      "AUDIT_MAX": "auditLog.max",
+      "AUDIT_DEFAULT": "auditLog.default",
+      "FILES_MIN": "documents.min",
+      "FILES_MAX": "documents.max",
+      "FILES_DEFAULT": "documents.default"
+    }
+  },
+  "auditLog": { "min": 365, "max": 3650, "default": 730 },
+  "documents": { "min": 30, "max": 3650, "default": 365 }
+}
+```
+
+Wobei:
+
+- `min` / `max` — vom Operator definierte äußere Grenzen. Org-Admins können keine Werte außerhalb dieses Bereichs wählen.
+- `default` — der Anfangs-Aufbewahrungswert pro Org, bis ein Org-Admin ihn in der Governance-UI ändert.
+- `_metadata` (root, optional) — Env-Binding-Deklaration:
+  - `envPrefix` — gemeinsamer Präfix für alle Env-Namen. Vollständige Env-Namen entstehen durch reine String-Konkatenation: `${envPrefix}${suffix}`. Der Trenner (z. B. `_`) gehört zum `envPrefix` und ist sichtbar.
+  - `envNames` — direkter 1:1-Map vom Env-Suffix → JSON-Pfad. Pfade müssen `${kategorie}.${min|max|default}` für eine bekannte Kategorie sein.
+  - `envPrefix` und `envNames` sind ausschließlich am Root-`_metadata` erlaubt; an einer Kategorie werden sie vom Schema abgewiesen.
+
+Kategorien, die in der Datei einer Org fehlen, fallen auf die `default.json` der Org zurück. Fehlen beide (z. B. Operator hat `default.json` gelöscht), liefern Aufbewahrungs-Reads `RETENTION_CONFIG_MISSING` zurück — Container mit `FORCE_SEED=true` neu starten (oder `TALE_VERSION` erhöhen), um `default.json` aus dem mitgelieferten `examples/retention/default.json` neu zu seeden.
+
+`unit` (`days` vs `hours`) ist nicht pro Kategorie konfigurierbar — sie ist an die Cleanup-Math gebunden und lebt nur im Plattform-Code.
+
+### Display-Metadaten (per Kategorie)
+
+Operatoren können pro Kategorie einen optionalen `_metadata`-Block setzen, um Label / Hilfetext / Sortierreihenfolge / Sichtbarkeit in der Governance-UI zu überschreiben:
+
+```json
+{
+  "auditLog": {
+    "min": 365,
+    "max": 3650,
+    "default": 730,
+    "_metadata": {
+      "label": "Audit-Log-Retention (PCI-Bereich)",
+      "help": "Vom Operator angepinnt für unser Compliance-Programm.",
+      "order": 1,
+      "hidden": false
+    }
+  }
+}
+```
+
+Env-Binding (`envPrefix` / `envNames`) ist ausschließlich am Root-`_metadata` erlaubt — innerhalb einer Kategorie werden diese Felder vom Schema abgewiesen.
+
+### Admin-Seite "Environment"
+
+Der Governance-Sidebar-Eintrag **Environment** zeigt einen read-only Snapshot jeder retention-relevanten Env-Variable, die der Resolver gerade berücksichtigt — Name, aktueller Wert, Binding-Quelle (`metadata`, wenn in `_metadata.envNames` deklariert; `none` sonst) und ob sie aktuell verschärft.
+
+Nach dem Editieren einer Datei greift die nächste Editor-Reload automatisch die neuen Werte ab — kein Convex-Neustart erforderlich.
+
+## Umgebungsvariablen (Verschärfungs-Overlay)
+
+Die `docker-entrypoint.sh` der Plattform synct standardmäßig jede Env-Variable des Plattform-Containers nach Convex (passend zum `bun run dev`-Verhalten). Eine kleine `ENV_SYNC_DENYLIST` am Anfang des Entrypoints ist der einzige Platform-seitige Wartungsaufwand — sie ist aktuell leer und wächst nur, wenn eine bestimmte Variable Convex aktiv stört. Operatoren müssen keine Plattform-seitige Allowlist verhandeln, um eigene Env-Variablen hinzuzufügen.
+
+Diese gelten für jede Organisation auf dem Deployment, oben auf den Pro-Org-Datei-Werten. Sie können Grenzen nur VERSCHÄRFEN — einen Floor anheben oder ein Ceiling senken — niemals über das hinaus aufweichen, was die Datei deklariert. Alle Werte sind in Tagen, sofern nicht anders angegeben.
+
+Die Env-Namen unten stammen aus dem Root-`_metadata.envNames`-Map des mitgelieferten `examples/retention/default.json`. `envPrefix` ist `"TALE_RETENTION_"` (mit abschließendem Unterstrich). Vollständige Env-Namen entstehen durch reine String-Konkatenation: `envPrefix + suffix`.
+
+| Variable                                     | Standard min | Standard max | Steuert                                                                                                      |
+| -------------------------------------------- | ------------ | ------------ | ------------------------------------------------------------------------------------------------------------ |
+| `TALE_RETENTION_CONVERSATIONS_MIN` / `_MAX`  | `1`          | `3650`       | Chat-Konversationen und ihre Nachrichten.                                                                    |
+| `TALE_RETENTION_FILES_MIN` / `_MAX`          | `30`         | `3650`       | Hochgeladene Dateien (Chat-Anhänge oder Wissensbasis).                                                       |
+| `TALE_RETENTION_AUDIT_MIN` / `_MAX`          | `365`        | `3650`       | Audit-Log-Einträge. Min hartcodiert auf 365 Tage (PCI/SOC2/ISO-Baseline) — Operator kann nur ERHÖHEN.        |
+| `TALE_RETENTION_EXECUTIONS_MIN` / `_MAX`     | `1`          | `365`        | Workflow-Ausführungsdetails.                                                                                 |
+| `TALE_RETENTION_ANALYTICS_MIN` / `_MAX`      | `30`         | `3650`       | Pro-Anfrage Usage-Analytics-Einträge.                                                                        |
+| `TALE_RETENTION_CHAT_FILTER_MIN` / `_MAX`    | `1`          | `365`        | Chat-Filter (PII / Wortliste / Moderation) Telemetrie.                                                       |
+| `TALE_RETENTION_PROMPTS_MIN` / `_MAX`        | `30`         | `3650`       | Gespeicherte Prompt-Vorlagen (org-scope).                                                                    |
+| `TALE_RETENTION_FEEDBACK_MIN` / `_MAX`       | `30`         | `3650`       | Pro-Nachricht Daumen / Kommentare. Können zitierten Nutzerinhalt enthalten.                                  |
+| `TALE_RETENTION_MEMORY_AUDIT_MIN` / `_MAX`   | `30`         | `3650`       | Personalisierungs-Memory Änderungs-Log.                                                                      |
+| `TALE_RETENTION_CUSTOMERS_MIN` / `_MAX`      | `30`         | `3650`       | CRM-Kundendaten (Name, E-Mail, Adresse, Locale, Metadaten).                                                  |
+| `TALE_RETENTION_VENDORS_MIN` / `_MAX`        | `30`         | `3650`       | Lieferantendatensätze (Name, E-Mail, Telefon, Adresse, Freitext-Notizen).                                    |
+| `TALE_RETENTION_INBOX_MIN` / `_MAX`          | `30`         | `3650`       | Externer Kundenkanal-Posteingang (`externalConversations`) + kaskadierte Nachrichteninhalte.                 |
+| `TALE_RETENTION_MSG_META_MIN` / `_MAX`       | `30`         | `3650`       | Pro-Nachricht Reasoning, Prompt-Kontextfenster, Tool-I/O. Stark PII-haltige abgeleitete Daten.               |
+| `TALE_RETENTION_USER_TEMP_MIN` / `_MAX`      | `1`          | `720`        | Temporäre nutzerseitige Dateien (Stunden).                                                                   |
+| `TALE_RETENTION_AGENT_TEMP_MIN` / `_MAX`     | `1`          | `720`        | Temporäre agentenseitige Dateien (Stunden).                                                                  |
+| `TALE_RETENTION_LOGIN_ATTEMPTS_MIN` / `_MAX` | `90`         | `365`        | Login-Versuchs-Datensätze.                                                                                   |
+| `TALE_RETENTION_DISABLED`                    | `false`      | —            | Wenn `true`, läuft der Cleanup-Prozess no-op mit warn-log. Operator-Notbremse für Migrationsfenster / Debug. |
 
 Änderungen an Env-Variablen werden beim **nächsten Backend-Neustart** wirksam (`docker compose restart tale-convex`) — Convex cached Env beim Prozessstart.
 
 ## Pro-Org-Policy
 
-Innerhalb der Operator-Grenzen kann ein Org-Admin jede Kategorie unabhängig in der Governance-UI konfigurieren. Das Formular fetched die effektiven Grenzen über `getEffectiveRetentionBounds` und rendert `<input min={N} max={M}>` plus inline Hilfetext BEVOR der Nutzer Werte außerhalb des Bereichs eintippt. Speichervorgänge, die eine Grenze verletzen, werden mit `RETENTION_BELOW_FLOOR` oder `RETENTION_EXCEEDS_CEILING` abgelehnt (jeweils mit der genauen Grenze + Quelle).
+Innerhalb der effektiven Operator-Grenzen kann ein Org-Admin jede Kategorie unabhängig in der Governance-UI konfigurieren. Das Formular holt die effektiven Grenzen über die V8-Aktion `getRetentionBoundsAction` (die die Pro-Org-Datei mit Fallback auf `default.json` liest und env-Verschärfung anwendet) und rendert `<input min={N} max={M}>` plus inline Hilfetext BEVOR der Nutzer Werte außerhalb des Bereichs eintippt. Speichervorgänge, die eine Grenze verletzen, werden mit `RETENTION_BELOW_FLOOR` oder `RETENTION_EXCEEDS_CEILING` abgelehnt (jeweils mit der genauen Grenze + Quelle).
 
 ## Wie die Löschung läuft
 

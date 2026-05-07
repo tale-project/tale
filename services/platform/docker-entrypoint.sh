@@ -163,34 +163,16 @@ dump_diagnostics() {
 CONVEX_URL="${CONVEX_URL:-http://convex:3210}"
 CONVEX_DEPLOY_TIMEOUT="${CONVEX_DEPLOY_TIMEOUT:-300}"
 
-# ENV vars to sync to the convex service so Convex actions/mutations can read
-# them at runtime. See services/platform/convex/ code for consumers.
-ENV_VARS_TO_SYNC=(
-  "SITE_URL"
-  "BASE_PATH"
-  "ENCRYPTION_SECRET_HEX"
-  "BETTER_AUTH_SECRET"
-  "AUTH_MICROSOFT_ENTRA_ID_ID"
-  "AUTH_MICROSOFT_ENTRA_ID_SECRET"
-  "AUTH_MICROSOFT_ENTRA_ID_TENANT_ID"
-  "AUTH_MICROSOFT_ENTRA_ID_ISSUER"
-  "CRAWLER_URL"
-  "RAG_URL"
-  "SEARCH_SERVICE_URL"
-  "POSTGRES_URL"
-  "RAG_DATABASE_URL"
-  "TRUSTED_HEADERS_ENABLED"
-  "TRUSTED_HEADERS_INTERNAL_SECRET"
-  "TRUSTED_EMAIL_HEADER"
-  "TRUSTED_NAME_HEADER"
-  "TRUSTED_ROLE_HEADER"
-  "TRUSTED_TEAMS_HEADER"
-  # TALE_CONFIG_DIR only — convex `file_utils.ts` derives the 4 sub-dirs
-  # (agents/workflows/integrations/providers) from it.
-  "TALE_CONFIG_DIR"
-  "DEBUG_MODE"
-  "SOPS_AGE_KEY"
-)
+# Denylist of env vars that should NOT be synced to Convex. Initially
+# empty — we wire the mechanism but ship no entries. Add a name here
+# only when a specific var is shown to actively break Convex (e.g.
+# conflicts with a same-named convex-side var that needs a different
+# value, or causes a deploy failure). Most additions to this list
+# should NOT be needed.
+#
+# Mirrors `bun dev`'s sync-convex-env-from-dotenv.ts behavior: push
+# everything we see, exclude only what's known-incompatible.
+ENV_SYNC_DENYLIST=()
 
 deploy_convex_functions() {
   log_section "Deploying Convex functions (remote push to ${CONVEX_URL})"
@@ -273,44 +255,71 @@ deploy_convex_functions() {
     fi
   done
 
-  # 5. Sync each var in ENV_VARS_TO_SYNC.
+  # 5. Push every env var the platform container sees to Convex (denylist
+  # semantics — only skip names listed in ENV_SYNC_DENYLIST or names
+  # that exceed the 40-char Convex limit). Matches the local-dev sync
+  # script's behavior so prod ↔ dev have the same env-propagation
+  # surface, and operators can use any env name they want without
+  # negotiating a platform-side allowlist.
   local sync_count=0 skip_count=0 unchanged_count=0 remove_count=0
   local failed_vars=()
+  local seen_vars=()
 
-  for var_name in "${ENV_VARS_TO_SYNC[@]}"; do
-    local var_value="${!var_name}"
+  is_denylisted() {
+    local name="$1"
+    local entry
+    for entry in "${ENV_SYNC_DENYLIST[@]}"; do
+      [ "$name" = "$entry" ] && return 0
+    done
+    return 1
+  }
 
-    if [ -z "$var_value" ]; then
-      # Unset: remove from Convex if previously present.
-      if [ "${CONVEX_ENV_MAP[$var_name]+_}" ]; then
-        if bunx convex env remove "$var_name" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
-          remove_count=$((remove_count + 1))
-          echo "   ✓ $var_name (removed)"
-        else
-          failed_vars+=("$var_name")
-          log_warn "Failed to remove $var_name"
-        fi
-      else
-        skip_count=$((skip_count + 1))
-      fi
+  while IFS='=' read -r var_name var_value; do
+    [ -z "$var_name" ] && continue
+    [ -z "$var_value" ] && continue
+    if is_denylisted "$var_name"; then
+      skip_count=$((skip_count + 1))
       continue
     fi
-
-    # Unchanged?
+    if [ ${#var_name} -gt 40 ]; then
+      log_warn "Skipping $var_name: name exceeds Convex 40-char limit"
+      skip_count=$((skip_count + 1))
+      continue
+    fi
+    seen_vars+=("$var_name")
     if [ "${CONVEX_ENV_MAP[$var_name]+_}" ] && [ "${CONVEX_ENV_MAP[$var_name]}" = "$var_value" ]; then
       unchanged_count=$((unchanged_count + 1))
       continue
     fi
-
     local change_type="updated"
     [ -z "${CONVEX_ENV_MAP[$var_name]+_}" ] && change_type="new"
-
     if bunx convex env set "$var_name" "$var_value" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
       sync_count=$((sync_count + 1))
       echo "   ✓ $var_name ($change_type)"
     else
       failed_vars+=("$var_name")
       log_warn "Failed to set $var_name (value length: ${#var_value})"
+    fi
+  done < <(env)
+
+  # 5b. Remove vars from Convex that are no longer set on the platform.
+  # Without this, env vars unset on the platform side linger in Convex.
+  # Skip orphans we already removed above (in the ORPHAN_DERIVED block).
+  for convex_var in "${!CONVEX_ENV_MAP[@]}"; do
+    local found=false
+    local sv
+    for sv in "${seen_vars[@]}"; do
+      if [ "$sv" = "$convex_var" ]; then found=true; break; fi
+    done
+    if [ "$found" = "false" ]; then
+      if is_denylisted "$convex_var"; then continue; fi
+      if bunx convex env remove "$convex_var" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
+        remove_count=$((remove_count + 1))
+        echo "   ✓ $convex_var (removed; unset on platform)"
+      else
+        failed_vars+=("$convex_var")
+        log_warn "Failed to remove $convex_var"
+      fi
     fi
   done
 

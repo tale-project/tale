@@ -3,30 +3,76 @@
 import { v } from 'convex/values';
 
 import type { RetentionPolicyConfig } from '../../lib/shared/schemas/governance';
+import { retentionDefaultsConfigSchema } from '../../lib/shared/schemas/retention';
 import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
+import { createFileConfigStore } from '../lib/config_store/store';
 import { ragFetch } from '../lib/helpers/rag_config';
+import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import type { ActiveHolds } from './legal_hold';
-import { clampConfigToBounds, isRetentionDisabled } from './retention_floors';
+import {
+  buildBoundsByCategory,
+  clampConfigToBounds,
+  isRetentionDisabled,
+} from './retention_floors';
+
+// Cleanup runs in Node action context; reads the per-org bounds file
+// directly from disk via ConfigStore (no need to round-trip through
+// `ctx.runAction` since we're already in `'use node'`).
+const retentionStore = createFileConfigStore(
+  'retention',
+  retentionDefaultsConfigSchema,
+);
+
+async function loadOrgRetentionConfig(orgSlug: string) {
+  const own = await retentionStore.read(orgSlug);
+  if (own) return own;
+  if (orgSlug === 'default') return null;
+  return retentionStore.read('default');
+}
 
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_TEMP_RETENTION_HOURS = 24;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 
-function parseConfig(config: unknown): RetentionPolicyConfig | null {
-  if (!isRecord(config) || typeof config['retentionDays'] !== 'number') {
+/**
+ * Cheap shape check — used by the dispatcher to filter out orgs whose
+ * stored config is missing the basic `retentionDays` field. Does NOT
+ * clamp; clamping is per-org and happens in `clampStoredConfig` below
+ * after the bounds file is loaded for that org.
+ */
+function hasValidConfigShape(config: unknown): config is RetentionPolicyConfig {
+  return isRecord(config) && typeof config['retentionDays'] === 'number';
+}
+
+/**
+ * Load the org's retention bounds file (with `default` fallback), build
+ * the per-category effective-bounds map (env tightening applied), and
+ * clamp the stored Convex policy values against it. Defense-in-depth
+ * against rows persisted under older bounds that would otherwise
+ * bypass freshly tightened limits.
+ *
+ * Returns null when the bounds file is absent — cleanup for that org
+ * is skipped (with a warning) until the operator installs the file.
+ */
+async function clampStoredConfig(
+  orgSlug: string,
+  config: unknown,
+): Promise<RetentionPolicyConfig | null> {
+  if (!hasValidConfigShape(config)) return null;
+  const orgBoundsConfig = await loadOrgRetentionConfig(orgSlug);
+  if (!orgBoundsConfig) {
+    console.warn(
+      `[RetentionCleanup] org ${orgSlug} retention bounds file missing — skipping clamp + cleanup. Install $TALE_CONFIG_DIR/retention/default.json (or per-org file) to activate retention.`,
+    );
     return null;
   }
-  // Defense-in-depth: clamp every per-category retention value to current
-  // effective bounds before downstream cleanup reads it. This catches rows
-  // persisted under an older env config that would otherwise bypass a
-  // freshly tightened ceiling. See `retention_floors.clampConfigToBounds`.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape validated above
-  return clampConfigToBounds(config as unknown as RetentionPolicyConfig);
+  const boundsByCategory = buildBoundsByCategory(orgBoundsConfig);
+  return clampConfigToBounds(boundsByCategory, config);
 }
 
 interface OrgPolicy {
@@ -60,7 +106,7 @@ async function cleanupDocuments(
   batchSize: number,
   holds: ActiveHolds,
 ): Promise<number> {
-  if (!org.config.enabled) return 0;
+  if (!org.config.documentsEnabled) return 0;
 
   // Parity with sibling category guards. Schema rejects 0 (zod min(1)), but
   // legacy rows or unclamped pre-bound values could still reach here; treat
@@ -942,7 +988,8 @@ export const runOrgRetentionCleanup = internalAction({
           );
         }
       }
-      const config = parseConfig(effectiveRawConfig);
+      const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+      const config = await clampStoredConfig(orgSlug, effectiveRawConfig);
       if (!config) return null;
 
       const org: OrgPolicy = {
@@ -1145,11 +1192,14 @@ export const runRetentionCleanup = internalAction({
 
     const orgsWithPolicies: OrgPolicy[] = [];
     for (const policy of rawPolicies) {
-      const config = parseConfig(policy.config);
-      if (!config) continue;
+      // Dispatcher only needs to know which orgs have a non-empty
+      // retention policy. Per-org bounds loading + clamping happens in
+      // the scheduled per-org worker (`runOrgRetentionCleanup`), where
+      // we have ctx for the file read.
+      if (!hasValidConfigShape(policy.config)) continue;
       orgsWithPolicies.push({
         organizationId: policy.organizationId,
-        config,
+        config: policy.config,
       });
     }
 

@@ -64,7 +64,6 @@ export const apply = internalMutation({
             organizationId: legacy.organizationId,
             policyType: 'retention_policy',
             config: {
-              enabled: false,
               retentionDays: 90,
               auditLogsEnabled: true,
               auditLogRetentionDays: retentionDays,

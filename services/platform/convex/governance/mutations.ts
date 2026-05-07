@@ -17,16 +17,12 @@ import {
   uploadPolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-guards';
-import { mutation } from '../_generated/server';
+import type { Id } from '../_generated/dataModel';
+import { internalMutation, mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
-import {
-  type RetentionCategory,
-  RetentionBoundsViolation,
-  assertWithinBounds,
-} from './retention_floors';
 import { GOVERNANCE_POLICY_TYPES } from './schema';
 
 const policyTypeValidator = v.union(
@@ -171,54 +167,19 @@ export const upsertPolicy = mutation({
     }
 
     if (args.policyType === 'retention_policy') {
-      const parsed = retentionPolicyConfigSchema.safeParse(args.config);
-      if (!parsed.success) {
-        throw new Error(
-          `Invalid retention policy configuration: ${parsed.error.message}`,
-        );
-      }
-      // Env-floor / env-ceiling enforcement: operator-set bounds via
-      // `TALE_RETENTION_*_MIN_DAYS` / `_MAX_DAYS` are non-negotiable.
-      // Throws RETENTION_BELOW_FLOOR or RETENTION_EXCEEDS_CEILING with
-      // structured error data so the UI can render an inline field error
-      // pointing at the exact category.
-      const cfg = parsed.data;
-      const checks: Array<[RetentionCategory, number | undefined]> = [
-        ['documents', cfg.retentionDays],
-        ['userTempHours', cfg.userTempRetentionHours],
-        ['agentTempHours', cfg.agentTempRetentionHours],
-        ['chatHistory', cfg.chatHistoryRetentionDays],
-        ['auditLog', cfg.auditLogRetentionDays],
-        ['workflowLog', cfg.workflowLogRetentionDays],
-        ['usageLedger', cfg.usageLedgerRetentionDays],
-        ['loginAttempt', cfg.loginAttemptRetentionDays],
-        ['chatFilterEvents', cfg.chatFilterEventsRetentionDays],
-        ['promptTemplates', cfg.promptTemplatesRetentionDays],
-        ['messageFeedback', cfg.messageFeedbackRetentionDays],
-        ['memoryAudit', cfg.memoryAuditRetentionDays],
-        ['customers', cfg.customersRetentionDays],
-        ['vendors', cfg.vendorsRetentionDays],
-        ['externalConversations', cfg.externalConversationsRetentionDays],
-        ['messageMetadata', cfg.messageMetadataRetentionDays],
-      ];
-      for (const [cat, val] of checks) {
-        if (val === undefined) continue;
-        try {
-          assertWithinBounds(cat, val);
-        } catch (err) {
-          if (err instanceof RetentionBoundsViolation) {
-            throw new ConvexError({
-              code: err.code,
-              category: err.category,
-              requested: err.requested,
-              bound: err.bound,
-              source: err.source,
-              message: err.message,
-            });
-          }
-          throw err;
-        }
-      }
+      // For retention, the public path is `governance/retention_actions.
+      // upsertRetentionPolicyAction` (V8 action). It loads the per-org
+      // bounds file via Node action, validates against effective bounds,
+      // and then calls `upsertRetentionPolicyInternal` below.
+      //
+      // Routing retention through this generic mutation would require fs
+      // access here (V8 mutation, no Node), so we refuse and direct the
+      // caller to the action.
+      throw new ConvexError({
+        code: 'use_action',
+        message:
+          'Use governance/retention_actions.upsertRetentionPolicyAction for retention_policy. The bounds file at $TALE_CONFIG_DIR/retention/{orgSlug}.json must be read before validation.',
+      });
     }
 
     if (args.policyType === 'model_access') {
@@ -301,55 +262,6 @@ export const upsertPolicy = mutation({
           .eq('policyType', args.policyType),
       )
       .first();
-
-    // Phase 3 — cooldown on retention shortening.
-    //
-    // If `retention_policy` is being saved AND any `*RetentionDays`
-    // value is being REDUCED, defer the change by writing a row to
-    // `retentionPolicyPendingChanges`. Until `appliesAt`, cleanup
-    // continues using the OLD config snapshot. After `appliesAt` the
-    // pending row is removed and the new config takes effect.
-    //
-    // This shrinks the operator-as-attacker window: a compromised
-    // admin token can no longer immediately destroy evidence by
-    // shortening audit retention to its 365-day floor; ops/security
-    // teams have a 7-day window to notice + cancel.
-    if (
-      args.policyType === 'retention_policy' &&
-      existing &&
-      isRecord(existing.config)
-    ) {
-      const summary = detectRetentionShortening(existing.config, args.config);
-      if (summary) {
-        const cooldownMs = 7 * 24 * 60 * 60 * 1000; // 7 days
-        await ctx.db.insert('retentionPolicyPendingChanges', {
-          organizationId: args.organizationId,
-          appliesAt: Date.now() + cooldownMs,
-          oldConfig: existing.config,
-          newConfig: args.config,
-          requestedBy: String(authUser._id),
-          requestedAt: Date.now(),
-          summary,
-        });
-        await createAuditLog(ctx, {
-          organizationId: args.organizationId,
-          actorId: String(authUser._id),
-          actorEmail: authUser.email,
-          actorType: 'user',
-          action: 'policy.retention_shortening_pending',
-          category: 'security',
-          resourceType: 'governance_policy',
-          resourceId: String(existing._id),
-          resourceName: 'retention_policy',
-          newState: { summary, appliesAt: Date.now() + cooldownMs },
-          status: 'success',
-        });
-        // The new config still gets persisted onto the row so admins see
-        // their requested values in the editor, BUT cleanup reads the
-        // pending row's `oldConfig` until `appliesAt` (see
-        // retention_cleanup.ts).
-      }
-    }
 
     // For password_policy, track when rotation first became active so we
     // can grant a grace window (credential expiry is computed off the
@@ -491,5 +403,120 @@ export const cancelPendingRetentionChange = mutation({
     });
 
     return null;
+  },
+});
+
+/**
+ * Internal mutation invoked by `governance/retention_actions.
+ * upsertRetentionPolicyAction`. Owns: Zod schema validation of the
+ * retention config, 7-day cooldown insertion when values shrink,
+ * policy-row persistence, and audit emission.
+ *
+ * Does NOT validate per-category bounds — the V8 action wrapper does
+ * that against the file-loaded effective bounds before calling here.
+ *
+ * The action passes `actorId` / `actorEmail` / `actorName` through so
+ * audit emission attributes the change to the human caller (we lose
+ * `authComponent` access in this internal layer).
+ */
+export const upsertRetentionPolicyInternal = internalMutation({
+  args: {
+    organizationId: v.string(),
+    config: v.any(),
+    actorId: v.string(),
+    actorEmail: v.optional(v.string()),
+    actorName: v.optional(v.string()),
+  },
+  returns: v.id('governancePolicies'),
+  handler: async (ctx, args): Promise<Id<'governancePolicies'>> => {
+    const parsed = retentionPolicyConfigSchema.safeParse(args.config);
+    if (!parsed.success) {
+      throw new Error(
+        `Invalid retention policy configuration: ${parsed.error.message}`,
+      );
+    }
+
+    const existing = await ctx.db
+      .query('governancePolicies')
+      .withIndex('by_org_policyType', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('policyType', 'retention_policy'),
+      )
+      .first();
+
+    // 7-day cooldown on retention shortening (Phase 3).
+    if (existing && isRecord(existing.config)) {
+      const summary = detectRetentionShortening(existing.config, args.config);
+      if (summary) {
+        const cooldownMs = 7 * 24 * 60 * 60 * 1000;
+        await ctx.db.insert('retentionPolicyPendingChanges', {
+          organizationId: args.organizationId,
+          appliesAt: Date.now() + cooldownMs,
+          oldConfig: existing.config,
+          newConfig: args.config,
+          requestedBy: args.actorId,
+          requestedAt: Date.now(),
+          summary,
+        });
+        await createAuditLog(ctx, {
+          organizationId: args.organizationId,
+          actorId: args.actorId,
+          actorEmail: args.actorEmail,
+          actorType: 'user',
+          action: 'policy.retention_shortening_pending',
+          category: 'security',
+          resourceType: 'governance_policy',
+          resourceId: String(existing._id),
+          resourceName: 'retention_policy',
+          newState: { summary, appliesAt: Date.now() + cooldownMs },
+          status: 'success',
+        });
+      }
+    }
+
+    const configEnabled =
+      isRecord(args.config) && typeof args.config.enabled === 'boolean'
+        ? args.config.enabled
+        : undefined;
+
+    let policyId: Id<'governancePolicies'>;
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        config: args.config,
+        updatedAt: Date.now(),
+        updatedBy: args.actorId,
+        ...(configEnabled !== undefined ? { enabled: configEnabled } : {}),
+      });
+      policyId = existing._id;
+    } else {
+      policyId = await ctx.db.insert('governancePolicies', {
+        organizationId: args.organizationId,
+        policyType: 'retention_policy',
+        enabled: configEnabled ?? true,
+        config: args.config,
+        updatedAt: Date.now(),
+        updatedBy: args.actorId,
+      });
+    }
+
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: args.actorId,
+      actorEmail: args.actorEmail,
+      actorType: 'user',
+      action: existing ? 'policy.updated' : 'policy.created',
+      category: 'security',
+      resourceType: 'governance_policy',
+      resourceId: String(policyId),
+      resourceName: 'Policy: retention_policy',
+      newState: { policyType: 'retention_policy', config: args.config },
+      previousState: existing
+        ? { policyType: existing.policyType, config: existing.config }
+        : undefined,
+      status: 'success',
+    });
+
+    return policyId;
   },
 });

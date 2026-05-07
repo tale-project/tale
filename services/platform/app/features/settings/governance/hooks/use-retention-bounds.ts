@@ -1,11 +1,25 @@
 'use client';
 
+import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { api } from '@/convex/_generated/api';
 
 import type { CategoryId } from '../components/retention-categories';
+
+interface RawEnvBinding {
+  envName: string;
+  source: 'metadata' | 'none';
+  applied: boolean;
+}
+
+interface RawMetadata {
+  label?: string;
+  help?: string;
+  order?: number;
+  hidden?: boolean;
+}
 
 interface RawBound {
   category: string;
@@ -13,33 +27,80 @@ interface RawBound {
   max: number;
   default: number;
   unit: 'days' | 'hours';
-  source: 'code' | 'env';
+  source: 'file' | 'env';
+  minEnv: RawEnvBinding;
+  maxEnv: RawEnvBinding;
+  defaultEnv: RawEnvBinding;
+  metadata?: RawMetadata;
+}
+
+export interface EnvBindingInfo {
+  envName: string;
+  /** `'metadata'` = declared in the JSON file's root `_metadata.envNames`.
+   *  `'none'` = no entry maps to this `${category}.${field}` path, so
+   *  the field has no env binding. */
+  source: 'metadata' | 'none';
+  /** Whether `process.env[envName]` is currently set (and tightening). */
+  applied: boolean;
+}
+
+export interface CategoryMetadata {
+  label?: string;
+  help?: string;
+  order?: number;
+  hidden?: boolean;
 }
 
 export interface CategoryBounds {
   min: number;
   max: number;
   default: number;
+  /** Time unit for `min`/`max`/`default` — backend reads this from
+   *  the JSON file's per-category `unit` field (single SoT). */
   unit: 'days' | 'hours';
   /** `'env'` when the operator set a tighter min/max via env var. The
    *  UI surfaces "Operator caps this at N {unit}" helper text in this
    *  case. */
-  source: 'code' | 'env';
+  source: 'file' | 'env';
+  /** Resolution detail for the `min` env binding. */
+  minEnv: EnvBindingInfo;
+  /** Resolution detail for the `max` env binding. */
+  maxEnv: EnvBindingInfo;
+  /** Resolution detail for the `default` env binding. */
+  defaultEnv: EnvBindingInfo;
+  /** Operator-supplied overrides from the JSON file's `_metadata`. */
+  metadata?: CategoryMetadata;
 }
 
 /**
- * Phase 13 — `useRetentionBounds(orgId)` resolves effective per-category
- * bounds from `getEffectiveRetentionBounds`.
+ * Resolves effective per-category bounds via the V8 action
+ * `getRetentionBoundsAction`. The action reads the per-org JSON file
+ * (with `default` org fallback) and applies env tightening — see
+ * `convex/governance/retention_floors.ts` + `retention_actions.ts`.
+ *
+ * Bounds are NOT reactive (they came from a Convex query before, but
+ * the file-canonical refactor moved reads to a V8 action). Editor
+ * fetches once on open + on `organizationId` change. Operators editing
+ * the JSON file see changes after the next editor reload.
  *
  * Returns a map keyed by `CategoryId`. Categories without a bound row
- * (shouldn't happen, but defensive) get `undefined` so callers fall
- * back to schema-level defaults.
+ * (shouldn't happen post-refactor — file is exhaustive) get
+ * `undefined` so callers fall back to schema-level defaults.
  */
 export function useRetentionBounds(organizationId: string | undefined) {
-  const result = useConvexQuery(
-    api.governance.queries.getEffectiveRetentionBounds,
-    organizationId ? { organizationId } : 'skip',
-  );
+  const convex = useConvexClient();
+  const result = useQuery({
+    queryKey: ['retention-bounds', organizationId ?? null],
+    queryFn: async () => {
+      if (!organizationId) return null;
+      return convex.action(
+        api.governance.retention_actions.getRetentionBoundsAction,
+        { organizationId },
+      );
+    },
+    enabled: !!organizationId,
+    staleTime: 60_000,
+  });
 
   const map = useMemo(() => {
     const bounds = (result.data?.bounds ?? []) as RawBound[];
@@ -53,6 +114,10 @@ export function useRetentionBounds(organizationId: string | undefined) {
         default: b.default,
         unit: b.unit,
         source: b.source,
+        minEnv: b.minEnv,
+        maxEnv: b.maxEnv,
+        defaultEnv: b.defaultEnv,
+        metadata: b.metadata,
       });
     }
     return out;

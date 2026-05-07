@@ -115,59 +115,57 @@ export const uploadPolicyConfigSchema = z.object({
 });
 export type UploadPolicyConfig = z.infer<typeof uploadPolicyConfigSchema>;
 
+/**
+ * Per-org retention policy payload. Schema only validates structural
+ * shape (integer + non-negative); category min/max bounds live in
+ * `examples/retention/default.json` (or per-org override files) and are
+ * enforced at write time by `assertWithinBounds` inside
+ * `upsertRetentionPolicyAction`. Operators tighten or rename bounds by
+ * editing the JSON file; the schema does not duplicate them.
+ *
+ * Policy-level "enabled" is NOT in this schema — it lives on the
+ * `governancePolicies` row (`enabled: v.optional(v.boolean())`) and is
+ * managed by the upsert mutation, not the config payload. Per-category
+ * gates (`documentsEnabled` / `auditLogsEnabled` / ...) are part of the
+ * payload and live below.
+ *
+ * Exceptions: `batchSize` and `deletionGraceDays` are runtime knobs
+ * with no file-layer counterpart, so their caps stay here.
+ */
 export const retentionPolicyConfigSchema = z.object({
-  enabled: z.boolean(),
-  // Parity with the per-category fields below. `0` would collapse the
-  // documents-cleanup cutoff to `Date.now()` and instantly mass-delete every
-  // document in the org; reject at the schema layer (defense-in-depth on top
-  // of `clampConfigToBounds` and the `cleanupDocuments` runtime guard).
-  retentionDays: z.number().int().min(1).max(3650),
+  documentsEnabled: z.boolean().optional(),
+  retentionDays: z.number().int().nonnegative(),
   batchSize: z.number().int().min(1).max(10_000).optional(),
   userTempEnabled: z.boolean().optional(),
-  userTempRetentionHours: z.number().int().min(1).max(720).optional(),
+  userTempRetentionHours: z.number().int().nonnegative().optional(),
   agentTempEnabled: z.boolean().optional(),
-  agentTempRetentionHours: z.number().int().min(1).max(720).optional(),
+  agentTempRetentionHours: z.number().int().nonnegative().optional(),
   chatHistoryEnabled: z.boolean().optional(),
-  chatHistoryRetentionDays: z.number().int().min(1).max(3650).optional(),
+  chatHistoryRetentionDays: z.number().int().nonnegative().optional(),
   auditLogsEnabled: z.boolean().optional(),
-  // Audit floor raised to 365 days per PCI DSS Req 10.5.1 / SOC 2 / ISO
-  // 27001 baseline. Operators with HIPAA can extend up to 10 years via
-  // the env-var ceiling; the in-code minimum is non-negotiable.
-  auditLogRetentionDays: z.number().int().min(365).max(3650).optional(),
+  auditLogRetentionDays: z.number().int().nonnegative().optional(),
   workflowLogsEnabled: z.boolean().optional(),
-  workflowLogRetentionDays: z.number().int().min(1).max(365).optional(),
+  workflowLogRetentionDays: z.number().int().nonnegative().optional(),
   usageLedgerEnabled: z.boolean().optional(),
-  usageLedgerRetentionDays: z.number().int().min(30).max(3650).optional(),
+  usageLedgerRetentionDays: z.number().int().nonnegative().optional(),
   loginAttemptsEnabled: z.boolean().optional(),
-  // Login-event floor raised to 90 days for security forensics.
-  loginAttemptRetentionDays: z.number().int().min(90).max(365).optional(),
+  loginAttemptRetentionDays: z.number().int().nonnegative().optional(),
   chatFilterEventsEnabled: z.boolean().optional(),
-  chatFilterEventsRetentionDays: z.number().int().min(1).max(365).optional(),
-  // New categories (Phase 5 — coverage extension):
+  chatFilterEventsRetentionDays: z.number().int().nonnegative().optional(),
   promptTemplatesEnabled: z.boolean().optional(),
-  promptTemplatesRetentionDays: z.number().int().min(30).max(3650).optional(),
+  promptTemplatesRetentionDays: z.number().int().nonnegative().optional(),
   messageFeedbackEnabled: z.boolean().optional(),
-  messageFeedbackRetentionDays: z.number().int().min(30).max(3650).optional(),
+  messageFeedbackRetentionDays: z.number().int().nonnegative().optional(),
   memoryAuditEnabled: z.boolean().optional(),
-  memoryAuditRetentionDays: z.number().int().min(30).max(3650).optional(),
-  // Phase 10 — PII-bearing tables.
+  memoryAuditRetentionDays: z.number().int().nonnegative().optional(),
   customersEnabled: z.boolean().optional(),
-  customersRetentionDays: z.number().int().min(30).max(3650).optional(),
+  customersRetentionDays: z.number().int().nonnegative().optional(),
   vendorsEnabled: z.boolean().optional(),
-  vendorsRetentionDays: z.number().int().min(30).max(3650).optional(),
+  vendorsRetentionDays: z.number().int().nonnegative().optional(),
   externalConversationsEnabled: z.boolean().optional(),
-  externalConversationsRetentionDays: z
-    .number()
-    .int()
-    .min(30)
-    .max(3650)
-    .optional(),
+  externalConversationsRetentionDays: z.number().int().nonnegative().optional(),
   messageMetadataEnabled: z.boolean().optional(),
-  messageMetadataRetentionDays: z.number().int().min(30).max(3650).optional(),
-  // Cross-cutting grace window for soft-deleted rows. graceDays=0 means
-  // Pass A also hard-deletes (no trash window); graceDays>0 keeps rows
-  // visible in admin Trash for that many days before Pass B physically
-  // removes them.
+  messageMetadataRetentionDays: z.number().int().nonnegative().optional(),
   deletionGraceDays: z.number().int().min(0).max(90).optional(),
 });
 export type RetentionPolicyConfig = z.infer<typeof retentionPolicyConfigSchema>;

@@ -10,7 +10,6 @@ import { checkBudget } from './budget_enforcement';
 import { resolveFeatureFlags } from './feature_enforcement';
 import { getOrgUsageMetrics as getOrgUsageMetricsHandler } from './get_org_usage_metrics';
 import { getAccessibleModels } from './model_access_enforcement';
-import { getAllRetentionBounds, isRetentionDisabled } from './retention_floors';
 import { GOVERNANCE_POLICY_TYPES } from './schema';
 
 /**
@@ -47,33 +46,6 @@ export const getPendingRetentionChange = query({
       summary: row.summary,
       requestedBy: row.requestedBy,
       requestedAt: row.requestedAt,
-    };
-  },
-});
-
-/**
- * Effective retention bounds (min + max) for every category, including
- * the operator's env-var overrides. The retention editor uses this to
- * render `<input min={N} max={M}>` plus helper text BEFORE the user
- * types something out-of-range, so they never get the "you tried 365
- * days but operator caps at 100" toast — the input just refuses.
- *
- * Open to any org member; the bounds are operator-set, not org-secret.
- */
-export const getEffectiveRetentionBounds = query({
-  args: { organizationId: v.string() },
-  handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
-      throw new Error('Unauthenticated');
-    }
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email ?? '',
-    });
-    return {
-      bounds: getAllRetentionBounds(),
-      retentionDisabled: isRetentionDisabled(),
     };
   },
 });

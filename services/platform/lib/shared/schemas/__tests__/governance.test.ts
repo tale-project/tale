@@ -56,7 +56,7 @@ describe('uploadPolicyConfigSchema', () => {
 describe('retentionPolicyConfigSchema', () => {
   it('accepts a valid full config', () => {
     const result = retentionPolicyConfigSchema.safeParse({
-      enabled: true,
+      documentsEnabled: true,
       retentionDays: 90,
       batchSize: 50,
       userTempEnabled: true,
@@ -68,9 +68,8 @@ describe('retentionPolicyConfigSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('accepts minimal config with enabled and retentionDays', () => {
+  it('accepts minimal config with only retentionDays (policy-level enabled lives on the row, not the payload)', () => {
     const result = retentionPolicyConfigSchema.safeParse({
-      enabled: true,
       retentionDays: 30,
     });
 
@@ -79,7 +78,7 @@ describe('retentionPolicyConfigSchema', () => {
 
   it('rejects config without retentionDays', () => {
     const result = retentionPolicyConfigSchema.safeParse({
-      enabled: true,
+      documentsEnabled: true,
     });
 
     expect(result.success).toBe(false);
@@ -87,7 +86,6 @@ describe('retentionPolicyConfigSchema', () => {
 
   it('rejects negative retentionDays', () => {
     const result = retentionPolicyConfigSchema.safeParse({
-      enabled: true,
       retentionDays: -1,
     });
 
@@ -96,7 +94,6 @@ describe('retentionPolicyConfigSchema', () => {
 
   it('rejects negative batchSize', () => {
     const result = retentionPolicyConfigSchema.safeParse({
-      enabled: true,
       retentionDays: 30,
       batchSize: -1,
     });
@@ -106,7 +103,6 @@ describe('retentionPolicyConfigSchema', () => {
 
   it('accepts config with temp file settings', () => {
     const result = retentionPolicyConfigSchema.safeParse({
-      enabled: true,
       retentionDays: 30,
       userTempEnabled: true,
       userTempRetentionHours: 12,
@@ -117,7 +113,6 @@ describe('retentionPolicyConfigSchema', () => {
 
   it('rejects negative temp retention hours', () => {
     const result = retentionPolicyConfigSchema.safeParse({
-      enabled: true,
       retentionDays: 30,
       agentTempRetentionHours: -5,
     });

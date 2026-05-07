@@ -343,6 +343,7 @@ import type * as governance_queries from "../governance/queries.js";
 import type * as governance_regex_safety from "../governance/regex_safety.js";
 import type * as governance_resolve_budget_context from "../governance/resolve_budget_context.js";
 import type * as governance_resolve_default_model from "../governance/resolve_default_model.js";
+import type * as governance_retention_actions from "../governance/retention_actions.js";
 import type * as governance_retention_cleanup from "../governance/retention_cleanup.js";
 import type * as governance_retention_floors from "../governance/retention_floors.js";
 import type * as governance_retention_runs from "../governance/retention_runs.js";
@@ -414,6 +415,8 @@ import type * as lib_attachments_process_attachments from "../lib/attachments/pr
 import type * as lib_attachments_register_files from "../lib/attachments/register_files.js";
 import type * as lib_attachments_types from "../lib/attachments/types.js";
 import type * as lib_cascades_personalization_cascade from "../lib/cascades/personalization_cascade.js";
+import type * as lib_config_store_actions from "../lib/config_store/actions.js";
+import type * as lib_config_store_store from "../lib/config_store/store.js";
 import type * as lib_context_management_build_artifacts_context from "../lib/context_management/build_artifacts_context.js";
 import type * as lib_context_management_build_prioritized_contexts from "../lib/context_management/build_prioritized_contexts.js";
 import type * as lib_context_management_check_and_summarize from "../lib/context_management/check_and_summarize.js";
@@ -1384,6 +1387,7 @@ declare const fullApi: ApiFromModules<{
   "governance/regex_safety": typeof governance_regex_safety;
   "governance/resolve_budget_context": typeof governance_resolve_budget_context;
   "governance/resolve_default_model": typeof governance_resolve_default_model;
+  "governance/retention_actions": typeof governance_retention_actions;
   "governance/retention_cleanup": typeof governance_retention_cleanup;
   "governance/retention_floors": typeof governance_retention_floors;
   "governance/retention_runs": typeof governance_retention_runs;
@@ -1455,6 +1459,8 @@ declare const fullApi: ApiFromModules<{
   "lib/attachments/register_files": typeof lib_attachments_register_files;
   "lib/attachments/types": typeof lib_attachments_types;
   "lib/cascades/personalization_cascade": typeof lib_cascades_personalization_cascade;
+  "lib/config_store/actions": typeof lib_config_store_actions;
+  "lib/config_store/store": typeof lib_config_store_store;
   "lib/context_management/build_artifacts_context": typeof lib_context_management_build_artifacts_context;
   "lib/context_management/build_prioritized_contexts": typeof lib_context_management_build_prioritized_contexts;
   "lib/context_management/check_and_summarize": typeof lib_context_management_check_and_summarize;

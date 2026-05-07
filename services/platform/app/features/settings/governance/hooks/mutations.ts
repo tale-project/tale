@@ -8,6 +8,19 @@ export function useUpsertGovernancePolicy() {
   return useConvexMutation(api.governance.mutations.upsertPolicy);
 }
 
+/**
+ * Retention is the one policy type that can't go through the generic
+ * `upsertPolicy` mutation: bounds validation needs to read the per-org
+ * file at `$TALE_CONFIG_DIR/retention/{orgSlug}.json`, which only the
+ * Node-side action layer can do. The V8 action wrapper validates and
+ * then calls an internal mutation for the actual write.
+ */
+export function useUpsertRetentionPolicy() {
+  return useConvexAction(
+    api.governance.retention_actions.upsertRetentionPolicyAction,
+  );
+}
+
 export function useSaveModerationSecret() {
   const queryClient = useQueryClient();
   return useConvexAction(

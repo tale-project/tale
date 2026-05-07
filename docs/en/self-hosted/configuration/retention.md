@@ -5,51 +5,132 @@ description: Configure how long conversations, files, audit records, and executi
 
 Tale has a single, central retention configuration that applies across every data domain — chat conversations, uploaded files, audit logs, workflow executions, and analytics records. The defaults are reasonable for most deployments; tune them when compliance, cost, or privacy rules require different settings.
 
-Retention can be configured in two places:
+Retention bounds resolve in three layers:
 
-- **Environment variables** — operator-set bounds. Per-org admins cannot relax these.
-- **Governance UI** — per-organisation values within the operator's bounds.
+- **Per-org JSON file** — operator-controlled baseline at `$TALE_CONFIG_DIR/retention/{orgSlug}.json`. JSON file is the source of truth. Auto-seeded by the convex container on first boot per `TALE_VERSION`.
+- **Environment variables** — operator-set tightening overlay applied on top of the file values. Can only tighten min/max (raise floor, lower ceiling); cannot relax beyond the file values.
+- **Governance UI** — per-organisation values within the operator's effective bounds.
 
-## Environment variables
+## File-based per-org defaults
 
-These apply to every organisation on the deployment. All values are in days unless noted otherwise.
+Per-org files live under `$TALE_CONFIG_DIR/retention/`:
 
-Each retention category has three hardcoded values, plus optional env-var overrides:
+- `default.json` — the bootstrap org's retention bounds + initial values. The default org's slug is hardcoded to `default`, so this fits the `{orgSlug}.json` rule with no special-case naming.
+- `{orgSlug}.json` (optional) — per-org overrides for additional orgs. When an org has no file of its own, the resolver falls back to `default.json`.
 
-- **Floor / Ceiling** — hardcoded outer bounds. The `_MIN_DAYS` / `_MAX_DAYS` env vars can only TIGHTEN these (raise the floor, lower the ceiling); they cannot relax them. An env value that tries to widen a bound is silently clamped to the hardcoded value — no error, no warning. The columns below show the **hardcoded** floor and ceiling, not "defaults that env replaces".
-- **Initial** — the starting per-org retention value, used until an org admin changes it in the Governance UI. Admins may pick any value within `[Floor, Ceiling]`.
+Each file declares any subset of the 16 retention categories plus an optional **root-level** `_metadata` block. A category present in the file MUST contain `min` / `max` / `default`; per-category `_metadata` is optional.
 
-The effective bounds an org admin sees are merged from the hardcoded values and the env overrides:
+```json
+{
+  "_metadata": {
+    "envPrefix": "TALE_RETENTION_",
+    "envNames": {
+      "AUDIT_MIN": "auditLog.min",
+      "AUDIT_MAX": "auditLog.max",
+      "AUDIT_DEFAULT": "auditLog.default",
+      "FILES_MIN": "documents.min",
+      "FILES_MAX": "documents.max",
+      "FILES_DEFAULT": "documents.default",
+      "INBOX_MIN": "externalConversations.min",
+      "INBOX_MAX": "externalConversations.max",
+      "INBOX_DEFAULT": "externalConversations.default"
+    }
+  },
+  "auditLog": { "min": 365, "max": 3650, "default": 730 },
+  "documents": { "min": 30, "max": 3650, "default": 365 },
+  "externalConversations": { "min": 30, "max": 3650, "default": 730 }
+}
+```
 
-- Effective min = `max(Floor, env _MIN)` — env raises the floor only.
-- Effective max = `min(Ceiling, env _MAX)` — env lowers the ceiling only.
+Where:
 
-Setting an env var to `0` is rejected with an error (it would collapse the valid range). Empty or unset env vars fall back to the hardcoded floor / ceiling.
+- `min` / `max` — operator-defined outer bounds. Org admins cannot pick values outside this range.
+- `default` — starting per-org retention value, used until an org admin changes it in the Governance UI.
+- `_metadata` (root, optional) — env-binding declaration. Two fields, both optional:
+  - `envPrefix` — common prefix for every env name. Plain string concatenation: `${envPrefix}${suffix}` → full env name. The trailing separator (e.g. `_`) is part of `envPrefix` itself, fully visible. Omit `envPrefix` and the keys of `envNames` are the full env names.
+  - `envNames` — direct 1:1 map from env-name suffix → JSON object path. Each entry says "this env variable controls this field." Paths must match `${category}.${min|max|default}` for a known retention category. Operator reads the file and sees at a glance which env affects which field — no derivation, no rule to mentally apply.
+  - `envPrefix` and `envNames` are ONLY allowed at the root `_metadata`. Placing them inside a per-category `_metadata` is rejected at schema-validation time.
+- `_metadata` (per-category, optional) — display overrides for the Governance UI editor:
+  - `label`, `help`, `order`, `hidden`. All optional.
 
-| Variable                                              | Floor   | Ceiling | Initial | Governs                                                                                                     |
-| ----------------------------------------------------- | ------- | ------- | ------- | ----------------------------------------------------------------------------------------------------------- |
-| `TALE_RETENTION_CONVERSATIONS_MIN_DAYS` / `_MAX_DAYS` | `1`     | `3650`  | `90`    | Chat conversations and their messages.                                                                      |
-| `TALE_RETENTION_FILES_MIN_DAYS` / `_MAX_DAYS`         | `30`    | `3650`  | `365`   | Uploaded files attached to chat or the knowledge base.                                                      |
-| `TALE_RETENTION_AUDIT_MIN_DAYS` / `_MAX_DAYS`         | `365`   | `3650`  | `730`   | Audit log entries. Floor hard-coded at 365d (PCI/SOC2/ISO baseline) — operator can only RAISE.              |
-| `TALE_RETENTION_EXECUTIONS_MIN_DAYS` / `_MAX_DAYS`    | `1`     | `365`   | `30`    | Workflow execution detail.                                                                                  |
-| `TALE_RETENTION_ANALYTICS_MIN_DAYS` / `_MAX_DAYS`     | `30`    | `3650`  | `365`   | Per-request usage analytics rows.                                                                           |
-| `TALE_RETENTION_CHAT_FILTER_MIN_DAYS` / `_MAX_DAYS`   | `1`     | `365`   | `90`    | Chat-filter (PII / banned-word / moderation) telemetry.                                                     |
-| `TALE_RETENTION_PROMPTS_MIN_DAYS` / `_MAX_DAYS`       | `30`    | `3650`  | `730`   | Saved prompt templates (org-scope only).                                                                    |
-| `TALE_RETENTION_FEEDBACK_MIN_DAYS` / `_MAX_DAYS`      | `30`    | `3650`  | `365`   | Per-message thumbs / comments. May contain quoted user content.                                             |
-| `TALE_RETENTION_MEMORY_AUDIT_MIN_DAYS` / `_MAX_DAYS`  | `30`    | `3650`  | `365`   | Personalization memory change-log.                                                                          |
-| `TALE_RETENTION_CUSTOMERS_MIN_DAYS` / `_MAX_DAYS`     | `30`    | `3650`  | `730`   | CRM customer records (name, email, address, locale, metadata).                                              |
-| `TALE_RETENTION_VENDORS_MIN_DAYS` / `_MAX_DAYS`       | `30`    | `3650`  | `730`   | Vendor records (name, email, phone, address, free-text notes).                                              |
-| `TALE_RETENTION_INBOX_MIN_DAYS` / `_MAX_DAYS`         | `30`    | `3650`  | `730`   | External customer-channel inbox (email/chat integrations) + cascaded message bodies.                        |
-| `TALE_RETENTION_MSG_META_MIN_DAYS` / `_MAX_DAYS`      | `30`    | `3650`  | `365`   | Per-message reasoning, prompt context window, tool I/O. High-PII derived data.                              |
-| `TALE_RETENTION_USER_TEMP_MIN_HOURS` / `_MAX_HOURS`   | `1`     | `720`   | `24`    | Ephemeral user-side temp files (hours).                                                                     |
-| `TALE_RETENTION_AGENT_TEMP_MIN_HOURS` / `_MAX_HOURS`  | `1`     | `720`   | `24`    | Ephemeral agent-side temp files (hours).                                                                    |
-| `TALE_RETENTION_DISABLED`                             | `false` | —       | —       | When `true`, the cleanup action no-ops with a warn-log. Operator kill-switch for migration windows / debug. |
+Categories absent from an org's file fall back to that org's `default.json`. If both are absent (e.g., the operator deleted `default.json`), retention reads return `RETENTION_CONFIG_MISSING` — restart the container with `FORCE_SEED=true` (or bump `TALE_VERSION`) to re-seed `default.json` from the bundled `examples/retention/default.json`.
+
+`unit` (`days` vs `hours`) is NOT configurable per category — it's tied to runtime cleanup math and lives in platform code only.
+
+After editing a file, the next editor reload picks up the new values automatically — no Convex restart required (file IO happens on every action call).
+
+**Type constraint on env binding.** Env vars are flat strings. The resolver auto-coerces per the field's runtime type: `number` → `parseInt` / `parseFloat`; `string` → used verbatim; `boolean` → `"true"` / `"false"` (case-insensitive); `date` → ISO 8601; `array<scalar>` → split on `,` and each element coerced. Complex objects / nested records / discriminated unions **cannot** carry env binding — putting structured data in a single env string is ambiguous and lossy. For retention specifically, all bindable fields are integers, so this is theoretical here; it matters when the same `_metadata.envPrefix` pattern is reused for future config areas.
+
+### Display overrides
+
+A category-level `_metadata` block carries optional display-only fields that shadow the platform i18n strings:
+
+```json
+{
+  "auditLog": {
+    "min": 365,
+    "max": 3650,
+    "default": 730,
+    "_metadata": {
+      "label": "Audit log retention (PCI scope)",
+      "help": "Operator-pinned for our compliance program.",
+      "order": 1,
+      "hidden": false
+    }
+  }
+}
+```
+
+When `hidden: true`, the category disappears from the editor (cleanup behavior is unchanged — bounds still apply). Env binding lives at the root `_metadata`, never per-category — see above.
+
+### Environment admin page
+
+The Governance sidebar's **Environment** entry shows a read-only snapshot of every retention env var the resolver currently considers — name, current value, binding source (`metadata` when declared in `_metadata.envNames`, `none` when no entry maps to that field), and whether it's actively tightening. Useful for "is my override actually wired?" diagnostics.
+
+## Environment variables (tightening overlay)
+
+These apply to every organisation on the deployment, on top of the per-org file values. They can only TIGHTEN bounds — raise a floor or lower a ceiling — never relax beyond what the file declares.
+
+The platform's `docker-entrypoint.sh` syncs every env var on the platform container to Convex by default (matching `bun run dev` behavior). A small `ENV_SYNC_DENYLIST` array near the top of the entrypoint is the only platform-side maintenance burden — it's currently empty and only grows when a specific var is shown to actively conflict with Convex. Operators don't need to negotiate platform-side allowlist updates to add custom env vars.
+
+The effective bounds an org admin sees are merged from the file values and the env overrides:
+
+- Effective min = `max(file_min, env _MIN)` — env raises the floor only.
+- Effective max = `min(file_max, env _MAX)` — env lowers the ceiling only.
+
+Setting an env var to `0` is rejected with an error (it would collapse the valid range). Empty or unset env vars fall back to the file value.
+
+Env values that try to widen a bound are silently clamped to the file value — no error, no warning.
+
+The columns below show the **shipped** floor / ceiling / initial values from the bundled `examples/retention/default.json`. Operators can change these by editing `$TALE_CONFIG_DIR/retention/default.json`; env overrides apply on top.
+
+Env names below are the ones declared in the root `_metadata.envNames` map of the shipped `examples/retention/default.json`. The shipped `envPrefix` is `"TALE_RETENTION_"` (with trailing underscore). Full env names are formed by plain string concatenation: `envPrefix + suffix` (e.g. `"TALE_RETENTION_" + "AUDIT_MIN"` → `TALE_RETENTION_AUDIT_MIN`). To rename a binding, rebind a field to a different env, or add a new binding, edit `_metadata.envNames` directly — no code change required.
+
+| Variable                                     | Floor   | Ceiling | Initial | Governs                                                                                                     |
+| -------------------------------------------- | ------- | ------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `TALE_RETENTION_CONVERSATIONS_MIN` / `_MAX`  | `1`     | `3650`  | `90`    | Chat conversations and their messages.                                                                      |
+| `TALE_RETENTION_FILES_MIN` / `_MAX`          | `30`    | `3650`  | `365`   | Uploaded files attached to chat or the knowledge base.                                                      |
+| `TALE_RETENTION_AUDIT_MIN` / `_MAX`          | `365`   | `3650`  | `730`   | Audit log entries. Floor hard-coded at 365d (PCI/SOC2/ISO baseline) — operator can only RAISE.              |
+| `TALE_RETENTION_EXECUTIONS_MIN` / `_MAX`     | `1`     | `365`   | `30`    | Workflow execution detail.                                                                                  |
+| `TALE_RETENTION_ANALYTICS_MIN` / `_MAX`      | `30`    | `3650`  | `365`   | Per-request usage analytics rows.                                                                           |
+| `TALE_RETENTION_CHAT_FILTER_MIN` / `_MAX`    | `1`     | `365`   | `90`    | Chat-filter (PII / banned-word / moderation) telemetry.                                                     |
+| `TALE_RETENTION_PROMPTS_MIN` / `_MAX`        | `30`    | `3650`  | `730`   | Saved prompt templates (org-scope only).                                                                    |
+| `TALE_RETENTION_FEEDBACK_MIN` / `_MAX`       | `30`    | `3650`  | `365`   | Per-message thumbs / comments. May contain quoted user content.                                             |
+| `TALE_RETENTION_MEMORY_AUDIT_MIN` / `_MAX`   | `30`    | `3650`  | `365`   | Personalization memory change-log.                                                                          |
+| `TALE_RETENTION_CUSTOMERS_MIN` / `_MAX`      | `30`    | `3650`  | `730`   | CRM customer records (name, email, address, locale, metadata).                                              |
+| `TALE_RETENTION_VENDORS_MIN` / `_MAX`        | `30`    | `3650`  | `730`   | Vendor records (name, email, phone, address, free-text notes).                                              |
+| `TALE_RETENTION_INBOX_MIN` / `_MAX`          | `30`    | `3650`  | `730`   | External customer-channel inbox (`externalConversations`).                                                  |
+| `TALE_RETENTION_MSG_META_MIN` / `_MAX`       | `30`    | `3650`  | `365`   | Per-message reasoning, prompt context window, tool I/O. High-PII derived data.                              |
+| `TALE_RETENTION_USER_TEMP_MIN` / `_MAX`      | `1`     | `720`   | `24`    | Ephemeral user-side temp files (hours).                                                                     |
+| `TALE_RETENTION_AGENT_TEMP_MIN` / `_MAX`     | `1`     | `720`   | `24`    | Ephemeral agent-side temp files (hours).                                                                    |
+| `TALE_RETENTION_LOGIN_ATTEMPTS_MIN` / `_MAX` | `90`    | `365`   | `90`    | Login attempt records.                                                                                      |
+| `TALE_RETENTION_DISABLED`                    | `false` | —       | —       | When `true`, the cleanup action no-ops with a warn-log. Operator kill-switch for migration windows / debug. |
 
 Changes to env vars take effect on **next backend restart** (`docker compose restart tale-convex`) — Convex caches env at process start.
 
 ## Per-org policy
 
-Within the operator's bounds, an org admin can configure each category independently in the Governance UI. The form pre-fetches the effective bounds via `getEffectiveRetentionBounds` and renders `<input min={N} max={M}>` plus inline helper text BEFORE the user types out-of-range values. Save attempts that violate a bound are rejected with `RETENTION_BELOW_FLOOR` or `RETENTION_EXCEEDS_CEILING` (each surfaces the exact bound + source).
+Within the operator's effective bounds, an org admin can configure each category independently in the Governance UI. The form fetches the effective bounds via the V8 action `getRetentionBoundsAction` (which reads the per-org file with `default.json` fallback and applies env tightening) and renders `<input min={N} max={M}>` plus inline helper text BEFORE the user types out-of-range values. Save attempts that violate a bound are rejected with `RETENTION_BELOW_FLOOR` or `RETENTION_EXCEEDS_CEILING` (each surfaces the exact bound + source).
 
 ## How deletion runs
 

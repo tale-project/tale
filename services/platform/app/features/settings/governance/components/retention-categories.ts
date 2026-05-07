@@ -45,8 +45,6 @@ export interface CategoryDef {
   group: CategoryGroup;
   /** i18n key under `governance.retentionPolicy.<i18nKey>`. */
   i18nKey: string;
-  /** Days vs hours — used for the input label + the unit shown in helper text. */
-  unit: CategoryUnit;
   /** Field name on the config object (numeric). */
   configKey: keyof RetentionPolicyConfig;
   /** Field name on the config object (boolean — enable toggle). undefined for
@@ -59,6 +57,15 @@ export interface CategoryDef {
 }
 
 /**
+ * Synchronous fallback for `unit` while bounds load. Backend JSON file
+ * is the canonical source of truth (refined to match this convention),
+ * so this fallback always agrees with `bound.unit` once it arrives.
+ */
+export function unitForCategoryId(id: CategoryId): CategoryUnit {
+  return id.endsWith('Hours') ? 'hours' : 'days';
+}
+
+/**
  * Ordered list — the editor renders categories in this order within
  * each group.
  */
@@ -68,7 +75,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'chatHistory',
     group: 'userContent',
     i18nKey: 'chatHistory',
-    unit: 'days',
     configKey: 'chatHistoryRetentionDays',
     enabledKey: 'chatHistoryEnabled',
     standardDefault: 90,
@@ -78,9 +84,8 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'documents',
     group: 'userContent',
     i18nKey: 'documents',
-    unit: 'days',
     configKey: 'retentionDays',
-    enabledKey: 'enabled',
+    enabledKey: 'documentsEnabled',
     standardDefault: 365,
     strictDefault: 180,
   },
@@ -88,7 +93,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'userTempHours',
     group: 'userContent',
     i18nKey: 'userTemp',
-    unit: 'hours',
     configKey: 'userTempRetentionHours',
     enabledKey: 'userTempEnabled',
     standardDefault: 24,
@@ -98,7 +102,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'agentTempHours',
     group: 'userContent',
     i18nKey: 'agentTemp',
-    unit: 'hours',
     configKey: 'agentTempRetentionHours',
     enabledKey: 'agentTempEnabled',
     standardDefault: 24,
@@ -108,7 +111,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'promptTemplates',
     group: 'userContent',
     i18nKey: 'promptTemplates',
-    unit: 'days',
     configKey: 'promptTemplatesRetentionDays',
     enabledKey: 'promptTemplatesEnabled',
     standardDefault: 730,
@@ -118,7 +120,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'messageFeedback',
     group: 'userContent',
     i18nKey: 'messageFeedback',
-    unit: 'days',
     configKey: 'messageFeedbackRetentionDays',
     enabledKey: 'messageFeedbackEnabled',
     standardDefault: 365,
@@ -128,7 +129,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'customers',
     group: 'userContent',
     i18nKey: 'customers',
-    unit: 'days',
     configKey: 'customersRetentionDays',
     enabledKey: 'customersEnabled',
     standardDefault: 730,
@@ -138,7 +138,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'vendors',
     group: 'userContent',
     i18nKey: 'vendors',
-    unit: 'days',
     configKey: 'vendorsRetentionDays',
     enabledKey: 'vendorsEnabled',
     standardDefault: 730,
@@ -148,7 +147,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'externalConversations',
     group: 'userContent',
     i18nKey: 'externalConversations',
-    unit: 'days',
     configKey: 'externalConversationsRetentionDays',
     enabledKey: 'externalConversationsEnabled',
     standardDefault: 730,
@@ -158,7 +156,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'messageMetadata',
     group: 'userContent',
     i18nKey: 'messageMetadata',
-    unit: 'days',
     configKey: 'messageMetadataRetentionDays',
     enabledKey: 'messageMetadataEnabled',
     standardDefault: 365,
@@ -169,7 +166,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'workflowLog',
     group: 'operationalLogs',
     i18nKey: 'workflowLogs',
-    unit: 'days',
     configKey: 'workflowLogRetentionDays',
     enabledKey: 'workflowLogsEnabled',
     standardDefault: 30,
@@ -179,7 +175,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'usageLedger',
     group: 'operationalLogs',
     i18nKey: 'usageLedger',
-    unit: 'days',
     configKey: 'usageLedgerRetentionDays',
     enabledKey: 'usageLedgerEnabled',
     standardDefault: 365,
@@ -190,7 +185,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'auditLog',
     group: 'securityAudit',
     i18nKey: 'auditLogs',
-    unit: 'days',
     configKey: 'auditLogRetentionDays',
     enabledKey: 'auditLogsEnabled',
     // Standard sits at the platform default (730d / 2y) which is comfortably
@@ -203,7 +197,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'loginAttempt',
     group: 'securityAudit',
     i18nKey: 'loginAttempts',
-    unit: 'days',
     configKey: 'loginAttemptRetentionDays',
     enabledKey: 'loginAttemptsEnabled',
     standardDefault: 90,
@@ -213,7 +206,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'chatFilterEvents',
     group: 'securityAudit',
     i18nKey: 'chatFilterEvents',
-    unit: 'days',
     configKey: 'chatFilterEventsRetentionDays',
     enabledKey: 'chatFilterEventsEnabled',
     standardDefault: 90,
@@ -223,7 +215,6 @@ export const RETENTION_CATEGORIES: readonly CategoryDef[] = [
     id: 'memoryAudit',
     group: 'securityAudit',
     i18nKey: 'memoryAudit',
-    unit: 'days',
     configKey: 'memoryAuditRetentionDays',
     enabledKey: 'memoryAuditEnabled',
     standardDefault: 365,
