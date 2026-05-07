@@ -8,29 +8,20 @@ import { isRecord } from '@/lib/utils/type-guards';
 
 interface DataNoticeConfig {
   enabled: boolean;
-  requireAcknowledgment?: boolean;
   messages?: Record<string, string>;
-  version?: number;
 }
 
 export interface ResolvedDataNotice {
   /** Whether the notice should be rendered at all. */
   enabled: boolean;
-  /** True when the org has flagged the notice as requiring an explicit
-   *  one-time acknowledgment from each user. */
-  requireAcknowledgment: boolean;
   /** Final resolved message for the current i18n locale, after the
    *  org-override → org-default-locale → platform-default → 'en'
    *  fallback chain. */
   message: string;
-  /** Bumped by admins to force re-acknowledgment after substantive
-   *  edits. Acknowledgment rows compare to this value. */
-  version: number;
 }
 
 /**
- * Phase 12 — `useDataClassificationNotice` resolves the org's
- * confidentiality notice for the current i18n locale.
+ * Resolve the org's confidentiality notice for the current i18n locale.
  *
  * Resolution order:
  *   1. Org override `messages[currentLocale]`
@@ -39,6 +30,14 @@ export interface ResolvedDataNotice {
  *   4. Hardcoded English fallback in case the i18n bundle is missing
  *
  * `enabled === false` short-circuits everything — render nothing.
+ *
+ * Acknowledgment removed: the prior `requireAcknowledgment` + version
+ * fields drove a blocking modal that did not actually gate input
+ * (Esc/X/Later all bypassed). The B2B self-host model treats the
+ * deploying org as the data controller, so end-user explicit consent
+ * UX is product-incongruent. The server-side `policyAcknowledgements`
+ * API + schema are preserved unchanged for a future regulated-customer
+ * rewire; this hook simply stops returning the ack-related fields.
  */
 export function useDataClassificationNotice(
   organizationId: string | undefined,
@@ -64,19 +63,13 @@ export function useDataClassificationNotice(
   if (policy?.data === undefined) {
     return {
       enabled: organizationId !== undefined,
-      requireAcknowledgment: false,
       message: fallback,
-      version: 1,
     };
   }
 
   const config = isRecord(policy.data?.config) ? policy.data.config : {};
   const cfg: DataNoticeConfig = {
     enabled: typeof config.enabled === 'boolean' ? config.enabled : true,
-    requireAcknowledgment:
-      typeof config.requireAcknowledgment === 'boolean'
-        ? config.requireAcknowledgment
-        : false,
     messages: isRecord(config.messages)
       ? Object.fromEntries(
           Object.entries(config.messages).filter(
@@ -84,7 +77,6 @@ export function useDataClassificationNotice(
           ),
         )
       : undefined,
-    version: typeof config.version === 'number' ? config.version : 1,
   };
 
   const locale = i18n.language;
@@ -94,8 +86,6 @@ export function useDataClassificationNotice(
 
   return {
     enabled: cfg.enabled,
-    requireAcknowledgment: cfg.requireAcknowledgment ?? false,
     message: overrideMsg ?? fallback,
-    version: cfg.version ?? 1,
   };
 }

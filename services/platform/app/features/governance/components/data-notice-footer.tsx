@@ -10,25 +10,27 @@ import { useDataClassificationNotice } from '../hooks/use-data-classification-no
 
 interface DataNoticeFooterProps {
   organizationId: string | undefined;
-  /** Where the footer is rendered. Logged in audit + used for analytics. */
-  context: 'chat' | 'upload' | 'prompt' | 'webhook';
   className?: string;
 }
 
 /**
- * Phase 12 — confidentiality footer rendered at risk surfaces (chat
- * composer, upload dialog, prompt save dialog, webhook config). Reads
- * the org's `data_classification_notice` policy via
- * `useDataClassificationNotice` and falls back to the platform-default
- * i18n string when the org hasn't customized.
+ * Confidentiality footer rendered at risk surfaces (chat composer,
+ * upload dialog, prompt save dialog, webhook config). Reads the org's
+ * `data_classification_notice` policy via `useDataClassificationNotice`
+ * and falls back to the platform-default i18n string when the org
+ * hasn't customized.
  *
- * Visual: muted icon + small text. Mobile (≤640px) falls back to an
- * info-icon-only display via the responsive `sm:` breakpoint to avoid
- * competing with the send button.
+ * Advisory only — there is no acknowledgment gate. The B2B self-host
+ * model treats the deploying org as the data controller; end-user
+ * explicit consent UX (a blocking modal) is product-incongruent and
+ * was removed alongside the (broken) `DataNoticeAckModal`. The
+ * `requireAcknowledgment` policy field is preserved server-side for a
+ * future regulated-customer rewire.
+ *
+ * Visual: muted icon + small text.
  */
 export function DataNoticeFooter({
   organizationId,
-  context: _context,
   className,
 }: DataNoticeFooterProps) {
   const { t } = useT('dataNotice');
