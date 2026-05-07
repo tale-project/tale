@@ -4,6 +4,8 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import { internalMutation, mutation } from '../_generated/server';
 import { authComponent } from '../auth';
+import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import {
   archiveChatThread as archiveChatThreadHelper,
   unarchiveChatThread as unarchiveChatThreadHelper,
@@ -157,10 +159,18 @@ export const deleteChatThread = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
       throw new Error('Unauthenticated');
     }
+
+    // Cross-tenant gate: verify the caller can read this thread before any
+    // mutation runs. The helper itself only checks legal-hold (using the
+    // target row's own orgId) and is otherwise blind to caller identity, so
+    // without this assertion any signed-in user could trash any thread by
+    // guessing the threadId. assertThreadAccess matches the same gate used
+    // by every read and by other thread mutations.
+    await assertThreadAccess(ctx, args.threadId, identity);
 
     await deleteChatThreadHelper(ctx, args.threadId);
     return null;
