@@ -65,13 +65,7 @@ export default {
       vite: {
         config: ['vite.config.ts'],
       },
-      entry: [
-        'app/entry-server.tsx',
-        'app/main.tsx',
-        'app/routes/**/*.tsx',
-        'scripts/**/*.ts',
-        'server.ts',
-      ],
+      entry: ['app/entry-server.tsx', 'app/routes/**/*.tsx', 'scripts/**/*.ts'],
       project: ['**/*.{ts,tsx}'],
     },
     'packages/webui': {
@@ -82,11 +76,7 @@ export default {
           '**/*.stories.{ts,tsx}',
         ],
       },
-      entry: [
-        'src/**/*.{ts,tsx}',
-        'src/**/*.stories.{ts,tsx}',
-        'tailwind-preset.ts',
-      ],
+      entry: ['src/**/*.{ts,tsx}', 'src/**/*.stories.{ts,tsx}'],
       project: ['**/*.{ts,tsx}'],
       ignoreDependencies: [
         '@storybook/addon-a11y',

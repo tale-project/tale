@@ -14,6 +14,7 @@ WORKDIR /app
 COPY package.json bun.lock bunfig.toml ./
 COPY services/web/package.json ./services/web/
 COPY packages/ui/package.json ./packages/ui/
+COPY packages/webui/package.json ./packages/webui/
 COPY patches/ ./patches/
 
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
@@ -28,6 +29,7 @@ WORKDIR /app
 
 COPY tsconfig.base.json ./
 COPY packages/ui ./packages/ui
+COPY packages/webui ./packages/webui
 COPY services/web ./services/web
 
 ENV NODE_ENV=production

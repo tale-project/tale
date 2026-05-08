@@ -28,7 +28,7 @@ export function docUrl(locale: SupportedLocale, slug: string): string {
   return `${SITE_URL}${docPath(locale, slug)}`;
 }
 
-export function docMarkdownPath(locale: SupportedLocale, slug: string): string {
+function docMarkdownPath(locale: SupportedLocale, slug: string): string {
   const path = docPath(locale, slug);
   return path === '/' ? '/index.md' : `${path}.md`;
 }

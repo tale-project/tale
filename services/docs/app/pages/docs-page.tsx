@@ -15,7 +15,7 @@ import { DocsBreadcrumbs } from '@/app/components/docs/docs-breadcrumbs';
 import { DocsPrevNext } from '@/app/components/docs/docs-prev-next';
 import { DocsToc } from '@/app/components/docs/docs-toc';
 import { EditOnGithub } from '@/app/components/docs/edit-on-github';
-import { getDocPage, listDocPages } from '@/lib/content/loader';
+import { getDocPage } from '@/lib/content/loader';
 import { flattenNav } from '@/lib/content/nav';
 import { docMarkdownUrl, docPath, docUrl, SITE_URL } from '@/lib/content/paths';
 import { useT } from '@/lib/i18n/client';
@@ -221,5 +221,3 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
     </div>
   );
 }
-
-export { listDocPages };

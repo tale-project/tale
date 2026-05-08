@@ -1,8 +1,8 @@
 import { parseFrontmatter } from '@tale/webui/utils/parse-frontmatter';
 
-import { ALL_LOCALES, BASE_LOCALES, type Locale } from '@/lib/i18n/locales';
+import { ALL_LOCALES, type Locale } from '@/lib/i18n/locales';
 
-export interface DocFrontmatter {
+interface DocFrontmatter {
   title: string;
   description: string;
   noindex: boolean;
@@ -10,7 +10,7 @@ export interface DocFrontmatter {
   icon?: string;
 }
 
-export interface DocPage {
+interface DocPage {
   /** URL path relative to the locale root, e.g. `platform/agents/concepts`. */
   slug: string;
   locale: Locale;
@@ -95,7 +95,7 @@ async function loadDocuments(): Promise<Map<string, DocPage>> {
 // has been fetched. On SSR this resolves synchronously after a single eager
 // glob; on the client it awaits N parallel dynamic imports — slightly delays
 // hydration but keeps the prerendered HTML visible meanwhile and preserves
-// the synchronous `getDocPage` / `listDocPages` API that callers expect.
+// the synchronous `getDocPage` API that callers expect.
 const documents = await loadDocuments();
 
 const FALLBACK_CHAIN: Record<Locale, readonly Locale[]> = {
@@ -127,24 +127,3 @@ export function getDocPage(locale: Locale, slug: string): DocPage | null {
   }
   return null;
 }
-
-export function listDocPages(locale: Locale): DocPage[] {
-  // Resolve every base-locale slug through the fallback chain so callers see
-  // the locale's effective page set including inherited base content.
-  const baseSlugs = new Set<string>();
-  for (const doc of documents.values()) {
-    if (doc.locale === 'en' || doc.locale === locale) baseSlugs.add(doc.slug);
-  }
-  const out: DocPage[] = [];
-  for (const slug of baseSlugs) {
-    const doc = getDocPage(locale, slug);
-    if (doc) out.push(doc);
-  }
-  return out;
-}
-
-export function listAllPages(): DocPage[] {
-  return [...documents.values()];
-}
-
-export { BASE_LOCALES };

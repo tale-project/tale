@@ -14,8 +14,6 @@
     "build:search-index": "bun --bun scripts/build-search-index.ts",
     "build:llms": "bun --bun scripts/build-llms-artifacts.ts",
     "start": "bun server.ts",
-    "format": "oxfmt",
-    "format:check": "oxfmt --check",
     "lint": "bunx oxlint --type-aware",
     "lint:fix": "bunx oxlint --type-aware --fix",
     "typecheck": "bunx tsc --noEmit",
