@@ -23,7 +23,7 @@ const DOCS_URL = import.meta.env.VITE_DOCS_URL ?? 'https://docs.tale.dev';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
-const PER_USER_MONTHLY: Record<Region, number> = { CH: 15, DE: 17 };
+const PER_USER_MONTHLY: Record<Region, number> = { CH: 12, DE: 14 };
 const STORAGE_PER_TB_MONTHLY: Record<Region, number> = { CH: 10, DE: 12 };
 
 const DEFAULT_USERS = 50;
@@ -229,11 +229,7 @@ export function PricingTiers({
 
             <div className="mt-auto pt-2">
               <Button asChild variant="secondary" fullWidth>
-                <a
-                  href={DOCS_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
+                <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
                   {t('community.cta')}
                 </a>
               </Button>
