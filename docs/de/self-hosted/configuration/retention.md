@@ -87,25 +87,25 @@ Diese gelten für jede Organisation auf dem Deployment, oben auf den Pro-Org-Dat
 
 Die Env-Namen unten stammen aus dem Root-`_metadata.envNames`-Map des mitgelieferten `examples/retention/default.json`. `envPrefix` ist `"TALE_RETENTION_"` (mit abschließendem Unterstrich). Vollständige Env-Namen entstehen durch reine String-Konkatenation: `envPrefix + suffix`.
 
-| Variable                                     | Standard min | Standard max | Steuert                                                                                                      |
-| -------------------------------------------- | ------------ | ------------ | ------------------------------------------------------------------------------------------------------------ |
-| `TALE_RETENTION_CONVERSATIONS_MIN` / `_MAX`  | `1`          | `3650`       | Chat-Konversationen und ihre Nachrichten.                                                                    |
-| `TALE_RETENTION_FILES_MIN` / `_MAX`          | `30`         | `3650`       | Hochgeladene Dateien (Chat-Anhänge oder Wissensbasis).                                                       |
-| `TALE_RETENTION_AUDIT_MIN` / `_MAX`          | `365`        | `3650`       | Audit-Log-Einträge. Min hartcodiert auf 365 Tage (PCI/SOC2/ISO-Baseline) — Operator kann nur ERHÖHEN.        |
-| `TALE_RETENTION_EXECUTIONS_MIN` / `_MAX`     | `1`          | `365`        | Workflow-Ausführungsdetails.                                                                                 |
-| `TALE_RETENTION_ANALYTICS_MIN` / `_MAX`      | `30`         | `3650`       | Pro-Anfrage Usage-Analytics-Einträge.                                                                        |
-| `TALE_RETENTION_CHAT_FILTER_MIN` / `_MAX`    | `1`          | `365`        | Chat-Filter (PII / Wortliste / Moderation) Telemetrie.                                                       |
-| `TALE_RETENTION_PROMPTS_MIN` / `_MAX`        | `30`         | `3650`       | Gespeicherte Prompt-Vorlagen (org-scope).                                                                    |
-| `TALE_RETENTION_FEEDBACK_MIN` / `_MAX`       | `30`         | `3650`       | Pro-Nachricht Daumen / Kommentare. Können zitierten Nutzerinhalt enthalten.                                  |
-| `TALE_RETENTION_MEMORY_AUDIT_MIN` / `_MAX`   | `30`         | `3650`       | Personalisierungs-Memory Änderungs-Log.                                                                      |
-| `TALE_RETENTION_CUSTOMERS_MIN` / `_MAX`      | `30`         | `3650`       | CRM-Kundendaten (Name, E-Mail, Adresse, Locale, Metadaten).                                                  |
-| `TALE_RETENTION_VENDORS_MIN` / `_MAX`        | `30`         | `3650`       | Lieferantendatensätze (Name, E-Mail, Telefon, Adresse, Freitext-Notizen).                                    |
-| `TALE_RETENTION_INBOX_MIN` / `_MAX`          | `30`         | `3650`       | Externer Kundenkanal-Posteingang (`externalConversations`) + kaskadierte Nachrichteninhalte.                 |
-| `TALE_RETENTION_MSG_META_MIN` / `_MAX`       | `30`         | `3650`       | Pro-Nachricht Reasoning, Prompt-Kontextfenster, Tool-I/O. Stark PII-haltige abgeleitete Daten.               |
-| `TALE_RETENTION_USER_TEMP_MIN` / `_MAX`      | `1`          | `720`        | Temporäre nutzerseitige Dateien (Stunden).                                                                   |
-| `TALE_RETENTION_AGENT_TEMP_MIN` / `_MAX`     | `1`          | `720`        | Temporäre agentenseitige Dateien (Stunden).                                                                  |
-| `TALE_RETENTION_LOGIN_ATTEMPTS_MIN` / `_MAX` | `90`         | `365`        | Login-Versuchs-Datensätze.                                                                                   |
-| `TALE_RETENTION_DISABLED`                    | `false`      | —            | Wenn `true`, läuft der Cleanup-Prozess no-op mit warn-log. Operator-Notbremse für Migrationsfenster / Debug. |
+| Variable                                     | Min     | Max    | Initial | Steuert                                                                                                      |
+| -------------------------------------------- | ------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------ |
+| `TALE_RETENTION_CONVERSATIONS_MIN` / `_MAX`  | `1`     | `3650` | `90`    | Chat-Konversationen und ihre Nachrichten.                                                                    |
+| `TALE_RETENTION_FILES_MIN` / `_MAX`          | `30`    | `3650` | `365`   | Hochgeladene Dateien (Chat-Anhänge oder Wissensbasis).                                                       |
+| `TALE_RETENTION_AUDIT_MIN` / `_MAX`          | `365`   | `3650` | `730`   | Audit-Log-Einträge. Min hartcodiert auf 365 Tage (PCI/SOC2/ISO-Baseline) — Operator kann nur ERHÖHEN.        |
+| `TALE_RETENTION_EXECUTIONS_MIN` / `_MAX`     | `1`     | `365`  | `30`    | Workflow-Ausführungsdetails.                                                                                 |
+| `TALE_RETENTION_ANALYTICS_MIN` / `_MAX`      | `30`    | `3650` | `365`   | Pro-Anfrage Usage-Analytics-Einträge.                                                                        |
+| `TALE_RETENTION_CHAT_FILTER_MIN` / `_MAX`    | `1`     | `365`  | `90`    | Chat-Filter (PII / Wortliste / Moderation) Telemetrie.                                                       |
+| `TALE_RETENTION_PROMPTS_MIN` / `_MAX`        | `30`    | `3650` | `730`   | Gespeicherte Prompt-Vorlagen (org-scope).                                                                    |
+| `TALE_RETENTION_FEEDBACK_MIN` / `_MAX`       | `30`    | `3650` | `365`   | Pro-Nachricht Daumen / Kommentare. Können zitierten Nutzerinhalt enthalten.                                  |
+| `TALE_RETENTION_MEMORY_AUDIT_MIN` / `_MAX`   | `30`    | `3650` | `365`   | Personalisierungs-Memory Änderungs-Log.                                                                      |
+| `TALE_RETENTION_CUSTOMERS_MIN` / `_MAX`      | `30`    | `3650` | `730`   | CRM-Kundendaten (Name, E-Mail, Adresse, Locale, Metadaten).                                                  |
+| `TALE_RETENTION_VENDORS_MIN` / `_MAX`        | `30`    | `3650` | `730`   | Lieferantendatensätze (Name, E-Mail, Telefon, Adresse, Freitext-Notizen).                                    |
+| `TALE_RETENTION_INBOX_MIN` / `_MAX`          | `30`    | `3650` | `730`   | Externer Kundenkanal-Posteingang (`externalConversations`) + kaskadierte Nachrichteninhalte.                 |
+| `TALE_RETENTION_MSG_META_MIN` / `_MAX`       | `30`    | `3650` | `365`   | Pro-Nachricht Reasoning, Prompt-Kontextfenster, Tool-I/O. Stark PII-haltige abgeleitete Daten.               |
+| `TALE_RETENTION_USER_TEMP_MIN` / `_MAX`      | `1`     | `720`  | `24`    | Temporäre nutzerseitige Dateien (Stunden).                                                                   |
+| `TALE_RETENTION_AGENT_TEMP_MIN` / `_MAX`     | `1`     | `720`  | `24`    | Temporäre agentenseitige Dateien (Stunden).                                                                  |
+| `TALE_RETENTION_LOGIN_ATTEMPTS_MIN` / `_MAX` | `90`    | `365`  | `90`    | Login-Versuchs-Datensätze.                                                                                   |
+| `TALE_RETENTION_DISABLED`                    | `false` | —      | —       | Wenn `true`, läuft der Cleanup-Prozess no-op mit warn-log. Operator-Notbremse für Migrationsfenster / Debug. |
 
 Änderungen an Env-Variablen werden beim **nächsten Backend-Neustart** wirksam (`docker compose restart tale-convex`) — Convex cached Env beim Prozessstart.
 
@@ -136,7 +136,21 @@ Wenn ein `legalHolds`-Eintrag für `(organizationId, targetType, targetId)` exis
 
 Target-Typen: `thread`, `document`, `execution`, `userMembership`, `org`. Ein gesamt-org Hold (`targetType: 'org'`) kurzschließt den gesamten Cleanup-Pass für diese Org.
 
-Holds werden via `placeLegalHold` platziert und via maker-checker Flow released (`requestLegalHoldRelease` + `approveLegalHoldRelease`, der Genehmigende muss vom Anfragenden abweichen, 24h Cooldown nach der Genehmigung). Released Holds bleiben in der Tabelle für die Audit-Spur erhalten — niemals physisch gelöscht.
+Holds werden via `placeLegalHold` (nur Admin) platziert. Die Freigabe ist ein ZWEISTUFIGER maker-checker Flow: ein Admin reicht via `requestLegalHoldRelease` ein, ein ANDERER Admin genehmigt via `approveLegalHoldRelease`. Die Genehmigung erzwingt einen 24h-Cooldown (konfigurierbar via `TALE_LEGAL_HOLD_RELEASE_COOLDOWN_HOURS`) plus eine 5-minütige Mindestverzögerung zwischen Anfrage und Genehmigung, um chained-call Angriffe abzuwehren. `rejectLegalHoldRelease` ist der Ablehnungspfad. Selbst-Genehmigung wird abgelehnt, sofern der Operator nicht explizit `TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true` setzt (Single-Admin-Deployments) — das Audit-Log erfasst `legal_hold_release_approved_self`, sodass der Bypass laut sichtbar ist. Released Holds bleiben in der Tabelle für die Audit-Spur erhalten — niemals physisch gelöscht.
+
+Org-scoped Holds (`targetType: 'org'`, der "halt all retention" Hold) erfordern standardmäßig Vier-Augen-Prinzip; die Platzierung wird abgelehnt, sofern nicht `TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true` gesetzt ist.
+
+Das Schließen einer `legalMatter` via `closeLegalMatter` reicht automatisch eine ausstehende Freigabe-Anfrage für jeden verlinkten aktiven Hold ein (gematcht über `matterRef`). Die Genehmigung erfordert weiterhin einen zweiten Admin pro verlinkten Hold — der Matter-Close löst NICHT automatisch frei.
+
+Der Cleanup-Runner liest jeden aktiven Hold EINMAL pro Lauf vor, sodass laufende Durchgänge einen konsistenten Snapshot sehen. Mid-run platzierte Holds schützen den _nächsten_ Lauf; das kurze Fenster ist gemäß ISO 27050 akzeptabel, da Cleanup täglich läuft.
+
+## Audit-Chain PII-Schutz
+
+Das Audit-Log wird jahrelang aufbewahrt (Standard 730 Tage, Min 365). Damit diese Chain keine langlebigen Klartext-E-Mail-Adressen und IPs aus unauthentifizierter Nutzereingabe trägt (insbesondere fehlgeschlagene Login-Versuche), setze `TALE_AUDIT_PEPPER` auf ein einmaliges Geheimnis von mindestens 16 Zeichen. Neue Audit-Einträge speichern dann einen HMAC-SHA256-Hash der E-Mail und ein grobes Netzwerk-Präfix der IP (`/24` für v4, `/64` für v6) in dedizierten `actorEmailHash` / `actorIpHash`-Spalten; die Klartext-Spalten bleiben leer. Bestehende Einträge werden nicht umgeschrieben — Rotation invalidiert die Korrelation über die Grenze hinweg, was die Operator-Intention ist.
+
+Wenn `TALE_AUDIT_PEPPER` ungesetzt ist oder kürzer als 16 Zeichen, fallen Audit-Writer auf Klartext zurück und loggen einen einmaligen `[SECURITY]`-Warnung auf stderr beim ersten Aufruf. Setze die Variable in der Produktion bevor das Deployment realen Nutzern ausgesetzt wird.
+
+`TALE_AUDIT_SIGNING_KEY` (separat vom Pepper) signiert `auditLogCheckpoints`-Einträge, sodass der Integritäts-Verifier eine bewusste Retention-/PII-Scrub-Grenze von Tampering unterscheiden kann. Ohne Signing-Key ist die Chain weiterhin tamper-evident über die SHA-256-Chain selbst; die Signatur ist Defense-in-Depth gegen einen Angreifer, der sowohl Einträge löschen als auch einen frischen Checkpoint fälschen kann.
 
 ## GDPR Art 17 Löschung
 

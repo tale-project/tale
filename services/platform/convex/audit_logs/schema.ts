@@ -53,6 +53,22 @@ export const auditLogsTable = defineTable({
   userAgent: v.optional(v.string()),
   requestId: v.optional(v.string()),
 
+  /**
+   * Peppered hash of `actorEmail` (HMAC-SHA256, prefixed `sha256:`).
+   * Populated by writers that handle untrusted user input (e.g. login
+   * attempts) when `TALE_AUDIT_PEPPER` is configured. Mutually exclusive
+   * with the plaintext `actorEmail` column on the same row — keeping
+   * them in separate columns avoids overwriting the searchable plaintext
+   * one and keeps CSV export / template renderers from leaking the hash
+   * into operator-facing surfaces (round-2 v14 H12).
+   */
+  actorEmailHash: v.optional(v.string()),
+  /**
+   * Peppered hash of a /24 (v4) or /64 (v6) prefix of `ipAddress`.
+   * Same mutually-exclusive contract as `actorEmailHash`.
+   */
+  actorIpHash: v.optional(v.string()),
+
   timestamp: v.number(),
   status: statusValidator,
   errorMessage: v.optional(v.string()),

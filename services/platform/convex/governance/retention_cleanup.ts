@@ -1281,12 +1281,36 @@ export const runRetentionCleanup = internalAction({
       );
     }
 
+    // Mirror the per-org pattern (line 1188-1192): pass a real errors
+    // array so a thrown failure surfaces somewhere operator-visible
+    // instead of being swallowed at the catch in `runCategory`. The
+    // dispatcher has no retention-run record of its own, so emit an
+    // audit row when any global-category fails (round-2 v10 H11).
+    const globalErrors: CategoryError[] = [];
     await runCategory(
       'loginAttempts',
       'global',
       () => cleanupLoginAttemptsGlobal(ctx, DEFAULT_BATCH_SIZE),
-      [],
+      globalErrors,
     );
+    if (globalErrors.length > 0) {
+      await ctx.runMutation(
+        internal.audit_logs.internal_mutations.createAuditLog,
+        {
+          organizationId: 'system',
+          actorId: 'system',
+          actorType: 'system',
+          action: 'retention.global_category_failed',
+          category: 'admin',
+          resourceType: 'retention_run',
+          status: 'failure',
+          errorMessage: globalErrors
+            .map((e) => `${e.name}: ${e.error}`)
+            .join('; '),
+          metadata: { errors: globalErrors },
+        },
+      );
+    }
 
     return null;
   },
@@ -1310,6 +1334,12 @@ export const effectReleasesOnly = internalAction({
       internal.governance.internal_queries.listRetentionPolicies,
       {},
     );
+    // Mirror the per-org retention pattern: aggregate per-org failures
+    // and emit a single audit row when the run finishes with errors,
+    // so an operator dashboard sees the failure instead of relying on
+    // tailing console output (round-2 / M1, regression class of
+    // commit 1ca55209c).
+    const failures: Array<{ organizationId: string; error: string }> = [];
     for (const policy of rawPolicies) {
       try {
         await ctx.runMutation(
@@ -1317,11 +1347,31 @@ export const effectReleasesOnly = internalAction({
           { organizationId: policy.organizationId },
         );
       } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        failures.push({ organizationId: policy.organizationId, error: msg });
         console.warn(
           `[RetentionCleanup] effectReleasesOnly failed for org ${policy.organizationId}:`,
           error,
         );
       }
+    }
+    if (failures.length > 0) {
+      await ctx.runMutation(
+        internal.audit_logs.internal_mutations.createAuditLog,
+        {
+          organizationId: 'system',
+          actorId: 'system',
+          actorType: 'system',
+          action: 'legal_hold.effect_releases_failed',
+          category: 'admin',
+          resourceType: 'cron_run',
+          status: 'failure',
+          errorMessage: failures
+            .map((f) => `${f.organizationId}: ${f.error}`)
+            .join('; '),
+          metadata: { failures },
+        },
+      );
     }
     return null;
   },

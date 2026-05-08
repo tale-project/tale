@@ -160,6 +160,26 @@ const retentionConfigShape: RetentionConfigShape = {
   _metadata: retentionRootMetadataSchema.optional(),
 };
 
+/**
+ * Compliance-floor map: per-category MIN values that the operator's
+ * file CANNOT undercut. The schema validates this at file-parse time
+ * so a hand-edited JSON cannot silently drop the audit-log retention
+ * below the PCI/SOC2/ISO baseline (round-2 v18 / A31 M3).
+ *
+ * Categories not listed here have no compliance-mandated floor — the
+ * file's `min: 0` lower bound applies as before.
+ */
+export const RETENTION_COMPLIANCE_FLOORS: Partial<
+  Record<RetentionCategory, number>
+> = {
+  // PCI-DSS 10.5.3, SOC 2 CC7.3, ISO 27001 A.12.4 — audit logs retained
+  // at least one year. Baseline floor; ops can RAISE via env or file.
+  auditLog: 365,
+  // NIST SP 800-92 §4.3 — retain login attempts long enough to detect
+  // slow-and-low brute force across calendar quarters.
+  loginAttempt: 90,
+};
+
 export const retentionDefaultsConfigSchema = z
   .object(retentionConfigShape)
   .strict()
@@ -188,6 +208,20 @@ export const retentionDefaultsConfigSchema = z
     {
       message:
         'each category `unit` must match its id (categories ending in "Hours" are "hours", others are "days")',
+    },
+  )
+  .refine(
+    (v) => {
+      for (const [cat, floor] of Object.entries(RETENTION_COMPLIANCE_FLOORS)) {
+        const bound = (v as Record<string, RetentionBoundDef | undefined>)[cat];
+        if (!bound) continue;
+        if (bound.min < floor) return false;
+      }
+      return true;
+    },
+    {
+      message:
+        'compliance floor violation: see RETENTION_COMPLIANCE_FLOORS for hard minimums (e.g. auditLog.min >= 365 per PCI/SOC2/ISO baseline)',
     },
   );
 

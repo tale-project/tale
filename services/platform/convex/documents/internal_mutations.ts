@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
+import { assertNotHeld } from '../governance/legal_hold_guard';
 import { createDocument as createDocumentHelper } from './create_document';
 import { updateDocumentInternal as updateDocumentInternalHelper } from './update_document_internal';
 import { updateDocumentRagInfo as updateDocumentRagInfoHelper } from './update_document_rag_info';
@@ -45,6 +46,15 @@ export const deleteDocumentById = internalMutation({
   handler: async (ctx, args) => {
     const document = await ctx.db.get(args.documentId);
     if (document) {
+      // Defense-in-depth: every public/REST/internal caller flows through
+      // here; gating at this single point covers the surfaces flagged in
+      // round-2 v08 B4. Retention has its own held-aware path.
+      await assertNotHeld(
+        ctx,
+        document.organizationId,
+        'document',
+        String(args.documentId),
+      );
       const { fileId } = document;
       if (fileId) {
         const metadata = await ctx.db

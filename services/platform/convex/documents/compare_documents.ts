@@ -1,5 +1,3 @@
-'use node';
-
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
@@ -50,6 +48,13 @@ export const compareDocuments = action({
         'Unauthorized: one or more storage ids do not belong to this organization',
       );
     }
+    // FOLLOW-UP / round-2 M5: this gate is org-level, not team-ACL-level.
+    // A same-org user who does NOT have access to a team-scoped document
+    // can still diff it via this path. The fix requires plumbing
+    // `userTeamIds` + `hasTeamAccess(doc, userTeamIds)` per storage id
+    // (mirror `folders/mutations.ts`). Tracked as a separate issue
+    // because the team-ACL scaffold is partially in place but not
+    // consistently applied to all document read paths yet.
 
     const [baseFileUrl, compFileUrl] = await Promise.all([
       resolveStorageUrl(ctx, args.baseStorageId),

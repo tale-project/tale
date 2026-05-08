@@ -6,7 +6,12 @@ export const loginAttemptsTable = defineTable({
   consecutiveFailures: v.number(),
   lastFailureAt: v.number(),
   lockedUntil: v.union(v.number(), v.null()),
-}).index('by_email', ['email']);
+})
+  .index('by_email', ['email'])
+  // Retention sweep: list rows with `lastFailureAt < cutoff` via index
+  // range so the global pass scales linearly with expired rows rather
+  // than total table size (round-2 v11 / M11).
+  .index('by_lastFailureAt', ['lastFailureAt']);
 
 // Coalesced counter for sign-in requests the before-hook rejected (lockout
 // or per-IP flood guard). Writing one audit log per rejected request under

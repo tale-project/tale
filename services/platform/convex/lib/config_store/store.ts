@@ -10,6 +10,21 @@
  *
  * Initially used only by retention; provider/integration migrations are
  * the obvious next consumers. Keep the API minimal.
+ *
+ * Known limitations (round-2 / M7):
+ *   - **Last-writer-wins.** No file-level locking — two concurrent
+ *     `write()` calls for the same orgSlug will race and the later
+ *     atomic rename wins. Acceptable today (single operator at a time)
+ *     but every area-specific schema should plan for a future
+ *     `schemaVersion` field before introducing concurrent writers
+ *     (admin UI multi-tab, cron-driven mutators, etc.).
+ *   - **No `schemaVersion` field on stored documents.** Migrations will
+ *     have to pivot on the absence of the field as "v1" when added.
+ *     Track follow-up before any breaking schema change.
+ *   - **`readJsonFile` returns a sha256 of the parsed bytes for OCC
+ *     scenarios; the current `read()` helper discards it.** Add a
+ *     `readWithEtag` overload when concurrent-write protection is
+ *     wired into a UI flow.
  */
 
 import { readdir } from 'node:fs/promises';

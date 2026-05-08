@@ -71,25 +71,51 @@ export async function deleteChatThread(
     // cleanup). Bypasses Trash entirely; ephemeral internal artifacts
     // would otherwise pollute the user's Trash with rows they never
     // saw and can't reason about.
-    if (existing?.organizationId) {
-      // Audit BEFORE cascade — once cascade returns, the thread row is
-      // gone and we'd lose the orgId/title for the audit row.
-      await createAuditLog(ctx, {
-        organizationId: existing.organizationId,
-        actorId: 'system',
-        actorType: 'system',
-        action: 'chat_thread.cascade_deleted',
-        category: 'data',
-        resourceType: 'thread',
-        resourceId: threadId,
-        resourceName: existing.title ?? threadId,
-        status: 'success',
+    //
+    // Capture org + title BEFORE cascade so the audit row can name the
+    // resource even after the threadMetadata row is gone, then emit
+    // AFTER cascade so a failure (paginated cascade not done in one
+    // shot, transient throw) records `status: 'failure'` instead of a
+    // misleading `success` (round-2 M8).
+    const auditOrgId = existing?.organizationId;
+    const auditTitle = existing?.title ?? threadId;
+    let cascadeResult: Awaited<
+      ReturnType<typeof cascadeDeleteThreadChildren>
+    > | null = null;
+    let cascadeError: string | undefined;
+    try {
+      cascadeResult = await cascadeDeleteThreadChildren(ctx, {
+        threadId,
+        organizationId: existing?.organizationId,
       });
+    } catch (err) {
+      cascadeError = err instanceof Error ? err.message : String(err);
+      throw err;
+    } finally {
+      if (auditOrgId) {
+        await createAuditLog(ctx, {
+          organizationId: auditOrgId,
+          actorId: 'system',
+          actorType: 'system',
+          action: 'chat_thread.cascade_deleted',
+          category: 'data',
+          resourceType: 'thread',
+          resourceId: threadId,
+          resourceName: auditTitle,
+          status:
+            cascadeError !== undefined
+              ? 'failure'
+              : cascadeResult && !cascadeResult.done
+                ? 'failure'
+                : 'success',
+          errorMessage:
+            cascadeError ??
+            (cascadeResult && !cascadeResult.done
+              ? 'cascade not complete in single pass'
+              : undefined),
+        });
+      }
     }
-    await cascadeDeleteThreadChildren(ctx, {
-      threadId,
-      organizationId: existing?.organizationId,
-    });
     // cascade_helpers handles the threadMetadata + agent-component
     // thread + webhook-mapping cleanup transactionally; nothing more
     // for this caller to do.

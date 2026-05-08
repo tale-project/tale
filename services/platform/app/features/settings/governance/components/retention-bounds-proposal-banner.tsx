@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { ShieldAlert } from 'lucide-react';
+import { Loader2, ShieldAlert } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
 
 import { Text } from '@/app/components/ui/typography/text';
@@ -121,23 +121,23 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
           <Text className="text-sm font-medium">
             {t(titleKey, titleFallback)}
           </Text>
-          {!firstApply && (
-            <Text className="text-muted-foreground text-xs">
-              {t(
-                'retentionPolicy.boundsProposal.summary',
-                '{tightened} of {total} change(s) tighten retention. Review before applying.',
-                { tightened: tighteningCount, total: totalCount },
-              )}
-            </Text>
-          )}
-          {firstApply && (
-            <Text className="text-muted-foreground text-xs">
-              {t(
-                'retentionPolicy.boundsProposal.firstApplyDescription',
-                'No bounds have been applied for this organization yet. Review the operator config and Apply to start enforcing retention.',
-              )}
-            </Text>
-          )}
+          <Text className="text-muted-foreground text-xs">
+            {firstApply
+              ? t(
+                  'retentionPolicy.boundsProposal.firstApplyDescription',
+                  'No bounds have been applied for this organization yet. Review the operator config and Apply to start enforcing retention.',
+                )
+              : t(
+                  'retentionPolicy.boundsProposal.summary',
+                  '{tightened} of {total} change(s) tighten retention. Review before applying.',
+                  { tightened: tighteningCount, total: totalCount },
+                )}
+          </Text>
+          {/*
+           * Show the diff preview inline on first-apply too — without
+           * it the operator is asked to approve a black-box change.
+           * Round-2 / M10.
+           */}
         </div>
       </div>
 
@@ -148,7 +148,14 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
           onClick={handleApply}
           disabled={inFlight}
         >
-          {t('retentionPolicy.boundsProposal.applyLabel', 'Apply')}
+          {apply.isPending ? (
+            <>
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              {t('retentionPolicy.boundsProposal.applyingLabel', 'Applying…')}
+            </>
+          ) : (
+            t('retentionPolicy.boundsProposal.applyLabel', 'Apply')
+          )}
         </Button>
         {!firstApply && (
           <Button
@@ -157,7 +164,17 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
             onClick={handleReject}
             disabled={inFlight}
           >
-            {t('retentionPolicy.boundsProposal.rejectLabel', 'Reject')}
+            {reject.isPending ? (
+              <>
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                {t(
+                  'retentionPolicy.boundsProposal.rejectingLabel',
+                  'Rejecting…',
+                )}
+              </>
+            ) : (
+              t('retentionPolicy.boundsProposal.rejectLabel', 'Reject')
+            )}
           </Button>
         )}
         {hasDetails && (

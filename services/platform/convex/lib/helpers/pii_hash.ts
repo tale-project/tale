@@ -80,6 +80,25 @@ export async function hashEmailForAudit(email: string): Promise<string> {
 }
 
 /**
+ * Split form for audit-log writers: returns either a plaintext value or
+ * a hash, never both, depending on whether the pepper is configured.
+ *
+ * Lets callers populate `actorEmail` (plaintext column, searchable) when
+ * no pepper is set, and `actorEmailHash` (separate column, opaque to UI)
+ * when one is set. Avoids overwriting a plaintext column with a `sha256:`
+ * marker which then breaks downstream search/export consumers (round-2
+ * v14 H12).
+ */
+export async function splitEmailForAudit(
+  email: string,
+): Promise<{ plaintext?: string; hash?: string }> {
+  const pepper = readPepper();
+  if (pepper === null) return { plaintext: email };
+  const h = await hmacSha256Hex(pepper, email.toLowerCase());
+  return { hash: `sha256:${h}` };
+}
+
+/**
  * Reduce an IP to a coarse prefix (`/24` for v4, `/64` for v6) and
  * hash it for storage in `ipAddress`. Coarsening preserves rate-limit
  * forensics (CGNAT subnet, ISP geo) while removing the per-host PII.
@@ -98,6 +117,61 @@ export async function hashIpForAudit(ip: string): Promise<string> {
   return `sha256:${h}`;
 }
 
+/**
+ * Split form for audit-log writers — see `splitEmailForAudit`.
+ */
+export async function splitIpForAudit(
+  ip: string,
+): Promise<{ plaintext?: string; hash?: string }> {
+  const pepper = readPepper();
+  if (pepper === null) return { plaintext: ip };
+  const prefix = coarsePrefix(ip);
+  if (prefix === null) return { plaintext: ip };
+  const h = await hmacSha256Hex(pepper, prefix);
+  return { hash: `sha256:${h}` };
+}
+
+/**
+ * Expand an IPv6 address to its canonical 8-group form, resolving `::`
+ * shorthand. Returns `null` when the input doesn't parse.
+ *
+ * Round-2 v04 H3: the previous coarsePrefix used a naive `split(':')`
+ * that produced wrong /64 prefixes whenever `::` compressed any of the
+ * first four groups (`::1` → `::1::/64`, `2001:db8::1` → `2001:db8::1::/64`).
+ * This helper expands first so the /64 truncation acts on real groups.
+ */
+export function expandIPv6(addr: string): string[] | null {
+  const cleaned = addr
+    .replace(/%.*$/, '') // strip zone id (`fe80::1%eth0`)
+    .replace(/^\[|\]$/g, '') // strip bracketed form (`[2001:db8::1]`)
+    .trim();
+  if (cleaned === '') return null;
+  if (!cleaned.includes(':')) return null;
+
+  // RFC 4291: at most one `::` allowed.
+  const firstDD = cleaned.indexOf('::');
+  if (firstDD !== cleaned.lastIndexOf('::')) return null;
+
+  let groups: string[];
+  if (firstDD >= 0) {
+    const headStr = cleaned.slice(0, firstDD);
+    const tailStr = cleaned.slice(firstDD + 2);
+    const head = headStr === '' ? [] : headStr.split(':');
+    const tail = tailStr === '' ? [] : tailStr.split(':');
+    const missing = 8 - head.length - tail.length;
+    if (missing < 0) return null;
+    groups = [...head, ...new Array<string>(missing).fill('0'), ...tail];
+  } else {
+    groups = cleaned.split(':');
+  }
+  if (groups.length !== 8) return null;
+  // Each group must be 1-4 hex chars (or empty already filtered out).
+  for (const g of groups) {
+    if (!/^[0-9a-fA-F]{1,4}$/.test(g)) return null;
+  }
+  return groups;
+}
+
 function coarsePrefix(ip: string): string | null {
   // IPv4: keep the first 3 octets; v4-mapped v6 (`::ffff:1.2.3.4`) is
   // also handled here so audit reads consistent prefixes regardless of
@@ -108,14 +182,10 @@ function coarsePrefix(ip: string): string | null {
   if (v4Match) {
     return `${v4Match[1]}.${v4Match[2]}.${v4Match[3]}.0/24`;
   }
-  // IPv6: take the first 4 hex groups (the /64 prefix). Strips zone id
-  // (`%eth0`) and bracketed form (`[…]`) before slicing.
-  const stripped = ip.replace(/%.*$/, '').replace(/^\[|\]$/g, '');
-  if (stripped.includes(':')) {
-    const groups = stripped.split(':');
-    if (groups.length < 2) return null;
-    const head = groups.slice(0, 4).join(':');
-    return `${head}::/64`;
-  }
-  return null;
+  // IPv6: expand `::` shorthand to the canonical 8-group form, then
+  // take the first 4 groups (/64 prefix).
+  const groups = expandIPv6(ip);
+  if (!groups) return null;
+  const head = groups.slice(0, 4).join(':');
+  return `${head}::/64`;
 }

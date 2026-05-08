@@ -338,7 +338,10 @@ export const auditLogCheckpointsTable = defineTable({
 export const policyAcknowledgementsTable = defineTable({
   userId: v.string(),
   organizationId: v.string(),
-  policyType: v.string(),
+  // Tightened from `v.string()` to the canonical literal union
+  // (round-2 / M4) so a typo in a writer can't seed a row that the
+  // governance UI never resolves.
+  policyType: policyTypeValidator,
   policyVersion: v.number(),
   acknowledgedAt: v.number(),
 }).index('by_user_org_policy', ['userId', 'organizationId', 'policyType']);
@@ -522,4 +525,10 @@ export const gdprErasureRequestsTable = defineTable({
   errorMessage: v.optional(v.string()),
   startedAt: v.optional(v.number()),
   completedAt: v.optional(v.number()),
-}).index('by_organizationId_status', ['organizationId', 'status']);
+})
+  .index('by_organizationId_status', ['organizationId', 'status'])
+  // Concurrency probe: `requestErasure` rejects with `ALREADY_PENDING`
+  // when an active (`pending` | `running`) row already exists for this
+  // (org, subject) pair. Without this, parallel admin clicks create two
+  // rows + two processors racing the same subject (round-2 v05 B6).
+  .index('by_org_target_status', ['organizationId', 'targetUserId', 'status']);

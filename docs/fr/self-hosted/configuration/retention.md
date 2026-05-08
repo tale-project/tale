@@ -87,25 +87,25 @@ Elles s'appliquent à toutes les organisations du déploiement, par-dessus les v
 
 Les noms d'env ci-dessous proviennent de la map `_metadata.envNames` racine de l'`examples/retention/default.json` livré. `envPrefix` est `"TALE_RETENTION_"` (avec underscore final). Les noms complets sont formés par concaténation pure : `envPrefix + suffix`.
 
-| Variable                                     | Min défaut | Max défaut | Régit                                                                                                                           |
-| -------------------------------------------- | ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `TALE_RETENTION_CONVERSATIONS_MIN` / `_MAX`  | `1`        | `3650`     | Conversations et leurs messages.                                                                                                |
-| `TALE_RETENTION_FILES_MIN` / `_MAX`          | `30`       | `3650`     | Fichiers téléversés (chat ou base de connaissances).                                                                            |
-| `TALE_RETENTION_AUDIT_MIN` / `_MAX`          | `365`      | `3650`     | Entrées de journal d'audit. Min codé en dur à 365 j (PCI/SOC2/ISO baseline) — l'opérateur ne peut qu'AUGMENTER.                 |
-| `TALE_RETENTION_EXECUTIONS_MIN` / `_MAX`     | `1`        | `365`      | Détails d'exécution de workflow.                                                                                                |
-| `TALE_RETENTION_ANALYTICS_MIN` / `_MAX`      | `30`       | `3650`     | Lignes analytiques par requête.                                                                                                 |
-| `TALE_RETENTION_CHAT_FILTER_MIN` / `_MAX`    | `1`        | `365`      | Télémétrie chat-filter (PII / liste de mots / modération).                                                                      |
-| `TALE_RETENTION_PROMPTS_MIN` / `_MAX`        | `30`       | `3650`     | Modèles de prompts enregistrés (org-scope).                                                                                     |
-| `TALE_RETENTION_FEEDBACK_MIN` / `_MAX`       | `30`       | `3650`     | Feedbacks par message. Peut contenir du contenu utilisateur cité.                                                               |
-| `TALE_RETENTION_MEMORY_AUDIT_MIN` / `_MAX`   | `30`       | `3650`     | Journal des changements de la mémoire de personnalisation.                                                                      |
-| `TALE_RETENTION_CUSTOMERS_MIN` / `_MAX`      | `30`       | `3650`     | Fiches client CRM (nom, e-mail, adresse, locale, métadonnées).                                                                  |
-| `TALE_RETENTION_VENDORS_MIN` / `_MAX`        | `30`       | `3650`     | Fiches fournisseurs (nom, e-mail, téléphone, adresse, notes).                                                                   |
-| `TALE_RETENTION_INBOX_MIN` / `_MAX`          | `30`       | `3650`     | Boîte de réception canal client externe (`externalConversations`) + corps de messages cascadés.                                 |
-| `TALE_RETENTION_MSG_META_MIN` / `_MAX`       | `30`       | `3650`     | Raisonnement par message, fenêtre de contexte de prompt, E/S d'outils. Données dérivées à fort PII.                             |
-| `TALE_RETENTION_USER_TEMP_MIN` / `_MAX`      | `1`        | `720`      | Fichiers temporaires côté utilisateur (heures).                                                                                 |
-| `TALE_RETENTION_AGENT_TEMP_MIN` / `_MAX`     | `1`        | `720`      | Fichiers temporaires côté agent (heures).                                                                                       |
-| `TALE_RETENTION_LOGIN_ATTEMPTS_MIN` / `_MAX` | `90`       | `365`      | Enregistrements de tentatives de connexion.                                                                                     |
-| `TALE_RETENTION_DISABLED`                    | `false`    | —          | Lorsque `true`, le job de nettoyage est no-op avec un warn-log. Coupe-circuit opérateur pour les fenêtres de migration / debug. |
+| Variable                                     | Min     | Max    | Initial | Régit                                                                                                                           |
+| -------------------------------------------- | ------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `TALE_RETENTION_CONVERSATIONS_MIN` / `_MAX`  | `1`     | `3650` | `90`    | Conversations et leurs messages.                                                                                                |
+| `TALE_RETENTION_FILES_MIN` / `_MAX`          | `30`    | `3650` | `365`   | Fichiers téléversés (chat ou base de connaissances).                                                                            |
+| `TALE_RETENTION_AUDIT_MIN` / `_MAX`          | `365`   | `3650` | `730`   | Entrées de journal d'audit. Min codé en dur à 365 j (PCI/SOC2/ISO baseline) — l'opérateur ne peut qu'AUGMENTER.                 |
+| `TALE_RETENTION_EXECUTIONS_MIN` / `_MAX`     | `1`     | `365`  | `30`    | Détails d'exécution de workflow.                                                                                                |
+| `TALE_RETENTION_ANALYTICS_MIN` / `_MAX`      | `30`    | `3650` | `365`   | Lignes analytiques par requête.                                                                                                 |
+| `TALE_RETENTION_CHAT_FILTER_MIN` / `_MAX`    | `1`     | `365`  | `90`    | Télémétrie chat-filter (PII / liste de mots / modération).                                                                      |
+| `TALE_RETENTION_PROMPTS_MIN` / `_MAX`        | `30`    | `3650` | `730`   | Modèles de prompts enregistrés (org-scope).                                                                                     |
+| `TALE_RETENTION_FEEDBACK_MIN` / `_MAX`       | `30`    | `3650` | `365`   | Feedbacks par message. Peut contenir du contenu utilisateur cité.                                                               |
+| `TALE_RETENTION_MEMORY_AUDIT_MIN` / `_MAX`   | `30`    | `3650` | `365`   | Journal des changements de la mémoire de personnalisation.                                                                      |
+| `TALE_RETENTION_CUSTOMERS_MIN` / `_MAX`      | `30`    | `3650` | `730`   | Fiches client CRM (nom, e-mail, adresse, locale, métadonnées).                                                                  |
+| `TALE_RETENTION_VENDORS_MIN` / `_MAX`        | `30`    | `3650` | `730`   | Fiches fournisseurs (nom, e-mail, téléphone, adresse, notes).                                                                   |
+| `TALE_RETENTION_INBOX_MIN` / `_MAX`          | `30`    | `3650` | `730`   | Boîte de réception canal client externe (`externalConversations`) + corps de messages cascadés.                                 |
+| `TALE_RETENTION_MSG_META_MIN` / `_MAX`       | `30`    | `3650` | `365`   | Raisonnement par message, fenêtre de contexte de prompt, E/S d'outils. Données dérivées à fort PII.                             |
+| `TALE_RETENTION_USER_TEMP_MIN` / `_MAX`      | `1`     | `720`  | `24`    | Fichiers temporaires côté utilisateur (heures).                                                                                 |
+| `TALE_RETENTION_AGENT_TEMP_MIN` / `_MAX`     | `1`     | `720`  | `24`    | Fichiers temporaires côté agent (heures).                                                                                       |
+| `TALE_RETENTION_LOGIN_ATTEMPTS_MIN` / `_MAX` | `90`    | `365`  | `90`    | Enregistrements de tentatives de connexion.                                                                                     |
+| `TALE_RETENTION_DISABLED`                    | `false` | —      | —       | Lorsque `true`, le job de nettoyage est no-op avec un warn-log. Coupe-circuit opérateur pour les fenêtres de migration / debug. |
 
 Les changements aux variables d'environnement prennent effet au **prochain redémarrage du backend** (`docker compose restart tale-convex`) — Convex met l'env en cache au démarrage du processus.
 
@@ -136,7 +136,21 @@ Lorsqu'une ligne `legalHolds` existe pour `(organizationId, targetType, targetId
 
 Types de cible : `thread`, `document`, `execution`, `userMembership`, `org`. Une conservation à l'échelle de l'org (`targetType: 'org'`) court-circuite l'ensemble du passage de nettoyage pour cette org.
 
-Les conservations sont placées via `placeLegalHold` et levées via un flux maker-checker (`requestLegalHoldRelease` + `approveLegalHoldRelease`, l'approuveur doit différer du demandeur, cooldown de 24h après approbation). Les conservations levées sont conservées dans la table pour la trace d'audit — jamais supprimées physiquement.
+Les conservations sont placées via `placeLegalHold` (admin uniquement). La levée suit un flux maker-checker EN DEUX ÉTAPES : un admin dépose la demande via `requestLegalHoldRelease`, et un AUTRE admin approuve via `approveLegalHoldRelease`. L'approbation impose un cooldown de 24h (configurable via `TALE_LEGAL_HOLD_RELEASE_COOLDOWN_HOURS`) plus un délai minimum de 5 minutes entre la demande et l'approbation pour contrer les attaques en chaîne. `rejectLegalHoldRelease` est le chemin de rejet. L'auto-approbation est refusée sauf si l'opérateur opte explicitement en définissant `TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true` (déploiements à admin unique) — le journal d'audit enregistre `legal_hold_release_approved_self` pour que le contournement soit visible. Les conservations levées sont conservées dans la table pour la trace d'audit — jamais supprimées physiquement.
+
+Les conservations à l'échelle de l'org (`targetType: 'org'`, la conservation « halte totale ») exigent par défaut un double contrôle ; le placement est refusé sauf si `TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true` est défini.
+
+Fermer une `legalMatter` via `closeLegalMatter` dépose automatiquement une demande de levée pour chaque conservation active liée (matchée par `matterRef`). L'approbation requiert toujours un second admin par conservation liée — la fermeture du matter ne lève PAS automatiquement.
+
+Le runner de nettoyage pré-charge chaque conservation active UNE FOIS par exécution, de sorte que les passages en cours voient un snapshot cohérent. Les conservations placées en cours d'exécution protègent la _prochaine_ exécution ; cette brève fenêtre est acceptable selon ISO 27050 puisque le nettoyage est quotidien.
+
+## Protection PII de la chaîne d'audit
+
+Le journal d'audit est conservé pendant des années (par défaut 730 jours, plancher 365). Pour empêcher cette chaîne de transporter des adresses e-mail et IP en clair issues d'entrées utilisateur non authentifiées sur le long terme (en particulier les tentatives de connexion échouées), définissez `TALE_AUDIT_PEPPER` sur un secret unique d'au moins 16 caractères. Les nouvelles lignes d'audit stockent alors un hash HMAC-SHA256 de l'e-mail et un préfixe réseau grossier de l'IP (`/24` pour v4, `/64` pour v6) dans des colonnes dédiées `actorEmailHash` / `actorIpHash` ; les colonnes en clair restent vides. Les lignes existantes ne sont pas réécrites — la rotation invalide la corrélation à la frontière, ce qui est l'intention de l'opérateur.
+
+Lorsque `TALE_AUDIT_PEPPER` est non défini ou plus court que 16 caractères, les écrivains d'audit retombent sur le clair et émettent un avertissement `[SECURITY]` unique sur stderr lors du premier appel. Définissez la variable en production avant d'exposer le déploiement à de vrais utilisateurs.
+
+`TALE_AUDIT_SIGNING_KEY` (distincte du pepper) signe les lignes `auditLogCheckpoints` afin que le vérificateur d'intégrité distingue une frontière de rétention/scrub PII délibérée d'une falsification. Sans clé de signature, la chaîne reste à preuve d'altération via la chaîne SHA-256 elle-même ; la signature est une défense en profondeur contre un attaquant capable à la fois de supprimer des lignes et de forger un nouveau checkpoint.
 
 ## Effacement RGPD Art 17
 

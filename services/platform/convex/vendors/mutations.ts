@@ -4,6 +4,7 @@ import {
   jsonRecordValidator,
   type ConvexJsonValue,
 } from '../../lib/shared/schemas/utils/json-value';
+import { assertNotHeld } from '../governance/legal_hold_guard';
 import { mutationWithRLS } from '../lib/rls';
 import {
   vendorSourceValidator,
@@ -97,6 +98,13 @@ export const deleteVendor = mutationWithRLS({
     if (!vendor) {
       throw new Error('Vendor not found');
     }
+
+    await assertNotHeld(
+      ctx,
+      vendor.organizationId,
+      'vendor',
+      String(args.vendorId),
+    );
 
     await ctx.db.delete(args.vendorId);
     return null;

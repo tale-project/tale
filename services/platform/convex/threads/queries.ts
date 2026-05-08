@@ -79,12 +79,12 @@ export const isThreadGenerating = query({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return false;
 
-    const metadata = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
-
-    if (!metadata || metadata.userId !== authUser.userId) return false;
+    // canAccessThread rejects trashed/expired/deleted threads as well as
+    // non-owners — without it, an owner querying their own trashed thread
+    // still saw `generating` until Pass-B physically deleted the row
+    // (round-2 v15 H8).
+    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    if (!metadata) return false;
     if (metadata.generationStatus !== 'generating') return false;
 
     // Guard against stuck generationStatus: if the action crashed without
@@ -188,12 +188,10 @@ export const getFailedMessageErrors = query({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return {};
 
-    const metadata = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
-
-    if (!metadata || metadata.userId !== authUser.userId) return {};
+    // canAccessThread blocks trashed/expired/deleted threads — error
+    // strings can leak PII the user thought they trashed.
+    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    if (!metadata) return {};
 
     const result = await listMessages(ctx, components.agent, {
       threadId: args.threadId,
@@ -314,11 +312,10 @@ export const getThreadShareStatus = query({
       return { isShared: false, shareToken: null };
     }
 
-    const metadata = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
-
+    // canAccessThread blocks trashed/expired/deleted threads — share
+    // status on a trashed thread is meaningless and surfaces stale
+    // shareTokens to the UI.
+    const metadata = await canAccessThread(ctx, args.threadId, authUser);
     if (!metadata || metadata.userId !== authUser.userId) {
       return { isShared: false, shareToken: null };
     }
@@ -344,11 +341,7 @@ export const getArenaThreadPair = query({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return null;
 
-    const metadata = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
-
+    const metadata = await canAccessThread(ctx, args.threadId, authUser);
     if (!metadata?.arenaGroupId || metadata.userId !== authUser.userId) {
       return null;
     }
@@ -386,11 +379,7 @@ export const getThreadForkInfo = query({
       return null;
     }
 
-    const metadata = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
-
+    const metadata = await canAccessThread(ctx, args.threadId, authUser);
     if (
       !metadata ||
       metadata.userId !== authUser.userId ||

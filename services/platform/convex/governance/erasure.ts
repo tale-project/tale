@@ -101,6 +101,20 @@ export const requestErasure = mutation({
       email: authUser.email ?? '',
     });
     if (!isAdmin(member.role)) {
+      // Round-2 / M13: surface privilege-escalation attempts via audit.
+      await createAuditLog(ctx, {
+        organizationId: args.organizationId,
+        actorId: callerId,
+        actorEmail: authUser.email ?? '',
+        actorType: 'user',
+        action: 'gdpr_erasure_denied',
+        category: 'admin',
+        resourceType: 'user',
+        resourceId: args.userId,
+        status: 'denied',
+        errorMessage: 'caller is not an org admin',
+        metadata: { role: member.role },
+      });
       throw new ConvexError({
         code: 'forbidden',
         message: 'Only org admins can execute GDPR erasure.',
@@ -111,6 +125,30 @@ export const requestErasure = mutation({
         code: 'validation',
         message: 'reason is required for GDPR erasure requests.',
       });
+    }
+
+    // Concurrency guard: parallel admin clicks would otherwise insert two
+    // rows + schedule two processors racing the same subject. Reject the
+    // second click with the existing requestId so the UI can surface the
+    // in-flight row instead of retrying (round-2 v05 B6 part 1).
+    for (const status of ['pending', 'running'] as const) {
+      const active = await ctx.db
+        .query('gdprErasureRequests')
+        .withIndex('by_org_target_status', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('targetUserId', args.userId)
+            .eq('status', status),
+        )
+        .first();
+      if (active) {
+        throw new ConvexError({
+          code: 'ALREADY_PENDING',
+          message: `An erasure request for this subject is already ${status}.`,
+          requestId: active._id,
+          status,
+        });
+      }
     }
 
     // Find every thread the subject owns in this org. Includes archived,
@@ -289,6 +327,31 @@ export const eraseThreadById = internalMutation({
  * processor with the per-thread cascade outcomes + the RAG-side
  * deletion count.
  */
+const rowsAndHoldValidator = v.object({
+  rows: v.number(),
+  skippedByHold: v.number(),
+});
+
+const perCategoryValidator = v.object({
+  userMemories: rowsAndHoldValidator,
+  userPreferences: rowsAndHoldValidator,
+  messageFeedback: rowsAndHoldValidator,
+  fileMetadata: v.object({
+    rows: v.number(),
+    blobs: v.number(),
+    skippedByHold: v.number(),
+  }),
+  usageLedger: rowsAndHoldValidator,
+  twoFactorAttempts: rowsAndHoldValidator,
+  policyAcknowledgements: rowsAndHoldValidator,
+  onedrive: rowsAndHoldValidator,
+  loginAttempts: v.object({
+    attempts: v.number(),
+    blockCounters: v.number(),
+    skippedByHold: v.number(),
+  }),
+});
+
 export const finalizeProcessing = internalMutation({
   args: {
     requestId: v.id('gdprErasureRequests'),
@@ -296,6 +359,7 @@ export const finalizeProcessing = internalMutation({
     ragDocumentsRemoved: v.number(),
     documentsErased: v.optional(v.number()),
     documentsSkippedByHold: v.optional(v.number()),
+    perCategory: v.optional(perCategoryValidator),
     errorMessage: v.optional(v.string()),
   },
   returns: v.null(),
@@ -303,13 +367,26 @@ export const finalizeProcessing = internalMutation({
     const row = await ctx.db.get(args.requestId);
     if (!row) return null;
     const targetedCount = row.threadsTargeted?.length ?? 0;
-    const skippedByHold = args.documentsSkippedByHold ?? 0;
-    // A run that skipped any document because a hold landed mid-flight
-    // is `partial` even when every thread cascaded successfully —
-    // operator must release the hold and re-trigger to honor the receipt.
+    const documentsSkippedByHold = args.documentsSkippedByHold ?? 0;
+    // Aggregate skipped-by-hold across every per-category counter so the
+    // receipt status flips to `partial` whenever a mid-flight hold blocked
+    // ANY category, not just documents (round-2 v05 B6 / v09 H4).
+    const perCategory = args.perCategory;
+    const perCategorySkipped = perCategory
+      ? perCategory.userMemories.skippedByHold +
+        perCategory.userPreferences.skippedByHold +
+        perCategory.messageFeedback.skippedByHold +
+        perCategory.fileMetadata.skippedByHold +
+        perCategory.usageLedger.skippedByHold +
+        perCategory.twoFactorAttempts.skippedByHold +
+        perCategory.policyAcknowledgements.skippedByHold +
+        perCategory.onedrive.skippedByHold +
+        perCategory.loginAttempts.skippedByHold
+      : 0;
+    const totalSkippedByHold = documentsSkippedByHold + perCategorySkipped;
     const status: 'done' | 'partial' | 'failed' = args.errorMessage
       ? 'failed'
-      : args.threadsErased < targetedCount || skippedByHold > 0
+      : args.threadsErased < targetedCount || totalSkippedByHold > 0
         ? 'partial'
         : 'done';
     await ctx.db.patch(args.requestId, {
@@ -317,7 +394,8 @@ export const finalizeProcessing = internalMutation({
       threadsErased: args.threadsErased,
       ragDocumentsRemoved: args.ragDocumentsRemoved,
       documentsErased: args.documentsErased,
-      documentsSkippedByHold: skippedByHold > 0 ? skippedByHold : undefined,
+      documentsSkippedByHold:
+        documentsSkippedByHold > 0 ? documentsSkippedByHold : undefined,
       errorMessage: args.errorMessage,
       completedAt: Date.now(),
     });
@@ -339,7 +417,9 @@ export const finalizeProcessing = internalMutation({
         threadsTargeted: targetedCount,
         ragDocumentsRemoved: args.ragDocumentsRemoved,
         documentsErased: args.documentsErased ?? 0,
-        documentsSkippedByHold: skippedByHold,
+        documentsSkippedByHold,
+        totalSkippedByHold,
+        perCategory: perCategory ?? null,
         finalStatus: status,
       },
     });
@@ -412,72 +492,128 @@ export const eraseSubjectDocuments = internalMutation({
  * admin-side delete-user flow to also wipe sessions in flight. A
  * follow-up wires that through `authComponent`.
  */
+/**
+ * Per-mutation hold guard for the 10 subject-scope erasers (round-2 v09 H4).
+ * `requestErasure` already refuses to schedule when the org is held, but a
+ * hold placed AFTER scheduling and BEFORE the per-table mutation runs must
+ * still win. Each eraser re-reads holds at the top of its own transaction
+ * and skips when the org is held. The helper iterates the same row set
+ * twice (once to count what would have been skipped, once when it would
+ * have deleted) only on the rare race-window path; the common path takes
+ * one extra `loadActiveHolds` read.
+ */
+async function countOrSkip<T>(
+  ctx: import('../_generated/server').MutationCtx,
+  organizationId: string,
+  iter: () => AsyncIterable<T>,
+): Promise<{ orgHeld: boolean; skippedByHold: number }> {
+  const holds = await loadActiveHolds(ctx, organizationId);
+  if (!holds.orgHeld) return { orgHeld: false, skippedByHold: 0 };
+  let skippedByHold = 0;
+  for await (const _ of iter()) skippedByHold++;
+  return { orgHeld: true, skippedByHold };
+}
+
 export const eraseSubjectUserMemories = internalMutation({
   args: { organizationId: v.string(), userId: v.string() },
-  returns: v.number(),
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
   handler: async (ctx, args) => {
-    let count = 0;
-    for await (const row of ctx.db
-      .query('userMemories')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
+    const iter = () =>
+      ctx.db
+        .query('userMemories')
+        .withIndex('by_organizationId', (q) =>
+          q.eq('organizationId', args.organizationId),
+        );
+    const guard = await countOrSkip(ctx, args.organizationId, () =>
+      (async function* () {
+        for await (const row of iter()) {
+          if (row.userId === args.userId) yield row;
+        }
+      })(),
+    );
+    if (guard.orgHeld) return { rows: 0, skippedByHold: guard.skippedByHold };
+    let rows = 0;
+    for await (const row of iter()) {
       if (row.userId !== args.userId) continue;
       await ctx.db.delete(row._id);
-      count++;
+      rows++;
     }
-    return count;
+    return { rows, skippedByHold: 0 };
   },
 });
 
 export const eraseSubjectUserPreferences = internalMutation({
   args: { organizationId: v.string(), userId: v.string() },
-  returns: v.number(),
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
   handler: async (ctx, args) => {
-    let count = 0;
-    for await (const row of ctx.db
-      .query('userPreferences')
-      .withIndex('by_userId_organizationId', (q) =>
-        q.eq('userId', args.userId).eq('organizationId', args.organizationId),
-      )) {
+    const iter = () =>
+      ctx.db
+        .query('userPreferences')
+        .withIndex('by_userId_organizationId', (q) =>
+          q.eq('userId', args.userId).eq('organizationId', args.organizationId),
+        );
+    const guard = await countOrSkip(ctx, args.organizationId, iter);
+    if (guard.orgHeld) return { rows: 0, skippedByHold: guard.skippedByHold };
+    let rows = 0;
+    for await (const row of iter()) {
       await ctx.db.delete(row._id);
-      count++;
+      rows++;
     }
-    return count;
+    return { rows, skippedByHold: 0 };
   },
 });
 
 export const eraseSubjectMessageFeedback = internalMutation({
   args: { organizationId: v.string(), userId: v.string() },
-  returns: v.number(),
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
   handler: async (ctx, args) => {
-    let count = 0;
-    for await (const row of ctx.db
-      .query('messageFeedback')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
+    const iter = () =>
+      ctx.db
+        .query('messageFeedback')
+        .withIndex('by_organizationId', (q) =>
+          q.eq('organizationId', args.organizationId),
+        );
+    const guard = await countOrSkip(ctx, args.organizationId, () =>
+      (async function* () {
+        for await (const row of iter()) {
+          if (row.userId === args.userId) yield row;
+        }
+      })(),
+    );
+    if (guard.orgHeld) return { rows: 0, skippedByHold: guard.skippedByHold };
+    let rows = 0;
+    for await (const row of iter()) {
       if (row.userId !== args.userId) continue;
       await ctx.db.delete(row._id);
-      count++;
+      rows++;
     }
-    return count;
+    return { rows, skippedByHold: 0 };
   },
 });
 
 export const eraseSubjectFileMetadata = internalMutation({
   args: { organizationId: v.string(), userId: v.string() },
-  returns: v.object({ rows: v.number(), blobs: v.number() }),
+  returns: v.object({
+    rows: v.number(),
+    blobs: v.number(),
+    skippedByHold: v.number(),
+  }),
   handler: async (ctx, args) => {
+    const iter = () =>
+      ctx.db
+        .query('fileMetadata')
+        .withIndex('by_org_user', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('uploadedBy', args.userId),
+        );
+    const guard = await countOrSkip(ctx, args.organizationId, iter);
+    if (guard.orgHeld) {
+      return { rows: 0, blobs: 0, skippedByHold: guard.skippedByHold };
+    }
     let rows = 0;
     let blobs = 0;
-    for await (const meta of ctx.db
-      .query('fileMetadata')
-      .withIndex('by_org_user', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('uploadedBy', args.userId),
-      )) {
+    for await (const meta of iter()) {
       // Delete the underlying _storage blob first; row delete after.
       try {
         await ctx.storage.delete(meta.storageId);
@@ -491,72 +627,97 @@ export const eraseSubjectFileMetadata = internalMutation({
       await ctx.db.delete(meta._id);
       rows++;
     }
-    return { rows, blobs };
+    return { rows, blobs, skippedByHold: 0 };
   },
 });
 
 export const eraseSubjectUsageLedger = internalMutation({
   args: { organizationId: v.string(), userId: v.string() },
-  returns: v.number(),
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
   handler: async (ctx, args) => {
-    let count = 0;
-    for await (const row of ctx.db
-      .query('usageLedger')
-      .withIndex('by_org_user_period', (q) =>
-        q.eq('organizationId', args.organizationId).eq('userId', args.userId),
-      )) {
+    const iter = () =>
+      ctx.db
+        .query('usageLedger')
+        .withIndex('by_org_user_period', (q) =>
+          q.eq('organizationId', args.organizationId).eq('userId', args.userId),
+        );
+    const guard = await countOrSkip(ctx, args.organizationId, iter);
+    if (guard.orgHeld) return { rows: 0, skippedByHold: guard.skippedByHold };
+    let rows = 0;
+    for await (const row of iter()) {
       await ctx.db.delete(row._id);
-      count++;
+      rows++;
     }
-    return count;
+    return { rows, skippedByHold: 0 };
   },
 });
 
 export const eraseSubjectTwoFactorAttempts = internalMutation({
-  args: { userId: v.string() },
-  returns: v.number(),
+  // Table is keyed by userId (no organizationId column), but the GDPR
+  // request itself is org-scoped — pass orgId so the hold guard can fire
+  // when this org placed a hold mid-flight (round-2 v09 H4).
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
   handler: async (ctx, args) => {
-    let count = 0;
-    for await (const row of ctx.db
-      .query('twoFactorAttempts')
-      .withIndex('by_userId', (q) => q.eq('userId', args.userId))) {
+    const iter = () =>
+      ctx.db
+        .query('twoFactorAttempts')
+        .withIndex('by_userId', (q) => q.eq('userId', args.userId));
+    const guard = await countOrSkip(ctx, args.organizationId, iter);
+    if (guard.orgHeld) return { rows: 0, skippedByHold: guard.skippedByHold };
+    let rows = 0;
+    for await (const row of iter()) {
       await ctx.db.delete(row._id);
-      count++;
+      rows++;
     }
-    return count;
+    return { rows, skippedByHold: 0 };
   },
 });
 
 export const eraseSubjectPolicyAcknowledgements = internalMutation({
   args: { organizationId: v.string(), userId: v.string() },
-  returns: v.number(),
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
   handler: async (ctx, args) => {
-    let count = 0;
-    for await (const row of ctx.db
-      .query('policyAcknowledgements')
-      .withIndex('by_user_org_policy', (q) =>
-        q.eq('userId', args.userId).eq('organizationId', args.organizationId),
-      )) {
+    const iter = () =>
+      ctx.db
+        .query('policyAcknowledgements')
+        .withIndex('by_user_org_policy', (q) =>
+          q.eq('userId', args.userId).eq('organizationId', args.organizationId),
+        );
+    const guard = await countOrSkip(ctx, args.organizationId, iter);
+    if (guard.orgHeld) return { rows: 0, skippedByHold: guard.skippedByHold };
+    let rows = 0;
+    for await (const row of iter()) {
       await ctx.db.delete(row._id);
-      count++;
+      rows++;
     }
-    return count;
+    return { rows, skippedByHold: 0 };
   },
 });
 
 export const eraseSubjectOnedrive = internalMutation({
   args: { organizationId: v.string(), userId: v.string() },
-  returns: v.number(),
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
   handler: async (ctx, args) => {
-    let count = 0;
-    for await (const row of ctx.db
-      .query('onedriveSyncConfigs')
-      .withIndex('by_userId', (q) => q.eq('userId', args.userId))) {
+    const iter = () =>
+      ctx.db
+        .query('onedriveSyncConfigs')
+        .withIndex('by_userId', (q) => q.eq('userId', args.userId));
+    const guard = await countOrSkip(ctx, args.organizationId, () =>
+      (async function* () {
+        for await (const row of iter()) {
+          if (row.organizationId === args.organizationId) yield row;
+        }
+      })(),
+    );
+    if (guard.orgHeld) return { rows: 0, skippedByHold: guard.skippedByHold };
+    let rows = 0;
+    for await (const row of iter()) {
       if (row.organizationId !== args.organizationId) continue;
       await ctx.db.delete(row._id);
-      count++;
+      rows++;
     }
-    return count;
+    return { rows, skippedByHold: 0 };
   },
 });
 
@@ -582,25 +743,43 @@ export const lookupSubjectEmail = internalMutation({
 });
 
 export const eraseSubjectLoginAttempts = internalMutation({
-  args: { email: v.string() },
-  returns: v.object({ attempts: v.number(), blockCounters: v.number() }),
+  // Tables are email-keyed and global, but the GDPR request is org-scoped.
+  // Re-read holds for the requesting org so a mid-flight hold blocks this
+  // erasure too (round-2 v09 H4).
+  args: { organizationId: v.string(), email: v.string() },
+  returns: v.object({
+    attempts: v.number(),
+    blockCounters: v.number(),
+    skippedByHold: v.number(),
+  }),
   handler: async (ctx, args) => {
     const lower = args.email.toLowerCase();
+    const attemptsIter = () =>
+      ctx.db
+        .query('loginAttempts')
+        .withIndex('by_email', (q) => q.eq('email', lower));
+    const blockIter = () =>
+      ctx.db
+        .query('loginBlockCounters')
+        .withIndex('by_email_window', (q) => q.eq('email', lower));
+    const holds = await loadActiveHolds(ctx, args.organizationId);
+    if (holds.orgHeld) {
+      let skippedByHold = 0;
+      for await (const _ of attemptsIter()) skippedByHold++;
+      for await (const _ of blockIter()) skippedByHold++;
+      return { attempts: 0, blockCounters: 0, skippedByHold };
+    }
     let attempts = 0;
-    for await (const row of ctx.db
-      .query('loginAttempts')
-      .withIndex('by_email', (q) => q.eq('email', lower))) {
+    for await (const row of attemptsIter()) {
       await ctx.db.delete(row._id);
       attempts++;
     }
     let blockCounters = 0;
-    for await (const row of ctx.db
-      .query('loginBlockCounters')
-      .withIndex('by_email_window', (q) => q.eq('email', lower))) {
+    for await (const row of blockIter()) {
       await ctx.db.delete(row._id);
       blockCounters++;
     }
-    return { attempts, blockCounters };
+    return { attempts, blockCounters, skippedByHold: 0 };
   },
 });
 
@@ -627,6 +806,24 @@ export const processErasureRequest = internalAction({
     let ragDocumentsRemoved = 0;
     let documentsErased = 0;
     let documentsSkippedByHold = 0;
+    // Per-category counters captured from each `eraseSubject*` mutation so
+    // the receipt + audit log accurately reflect what was erased and what
+    // was skipped by a mid-flight legal hold (round-2 v05 B6 part 2).
+    const perCategory: PerCategoryCounts = {
+      userMemories: { rows: 0, skippedByHold: 0 },
+      userPreferences: { rows: 0, skippedByHold: 0 },
+      messageFeedback: { rows: 0, skippedByHold: 0 },
+      fileMetadata: { rows: 0, blobs: 0, skippedByHold: 0 },
+      usageLedger: { rows: 0, skippedByHold: 0 },
+      twoFactorAttempts: { rows: 0, skippedByHold: 0 },
+      policyAcknowledgements: { rows: 0, skippedByHold: 0 },
+      onedrive: { rows: 0, skippedByHold: 0 },
+      loginAttempts: {
+        attempts: 0,
+        blockCounters: 0,
+        skippedByHold: 0,
+      },
+    };
     let errorMessage: string | undefined;
 
     try {
@@ -647,7 +844,29 @@ export const processErasureRequest = internalAction({
             break;
           }
         }
-        if (cascadeDone) threadsErased += 1;
+        if (cascadeDone) {
+          threadsErased += 1;
+        } else {
+          // Hit the page-attempts ceiling without finishing the
+          // cascade. Surface a `failure` audit row so the operator
+          // dashboard sees the stuck thread instead of a silent
+          // partial result (round-2 / M12).
+          await ctx.runMutation(
+            internal.audit_logs.internal_mutations.createAuditLog,
+            {
+              organizationId: state.organizationId,
+              actorId: 'system',
+              actorType: 'system',
+              action: 'gdpr_erasure.cascade_attempts_exhausted',
+              category: 'admin',
+              resourceType: 'thread',
+              resourceId: threadId,
+              status: 'failure',
+              errorMessage: `cascade did not complete in ${MAX_CASCADE_ATTEMPTS_PER_THREAD} attempts`,
+              metadata: { requestId: args.requestId, threadId },
+            },
+          );
+        }
       }
 
       // Erase the subject's `documents` rows AND collect the fileIds in
@@ -691,56 +910,62 @@ export const processErasureRequest = internalAction({
       // exists on indexed lookups), so a re-tried processor run after a
       // partial earlier run is safe. Counts surface in the audit log of
       // finalizeProcessing for the receipt.
-      await ctx.runMutation(
+      perCategory.userMemories = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectUserMemories,
         {
           organizationId: state.organizationId,
           userId: state.targetUserId,
         },
       );
-      await ctx.runMutation(
+      perCategory.userPreferences = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectUserPreferences,
         {
           organizationId: state.organizationId,
           userId: state.targetUserId,
         },
       );
-      await ctx.runMutation(
+      perCategory.messageFeedback = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectMessageFeedback,
         {
           organizationId: state.organizationId,
           userId: state.targetUserId,
         },
       );
-      await ctx.runMutation(
+      perCategory.fileMetadata = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectFileMetadata,
         {
           organizationId: state.organizationId,
           userId: state.targetUserId,
         },
       );
-      await ctx.runMutation(
+      perCategory.usageLedger = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectUsageLedger,
         {
           organizationId: state.organizationId,
           userId: state.targetUserId,
         },
       );
-      await ctx.runMutation(
+      perCategory.twoFactorAttempts = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectTwoFactorAttempts,
-        { userId: state.targetUserId },
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
       );
-      await ctx.runMutation(
+      perCategory.policyAcknowledgements = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectPolicyAcknowledgements,
         {
           organizationId: state.organizationId,
           userId: state.targetUserId,
         },
       );
-      await ctx.runMutation(internal.governance.erasure.eraseSubjectOnedrive, {
-        organizationId: state.organizationId,
-        userId: state.targetUserId,
-      });
+      perCategory.onedrive = await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectOnedrive,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
 
       // loginAttempts / loginBlockCounters are email-keyed (not
       // userId-keyed). Look up the email via BetterAuth before the
@@ -750,9 +975,12 @@ export const processErasureRequest = internalAction({
         { userId: state.targetUserId },
       );
       if (subjectEmail) {
-        await ctx.runMutation(
+        perCategory.loginAttempts = await ctx.runMutation(
           internal.governance.erasure.eraseSubjectLoginAttempts,
-          { email: subjectEmail },
+          {
+            organizationId: state.organizationId,
+            email: subjectEmail,
+          },
         );
       }
 
@@ -781,8 +1009,36 @@ export const processErasureRequest = internalAction({
       ragDocumentsRemoved,
       documentsErased,
       documentsSkippedByHold,
+      perCategory,
       errorMessage,
     });
     return null;
   },
 });
+
+interface RowsAndHold {
+  rows: number;
+  skippedByHold: number;
+}
+
+interface FileMetadataCounts extends RowsAndHold {
+  blobs: number;
+}
+
+interface LoginAttemptsCounts {
+  attempts: number;
+  blockCounters: number;
+  skippedByHold: number;
+}
+
+interface PerCategoryCounts {
+  userMemories: RowsAndHold;
+  userPreferences: RowsAndHold;
+  messageFeedback: RowsAndHold;
+  fileMetadata: FileMetadataCounts;
+  usageLedger: RowsAndHold;
+  twoFactorAttempts: RowsAndHold;
+  policyAcknowledgements: RowsAndHold;
+  onedrive: RowsAndHold;
+  loginAttempts: LoginAttemptsCounts;
+}

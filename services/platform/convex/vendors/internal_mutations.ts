@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import type { ConvexJsonValue } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
+import { assertNotHeld } from '../governance/legal_hold_guard';
 import { jsonRecordValidator } from '../lib/validators/json';
 import {
   vendorSourceValidator,
@@ -150,6 +151,13 @@ export const deleteVendor = internalMutation({
     if (!vendor) {
       throw new Error('Vendor not found');
     }
+
+    await assertNotHeld(
+      ctx,
+      vendor.organizationId,
+      'vendor',
+      String(args.vendorId),
+    );
 
     await ctx.db.delete(args.vendorId);
     return null;

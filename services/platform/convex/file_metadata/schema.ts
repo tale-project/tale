@@ -71,4 +71,11 @@ export const fileMetadataTable = defineTable({
     'documentId',
   ])
   .index('by_org_user', ['organizationId', 'uploadedBy'])
-  .index('by_org_contentHash', ['organizationId', 'contentHash']);
+  .index('by_org_contentHash', ['organizationId', 'contentHash'])
+  // Watchdog sweep: the `recoverStuckTranscriptions` cron runs every 5
+  // minutes and only cares about rows whose `transcriptionStatus` is
+  // `'running'`. The vast majority of rows are `'completed'` /
+  // `'skipped'` / unset and an unindexed scan was paying for those on
+  // every tick (round-2 M2). Indexing on the status field plus
+  // `_creationTime` lets the cron iterate the tiny live set directly.
+  .index('by_transcriptionStatus', ['transcriptionStatus']);

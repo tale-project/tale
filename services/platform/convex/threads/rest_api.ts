@@ -116,7 +116,12 @@ export const patchThread = withRestAuth('rest:api', async (rc, request) => {
 
   await rc.ctx.runMutation(
     internal.threads.internal_mutations.updateChatThreadInternal,
-    { threadId: id, title: body.title },
+    {
+      threadId: id,
+      title: body.title,
+      callerUserId: rc.user.userId,
+      callerOrgId: rc.org.organizationId,
+    },
   );
 
   return jsonNoContent();
@@ -132,7 +137,11 @@ export const deleteThread = withRestAuth('rest:api', async (rc, request) => {
 
   await rc.ctx.runMutation(
     internal.threads.internal_mutations.deleteChatThreadInternal,
-    { threadId: id },
+    {
+      threadId: id,
+      callerUserId: rc.user.userId,
+      callerOrgId: rc.org.organizationId,
+    },
   );
 
   return jsonNoContent();
@@ -151,7 +160,11 @@ export const threadPostActions = withRestAuth(
     if (subPath === 'archive') {
       await rc.ctx.runMutation(
         internal.threads.internal_mutations.archiveChatThreadInternal,
-        { threadId: id },
+        {
+          threadId: id,
+          callerUserId: rc.user.userId,
+          callerOrgId: rc.org.organizationId,
+        },
       );
       return jsonOk({ status: 'archived' });
     }
@@ -159,7 +172,11 @@ export const threadPostActions = withRestAuth(
     if (subPath === 'unarchive') {
       await rc.ctx.runMutation(
         internal.threads.internal_mutations.unarchiveChatThreadInternal,
-        { threadId: id },
+        {
+          threadId: id,
+          callerUserId: rc.user.userId,
+          callerOrgId: rc.org.organizationId,
+        },
       );
       return jsonOk({ status: 'active' });
     }

@@ -41,6 +41,17 @@ import { parseSubThreadIds } from './delete_chat_thread';
 const PAGE_SIZE = 200;
 
 /**
+ * Hard ceiling on cascade recursion depth. Sub-thread links are stored as
+ * free-form JSON inside `thread.summary` (round-2 v12 H6); a malformed
+ * summary that reaches itself, or a deeply-nested legitimate tree,
+ * could otherwise blow the Convex per-mutation write/scan budget or
+ * loop forever. 32 is well above any realistic agent-driven nesting
+ * (researcher subagent fan-out tops out at 4-5) but small enough that
+ * a malicious row throws fast.
+ */
+const MAX_CASCADE_DEPTH = 32;
+
+/**
  * Delete every descendant of `threadId` belonging to `organizationId`,
  * then the agent-component thread, then the threadMetadata row itself.
  *
@@ -75,10 +86,46 @@ export async function cascadeDeleteThreadChildren(
      * only authoritative gate.
      */
     holds?: ActiveHolds;
+    /**
+     * Recursion guard state, threaded through sub-thread recursion.
+     * `visited` blocks summary-reference cycles (A→B→A) and
+     * `depth` enforces `MAX_CASCADE_DEPTH`. The top-level caller
+     * leaves these undefined; recursive calls pass them through.
+     */
+    visited?: Set<string>;
+    depth?: number;
   },
 ): Promise<{ done: boolean; remaining: number }> {
   const { threadId, organizationId } = args;
   const remaining = 0;
+  const depth = args.depth ?? 0;
+  if (depth >= MAX_CASCADE_DEPTH) {
+    if (organizationId !== undefined) {
+      await createAuditLog(ctx, {
+        organizationId,
+        actorId: 'system',
+        actorType: 'system',
+        action: 'chat_thread.cascade_depth_exceeded',
+        category: 'data',
+        resourceType: 'thread',
+        resourceId: threadId,
+        resourceName: threadId,
+        status: 'failure',
+        errorMessage: `Cascade depth ${depth} >= ${MAX_CASCADE_DEPTH}`,
+        metadata: { depth, maxDepth: MAX_CASCADE_DEPTH },
+      });
+    } else {
+      console.warn(
+        `[cascadeDeleteThreadChildren] depth ${depth} >= ${MAX_CASCADE_DEPTH} for thread ${threadId} — aborting recursion`,
+      );
+    }
+    return { done: true, remaining: 0 };
+  }
+  const visited = args.visited ?? new Set<string>();
+  if (visited.has(threadId)) {
+    return { done: true, remaining: 0 };
+  }
+  visited.add(threadId);
 
   // Authoritative legal-hold check at cascade time. Re-reads even if the
   // caller passed a snapshot (the snapshot can be stale; a hold placed
@@ -292,6 +339,8 @@ export async function cascadeDeleteThreadChildren(
       threadId: subId,
       organizationId,
       holds: args.holds,
+      visited,
+      depth: depth + 1,
     });
   }
 

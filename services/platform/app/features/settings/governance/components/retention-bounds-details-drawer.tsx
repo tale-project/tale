@@ -106,8 +106,13 @@ export function RetentionBoundsDetailsDrawer({
               )}
             </Text>
             <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-4 text-xs">
+              {/*
+               * Key on `${category}.${field}` so a future server payload
+               * carrying both min and max impacts for the same category
+               * doesn't collide on `category` alone (round-2 / M10).
+               */}
               {impactPreview.map((i) => (
-                <li key={i.category}>
+                <li key={`${i.category}.${i.field}`}>
                   {t(
                     'retentionPolicy.boundsProposal.impactRow',
                     '{category}: {current} will clamp to {clamped}',

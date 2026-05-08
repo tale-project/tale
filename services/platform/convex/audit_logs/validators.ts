@@ -50,6 +50,12 @@ export const auditLogItemValidator = v.object({
 
   integrityHash: v.optional(v.string()),
   previousHash: v.optional(v.string()),
+  chainSuccessor: v.optional(v.id('auditLogs')),
+  piiScrubbed: v.optional(v.boolean()),
+  piiScrubbedAt: v.optional(v.number()),
+
+  actorEmailHash: v.optional(v.string()),
+  actorIpHash: v.optional(v.string()),
 });
 
 export const auditLogFilterValidator = v.object({

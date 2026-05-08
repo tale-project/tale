@@ -94,6 +94,8 @@ export const createAuditLog = internalMutation({
     ipAddress: v.optional(v.string()),
     userAgent: v.optional(v.string()),
     requestId: v.optional(v.string()),
+    actorEmailHash: v.optional(v.string()),
+    actorIpHash: v.optional(v.string()),
     status: auditLogStatusValidator,
     errorMessage: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
@@ -182,16 +184,25 @@ export const deleteOldLogs = internalMutation({
       }
     }
 
+    const hasMore = deletedCount >= batchSize;
+
     if (deletedCount > 0) {
-      // Look up the first retained row's previousHash so verifiers can
-      // re-anchor the chain at this checkpoint.
-      const firstRetained = await ctx.db
-        .query('auditLogs')
-        .withIndex('by_organizationId_and_timestamp', (q) =>
-          q.eq('organizationId', args.organizationId),
-        )
-        .order('asc')
-        .first();
+      // `firstRetainedPreviousHash` is signed and stored ONLY on the
+      // terminal batch. Mid-sweep batches have a "first retained" row
+      // that the next batch will itself delete, so signing a pointer to
+      // it would attest to an already-deleted anchor. The verifier
+      // re-anchors via `lastDeletedHash` (correct in every batch); the
+      // forward pointer is a defense-in-depth nicety reserved for the
+      // final batch where it is actually durable (round-2 v01 H1).
+      const firstRetained = hasMore
+        ? null
+        : await ctx.db
+            .query('auditLogs')
+            .withIndex('by_organizationId_and_timestamp', (q) =>
+              q.eq('organizationId', args.organizationId),
+            )
+            .order('asc')
+            .first();
 
       // Phase 9 — deploy-key signature. The signing key lives in
       // `TALE_AUDIT_SIGNING_KEY` (operator-set, ideally rotated via
@@ -239,7 +250,7 @@ export const deleteOldLogs = internalMutation({
 
     return {
       deletedCount,
-      hasMore: deletedCount >= batchSize,
+      hasMore,
     };
   },
 });

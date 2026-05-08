@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
@@ -6,6 +6,8 @@ import type { MutationCtx } from '../_generated/server';
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { teamIdsToFields } from '../documents/team_fields';
+import { type ActiveHolds, loadActiveHolds } from '../governance/legal_hold';
+import { assertNotHeld } from '../governance/legal_hold_guard';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
 import { getOrganizationMember } from '../lib/rls';
@@ -41,6 +43,45 @@ async function cascadeTeamToDescendants(
 
   for await (const doc of childDocs) {
     await ctx.db.patch(doc._id, fields);
+  }
+}
+
+/**
+ * Walk every descendant document of `folderId` and throw if any is on
+ * legal hold. Run BEFORE any cascade delete so the folder hierarchy
+ * isn't half-removed when a held doc is encountered partway through
+ * (round-2 v08 B4 — folder cascade fix).
+ */
+async function assertNoHeldDescendantDocs(
+  ctx: MutationCtx,
+  folderId: Id<'folders'>,
+  organizationId: string,
+  holds: ActiveHolds,
+): Promise<void> {
+  const childFolders = ctx.db
+    .query('folders')
+    .withIndex('by_org_parent_name', (q) =>
+      q.eq('organizationId', organizationId).eq('parentId', folderId),
+    );
+  for await (const child of childFolders) {
+    await assertNoHeldDescendantDocs(ctx, child._id, organizationId, holds);
+  }
+  const childDocs = ctx.db
+    .query('documents')
+    .withIndex('by_organizationId_and_folderId', (q) =>
+      q.eq('organizationId', organizationId).eq('folderId', folderId),
+    );
+  for await (const doc of childDocs) {
+    if (holds.documentIds.has(String(doc._id))) {
+      throw new ConvexError({
+        code: 'LEGAL_HOLD_ACTIVE',
+        message:
+          'A document inside this folder is under an active legal hold. Release the hold before deleting the folder.',
+        targetType: 'document',
+        targetId: String(doc._id),
+        orgHeld: false,
+      });
+    }
   }
 }
 
@@ -282,6 +323,25 @@ export const deleteFolder = mutation({
         throw new Error('Access denied');
       }
     }
+
+    // Hold gate: refuse the whole cascade up-front. Org-level holds throw
+    // immediately; per-document holds throw after a synchronous descendant
+    // walk (round-2 v08 B4). The pre-walk avoids the half-deleted state
+    // where an async RAG-cleanup throws on a held doc but the parent
+    // folder is already gone.
+    await assertNotHeld(
+      ctx,
+      folder.organizationId,
+      'folder',
+      String(args.folderId),
+    );
+    const holds = await loadActiveHolds(ctx, folder.organizationId);
+    await assertNoHeldDescendantDocs(
+      ctx,
+      args.folderId,
+      folder.organizationId,
+      holds,
+    );
 
     await deleteFolderContents(ctx, args.folderId, folder.organizationId);
     await ctx.db.delete(args.folderId);

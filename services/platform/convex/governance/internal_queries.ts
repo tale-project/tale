@@ -286,7 +286,14 @@ export const listGraceExpiredThreads = internalQuery({
       )) {
       const status = thread.status ?? 'active';
       if (status !== 'trashed' && status !== 'expired') continue;
-      const ts = thread.statusChangedAt ?? thread._creationTime;
+      // Legacy rows trashed before `statusChangedAt` was added must NOT
+      // hard-delete on the first sweep that observes them. Falling back
+      // to `_creationTime` would treat a row trashed yesterday but
+      // created last year as already aged out. Falling back to `now()`
+      // keeps legacy rows in the grace window indefinitely (the next
+      // explicit trash-or-restore stamps a real timestamp). Safer than
+      // a one-shot backfill (round-2 v15 H8 part 2).
+      const ts = thread.statusChangedAt ?? Date.now();
       if (ts >= args.graceCutoffMs) continue;
 
       threads.push(thread);
@@ -422,9 +429,10 @@ export const listExpiredMessageFeedback = internalQuery({
     for await (const row of ctx.db
       .query('messageFeedback')
       .withIndex('by_org_createdAt', (q) =>
-        q.eq('organizationId', args.organizationId),
+        q
+          .eq('organizationId', args.organizationId)
+          .lt('createdAt', args.cutoffMs),
       )) {
-      if (row._creationTime >= args.cutoffMs) continue;
       rows.push(row);
       if (rows.length >= args.batchSize) break;
     }
@@ -443,8 +451,11 @@ export const listExpiredTwoFactorAttempts = internalQuery({
   returns: v.any(),
   handler: async (ctx, args) => {
     const rows = [];
-    for await (const row of ctx.db.query('twoFactorAttempts')) {
-      if (row.lastFailureAt >= args.cutoffMs) continue;
+    for await (const row of ctx.db
+      .query('twoFactorAttempts')
+      .withIndex('by_lastFailureAt', (q) =>
+        q.lt('lastFailureAt', args.cutoffMs),
+      )) {
       // Skip rows still in active lockout — clearing them would let
       // an attacker bypass the lockout window.
       if (row.lockedUntil !== null && row.lockedUntil > Date.now()) continue;
@@ -508,12 +519,16 @@ export const listExpiredExternalConversations = internalQuery({
   returns: v.any(),
   handler: async (ctx, args) => {
     const rows = [];
+    // `lastMessageAt` is optional; rows that never received a message
+    // won't match the index range and are intentionally not eligible
+    // for retention deletion (no activity timestamp to age against).
     for await (const row of ctx.db
       .query('conversations')
       .withIndex('by_org_lastMessageAt', (q) =>
-        q.eq('organizationId', args.organizationId),
+        q
+          .eq('organizationId', args.organizationId)
+          .lt('lastMessageAt', args.cutoffMs),
       )) {
-      if (row._creationTime >= args.cutoffMs) continue;
       rows.push(row);
       if (rows.length >= args.batchSize) break;
     }
@@ -574,9 +589,10 @@ export const listExpiredMemoryAuditRows = internalQuery({
     for await (const row of ctx.db
       .query('userMemoryAuditLog')
       .withIndex('by_org_at', (q) =>
-        q.eq('organizationId', args.organizationId),
+        q
+          .eq('organizationId', args.organizationId)
+          .lt('createdAt', args.cutoffMs),
       )) {
-      if (row._creationTime >= args.cutoffMs) continue;
       rows.push(row);
       if (rows.length >= args.batchSize) break;
     }
@@ -596,9 +612,10 @@ export const listExpiredChatFilterEvents = internalQuery({
     for await (const row of ctx.db
       .query('chatFilterEvents')
       .withIndex('by_org_createdAt', (q) =>
-        q.eq('organizationId', args.organizationId),
+        q
+          .eq('organizationId', args.organizationId)
+          .lt('createdAt', args.cutoffMs),
       )) {
-      if (row._creationTime >= args.cutoffMs) continue;
       rows.push(row);
       if (rows.length >= args.batchSize) break;
     }
@@ -639,9 +656,11 @@ export const listExpiredLoginAttempts = internalQuery({
   returns: v.any(),
   handler: async (ctx, args) => {
     const attempts = [];
-    for await (const attempt of ctx.db.query('loginAttempts')) {
-      if (attempt.lastFailureAt >= args.cutoffMs) continue;
-
+    for await (const attempt of ctx.db
+      .query('loginAttempts')
+      .withIndex('by_lastFailureAt', (q) =>
+        q.lt('lastFailureAt', args.cutoffMs),
+      )) {
       attempts.push(attempt);
       if (attempts.length >= args.batchSize) {
         break;

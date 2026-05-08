@@ -166,6 +166,81 @@ export function isHeld(
 
 export { EMPTY_HOLDS as _EMPTY_HOLDS_FOR_TESTS };
 
+/**
+ * Resolve `targetId` against its underlying table and assert the row's
+ * `organizationId` matches the placer's org. Without this, an admin in
+ * org A can plant a `legalHolds` row pointing at an org B thread / doc;
+ * the row is inert (cleanup runs per-org so the hold never matches),
+ * but it shows as "active" in the UI and confuses forensics
+ * (round-2 v20 / M9).
+ *
+ * `userMembership` and `org` aren't validated here — `org` is enforced
+ * by `targetId === organizationId` upstream, and `userMembership`
+ * lookups go through Better Auth's adapter which the mutation doesn't
+ * already plumb. Best-effort follow-up.
+ */
+async function assertTargetBelongsToOrg(
+  ctx: MutationCtx,
+  targetType: (typeof HOLD_TARGET_TYPES)[number],
+  targetId: string,
+  organizationId: string,
+): Promise<void> {
+  if (targetType === 'org') {
+    if (targetId !== organizationId) {
+      throw new ConvexError({
+        code: 'TARGET_ORG_MISMATCH',
+        message: `org-scoped hold targetId must equal organizationId.`,
+      });
+    }
+    return;
+  }
+  if (targetType === 'thread') {
+    const meta = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', targetId))
+      .first();
+    if (!meta || meta.organizationId !== organizationId) {
+      throw new ConvexError({
+        code: 'TARGET_NOT_IN_ORG',
+        message: `thread ${targetId} does not belong to this organization.`,
+        targetType,
+        targetId,
+      });
+    }
+    return;
+  }
+  if (targetType === 'document') {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- targetId is a stringified _id; ctx.db.get returns null on mismatch
+    const doc = await ctx.db.get(targetId as Id<'documents'>);
+    if (!doc || doc.organizationId !== organizationId) {
+      throw new ConvexError({
+        code: 'TARGET_NOT_IN_ORG',
+        message: `document ${targetId} does not belong to this organization.`,
+        targetType,
+        targetId,
+      });
+    }
+    return;
+  }
+  if (targetType === 'execution') {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- targetId is a stringified _id; ctx.db.get returns null on mismatch
+    const exec = await ctx.db.get(targetId as Id<'wfExecutions'>);
+    if (!exec || exec.organizationId !== organizationId) {
+      throw new ConvexError({
+        code: 'TARGET_NOT_IN_ORG',
+        message: `execution ${targetId} does not belong to this organization.`,
+        targetType,
+        targetId,
+      });
+    }
+    return;
+  }
+  // `userMembership` falls through — Better Auth adapter lookup is a
+  // follow-up. The single-place flow already requires admin in the
+  // placing org, so the worst case is a row that never matches a
+  // cleanup gate.
+}
+
 export const placeLegalHold = mutation({
   args: {
     organizationId: v.string(),
@@ -189,6 +264,22 @@ export const placeLegalHold = mutation({
       email: authUser.email ?? '',
     });
     if (!isAdmin(member.role)) {
+      // Round-2 / M13: emit a `denied` audit row before throwing so
+      // attempted privilege escalations are visible to operators
+      // through the audit dashboard, not just inferred from a 4xx.
+      await createAuditLog(ctx, {
+        organizationId: args.organizationId,
+        actorId: callerId,
+        actorEmail: authUser.email ?? '',
+        actorType: 'user',
+        action: 'legal_hold_place_denied',
+        category: 'admin',
+        resourceType: args.targetType,
+        resourceId: args.targetId,
+        status: 'denied',
+        errorMessage: 'caller is not an org admin',
+        metadata: { role: member.role },
+      });
       throw new ConvexError({
         code: 'forbidden',
         message: 'Only org admins can place legal holds.',
@@ -253,6 +344,18 @@ export const placeLegalHold = mutation({
         args.organizationId,
       );
     }
+
+    // Cross-org gate: resolve `targetId` and verify it belongs to the
+    // placing org. Without this, an admin can plant a `legalHolds` row
+    // against an org B thread / doc — the row is inert against cleanup
+    // (which runs per-org) but shows as "active" in the placer's UI
+    // (round-2 v20 / M9).
+    await assertTargetBelongsToOrg(
+      ctx,
+      args.targetType,
+      args.targetId,
+      args.organizationId,
+    );
 
     const now = Date.now();
     const holdId = await ctx.db.insert('legalHolds', {
@@ -770,6 +873,24 @@ export const bulkPlaceLegalHold = mutation({
           });
           continue;
         }
+      }
+      try {
+        await assertTargetBelongsToOrg(
+          ctx,
+          h.targetType,
+          h.targetId,
+          args.organizationId,
+        );
+      } catch (err) {
+        skipped.push({
+          targetType: h.targetType,
+          targetId: h.targetId,
+          reason:
+            err instanceof ConvexError
+              ? `target not in this organization`
+              : 'target validation failed',
+        });
+        continue;
       }
       const holdId = await ctx.db.insert('legalHolds', {
         organizationId: args.organizationId,

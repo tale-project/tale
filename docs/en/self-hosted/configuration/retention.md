@@ -163,6 +163,14 @@ Closing a `legalMatter` via `closeLegalMatter` automatically files a pending rel
 
 The cleanup runner pre-fetches every active hold ONCE per run, so in-flight runs see a consistent snapshot. Holds placed mid-run protect the _next_ run; the brief window is acceptable per ISO 27050 since cleanup is daily.
 
+## Audit-chain PII protection
+
+The audit log is retained for years (default 730 days, floor 365). To keep that chain from carrying long-lived plaintext email addresses and IPs from unauthenticated user input (failed login attempts in particular), set `TALE_AUDIT_PEPPER` to a unique secret of at least 16 characters. New audit rows then store an HMAC-SHA256 hash of the email and a coarse network prefix of the IP (`/24` for v4, `/64` for v6) in dedicated `actorEmailHash` / `actorIpHash` columns; the plaintext columns stay empty. Existing rows are not rewritten — rotation invalidates correlation across the boundary, which is the operator's intent.
+
+When `TALE_AUDIT_PEPPER` is unset or shorter than 16 chars, audit writers fall back to plaintext and log a one-shot `[SECURITY]` warning to stderr at first call. Set the variable in production before exposing the deployment to real users.
+
+`TALE_AUDIT_SIGNING_KEY` (separate from the pepper) signs `auditLogCheckpoints` rows so the integrity verifier can distinguish a deliberate retention/PII-scrub boundary from tampering. Without a signing key, the chain is still tamper-evident through the SHA-256 chain itself; the signature is defense-in-depth against an attacker who can both delete rows and forge a fresh checkpoint.
+
 ## GDPR Art 17 erasure
 
 For verified subject erasure requests, an admin can call `requestErasure(organizationId, userId, reason)` to immediately cascade-delete every thread the named user owns in that org. This BYPASSES the retention grace window and the cooldown-on-shortening (so erasure happens "without undue delay" per Art 17). Refused if any matching legal hold is active; the response lists held items for the admin's reference.

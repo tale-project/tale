@@ -324,13 +324,22 @@ export const verifyIntegrity = query({
       }
     }
 
-    // Anchor pick: the most recent checkpoint (highest createdAt) that
-    // matches the head's previousHash. `Array.find` would have picked
-    // the OLDEST match, allowing an attacker to delete mid-chain rows
-    // and re-anchor to a stale checkpoint. Sort once, descending.
-    const anchorCandidates = [...checkpoints].sort(
-      (a, b) => b.createdAt - a.createdAt,
-    );
+    // Anchor pick: the most recent retention checkpoint (highest
+    // createdAt) that matches the head's previousHash. Two scopings
+    // applied here:
+    //  1. Sort descending so the MOST recent match wins. `Array.find`
+    //     against unsorted input picks the OLDEST match, letting an
+    //     attacker delete mid-chain rows and re-anchor to a stale
+    //     checkpoint.
+    //  2. Filter to `subtype === 'retention'` only. `pii_scrub`
+    //     checkpoints don't delete rows; their `lastDeletedHash` /
+    //     `firstRetainedPreviousHash` fields aren't a deletion-boundary
+    //     anchor and matching one would let an attacker re-anchor a
+    //     forged head against an unrelated scrub checkpoint
+    //     (round-2 v02 H2 F1).
+    const anchorCandidates = checkpoints
+      .filter((cp) => cp.subtype === 'retention')
+      .sort((a, b) => b.createdAt - a.createdAt);
 
     for (const entry of entries) {
       if (!entry.integrityHash) {
@@ -359,25 +368,35 @@ export const verifyIntegrity = query({
       // has no signing key configured at all (legacy unsigned mode).
       const actorId = typeof entry.actorId === 'string' ? entry.actorId : null;
       let isScrubbed = false;
-      if (piiScrubbed === true || actorId !== null) {
-        if (piiScrubbed === true && actorId !== null) {
+      if (piiScrubbed === true) {
+        if (actorId !== null) {
           const windows = subjectScrubWindows.get(actorId);
           if (
             windows &&
             windows.some((w) => entry.timestamp <= w.maxTimestamp)
           ) {
             isScrubbed = true;
-          } else if (unsignedScrubSubjects.has(actorId)) {
-            isScrubbed = true;
-            unsignedScrubCount++;
           } else if (!hasSigningKey) {
-            // No signing key configured at all — accept the legacy
-            // unsigned scrub but surface in the count. Outer guard
-            // already enforces piiScrubbed === true.
+            // Legacy / unsigned-mode deployment: no signing key
+            // configured, so signed-checkpoint coverage is impossible
+            // and the bare `piiScrubbed` flag is the best signal we
+            // have. Surface the count so operators see the unsigned
+            // trust window. Round-2 v02 H2 F6: this branch was
+            // previously reachable even on signed deployments via the
+            // `unsignedScrubSubjects` set — a checkpoint downgrade
+            // attacker could plant an unsigned `pii_scrub` row to
+            // bypass recompute. Now strictly gated on `!hasSigningKey`.
             isScrubbed = true;
             unsignedScrubCount++;
+            // Best-effort: track that we accepted an unsigned subject
+            // for the operator-visible count, but do not require it
+            // for trust.
+            if (unsignedScrubSubjects.has(actorId)) {
+              // already counted above; no-op
+            }
           }
-        } else if (piiScrubbed === true && !hasSigningKey) {
+        } else if (!hasSigningKey) {
+          // No actorId on the row + legacy unsigned deployment.
           isScrubbed = true;
           unsignedScrubCount++;
         }
