@@ -31,6 +31,7 @@ export default defineConfig({
   ssr: {
     noExternal: [
       '@tale/ui',
+      '@tale/webui',
       '@tanstack/react-router',
       'framer-motion',
       'lucide-react',

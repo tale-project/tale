@@ -87,9 +87,20 @@ These are the feature names users see in the UI and read in the docs. Match the 
 
 ## Role names
 
-The six Tale roles stay in English to match the UI: **Owner**, **Admin**, **Developer**, **Editor**, **Member**, **Disabled**. Capitalize when naming the role.
+Translate role names to match the shipped DE UI labels (`services/platform/messages/de.json`):
 
-When the word is generic — someone on the team, not the capital-M Member role — translate it to **Mitglied** / **Mitglieder**. Example: _Die Mitglieder deines Teams nutzen den Chat_ vs. _Ein Member kann den Chat-Verlauf einsehen_.
+| English   | DE form         |
+| --------- | --------------- |
+| Owner     | **Inhaber**     |
+| Admin     | **Admin**       |
+| Developer | **Entwickler**  |
+| Editor    | **Redakteur**   |
+| Member    | **Mitglied**    |
+| Disabled  | **Deaktiviert** |
+
+Capitalize when naming the role (`ein Inhaber kann das Eigentum übertragen`); use lowercase when the word is purely generic and matches the everyday German noun (`die Mitglieder deines Teams`). The sense is identical to English — capitalize when you are naming the role, not when you are using the noun in its everyday meaning.
+
+The lint enforces these mappings for Owner, Developer, Member/Members, and Disabled. **Editor is not enforced by lint** because the same English word also appears as a UI loanword for the visual workflow editor and IDE editors (`Workflow-Editor`, `KI-Editor`, `Source-Editor`); translate the role-context occurrences to **Redakteur** by hand and leave the IDE/UI compounds in English.
 
 ## Style rules
 

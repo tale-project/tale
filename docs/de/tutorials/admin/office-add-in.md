@@ -20,7 +20,7 @@ Ein per Sideload installiertes AI-Chat-Panel in Word und Excel, das jede Anfrage
 
 ## Schritt 1 — Einen Tale-API-Schlüssel erstellen
 
-Navigiere zu **Einstellungen > API-Schlüssel** und klicke **Erstellen**. Benenne ihn nach Workstation oder Team (`office-agents-lab`), kopiere das `tale_...`-Token und halte es bereit. Siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles) — nur Admins und Owner dürfen API-Schlüssel anlegen.
+Navigiere zu **Einstellungen > API-Schlüssel** und klicke **Erstellen**. Benenne ihn nach Workstation oder Team (`office-agents-lab`), kopiere das `tale_...`-Token und halte es bereit. Siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles) — nur Admins und Inhaber dürfen API-Schlüssel anlegen.
 
 ## Schritt 2 — Office Agents lokal klonen und starten
 

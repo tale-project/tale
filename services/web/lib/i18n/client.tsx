@@ -1,9 +1,9 @@
+import { useT as useTBase } from '@tale/webui/i18n/client';
 import type { TFunction } from 'i18next';
-import { useTranslation } from 'react-i18next';
 
 import type { Namespace } from './types';
 
+/** Typed wrapper that constrains the namespace to the marketing message tree. */
 export function useT<N extends Namespace>(namespace: N): { t: TFunction } {
-  const { t } = useTranslation(namespace);
-  return { t };
+  return useTBase(namespace);
 }

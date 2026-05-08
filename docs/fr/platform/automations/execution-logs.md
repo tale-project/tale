@@ -40,4 +40,4 @@ Les exécutions sont conservées selon la [politique de rétention](/fr/platform
 
 ## Alertes
 
-Configure les alertes dans l’onglet Alertes du workflow pour notifier un admin par e-mail quand un workflow échoue, dure plus qu’un seuil ou produit une erreur qui matche un pattern. Pour des alertes cross-workflow (ex. "plus de 5 échecs par heure tous workflows confondus"), utilise [Opérations](/fr/self-hosted/operate/observability/operations).
+Configure les alertes dans l’onglet Alertes du workflow pour notifier un Admin par e-mail quand un workflow échoue, dure plus qu’un seuil ou produit une erreur qui matche un pattern. Pour des alertes cross-workflow (ex. "plus de 5 échecs par heure tous workflows confondus"), utilise [Opérations](/fr/self-hosted/operate/observability/operations).

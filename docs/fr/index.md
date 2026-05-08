@@ -16,11 +16,11 @@ Si tu connais déjà l’édition et cherches simplement la référence des fonc
 
 ## Choisis ton rôle
 
-Tale comprend six rôles — Owner, Admin, Developer, Editor, Member et Disabled — chacun avec un jeu de permissions distinct. La documentation par rôle vit dans [Platform](/fr/platform) et s’applique aux deux éditions :
+Tale comprend six rôles — Propriétaire, Admin, Développeur, Éditeur, Membre et Désactivé — chacun avec un jeu de permissions distinct. La documentation par rôle vit dans [Platform](/fr/platform) et s’applique aux deux éditions :
 
-- **[Member](/fr/platform/member/overview)** — utilisateur en lecture seule.
-- **[Editor](/fr/platform/editor/overview)** — gestion de contenu et décisions d’approbation.
-- **[Developer](/fr/platform/developer/overview)** — agents, automatisations, intégrations.
+- **[Membre](/fr/platform/member/overview)** — utilisateur en lecture seule.
+- **[Éditeur](/fr/platform/editor/overview)** — gestion de contenu et décisions d’approbation.
+- **[Développeur](/fr/platform/developer/overview)** — agents, automatisations, intégrations.
 - **[Admin](/fr/platform/admin/overview)** — paramètres d’organisation.
 
 Si tu intègres Tale à d’autres systèmes ou que tu contribues au code source, rends-toi dans **[Développer](/fr/develop/api-reference)** : tu y trouveras l’API REST, les webhooks, les modèles de SDK et les processus de contribution.
@@ -29,7 +29,7 @@ Si tu intègres Tale à d’autres systèmes ou que tu contribues au code source
 
 - **Tes données, ta région.** En Cloud, chaque tenant est rattaché à la Suisse ou à l’UE, avec la liste publique des sous-traitants. En Self-hosted, aucune donnée ne quitte ton réseau — pas même les prompts et le contenu des documents.
 - **Le modèle de ton choix.** OpenAI, Anthropic, Google, Mistral, Meta ou des modèles auto-hébergés via Ollama, vLLM ou LocalAI — interchangeables par agent, sans migration.
-- **Pensé pour les équipes.** Six rôles, du Member en lecture seule à l’Owner avec contrôle complet, organisés en équipes avec des connaissances et des accès cloisonnés.
+- **Pensé pour les équipes.** Six rôles, du Membre en lecture seule au Propriétaire avec contrôle complet, organisés en équipes avec des connaissances et des accès cloisonnés.
 - **Certifié.** ISO 27001 et SOC 2 Type II. Entreprise suisse, conforme RGPD par défaut.
 
 ## Support et communauté

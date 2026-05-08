@@ -5,7 +5,7 @@ description: Organise les membres en équipes et cadre la visibilité des connai
 
 Les équipes permettent de grouper les membres — Engineering, Sales, Support, Legal — et de contrôler quelles connaissances chaque groupe voit. Une équipe est un regroupement souple : elle n’affecte pas la connexion, les rôles ou les permissions. Elle _affecte_ les documents et conversations qui apparaissent dans les vues filtrées de chaque membre.
 
-La gestion des équipes est sous **Paramètres > Équipes** et réservée aux admins.
+La gestion des équipes est sous **Paramètres > Équipes** et réservée aux Admins.
 
 ## Créer une équipe
 
@@ -27,7 +27,7 @@ Les membres sont ajoutés séparément depuis la page de détail de l’équipe.
 
 ## Managers d’équipe
 
-Les équipes n’ont pas de rôles de manager formels — les permissions viennent du rôle au niveau de l’organisation (Admin, Developer, Editor, Member). Pour une administration déléguée au niveau équipe, utilise le rôle Editor et cadre son accès agents/connaissances à son équipe.
+Les équipes n’ont pas de rôles de manager formels — les permissions viennent du rôle au niveau de l’organisation (Admin, Développeur, Éditeur, Membre). Pour une administration déléguée au niveau équipe, utilise le rôle Éditeur et cadre son accès agents/connaissances à son équipe.
 
 ## Fournisseurs d’identité externes
 

@@ -5,7 +5,7 @@ description: Indicateurs d’utilisation et de performance de toutes les automat
 
 La page des métriques des workflows est une vue transverse de la façon dont tes automatisations tournent. Elle agrège chaque workflow de l’organisation en quatre KPI principaux, une courbe d’exécutions dans le temps, une répartition par statut et un tableau des workflows les plus actifs. Utilise-la pour repérer le workflow qui a commencé à échouer hier, celui dont le volume a été multiplié par dix après un changement de processus, ou la longue traîne d’automatisations dont personne ne se sert plus.
 
-La page se trouve dans **Automatisations > Métriques**. Elle est accessible aux rôles Admin et Developer, soit le même public qui peut éditer les automatisations.
+La page se trouve dans **Automatisations > Métriques**. Elle est accessible aux rôles Admin et Développeur, soit le même public qui peut éditer les automatisations.
 
 ## Ce qu’elle affiche
 

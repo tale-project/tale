@@ -3,7 +3,7 @@ title: Gouvernance
 description: Politiques IA à l’échelle de l’organisation, limites, contrôles de sécurité et audit logs.
 ---
 
-La gouvernance est l’endroit où les admins définissent les règles d’usage de l’IA dans l’organisation. Elle est organisée en trois groupes accessibles via la navigation de gauche sous **Paramètres > Gouvernance**, plus une page d’audit logs pour la conformité.
+La gouvernance est l’endroit où les Admins définissent les règles d’usage de l’IA dans l’organisation. Elle est organisée en trois groupes accessibles via la navigation de gauche sous **Paramètres > Gouvernance**, plus une page d’audit logs pour la conformité.
 
 ## Contenu et modèles
 

@@ -1,0 +1,113 @@
+{
+  "nav": {
+    "homeAriaLabel": "Accueil de la documentation Tale",
+    "openSearch": "Ouvrir la recherche",
+    "openMenu": "Ouvrir le menu de navigation",
+    "closeMenu": "Fermer le menu de navigation",
+    "searchPlaceholder": "Rechercher dans la documentation",
+    "groups": {
+      "start": "Commencer ici",
+      "cloud": "Cloud",
+      "selfHosted": "Auto-hébergé",
+      "install": "Installation",
+      "configuration": "Configuration",
+      "operate": "Exploitation",
+      "observability": "Observabilité",
+      "security": "Sécurité",
+      "releaseNotes": "Notes de version",
+      "authentication": "Authentification",
+      "platform": "Plateforme",
+      "chat": "Chat",
+      "workspace": "Espace de travail",
+      "agents": "Agents",
+      "automations": "Automatisations",
+      "knowledge": "Connaissances",
+      "integrations": "Intégrations",
+      "member": "Membre",
+      "editor": "Éditeur",
+      "developer": "Développeur",
+      "admin": "Administration",
+      "tutorials": "Tutoriels",
+      "develop": "Développement"
+    }
+  },
+  "search": {
+    "title": "Rechercher dans la documentation",
+    "placeholder": "Rechercher dans la documentation…",
+    "empty": "Commence à taper pour explorer la doc.",
+    "emptyHint": "Trouve des guides, des références et des concepts dans toutes les sections.",
+    "noResultsTitle": "Aucun résultat",
+    "noResultsHint": "Essaie d'autres mots-clés ou parcours la navigation.",
+    "loading": "Recherche en cours…",
+    "close": "Fermer la recherche",
+    "recent": "Recherches récentes",
+    "clearRecent": "Effacer",
+    "removeRecent": "Retirer des recherches récentes",
+    "tipsTitle": "Astuces",
+    "tipNavigate": "pour naviguer",
+    "tipSelect": "pour ouvrir",
+    "tipClose": "pour fermer",
+    "results": "{count, plural, =0 {aucun résultat} =1 {# résultat} other {# résultats}}"
+  },
+  "docs": {
+    "onThisPage": "Sur cette page",
+    "breadcrumbs": "Fil d'Ariane",
+    "home": "Accueil",
+    "editOnGithub": "Modifier sur GitHub",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "readingTime": "{minutes} min de lecture",
+    "lastUpdated": "Mis à jour le {date}",
+    "notFoundTitle": "Page introuvable",
+    "notFoundBody": "Nous n'avons pas trouvé cette page. Une des suggestions ci-dessous correspond peut-être – sinon, lance la recherche.",
+    "notFoundSuggestions": "Vouliez-vous dire",
+    "notFoundBackHome": "Retour à l'accueil de la documentation",
+    "backToTop": "Retour en haut"
+  },
+  "languageSwitcher": {
+    "ariaLabel": "Changer de langue",
+    "locales": {
+      "en": "English",
+      "de": "Deutsch",
+      "fr": "Français"
+    }
+  },
+  "themeSwitcher": {
+    "ariaLabel": "Changer de thème",
+    "light": "Clair",
+    "dark": "Sombre",
+    "system": "Système"
+  },
+  "footer": {
+    "product": "Produit",
+    "resources": "Ressources",
+    "legal": "Mentions légales",
+    "features": "Fonctionnalités",
+    "pricing": "Tarifs",
+    "hardwarePricing": "Tarifs matériel",
+    "contact": "Contact",
+    "aiTraining": "Formations IA",
+    "serviceAgreement": "Contrat de service",
+    "hardwareAgreement": "Contrat matériel",
+    "privacyPolicy": "Politique de confidentialité",
+    "termsOfService": "Conditions d'utilisation",
+    "processingAgreement": "Contrat de sous-traitance",
+    "homeAriaLabel": "Accueil Tale",
+    "githubAriaLabel": "GitHub",
+    "llmsTxtLabel": "llms.txt",
+    "address": {
+      "company": "Ruler GmbH",
+      "street": "Seestrasse 4",
+      "city": "3700 Spiez",
+      "country": "Suisse",
+      "vatId": "CHE-186.532.610"
+    },
+    "copyrightLine1": "© {year} Tale par Ruler GmbH — certifié ISO 27001 et SOC 2.",
+    "copyrightLine2": "Tale est sous licence MIT — libre d'utilisation, de modification et de distribution."
+  },
+  "notFound": {
+    "title": "Page introuvable",
+    "description": "Nous n'avons pas trouvé la page demandée.",
+    "home": "Retour à l'accueil de la documentation"
+  }
+}

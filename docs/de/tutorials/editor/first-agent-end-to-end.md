@@ -5,7 +5,7 @@ description: Einen gezielten Agent anlegen, Wissen anhängen, testen und eine Ve
 
 Generischer Chat beantwortet Fragen mit dem, worauf das Modell trainiert wurde. Ein gezielter Agent beantwortet sie mit dem Wissen deiner Organisation, in deinem Ton, auf eine Aufgabe zugeschnitten — „Produkt-Support“, „HR-Richtlinien“, „Sales-Enablement“. Dieses Tutorial führt dich von einer leeren Agent-Seite bis zu einem aktiven, versionierten Agent, den dein Team im Chat auswählen kann.
 
-Du brauchst Editor-Zugriff oder höher. Die Funktionsreferenz steht unter [Agent-Konzepte](/de/platform/agents/concepts) und [Agent erstellen](/de/platform/agents/create); dieses Tutorial verbindet die Schritte zu einem konkreten Ergebnis.
+Du brauchst Redakteur-Zugriff oder höher. Die Funktionsreferenz steht unter [Agent-Konzepte](/de/platform/agents/concepts) und [Agent erstellen](/de/platform/agents/create); dieses Tutorial verbindet die Schritte zu einem konkreten Ergebnis.
 
 ## Schritt 1 — Festlegen, wofür der Agent da ist
 

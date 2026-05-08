@@ -5,7 +5,7 @@ description: Gère les conversations clients depuis une boîte de réception uni
 
 Conversations est la boîte de réception client. Quand les clients contactent ton équipe via un canal connecté, par exemple l’e-mail, leurs messages apparaissent ici comme des fils. Ton équipe peut lire, répondre, fermer et gérer depuis cette vue unique.
 
-Les connexions de canaux sont mises en place une fois par un Developer dans [Intégrations — aperçu](/fr/platform/integrations/overview) — l’intégration e-mail alimente cette boîte.
+Les connexions de canaux sont mises en place une fois par un Développeur dans [Intégrations — aperçu](/fr/platform/integrations/overview) — l’intégration e-mail alimente cette boîte.
 
 ## Statuts de conversation
 

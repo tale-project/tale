@@ -27,7 +27,7 @@ Mitglieder fügst du separat über die Detailseite des Teams hinzu. Dieselbe Per
 
 ## Team-Manager
 
-Teams haben keine formalen Manager-Rollen — Berechtigungen kommen aus der Organisations-Rolle (Admin, Developer, Editor, Member). Für eine delegierte Team-Administration nutze die Editor-Rolle und beschränke den Editor-Zugriff auf dessen Team.
+Teams haben keine formalen Manager-Rollen — Berechtigungen kommen aus der Organisations-Rolle (Admin, Entwickler, Redakteur, Mitglied). Für eine delegierte Team-Administration nutze die Redakteur-Rolle und beschränke den Redakteur-Zugriff auf dessen Team.
 
 ## Externe Identity Anbieter
 

@@ -22,7 +22,6 @@
     }
   },
   "nav": {
-    "ariaLabel": "Primary",
     "features": "Features",
     "pricing": "Pricing",
     "readDocs": "Read docs",

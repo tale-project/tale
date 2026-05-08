@@ -46,7 +46,7 @@ When a doc cross-references a legal authority, add an Austrian mention only if t
 ## Do not override
 
 - Product feature names (Workflow, Dashboard, Canvas, Prompt Library, etc.) — keep English, same as base.
-- Role names (Owner, Admin, Developer, Editor, Member) — keep English, same as base.
+- Role names (Inhaber, Admin, Entwickler, Redakteur, Mitglied, Deaktiviert) — translate to match the shipped UI, same as base.
 - Code, command output, environment variable names, CLI flags.
 - API endpoints, JSON keys, error codes.
 - External brand names (Microsoft, Docker, OpenRouter, etc.).

@@ -20,7 +20,7 @@ Un panneau chat IA sideloadé dans Word et Excel qui fait passer chaque requête
 
 ## Étape 1 — Créer une clé API Tale
 
-Va dans **Paramètres > Clés API** et clique **Créer**. Nomme-la selon le poste ou l’équipe (`office-agents-lab`), copie le token `tale_...` et garde-le sous la main. Voir [Membres et rôles](/fr/platform/admin/members-and-roles) — seuls les Admins et Owners peuvent créer des clés API.
+Va dans **Paramètres > Clés API** et clique **Créer**. Nomme-la selon le poste ou l’équipe (`office-agents-lab`), copie le token `tale_...` et garde-le sous la main. Voir [Membres et rôles](/fr/platform/admin/members-and-roles) — seuls les Admins et Propriétaires peuvent créer des clés API.
 
 ## Étape 2 — Cloner et démarrer Office Agents en local
 

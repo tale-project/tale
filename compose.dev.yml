@@ -64,6 +64,16 @@ services:
     environment:
       - NODE_ENV=development
 
+  docs:
+    volumes:
+      - ./services/docs/app:/app/services/docs/app
+      - ./services/docs/lib:/app/services/docs/lib
+      - ./services/docs/messages:/app/services/docs/messages
+      - ./services/docs/scripts:/app/services/docs/scripts
+      - ./packages/webui:/app/packages/webui
+    environment:
+      - NODE_ENV=development
+
   proxy:
     environment:
       - CADDY_DEBUG=true

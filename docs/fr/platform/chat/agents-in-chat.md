@@ -29,4 +29,4 @@ Certains agents sont configurés pour **déléguer** à un autre agent quand le 
 
 ## Créer ton propre agent
 
-Avec les permissions Editor ou plus, tu peux construire des agents pour ton équipe. Voir [Créer un agent](/fr/platform/agents/create).
+Avec le rôle Éditeur ou plus, tu peux construire des agents pour ton équipe. Voir [Créer un agent](/fr/platform/agents/create).

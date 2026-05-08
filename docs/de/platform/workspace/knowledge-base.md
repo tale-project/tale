@@ -5,7 +5,7 @@ description: Dokumente und gecrawlte Websites in deinem Arbeitsbereich hochladen
 
 Die Wissensdatenbank ist der Ort, an dem Tale Informationen für die KI ablegt. Alles, was du hier hinzufügst, wird vom Chat-Agent per bedeutungsbasierter Suche durchsucht. Diese Seite behandelt die beiden nutzerseitigen Bereiche — **Dokumente** und **Websites**. Für strukturierte Daten (Produkte, Kunden, Lieferanten) siehe [Strukturierte Daten](/de/platform/knowledge/structured-data).
 
-> **Hinweis:** Das Bearbeiten der Wissensdatenbank erfordert die Editor-Rolle oder höher. Nutzer mit der Member-Rolle können alle Wissens-Einträge sehen, aber nicht anlegen, ändern oder löschen.
+> **Hinweis:** Das Bearbeiten der Wissensdatenbank erfordert die Redakteur-Rolle oder höher. Nutzer mit der Mitglied-Rolle können alle Wissens-Einträge sehen, aber nicht anlegen, ändern oder löschen.
 
 ## Dokumente
 

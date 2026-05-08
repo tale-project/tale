@@ -1,0 +1,181 @@
+{
+  "$schema": "./nav.schema.json",
+  "_comment": "Navigation tree for the docs site. Edit this to reorder groups or pages — the list order here is the order shown in the sidebar. `label` is an i18n key under the `nav.groups.*` namespace; `pages` accepts either a slug string (leaf page) or a nested group object.",
+  "groups": [
+    {
+      "label": "start",
+      "pages": ["index"]
+    },
+    {
+      "label": "cloud",
+      "pages": ["cloud/index"]
+    },
+    {
+      "label": "selfHosted",
+      "pages": [
+        "self-hosted/index",
+        "self-hosted/overview",
+        {
+          "label": "install",
+          "pages": [
+            "self-hosted/install/quickstart",
+            "self-hosted/install/linux-server"
+          ]
+        },
+        {
+          "label": "configuration",
+          "pages": [
+            "self-hosted/configuration/environment-reference",
+            "self-hosted/configuration/providers",
+            "self-hosted/configuration/retention"
+          ]
+        },
+        {
+          "label": "operate",
+          "pages": [
+            "self-hosted/operate/container-architecture",
+            {
+              "label": "observability",
+              "pages": [
+                "self-hosted/operate/observability/operations",
+                "self-hosted/operate/observability/troubleshooting"
+              ]
+            },
+            {
+              "label": "security",
+              "pages": ["self-hosted/operate/security/advisories"]
+            },
+            {
+              "label": "releaseNotes",
+              "pages": ["self-hosted/operate/release-notes/format"]
+            }
+          ]
+        },
+        {
+          "label": "authentication",
+          "pages": ["self-hosted/admin/authentication"]
+        }
+      ]
+    },
+    {
+      "label": "platform",
+      "pages": [
+        "platform/index",
+        {
+          "label": "chat",
+          "pages": [
+            "platform/chat/basics",
+            "platform/chat/attachments",
+            "platform/chat/agents-in-chat",
+            "platform/chat/arena-mode"
+          ]
+        },
+        {
+          "label": "workspace",
+          "pages": [
+            "platform/workspace/knowledge-base",
+            "platform/workspace/conversations",
+            "platform/workspace/approvals",
+            "platform/workspace/canvas",
+            "platform/workspace/prompt-library",
+            "platform/workspace/document-comparison"
+          ]
+        },
+        {
+          "label": "agents",
+          "pages": [
+            "platform/agents/concepts",
+            "platform/agents/create",
+            "platform/agents/image-generation",
+            "platform/agents/versions"
+          ]
+        },
+        {
+          "label": "automations",
+          "pages": [
+            "platform/automations/concepts",
+            "platform/automations/workflows",
+            "platform/automations/triggers",
+            "platform/automations/execution-logs",
+            "platform/automations/metrics"
+          ]
+        },
+        {
+          "label": "knowledge",
+          "pages": [
+            "platform/knowledge/structured-data",
+            "platform/knowledge/crawling"
+          ]
+        },
+        {
+          "label": "integrations",
+          "pages": ["platform/integrations/overview"]
+        },
+        {
+          "label": "member",
+          "pages": ["platform/member/overview", "platform/member/preferences"]
+        },
+        {
+          "label": "editor",
+          "pages": ["platform/editor/overview"]
+        },
+        {
+          "label": "developer",
+          "pages": ["platform/developer/overview"]
+        },
+        {
+          "label": "admin",
+          "pages": [
+            "platform/admin/overview",
+            "platform/admin/members-and-roles",
+            "platform/admin/teams",
+            "platform/admin/providers",
+            "platform/admin/branding",
+            "platform/admin/governance",
+            "platform/admin/two-factor-authentication",
+            "platform/admin/usage-analytics"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "tutorials",
+      "pages": [
+        "tutorials/overview",
+        {
+          "label": "member",
+          "pages": ["tutorials/member/chat-effectively"]
+        },
+        {
+          "label": "editor",
+          "pages": ["tutorials/editor/first-agent-end-to-end"]
+        },
+        {
+          "label": "developer",
+          "pages": [
+            "tutorials/developer/call-tale-from-a-script",
+            "tutorials/developer/trigger-automation-via-webhook"
+          ]
+        },
+        {
+          "label": "admin",
+          "pages": [
+            "tutorials/admin/office-add-in",
+            "tutorials/admin/meeting-transcription",
+            "tutorials/admin/connect-local-provider"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "develop",
+      "pages": [
+        "develop/api-reference",
+        "develop/webhooks",
+        "develop/ai-assisted-development",
+        "develop/integrations",
+        "develop/contributing-docker"
+      ]
+    }
+  ]
+}

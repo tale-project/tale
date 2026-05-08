@@ -69,7 +69,7 @@ Attends `Tale Dev v0.x.x  Ready.` Les messages de health-check pendant le démar
 
 ### Étape 4 : ouvrir l’application
 
-Va sur https://localhost (ou ton domaine configuré) dans le navigateur. À la première ouverture, tu es dirigé·e vers une page d’inscription pour créer ton compte admin.
+Va sur https://localhost (ou ton domaine configuré) dans le navigateur. À la première ouverture, tu es dirigé·e vers une page d’inscription pour créer ton compte Admin.
 
 > **Avertissement de certificat auto-signé.** Le mode TLS `selfsigned` génère un certificat local, donc le navigateur affiche un avertissement de connexion non privée à la première visite. Passe outre (Chrome : **Paramètres avancés → Continuer**, Firefox : **Avancé → Accepter le risque**). Pour un déploiement public, choisis `letsencrypt` lors de `tale init` ou suis le guide [déploiement en production](/fr/self-hosted/install/linux-server).
 

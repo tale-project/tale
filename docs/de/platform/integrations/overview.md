@@ -3,7 +3,7 @@ title: Integrationen – Überblick
 description: Tale per entwicklergebauten Konnektoren mit REST-APIs und SQL-Datenbanken verbinden.
 ---
 
-Eine Integration ist ein vom Entwickler definierter Konnektor, der die Fähigkeiten eines fremden Systems — REST-Endpoints oder SQL-Abfragen — als feste Liste benannter Operationen verfügbar macht. Einmal installiert, sind diese Operationen Werkzeuge, die der Chat-Assistent, Agents und Action-Schritte in Automatisierungen namentlich mit typisierten Parametern aufrufen. Die Konfiguration lebt unter **Einstellungen > Integrationen** und erfordert mindestens die Developer-Rolle; die Konsumenten rufen einfach die Operationen auf, die der Konnektor publiziert.
+Eine Integration ist ein vom Entwickler definierter Konnektor, der die Fähigkeiten eines fremden Systems — REST-Endpoints oder SQL-Abfragen — als feste Liste benannter Operationen verfügbar macht. Einmal installiert, sind diese Operationen Werkzeuge, die der Chat-Assistent, Agents und Action-Schritte in Automatisierungen namentlich mit typisierten Parametern aufrufen. Die Konfiguration lebt unter **Einstellungen > Integrationen** und erfordert mindestens die Entwickler-Rolle; die Konsumenten rufen einfach die Operationen auf, die der Konnektor publiziert.
 
 Die Plattform unterstützt zwei Konnektor-Typen: `rest_api` für HTTP-Dienste und `sql` für direkten Datenbankzugriff. Alles andere, was unter **Einstellungen > Integrationen** in der UI auftaucht — E-Mail-Postfächer, Microsoft OneDrive, API-Schlüssel für die Tale-API selbst — sind verwandte Verbindungen mit eigener Konfigurationsoberfläche, kein Konnektor-Modell. Diese decken wir am Ende der Seite ab.
 

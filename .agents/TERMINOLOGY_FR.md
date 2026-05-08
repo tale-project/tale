@@ -84,9 +84,20 @@ Match the UI verbatim — if the two ever disagree, update the UI first, then th
 
 ## Role names
 
-The six Tale roles stay in English to match the UI: **Owner**, **Admin**, **Developer**, **Editor**, **Member**, **Disabled**. Capitalize when naming the role.
+Translate role names to match the shipped FR UI labels (`services/platform/messages/fr.json`):
 
-When the word is generic — someone on the team, not the capital-M Member role — translate it to **membre** / **membres**. Never leave `member` or `members` in French prose. Example: _Les membres de ton équipe utilisent le chat_ vs. _Un Member peut consulter l’historique du chat_.
+| English   | FR form          |
+| --------- | ---------------- |
+| Owner     | **Propriétaire** |
+| Admin     | **Admin**        |
+| Developer | **Développeur**  |
+| Editor    | **Éditeur**      |
+| Member    | **Membre**       |
+| Disabled  | **Désactivé**    |
+
+Capitalize when naming the role (`un Propriétaire peut transférer la propriété`); use lowercase when the word is purely generic and matches the everyday French noun (`les membres de ton équipe utilisent le chat`). The sense is identical to English — capitalize when you are naming the role, not when you are using the noun in its everyday meaning.
+
+The lint enforces these mappings, including `Editor` → `Éditeur` (FR uses the same word for role and IDE/visual editor, so there is no ambiguity to preserve).
 
 ## Style rules
 

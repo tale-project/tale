@@ -32,11 +32,11 @@ Quand tu joins un fichier audio ou vidéo, une pipeline de transcription côté 
 
 Une pastille de statut sur la pièce jointe indique la progression — _Transcription en cours…_, _Transcrit_ ou _Transcription impossible_. Tu peux ignorer la transcription d’une pièce jointe ou réessayer en cas d’échec. Un message avec un audio en cours ne peut pas être envoyé tant que chaque pièce jointe n’est pas transcrite, ignorée ou échouée.
 
-Un admin doit configurer un modèle de fournisseur taggé `transcription` pour que cela fonctionne — voir [Fournisseurs IA](/fr/platform/admin/providers). Les appels de transcription sont facturés par minute d’audio et enregistrés dans le registre d’utilisation aux côtés des tokens de chat.
+Un Admin doit configurer un modèle de fournisseur taggé `transcription` pour que cela fonctionne — voir [Fournisseurs IA](/fr/platform/admin/providers). Les appels de transcription sont facturés par minute d’audio et enregistrés dans le registre d’utilisation aux côtés des tokens de chat.
 
 ## Limites de taille et de nombre
 
-- **Taille maximale :** 100 Mo par fichier par défaut. Les admins peuvent définir une limite plus stricte par type MIME (par exemple 25 Mo pour l’audio) dans la [politique d’upload](/fr/platform/admin/governance#upload-policy).
+- **Taille maximale :** 100 Mo par fichier par défaut. Les Admins peuvent définir une limite plus stricte par type MIME (par exemple 25 Mo pour l’audio) dans la [politique d’upload](/fr/platform/admin/governance#upload-policy).
 - **Durée audio :** les uploads audio et vidéo sont plafonnés à 4 heures d’audio. Les fichiers plus longs sont rejetés au téléversement — découpe l’enregistrement en segments plus courts.
 - **Nombre maximal par message :** 10. Pour l’ingestion en masse, utilise la [base de connaissances](/fr/platform/workspace/knowledge-base).
 
@@ -48,4 +48,4 @@ Supprimer une conversation supprime aussi ses pièces jointes, sauf si la [polit
 
 ## Sécurité
 
-Les téléversements sont scannés pour virus et types MIME bloqués avant d’atteindre le modèle. Si ton admin a activé la [détection DCP](/fr/platform/admin/governance), les textes extraits des pièces jointes passent par les mêmes règles que les messages saisis.
+Les téléversements sont scannés pour virus et types MIME bloqués avant d’atteindre le modèle. Si ton Admin a activé la [détection DCP](/fr/platform/admin/governance), les textes extraits des pièces jointes passent par les mêmes règles que les messages saisis.

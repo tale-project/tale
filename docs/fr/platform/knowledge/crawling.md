@@ -5,7 +5,7 @@ description: Configure le crawler de Tale pour indexer des sites externes pour l
 
 Le crawler de Tale visite les pages d’un domaine que tu lui indiques, extrait le contenu texte et l’indexe dans la base de connaissances à côté de tes documents téléversés. L’agent IA peut alors répondre aux questions en s’appuyant sur ce contenu — "Quel est notre tarif actuel sur le site ?", "Quelles fonctionnalités ont changé dans les release notes v3 ?".
 
-Cette page cible Editor/Developer. Pour le parcours utilisateur (ajouter simplement un site), voir [Base de connaissances](/fr/platform/workspace/knowledge-base).
+Cette page cible Éditeur/Développeur. Pour le parcours utilisateur (ajouter simplement un site), voir [Base de connaissances](/fr/platform/workspace/knowledge-base).
 
 ## Ce que fait le crawler
 

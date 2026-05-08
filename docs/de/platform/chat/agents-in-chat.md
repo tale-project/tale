@@ -29,4 +29,4 @@ Manche Agents sind so konfiguriert, dass sie bei Themenwechseln an andere Agents
 
 ## Eigenen Agent erstellen
 
-Mit Editor-Berechtigung oder höher kannst du Agents für dein Team bauen. Siehe [Agent erstellen](/de/platform/agents/create).
+Mit Redakteur-Berechtigung oder höher kannst du Agents für dein Team bauen. Siehe [Agent erstellen](/de/platform/agents/create).

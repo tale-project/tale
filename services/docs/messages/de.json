@@ -1,0 +1,113 @@
+{
+  "nav": {
+    "homeAriaLabel": "Tale Dokumentation Startseite",
+    "openSearch": "Suche öffnen",
+    "openMenu": "Navigationsmenü öffnen",
+    "closeMenu": "Navigationsmenü schließen",
+    "searchPlaceholder": "Dokumentation durchsuchen",
+    "groups": {
+      "start": "Start",
+      "cloud": "Cloud",
+      "selfHosted": "Selbst gehostet",
+      "install": "Installation",
+      "configuration": "Konfiguration",
+      "operate": "Betrieb",
+      "observability": "Beobachtbarkeit",
+      "security": "Sicherheit",
+      "releaseNotes": "Release Notes",
+      "authentication": "Authentifizierung",
+      "platform": "Plattform",
+      "chat": "Chat",
+      "workspace": "Arbeitsbereich",
+      "agents": "Agents",
+      "automations": "Automatisierungen",
+      "knowledge": "Wissen",
+      "integrations": "Integrationen",
+      "member": "Mitglied",
+      "editor": "Redakteur",
+      "developer": "Entwickler",
+      "admin": "Verwaltung",
+      "tutorials": "Tutorials",
+      "develop": "Entwicklung"
+    }
+  },
+  "search": {
+    "title": "Dokumentation durchsuchen",
+    "placeholder": "Dokumentation durchsuchen…",
+    "empty": "Tippe los, um die Doku zu durchsuchen.",
+    "emptyHint": "Finde Anleitungen, Referenzen und Konzepte über alle Bereiche hinweg.",
+    "noResultsTitle": "Keine Ergebnisse",
+    "noResultsHint": "Probiere andere Begriffe oder nutze die Navigation.",
+    "loading": "Suche läuft…",
+    "close": "Suche schließen",
+    "recent": "Letzte Suchen",
+    "clearRecent": "Leeren",
+    "removeRecent": "Aus den letzten Suchen entfernen",
+    "tipsTitle": "Tipps",
+    "tipNavigate": "zum Navigieren",
+    "tipSelect": "zum Öffnen",
+    "tipClose": "zum Schließen",
+    "results": "{count, plural, =0 {keine Ergebnisse} =1 {# Ergebnis} other {# Ergebnisse}}"
+  },
+  "docs": {
+    "onThisPage": "Auf dieser Seite",
+    "breadcrumbs": "Brotkrumennavigation",
+    "home": "Start",
+    "editOnGithub": "Auf GitHub bearbeiten",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "readingTime": "{minutes} Min. Lesezeit",
+    "lastUpdated": "Zuletzt aktualisiert am {date}",
+    "notFoundTitle": "Seite nicht gefunden",
+    "notFoundBody": "Diese Seite konnten wir nicht finden. Vielleicht hilft eine der folgenden Seiten weiter – oder nutze die Suche.",
+    "notFoundSuggestions": "Meintest du",
+    "notFoundBackHome": "Zurück zur Doku-Startseite",
+    "backToTop": "Nach oben"
+  },
+  "languageSwitcher": {
+    "ariaLabel": "Sprache wechseln",
+    "locales": {
+      "en": "English",
+      "de": "Deutsch",
+      "fr": "Français"
+    }
+  },
+  "themeSwitcher": {
+    "ariaLabel": "Design wechseln",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "System"
+  },
+  "footer": {
+    "product": "Produkt",
+    "resources": "Ressourcen",
+    "legal": "Rechtliches",
+    "features": "Funktionen",
+    "pricing": "Preise",
+    "hardwarePricing": "Hardware-Preise",
+    "contact": "Kontakt",
+    "aiTraining": "KI-Schulungen",
+    "serviceAgreement": "Service-Vertrag",
+    "hardwareAgreement": "Hardware-Vertrag",
+    "privacyPolicy": "Datenschutzerklärung",
+    "termsOfService": "Nutzungsbedingungen",
+    "processingAgreement": "Auftragsverarbeitungsvertrag",
+    "homeAriaLabel": "Tale Startseite",
+    "githubAriaLabel": "GitHub",
+    "llmsTxtLabel": "llms.txt",
+    "address": {
+      "company": "Ruler GmbH",
+      "street": "Seestraße 4",
+      "city": "3700 Spiez",
+      "country": "Schweiz",
+      "vatId": "CHE-186.532.610"
+    },
+    "copyrightLine1": "© {year} Tale by Ruler GmbH — ISO-27001- und SOC-2-zertifiziert.",
+    "copyrightLine2": "Tale ist MIT-lizenziert — frei nutzbar, anpassbar und verteilbar."
+  },
+  "notFound": {
+    "title": "Seite nicht gefunden",
+    "description": "Die gesuchte Seite konnten wir nicht finden.",
+    "home": "Zurück zur Doku-Startseite"
+  }
+}

@@ -58,7 +58,7 @@ graph TD
 - Boîte de réception pour conversations clients avec réponses assistées par IA et actions en masse.
 - Constructeur d’automatisation visuel avec étapes LLM, conditions, boucles et plannings.
 - Agents IA sur mesure avec instructions, connaissances et outils dédiés.
-- Contrôle d’accès par rôle, du Member en lecture seule à l’Admin complet.
+- Contrôle d’accès par rôle, du Membre en lecture seule à l’Admin complet.
 - SSO et intégrations dont Microsoft Entra ID, REST API, synchro OneDrive et connecteurs SQL.
 - Opérations de production avec déploiements zero-downtime, métriques Prometheus et tracking d’erreurs Sentry.
 - Accessibilité WCAG 2.1 AA sur toutes les pages et composants.

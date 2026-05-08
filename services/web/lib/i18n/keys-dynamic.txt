@@ -7,6 +7,12 @@
 # across files, enum-driven dispatch, etc.). Static keys, even with template
 # literals whose prefix is constant, are already covered by the wildcard scan.
 
+# --- shared switcher consumes its keys from @tale/webui ---
+# `languageSwitcher.*` is referenced inside packages/webui — the scanner only
+# walks services/web/, so the keys look orphaned here even though the bundle
+# is the single source of truth for the rendered labels.
+languageSwitcher
+
 # --- pending wire-up: namespaces defined but not yet referenced ---
 # Mock-data namespaces created for upcoming product-mockup components in the
 # marketing site. Remove this exemption when the components land.

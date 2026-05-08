@@ -1,0 +1,32 @@
+{
+  "name": "@tale/docs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tale documentation site",
+  "type": "module",
+  "scripts": {
+    "setup": "echo 'Dependencies managed by root workspace'",
+    "dev": "bun --bun scripts/build-search-index.ts && bun --bun scripts/build-llms-artifacts.ts && bun --bun vite",
+    "build": "bun --bun scripts/build-search-index.ts && bun --bun scripts/build-llms-artifacts.ts && bun --bun vite build && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr && bun --bun scripts/prerender.ts",
+    "build:client": "bun --bun vite build",
+    "build:ssr": "bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr",
+    "prerender": "bun --bun scripts/prerender.ts",
+    "build:search-index": "bun --bun scripts/build-search-index.ts",
+    "build:llms": "bun --bun scripts/build-llms-artifacts.ts",
+    "start": "bun server.ts",
+    "lint": "bunx oxlint --type-aware",
+    "lint:fix": "bunx oxlint --type-aware --fix",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bunx vitest --run --passWithNoTests",
+    "test:watch": "bunx vitest"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "5.2.8",
+    "@tale/ui": "workspace:*",
+    "@tale/webui": "workspace:*",
+    "framer-motion": "12.38.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.11"
+  }
+}

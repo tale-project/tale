@@ -3,9 +3,9 @@ title: Effektiv chatten
 description: Agents, Anhänge und Diktat zu einem täglichen Tale-Workflow kombinieren.
 ---
 
-Die meisten Member nutzen Chat jeden Tag gleich: den richtigen Agent wählen, Kontext anhängen, fragen, nachhaken. Dieses Tutorial geht diese Schleife end-to-end durch, damit du Antworten bekommst, die auf dem Wissen deiner Organisation beruhen, statt auf generischem Modell-Output. Es verbindet drei Funktionen, die du schon in der UI siehst — den [Agent-Selector](/de/platform/chat/agents-in-chat), [Anhänge](/de/platform/chat/attachments) und Diktat — zu einem Workflow, den du für echte Aufgaben wiederverwenden kannst.
+Die meisten Mitglieder nutzen Chat jeden Tag gleich: den richtigen Agent wählen, Kontext anhängen, fragen, nachhaken. Dieses Tutorial geht diese Schleife end-to-end durch, damit du Antworten bekommst, die auf dem Wissen deiner Organisation beruhen, statt auf generischem Modell-Output. Es verbindet drei Funktionen, die du schon in der UI siehst — den [Agent-Selector](/de/platform/chat/agents-in-chat), [Anhänge](/de/platform/chat/attachments) und Diktat — zu einem Workflow, den du für echte Aufgaben wiederverwenden kannst.
 
-Der ganze Ablauf dauert unter fünf Minuten, sobald du ihn einmal gemacht hast. Du brauchst Member-Zugriff oder höher, sonst nichts.
+Der ganze Ablauf dauert unter fünf Minuten, sobald du ihn einmal gemacht hast. Du brauchst Mitglied-Zugriff oder höher, sonst nichts.
 
 ## Schritt 1 — Den richtigen Agent wählen
 
@@ -37,5 +37,5 @@ Wenn der Agent lauffähiges HTML, ein SVG, ein Mermaid-Diagramm oder ein länger
 
 ## Weiter
 
-- Einen Agent gezielt für dein Team bauen: [Den ersten Agent end-to-end bauen](/de/tutorials/editor/first-agent-end-to-end) (Editor-Rolle).
+- Einen Agent gezielt für dein Team bauen: [Den ersten Agent end-to-end bauen](/de/tutorials/editor/first-agent-end-to-end) (Redakteur-Rolle).
 - Shortcuts lernen: [AI-Chat](/de/platform/chat/basics).

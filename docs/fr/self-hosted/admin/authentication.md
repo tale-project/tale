@@ -3,13 +3,13 @@ title: Authentification
 description: Comment fonctionne l’authentification dans Tale — mot de passe, SSO Microsoft Entra ID et Trusted Headers.
 ---
 
-Tale est une plateforme offline-first. Pas d’inscription self-service ni de reset de mot de passe. Le premier utilisateur qui ouvre l’application crée le compte Owner. Tous les suivants sont créés par un admin dans **Paramètres > Membres**.
+Tale est une plateforme offline-first. Pas d’inscription self-service ni de reset de mot de passe. Le premier utilisateur qui ouvre l’application crée le compte Propriétaire. Tous les suivants sont créés par un Admin dans **Paramètres > Membres**.
 
 Pour activer la connexion self-service et le provisioning automatique des comptes, connecte Tale à un fournisseur SSO ou configure des Trusted Headers.
 
 ## Mot de passe (par défaut)
 
-Aucune configuration requise. Les admins créent les utilisateurs avec e-mail, mot de passe et rôle dans **Paramètres > Membres**. Les utilisateurs se connectent avec leurs credentials sur la page de login.
+Aucune configuration requise. Les Admins créent les utilisateurs avec e-mail, mot de passe et rôle dans **Paramètres > Membres**. Les utilisateurs se connectent avec leurs credentials sur la page de login.
 
 Les utilisateurs venus par SSO ou Trusted Headers peuvent aussi définir un mot de passe depuis **Paramètres du compte** pour activer la connexion directe.
 

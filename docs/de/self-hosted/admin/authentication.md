@@ -3,7 +3,7 @@ title: Authentifizierung
 description: Wie Authentifizierung in Tale funktioniert — Passwort, Microsoft Entra ID SSO und Trusted Headers.
 ---
 
-Tale ist eine Offline-First-Plattform. Es gibt keine Selbst-Registrierung und kein Passwort-Zurücksetzen. Der erste Nutzer, der die App öffnet, erstellt das Owner-Konto. Alle weiteren Nutzer werden von einem Admin unter **Einstellungen > Mitglieder** angelegt.
+Tale ist eine Offline-First-Plattform. Es gibt keine Selbst-Registrierung und kein Passwort-Zurücksetzen. Der erste Nutzer, der die App öffnet, erstellt das Inhaber-Konto. Alle weiteren Nutzer werden von einem Admin unter **Einstellungen > Mitglieder** angelegt.
 
 Für Self-Service-Login und automatisches Bereitstellen von Konten verbinde Tale mit einem SSO-Anbieter oder konfiguriere Trusted Headers.
 

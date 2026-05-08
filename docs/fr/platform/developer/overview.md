@@ -33,7 +33,7 @@ Voir [Intégrations — aperçu](/fr/platform/integrations/overview) et [Fournis
 
 ## Permissions
 
-Construire requiert le rôle **Editor** pour les agents et le rôle **Developer** pour les automatisations, intégrations et clés API. Voir [Membres et rôles](/fr/platform/admin/members-and-roles) pour la matrice complète.
+Construire requiert le rôle **Éditeur** pour les agents et le rôle **Développeur** pour les automatisations, intégrations et clés API. Voir [Membres et rôles](/fr/platform/admin/members-and-roles) pour la matrice complète.
 
 ## Construction assistée par IA
 
