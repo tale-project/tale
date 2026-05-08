@@ -12,9 +12,20 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
-COPY services/docs/package.json ./services/docs/
+COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
+COPY packages/tale_shared/package.json ./packages/tale_shared/
+COPY packages/tale_telemetry/package.json ./packages/tale_telemetry/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/webui/package.json ./packages/webui/
+COPY services/platform/package.json ./services/platform/
+COPY services/crawler/package.json ./services/crawler/
+COPY services/rag/package.json ./services/rag/
+COPY services/db/package.json ./services/db/
+COPY services/proxy/package.json ./services/proxy/
+COPY services/web/package.json ./services/web/
+COPY services/docs/package.json ./services/docs/
+COPY tools/cli/package.json ./tools/cli/
+COPY tools/plop/package.json ./tools/plop/
 COPY patches/ ./patches/
 
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
