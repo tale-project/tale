@@ -45,7 +45,8 @@ COPY services/web ./services/web
 
 ENV NODE_ENV=production
 WORKDIR /app/services/web
-RUN bun --bun vite build
+RUN bun --bun vite build \
+    && bun build server.ts --target=bun --outfile=server.js --external bun
 WORKDIR /app
 
 # ============================================================================
@@ -72,7 +73,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl tini ca-ce
     && useradd --system --uid 1001 --gid app app
 
 COPY --from=builder --chown=app:app /app/services/web/dist ./dist
-COPY --from=builder --chown=app:app /app/services/web/server.ts ./server.ts
+COPY --from=builder --chown=app:app /app/services/web/server.js ./server.js
 COPY --from=builder --chown=app:app /app/services/web/package.json ./package.json
 COPY --from=builder --chown=app:app /app/services/web/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
