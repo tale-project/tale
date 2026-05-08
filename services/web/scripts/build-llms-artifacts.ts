@@ -20,6 +20,9 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SCRIPT_DIR, '..');
 const OUT_DIR = resolve(ROOT, 'public');
 const SITE_URL = 'https://tale.dev';
+// Where the docs site lives. Defaults to its canonical subdomain; can be
+// overridden (e.g. https://tale.dev/docs) for path-based deployments.
+const DOCS_URL = process.env.WEB_DOCS_URL ?? 'https://docs.tale.dev';
 
 interface MarketingRoute {
   url: string;
@@ -91,7 +94,7 @@ async function main() {
       },
     ],
     optional: [
-      { title: 'Documentation', url: 'https://docs.tale.dev/llms.txt' },
+      { title: 'Documentation', url: `${DOCS_URL}/llms.txt` },
       { title: 'GitHub', url: 'https://github.com/tale-project/tale' },
     ],
   });
@@ -153,7 +156,7 @@ async function main() {
 
   // --- /robots.txt -------------------------------------------------------
   const robots = buildRobotsTxt({
-    sitemaps: [`${SITE_URL}/sitemap.xml`, `https://docs.tale.dev/sitemap.xml`],
+    sitemaps: [`${SITE_URL}/sitemap.xml`, `${DOCS_URL}/sitemap.xml`],
   });
   await writeFile(resolve(OUT_DIR, 'robots.txt'), robots);
   process.stdout.write('built robots.txt\n');

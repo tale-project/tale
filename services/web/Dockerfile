@@ -43,7 +43,10 @@ COPY packages/ui ./packages/ui
 COPY packages/webui ./packages/webui
 COPY services/web ./services/web
 
-ENV NODE_ENV=production
+ARG WEB_DOCS_URL=https://docs.tale.dev
+ENV NODE_ENV=production \
+    WEB_DOCS_URL=${WEB_DOCS_URL} \
+    VITE_DOCS_URL=${WEB_DOCS_URL}
 WORKDIR /app/services/web
 RUN bun --bun vite build \
     && bun build server.ts --target=bun --outfile=server.js --external bun
