@@ -1,21 +1,21 @@
 // Bun server: serves the prebuilt SPA from ./dist + a /api/forms/submit route
-// that proxies validated form payloads to a Microsoft Teams incoming webhook.
+// that proxies validated form payloads to a Discord incoming webhook.
 
 import { join, resolve, sep } from 'node:path';
 
 import { file } from 'bun';
 
+import { buildDiscordPayload } from './lib/forms/discord-embeds';
 import { checkRateLimit } from './lib/forms/rate-limit';
 import { MIN_SUBMIT_DELAY_MS, submitRequest } from './lib/forms/schemas';
-import { buildTeamsCard } from './lib/forms/teams-cards';
 
 const PORT = Number(process.env.PORT ?? 3001);
 const HOSTNAME = process.env.HOSTNAME ?? '0.0.0.0';
 const DIST = resolve(import.meta.dir, 'dist');
 const DIST_PREFIX = DIST + sep;
-const TEAMS_WEBHOOK_URL = process.env.WEB_TEAMS_WEBHOOK_URL ?? '';
+const DISCORD_WEBHOOK_URL = process.env.WEB_DISCORD_WEBHOOK_URL ?? '';
 const MAX_BODY_BYTES = 4 * 1024;
-const TEAMS_WEBHOOK_TIMEOUT_MS = 10_000;
+const DISCORD_WEBHOOK_TIMEOUT_MS = 10_000;
 
 function contentTypeFor(path: string): string | null {
   if (path.endsWith('.md')) return 'text/markdown; charset=utf-8';
@@ -40,8 +40,8 @@ async function handleFormSubmit(request: Request): Promise<Response> {
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
-  if (!TEAMS_WEBHOOK_URL) {
-    console.error('[forms] WEB_TEAMS_WEBHOOK_URL is not set');
+  if (!DISCORD_WEBHOOK_URL) {
+    console.error('[forms] WEB_DISCORD_WEBHOOK_URL is not set');
     return Response.json(
       { ok: false, error: 'Service not configured' },
       { status: 503 },
@@ -104,23 +104,23 @@ async function handleFormSubmit(request: Request): Promise<Response> {
     );
   }
 
-  const card = buildTeamsCard(validation.data);
+  const payload = buildDiscordPayload(validation.data);
   try {
-    const upstream = await fetch(TEAMS_WEBHOOK_URL, {
+    const upstream = await fetch(DISCORD_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(card),
-      signal: AbortSignal.timeout(TEAMS_WEBHOOK_TIMEOUT_MS),
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(DISCORD_WEBHOOK_TIMEOUT_MS),
     });
     if (!upstream.ok) {
-      console.error('[forms] Teams webhook returned', upstream.status);
+      console.error('[forms] Discord webhook returned', upstream.status);
       return Response.json(
         { ok: false, error: 'Upstream error' },
         { status: 502 },
       );
     }
   } catch (cause) {
-    console.error('[forms] Teams webhook fetch failed', cause);
+    console.error('[forms] Discord webhook fetch failed', cause);
     return Response.json(
       { ok: false, error: 'Upstream error' },
       { status: 502 },

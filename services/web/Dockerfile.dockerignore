@@ -126,3 +126,17 @@ packages/tale_shared/
 packages/tale_telemetry/
 tools/
 examples/
+
+# `bun install` needs every workspace package.json present at its declared
+# path so the workspace graph resolves. Re-include just the manifests —
+# source trees stay excluded by the rules above.
+!services/platform/package.json
+!services/crawler/package.json
+!services/rag/package.json
+!services/db/package.json
+!services/proxy/package.json
+!packages/tale_knowledge/package.json
+!packages/tale_shared/package.json
+!packages/tale_telemetry/package.json
+!tools/cli/package.json
+!tools/plop/package.json

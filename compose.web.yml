@@ -1,0 +1,49 @@
+# =============================================================================
+# Tale Web (Marketing site) — Standalone Docker Compose
+# =============================================================================
+# The marketing site at www.tale.dev runs independently of the platform stack
+# (services/platform, convex, db, rag, crawler, proxy) and has its own
+# environment file at services/web/.env.example.
+#
+# Usage:
+#   Local build:    docker compose -f compose.web.yml up --build
+#   Pull image:     docker compose -f compose.web.yml pull && docker compose -f compose.web.yml up -d
+#
+# Environment variables (see services/web/.env.example):
+#   WEB_DISCORD_WEBHOOK_URL   Discord webhook URL for /api/forms/submit.
+#   PORT, HOSTNAME            Server bind config (defaults 3001 / 0.0.0.0).
+#
+# Image:
+#   ghcr.io/tale-project/tale/tale-web:${VERSION:-latest}
+
+services:
+  web:
+    image: ghcr.io/tale-project/tale/tale-web:${VERSION:-latest}
+    container_name: tale-web
+    pull_policy: ${PULL_POLICY:-build}
+    build:
+      context: .
+      dockerfile: services/web/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+
+    env_file:
+      - services/web/.env
+
+    ports:
+      - '3001:3001'
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3001/api/health']
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'

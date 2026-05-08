@@ -1,0 +1,16 @@
+# =============================================================================
+# Tale Web — Container test overrides
+# =============================================================================
+# Override compose.web.yml with non-conflicting ports and a test env file for
+# CI smoke / image-validation tests.
+#
+# Usage:
+#   docker compose -f compose.web.yml -f compose.web.test.yml --env-file .env.test -p tale-web-test up -d --build
+#   docker compose -f compose.web.yml -f compose.web.test.yml --env-file .env.test -p tale-web-test down -v
+
+services:
+  web:
+    env_file:
+      - .env.test
+    ports:
+      - '13001:3001'
