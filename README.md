@@ -152,7 +152,7 @@ cd services/crawler && uv sync --extra dev
 
 ## Documentation
 
-The docs site ships in three locales (`en`, `de`, `fr`) with full coverage. The platform UI itself ships six (`en`, `de`, `de-AT`, `de-CH`, `fr`, `fr-CH`) — regional variants share the docs of their base locale. Start at [`docs/index.md`](docs/index.md) to pick an entry point by persona.
+The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) plus regional variants where local wording differs (today: `de-CH`; the loader picks up any new `xx-YY` bundle automatically). Variants carry only the strings that differ from their base; missing keys fall back through the base to English. Start at [`docs/index.md`](docs/index.md) to pick an entry point by persona.
 
 ### For everyday users
 

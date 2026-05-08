@@ -62,7 +62,7 @@ function flatten(
  * Registers vitest `describe`/`it` blocks that verify locale parity:
  * - Primary locales (no region subtag, e.g. `de`, `fr`) must match the base
  *   locale's key set exactly.
- * - Regional overrides (e.g. `de-CH`, `fr-CH`) are layered via
+ * - Regional overrides (e.g. `de-CH`) are layered via
  *   `i18next`'s `fallbackLng` and may be partial, but must not contain keys
  *   absent from the base.
  */

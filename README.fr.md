@@ -152,7 +152,7 @@ cd services/crawler && uv sync --extra dev
 
 ## Documentation
 
-Le site de doc est publié en trois langues (`en`, `de`, `fr`) avec une couverture complète. L'UI de la plateforme elle-même est en six (`en`, `de`, `de-AT`, `de-CH`, `fr`, `fr-CH`) — les variantes régionales partagent la doc de leur langue de base. Démarre par [`docs/index.md`](docs/index.md) pour choisir un point d'entrée par persona.
+Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`, `de`, `fr`) plus des variantes régionales lorsque la formulation locale diffère (aujourd'hui : `de-CH` ; le chargeur détecte tout nouveau bundle `xx-YY` automatiquement). Les variantes ne portent que les chaînes qui diffèrent de leur base ; les clés manquantes retombent via la base jusqu'à l'anglais. Démarre par [`docs/index.md`](docs/index.md) pour choisir un point d'entrée par persona.
 
 ### Pour les utilisateurs au quotidien
 

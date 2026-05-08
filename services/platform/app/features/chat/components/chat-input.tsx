@@ -38,12 +38,19 @@ import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
 import { SavePromptMenu } from './save-prompt-menu';
 
-const LOCALE_TO_BCP47: Record<string, string> = {
+// Web Speech requires a fully-qualified BCP-47 tag. Already-regional codes
+// (`de-CH`, future `fr-CA`) pass through; bare base locales pick the most
+// common region default. Unknown locales fall back to en-US at the call site.
+const BASE_LOCALE_DEFAULTS: Record<string, string> = {
   en: 'en-US',
   de: 'de-DE',
-  'de-AT': 'de-AT',
-  'de-CH': 'de-CH',
+  fr: 'fr-FR',
 };
+
+function toBcp47(locale: string): string | undefined {
+  if (locale.includes('-')) return locale;
+  return BASE_LOCALE_DEFAULTS[locale];
+}
 
 interface ChatInputProps extends Omit<
   ComponentPropsWithoutRef<'div'>,
@@ -131,7 +138,7 @@ export function ChatInput({
   const arenaContext = useArenaModeOptional();
   const isArenaMode = arenaContext?.isArenaMode ?? false;
 
-  const speechLang = LOCALE_TO_BCP47[i18n.language] ?? 'en-US';
+  const speechLang = toBcp47(i18n.language) ?? 'en-US';
   const policyLimits = useUploadPolicy(organizationId);
   const effectiveAccept = useMemo(() => {
     if (

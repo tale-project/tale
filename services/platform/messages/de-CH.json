@@ -21,12 +21,20 @@
       "requirements": {
         "uppercase": "Ein Grossbuchstabe"
       }
+    },
+    "forcedChange": {
+      "description": "Dein Passwort ist gemäss der Rotationsrichtlinie der Organisation abgelaufen. Lege ein neues Passwort fest, um fortzufahren."
     }
   },
   "settings": {
     "agents": {
       "knowledge": {
         "fileTooLarge": "Datei zu gross"
+      }
+    },
+    "integrations": {
+      "sso": {
+        "excludeGroupsLabel": "Gruppen ausschliessen"
       }
     }
   },
@@ -52,7 +60,12 @@
       }
     }
   },
+  "todoList": {
+    "paneClose": "Plan schliessen",
+    "paneResizeHandle": "Planbereich vergrössern"
+  },
   "chat": {
+    "budgetWarningDismiss": "Schliessen",
     "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB.",
     "canvas": {
       "close": "Canvas schliessen",
@@ -71,15 +84,43 @@
       "fileSizeExceeded": "Datei {name} überschreitet das Limit von {maxSize} MB. Aktuelle Grösse: {currentSize} MB"
     }
   },
+  "twoFactor": {
+    "setup": {
+      "qrInstructions": "Scanne den QR-Code mit einer Authenticator-App (Google Authenticator, 1Password, Authy) und gib anschliessend den 6-stelligen Code unten ein."
+    }
+  },
   "governance": {
+    "retentionPolicy": {
+      "workflowLogs": {
+        "description": "Workflow-Ausführungseinträge und Trigger-Logs, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Schliesst pro Ausführung gespeicherte Variablen-/Output-Blobs ein."
+      }
+    },
+    "passwordPolicy": {
+      "requireUpper": "Grossbuchstabe erforderlich"
+    },
     "pii": {
       "patterns": {
         "address": "Strassenadressen"
       }
     },
-    "uploadPolicy": {
-      "description": "Konfiguriere erlaubte Dateitypen, maximale Dateigrösse und Volumenlimits.",
-      "maxFileSize": "Maximale Dateigrösse"
+    "guardrailsOverview": {
+      "eventDetails": {
+        "close": "Schliessen"
+      }
+    },
+    "contentSafety": {
+      "wordsDescription": "Ein Wort oder eine Phrase pro Zeile. Gross-/Kleinschreibung egal. Für CJK/Thai/Laotisch wird automatisch Teilstring-Matching verwendet; andere Schriften nutzen Unicode-basierte Wortgrenzen."
+    }
+  },
+  "personalization": {
+    "page": {
+      "description": "Hilf dem Assistenten, sich Dinge über dich chat-übergreifend zu merken. Standardmässig aus — unten aktivieren.",
+      "orgDefault": {
+        "description": "Wenn aktiviert, ist Personalisierung für alle Mitglieder dieser Organisation standardmässig aktiv. Mitglieder, die sich explizit dagegen entscheiden, behalten ihre Wahl."
+      },
+      "customInstructions": {
+        "placeholder": "z. B. Antworte knapp. Verwende standardmässig TypeScript bei Code-Themen."
+      }
     }
   }
 }

@@ -6,8 +6,10 @@ Swiss High German ("Schweizer Hochdeutsch") is the written form used in Swiss do
 
 ## Where to put overrides
 
-- **UI (platform):** `services/platform/messages/de-CH.json`. Include only the keys whose values differ from `de.json`. Anything missing falls back to `de.json` automatically.
-- **Docs (Mintlify):** `docs/.locale-overrides/de-CH/<same-path-as-base>.md`. Full-file override — the generator uses it in place of the `docs/de/` file.
+This file documents the Swiss German variant. The same conventions apply to any future regional variant — substitute `de-CH` for the appropriate `xx-YY` code.
+
+- **UI (platform/web/docs):** `services/{platform,web,docs}/messages/de-CH.json`. Include only the keys whose values differ from `de.json`. Anything missing falls back to `de.json` automatically. The i18n loader auto-discovers any `xx-YY.json` you drop into `messages/`.
+- **Docs page content:** `docs/de-CH/<same-path-as-base>.md`. Full-file override — the loader uses it in place of the `docs/de/` file. Only create files whose wording genuinely differs.
 
 ## Spelling: no "ß"
 

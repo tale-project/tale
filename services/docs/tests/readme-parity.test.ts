@@ -16,7 +16,7 @@ interface Readme {
 
 // Match `README.md` (English source) and any `README.<locale>.md` mirror at
 // the repo root, where `<locale>` is a 2-letter language code with an
-// optional 2-letter region subtag (e.g. `de`, `fr-CH`). The English file
+// optional 2-letter region subtag (e.g. `de`, `de-CH`). The English file
 // reports as locale `en`.
 const README_PATTERN = /^README(?:\.([a-z]{2}(?:-[A-Z]{2})?))?\.md$/;
 

@@ -4,20 +4,20 @@ Rules for writing and maintaining the Mintlify documentation under [`docs/`](./)
 
 ## The one rule
 
-Documentation is part of every shipping change, not a follow-up. If a pull request alters what users see, configure, or interact with — a feature, a setting, an environment variable, an API response, a CLI flag, a removal — the same PR updates the docs in every published locale (`en`, `de`, `fr`). Code without docs is incomplete work and does not merge.
+Documentation is part of every shipping change, not a follow-up. If a pull request alters what users see, configure, or interact with — a feature, a setting, an environment variable, an API response, a CLI flag, a removal — the same PR updates the docs in every base locale (`en`, `de`, `fr`). Regional variant trees (today `de-CH`; more may come) are sparse: only override pages whose wording genuinely differs from the base. Code without docs is incomplete work and does not merge.
 
 Everything below is mechanics for making that rule easy to follow.
 
 ## Where things live
 
-| Path                                            | Role                                                                                                                                             |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `docs/**/*.md`                                  | English pages. The source tree.                                                                                                                  |
-| `docs/de/**/*.md`, `docs/fr/**/*.md`            | Translated mirrors. Same tree shape as English.                                                                                                  |
-| [`docs/docs.json`](docs.json)                   | Mintlify navigation. Edited alongside every page addition/rename/deletion.                                                                       |
-| [`docs/scripts/`](scripts/)                     | Bun + TypeScript tooling (frontmatter and terminology linters, broken-link checker bindings).                                                    |
-| [`docs/images/`](images/)                       | Assets. Referenced from all three locales.                                                                                                       |
-| [`docs/.locale-overrides/`](.locale-overrides/) | Regional variant overrides for the platform UI. **Not used by the Mintlify site** — Mintlify's config does not accept `de-AT`, `de-CH`, `fr-CH`. |
+| Path                                 | Role                                                                                                                                                 |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/**/*.md`                       | English pages. The source tree.                                                                                                                      |
+| `docs/de/**/*.md`, `docs/fr/**/*.md` | Translated mirrors. Same tree shape as English.                                                                                                      |
+| `docs/<xx-YY>/**/*.md`               | Regional variant overrides (today `de-CH`). Sparse — only files that genuinely differ from the base. Missing files fall back to the base, then `en`. |
+| [`docs/docs.json`](docs.json)        | Mintlify navigation. Edited alongside every page addition/rename/deletion.                                                                           |
+| [`docs/scripts/`](scripts/)          | Bun + TypeScript tooling (frontmatter and terminology linters, broken-link checker bindings).                                                        |
+| [`docs/images/`](images/)            | Assets. Referenced from all locales.                                                                                                                 |
 
 Mintlify Cloud builds straight from the committed repo state. None of our scripts run on their side — if it is not in git at merge time, it does not exist on the site.
 
@@ -124,9 +124,7 @@ Rewritten to meet the bar:
 
 ### Locales we publish
 
-Three locales, each with full coverage: `en`, `de`, `fr`. English lives at the `docs/` root; German and French live under `docs/de/` and `docs/fr/`. Mintlify does not fall back across languages — a missing translated file turns into a 404 on the navigation entry.
-
-> **Why three locales when the platform UI supports six?** Mintlify's config schema does not accept regional codes (`de-AT`, `de-CH`, `fr-CH`). Those locales exist in the platform UI translation files (`services/platform/messages/*.json`); docs readers on those locales see the closest base. When the Mintlify enum expands, we revisit.
+Three base locales, each with full coverage: `en`, `de`, `fr`. English lives at the `docs/` root; German and French live under `docs/de/` and `docs/fr/`. Regional variants layer on top under `docs/<xx-YY>/` — today only `docs/de-CH/` exists, but the loader generalizes: any new variant directory is picked up automatically. Variant trees are sparse — pages that don't override fall through to the base, then `en` (chain computed in [`services/docs/lib/content/loader.ts`](lib/content/loader.ts) from `ALL_LOCALES`).
 
 ### Lifecycle rules
 
@@ -162,8 +160,9 @@ When you **delete** a page:
 - [`.agents/TERMINOLOGY.md`](../.agents/TERMINOLOGY.md) — cross-locale rules: length parity, tone, plural handling, placeholder preservation.
 - [`.agents/TERMINOLOGY_EN.md`](../.agents/TERMINOLOGY_EN.md) — English source forms.
 - [`.agents/TERMINOLOGY_DE.md`](../.agents/TERMINOLOGY_DE.md) — German base.
+- [`.agents/TERMINOLOGY_DE_CH.md`](../.agents/TERMINOLOGY_DE_CH.md) — Swiss German overrides (mainly `ß` → `ss` and a few lexical shifts).
 - [`.agents/TERMINOLOGY_FR.md`](../.agents/TERMINOLOGY_FR.md) — French base.
-- Regional variant files (`DE_AT`, `DE_CH`, `FR_CH`) are platform-UI only — docs do not publish those locales.
+- Add a `TERMINOLOGY_<LOCALE>.md` for any new regional variant.
 
 Style rules in short:
 

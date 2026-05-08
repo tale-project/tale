@@ -1,7 +1,7 @@
 /**
  * Narrow a BCP-47 locale tag to its primary language subtag.
  *
- * Examples: `fr-CH` → `fr`, `de-AT` → `de`, `zh-Hant-HK` → `zh`.
+ * Examples: `de-CH` → `de`, `en-GB` → `en`, `zh-Hant-HK` → `zh`.
  * Returns `undefined` when the input has no region/script subtag, so callers
  * can chain: `i18n[locale] ?? (base ? i18n[base] : undefined) ?? i18n.en`.
  *

@@ -34,7 +34,7 @@ function pickField<T>(layers: (T | undefined)[]): T | undefined {
 /**
  * Resolves locale-specific agent fields with i18n-first precedence:
  *   1. `i18n[requestedLocale].<field>`
- *   2. `i18n[baseLanguage].<field>` — e.g. `fr-CH` narrows to `fr`
+ *   2. `i18n[baseLanguage].<field>` — e.g. `de-CH` narrows to `de`
  *   3. `i18n[appDefault='en'].<field>`
  *   4. top-level `<field>` (legacy fallback for pre-i18n agents)
  *

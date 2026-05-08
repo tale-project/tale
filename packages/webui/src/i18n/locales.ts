@@ -3,10 +3,11 @@ import { defaultLocale } from './config';
 /**
  * Cross-app locale model. Both `services/web` and `services/docs` render in
  * the same three base locales (English at the canonical path, German and
- * French at `/de/...` / `/fr/...`) plus three regional variants resolved
- * client-side (`de-AT`, `de-CH`, `fr-CH`). Regional variants never appear
- * in URLs — they only override message bundles when the browser advertises
- * the matching region.
+ * French at `/de/...` / `/fr/...`) plus zero or more regional variants
+ * resolved client-side (e.g. `de-CH`). Regional variants never appear in
+ * URLs — they only override message bundles when the browser advertises a
+ * matching region. Add a new variant by listing it in `REGIONAL_LOCALES`
+ * and dropping a `<locale>.json` file in each app's `messages/`.
  */
 
 const SUPPORTED_LOCALES = ['en', 'de', 'fr'] as const;
@@ -21,7 +22,7 @@ export function isUrlPrefixedLocale(value: string): value is UrlPrefixedLocale {
   return URL_PREFIXED_SET.has(value);
 }
 
-export const REGIONAL_LOCALES = ['de-CH', 'de-AT', 'fr-CH'] as const;
+export const REGIONAL_LOCALES = ['de-CH'] as const;
 export type RegionalLocale = (typeof REGIONAL_LOCALES)[number];
 
 const REGIONAL_OVERRIDES: ReadonlySet<string> = new Set(REGIONAL_LOCALES);

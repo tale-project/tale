@@ -2,51 +2,54 @@ import i18n from 'i18next';
 import ICU from 'i18next-icu';
 import { initReactI18next } from 'react-i18next';
 
-import deAtMessages from '@/messages/de-AT.json';
-import deChMessages from '@/messages/de-CH.json';
 import deMessages from '@/messages/de.json';
 import enMessages from '@/messages/en.json';
-import frChMessages from '@/messages/fr-CH.json';
 import frMessages from '@/messages/fr.json';
 import globalMessages from '@/messages/global.json';
 
 import { defaultLocale } from './config';
 
+type Bundle = Record<string, Record<string, unknown>>;
+
+const baseResources: Record<string, Bundle> = {
+  en: { ...enMessages, ...globalMessages },
+  de: { ...deMessages, ...globalMessages },
+  fr: { ...frMessages, ...globalMessages },
+};
+
+const fallbackLng: Record<string, string[]> = {
+  default: [defaultLocale],
+};
+
+// Auto-discover regional variants (e.g. `de-CH.json`). Drop a `xx-YY.json`
+// file in `messages/` and Vite picks it up here — no other code paths need
+// updating.
+const REGIONAL_TAG = /^[a-z]{2}-[A-Z]{2}$/;
+
+// Vite requires `import.meta.glob` patterns to be literal relative or
+// absolute paths — aliases (`@/...`) are rejected at build time.
+const regionalModules = import.meta.glob<Bundle>(
+  '../../messages/*-*.json',
+  { eager: true, import: 'default' },
+);
+
+for (const [path, bundle] of Object.entries(regionalModules)) {
+  const match = /\/([^/]+)\.json$/.exec(path);
+  const locale = match?.[1];
+  if (!locale || !REGIONAL_TAG.test(locale)) continue;
+  baseResources[locale] = bundle;
+  const base = locale.split('-')[0];
+  fallbackLng[locale] =
+    base in baseResources ? [base, defaultLocale] : [defaultLocale];
+}
+
 void i18n
   .use(ICU)
   .use(initReactI18next)
   .init({
-    resources: {
-      de: {
-        ...deMessages,
-        ...globalMessages,
-      },
-      'de-AT': {
-        ...deAtMessages,
-      },
-      'de-CH': {
-        ...deChMessages,
-      },
-      en: {
-        ...enMessages,
-        ...globalMessages,
-      },
-      fr: {
-        ...frMessages,
-        ...globalMessages,
-      },
-      'fr-CH': {
-        ...frChMessages,
-      },
-    },
+    resources: baseResources,
     lng: typeof navigator !== 'undefined' ? navigator.language : defaultLocale,
-    fallbackLng: {
-      'de-CH': ['de', defaultLocale],
-      'de-AT': ['de', defaultLocale],
-      'fr-CH': ['fr', defaultLocale],
-      fr: [defaultLocale],
-      default: [defaultLocale],
-    },
+    fallbackLng,
     interpolation: {
       escapeValue: false,
       prefix: '{',
