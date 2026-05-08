@@ -147,13 +147,52 @@ async function cleanupDocuments(
   }
 
   const cutoffMs = Date.now() - days * DAY_MS;
-  const expiredDocs = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredDocuments,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
-
+  const graceDays = org.config.deletionGraceDays ?? 0;
   let processed = 0;
-  for (const doc of expiredDocs) {
+
+  // Pass A: flip active expired → expired (admin Trash), only when grace
+  // is configured. graceDays === 0 collapses to single-pass behavior.
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredDocuments,
+      { organizationId: org.organizationId, cutoffMs, batchSize },
+    );
+    for (const doc of passA) {
+      if (holds.documentIds.has(doc._id)) continue;
+      if (doc.createdBy && holds.userMembershipIds.has(doc.createdBy)) continue;
+      await ctx.runMutation(
+        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
+        {
+          resourceType: 'document',
+          rowId: String(doc._id),
+          organizationId: org.organizationId,
+          cutoffMs,
+          timestampField: '_creationTime',
+        },
+      );
+      processed += 1;
+    }
+  }
+
+  // Pass B: hard-delete (with rag/storage cascade) rows whose grace has
+  // elapsed, OR — when graceDays === 0 — directly hard-delete active
+  // expired rows (no Trash window).
+  const passB =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries.listGraceExpiredDocuments,
+          {
+            organizationId: org.organizationId,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredDocuments,
+          { organizationId: org.organizationId, cutoffMs, batchSize },
+        );
+
+  for (const doc of passB) {
     if (holds.documentIds.has(doc._id)) {
       console.info(
         `[RetentionCleanup] document ${doc._id} on legal hold — skipping`,
@@ -176,7 +215,11 @@ async function cleanupDocuments(
       {
         documentId: doc._id,
         organizationId: org.organizationId,
-        cutoffMs,
+        // Pass-B graceDays > 0 inclusion is by statusChangedAt (already
+        // enforced by the listGrace query); skip TOCTOU on cutoffMs to
+        // avoid permanently rejecting legitimately-flipped rows whose
+        // _creationTime is "fresh" relative to a re-shortened cutoff.
+        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
       },
     );
     processed += 1;
@@ -209,14 +252,49 @@ async function cleanupTempFiles(
       ? org.config.userTempRetentionHours
       : org.config.agentTempRetentionHours) ?? DEFAULT_TEMP_RETENTION_HOURS;
   const cutoffMs = Date.now() - hours * HOUR_MS;
-
-  const expiredFiles = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredTempFiles,
-    { organizationId: org.organizationId, source, cutoffMs, batchSize },
-  );
-
+  const graceDays = org.config.deletionGraceDays ?? 0;
   let processed = 0;
-  for (const file of expiredFiles) {
+
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredTempFiles,
+      { organizationId: org.organizationId, source, cutoffMs, batchSize },
+    );
+    for (const file of passA) {
+      if (file.uploadedBy && holds.userMembershipIds.has(file.uploadedBy)) {
+        continue;
+      }
+      await ctx.runMutation(
+        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
+        {
+          resourceType: 'fileMetadata',
+          rowId: String(file._id),
+          organizationId: org.organizationId,
+          cutoffMs,
+          timestampField: '_creationTime',
+        },
+      );
+      processed += 1;
+    }
+  }
+
+  const passB =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries.listGraceExpiredTempFiles,
+          {
+            organizationId: org.organizationId,
+            source,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredTempFiles,
+          { organizationId: org.organizationId, source, cutoffMs, batchSize },
+        );
+
+  for (const file of passB) {
     if (file.uploadedBy && holds.userMembershipIds.has(file.uploadedBy)) {
       console.info(
         `[RetentionCleanup] temp file ${file._id} uploaded by user ${file.uploadedBy} on user-custodian hold — skipping`,
@@ -231,7 +309,7 @@ async function cleanupTempFiles(
       {
         fileMetadataId: file._id,
         organizationId: org.organizationId,
-        cutoffMs,
+        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
       },
     );
     processed += 1;
@@ -447,12 +525,46 @@ async function cleanupWorkflowLogs(
   }
 
   const cutoffMs = Date.now() - days * DAY_MS;
+  const graceDays = org.config.deletionGraceDays ?? 0;
   let processed = 0;
 
-  const expiredExecutions = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredWorkflowExecutions,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
+  // Pass A: flip active expired executions → expired (Trash window).
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredWorkflowExecutions,
+      { organizationId: org.organizationId, cutoffMs, batchSize },
+    );
+    for (const execution of passA) {
+      if (holds.executionIds.has(execution._id)) continue;
+      await ctx.runMutation(
+        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
+        {
+          resourceType: 'workflowExecution',
+          rowId: String(execution._id),
+          organizationId: org.organizationId,
+          cutoffMs,
+          timestampField: 'startedAt',
+        },
+      );
+      processed += 1;
+    }
+  }
+
+  const expiredExecutions =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries
+            .listGraceExpiredWorkflowExecutions,
+          {
+            organizationId: org.organizationId,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredWorkflowExecutions,
+          { organizationId: org.organizationId, cutoffMs, batchSize },
+        );
   for (const execution of expiredExecutions) {
     // Per-execution hold (`targetType: 'execution'`). The hold UI pastes
     // the execution `_id` as `targetId`; match exactly.
@@ -468,12 +580,14 @@ async function cleanupWorkflowLogs(
       {
         executionId: execution._id,
         organizationId: org.organizationId,
-        cutoffMs,
+        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
       },
     );
     processed += 1;
   }
 
+  // Trigger logs cascade with executions and don't get their own grace
+  // window — keep the original single-pass age-based cleanup.
   const expiredTriggerLogs = await ctx.runQuery(
     internal.governance.internal_queries.listExpiredWorkflowTriggerLogs,
     { organizationId: org.organizationId, cutoffMs, batchSize },
@@ -522,12 +636,44 @@ async function cleanupUsageLedger(
   }
 
   const cutoffMs = Date.now() - days * DAY_MS;
-  const expired = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredUsageLedgerRows,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
-
+  const graceDays = org.config.deletionGraceDays ?? 0;
   let processed = 0;
+
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredUsageLedgerRows,
+      { organizationId: org.organizationId, cutoffMs, batchSize },
+    );
+    for (const row of passA) {
+      if (row.userId && holds.userMembershipIds.has(row.userId)) continue;
+      await ctx.runMutation(
+        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
+        {
+          resourceType: 'usageLedger',
+          rowId: String(row._id),
+          organizationId: org.organizationId,
+          cutoffMs,
+          timestampField: '_creationTime',
+        },
+      );
+      processed += 1;
+    }
+  }
+
+  const expired =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries.listGraceExpiredUsageLedgerRows,
+          {
+            organizationId: org.organizationId,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredUsageLedgerRows,
+          { organizationId: org.organizationId, cutoffMs, batchSize },
+        );
   for (const row of expired) {
     if (row.userId && holds.userMembershipIds.has(row.userId)) {
       console.info(
@@ -541,7 +687,7 @@ async function cleanupUsageLedger(
       {
         rowId: row._id,
         organizationId: org.organizationId,
-        cutoffMs,
+        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
       },
     );
     processed += 1;
@@ -567,11 +713,43 @@ async function cleanupChatFilterEvents(
   }
 
   const cutoffMs = Date.now() - days * DAY_MS;
-  const expired = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredChatFilterEvents,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
+  const graceDays = org.config.deletionGraceDays ?? 0;
   let processed = 0;
+
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredChatFilterEvents,
+      { organizationId: org.organizationId, cutoffMs, batchSize },
+    );
+    for (const row of passA) {
+      await ctx.runMutation(
+        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
+        {
+          resourceType: 'chatFilterEvent',
+          rowId: String(row._id),
+          organizationId: org.organizationId,
+          cutoffMs,
+          timestampField: 'createdAt',
+        },
+      );
+      processed += 1;
+    }
+  }
+
+  const expired =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries.listGraceExpiredChatFilterEvents,
+          {
+            organizationId: org.organizationId,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredChatFilterEvents,
+          { organizationId: org.organizationId, cutoffMs, batchSize },
+        );
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
@@ -579,7 +757,7 @@ async function cleanupChatFilterEvents(
       {
         eventId: row._id,
         organizationId: org.organizationId,
-        cutoffMs,
+        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
       },
     );
     processed += 1;
@@ -603,11 +781,44 @@ async function cleanupPromptTemplates(
     return 0;
   }
   const cutoffMs = Date.now() - days * DAY_MS;
-  const expired = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredPromptTemplates,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
+  const graceDays = org.config.deletionGraceDays ?? 0;
   let processed = 0;
+
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredPromptTemplates,
+      { organizationId: org.organizationId, cutoffMs, batchSize },
+    );
+    for (const row of passA) {
+      if (row.createdBy && holds.userMembershipIds.has(row.createdBy)) continue;
+      await ctx.runMutation(
+        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
+        {
+          resourceType: 'promptTemplate',
+          rowId: String(row._id),
+          organizationId: org.organizationId,
+          cutoffMs,
+          timestampField: '_creationTime',
+        },
+      );
+      processed += 1;
+    }
+  }
+
+  const expired =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries.listGraceExpiredPromptTemplates,
+          {
+            organizationId: org.organizationId,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredPromptTemplates,
+          { organizationId: org.organizationId, cutoffMs, batchSize },
+        );
   for (const row of expired) {
     if (row.createdBy && holds.userMembershipIds.has(row.createdBy)) {
       console.info(
@@ -621,7 +832,7 @@ async function cleanupPromptTemplates(
       {
         rowId: row._id,
         organizationId: org.organizationId,
-        cutoffMs,
+        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
       },
     );
     processed += 1;
@@ -645,11 +856,44 @@ async function cleanupMessageFeedback(
     return 0;
   }
   const cutoffMs = Date.now() - days * DAY_MS;
-  const expired = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredMessageFeedback,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
+  const graceDays = org.config.deletionGraceDays ?? 0;
   let processed = 0;
+
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredMessageFeedback,
+      { organizationId: org.organizationId, cutoffMs, batchSize },
+    );
+    for (const row of passA) {
+      if (row.userId && holds.userMembershipIds.has(row.userId)) continue;
+      await ctx.runMutation(
+        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
+        {
+          resourceType: 'messageFeedback',
+          rowId: String(row._id),
+          organizationId: org.organizationId,
+          cutoffMs,
+          timestampField: 'createdAt',
+        },
+      );
+      processed += 1;
+    }
+  }
+
+  const expired =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries.listGraceExpiredMessageFeedback,
+          {
+            organizationId: org.organizationId,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredMessageFeedback,
+          { organizationId: org.organizationId, cutoffMs, batchSize },
+        );
   for (const row of expired) {
     if (row.userId && holds.userMembershipIds.has(row.userId)) {
       console.info(
@@ -663,7 +907,7 @@ async function cleanupMessageFeedback(
       {
         rowId: row._id,
         organizationId: org.organizationId,
-        cutoffMs,
+        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
       },
     );
     processed += 1;
@@ -687,11 +931,43 @@ async function cleanupMemoryAudit(
     return 0;
   }
   const cutoffMs = Date.now() - days * DAY_MS;
-  const expired = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredMemoryAuditRows,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
+  const graceDays = org.config.deletionGraceDays ?? 0;
   let processed = 0;
+
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredMemoryAuditRows,
+      { organizationId: org.organizationId, cutoffMs, batchSize },
+    );
+    for (const row of passA) {
+      await ctx.runMutation(
+        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
+        {
+          resourceType: 'memoryAudit',
+          rowId: String(row._id),
+          organizationId: org.organizationId,
+          cutoffMs,
+          timestampField: 'createdAt',
+        },
+      );
+      processed += 1;
+    }
+  }
+
+  const expired =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries.listGraceExpiredMemoryAuditRows,
+          {
+            organizationId: org.organizationId,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredMemoryAuditRows,
+          { organizationId: org.organizationId, cutoffMs, batchSize },
+        );
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
@@ -699,7 +975,7 @@ async function cleanupMemoryAudit(
       {
         rowId: row._id,
         organizationId: org.organizationId,
-        cutoffMs,
+        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
       },
     );
     processed += 1;
@@ -729,18 +1005,50 @@ async function cleanupCustomers(
     return 0;
   }
   const cutoffMs = Date.now() - days * DAY_MS;
-  const expired = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredCustomers,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
+  const graceDays = org.config.deletionGraceDays ?? 0;
   let processed = 0;
+
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredCustomers,
+      { organizationId: org.organizationId, cutoffMs, batchSize },
+    );
+    for (const row of passA) {
+      await ctx.runMutation(
+        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
+        {
+          resourceType: 'customer',
+          rowId: String(row._id),
+          organizationId: org.organizationId,
+          cutoffMs,
+          timestampField: '_creationTime',
+        },
+      );
+      processed += 1;
+    }
+  }
+
+  const expired =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries.listGraceExpiredCustomers,
+          {
+            organizationId: org.organizationId,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredCustomers,
+          { organizationId: org.organizationId, cutoffMs, batchSize },
+        );
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention.deleteExpiredCustomer,
       {
         rowId: row._id,
         organizationId: org.organizationId,
-        cutoffMs,
+        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
       },
     );
     processed += 1;
@@ -764,18 +1072,50 @@ async function cleanupVendors(
     return 0;
   }
   const cutoffMs = Date.now() - days * DAY_MS;
-  const expired = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredVendors,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
+  const graceDays = org.config.deletionGraceDays ?? 0;
   let processed = 0;
+
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredVendors,
+      { organizationId: org.organizationId, cutoffMs, batchSize },
+    );
+    for (const row of passA) {
+      await ctx.runMutation(
+        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
+        {
+          resourceType: 'vendor',
+          rowId: String(row._id),
+          organizationId: org.organizationId,
+          cutoffMs,
+          timestampField: '_creationTime',
+        },
+      );
+      processed += 1;
+    }
+  }
+
+  const expired =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries.listGraceExpiredVendors,
+          {
+            organizationId: org.organizationId,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredVendors,
+          { organizationId: org.organizationId, cutoffMs, batchSize },
+        );
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention.deleteExpiredVendor,
       {
         rowId: row._id,
         organizationId: org.organizationId,
-        cutoffMs,
+        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
       },
     );
     processed += 1;
@@ -799,11 +1139,47 @@ async function cleanupExternalConversations(
     return 0;
   }
   const cutoffMs = Date.now() - days * DAY_MS;
-  const expired = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredExternalConversations,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
+  const graceDays = org.config.deletionGraceDays ?? 0;
   let processed = 0;
+
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredExternalConversations,
+      { organizationId: org.organizationId, cutoffMs, batchSize },
+    );
+    for (const row of passA) {
+      await ctx.runMutation(
+        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
+        {
+          resourceType: 'externalConversation',
+          rowId: String(row._id),
+          organizationId: org.organizationId,
+          cutoffMs,
+          // conversations age by lastMessageAt — match the listExpired
+          // query's index range so the TOCTOU guard re-checks the same
+          // field.
+          timestampField: 'lastMessageAt',
+        },
+      );
+      processed += 1;
+    }
+  }
+
+  const expired =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries
+            .listGraceExpiredExternalConversations,
+          {
+            organizationId: org.organizationId,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredExternalConversations,
+          { organizationId: org.organizationId, cutoffMs, batchSize },
+        );
   for (const row of expired) {
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
@@ -811,7 +1187,7 @@ async function cleanupExternalConversations(
       {
         rowId: row._id,
         organizationId: org.organizationId,
-        cutoffMs,
+        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
       },
     );
     processed += 1;

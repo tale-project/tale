@@ -1,6 +1,8 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
+
 export const fileMetadataTable = defineTable({
   organizationId: v.string(),
   storageId: v.id('_storage'),
@@ -61,8 +63,14 @@ export const fileMetadataTable = defineTable({
   // org has completed transcription of the same content.
   contentHash: v.optional(v.string()),
   uploadedBy: v.optional(v.string()),
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
 })
   .index('by_organizationId', ['organizationId'])
+  .index('by_organizationId_and_lifecycleStatus', [
+    'organizationId',
+    'lifecycleStatus',
+  ])
   .index('by_storageId', ['storageId'])
   .index('by_organizationId_and_documentId', ['organizationId', 'documentId'])
   .index('by_organizationId_and_source_and_documentId', [

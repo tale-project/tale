@@ -1,6 +1,8 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
+
 /**
  * Sidecar telemetry table for guardrails filter outcomes.
  *
@@ -65,8 +67,11 @@ export const chatFilterEventsTable = defineTable({
     ),
   ),
   createdAt: v.number(),
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
 })
   .index('by_org_sanitizationRunId', ['organizationId', 'sanitizationRunId'])
+  .index('by_org_lifecycleStatus', ['organizationId', 'lifecycleStatus'])
   .index('by_org_createdAt', ['organizationId', 'createdAt'])
   .index('by_org_filter_createdAt', [
     'organizationId',

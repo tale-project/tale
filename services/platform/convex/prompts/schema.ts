@@ -1,6 +1,8 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
+
 export const promptTemplatesTable = defineTable({
   organizationId: v.string(),
   createdBy: v.string(),
@@ -15,8 +17,14 @@ export const promptTemplatesTable = defineTable({
   isPublished: v.boolean(),
   /** The message ID this prompt was saved from, if any. */
   sourceMessageId: v.optional(v.string()),
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
 })
   .index('by_organizationId', ['organizationId'])
+  .index('by_organizationId_and_lifecycleStatus', [
+    'organizationId',
+    'lifecycleStatus',
+  ])
   .index('by_organizationId_and_scope', ['organizationId', 'scope'])
   .index('by_org_createdBy', ['organizationId', 'createdBy'])
   .index('by_org_teamId', ['organizationId', 'teamId'])

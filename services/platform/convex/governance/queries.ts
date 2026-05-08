@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
+import type { QueryCtx } from '../_generated/server';
 import { authComponent } from '../auth';
 import { getUserNamesBatch } from '../documents/get_user_names_batch';
 import { getUserTeamIds } from '../lib/get_user_teams';
@@ -11,6 +12,14 @@ import { resolveFeatureFlags } from './feature_enforcement';
 import { getOrgUsageMetrics as getOrgUsageMetricsHandler } from './get_org_usage_metrics';
 import { getAccessibleModels } from './model_access_enforcement';
 import { GOVERNANCE_POLICY_TYPES } from './schema';
+import {
+  SOFT_DELETE_RESOURCE_CONFIG,
+  type ResourceConfig,
+} from './soft_delete_helpers';
+import {
+  type SoftDeleteResourceType,
+  softDeleteResourceTypeValidator,
+} from './soft_delete_validators';
 
 /**
  * Phase 13 — pending retention shortening for the editor banner.
@@ -427,3 +436,302 @@ export const getAccessibleModelsForUser = query({
     );
   },
 });
+
+/**
+ * Admin-only listing of retention-trashed rows for the Trash UI under
+ * `settings/governance/trash`. Per-resource dispatch because each
+ * table's `lifecycleStatus` index is table-specific (Convex
+ * `withIndex` typing prevents a single generic query body).
+ *
+ * Threads use the legacy `status` field; everyone else uses
+ * `lifecycleStatus`. Returned rows project to a uniform shape so the
+ * UI can render any resource type with the same column config.
+ *
+ * Pagination is take-N (no continueCursor); typical trash volume is
+ * small enough that a single page covers the active grace window. If
+ * volume grows we can switch to `paginate()` later.
+ */
+const TRASH_PAGE_SIZE = 200;
+
+interface TrashRow {
+  id: string;
+  status: 'trashed' | 'expired';
+  statusChangedAt: number | null;
+  createdAt: number;
+  displayName: string | null;
+}
+
+export const listTrashedRows = query({
+  args: {
+    organizationId: v.string(),
+    resourceType: softDeleteResourceTypeValidator,
+  },
+  returns: v.object({
+    rows: v.array(
+      v.object({
+        id: v.string(),
+        status: v.union(v.literal('trashed'), v.literal('expired')),
+        statusChangedAt: v.union(v.number(), v.null()),
+        createdAt: v.number(),
+        displayName: v.union(v.string(), v.null()),
+      }),
+    ),
+    truncated: v.boolean(),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ rows: TrashRow[]; truncated: boolean }> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+    if (!isAdmin(member.role)) {
+      throw new Error('Trash listing requires admin role.');
+    }
+
+    return await listTrashForResource(
+      ctx,
+      args.organizationId,
+      args.resourceType,
+    );
+  },
+});
+
+async function listTrashForResource(
+  ctx: QueryCtx,
+  organizationId: string,
+  rt: SoftDeleteResourceType,
+): Promise<{ rows: TrashRow[]; truncated: boolean }> {
+  const config = SOFT_DELETE_RESOURCE_CONFIG[rt];
+  switch (rt) {
+    case 'thread': {
+      // threadMetadata uses `status`. No by_org_status index — query by
+      // org and filter in memory. Trash is bounded by retention*grace
+      // so volume is small.
+      const all = await ctx.db
+        .query('threadMetadata')
+        .withIndex('by_organizationId', (q) =>
+          q.eq('organizationId', organizationId),
+        )
+        .take(TRASH_PAGE_SIZE * 4);
+      const filtered = all.filter(
+        (r) => r.status === 'trashed' || r.status === 'expired',
+      );
+      return projectRows(filtered, config, (r) => ({
+        status: r.status,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r.createdAt ?? r._creationTime,
+      }));
+    }
+    case 'document': {
+      const all = await ctx.db
+        .query('documents')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q.eq('organizationId', organizationId),
+        )
+        .take(TRASH_PAGE_SIZE * 4);
+      return projectRows(all, config, (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r._creationTime,
+      }));
+    }
+    case 'fileMetadata': {
+      const all = await ctx.db
+        .query('fileMetadata')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q.eq('organizationId', organizationId),
+        )
+        .take(TRASH_PAGE_SIZE * 4);
+      return projectRows(all, config, (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r._creationTime,
+      }));
+    }
+    case 'promptTemplate': {
+      const all = await ctx.db
+        .query('promptTemplates')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q.eq('organizationId', organizationId),
+        )
+        .take(TRASH_PAGE_SIZE * 4);
+      return projectRows(all, config, (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r._creationTime,
+      }));
+    }
+    case 'messageFeedback': {
+      const all = await ctx.db
+        .query('messageFeedback')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q.eq('organizationId', organizationId),
+        )
+        .take(TRASH_PAGE_SIZE * 4);
+      return projectRows(all, config, (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r.createdAt ?? r._creationTime,
+      }));
+    }
+    case 'customer': {
+      const all = await ctx.db
+        .query('customers')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q.eq('organizationId', organizationId),
+        )
+        .take(TRASH_PAGE_SIZE * 4);
+      return projectRows(all, config, (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r._creationTime,
+      }));
+    }
+    case 'vendor': {
+      const all = await ctx.db
+        .query('vendors')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q.eq('organizationId', organizationId),
+        )
+        .take(TRASH_PAGE_SIZE * 4);
+      return projectRows(all, config, (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r._creationTime,
+      }));
+    }
+    case 'externalConversation': {
+      const all = await ctx.db
+        .query('conversations')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q.eq('organizationId', organizationId),
+        )
+        .take(TRASH_PAGE_SIZE * 4);
+      return projectRows(all, config, (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r._creationTime,
+      }));
+    }
+    case 'workflowExecution': {
+      const all = await ctx.db
+        .query('wfExecutions')
+        .withIndex('by_org_lifecycleStatus', (q) =>
+          q.eq('organizationId', organizationId),
+        )
+        .take(TRASH_PAGE_SIZE * 4);
+      return projectRows(all, config, (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r.startedAt ?? r._creationTime,
+      }));
+    }
+    case 'usageLedger': {
+      const all = await ctx.db
+        .query('usageLedger')
+        .withIndex('by_org_lifecycleStatus', (q) =>
+          q.eq('organizationId', organizationId),
+        )
+        .take(TRASH_PAGE_SIZE * 4);
+      return projectRows(all, config, (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r._creationTime,
+      }));
+    }
+    case 'auditLog': {
+      const all = await ctx.db
+        .query('auditLogs')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q.eq('organizationId', organizationId),
+        )
+        .take(TRASH_PAGE_SIZE * 4);
+      return projectRows(all, config, (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r.timestamp ?? r._creationTime,
+      }));
+    }
+    case 'chatFilterEvent': {
+      const all = await ctx.db
+        .query('chatFilterEvents')
+        .withIndex('by_org_lifecycleStatus', (q) =>
+          q.eq('organizationId', organizationId),
+        )
+        .take(TRASH_PAGE_SIZE * 4);
+      return projectRows(all, config, (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r.createdAt ?? r._creationTime,
+      }));
+    }
+    case 'memoryAudit': {
+      const all = await ctx.db
+        .query('userMemoryAuditLog')
+        .withIndex('by_org_lifecycleStatus', (q) =>
+          q.eq('organizationId', organizationId),
+        )
+        .take(TRASH_PAGE_SIZE * 4);
+      return projectRows(all, config, (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r.createdAt ?? r._creationTime,
+      }));
+    }
+    case 'messageMetadata':
+    case 'workflowTriggerLog':
+      // These are cascade children of other resources; no own trash tab.
+      return { rows: [], truncated: false };
+  }
+  // oxlint can't prove the switch is exhaustive over the resource-type
+  // union; this trailing fallback keeps consistent-return happy and
+  // documents intent.
+  return { rows: [], truncated: false };
+}
+
+interface RowMeta {
+  status: string | undefined;
+  statusChangedAt: number | null;
+  createdAt: number;
+}
+
+function projectRows<T extends { _id: unknown; _creationTime: number }>(
+  rows: T[],
+  config: ResourceConfig,
+  meta: (r: T) => RowMeta,
+): { rows: TrashRow[]; truncated: boolean } {
+  const out: TrashRow[] = [];
+  for (const row of rows) {
+    const m = meta(row);
+    if (m.status !== 'trashed' && m.status !== 'expired') continue;
+    out.push({
+      id: String(row._id),
+      status: m.status,
+      statusChangedAt: m.statusChangedAt,
+      createdAt: m.createdAt,
+      displayName: pickDisplayName(row, config),
+    });
+  }
+  out.sort(
+    (a, b) =>
+      (b.statusChangedAt ?? b.createdAt) - (a.statusChangedAt ?? a.createdAt),
+  );
+  return {
+    rows: out.slice(0, TRASH_PAGE_SIZE),
+    truncated: out.length > TRASH_PAGE_SIZE,
+  };
+}
+
+function pickDisplayName(row: unknown, config: ResourceConfig): string | null {
+  if (!config.displayNameField || row === null || typeof row !== 'object') {
+    return null;
+  }
+  if (!Object.hasOwn(row, config.displayNameField)) return null;
+  const value = Reflect.get(row, config.displayNameField);
+  return typeof value === 'string' ? value : null;
+}

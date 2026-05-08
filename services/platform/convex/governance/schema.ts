@@ -2,6 +2,7 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../lib/validators/json';
+import { lifecycleStatusValidator } from './soft_delete_validators';
 
 export const GOVERNANCE_POLICY_TYPES = [
   'system_prompt',
@@ -103,8 +104,11 @@ export const usageLedgerTable = defineTable({
   // minute of audio rather than per token, so inputTokens/outputTokens are
   // always 0 and costEstimate is derived from audioDurationSec directly.
   audioDurationSec: v.optional(v.number()),
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
 })
   .index('by_org_user_period', ['organizationId', 'userId', 'periodKey'])
+  .index('by_org_lifecycleStatus', ['organizationId', 'lifecycleStatus'])
   .index('by_org_user_period_team', [
     'organizationId',
     'userId',

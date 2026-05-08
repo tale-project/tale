@@ -183,12 +183,42 @@ export const listExpiredTempFiles = internalQuery({
           .eq('source', args.source)
           .eq('documentId', undefined),
       )) {
+      const status = file.lifecycleStatus ?? 'active';
+      if (status !== 'active') continue;
       if (file._creationTime < args.cutoffMs) {
         files.push(file);
         if (files.length >= args.batchSize) {
           break;
         }
       }
+    }
+    return files;
+  },
+});
+
+export const listGraceExpiredTempFiles = internalQuery({
+  args: {
+    organizationId: v.string(),
+    source: v.union(v.literal('user'), v.literal('agent')),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const files = [];
+    for await (const file of ctx.db
+      .query('fileMetadata')
+      .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (file.source !== args.source) continue;
+      if (file.documentId !== undefined) continue;
+      const status = file.lifecycleStatus ?? 'active';
+      if (status !== 'trashed' && status !== 'expired') continue;
+      const ts = file.statusChangedAt ?? Date.now();
+      if (ts >= args.graceCutoffMs) continue;
+      files.push(file);
+      if (files.length >= args.batchSize) break;
     }
     return files;
   },
@@ -208,12 +238,44 @@ export const listExpiredDocuments = internalQuery({
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
+      // Skip already-flipped rows so Pass A doesn't keep re-stamping
+      // statusChangedAt. Treat missing field as 'active' (legacy rows).
+      const status = doc.lifecycleStatus ?? 'active';
+      if (status !== 'active') continue;
       if (doc._creationTime >= args.cutoffMs) continue;
 
       docs.push(doc);
       if (docs.length >= args.batchSize) {
         break;
       }
+    }
+    return docs;
+  },
+});
+
+export const listGraceExpiredDocuments = internalQuery({
+  args: {
+    organizationId: v.string(),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const docs = [];
+    for await (const doc of ctx.db
+      .query('documents')
+      .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      const status = doc.lifecycleStatus ?? 'active';
+      if (status !== 'trashed' && status !== 'expired') continue;
+      // Mirror the threadMetadata legacy fallback: missing
+      // statusChangedAt keeps the row in the grace window indefinitely
+      // until a real trash/restore stamp lands.
+      const ts = doc.statusChangedAt ?? Date.now();
+      if (ts >= args.graceCutoffMs) continue;
+      docs.push(doc);
+      if (docs.length >= args.batchSize) break;
     }
     return docs;
   },
@@ -319,6 +381,8 @@ export const listExpiredWorkflowExecutions = internalQuery({
       .withIndex('by_org', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
+      const status = execution.lifecycleStatus ?? 'active';
+      if (status !== 'active') continue;
       if (execution.startedAt >= args.cutoffMs) continue;
 
       executions.push(execution);
@@ -327,6 +391,31 @@ export const listExpiredWorkflowExecutions = internalQuery({
       }
     }
     return executions;
+  },
+});
+
+export const listGraceExpiredWorkflowExecutions = internalQuery({
+  args: {
+    organizationId: v.string(),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const execution of ctx.db
+      .query('wfExecutions')
+      .withIndex('by_org_lifecycleStatus', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      const status = execution.lifecycleStatus ?? 'active';
+      if (status !== 'trashed' && status !== 'expired') continue;
+      const ts = execution.statusChangedAt ?? Date.now();
+      if (ts >= args.graceCutoffMs) continue;
+      rows.push(execution);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
   },
 });
 
@@ -409,7 +498,35 @@ export const listExpiredPromptTemplates = internalQuery({
       // Skip global-scope templates — they're operator content, not
       // org content, so per-org retention shouldn't reach them.
       if (row.scope === 'global') continue;
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'active') continue;
       if (row._creationTime >= args.cutoffMs) continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
+export const listGraceExpiredPromptTemplates = internalQuery({
+  args: {
+    organizationId: v.string(),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('promptTemplates')
+      .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (row.scope === 'global') continue;
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'trashed' && status !== 'expired') continue;
+      const ts = row.statusChangedAt ?? Date.now();
+      if (ts >= args.graceCutoffMs) continue;
       rows.push(row);
       if (rows.length >= args.batchSize) break;
     }
@@ -433,6 +550,33 @@ export const listExpiredMessageFeedback = internalQuery({
           .eq('organizationId', args.organizationId)
           .lt('createdAt', args.cutoffMs),
       )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'active') continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
+export const listGraceExpiredMessageFeedback = internalQuery({
+  args: {
+    organizationId: v.string(),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('messageFeedback')
+      .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'trashed' && status !== 'expired') continue;
+      const ts = row.statusChangedAt ?? Date.now();
+      if (ts >= args.graceCutoffMs) continue;
       rows.push(row);
       if (rows.length >= args.batchSize) break;
     }
@@ -480,7 +624,34 @@ export const listExpiredCustomers = internalQuery({
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'active') continue;
       if (row._creationTime >= args.cutoffMs) continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
+export const listGraceExpiredCustomers = internalQuery({
+  args: {
+    organizationId: v.string(),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('customers')
+      .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'trashed' && status !== 'expired') continue;
+      const ts = row.statusChangedAt ?? Date.now();
+      if (ts >= args.graceCutoffMs) continue;
       rows.push(row);
       if (rows.length >= args.batchSize) break;
     }
@@ -502,7 +673,34 @@ export const listExpiredVendors = internalQuery({
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'active') continue;
       if (row._creationTime >= args.cutoffMs) continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
+export const listGraceExpiredVendors = internalQuery({
+  args: {
+    organizationId: v.string(),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('vendors')
+      .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'trashed' && status !== 'expired') continue;
+      const ts = row.statusChangedAt ?? Date.now();
+      if (ts >= args.graceCutoffMs) continue;
       rows.push(row);
       if (rows.length >= args.batchSize) break;
     }
@@ -529,6 +727,33 @@ export const listExpiredExternalConversations = internalQuery({
           .eq('organizationId', args.organizationId)
           .lt('lastMessageAt', args.cutoffMs),
       )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'active') continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
+export const listGraceExpiredExternalConversations = internalQuery({
+  args: {
+    organizationId: v.string(),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('conversations')
+      .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'trashed' && status !== 'expired') continue;
+      const ts = row.statusChangedAt ?? Date.now();
+      if (ts >= args.graceCutoffMs) continue;
       rows.push(row);
       if (rows.length >= args.batchSize) break;
     }
@@ -593,6 +818,33 @@ export const listExpiredMemoryAuditRows = internalQuery({
           .eq('organizationId', args.organizationId)
           .lt('createdAt', args.cutoffMs),
       )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'active') continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
+export const listGraceExpiredMemoryAuditRows = internalQuery({
+  args: {
+    organizationId: v.string(),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('userMemoryAuditLog')
+      .withIndex('by_org_lifecycleStatus', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'trashed' && status !== 'expired') continue;
+      const ts = row.statusChangedAt ?? Date.now();
+      if (ts >= args.graceCutoffMs) continue;
       rows.push(row);
       if (rows.length >= args.batchSize) break;
     }
@@ -616,6 +868,33 @@ export const listExpiredChatFilterEvents = internalQuery({
           .eq('organizationId', args.organizationId)
           .lt('createdAt', args.cutoffMs),
       )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'active') continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
+export const listGraceExpiredChatFilterEvents = internalQuery({
+  args: {
+    organizationId: v.string(),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('chatFilterEvents')
+      .withIndex('by_org_lifecycleStatus', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'trashed' && status !== 'expired') continue;
+      const ts = row.statusChangedAt ?? Date.now();
+      if (ts >= args.graceCutoffMs) continue;
       rows.push(row);
       if (rows.length >= args.batchSize) break;
     }
@@ -637,12 +916,39 @@ export const listExpiredUsageLedgerRows = internalQuery({
       .withIndex('by_org_period', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'active') continue;
       if (row._creationTime >= args.cutoffMs) continue;
 
       rows.push(row);
       if (rows.length >= args.batchSize) {
         break;
       }
+    }
+    return rows;
+  },
+});
+
+export const listGraceExpiredUsageLedgerRows = internalQuery({
+  args: {
+    organizationId: v.string(),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('usageLedger')
+      .withIndex('by_org_lifecycleStatus', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'trashed' && status !== 'expired') continue;
+      const ts = row.statusChangedAt ?? Date.now();
+      if (ts >= args.graceCutoffMs) continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
     }
     return rows;
   },

@@ -1,6 +1,8 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
+
 /**
  * Append-only audit log for personalization data lifecycle events. Distinct
  * from the platform `auditLogs` table because schema is closed: no free-form
@@ -42,6 +44,9 @@ export const userMemoryAuditLogTable = defineTable({
   agentSlug: v.optional(v.string()),
   requestId: v.optional(v.string()),
   createdAt: v.number(),
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
 })
   .index('by_org_subject_at', ['organizationId', 'subjectUserId', 'createdAt'])
-  .index('by_org_at', ['organizationId', 'createdAt']);
+  .index('by_org_at', ['organizationId', 'createdAt'])
+  .index('by_org_lifecycleStatus', ['organizationId', 'lifecycleStatus']);

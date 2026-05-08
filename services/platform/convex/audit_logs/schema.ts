@@ -1,6 +1,7 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
 import { jsonRecordValidator } from '../lib/validators/json';
 
 export const AUDIT_LOG_ACTOR_TYPES = [
@@ -96,8 +97,14 @@ export const auditLogsTable = defineTable({
    */
   piiScrubbed: v.optional(v.boolean()),
   piiScrubbedAt: v.optional(v.number()),
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
 })
   .index('by_organizationId', ['organizationId'])
+  .index('by_organizationId_and_lifecycleStatus', [
+    'organizationId',
+    'lifecycleStatus',
+  ])
   .index('by_organizationId_and_timestamp', ['organizationId', 'timestamp'])
   .index('by_organizationId_and_category', ['organizationId', 'category'])
   .index('by_organizationId_and_actorId', ['organizationId', 'actorId'])
