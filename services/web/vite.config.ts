@@ -3,7 +3,10 @@ import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: './',
+  // Absolute base so the SPA shell loads its assets correctly when served
+  // as the fallback for nested URLs (e.g. /de/pricing) — relative './assets/'
+  // resolves against the request path and 404s under any /<locale>/<route>.
+  base: '/',
   resolve: {
     dedupe: ['react', 'react-dom'],
     tsconfigPaths: true,

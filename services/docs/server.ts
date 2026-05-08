@@ -19,6 +19,13 @@ const HOSTNAME = process.env.HOSTNAME ?? '0.0.0.0';
 const DIST = resolve(import.meta.dir, 'dist');
 const DIST_PREFIX = DIST + sep;
 const LOCALE_COOKIE_DOMAIN = process.env.LOCALE_COOKIE_DOMAIN || undefined;
+// When mounted under a sub-path by the front proxy (e.g. Caddy's
+// `handle_path /docs*` strips `/docs` before proxying), redirects emitted
+// by this server are origin-relative — `Location: /de` lands on the web
+// site, not /docs/de. `BASE_PATH` is the public mount prefix; we prepend
+// it to the negotiator's redirect target so the browser stays inside
+// /docs. Empty (default) when served at the origin root.
+const BASE_PATH = (process.env.DOCS_BASE_URL ?? '/').replace(/\/+$/, '');
 
 function contentTypeFor(path: string): string | null {
   if (path.endsWith('.md')) return 'text/markdown; charset=utf-8';
@@ -103,7 +110,7 @@ Bun.serve({
 
     if (negotiation.redirectTo) {
       const headers = new Headers({
-        Location: negotiation.redirectTo,
+        Location: BASE_PATH + negotiation.redirectTo,
         Vary: 'Accept-Language, Cookie',
       });
       if (negotiation.setCookieValue) {
