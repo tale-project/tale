@@ -71,12 +71,16 @@ LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.description="Tale documentation site"
 
 ARG LOCALE_COOKIE_DOMAIN=
+# Re-declare DOCS_BASE_URL here so the runner stage can promote it to ENV;
+# the server uses it as the public mount prefix for locale redirects.
+ARG DOCS_BASE_URL=/
 ENV NODE_ENV=production \
     TALE_VERSION=${VERSION} \
     PORT=3002 \
     HOSTNAME="0.0.0.0" \
     DO_NOT_TRACK=1 \
-    LOCALE_COOKIE_DOMAIN=${LOCALE_COOKIE_DOMAIN}
+    LOCALE_COOKIE_DOMAIN=${LOCALE_COOKIE_DOMAIN} \
+    DOCS_BASE_URL=${DOCS_BASE_URL}
 
 WORKDIR /app
 
