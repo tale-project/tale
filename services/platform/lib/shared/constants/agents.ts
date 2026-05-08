@@ -1,14 +1,15 @@
-import { SUPPORTED_LOCALES } from '@tale/i18n/locales';
-
 export const MAX_CONVERSATION_STARTERS = 4;
 export const MAX_CONVERSATION_STARTER_LENGTH = 200;
 
-/** The locales for which an agent can ship localized metadata
+/** Locales for which an agent can ship localized metadata
  *  (display name, description, conversation starters, system instructions).
- *  Tracks the UI's `SUPPORTED_LOCALES` 1:1 today — re-exported here so the
- *  agent-localization layer has its own named constant if the two ever
- *  diverge (e.g. agents support more locales than the marketing site). */
-export const SUPPORTED_AGENT_LOCALES = SUPPORTED_LOCALES;
+ *  Intentionally inlined (vs. re-exported from `@tale/i18n/locales`) because
+ *  Convex's deploy bundler doesn't resolve workspace-package subpath exports
+ *  through transitive re-exports — and `agents.ts` is reachable from convex
+ *  code (e.g. `convex/agents/file_actions.ts`). Tracks the UI's
+ *  `SUPPORTED_LOCALES` 1:1 today; if it ever diverges, the divergence is
+ *  explicit here. */
+export const SUPPORTED_AGENT_LOCALES = ['en', 'de', 'fr'] as const;
 
 export const PROTECTED_AGENT_NAMES = [
   'chat-agent',

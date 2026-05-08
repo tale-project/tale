@@ -54,8 +54,12 @@ export function localizedPath(
   locale: SupportedLocale,
   pathname: string,
 ): string {
+  // Normalize root first so callers passing `''` get a valid `/` for English
+  // and `/de` / `/fr` for the prefixed locales (instead of an empty string).
+  if (pathname === '/' || pathname === '') {
+    return locale === 'en' ? '/' : `/${locale}`;
+  }
   if (locale === 'en') return pathname;
-  if (pathname === '/' || pathname === '') return `/${locale}`;
   return `/${locale}${pathname}`;
 }
 

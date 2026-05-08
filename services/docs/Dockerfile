@@ -48,11 +48,9 @@ COPY docs ./docs
 
 ARG DOCS_BASE_URL=/
 ARG DOCS_SITE_URL=https://docs.tale.dev
-ARG LOCALE_COOKIE_DOMAIN=
 ENV NODE_ENV=production \
     DOCS_BASE_URL=${DOCS_BASE_URL} \
-    DOCS_SITE_URL=${DOCS_SITE_URL} \
-    LOCALE_COOKIE_DOMAIN=${LOCALE_COOKIE_DOMAIN}
+    DOCS_SITE_URL=${DOCS_SITE_URL}
 WORKDIR /app/services/docs
 RUN bun --bun scripts/build-search-index.ts \
     && bun --bun vite build \

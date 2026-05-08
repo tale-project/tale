@@ -13,7 +13,13 @@ import {
 
 import { defaultLocale } from './config';
 
-const REGIONAL_OVERRIDES: ReadonlySet<string> = new Set(REGIONAL_LOCALES);
+const REGIONAL_OVERRIDES: ReadonlySet<RegionalLocale> = new Set(
+  REGIONAL_LOCALES,
+);
+
+function isRegionalLocale(value: string): value is RegionalLocale {
+  return (REGIONAL_OVERRIDES as ReadonlySet<string>).has(value);
+}
 
 function getBrowserRegion(): string | null {
   if (typeof navigator === 'undefined') return null;
@@ -23,11 +29,13 @@ function getBrowserRegion(): string | null {
   return dash >= 0 ? tag.slice(dash + 1).toUpperCase() : null;
 }
 
-export function resolveRegionalLocale(base: SupportedLocale): string {
+export function resolveRegionalLocale(
+  base: SupportedLocale,
+): SupportedLocale | RegionalLocale {
   const region = getBrowserRegion();
   if (!region) return base;
   const candidate = `${base}-${region}`;
-  return REGIONAL_OVERRIDES.has(candidate) ? candidate : base;
+  return isRegionalLocale(candidate) ? candidate : base;
 }
 
 function localeFromPathname(pathname: string): SupportedLocale {

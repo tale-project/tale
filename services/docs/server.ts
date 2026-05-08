@@ -61,7 +61,8 @@ async function serveStatic(pathname: string): Promise<Response> {
   let rel: string;
   try {
     rel = decodeURIComponent(pathname).replace(/^\/+/, '');
-  } catch {
+  } catch (err) {
+    console.warn('[docs] decodeURIComponent failed', { pathname, err });
     return new Response(file(join(DIST, 'index.html')));
   }
   const resolved = resolve(DIST, rel);

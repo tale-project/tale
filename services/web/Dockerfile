@@ -46,11 +46,9 @@ COPY packages/webui ./packages/webui
 COPY services/web ./services/web
 
 ARG WEB_DOCS_URL=https://docs.tale.dev
-ARG LOCALE_COOKIE_DOMAIN=
 ENV NODE_ENV=production \
     WEB_DOCS_URL=${WEB_DOCS_URL} \
-    VITE_DOCS_URL=${WEB_DOCS_URL} \
-    LOCALE_COOKIE_DOMAIN=${LOCALE_COOKIE_DOMAIN}
+    VITE_DOCS_URL=${WEB_DOCS_URL}
 WORKDIR /app/services/web
 # Generate llms.txt / llms-full.txt / sitemap.xml / robots.txt into public/
 # *before* vite build, so the build's public-directory copy picks up the

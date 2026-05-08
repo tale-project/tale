@@ -10,12 +10,13 @@ import { isUrlPrefixedLocale, type SupportedLocale } from './locales';
  * layout's redirect resolves.
  */
 export function useCurrentLocale(): SupportedLocale {
-  // `strict: false` opts out of TanStack Router's typed param inference, so the
-  // returned shape is unknown to TS. The cast is the documented escape hatch.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  const params = useParams({ strict: false }) as { lang?: string };
-  if (params.lang !== undefined && isUrlPrefixedLocale(params.lang)) {
-    return params.lang;
-  }
+  // `strict: false` returns the union of every route's params; `select`
+  // narrows the access in a single typed callback so we don't need a cast
+  // at the read site.
+  const lang = useParams({
+    strict: false,
+    select: (params: { lang?: string }) => params.lang,
+  });
+  if (lang !== undefined && isUrlPrefixedLocale(lang)) return lang;
   return 'en';
 }

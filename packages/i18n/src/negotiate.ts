@@ -7,21 +7,63 @@ import {
 } from './locales';
 
 /** Endpoints that must never be rewritten by locale negotiation: agent-facing
- *  files (sitemap, robots), structured Markdown exports, and `/api/*`. */
-const SKIP_PREFIXES: readonly string[] = ['/api/'];
+ *  files (sitemap, robots), structured Markdown exports, `/api/*`, the Vite
+ *  asset directory, and any path with a static-asset extension. Without the
+ *  asset rules, a non-EN visitor's first request for `/assets/index.js`
+ *  would 302 to `/de/assets/index.js`, the SPA shell would load there, and
+ *  the JS bundle would never load — hard breakage. */
+const SKIP_PREFIXES: readonly string[] = ['/api/', '/assets/'];
 const SKIP_EXACT: ReadonlySet<string> = new Set([
   '/llms.txt',
   '/llms-full.txt',
   '/sitemap.xml',
   '/robots.txt',
+  '/favicon.ico',
 ]);
+/** Lowercase static-asset extensions matched on `pathname.endsWith(...)`.
+ *  Cover the artifacts Vite emits + common image/font/audio formats. */
+const SKIP_EXTENSIONS: readonly string[] = [
+  '.md',
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.css',
+  '.map',
+  '.json',
+  '.xml',
+  '.txt',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.avif',
+  '.svg',
+  '.ico',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.otf',
+  '.eot',
+  '.mp4',
+  '.webm',
+  '.mp3',
+  '.wav',
+  '.ogg',
+  '.pdf',
+  '.zip',
+  '.wasm',
+];
 
 /** True for paths web/docs serve outside the locale-prefixed tree. */
 export function isLocaleNeutralPath(pathname: string): boolean {
   if (SKIP_EXACT.has(pathname)) return true;
-  if (pathname.toLowerCase().endsWith('.md')) return true;
   for (const prefix of SKIP_PREFIXES) {
     if (pathname.startsWith(prefix)) return true;
+  }
+  const lower = pathname.toLowerCase();
+  for (const ext of SKIP_EXTENSIONS) {
+    if (lower.endsWith(ext)) return true;
   }
   return false;
 }

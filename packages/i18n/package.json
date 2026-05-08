@@ -9,7 +9,6 @@
     "./accept-language": "./src/accept-language.ts",
     "./resolve-locale": "./src/resolve-locale.ts",
     "./is-valid-locale": "./src/is-valid-locale.ts",
-    "./narrow-bcp47": "./src/narrow-bcp47.ts",
     "./cookie": "./src/cookie.ts",
     "./negotiate": "./src/negotiate.ts"
   },

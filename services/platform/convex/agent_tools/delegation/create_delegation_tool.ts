@@ -16,9 +16,9 @@
 
 import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
-import { narrowBcp47 } from '@tale/i18n/narrow-bcp47';
 import { z } from 'zod/v4';
 
+import { narrowBcp47 } from '../../../lib/shared/utils/narrow-bcp47';
 import { internal } from '../../_generated/api';
 import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
 import { checkBudget } from '../sub_agents/helpers/check_budget';
