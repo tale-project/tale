@@ -17,6 +17,10 @@ import {
   type Region,
 } from '@/lib/pricing/region';
 
+// Vite injects VITE_DOCS_URL at build time; falls back to the canonical
+// docs.tale.dev origin for the default deployment.
+const DOCS_URL = import.meta.env.VITE_DOCS_URL ?? 'https://docs.tale.dev';
+
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
 const PER_USER_MONTHLY: Record<Region, number> = { CH: 15, DE: 17 };
@@ -226,7 +230,7 @@ export function PricingTiers({
             <div className="mt-auto pt-2">
               <Button asChild variant="secondary" fullWidth>
                 <a
-                  href="https://docs.tale.dev"
+                  href={DOCS_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                 >

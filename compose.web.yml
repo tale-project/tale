@@ -26,6 +26,7 @@ services:
       dockerfile: services/web/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
+        WEB_DOCS_URL: ${WEB_DOCS_URL:-https://docs.tale.dev}
 
     env_file:
       - services/web/.env
