@@ -18,12 +18,12 @@ Nur editionsspezifische Themen gehören **nicht** hierher: Cloud-Abrechnung, reg
 
 ## Nach Rolle
 
-Tale kennt sechs Rollen. Vier davon bekommen hier einen aufgabenorientierten Leitfaden; Owner entspricht Admin plus einigen Lebenszyklus-Aktionen; Disabled hat keinen Produktzugang.
+Tale kennt sechs Rollen. Vier davon bekommen hier einen aufgabenorientierten Leitfaden; Inhaber entspricht Admin plus einigen Lebenszyklus-Aktionen; Deaktiviert hat keinen Produktzugang.
 
-- **[Member](/de/platform/member/overview)** — Lesezugriff: Chat nutzen, Wissen durchsuchen, Konversationen und Genehmigungen lesen.
-- **[Editor](/de/platform/editor/overview)** — Member plus Inhaltspflege und Genehmigungsentscheidungen.
-- **[Developer](/de/platform/developer/overview)** — Editor plus Agents, Automatisierungen, Integrationen und API-Schlüssel.
-- **[Admin](/de/platform/admin/overview)** — Developer plus Organisationseinstellungen.
+- **[Mitglied](/de/platform/member/overview)** — Lesezugriff: Chat nutzen, Wissen durchsuchen, Konversationen und Genehmigungen lesen.
+- **[Redakteur](/de/platform/editor/overview)** — Mitglied plus Inhaltspflege und Genehmigungsentscheidungen.
+- **[Entwickler](/de/platform/developer/overview)** — Redakteur plus Agents, Automatisierungen, Integrationen und API-Schlüssel.
+- **[Admin](/de/platform/admin/overview)** — Entwickler plus Organisationseinstellungen.
 
 ## Organisationsverwaltung
 

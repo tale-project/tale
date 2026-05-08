@@ -64,28 +64,47 @@ export function DocsToc({ entries }: DocsTocProps) {
   return (
     <aside
       aria-label={t('onThisPage')}
-      className="sticky top-20 hidden max-h-[calc(100vh-6rem)] w-56 shrink-0 overflow-y-auto pl-4 xl:block"
+      className="sticky top-16 hidden h-[calc(100vh-4rem)] w-56 shrink-0 overflow-y-auto py-6 pl-4 xl:block"
     >
-      <h3 className="text-fg-base mb-3 text-xs font-semibold tracking-wide uppercase">
+      <h2 className="text-fg-base mb-2 px-2 text-[11px] font-semibold tracking-[0.08em] uppercase">
         {t('onThisPage')}
-      </h3>
-      <ul className="flex flex-col gap-1.5 text-sm">
-        {entries.map((entry) => (
-          <li key={entry.id} className={entry.level === 3 ? 'pl-3' : undefined}>
-            <a
-              href={`#${entry.id}`}
-              onClick={(e) => handleClick(e, entry.id)}
-              className={cn(
-                'block leading-tight transition-colors',
-                activeId === entry.id
-                  ? 'text-fg-base font-medium'
-                  : 'text-fg-muted hover:text-fg-base',
-              )}
-            >
-              {entry.text}
-            </a>
-          </li>
-        ))}
+      </h2>
+      <ul className="flex flex-col">
+        {entries.map((entry) => {
+          const isActive = activeId === entry.id;
+          const depth = entry.level === 3 ? 1 : 0;
+          const paddingLeft = 12 + depth * 12;
+          return (
+            <li key={entry.id}>
+              <a
+                href={`#${entry.id}`}
+                onClick={(e) => handleClick(e, entry.id)}
+                aria-current={isActive ? 'true' : undefined}
+                style={{ paddingLeft }}
+                className={cn(
+                  'focus-visible:ring-fg-base/40 group relative block rounded-md py-1.5 pr-2 text-sm leading-tight transition-colors focus-visible:ring-2 focus-visible:outline-none',
+                  isActive
+                    ? 'bg-bg-elevated text-fg-base font-medium'
+                    : 'text-fg-muted hover:text-fg-base hover:bg-bg-elevated/60',
+                )}
+              >
+                {depth > 0 ? (
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'absolute top-0 bottom-0 w-px transition-colors',
+                      isActive
+                        ? 'bg-fg-base'
+                        : 'bg-border-base group-hover:bg-fg-muted',
+                    )}
+                    style={{ left: paddingLeft - 12 }}
+                  />
+                ) : null}
+                {entry.text}
+              </a>
+            </li>
+          );
+        })}
       </ul>
     </aside>
   );

@@ -48,6 +48,11 @@ function toSearchDoc(record: {
     record.locale === 'en'
       ? slugToPath(record.slug)
       : `/${record.locale}${slugToPath(record.slug)}`;
+  // Top-level slug segment doubles as the section key. The dialog maps it to
+  // a localised label at render time via the i18n `nav.groups` namespace.
+  const firstSegment = record.slug.split('/')[0];
+  const section =
+    firstSegment && firstSegment !== 'index' ? firstSegment : undefined;
   return {
     id: `${record.locale}:${record.slug}`,
     title:
@@ -57,6 +62,7 @@ function toSearchDoc(record: {
     headings: headings.join(' '),
     body: stripMarkdown(record.body),
     url,
+    section,
     locale: record.locale,
   };
 }

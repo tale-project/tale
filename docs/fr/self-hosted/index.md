@@ -5,7 +5,7 @@ description: Exploite Tale sur ton infrastructure — installe, configure, opèr
 
 L’édition auto-hébergée de Tale tourne dans ton VPC, dans ton data center ou dans un environnement isolé du réseau (air-gap). Tu récupères la plateforme complète sous forme de bundle Docker Compose, que tu mets à jour avec une seule commande (`tale deploy`). Les certifications sont les mêmes qu’en Cloud — ISO 27001, SOC 2 Type II et conformité RGPD — mais l’exploitation t’appartient. Chaque fonctionnalité visible par l’utilisateur est identique à l’édition [Cloud](/fr/cloud) managée ; cette section couvre uniquement ce qui s’ajoute quand tu fais tourner ta propre instance.
 
-Tout ce que Member, Editor, Developer ou Admin utilisent au quotidien — chat, base de connaissances, agents, automatisations, administration de l’organisation, permissions des rôles — vit dans [Platform](/fr/platform) et s’applique aux deux éditions. Cette section s’adresse à l’opérateur qui installe, met à jour, supervise et sauvegarde l’instance.
+Tout ce que Membre, Éditeur, Développeur ou Admin utilisent au quotidien — chat, base de connaissances, agents, automatisations, administration de l’organisation, permissions des rôles — vit dans [Platform](/fr/platform) et s’applique aux deux éditions. Cette section s’adresse à l’opérateur qui installe, met à jour, supervise et sauvegarde l’instance.
 
 ## Installer ton instance
 

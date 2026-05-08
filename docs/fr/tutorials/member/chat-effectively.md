@@ -3,9 +3,9 @@ title: Chatter efficacement
 description: Combiner agents, pièces jointes et dictée dans un workflow quotidien avec Tale.
 ---
 
-La plupart des Members utilisent le chat de la même façon chaque jour : choisir le bon agent, déposer du contexte, demander, affiner. Ce tutoriel déroule cette boucle end-to-end pour que tu obtiennes des réponses ancrées sur les données de ton organisation, pas la sortie générique d’un modèle. Il enchaîne trois fonctionnalités déjà visibles dans l’UI — le [sélecteur d’agent](/fr/platform/chat/agents-in-chat), les [pièces jointes](/fr/platform/chat/attachments) et la dictée — dans un workflow réutilisable pour tes vraies tâches.
+La plupart des Membres utilisent le chat de la même façon chaque jour : choisir le bon agent, déposer du contexte, demander, affiner. Ce tutoriel déroule cette boucle end-to-end pour que tu obtiennes des réponses ancrées sur les données de ton organisation, pas la sortie générique d’un modèle. Il enchaîne trois fonctionnalités déjà visibles dans l’UI — le [sélecteur d’agent](/fr/platform/chat/agents-in-chat), les [pièces jointes](/fr/platform/chat/attachments) et la dictée — dans un workflow réutilisable pour tes vraies tâches.
 
-Le flux tient en moins de cinq minutes une fois que tu l’as fait une fois. Il te faut un accès Member ou supérieur, rien d’autre.
+Le flux tient en moins de cinq minutes une fois que tu l’as fait une fois. Il te faut un accès Membre ou supérieur, rien d’autre.
 
 ## Étape 1 — Choisir le bon agent
 
@@ -37,5 +37,5 @@ Si l’agent renvoie du HTML exécutable, un SVG, un diagramme Mermaid ou un lon
 
 ## Ensuite
 
-- Construis un agent calibré pour ton équipe : [Construire ton premier agent end-to-end](/fr/tutorials/editor/first-agent-end-to-end) (rôle Editor).
+- Construis un agent calibré pour ton équipe : [Construire ton premier agent end-to-end](/fr/tutorials/editor/first-agent-end-to-end) (rôle Éditeur).
 - Apprends les raccourcis clavier : [AI chat — Raccourcis clavier](/fr/platform/chat/basics#raccourcis-clavier).

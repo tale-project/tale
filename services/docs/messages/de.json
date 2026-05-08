@@ -31,6 +31,24 @@
       "develop": "Entwicklung"
     }
   },
+  "search": {
+    "title": "Dokumentation durchsuchen",
+    "placeholder": "Dokumentation durchsuchen…",
+    "empty": "Tippe los, um die Doku zu durchsuchen.",
+    "emptyHint": "Finde Anleitungen, Referenzen und Konzepte über alle Bereiche hinweg.",
+    "noResultsTitle": "Keine Ergebnisse",
+    "noResultsHint": "Probiere andere Begriffe oder nutze die Navigation.",
+    "loading": "Suche läuft…",
+    "close": "Suche schließen",
+    "recent": "Letzte Suchen",
+    "clearRecent": "Leeren",
+    "removeRecent": "Aus den letzten Suchen entfernen",
+    "tipsTitle": "Tipps",
+    "tipNavigate": "zum Navigieren",
+    "tipSelect": "zum Öffnen",
+    "tipClose": "zum Schließen",
+    "results": "{count, plural, =0 {keine Ergebnisse} =1 {# Ergebnis} other {# Ergebnisse}}"
+  },
   "docs": {
     "onThisPage": "Auf dieser Seite",
     "breadcrumbs": "Brotkrumennavigation",

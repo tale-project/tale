@@ -5,7 +5,7 @@ description: Ein externes System per signiertem Webhook an einen Tale-Workflow a
 
 Webhook-Trigger machen aus jedem externen Ereignis — einem Formular-Submit, einem Hook eines Upstream-Systems, einem CI/CD-Schritt — einen Tale-Workflow-Lauf. Der externe Dienst POSTet JSON an eine URL, die du kontrollierst; der Workflow startet mit dem Payload als Eingabe. Dieses Tutorial geht durch: minimalen Workflow anlegen, Webhook freilegen, signierte Anfrage senden, Zustellung prüfen. Die Referenz steht unter [Webhooks](/de/develop/webhooks) und [Triggers](/de/platform/automations/triggers).
 
-Du brauchst Developer-Zugriff. Eine funktionierende Tale-Instanz, die vom externen Caller über HTTPS erreichbar ist, genügt — sonst nichts.
+Du brauchst Entwickler-Zugriff. Eine funktionierende Tale-Instanz, die vom externen Caller über HTTPS erreichbar ist, genügt — sonst nichts.
 
 ## Schritt 1 — Einen Workflow mit Webhook-Trigger anlegen
 

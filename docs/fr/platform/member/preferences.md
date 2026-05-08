@@ -3,7 +3,7 @@ title: Tes préférences
 description: Change ton mot de passe, ta langue et tes paramètres personnels.
 ---
 
-Tes préférences personnelles sont sous **Paramètres du compte**, accessible depuis ton avatar en haut à droite. Tout utilisateur — Member, Editor, Developer, Admin ou Owner — peut accéder à cette page.
+Tes préférences personnelles sont sous **Paramètres du compte**, accessible depuis ton avatar en haut à droite. Tout utilisateur — Membre, Éditeur, Développeur, Admin ou Propriétaire — peut accéder à cette page.
 
 ## Mot de passe
 

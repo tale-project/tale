@@ -31,6 +31,24 @@
       "develop": "Development"
     }
   },
+  "search": {
+    "title": "Search documentation",
+    "placeholder": "Search documentation…",
+    "empty": "Start typing to search the docs.",
+    "emptyHint": "Find guides, references, and concepts across every section.",
+    "noResultsTitle": "No results found",
+    "noResultsHint": "Try different keywords or browse the navigation.",
+    "loading": "Searching…",
+    "close": "Close search",
+    "recent": "Recent searches",
+    "clearRecent": "Clear",
+    "removeRecent": "Remove from recent",
+    "tipsTitle": "Tips",
+    "tipNavigate": "to navigate",
+    "tipSelect": "to open",
+    "tipClose": "to dismiss",
+    "results": "{count, plural, =0 {no results} =1 {# result} other {# results}}"
+  },
   "docs": {
     "onThisPage": "On this page",
     "breadcrumbs": "Breadcrumbs",

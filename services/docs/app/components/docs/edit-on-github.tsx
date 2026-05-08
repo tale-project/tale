@@ -1,4 +1,3 @@
-import { ExternalLink } from '@tale/webui/layout/external-link';
 import { GitPullRequestArrow } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
@@ -25,14 +24,14 @@ export function EditOnGithub({ contentPath }: EditOnGithubProps) {
   const normalisedPath = contentPath.replace(/\.mdx?$/, '') + '.md';
   const label = t('editOnGithub');
   return (
-    <ExternalLink
+    <a
       href={`${REPO_BASE}${normalisedPath}`}
-      className="text-fg-muted hover:text-fg-base text-xs transition-colors"
-      showIcon={false}
-      aria-label={label}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-fg-muted hover:text-fg-base hover:bg-bg-elevated focus-visible:ring-fg-base/40 inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
     >
-      <GitPullRequestArrow aria-hidden className="size-3" />
+      <GitPullRequestArrow aria-hidden className="size-4" />
       <span>{label}</span>
-    </ExternalLink>
+    </a>
   );
 }

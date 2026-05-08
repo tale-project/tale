@@ -5,7 +5,7 @@ description: Tale auf eigener Infrastruktur betreiben — installieren, konfigur
 
 Die selbst gehostete Edition von Tale läuft in deinem VPC, in deinem Rechenzentrum oder in einer Air-Gap-Umgebung. Du bekommst die gesamte Plattform als Docker-Compose-Bundle, das du mit einem einzigen Befehl (`tale deploy`) aktualisierst. Die Zertifizierungen sind dieselben wie in Cloud — ISO 27001, SOC 2 Type II und DSGVO-Konformität — nur für den Betrieb bist du selbst verantwortlich. Jede nutzerseitige Funktion ist identisch zur gemanagten [Cloud](/de/cloud); dieser Bereich beschreibt ausschließlich, was beim Betrieb einer eigenen Instanz dazukommt.
 
-Alles, was Member, Editor, Developer oder Admin täglich nutzen — Chat, Wissensdatenbank, Agents, Automatisierungen, Organisationsverwaltung, Rollenberechtigungen — liegt unter [Platform](/de/platform) und gilt für beide Editionen. Dieser Bereich richtet sich an Operator:innen, die die Instanz installieren, aktualisieren, überwachen und sichern.
+Alles, was Mitglied, Redakteur, Entwickler oder Admin täglich nutzen — Chat, Wissensdatenbank, Agents, Automatisierungen, Organisationsverwaltung, Rollenberechtigungen — liegt unter [Platform](/de/platform) und gilt für beide Editionen. Dieser Bereich richtet sich an Operator:innen, die die Instanz installieren, aktualisieren, überwachen und sichern.
 
 ## Instanz installieren
 

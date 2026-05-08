@@ -40,4 +40,4 @@ Execution records are kept according to your organisation's [retention policy](/
 
 ## Alerts
 
-Configure alerts under the workflow's **Alerts** tab to e-mail an admin when a workflow fails, runs longer than a threshold, or produces an error matching a pattern. For cross-workflow alerting (e.g., "more than 5 failures in the last hour across all workflows"), use [Operations](/self-hosted/operate/observability/operations).
+Configure alerts under the workflow's **Alerts** tab to e-mail an Admin when a workflow fails, runs longer than a threshold, or produces an error matching a pattern. For cross-workflow alerting (e.g., "more than 5 failures in the last hour across all workflows"), use [Operations](/self-hosted/operate/observability/operations).

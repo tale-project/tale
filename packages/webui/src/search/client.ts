@@ -5,15 +5,7 @@ import {
   type SearchDoc,
   type SerializedIndex,
 } from './build-index';
-
-export interface SearchResult {
-  id: string;
-  title: string;
-  url: string;
-  section?: string;
-  locale?: string;
-  score: number;
-}
+import type { SearchResult } from './types';
 
 let cache: Promise<MiniSearch<SearchDoc>> | null = null;
 let cachedLocale: string | null = null;
@@ -40,11 +32,17 @@ export async function loadIndex(
     return (
       MiniSearch.loadJSON<SearchDoc>(json, {
         fields: ['title', 'headings', 'body'],
-        storeFields: ['title', 'url', 'section', 'locale'],
+        storeFields: ['title', 'url', 'section', 'locale', 'body'],
       }) ?? createMiniSearch()
     );
   })();
   return cache;
+}
+
+/** Test-only — drops the cached index so a fresh fetch runs next call. */
+export function resetSearchCache(): void {
+  cache = null;
+  cachedLocale = null;
 }
 
 export async function search(

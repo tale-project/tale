@@ -5,12 +5,13 @@ import {
   Outlet,
   useRouterState,
 } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { DocsFooter } from '@/app/components/docs/docs-footer';
 import { DocsHeader } from '@/app/components/docs/docs-header';
 import { DocsSidebar } from '@/app/components/docs/docs-sidebar';
 import { ScrollToTop } from '@/app/components/docs/scroll-to-top';
+import { useT } from '@/lib/i18n/client';
 import { i18n } from '@/lib/i18n/i18n';
 import {
   detectInitialLocale,
@@ -39,10 +40,22 @@ function localeFromPathname(pathname: string): SupportedLocale {
   return detectInitialLocale(pathname);
 }
 
+/** Slug-section keys (e.g. "self-hosted") map to camelCase i18n keys
+ *  (e.g. "selfHosted") so we can reuse the existing `nav.groups` namespace. */
+const SECTION_TO_NAV_KEY: Record<string, string> = {
+  cloud: 'cloud',
+  'self-hosted': 'selfHosted',
+  platform: 'platform',
+  develop: 'develop',
+  tutorials: 'tutorials',
+};
+
 function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [searchOpen, setSearchOpen] = useState(false);
   const locale = localeFromPathname(pathname);
+  const { t: tNav } = useT('nav');
+  const { t: tSearch } = useT('search');
 
   // Sync i18next language to the active locale on every route change.
   useEffect(() => {
@@ -66,6 +79,38 @@ function RootLayout() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, []);
+
+  const sectionLabel = useCallback(
+    (key: string) => {
+      const navKey = SECTION_TO_NAV_KEY[key];
+      if (!navKey)
+        return key.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
+      return tNav(`groups.${navKey}`);
+    },
+    [tNav],
+  );
+
+  const searchLabels = useMemo(
+    () => ({
+      title: tSearch('title'),
+      placeholder: tSearch('placeholder'),
+      empty: tSearch('empty'),
+      emptyHint: tSearch('emptyHint'),
+      noResultsTitle: tSearch('noResultsTitle'),
+      noResultsHint: tSearch('noResultsHint'),
+      loading: tSearch('loading'),
+      close: tSearch('close'),
+      recent: tSearch('recent'),
+      clearRecent: tSearch('clearRecent'),
+      removeRecent: tSearch('removeRecent'),
+      tipsTitle: tSearch('tipsTitle'),
+      tipNavigate: tSearch('tipNavigate'),
+      tipSelect: tSearch('tipSelect'),
+      tipClose: tSearch('tipClose'),
+      resultCount: (count: number) => tSearch('results', { count }),
+    }),
+    [tSearch],
+  );
 
   if (isSpecialEndpoint(pathname)) {
     // SSR: special endpoints render their own bare body (text/markdown,
@@ -100,6 +145,8 @@ function RootLayout() {
         locale={locale}
         open={searchOpen}
         onOpenChange={setSearchOpen}
+        labels={searchLabels}
+        sectionLabel={sectionLabel}
       />
     </div>
   );

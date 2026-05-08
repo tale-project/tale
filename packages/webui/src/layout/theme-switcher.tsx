@@ -4,7 +4,12 @@ import { Monitor, Moon, Sun } from 'lucide-react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 
+import { useDropdownPlacement } from '../hooks/use-dropdown-placement';
 import { useT } from '../i18n/client';
+
+// 3 menu items × ~40px row + ~8px padding ≈ 130px; round up so the flip
+// trigger fires a hair early rather than late.
+const THEME_MENU_HEIGHT = 144;
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -39,6 +44,7 @@ export function ThemeSwitcher({ className }: ThemeSwitcherProps) {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLUListElement | null>(null);
   const menuId = useId();
+  const placement = useDropdownPlacement(open, buttonRef, THEME_MENU_HEIGHT);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -121,7 +127,10 @@ export function ThemeSwitcher({ className }: ThemeSwitcherProps) {
           role="menu"
           aria-label={t('ariaLabel')}
           onKeyDown={onMenuKeyDown}
-          className="border-border-base bg-bg-base absolute right-0 z-30 mt-2 flex min-w-[160px] flex-col overflow-hidden rounded-md border py-1 shadow-lg"
+          className={cn(
+            'border-border-base bg-bg-base absolute right-0 z-30 flex min-w-40 flex-col overflow-hidden rounded-md border py-1 shadow-lg',
+            placement === 'up' ? 'bottom-full mb-2' : 'top-full mt-2',
+          )}
         >
           {ORDER.map((option) => {
             const Icon = ICONS[option];

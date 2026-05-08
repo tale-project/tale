@@ -56,7 +56,7 @@ Les prompts non publiés ne sont visibles que par leur créateur quelle que soit
 
 ## Éditer et supprimer
 
-Seul le créateur du prompt ou un admin de l’organisation peut éditer ou supprimer. Utilise le menu trois-points sur une carte pour accéder à ces actions.
+Seul le créateur du prompt ou un Admin peut éditer ou supprimer. Utilise le menu trois-points sur une carte pour accéder à ces actions.
 
 La suppression est définitive et irréversible.
 

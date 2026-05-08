@@ -50,9 +50,9 @@ All database-connected services require `DB_PASSWORD` to be set in your `.env` f
 
 Open your `.env` file and ensure `DB_PASSWORD` is set to a non-empty value. If you are setting up for the first time, choose any password. If you previously relied on the default, set it explicitly now.
 
-### Forgot admin password
+### Forgot Admin password
 
-If you are locked out of your admin account, another admin can reset your password from Settings > Organization > member row > Edit > Set Password. If no admins are available, someone with Docker access can use the Convex Dashboard to update the user record directly.
+If you are locked out of your Admin account, another Admin can reset your password from Settings > Organization > member row > Edit > Set Password. If no Admins are available, someone with Docker access can use the Convex Dashboard to update the user record directly.
 
 ## Docker build and container issues
 

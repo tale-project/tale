@@ -1,7 +1,15 @@
 import { cn } from '@tale/ui/cn';
 import { useTheme } from '@tale/ui/theme';
 import { Maximize2, Minus, Plus, RotateCcw } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import {
+  type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react';
 
 interface MermaidProps {
   /** The Mermaid DSL source. */
@@ -39,26 +47,48 @@ function loadMermaid(): Promise<MermaidApi> {
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 4;
 const ZOOM_STEP = 0.25;
+const WHEEL_SENSITIVITY = 0.0015;
 
 function clampZoom(value: number): number {
   return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, value));
 }
 
+interface ViewportState {
+  zoom: number;
+  panX: number;
+  panY: number;
+}
+
+const INITIAL_VIEWPORT: ViewportState = { zoom: 1, panX: 0, panY: 0 };
+
 /**
  * Render a Mermaid diagram from its DSL source. Mermaid is lazy-loaded
  * so the (~1 MB) dep is only fetched on pages that actually contain a
  * `mermaid` code block. Renders zoom controls (in/out/reset/fullscreen)
- * so wide architecture diagrams stay readable on small screens.
+ * and supports drag-to-pan + ctrl/cmd-wheel zoom so wide architecture
+ * diagrams stay readable on small screens.
+ *
+ * The transformed SVG sits inside a stage container with overflow hidden
+ * so zooming in always anchors at the diagram's top-left and the page
+ * itself never reflows under it.
  */
 export function Mermaid({ chart, theme, className }: MermaidProps) {
   const { resolvedTheme } = useTheme();
   const effectiveTheme: 'light' | 'dark' = theme ?? resolvedTheme;
   const [svg, setSvg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
+  const [viewport, setViewport] = useState(INITIAL_VIEWPORT);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const panStateRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originPanX: number;
+    originPanY: number;
+  } | null>(null);
   const reactId = useId();
   const id = `mermaid-${reactId.replace(/[:]/g, '-')}`;
 
@@ -80,8 +110,7 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
         // Mermaid emits `width="100%"` plus a viewBox. With no height, the
         // SVG's intrinsic aspect ratio shrinks to fit the parent — wide
         // flowcharts collapse into a thin strip. Pin the SVG to the viewBox
-        // dimensions so it renders at natural size and the wrapper scrolls
-        // horizontally if it overflows.
+        // dimensions so it renders at natural size.
         const viewBox = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(result.svg);
         let fixed = result.svg
           .replace(/\swidth="[^"]*"/, '')
@@ -109,6 +138,72 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
     };
   }, [chart, effectiveTheme, id]);
 
+  /**
+   * Apply a zoom change while keeping `anchor` (a stage-relative point)
+   * pinned in place. Without this, increasing zoom shifts the diagram
+   * because the scale runs from `transform-origin: 0 0` — the user's
+   * scrolled / dragged position would slide off-screen on every step.
+   *
+   * Math: if the current transform is `screen = pan + zoom * local`, then
+   * the local point under the anchor is `(anchor - pan) / zoom`. After
+   * changing zoom, choose pan such that the same local point still sits
+   * under the anchor.
+   */
+  const applyZoom = useCallback(
+    (
+      next: number | ((prev: number) => number),
+      anchor?: { x: number; y: number },
+    ) => {
+      setViewport((prev) => {
+        const nextZoom = clampZoom(
+          typeof next === 'function' ? next(prev.zoom) : next,
+        );
+        if (nextZoom === prev.zoom) return prev;
+        const stage = stageRef.current;
+        const ax = anchor?.x ?? (stage ? stage.clientWidth / 2 : 0);
+        const ay = anchor?.y ?? (stage ? stage.clientHeight / 2 : 0);
+        const worldX = (ax - prev.panX) / prev.zoom;
+        const worldY = (ay - prev.panY) / prev.zoom;
+        return {
+          zoom: nextZoom,
+          panX: ax - nextZoom * worldX,
+          panY: ay - nextZoom * worldY,
+        };
+      });
+    },
+    [],
+  );
+
+  /**
+   * Recenter the diagram in the stage. The transform is anchored at
+   * `0 0`, so the SVG sits in the top-left corner by default; this offsets
+   * it to the middle. Used on first render and when the user clicks reset.
+   */
+  const centerInStage = useCallback((zoom: number = 1): ViewportState => {
+    const stage = stageRef.current;
+    const inner = containerRef.current?.querySelector('svg');
+    if (!stage || !inner) return { zoom, panX: 0, panY: 0 };
+    const stageRect = stage.getBoundingClientRect();
+    const svgWidth = parseFloat(inner.getAttribute('width') ?? '0') || 0;
+    const svgHeight = parseFloat(inner.getAttribute('height') ?? '0') || 0;
+    return {
+      zoom,
+      panX: (stageRect.width - svgWidth * zoom) / 2,
+      panY: (stageRect.height - svgHeight * zoom) / 2,
+    };
+  }, []);
+
+  const reset = useCallback(() => {
+    setViewport(centerInStage(1));
+  }, [centerInStage]);
+
+  // Center the diagram once the SVG has been injected so it starts in the
+  // middle of the stage rather than pinned at the top-left corner.
+  useEffect(() => {
+    if (!svg) return;
+    setViewport(centerInStage(1));
+  }, [svg, centerInStage]);
+
   useEffect(() => {
     if (!isFullscreen) return undefined;
     const onKey = (event: KeyboardEvent) => {
@@ -122,6 +217,56 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
       document.body.style.overflow = previousOverflow;
     };
   }, [isFullscreen]);
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const stage = stageRef.current;
+    if (!stage) return;
+    stage.setPointerCapture(event.pointerId);
+    panStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originPanX: viewport.panX,
+      originPanY: viewport.panY,
+    };
+    setIsPanning(true);
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const state = panStateRef.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    const dx = event.clientX - state.startX;
+    const dy = event.clientY - state.startY;
+    setViewport((prev) => ({
+      ...prev,
+      panX: state.originPanX + dx,
+      panY: state.originPanY + dy,
+    }));
+  };
+
+  const endPan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const state = panStateRef.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    const stage = stageRef.current;
+    if (stage?.hasPointerCapture(event.pointerId)) {
+      stage.releasePointerCapture(event.pointerId);
+    }
+    panStateRef.current = null;
+    setIsPanning(false);
+  };
+
+  const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    // Reserve unmodified wheel for page scroll; require ctrl/cmd to zoom.
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    const stage = stageRef.current;
+    const rect = stage?.getBoundingClientRect();
+    const anchor = rect
+      ? { x: event.clientX - rect.left, y: event.clientY - rect.top }
+      : undefined;
+    applyZoom((prev) => prev * (1 - event.deltaY * WHEEL_SENSITIVITY), anchor);
+  };
 
   if (error) {
     return (
@@ -139,11 +284,11 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
   }
 
   const controls = (
-    <div className="border-border-base bg-bg-base/90 supports-[backdrop-filter]:bg-bg-base/70 absolute top-2 right-2 z-10 flex items-center gap-1 rounded-md border p-0.5 shadow-sm backdrop-blur print:hidden">
+    <div className="border-border-base bg-bg-base/90 supports-backdrop-filter:bg-bg-base/70 absolute top-2 right-2 z-10 flex items-center gap-1 rounded-md border p-0.5 shadow-sm backdrop-blur print:hidden">
       <button
         type="button"
-        onClick={() => setZoom((z) => clampZoom(z - ZOOM_STEP))}
-        disabled={zoom <= ZOOM_MIN}
+        onClick={() => applyZoom((z) => z - ZOOM_STEP)}
+        disabled={viewport.zoom <= ZOOM_MIN}
         aria-label="Zoom out"
         className="text-fg-muted hover:text-fg-base hover:bg-bg-elevated inline-flex size-7 items-center justify-center rounded transition-colors disabled:cursor-not-allowed disabled:opacity-40"
       >
@@ -153,12 +298,12 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
         aria-live="polite"
         className="text-fg-muted min-w-10 text-center font-mono text-[11px] tabular-nums"
       >
-        {Math.round(zoom * 100)}%
+        {Math.round(viewport.zoom * 100)}%
       </span>
       <button
         type="button"
-        onClick={() => setZoom((z) => clampZoom(z + ZOOM_STEP))}
-        disabled={zoom >= ZOOM_MAX}
+        onClick={() => applyZoom((z) => z + ZOOM_STEP)}
+        disabled={viewport.zoom >= ZOOM_MAX}
         aria-label="Zoom in"
         className="text-fg-muted hover:text-fg-base hover:bg-bg-elevated inline-flex size-7 items-center justify-center rounded transition-colors disabled:cursor-not-allowed disabled:opacity-40"
       >
@@ -166,9 +311,11 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
       </button>
       <button
         type="button"
-        onClick={() => setZoom(1)}
-        disabled={zoom === 1}
-        aria-label="Reset zoom"
+        onClick={reset}
+        disabled={
+          viewport.zoom === 1 && viewport.panX === 0 && viewport.panY === 0
+        }
+        aria-label="Reset zoom and pan"
         className="text-fg-muted hover:text-fg-base hover:bg-bg-elevated inline-flex size-7 items-center justify-center rounded transition-colors disabled:cursor-not-allowed disabled:opacity-40"
       >
         <RotateCcw aria-hidden className="size-3.5" />
@@ -186,12 +333,24 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
 
   const stage = (
     <div
-      ref={wrapperRef}
+      ref={stageRef}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={endPan}
+      onPointerCancel={endPan}
+      onWheel={handleWheel}
       className={cn(
-        'relative overflow-auto',
-        // `min-h-24` reserves space while mermaid lazy-loads (~1MB chunk) so
+        'relative touch-none overflow-hidden select-none',
+        // `min-h-72` reserves space while mermaid lazy-loads (~1MB chunk) so
         // the surrounding prose doesn't reflow when the SVG finally arrives.
-        isFullscreen ? 'h-full w-full' : 'min-h-24',
+        // It also gives drag-to-pan a useful viewport when the diagram is
+        // smaller than the screen.
+        isFullscreen ? 'h-full w-full' : 'min-h-72',
+        viewport.zoom > 1
+          ? isPanning
+            ? 'cursor-grabbing'
+            : 'cursor-grab'
+          : 'cursor-default',
       )}
     >
       <div
@@ -199,11 +358,13 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
         role="img"
         aria-label="Mermaid diagram"
         style={{
-          transform: `scale(${zoom})`,
-          transformOrigin: 'top left',
-          width: zoom === 1 ? undefined : `${100 / zoom}%`,
+          transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`,
+          transformOrigin: '0 0',
         }}
-        className="transition-transform [&>svg]:mx-auto [&>svg]:max-w-none"
+        // Inline transform owns positioning. Without absolute + top/left 0
+        // the SVG would inherit auto-centering from the stage's flex/grid
+        // context and fight the transform.
+        className="absolute top-0 left-0 [&>svg]:max-w-none"
         // oxlint-disable-next-line react/no-danger -- Mermaid output is SVG by design
         dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
       />
@@ -213,7 +374,7 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
   if (isFullscreen) {
     return (
       <div
-        className="bg-bg-base/95 supports-[backdrop-filter]:bg-bg-base/85 fixed inset-0 z-50 flex flex-col p-4 backdrop-blur"
+        className="bg-bg-base/95 supports-backdrop-filter:bg-bg-base/85 fixed inset-0 z-50 flex flex-col p-4 backdrop-blur"
         role="dialog"
         aria-modal="true"
         aria-label="Mermaid diagram (fullscreen)"

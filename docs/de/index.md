@@ -16,11 +16,11 @@ Kennst du die Edition schon und suchst nur die Funktionsreferenz? Gehe direkt in
 
 ## Wähle deine Rolle
 
-Tale kennt sechs Rollen — Owner, Admin, Developer, Editor, Member und Disabled — jede mit eigenem Berechtigungsumfang. Die rollenspezifische Dokumentation liegt unter [Platform](/de/platform) und gilt editionsübergreifend:
+Tale kennt sechs Rollen — Inhaber, Admin, Entwickler, Redakteur, Mitglied und Deaktiviert — jede mit eigenem Berechtigungsumfang. Die rollenspezifische Dokumentation liegt unter [Platform](/de/platform) und gilt editionsübergreifend:
 
-- **[Member](/de/platform/member/overview)** — Lesezugriff für Endnutzer:innen.
-- **[Editor](/de/platform/editor/overview)** — Inhalte pflegen und Genehmigungen entscheiden.
-- **[Developer](/de/platform/developer/overview)** — Agents, Automatisierungen und Integrationen.
+- **[Mitglied](/de/platform/member/overview)** — Lesezugriff für Endnutzer:innen.
+- **[Redakteur](/de/platform/editor/overview)** — Inhalte pflegen und Genehmigungen entscheiden.
+- **[Entwickler](/de/platform/developer/overview)** — Agents, Automatisierungen und Integrationen.
 - **[Admin](/de/platform/admin/overview)** — Organisationseinstellungen.
 
 Wer Tale mit anderen Systemen verbindet oder zum Quellcode beiträgt, findet unter **[Entwickeln](/de/develop/api-reference)** die REST-API, Webhooks, SDK-Muster und Contributor-Workflows.
@@ -29,7 +29,7 @@ Wer Tale mit anderen Systemen verbindet oder zum Quellcode beiträgt, findet unt
 
 - **Deine Daten bleiben in deiner Region.** Cloud weist jeden Tenant fest der Schweiz oder der EU zu und legt alle Subprocessor:innen offen. Self-hosted verlässt das Netzwerk überhaupt nicht — weder Prompts noch Dokumentinhalte.
 - **Freie Modellwahl.** OpenAI, Anthropic, Google, Mistral, Meta oder selbst gehostete Modelle über Ollama, vLLM und LocalAI — pro Agent umschaltbar, ohne Migration.
-- **Auf Teams ausgelegt.** Sechs Rollen — vom lesenden Member bis zum Owner mit voller Kontrolle — lassen sich in Teams mit getrenntem Wissen und getrenntem Zugriff organisieren.
+- **Auf Teams ausgelegt.** Sechs Rollen — vom lesenden Mitglied bis zum Inhaber mit voller Kontrolle — lassen sich in Teams mit getrenntem Wissen und getrenntem Zugriff organisieren.
 - **Zertifiziert.** ISO 27001 und SOC 2 Type II. Schweizer Unternehmen, DSGVO-konform ohne Zusatzaufwand.
 
 ## Support und Community

@@ -3,7 +3,7 @@ title: Authentication
 description: How authentication works in Tale, including password login, Microsoft Entra ID SSO, and trusted headers.
 ---
 
-Tale is an offline-first platform. There is no self-service sign-up or password reset. The first user to open the app creates the owner account. All subsequent users are created by an admin in **Settings → Members**.
+Tale is an offline-first platform. There is no self-service sign-up or password reset. The first user to open the app creates the Owner account. All subsequent users are created by an Admin in **Settings → Members**.
 
 To enable self-service login and automatic account provisioning, connect Tale to an SSO provider or configure trusted headers.
 

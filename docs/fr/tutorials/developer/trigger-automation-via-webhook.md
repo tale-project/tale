@@ -5,7 +5,7 @@ description: Brancher un système externe sur un workflow Tale via une requête 
 
 Les triggers webhook transforment tout événement externe — un submit de formulaire, un hook de système amont, une étape CI/CD — en un run d’automatisation Tale. Le service externe POST du JSON sur une URL que tu contrôles ; le workflow démarre avec ce payload en entrée. Ce tutoriel déroule : créer un workflow minimal, exposer son webhook, envoyer une requête signée, vérifier la livraison. La référence est dans [Webhooks](/fr/develop/webhooks) et [Triggers](/fr/platform/automations/triggers).
 
-Il te faut un accès Developer. Une instance Tale joignable en HTTPS par l’appelant externe suffit — rien d’autre à prévoir.
+Il te faut un accès Développeur. Une instance Tale joignable en HTTPS par l’appelant externe suffit — rien d’autre à prévoir.
 
 ## Étape 1 — Créer un workflow avec un trigger webhook
 

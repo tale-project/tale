@@ -5,7 +5,7 @@ description: Créer un agent dédié, brancher du savoir, le tester et publier u
 
 Un chat générique répond avec ce sur quoi le modèle a été entraîné. Un agent dédié répond avec le savoir de ton organisation, dans ton ton, cadré sur un seul job — « Support produit », « Politiques RH », « Sales enablement ». Ce tutoriel t’emmène d’une page d’agent vide à un agent actif et versionné que ton équipe peut choisir dans le chat.
 
-Il te faut un accès Editor ou supérieur. La référence vit dans [Concepts d’agents](/fr/platform/agents/concepts) et [Créer un agent](/fr/platform/agents/create) ; ce tutoriel enchaîne ces étapes vers un résultat concret.
+Il te faut un accès Éditeur ou supérieur. La référence vit dans [Concepts d’agents](/fr/platform/agents/concepts) et [Créer un agent](/fr/platform/agents/create) ; ce tutoriel enchaîne ces étapes vers un résultat concret.
 
 ## Étape 1 — Définir à quoi sert l’agent
 

@@ -3,6 +3,7 @@ import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { ChevronDown } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 
+import { useDropdownPlacement } from '../hooks/use-dropdown-placement';
 import { useT } from '../i18n/client';
 import { isUrlPrefixedLocale, type SupportedLocale } from '../i18n/locales';
 import { LocaleFlag } from '../icons/flags';
@@ -12,6 +13,10 @@ const BASE_LOCALES = [
   'de',
   'fr',
 ] as const satisfies readonly SupportedLocale[];
+
+// 3 menu items × ~40px + ~8px padding ≈ 130px; round up so flip fires
+// a touch before the menu would actually clip.
+const LANGUAGE_MENU_HEIGHT = 144;
 
 function appendHashAndSearch(
   url: string,
@@ -91,6 +96,7 @@ export function LanguageSwitcher({
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const menuId = useId();
+  const placement = useDropdownPlacement(open, buttonRef, LANGUAGE_MENU_HEIGHT);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -181,7 +187,10 @@ export function LanguageSwitcher({
           id={menuId}
           role="menu"
           aria-label={t('ariaLabel')}
-          className="border-border-base bg-bg-base absolute right-0 z-30 mt-2 flex min-w-[180px] flex-col overflow-hidden rounded-md border py-1 shadow-lg"
+          className={cn(
+            'border-border-base bg-bg-base absolute right-0 z-30 flex min-w-44 flex-col overflow-hidden rounded-md border py-1 shadow-lg',
+            placement === 'up' ? 'bottom-full mb-2' : 'top-full mt-2',
+          )}
         >
           {BASE_LOCALES.map((code, index) => {
             const isActive = code === currentLocale;

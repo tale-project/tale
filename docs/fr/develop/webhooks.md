@@ -85,7 +85,7 @@ def verify(body: bytes, header: str, secret: str) -> bool:
 
 ## Nouvelles tentatives
 
-Tale retente les livraisons webhook échouées (réponses non-2xx, timeouts) avec backoff exponentiel jusqu’à 5 tentatives. Après l’échec final, la livraison est marquée en échec et loggée dans le flux d’audit — un admin peut la rejouer depuis la page Audit logs.
+Tale retente les livraisons webhook échouées (réponses non-2xx, timeouts) avec backoff exponentiel jusqu’à 5 tentatives. Après l’échec final, la livraison est marquée en échec et loggée dans le flux d’audit — un Admin peut la rejouer depuis la page Audit logs.
 
 ## Voir aussi
 

@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "setup": "echo 'Dependencies managed by root workspace'",
-    "dev": "bun --bun scripts/build-search-index.ts && bun --bun vite",
-    "build": "bun --bun scripts/build-search-index.ts && bun --bun vite build && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr && bun --bun scripts/prerender.ts && bun --bun scripts/build-llms-artifacts.ts",
+    "dev": "bun --bun scripts/build-search-index.ts && bun --bun scripts/build-llms-artifacts.ts && bun --bun vite",
+    "build": "bun --bun scripts/build-search-index.ts && bun --bun scripts/build-llms-artifacts.ts && bun --bun vite build && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr && bun --bun scripts/prerender.ts",
     "build:client": "bun --bun vite build",
     "build:ssr": "bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr",
     "prerender": "bun --bun scripts/prerender.ts",

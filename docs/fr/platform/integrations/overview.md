@@ -3,7 +3,7 @@ title: Intégrations — aperçu
 description: Connecte Tale à des REST API et bases SQL via des connecteurs développés sur mesure.
 ---
 
-Une intégration est un connecteur défini par un développeur qui expose les capacités d’un système distant — endpoints REST ou requêtes SQL — comme une liste fixe d’opérations nommées. Une fois installées, ces opérations deviennent des outils que le chat assistant, les agents et les étapes d’action des automatisations appellent par leur nom avec des paramètres typés. La configuration vit sous **Paramètres > Intégrations** et demande au minimum le rôle Developer ; les consommateurs appellent simplement les opérations que le connecteur publie.
+Une intégration est un connecteur défini par un développeur qui expose les capacités d’un système distant — endpoints REST ou requêtes SQL — comme une liste fixe d’opérations nommées. Une fois installées, ces opérations deviennent des outils que le chat assistant, les agents et les étapes d’action des automatisations appellent par leur nom avec des paramètres typés. La configuration vit sous **Paramètres > Intégrations** et demande au minimum le rôle Développeur ; les consommateurs appellent simplement les opérations que le connecteur publie.
 
 La plateforme prend en charge deux types de connecteurs : `rest_api` pour les services HTTP et `sql` pour l’accès direct à une base de données. Tout le reste qui apparaît sous **Paramètres > Intégrations** dans l’UI — boîtes e-mail, Microsoft OneDrive, clés API de l’API Tale elle-même — sont des connexions apparentées avec leur propre surface de configuration, pas le modèle connecteur. Elles sont couvertes en bas de cette page.
 

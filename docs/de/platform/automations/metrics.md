@@ -5,7 +5,7 @@ description: Nutzungs- und Leistungs-KPIs über alle Automatisierungen deiner Or
 
 Die Workflow-Metriken-Seite ist eine workflowübergreifende Sicht auf den Lauf deiner Automatisierungen. Sie aggregiert jeden Workflow der Organisation in vier Headline-KPIs, eine Ausführungen-im-Zeitverlauf-Kurve, eine Statusverteilung und eine Top-Workflows-Tabelle. Nutze sie, um den Workflow zu finden, der gestern angefangen hat zu scheitern, den Workflow, dessen Volumen nach einer Prozessänderung um das Zehnfache gestiegen ist, oder den langen Schwanz an Automatisierungen, die niemand mehr wirklich braucht.
 
-Die Seite liegt unter **Automatisierungen > Metriken**. Sie steht den Rollen Admin und Developer offen, also derselben Gruppe, die Automatisierungen bearbeiten darf.
+Die Seite liegt unter **Automatisierungen > Metriken**. Sie steht den Rollen Admin und Entwickler offen, also derselben Gruppe, die Automatisierungen bearbeiten darf.
 
 ## Was sie zeigt
 

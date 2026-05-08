@@ -172,13 +172,15 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
   return (
     <div className="flex gap-10">
       <div className="min-w-0 flex-1">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <DocsBreadcrumbs locale={locale} crumbs={breadcrumbs} />
+        <div className="mb-4 flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <DocsBreadcrumbs locale={locale} crumbs={breadcrumbs} />
+          </div>
           <PageActions
             pageUrl={url}
             markdownUrl={markdownUrl}
             markdown={rawMarkdown}
-            className="shrink-0"
+            className="ml-auto shrink-0"
           />
         </div>
         <header className="min-w-0">

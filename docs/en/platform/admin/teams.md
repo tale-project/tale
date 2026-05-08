@@ -27,7 +27,7 @@ Members are added separately via the team's detail page. The same member can bel
 
 ## Team managers
 
-Teams don't have formal manager roles — permissions are set by the org-level Role (Admin, Developer, Editor, Member). For delegated team-level administration, use the org-level Editor role and scope the editor's agent and knowledge access to their team.
+Teams don't have formal manager roles — permissions are set by the org-level Role (Admin, Developer, Editor, Member). For delegated team-level administration, use the org-level Editor role and scope the Editor's agent and knowledge access to their team.
 
 ## External identity providers
 

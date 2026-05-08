@@ -85,7 +85,7 @@ def verify(body: bytes, header: str, secret: str) -> bool:
 
 ## Retries
 
-Tale retries failed webhook deliveries (non-2xx responses, timeouts) with exponential backoff up to 5 attempts. After the final failure the delivery is marked failed and logged in the audit stream — an admin can replay it from the Audit logs page.
+Tale retries failed webhook deliveries (non-2xx responses, timeouts) with exponential backoff up to 5 attempts. After the final failure the delivery is marked failed and logged in the audit stream — an Admin can replay it from the Audit logs page.
 
 ## See also
 

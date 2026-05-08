@@ -33,7 +33,7 @@ Siehe [Integrationen – Überblick](/de/platform/integrations/overview) und [KI
 
 ## Berechtigungen
 
-Das Einrichten erfordert für Agents die **Editor**-Rolle und für Automatisierungen, Integrationen und API-Schlüssel die **Developer**-Rolle. Siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles) für die vollständige Berechtigungs-Matrix.
+Das Einrichten erfordert für Agents die **Redakteur**-Rolle und für Automatisierungen, Integrationen und API-Schlüssel die **Entwickler**-Rolle. Siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles) für die vollständige Berechtigungs-Matrix.
 
 ## KI-gestütztes Einrichten
 

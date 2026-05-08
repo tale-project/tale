@@ -5,7 +5,7 @@ description: Eine Chat-Anfrage an einen Agent aus cURL und Python über Tales Op
 
 Tales öffentliche API ist OpenAI-kompatibel — jedes SDK, das mit `chat/completions` spricht, kann mit Tale sprechen, indem du zwei Werte änderst: Base-URL und API-Schlüssel. Dieses Tutorial zeigt einen minimalen cURL-Call, denselben Call in Python mit dem offiziellen `openai`-Client und den Wechsel auf Streaming-Antworten. Die vollständige Referenz steht in der [API-Referenz](/de/develop/api-reference).
 
-Du brauchst Developer-Zugriff, um API-Schlüssel zu erstellen. Außerdem brauchst du einen Agent, den du per Slug ansprechen kannst — nutze den aus [Den ersten Agent end-to-end bauen](/de/tutorials/editor/first-agent-end-to-end) oder einen der Standard-Agents.
+Du brauchst Entwickler-Zugriff, um API-Schlüssel zu erstellen. Außerdem brauchst du einen Agent, den du per Slug ansprechen kannst — nutze den aus [Den ersten Agent end-to-end bauen](/de/tutorials/editor/first-agent-end-to-end) oder einen der Standard-Agents.
 
 ## Schritt 1 — Einen API-Schlüssel anlegen
 

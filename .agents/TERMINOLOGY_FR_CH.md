@@ -62,7 +62,7 @@ Swiss French has a handful of distinct vocabulary items. Most do not appear in T
 ## Do not override
 
 - Product feature names (Workflow, Dashboard, Canvas, Prompt Library, etc.) — keep English, same as base.
-- Role names (Owner, Admin, Developer, Editor, Member) — keep English, same as base.
+- Role names (Propriétaire, Admin, Développeur, Éditeur, Membre, Désactivé) — translate to match the shipped UI, same as base.
 - Code, command output, environment variable names, CLI flags.
 - API endpoints, JSON keys, error codes.
 - External brand names.

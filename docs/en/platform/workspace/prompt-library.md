@@ -56,7 +56,7 @@ Unpublished prompts are only visible to their creator regardless of scope.
 
 ## Editing and deleting
 
-Only the prompt creator or an organization admin can edit or delete a prompt. Use the three-dot menu on a prompt card to access these actions.
+Only the prompt creator or an Admin can edit or delete a prompt. Use the three-dot menu on a prompt card to access these actions.
 
 Deleting a prompt is permanent and cannot be undone.
 

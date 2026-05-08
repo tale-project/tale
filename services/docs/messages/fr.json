@@ -31,6 +31,24 @@
       "develop": "Développement"
     }
   },
+  "search": {
+    "title": "Rechercher dans la documentation",
+    "placeholder": "Rechercher dans la documentation…",
+    "empty": "Commence à taper pour explorer la doc.",
+    "emptyHint": "Trouve des guides, des références et des concepts dans toutes les sections.",
+    "noResultsTitle": "Aucun résultat",
+    "noResultsHint": "Essaie d'autres mots-clés ou parcours la navigation.",
+    "loading": "Recherche en cours…",
+    "close": "Fermer la recherche",
+    "recent": "Recherches récentes",
+    "clearRecent": "Effacer",
+    "removeRecent": "Retirer des recherches récentes",
+    "tipsTitle": "Astuces",
+    "tipNavigate": "pour naviguer",
+    "tipSelect": "pour ouvrir",
+    "tipClose": "pour fermer",
+    "results": "{count, plural, =0 {aucun résultat} =1 {# résultat} other {# résultats}}"
+  },
   "docs": {
     "onThisPage": "Sur cette page",
     "breadcrumbs": "Fil d'Ariane",

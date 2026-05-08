@@ -1,7 +1,8 @@
 // Build-time: emit /llms.txt, /llms-full.txt, /sitemap.xml, /robots.txt,
-// and per-page <slug>.md files into ./dist so the static server can hand
-// them out with the correct content-type. This is also where the SSR
-// prerender output gets enriched with locale-specific SEO surface.
+// and per-page <slug>.md files. Writing to `public/` rather than `dist/`
+// means the vite dev server serves them automatically (no post-build
+// step needed for local development) and `vite build` copies them into
+// the production bundle as part of its standard public-directory copy.
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -16,7 +17,7 @@ import { buildSitemap, type SitemapPage } from '@tale/webui/seo/build-sitemap';
 import { listAllContent } from './walk-content';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-const DIST = resolve(SCRIPT_DIR, '..', 'dist');
+const OUT_DIR = resolve(SCRIPT_DIR, '..', 'public');
 const SITE_URL = process.env.DOCS_SITE_URL ?? 'https://docs.tale.dev';
 const BASE_LOCALES = ['en', 'de', 'fr'] as const;
 
@@ -44,7 +45,7 @@ async function main() {
     byLocale.set(r.locale, list);
   }
 
-  await mkdir(DIST, { recursive: true });
+  await mkdir(OUT_DIR, { recursive: true });
 
   // --- /llms.txt (English-only index, alphabetised by URL) -----------------
   const enPages = (byLocale.get('en') ?? [])
@@ -84,7 +85,7 @@ async function main() {
       { title: 'GitHub', url: 'https://github.com/tale-project/tale' },
     ],
   });
-  await writeFile(resolve(DIST, 'llms.txt'), llmsTxt);
+  await writeFile(resolve(OUT_DIR, 'llms.txt'), llmsTxt);
   process.stdout.write('built llms.txt\n');
 
   // --- /llms-full.txt (every page concatenated, English) ------------------
@@ -98,7 +99,7 @@ async function main() {
       body: page.body,
     })),
   );
-  await writeFile(resolve(DIST, 'llms-full.txt'), llmsFull);
+  await writeFile(resolve(OUT_DIR, 'llms-full.txt'), llmsFull);
   process.stdout.write('built llms-full.txt\n');
 
   // --- /sitemap.xml with hreflang alternates ------------------------------
@@ -128,7 +129,7 @@ async function main() {
       });
     }
   }
-  await writeFile(resolve(DIST, 'sitemap.xml'), buildSitemap(sitemapPages));
+  await writeFile(resolve(OUT_DIR, 'sitemap.xml'), buildSitemap(sitemapPages));
   process.stdout.write('built sitemap.xml\n');
 
   // --- /robots.txt --------------------------------------------------------
@@ -139,14 +140,14 @@ async function main() {
     sitemaps: [`${SITE_URL}/sitemap.xml`],
     disallow: noindex,
   });
-  await writeFile(resolve(DIST, 'robots.txt'), robots);
+  await writeFile(resolve(OUT_DIR, 'robots.txt'), robots);
   process.stdout.write('built robots.txt\n');
 
   // --- Per-page .md endpoints --------------------------------------------
   for (const [locale, pages] of byLocale) {
     for (const page of pages) {
       const out = resolve(
-        DIST,
+        OUT_DIR,
         mdPathFor(locale, page.slug).replace(/^\//, ''),
       );
       await mkdir(dirname(out), { recursive: true });

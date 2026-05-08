@@ -3,7 +3,7 @@ title: Analyses d’utilisation
 description: Analyses temporelles de la consommation de tokens, des coûts et des performances des workflows.
 ---
 
-Le tableau de bord d’utilisation sous **Paramètres > Gouvernance > Utilisation** donne aux admins une vue temporelle de la façon dont l’organisation utilise Tale. C’est un sur-ensemble des chiffres ponctuels affichés dans les budgets — ici tu vois les tendances, descends jusqu’à des utilisateurs ou équipes précis et exportes pour la finance ou la planification de capacité.
+Le tableau de bord d’utilisation sous **Paramètres > Gouvernance > Utilisation** donne aux Admins une vue temporelle de la façon dont l’organisation utilise Tale. C’est un sur-ensemble des chiffres ponctuels affichés dans les budgets — ici tu vois les tendances, descends jusqu’à des utilisateurs ou équipes précis et exportes pour la finance ou la planification de capacité.
 
 ## Graphiques disponibles
 

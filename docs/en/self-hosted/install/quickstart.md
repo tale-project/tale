@@ -67,7 +67,7 @@ Wait for `Tale Dev v0.x.x  Ready.` Health-check messages while services boot are
 
 ### Step 4: Open the app
 
-Go to https://localhost (or your configured domain). The first visit takes you to a sign-up page to create your admin account.
+Go to https://localhost (or your configured domain). The first visit takes you to a sign-up page to create your Admin account.
 
 > **Self-signed certificate warning.** The default `selfsigned` TLS mode generates a local certificate, so your browser will show a "Your connection is not private" warning the first time. Click through (Chrome: **Advanced → Proceed**, Firefox: **Advanced → Accept the Risk**). For a public deployment, choose `letsencrypt` during `tale init` or follow the [production deployment](/self-hosted/install/linux-server) guide.
 

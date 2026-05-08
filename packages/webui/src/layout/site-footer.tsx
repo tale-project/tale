@@ -17,11 +17,14 @@ export interface FooterColumn {
 }
 
 interface SiteFooterProps {
-  /** Logo + home link slot. */
-  logo: ReactNode;
-  /** Optional `<address>` or any structured contact info. */
+  /** Logo + home link slot. Required in the columned (marketing) layout,
+   *  optional in the compact bottom-bar variant. */
+  logo?: ReactNode;
+  /** Optional `<address>` or any structured contact info. Only shown
+   *  when there are columns — the compact variant omits it. */
   address?: ReactNode;
-  /** Up to three columns of links shown to the right of the logo. */
+  /** Up to three columns of links shown to the right of the logo. When
+   *  empty, the footer collapses to a single bottom bar. */
   columns?: FooterColumn[];
   /** Lines rendered in the bottom-bar copyright slot. */
   copyrightLines: string[];
@@ -63,67 +66,90 @@ export function SiteFooter({
   containerClassName,
 }: SiteFooterProps) {
   const columnCount = columns.length;
+  const compact = columnCount === 0;
   const gridCols =
-    columnCount === 0
-      ? 'grid-cols-1'
-      : columnCount === 1
-        ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_minmax(0,1fr)]'
-        : columnCount === 2
-          ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_repeat(2,minmax(0,1fr))]'
-          : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(0,1fr))]';
+    columnCount === 1
+      ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_minmax(0,1fr)]'
+      : columnCount === 2
+        ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_repeat(2,minmax(0,1fr))]'
+        : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(0,1fr))]';
+
+  const switcherRow = (
+    <div className="flex flex-wrap items-center gap-2">
+      {llmsTxtUrl ? (
+        <a
+          href={llmsTxtUrl}
+          className="text-fg-muted hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base rounded-sm px-2 py-1 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+        >
+          {llmsTxtLabel}
+        </a>
+      ) : null}
+      <LanguageSwitcher />
+      <ThemeSwitcher />
+      {bottomTrailing}
+    </div>
+  );
 
   return (
     <footer className="border-border-base bg-bg-base border-t print:hidden">
       <SiteContainer className={containerClassName}>
-        <div className={cn('grid gap-12 py-16', gridCols)}>
-          <div className="text-fg-muted flex flex-col gap-4 text-sm sm:col-span-2 lg:col-span-1">
-            {logo}
-            {address}
-          </div>
-
-          {columns.map((col) => (
-            <nav
-              key={col.heading}
-              aria-label={col.heading}
-              className="flex flex-col gap-3"
+        {compact ? (
+          // Bottom-bar-only variant. Renders just the copyright + the
+          // language/theme/llms switchers on a single line so the docs
+          // chrome stays minimal beneath every page.
+          <div className="flex flex-col gap-4 py-6 sm:flex-row sm:items-center sm:justify-between">
+            <div
+              className="text-fg-muted text-sm"
+              style={{ letterSpacing: '-0.084px', lineHeight: 1.4286 }}
             >
-              <h3 className="text-fg-base text-sm font-semibold">
-                {col.heading}
-              </h3>
-              <ul role="list" className="flex flex-col gap-2">
-                {col.links.map((link, i) => (
-                  // oxlint-disable-next-line react/no-array-index-key -- link order is stable
-                  <li key={i}>{link}</li>
-                ))}
-              </ul>
-            </nav>
-          ))}
-        </div>
+              {copyrightLines.map((line, i) => (
+                // oxlint-disable-next-line react/no-array-index-key -- copyright line order is stable
+                <p key={i}>{line}</p>
+              ))}
+            </div>
+            {switcherRow}
+          </div>
+        ) : (
+          <>
+            <div className={cn('grid gap-12 py-16', gridCols)}>
+              <div className="text-fg-muted flex flex-col gap-4 text-sm sm:col-span-2 lg:col-span-1">
+                {logo}
+                {address}
+              </div>
 
-        <div className="border-border-base flex flex-col gap-4 border-t py-6 sm:flex-row sm:items-center sm:justify-between">
-          <div
-            className="text-fg-muted text-sm"
-            style={{ letterSpacing: '-0.084px', lineHeight: 1.4286 }}
-          >
-            {copyrightLines.map((line, i) => (
-              // oxlint-disable-next-line react/no-array-index-key -- copyright line order is stable
-              <p key={i}>{line}</p>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {llmsTxtUrl ? (
-              <a
-                href={llmsTxtUrl}
-                className="text-fg-muted hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base rounded-sm px-2 py-1 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+              {columns.map((col) => (
+                <nav
+                  key={col.heading}
+                  aria-label={col.heading}
+                  className="flex flex-col gap-3"
+                >
+                  <h3 className="text-fg-base text-sm font-semibold">
+                    {col.heading}
+                  </h3>
+                  <ul role="list" className="flex flex-col gap-2">
+                    {col.links.map((link, i) => (
+                      // oxlint-disable-next-line react/no-array-index-key -- link order is stable
+                      <li key={i}>{link}</li>
+                    ))}
+                  </ul>
+                </nav>
+              ))}
+            </div>
+
+            <div className="border-border-base flex flex-col gap-4 border-t py-6 sm:flex-row sm:items-center sm:justify-between">
+              <div
+                className="text-fg-muted text-sm"
+                style={{ letterSpacing: '-0.084px', lineHeight: 1.4286 }}
               >
-                {llmsTxtLabel}
-              </a>
-            ) : null}
-            <LanguageSwitcher />
-            <ThemeSwitcher />
-            {bottomTrailing}
-          </div>
-        </div>
+                {copyrightLines.map((line, i) => (
+                  // oxlint-disable-next-line react/no-array-index-key -- copyright line order is stable
+                  <p key={i}>{line}</p>
+                ))}
+              </div>
+              {switcherRow}
+            </div>
+          </>
+        )}
       </SiteContainer>
     </footer>
   );
