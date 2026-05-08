@@ -81,7 +81,7 @@ export function SiteHeader() {
       <div className="mt-2 flex flex-col gap-2">
         <Button asChild variant="secondary" fullWidth>
           <a
-            href="https://docs.tale.dev"
+            href={DOCS_URL}
             target="_blank"
             rel="noopener noreferrer"
           >
