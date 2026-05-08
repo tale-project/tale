@@ -42,6 +42,7 @@ COPY tsconfig.base.json ./
 COPY packages/ui ./packages/ui
 COPY packages/webui ./packages/webui
 COPY services/docs ./services/docs
+COPY docs ./docs
 
 ENV NODE_ENV=production
 WORKDIR /app/services/docs
