@@ -20,7 +20,7 @@ export function DocsFooter() {
         t('copyrightLine1', { year: new Date().getFullYear() }),
         t('copyrightLine2'),
       ]}
-      llmsTxtUrl="/llms.txt"
+      llmsTxtUrl={`${import.meta.env.BASE_URL}llms.txt`}
       llmsTxtLabel={t('llmsTxtLabel')}
       bottomTrailing={
         <a

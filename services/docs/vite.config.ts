@@ -3,7 +3,10 @@ import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: './',
+  // Build-time mount point. Defaults to '/' (e.g. docs.tale.dev). Set to a
+  // sub-path with trailing slash like '/docs/' to serve the docs app under
+  // that prefix — Vite then prefixes every asset URL accordingly.
+  base: process.env.DOCS_BASE_URL ?? '/',
   resolve: {
     dedupe: ['react', 'react-dom'],
     tsconfigPaths: true,
