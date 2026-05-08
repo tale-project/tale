@@ -1,10 +1,11 @@
 'use client';
 
-import { useTranslation } from 'react-i18next';
+import { useT as useTBase } from '@tale/ui/i18n/client';
+import type { TFunction } from 'i18next';
 
 import type { Namespace } from './types';
 
-export function useT<N extends Namespace>(namespace: N) {
-  const { t } = useTranslation(namespace);
-  return { t };
+/** Typed wrapper that constrains the namespace to the platform message tree. */
+export function useT<N extends Namespace>(namespace: N): { t: TFunction } {
+  return useTBase(namespace);
 }

@@ -10,9 +10,13 @@ import { isUrlPrefixedLocale, type SupportedLocale } from './locales';
  * layout's redirect resolves.
  */
 export function useCurrentLocale(): SupportedLocale {
-  const params = useParams({ strict: false }) as { lang?: string };
-  if (params.lang !== undefined && isUrlPrefixedLocale(params.lang)) {
-    return params.lang;
-  }
+  // `strict: false` returns the union of every route's params; `select`
+  // narrows the access in a single typed callback so we don't need a cast
+  // at the read site.
+  const lang = useParams({
+    strict: false,
+    select: (params: { lang?: string }) => params.lang,
+  });
+  if (lang !== undefined && isUrlPrefixedLocale(lang)) return lang;
   return 'en';
 }

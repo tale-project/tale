@@ -1,15 +1,16 @@
 'use client';
 
+import { parseAcceptLanguage } from '@tale/i18n/accept-language';
+import { isValidLocale } from '@tale/i18n/is-valid-locale';
+import { resolveLocale } from '@tale/i18n/resolve-locale';
 import { useCallback, useEffect, useState } from 'react';
 
-import { i18n } from '@/lib/i18n/i18n';
 import { loadDayjsLocale } from '@/lib/utils/date/format';
-import { isValidLocale } from '@/lib/utils/intl/is-valid-locale';
-import { parseAcceptLanguage } from '@/lib/utils/intl/parse-accept-language';
-import { resolveLocale } from '@/lib/utils/intl/resolve-locale';
 
-function detectLocale(defaultLocale: string) {
-  const savedLocale = localStorage.getItem('user-locale');
+const STORAGE_KEY = 'user-locale';
+
+function detectLocale(defaultLocale: string): string {
+  const savedLocale = localStorage.getItem(STORAGE_KEY);
   if (savedLocale && isValidLocale(savedLocale)) return savedLocale;
 
   const serverHeader = window.__ACCEPT_LANGUAGE__;
@@ -24,34 +25,32 @@ function detectLocale(defaultLocale: string) {
 }
 
 /**
- * Hook for managing locale state with browser detection and validation
+ * Detects, persists, and exposes the user's preferred locale. The actual
+ * `i18n.changeLanguage` + `<html lang>` synchronization is handled by
+ * `<LocaleSync>` from `@tale/ui/i18n/sync`, mounted by `I18nProvider`. This
+ * hook only owns persistence (localStorage) and the platform-specific dayjs
+ * locale loader.
  */
-export function useLocale(defaultLocale = 'en-US') {
+export function useLocale(defaultLocale = 'en-US'): {
+  locale: string;
+  setLocale: (newLocale: string) => void;
+} {
   const [locale, setLocaleState] = useState(() => detectLocale(defaultLocale));
 
   useEffect(() => {
-    if (i18n.language !== locale) {
-      void i18n.changeLanguage(locale);
-    }
-    void loadDayjsLocale(locale).then(() => setLocaleState(locale));
+    void loadDayjsLocale(locale);
   }, [locale]);
 
   const setLocale = useCallback(
     (newLocale: string) => {
-      if (isValidLocale(newLocale)) {
-        setLocaleState(newLocale);
-        localStorage.setItem('user-locale', newLocale);
-        void i18n.changeLanguage(newLocale);
-        void loadDayjsLocale(newLocale);
-      } else {
+      const resolved = isValidLocale(newLocale) ? newLocale : defaultLocale;
+      if (!isValidLocale(newLocale)) {
         console.warn(
           `Invalid locale: ${newLocale}. Using default: ${defaultLocale}`,
         );
-        setLocaleState(defaultLocale);
-        localStorage.setItem('user-locale', defaultLocale);
-        void i18n.changeLanguage(defaultLocale);
-        void loadDayjsLocale(defaultLocale);
       }
+      setLocaleState(resolved);
+      localStorage.setItem(STORAGE_KEY, resolved);
     },
     [defaultLocale],
   );

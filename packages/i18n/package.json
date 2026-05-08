@@ -1,0 +1,22 @@
+{
+  "name": "@tale/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Framework-free locale primitives shared across Tale services",
+  "type": "module",
+  "exports": {
+    "./locales": "./src/locales.ts",
+    "./accept-language": "./src/accept-language.ts",
+    "./resolve-locale": "./src/resolve-locale.ts",
+    "./is-valid-locale": "./src/is-valid-locale.ts",
+    "./cookie": "./src/cookie.ts",
+    "./negotiate": "./src/negotiate.ts"
+  },
+  "scripts": {
+    "lint": "bunx oxlint --type-aware",
+    "lint:fix": "bunx oxlint --type-aware --fix",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bunx vitest --run",
+    "test:watch": "bunx vitest"
+  }
+}

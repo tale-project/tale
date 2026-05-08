@@ -1,3 +1,4 @@
+import { LocaleSync } from '@tale/ui/i18n/sync';
 import { SkipLink } from '@tale/webui/layout/skip-link';
 import { SearchDialog } from '@tale/webui/search/dialog';
 import {
@@ -12,7 +13,6 @@ import { DocsHeader } from '@/app/components/docs/docs-header';
 import { DocsSidebar } from '@/app/components/docs/docs-sidebar';
 import { ScrollToTop } from '@/app/components/docs/scroll-to-top';
 import { useT } from '@/lib/i18n/client';
-import { i18n } from '@/lib/i18n/i18n';
 import {
   detectInitialLocale,
   resolveRegionalLocale,
@@ -56,11 +56,6 @@ function RootLayout() {
   const locale = localeFromPathname(pathname);
   const { t: tNav } = useT('nav');
   const { t: tSearch } = useT('search');
-
-  // Sync i18next language to the active locale on every route change.
-  useEffect(() => {
-    void i18n.changeLanguage(resolveRegionalLocale(locale));
-  }, [locale]);
 
   // ⌘K / Ctrl+K opens the search dialog.
   useEffect(() => {
@@ -122,6 +117,7 @@ function RootLayout() {
 
   return (
     <div className="bg-bg-base text-fg-base flex min-h-screen flex-col">
+      <LocaleSync locale={resolveRegionalLocale(locale)} htmlLang={locale} />
       <SkipLink>Skip to main content</SkipLink>
       <DocsHeader
         locale={locale}

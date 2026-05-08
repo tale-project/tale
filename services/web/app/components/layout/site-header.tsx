@@ -52,11 +52,7 @@ export function SiteHeader() {
   const desktopActions = (
     <>
       <Button asChild variant="secondary" size="sm">
-        <a
-          href={DOCS_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
           {t('readDocs')}
         </a>
       </Button>
@@ -80,11 +76,7 @@ export function SiteHeader() {
       ))}
       <div className="mt-2 flex flex-col gap-2">
         <Button asChild variant="secondary" fullWidth>
-          <a
-            href={DOCS_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
             {t('readDocs')}
           </a>
         </Button>

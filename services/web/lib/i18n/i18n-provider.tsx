@@ -1,4 +1,4 @@
-import { I18nProvider as I18nProviderBase } from '@tale/webui/i18n/provider';
+import { I18nProvider as I18nProviderBase } from '@tale/ui/i18n/provider';
 import type { ReactNode } from 'react';
 
 import { i18n } from './i18n';

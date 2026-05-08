@@ -85,7 +85,6 @@ const files = [
   'app/routes/__root.tsx.hbs',
   'app/routes/index.tsx.hbs',
   'lib/i18n/client.tsx',
-  'lib/i18n/config.ts',
   'lib/i18n/i18n.ts.hbs',
   'lib/i18n/i18n-provider.tsx',
   'lib/i18n/keys-dynamic.txt',

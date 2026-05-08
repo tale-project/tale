@@ -1,11 +1,11 @@
 import { cn } from '@tale/ui/cn';
+import { useT } from '@tale/ui/i18n/client';
 import { useTheme } from '@tale/ui/theme';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { useDropdownPlacement } from '../hooks/use-dropdown-placement';
-import { useT } from '../i18n/client';
 
 // 3 menu items × ~40px row + ~8px padding ≈ 130px; round up so the flip
 // trigger fires a hair early rather than late.

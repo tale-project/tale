@@ -1,9 +1,9 @@
-export function isValidLocale(locale: string) {
+export function isValidLocale(locale: string): boolean {
   try {
     const localeObj = new Intl.Locale(locale);
     return Boolean(localeObj.language);
-  } catch (e) {
-    console.error(e);
+  } catch (err) {
+    console.error(err);
     return false;
   }
 }

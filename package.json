@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
+    "packages/i18n",
     "packages/tale_knowledge",
     "packages/tale_shared",
     "packages/tale_telemetry",
@@ -83,7 +84,6 @@
     "react": "19.2.5",
     "react-dom": "19.2.5",
     "react-hook-form": "7.72.1",
-    "react-i18next": "17.0.2",
     "tailwind-merge": "3.5.0",
     "tailwindcss": "4.2.2",
     "zod": "4.3.6"

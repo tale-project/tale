@@ -12,7 +12,7 @@ import {
   requestDemoSchema,
 } from '@/lib/forms/schemas';
 import { useT } from '@/lib/i18n/client';
-import { localizedHref } from '@/lib/i18n/localized-paths';
+import { localizedPath } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
@@ -47,7 +47,7 @@ export function RequestDemoPage() {
   useDocumentMeta({
     title: tSeo('requestDemo.title'),
     description: tSeo('requestDemo.description'),
-    canonicalPath: localizedHref(locale, '/request-demo'),
+    canonicalPath: localizedPath(locale, '/request-demo'),
   });
 
   const form = useForm<RequestDemoInput>({

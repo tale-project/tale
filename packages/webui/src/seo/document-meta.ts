@@ -1,6 +1,5 @@
+import { ALL_LOCALES, type SupportedLocale } from '@tale/ui/i18n/locales';
 import { useEffect } from 'react';
-
-import { ALL_LOCALES, type SupportedLocale } from '../i18n/locales';
 
 interface DocumentMeta {
   title: string;

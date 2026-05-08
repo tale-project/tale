@@ -1,26 +1,28 @@
 'use client';
 
-import { type ReactNode } from 'react';
-import { I18nextProvider } from 'react-i18next';
+import { I18nProvider as I18nProviderBase } from '@tale/ui/i18n/provider';
+import { LocaleSync } from '@tale/ui/i18n/sync';
+import type { ReactNode } from 'react';
 
 import { useLocale } from '@/app/hooks/use-locale';
 
 import { i18n } from './i18n';
 
-interface I18nProviderProps {
-  children: ReactNode;
+/** Bridges `useLocale()` (localStorage-driven detection) to the shared
+ *  `<LocaleSync>` so the i18n instance and `<html lang>` track the user's
+ *  saved/detected preference. Web and docs read locale from the URL and call
+ *  `<LocaleSync>` directly from their root route — platform's locale lives
+ *  in localStorage and needs the hook to read it. */
+function LocalePersistence() {
+  const { locale } = useLocale();
+  return <LocaleSync locale={locale} />;
 }
 
-function LocaleSync() {
-  useLocale();
-  return null;
-}
-
-export function I18nProvider({ children }: I18nProviderProps) {
+export function I18nProvider({ children }: { children: ReactNode }) {
   return (
-    <I18nextProvider i18n={i18n}>
-      <LocaleSync />
+    <I18nProviderBase i18n={i18n}>
+      <LocalePersistence />
       {children}
-    </I18nextProvider>
+    </I18nProviderBase>
   );
 }

@@ -1,6 +1,6 @@
 import { PricingSection } from '@/app/components/blocks/pricing-section';
 import { useT } from '@/lib/i18n/client';
-import { localizedHref } from '@/lib/i18n/localized-paths';
+import { localizedPath } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
@@ -11,7 +11,7 @@ export function PricingPage() {
   useDocumentMeta({
     title: tSeo('pricing.title'),
     description: tSeo('pricing.description'),
-    canonicalPath: localizedHref(locale, '/pricing'),
+    canonicalPath: localizedPath(locale, '/pricing'),
   });
 
   return <PricingSection />;

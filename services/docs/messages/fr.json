@@ -104,10 +104,5 @@
     },
     "copyrightLine1": "© {year} Tale par Ruler GmbH — certifié ISO 27001 et SOC 2.",
     "copyrightLine2": "Tale est sous licence MIT — libre d'utilisation, de modification et de distribution."
-  },
-  "notFound": {
-    "title": "Page introuvable",
-    "description": "Nous n'avons pas trouvé la page demandée.",
-    "home": "Retour à l'accueil de la documentation"
   }
 }

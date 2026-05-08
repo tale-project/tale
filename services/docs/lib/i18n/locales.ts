@@ -3,10 +3,10 @@ export {
   detectInitialLocale,
   isUrlPrefixedLocale,
   resolveRegionalLocale,
-} from '@tale/webui/i18n/locales';
-export type { Locale, SupportedLocale } from '@tale/webui/i18n/locales';
+} from '@tale/ui/i18n/locales';
+export type { Locale, SupportedLocale } from '@tale/ui/i18n/locales';
 
-import type { SupportedLocale } from '@tale/webui/i18n/locales';
+import type { SupportedLocale } from '@tale/ui/i18n/locales';
 
 export const BASE_LOCALES = [
   'en',

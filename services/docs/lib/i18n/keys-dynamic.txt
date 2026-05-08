@@ -1,0 +1,40 @@
+# Translation-key prefixes/keys that the orphan-key test in
+# messages-usage.test.ts treats as covered. Each line is matched as a prefix:
+# `foo.bar` covers `foo.bar` and `foo.bar.<anything>`.
+#
+# Add an entry here only when a key is genuinely dynamic — constructed at
+# runtime in ways the regex scanner cannot follow (template literals composed
+# across files, enum-driven dispatch, etc.) — or when a static key is consumed
+# from outside this service's scanned source tree.
+
+# --- shared switchers consume their keys from @tale/webui ---
+# `languageSwitcher.*` and `themeSwitcher.*` are referenced inside
+# packages/webui/src/layout/, but the scanner only walks services/docs/.
+languageSwitcher
+themeSwitcher
+
+# --- docs reuses the marketing footer bundle (slimmed to copyright + GitHub) ---
+# DocsFooter only renders `copyrightLine1/2`, `llmsTxtLabel`, `githubAriaLabel`,
+# but the docs message bundle still ships the full `footer.*` tree because
+# the bundle is regenerated from the same source as the marketing site. Pruning
+# the unused entries belongs in a translations-cleanup follow-up PR — keeping
+# them allowlisted here avoids gating this refactor on a translation churn.
+footer.address
+footer.aiTraining
+footer.contact
+footer.features
+footer.hardwareAgreement
+footer.hardwarePricing
+footer.homeAriaLabel
+footer.legal
+footer.pricing
+footer.privacyPolicy
+footer.processingAgreement
+footer.product
+footer.resources
+footer.serviceAgreement
+footer.termsOfService
+
+# `common.tale` is the brand label used by SEO/document-meta builders in
+# `@tale/webui/src/seo/`, outside the scanned tree.
+common.tale
