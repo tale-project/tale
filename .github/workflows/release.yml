@@ -75,6 +75,8 @@ jobs:
           - { name: db }
           - { name: proxy }
           - { name: convex }
+          - { name: web }
+          - { name: docs }
         arch:
           - { name: amd64, runner: ubuntu-latest, platform: linux/amd64 }
           - { name: arm64, runner: ubuntu-24.04-arm, platform: linux/arm64 }
@@ -154,7 +156,7 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version_number }}"
           ARCH="amd64"
-          for svc in platform rag crawler db proxy convex; do
+          for svc in platform rag crawler db proxy convex web docs; do
             IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/tale-${svc}:${VERSION}-${ARCH}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"
@@ -173,6 +175,18 @@ jobs:
           bash tests/container-smoke-test.sh
         env:
           SMOKE_TEST_TIMEOUT: 300
+
+      - name: Run web container test
+        run: |
+          export PULL_POLICY=never
+          export SKIP_BUILD=true
+          bash tests/container-web-test.sh
+
+      - name: Run docs container test
+        run: |
+          export PULL_POLICY=never
+          export SKIP_BUILD=true
+          bash tests/container-docs-test.sh
 
       - name: Summary
         if: always()
@@ -193,7 +207,7 @@ jobs:
 
     strategy:
       matrix:
-        service: [platform, rag, crawler, db, proxy, convex]
+        service: [platform, rag, crawler, db, proxy, convex, web, docs]
 
     steps:
       - name: Login to GHCR
@@ -242,7 +256,7 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version_number }}"
           REGISTRY="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in platform rag crawler db proxy convex; do
+          for svc in platform rag crawler db proxy convex web docs; do
             IMAGE="${REGISTRY}/tale-${svc}:${VERSION}"
             echo "Verifying manifest: ${IMAGE}"
             docker manifest inspect "${IMAGE}" > /dev/null 2>&1 || {
@@ -296,13 +310,13 @@ jobs:
         run: |
           echo "## Release ${{ needs.prepare.outputs.version }} Complete" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "All 6 service images have been built, tested, and pushed to GHCR (native amd64 + arm64)." >> "$GITHUB_STEP_SUMMARY"
+          echo "All 8 service images have been built, tested, and pushed to GHCR (native amd64 + arm64)." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Images" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Service | Image |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---------|-------|" >> "$GITHUB_STEP_SUMMARY"
-          for svc in platform rag crawler db proxy convex; do
+          for svc in platform rag crawler db proxy convex web docs; do
             echo "| ${svc} | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-${svc}:${{ needs.prepare.outputs.version_number }}\` |" >> "$GITHUB_STEP_SUMMARY"
           done
           echo "" >> "$GITHUB_STEP_SUMMARY"

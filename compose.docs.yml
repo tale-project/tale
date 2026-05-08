@@ -1,0 +1,44 @@
+# =============================================================================
+# Tale Docs (Documentation site) — Standalone Docker Compose
+# =============================================================================
+# The documentation site at docs.tale.dev runs independently of the platform
+# stack and has its own environment file at services/docs/.env.example.
+#
+# Usage:
+#   Local build:    docker compose -f compose.docs.yml up --build
+#   Pull image:     docker compose -f compose.docs.yml pull && docker compose -f compose.docs.yml up -d
+#
+# Image:
+#   ghcr.io/tale-project/tale/tale-docs:${VERSION:-latest}
+
+services:
+  docs:
+    image: ghcr.io/tale-project/tale/tale-docs:${VERSION:-latest}
+    container_name: tale-docs
+    pull_policy: ${PULL_POLICY:-build}
+    build:
+      context: .
+      dockerfile: services/docs/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+
+    env_file:
+      - services/docs/.env
+
+    ports:
+      - '3002:3002'
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3002/api/health']
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'

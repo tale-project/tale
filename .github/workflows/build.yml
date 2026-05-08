@@ -73,6 +73,15 @@ jobs:
               - 'services/proxy/**'
             convex:
               - 'services/convex/**'
+            web:
+              - 'services/web/**'
+              - 'packages/webui/**'
+              - 'packages/ui/**'
+            docs:
+              - 'services/docs/**'
+              - 'docs/**'
+              - 'packages/webui/**'
+              - 'packages/ui/**'
             ci_tests:
               - 'tests/container-*'
               - 'compose.test.yml'
@@ -176,6 +185,60 @@ jobs:
       - name: Summary
         if: always()
         run: echo "## Smoke tests complete" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Standalone container tests for static sites. Each runs in its own compose
+  # stack and so isn't covered by the platform smoke-test above.
+  # ---------------------------------------------------------------------------
+  web-test:
+    name: Web container test
+    needs: changes
+    if: contains(fromJson(needs.changes.outputs.services), 'web') && github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Reclaim disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af
+
+      - name: Run web container test
+        run: bash tests/container-web-test.sh
+
+      - name: Summary
+        if: always()
+        run: echo "## tale-web container test complete" >> "$GITHUB_STEP_SUMMARY"
+
+  docs-test:
+    name: Docs container test
+    needs: changes
+    if: contains(fromJson(needs.changes.outputs.services), 'docs') && github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Reclaim disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af
+
+      - name: Run docs container test
+        run: bash tests/container-docs-test.sh
+
+      - name: Summary
+        if: always()
+        run: echo "## tale-docs container test complete" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
   # Validate container image metadata, healthchecks, entrypoints. Draft PRs skip.

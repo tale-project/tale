@@ -420,42 +420,6 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Docs (TanStack Start, mirrors services/web)
-  # ============================================================================
-  # The documentation site replaces the previous Mintlify-hosted docs.tale.dev.
-  # Static SPA + Bun server; Caddy proxies docs.tale.dev → docs:3002.
-  docs:
-    image: ghcr.io/tale-project/tale/tale-docs:${VERSION:-latest}
-    container_name: tale-docs
-    pull_policy: ${PULL_POLICY:-build}
-    build:
-      context: .
-      dockerfile: services/docs/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
-
-    env_file:
-      - .env
-
-    restart: unless-stopped
-
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3002/api/health']
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '10m'
-        max-file: '3'
-
-    networks:
-      - internal
-
-  # ============================================================================
   # Tale Proxy (Caddy)
   # ============================================================================
   # Single entry point for all traffic (both local dev and production)
