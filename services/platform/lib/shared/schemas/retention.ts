@@ -26,10 +26,7 @@ export const RETENTION_CATEGORIES = [
 
 export type RetentionCategory = (typeof RETENTION_CATEGORIES)[number];
 
-export const retentionCategoryEnum = z.enum(RETENTION_CATEGORIES);
-
 const RETENTION_BOUND_FIELDS = ['min', 'max', 'default'] as const;
-export type RetentionBoundField = (typeof RETENTION_BOUND_FIELDS)[number];
 
 const ENV_NAME_REGEX = /^[A-Z][A-Z0-9_]*$/;
 const PATH_REGEX = /^[a-zA-Z][a-zA-Z0-9]*\.(min|max|default)$/;
@@ -93,8 +90,6 @@ export const retentionRootMetadataSchema = z
     },
   );
 
-export type RetentionRootMetadata = z.infer<typeof retentionRootMetadataSchema>;
-
 /**
  * Per-category bounds shape stored in the JSON file. Holds `min` /
  * `max` / `default` plus the display `unit`. Env binding lives at the
@@ -122,7 +117,7 @@ export const retentionBoundDefSchema = z
     message: 'min ≤ default ≤ max required',
   });
 
-export type RetentionBoundDef = z.infer<typeof retentionBoundDefSchema>;
+type RetentionBoundDef = z.infer<typeof retentionBoundDefSchema>;
 
 /**
  * Returns the structurally-correct `unit` for a category id. Categories
@@ -169,16 +164,15 @@ const retentionConfigShape: RetentionConfigShape = {
  * Categories not listed here have no compliance-mandated floor — the
  * file's `min: 0` lower bound applies as before.
  */
-export const RETENTION_COMPLIANCE_FLOORS: Partial<
-  Record<RetentionCategory, number>
-> = {
-  // PCI-DSS 10.5.3, SOC 2 CC7.3, ISO 27001 A.12.4 — audit logs retained
-  // at least one year. Baseline floor; ops can RAISE via env or file.
-  auditLog: 365,
-  // NIST SP 800-92 §4.3 — retain login attempts long enough to detect
-  // slow-and-low brute force across calendar quarters.
-  loginAttempt: 90,
-};
+const RETENTION_COMPLIANCE_FLOORS: Partial<Record<RetentionCategory, number>> =
+  {
+    // PCI-DSS 10.5.3, SOC 2 CC7.3, ISO 27001 A.12.4 — audit logs retained
+    // at least one year. Baseline floor; ops can RAISE via env or file.
+    auditLog: 365,
+    // NIST SP 800-92 §4.3 — retain login attempts long enough to detect
+    // slow-and-low brute force across calendar quarters.
+    loginAttempt: 90,
+  };
 
 export const retentionDefaultsConfigSchema = z
   .object(retentionConfigShape)

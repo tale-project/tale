@@ -108,6 +108,33 @@ const POLICY_FIELD_BY_CATEGORY: Record<RetentionCategory, string> = {
   messageMetadata: 'messageMetadataRetentionDays',
 };
 
+const ENABLED_FIELD_BY_CATEGORY: Record<RetentionCategory, string> = {
+  documents: 'documentsEnabled',
+  userTempHours: 'userTempEnabled',
+  agentTempHours: 'agentTempEnabled',
+  chatHistory: 'chatHistoryEnabled',
+  auditLog: 'auditLogEnabled',
+  workflowLog: 'workflowLogEnabled',
+  usageLedger: 'usageLedgerEnabled',
+  loginAttempt: 'loginAttemptEnabled',
+  chatFilterEvents: 'chatFilterEventsEnabled',
+  promptTemplates: 'promptTemplatesEnabled',
+  messageFeedback: 'messageFeedbackEnabled',
+  memoryAudit: 'memoryAuditEnabled',
+  customers: 'customersEnabled',
+  vendors: 'vendorsEnabled',
+  externalConversations: 'externalConversationsEnabled',
+  messageMetadata: 'messageMetadataEnabled',
+};
+
+function hasAnyRetentionFeatureEnabled(config: unknown): boolean {
+  if (!isRecord(config)) return false;
+  for (const cat of RETENTION_CATEGORIES) {
+    if (config[ENABLED_FIELD_BY_CATEGORY[cat]] === true) return true;
+  }
+  return false;
+}
+
 interface BoundDiffEntry {
   category: string;
   field: 'min' | 'max';
@@ -286,11 +313,6 @@ export const getPendingBoundsProposal = action({
       return null;
     }
 
-    const appliedBounds = applied?.appliedBounds
-      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- v.any() round-trip
-        (applied.appliedBounds as AppliedBoundsByCategory)
-      : null;
-
     // For impact preview we want to know how the admin's stored values
     // would clamp under the new bounds. Read the retention policy row.
     const policyRow = await ctx.runQuery(
@@ -305,6 +327,19 @@ export const getPendingBoundsProposal = action({
     const orgPolicy = policies.find(
       (p) => p.organizationId === args.organizationId,
     );
+
+    // First-apply state with no retention feature enabled has nothing
+    // to bound: impact preview is empty, diff is null→defaults, and the
+    // operator's defaults will be auto-seeded the moment the admin
+    // saves their first policy. Stay silent until they opt in.
+    if (!applied && !hasAnyRetentionFeatureEnabled(orgPolicy?.config)) {
+      return null;
+    }
+
+    const appliedBounds = applied?.appliedBounds
+      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- v.any() round-trip
+        (applied.appliedBounds as AppliedBoundsByCategory)
+      : null;
 
     return {
       firstApply: !applied,
