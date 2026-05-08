@@ -48,7 +48,11 @@ ENV NODE_ENV=production \
     WEB_DOCS_URL=${WEB_DOCS_URL} \
     VITE_DOCS_URL=${WEB_DOCS_URL}
 WORKDIR /app/services/web
-RUN bun --bun vite build \
+# Generate llms.txt / llms-full.txt / sitemap.xml / robots.txt into public/
+# *before* vite build, so the build's public-directory copy picks up the
+# fresh artifacts instead of the stale checked-in robots.txt.
+RUN bun --bun scripts/build-llms-artifacts.ts \
+    && bun --bun vite build \
     && bun build server.ts --target=bun --outfile=server.js --external bun
 WORKDIR /app
 
