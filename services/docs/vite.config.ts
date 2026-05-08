@@ -40,6 +40,16 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     chunkSizeWarningLimit: 2000,
+    modulePreload: {
+      // mermaid-vendor is ~700 KB gzipped and only used on doc pages that
+      // include a `mermaid` code block. The wrapper component already calls
+      // `import('mermaid')` lazily, but Rolldown adds the chunk to the entry
+      // HTML's <link rel="modulepreload"> list anyway, forcing every cold
+      // visit to download it. Strip it from the preload graph; the dynamic
+      // import still resolves on demand when a diagram actually renders.
+      resolveDependencies: (_filename, deps) =>
+        deps.filter((d) => !d.includes('mermaid-vendor')),
+    },
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -56,6 +66,11 @@ export default defineConfig({
           }
           if (id.includes('node_modules/@radix-ui/')) {
             return 'radix-vendor';
+          }
+          if (id.includes('node_modules/lucide-react/')) {
+            // Without this lucide ships ~30 separate icon chunks; bundling
+            // them into one keeps the modulepreload list short.
+            return 'lucide-vendor';
           }
           if (
             id.includes('node_modules/react-markdown/') ||
