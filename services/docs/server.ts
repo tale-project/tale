@@ -1,15 +1,24 @@
 // Bun server: serves the prebuilt SPA from ./dist and answers a few
 // content-type-aware routes (.md endpoints, llms.txt, llms-full.txt,
-// sitemap.xml, robots.txt) directly out of the static dist tree.
+// sitemap.xml, robots.txt) directly out of the static dist tree. Runs the
+// shared locale middleware so first-time visitors with `Accept-Language: de`
+// or `fr` get redirected to `/de/...` or `/fr/...` and a `tale_locale`
+// cookie is set / refreshed.
 
 import { join, resolve, sep } from 'node:path';
 
+import { serializeLocaleCookie } from '@tale/i18n/cookie';
+import {
+  negotiatePathLocale,
+  type NegotiatePathLocaleResult,
+} from '@tale/i18n/negotiate';
 import { file } from 'bun';
 
 const PORT = Number(process.env.PORT ?? 3002);
 const HOSTNAME = process.env.HOSTNAME ?? '0.0.0.0';
 const DIST = resolve(import.meta.dir, 'dist');
 const DIST_PREFIX = DIST + sep;
+const LOCALE_COOKIE_DOMAIN = process.env.LOCALE_COOKIE_DOMAIN || undefined;
 
 function contentTypeFor(path: string): string | null {
   if (path.endsWith('.md')) return 'text/markdown; charset=utf-8';
@@ -19,6 +28,57 @@ function contentTypeFor(path: string): string | null {
   if (path === '/robots.txt') return 'text/plain; charset=utf-8';
   if (path === '/sitemap.xml') return 'application/xml; charset=utf-8';
   return null;
+}
+
+function isSecureRequest(request: Request): boolean {
+  if (request.url.startsWith('https://')) return true;
+  return request.headers.get('x-forwarded-proto') === 'https';
+}
+
+function applyLocaleResponseHeaders(
+  response: Response,
+  negotiation: NegotiatePathLocaleResult,
+  request: Request,
+): Response {
+  if (negotiation.skip) return response;
+  if (negotiation.setCookieValue) {
+    response.headers.append(
+      'Set-Cookie',
+      serializeLocaleCookie({
+        value: negotiation.setCookieValue,
+        domain: LOCALE_COOKIE_DOMAIN,
+        secure: isSecureRequest(request),
+      }),
+    );
+  }
+  response.headers.append('Vary', 'Accept-Language, Cookie');
+  return response;
+}
+
+async function serveStatic(pathname: string): Promise<Response> {
+  // Malformed percent-encodings (e.g. `/%E0%A4%A`) make decodeURIComponent
+  // throw — fall back to the SPA shell instead of crashing the request.
+  let rel: string;
+  try {
+    rel = decodeURIComponent(pathname).replace(/^\/+/, '');
+  } catch {
+    return new Response(file(join(DIST, 'index.html')));
+  }
+  const resolved = resolve(DIST, rel);
+  if (resolved === DIST || resolved.startsWith(DIST_PREFIX)) {
+    const candidate = file(resolved);
+    if (await candidate.exists()) {
+      const ct = contentTypeFor(pathname);
+      return new Response(candidate, {
+        headers: ct ? { 'content-type': ct } : undefined,
+      });
+    }
+    const routeHtml = file(join(resolved, 'index.html'));
+    if (await routeHtml.exists()) {
+      return new Response(routeHtml);
+    }
+  }
+  return new Response(file(join(DIST, 'index.html')));
 }
 
 Bun.serve({
@@ -34,22 +94,32 @@ Bun.serve({
       });
     }
 
-    const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
-    const resolved = resolve(DIST, rel);
-    if (resolved === DIST || resolved.startsWith(DIST_PREFIX)) {
-      const candidate = file(resolved);
-      if (await candidate.exists()) {
-        const contentType = contentTypeFor(url.pathname);
-        return new Response(candidate, {
-          headers: contentType ? { 'content-type': contentType } : undefined,
-        });
+    const negotiation = negotiatePathLocale({
+      pathname: url.pathname,
+      cookieHeader: request.headers.get('cookie'),
+      acceptLanguageHeader: request.headers.get('accept-language'),
+    });
+
+    if (negotiation.redirectTo) {
+      const headers = new Headers({
+        Location: negotiation.redirectTo,
+        Vary: 'Accept-Language, Cookie',
+      });
+      if (negotiation.setCookieValue) {
+        headers.append(
+          'Set-Cookie',
+          serializeLocaleCookie({
+            value: negotiation.setCookieValue,
+            domain: LOCALE_COOKIE_DOMAIN,
+            secure: isSecureRequest(request),
+          }),
+        );
       }
-      const routeHtml = file(join(resolved, 'index.html'));
-      if (await routeHtml.exists()) {
-        return new Response(routeHtml);
-      }
+      return new Response(null, { status: 302, headers });
     }
-    return new Response(file(join(DIST, 'index.html')));
+
+    const response = await serveStatic(url.pathname);
+    return applyLocaleResponseHeaders(response, negotiation, request);
   },
 });
 

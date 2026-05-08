@@ -17,7 +17,7 @@ interface RenderResult {
 }
 
 const basepath =
-  import.meta.env.BASE_URL.replace(/\/$/, '') || undefined;
+  (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '') || undefined;
 
 export async function render(url: string): Promise<RenderResult> {
   const router = createRouter({

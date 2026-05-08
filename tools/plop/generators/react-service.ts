@@ -89,6 +89,7 @@ const files = [
   'lib/i18n/i18n.ts.hbs',
   'lib/i18n/i18n-provider.tsx',
   'lib/i18n/keys-dynamic.txt',
+  'lib/i18n/locales.ts',
   'lib/i18n/messages.test.ts',
   'lib/i18n/messages-usage.test.ts.hbs',
   'lib/i18n/types.ts',

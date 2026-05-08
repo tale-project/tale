@@ -104,10 +104,5 @@
     },
     "copyrightLine1": "© {year} Tale by Ruler GmbH — ISO 27001 & SOC 2 certified.",
     "copyrightLine2": "Tale is MIT licensed — free to use, modify, and distribute."
-  },
-  "notFound": {
-    "title": "Page not found",
-    "description": "We couldn't find the page you were looking for.",
-    "home": "Back to docs home"
   }
 }

@@ -12,6 +12,7 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
+COPY packages/i18n/package.json ./packages/i18n/
 COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
 COPY packages/tale_shared/package.json ./packages/tale_shared/
 COPY packages/tale_telemetry/package.json ./packages/tale_telemetry/
@@ -39,6 +40,7 @@ FROM workspace-deps AS builder
 WORKDIR /app
 
 COPY tsconfig.base.json ./
+COPY packages/i18n ./packages/i18n
 COPY packages/ui ./packages/ui
 COPY packages/webui ./packages/webui
 COPY services/docs ./services/docs
@@ -46,15 +48,18 @@ COPY docs ./docs
 
 ARG DOCS_BASE_URL=/
 ARG DOCS_SITE_URL=https://docs.tale.dev
+ARG LOCALE_COOKIE_DOMAIN=
 ENV NODE_ENV=production \
     DOCS_BASE_URL=${DOCS_BASE_URL} \
-    DOCS_SITE_URL=${DOCS_SITE_URL}
+    DOCS_SITE_URL=${DOCS_SITE_URL} \
+    LOCALE_COOKIE_DOMAIN=${LOCALE_COOKIE_DOMAIN}
 WORKDIR /app/services/docs
 RUN bun --bun scripts/build-search-index.ts \
     && bun --bun vite build \
     && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr \
     && bun --bun scripts/prerender.ts \
-    && bun --bun scripts/build-llms-artifacts.ts
+    && bun --bun scripts/build-llms-artifacts.ts \
+    && bun build server.ts --target=bun --outfile=server.js --external bun
 WORKDIR /app
 
 # ============================================================================
@@ -67,11 +72,13 @@ LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="tale-docs" \
       org.opencontainers.image.description="Tale documentation site"
 
+ARG LOCALE_COOKIE_DOMAIN=
 ENV NODE_ENV=production \
     TALE_VERSION=${VERSION} \
     PORT=3002 \
     HOSTNAME="0.0.0.0" \
-    DO_NOT_TRACK=1
+    DO_NOT_TRACK=1 \
+    LOCALE_COOKIE_DOMAIN=${LOCALE_COOKIE_DOMAIN}
 
 WORKDIR /app
 
@@ -81,7 +88,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl tini ca-ce
     && useradd --system --uid 1001 --gid app app
 
 COPY --from=builder --chown=app:app /app/services/docs/dist ./dist
-COPY --from=builder --chown=app:app /app/services/docs/server.ts ./server.ts
+COPY --from=builder --chown=app:app /app/services/docs/server.js ./server.js
 COPY --from=builder --chown=app:app /app/services/docs/package.json ./package.json
 COPY --from=builder --chown=app:app /app/services/docs/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh

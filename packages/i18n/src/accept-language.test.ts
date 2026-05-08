@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { parseAcceptLanguage } from './parse-accept-language';
+import { parseAcceptLanguage } from './accept-language';
 
 describe('parseAcceptLanguage', () => {
   it('returns empty array for empty string', () => {

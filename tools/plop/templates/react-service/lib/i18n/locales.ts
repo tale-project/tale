@@ -11,11 +11,3 @@ export type {
   SupportedLocale,
   UrlPrefixedLocale,
 } from '@tale/ui/i18n/locales';
-
-import type { SupportedLocale } from '@tale/ui/i18n/locales';
-
-export const BASE_LOCALES = [
-  'en',
-  'de',
-  'fr',
-] as const satisfies readonly SupportedLocale[];

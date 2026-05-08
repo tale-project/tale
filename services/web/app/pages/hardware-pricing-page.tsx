@@ -1,7 +1,7 @@
 import { HardwareCompare } from '@/app/components/blocks/hardware-compare';
 import { HardwareTiers } from '@/app/components/blocks/hardware-tiers';
 import { useT } from '@/lib/i18n/client';
-import { localizedHref } from '@/lib/i18n/localized-paths';
+import { localizedPath } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
@@ -12,7 +12,7 @@ export function HardwarePricingPage() {
   useDocumentMeta({
     title: tSeo('hardwarePricing.title'),
     description: tSeo('hardwarePricing.description'),
-    canonicalPath: localizedHref(locale, '/hardware-pricing'),
+    canonicalPath: localizedPath(locale, '/hardware-pricing'),
   });
 
   return (

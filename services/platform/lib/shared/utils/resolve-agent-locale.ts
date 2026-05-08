@@ -1,7 +1,8 @@
+import { narrowBcp47 } from '@tale/i18n/narrow-bcp47';
+
 import type { AgentI18nOverrides } from '../../../convex/agents/file_utils';
 import { defaultLocale as appDefaultLocale } from '../../i18n/config';
 import { isEffectivelyEmpty } from './is-effectively-empty';
-import { narrowBcp47 } from './narrow-bcp47';
 
 interface LocalizableAgent {
   displayName?: string;

@@ -6,7 +6,7 @@
 import { execFileSync } from 'node:child_process';
 import * as path from 'node:path';
 
-import type { Locale } from '../i18n/locales';
+import type { Locale } from '@tale/ui/i18n/locales';
 
 /**
  * Returns the ISO-8601 commit time of the most recent git commit that

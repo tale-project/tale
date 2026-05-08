@@ -1,11 +1,14 @@
 import { cn } from '@tale/ui/cn';
+import { useT } from '@tale/ui/i18n/client';
+import {
+  isUrlPrefixedLocale,
+  type SupportedLocale,
+} from '@tale/ui/i18n/locales';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { ChevronDown } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { useDropdownPlacement } from '../hooks/use-dropdown-placement';
-import { useT } from '../i18n/client';
-import { isUrlPrefixedLocale, type SupportedLocale } from '../i18n/locales';
 import { LocaleFlag } from '../icons/flags';
 
 const BASE_LOCALES = [

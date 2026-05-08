@@ -8,9 +8,11 @@ import type { ReactNode } from 'react';
 
 import { GithubIcon } from '@/app/components/icons/github-icon';
 import { ExternalLink } from '@/app/components/layout/external-link';
-import { LocalizedLink } from '@/app/components/layout/localized-link';
+import {
+  LocalizedLink,
+  type LocalizedRoutePath,
+} from '@/app/components/layout/localized-link';
 import { useT } from '@/lib/i18n/client';
-import type { LocalizedRoutePath } from '@/lib/i18n/localized-paths';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import type { LegalSlug } from '@/lib/legal/slugs';
 

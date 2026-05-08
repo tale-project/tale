@@ -1,4 +1,4 @@
-import { useT as useTBase } from '@tale/webui/i18n/client';
+import { useT as useTBase } from '@tale/ui/i18n/client';
 import type { TFunction } from 'i18next';
 
 import type { Namespace } from './types';

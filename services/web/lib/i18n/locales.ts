@@ -1,6 +1,6 @@
 /**
  * Marketing site locale model. Re-exports the shared locale primitives
- * from `@tale/webui/i18n/locales` so `services/web` and `services/docs`
+ * from `@tale/ui/i18n/locales` so `services/web` and `services/docs`
  * agree on which locales URL-prefix vs which fall through to a base.
  *
  * Both apps render in three base locales: English (the default, served
@@ -11,8 +11,15 @@
  */
 
 export {
+  ALL_LOCALES,
   detectInitialLocale,
   isUrlPrefixedLocale,
+  localizedPath,
   resolveRegionalLocale,
-} from '@tale/webui/i18n/locales';
-export type { SupportedLocale } from '@tale/webui/i18n/locales';
+} from '@tale/ui/i18n/locales';
+export type {
+  Locale,
+  RegionalLocale,
+  SupportedLocale,
+  UrlPrefixedLocale,
+} from '@tale/ui/i18n/locales';

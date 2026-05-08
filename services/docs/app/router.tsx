@@ -6,7 +6,7 @@ import { routeTree } from './routeTree.gen';
 // TanStack Router wants the prefix without the trailing slash, and undefined
 // when mounted at root.
 const basepath =
-  import.meta.env.BASE_URL.replace(/\/$/, '') || undefined;
+  (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '') || undefined;
 
 export const router = createRouter({
   routeTree,

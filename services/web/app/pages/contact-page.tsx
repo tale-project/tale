@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import { FormCard } from '@/app/components/blocks/form-card';
 import { type ContactInput, contactSchema } from '@/lib/forms/schemas';
 import { useT } from '@/lib/i18n/client';
-import { localizedHref } from '@/lib/i18n/localized-paths';
+import { localizedPath } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
@@ -30,7 +30,7 @@ export function ContactPage() {
   useDocumentMeta({
     title: tSeo('contact.title'),
     description: tSeo('contact.description'),
-    canonicalPath: localizedHref(locale, '/contact'),
+    canonicalPath: localizedPath(locale, '/contact'),
   });
 
   const form = useForm<ContactInput>({

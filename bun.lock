@@ -75,6 +75,10 @@
         "@tailwindcss/oxide-linux-x64-gnu": "4.2.2",
       },
     },
+    "packages/i18n": {
+      "name": "@tale/i18n",
+      "version": "0.1.0",
+    },
     "packages/tale_knowledge": {
       "name": "@tale/knowledge",
       "version": "0.1.0",
@@ -93,10 +97,14 @@
       "dependencies": {
         "@radix-ui/react-separator": "1.1.8",
         "@radix-ui/react-slot": "1.2.4",
+        "@tale/i18n": "workspace:*",
         "@tanstack/react-router": "1.168.10",
         "class-variance-authority": "0.7.1",
         "clsx": "2.1.1",
+        "i18next": "26.0.4",
+        "i18next-icu": "2.4.3",
         "lucide-react": "1.8.0",
+        "react-i18next": "17.0.2",
         "tailwind-merge": "3.5.0",
       },
       "peerDependencies": {
@@ -114,13 +122,9 @@
         "@tale/ui": "workspace:*",
         "@tanstack/react-router": "1.168.10",
         "framer-motion": "12.38.0",
-        "i18next": "26.0.4",
-        "i18next-icu": "2.4.3",
-        "intl-messageformat": "11.2.0",
         "lucide-react": "1.8.0",
         "mermaid": "11.14.0",
         "minisearch": "7.2.0",
-        "react-i18next": "17.0.2",
         "react-markdown": "10.1.0",
         "rehype-raw": "7.0.0",
         "remark-gfm": "4.0.1",
@@ -144,6 +148,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@fontsource-variable/inter": "5.2.8",
+        "@tale/i18n": "workspace:*",
         "@tale/ui": "workspace:*",
         "@tale/webui": "workspace:*",
         "framer-motion": "12.38.0",
@@ -195,6 +200,7 @@
         "@scure/base": "2.0.0",
         "@sentry/tanstackstart-react": "10.48.0",
         "@tailwindcss/postcss": "4.2.2",
+        "@tale/i18n": "workspace:*",
         "@tale/ui": "workspace:*",
         "@tanstack/react-query": "5.97.0",
         "@tanstack/react-router": "1.168.10",
@@ -326,6 +332,7 @@
       "name": "@tale/web",
       "version": "0.1.0",
       "dependencies": {
+        "@tale/i18n": "workspace:*",
         "@tale/ui": "workspace:*",
         "@tale/webui": "workspace:*",
         "react-markdown": "10.1.0",
@@ -1551,6 +1558,8 @@
     "@tale/db": ["@tale/db@workspace:services/db"],
 
     "@tale/docs": ["@tale/docs@workspace:services/docs"],
+
+    "@tale/i18n": ["@tale/i18n@workspace:packages/i18n"],
 
     "@tale/knowledge": ["@tale/knowledge@workspace:packages/tale_knowledge"],
 

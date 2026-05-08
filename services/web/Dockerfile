@@ -12,6 +12,7 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
+COPY packages/i18n/package.json ./packages/i18n/
 COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
 COPY packages/tale_shared/package.json ./packages/tale_shared/
 COPY packages/tale_telemetry/package.json ./packages/tale_telemetry/
@@ -39,14 +40,17 @@ FROM workspace-deps AS builder
 WORKDIR /app
 
 COPY tsconfig.base.json ./
+COPY packages/i18n ./packages/i18n
 COPY packages/ui ./packages/ui
 COPY packages/webui ./packages/webui
 COPY services/web ./services/web
 
 ARG WEB_DOCS_URL=https://docs.tale.dev
+ARG LOCALE_COOKIE_DOMAIN=
 ENV NODE_ENV=production \
     WEB_DOCS_URL=${WEB_DOCS_URL} \
-    VITE_DOCS_URL=${WEB_DOCS_URL}
+    VITE_DOCS_URL=${WEB_DOCS_URL} \
+    LOCALE_COOKIE_DOMAIN=${LOCALE_COOKIE_DOMAIN}
 WORKDIR /app/services/web
 # Generate llms.txt / llms-full.txt / sitemap.xml / robots.txt into public/
 # *before* vite build, so the build's public-directory copy picks up the
@@ -66,11 +70,13 @@ LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="tale-web" \
       org.opencontainers.image.description="Tale marketing site"
 
+ARG LOCALE_COOKIE_DOMAIN=
 ENV NODE_ENV=production \
     TALE_VERSION=${VERSION} \
     PORT=3001 \
     HOSTNAME="0.0.0.0" \
-    DO_NOT_TRACK=1
+    DO_NOT_TRACK=1 \
+    LOCALE_COOKIE_DOMAIN=${LOCALE_COOKIE_DOMAIN}
 
 WORKDIR /app
 
