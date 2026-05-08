@@ -98,26 +98,23 @@ describe('resolveAgentLocale', () => {
     expect(result.displayName).toBe('');
   });
 
-  // --- BCP-47 narrowing: fr-CH / de-AT / en-GB map to base language ---
+  // --- BCP-47 narrowing: de-CH / en-GB map to base language ---
 
-  it('narrows fr-CH to i18n.fr when only fr is populated', () => {
-    const agent = { i18n: { fr: { displayName: 'Agent FR' } } };
-    expect(resolveAgentLocale(agent, 'fr-CH').displayName).toBe('Agent FR');
+  it('narrows de-CH to i18n.de when only de is populated', () => {
+    const agent = { i18n: { de: { displayName: 'Deutsch' } } };
+    expect(resolveAgentLocale(agent, 'de-CH').displayName).toBe('Deutsch');
   });
 
   it('prefers a direct locale match over its narrowed base', () => {
     const agent = {
       i18n: {
-        fr: { displayName: 'Agent FR' },
-        'fr-CH': { displayName: 'Agent FR-CH' },
+        de: { displayName: 'Deutsch' },
+        'de-CH': { displayName: 'Schweizerdeutsch' },
       },
     };
-    expect(resolveAgentLocale(agent, 'fr-CH').displayName).toBe('Agent FR-CH');
-  });
-
-  it('narrows de-AT to i18n.de', () => {
-    const agent = { i18n: { de: { displayName: 'Deutsch' } } };
-    expect(resolveAgentLocale(agent, 'de-AT').displayName).toBe('Deutsch');
+    expect(resolveAgentLocale(agent, 'de-CH').displayName).toBe(
+      'Schweizerdeutsch',
+    );
   });
 
   it('narrows en-GB to i18n.en', () => {
@@ -127,7 +124,7 @@ describe('resolveAgentLocale', () => {
 
   it('falls through to app-default when narrowed base is missing too', () => {
     const agent = { i18n: { en: { displayName: 'EN' } } };
-    expect(resolveAgentLocale(agent, 'fr-CH').displayName).toBe('EN');
+    expect(resolveAgentLocale(agent, 'fr-FR').displayName).toBe('EN');
   });
 
   // --- Empty-value treatment: "" / whitespace / [] / all-blank arrays

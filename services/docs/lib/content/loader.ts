@@ -98,14 +98,23 @@ async function loadDocuments(): Promise<Map<string, DocPage>> {
 // the synchronous `getDocPage` API that callers expect.
 const documents = await loadDocuments();
 
-const FALLBACK_CHAIN: Record<Locale, readonly Locale[]> = {
-  en: ['en'],
-  de: ['de', 'en'],
-  fr: ['fr', 'en'],
-  'de-AT': ['de-AT', 'de', 'en'],
-  'de-CH': ['de-CH', 'de', 'en'],
-  'fr-CH': ['fr-CH', 'fr', 'en'],
-};
+// Build the per-locale fallback chain dynamically from `ALL_LOCALES`. For a
+// regional code (`xx-YY`), the chain is `[locale, base, 'en']` — but only if
+// the base is itself a published locale; otherwise drop straight to English.
+// For the English root, just `['en']`; for any other base, `[locale, 'en']`.
+// The `Object.fromEntries` cast is required because TypeScript erases the
+// per-key tuple types — values are constructed from `ALL_LOCALES`, so the
+// cast is sound.
+function buildFallbackChain(locale: Locale): readonly Locale[] {
+  if (locale === 'en') return ['en'];
+  const base = locale.split('-')[0];
+  if (locale === base) return [locale, 'en'];
+  return isLocale(base) ? [locale, base, 'en'] : [locale, 'en'];
+}
+
+const FALLBACK_CHAIN = Object.fromEntries(
+  ALL_LOCALES.map((locale) => [locale, buildFallbackChain(locale)] as const),
+) as Record<Locale, readonly Locale[]>;
 
 /**
  * Resolve a doc page by (locale, slug). Tries each locale in the fallback

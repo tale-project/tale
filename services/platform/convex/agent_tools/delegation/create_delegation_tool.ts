@@ -181,7 +181,7 @@ export function buildDelegationInstructionsSection(
   // Same narrowing rule as resolveAgentLocale: direct → narrowed base → en.
   // Keeps the scaffold header/intro/outro in lockstep with the delegate
   // chrome text when the org locale is a region-qualified BCP-47 tag
-  // (e.g. fr-CH falls back to fr, not directly to English).
+  // (e.g. de-CH falls back to de, not directly to English).
   const base = narrowBcp47(locale);
   const scaffold =
     (locale ? DELEGATION_SCAFFOLD[locale] : undefined) ??

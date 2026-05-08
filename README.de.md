@@ -152,7 +152,7 @@ cd services/crawler && uv sync --extra dev
 
 ## Dokumentation
 
-Die Doku-Seite erscheint in drei Sprachen (`en`, `de`, `fr`) mit voller Abdeckung. Die Plattform-UI selbst läuft in sechs (`en`, `de`, `de-AT`, `de-CH`, `fr`, `fr-CH`) — regionale Varianten teilen sich die Docs ihrer Basis-Sprache. Start unter [`docs/index.md`](docs/index.md), um nach Persona einzusteigen.
+Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plus regionalen Varianten, wo lokale Formulierungen abweichen (heute: `de-CH`; der Loader erkennt jedes neue `xx-YY`-Bundle automatisch). Varianten tragen nur die Strings, die von ihrer Basis abweichen; fehlende Keys fallen über die Basis bis auf Englisch zurück. Start unter [`docs/index.md`](docs/index.md), um nach Persona einzusteigen.
 
 ### Für alltägliche Nutzer
 

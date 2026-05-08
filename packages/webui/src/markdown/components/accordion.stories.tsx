@@ -16,7 +16,7 @@ export const SingleClosed: Story = {
   args: {
     title: 'Why does the docs site have a fallback locale?',
     children:
-      'When a regional locale (de-CH, de-AT, fr-CH) doesn’t override a page, the loader falls through to the base locale (de or fr) and finally to en.',
+      'When a regional locale (e.g. de-CH) doesn’t override a page, the loader falls through to the base locale and finally to en.',
   },
 };
 

@@ -41,7 +41,7 @@ These hold across every workspace and language. They are not style preferences.
 - **Never destroy state without explicit permission.** Local databases, Convex state, caches, config files, branded seed data — ask before wiping. Assume every file on disk may be the user's in-progress work.
 - **Never hardcode secrets or credentials.** Environment variables only. Scrub logs before committing.
 - **Validate at every system boundary.** User input, external APIs, webhook payloads. Parameterized queries only; never string-concatenate SQL or shell.
-- **Docs and translations ship with the code.** If a change alters what a user sees, configures, or calls, the same PR updates `docs/` in all three locales (`en`, `de`, `fr`) and every key in `en.json` exists in `de.json` and `fr.json` on the same commit. Variant files (`de-AT`, `de-CH`, `fr-CH`) only hold overrides.
+- **Docs and translations ship with the code.** If a change alters what a user sees, configures, or calls, the same PR updates `docs/` in all three base locales (`en`, `de`, `fr`) and every key in `en.json` exists in `de.json` and `fr.json` on the same commit. Regional variant files (currently `de-CH`; more may be added) only hold overrides — keep them in sync only when the overridden value changes.
 - **Accessibility is Level AA, not a nice-to-have.** Real HTML elements, keyboard reachability, visible focus, labelled controls, AA contrast.
 
 ## Code style
@@ -123,7 +123,7 @@ Every user-facing string goes through the translation layer. Never compare again
 
 ### Keys and files
 
-- **`en.json` is the schema.** Every key in `en.json` exists in `de.json` and `fr.json` on the same commit. Variants (`de-AT`, `de-CH`, `fr-CH`) carry only the keys whose values differ — missing keys fall back to the base.
+- **`en.json` is the schema.** Every key in `en.json` exists in `de.json` and `fr.json` on the same commit. Regional variants (`de-CH` today, more later) carry only the keys whose values differ from their base — missing keys fall through to the base, then to English.
 - **Add, change, and remove keys in every base locale on the same commit.** Variants only move when they override the changed key.
 - **When code that referenced a key disappears, remove the key from every locale.** Dead keys rot in place — the orphan-key test in `services/platform/lib/i18n/messages-usage.test.ts` enforces this.
 - **UI wins over terminology.** If a `TERMINOLOGY_<LOCALE>.md` file disagrees with the shipped label, update the terminology file to match the UI, then propagate the new form into any doc page that quotes it.
@@ -132,7 +132,7 @@ Every user-facing string goes through the translation layer. Never compare again
 
 - **`useT(namespace)` hook** from `services/platform/lib/i18n/client.tsx`. Returns `{ t }`. Pass the namespace as the argument so `t('key')` resolves to `namespace.key` in the JSON.
 - **`useFormatDate()`** from `services/platform/lib/utils/date/format` for any date formatting. Never call `toLocaleDateString` / `toLocaleTimeString` / `toLocaleString`.
-- **Files** at `services/platform/messages/`. Fallback chain: `de-CH → de → en`, `de-AT → de → en`, `fr-CH → fr → en`.
+- **Files** at `services/platform/messages/`. Fallback chain for any regional variant `xx-YY` is `xx-YY → xx → en` (e.g. `de-CH → de → en`). Adding a new variant is a matter of dropping a `xx-YY.json` file in — the loader auto-discovers it.
 
 ### Tone and formatting
 

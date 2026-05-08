@@ -11,6 +11,16 @@
     "faq": {
       "deployment": {
         "a": "Nein. Sie können eigene Modelle nutzen, müssen es aber nicht. Wir unterstützen die meisten grossen KI-Anbieter und erheben keine Aufschläge — die Nutzung von Cloud-KI-Modellen wird zu den Preisen Ihres gewählten Anbieters abgerechnet und ist nicht in den Plänen enthalten."
+      },
+      "cloudProviders": {
+        "a": "Ja — wir unterstützen alle grossen Cloud-KI-Anbieter, sodass Sie Ihren bevorzugten Anbieter nutzen und gleichzeitig von besseren Preisen, höherer Verfügbarkeit und nutzungsbasierter Abrechnung profitieren können."
+      }
+    }
+  },
+  "pricing": {
+    "extras": {
+      "cloudProviders": {
+        "description": "Wir unterstützen OpenAI, Anthropic, Gemini und andere grosse Cloud-KI-Anbieter in EU/CH — bessere Preise, höhere Verfügbarkeit und nutzungsbasierte Abrechnung."
       }
     }
   }
