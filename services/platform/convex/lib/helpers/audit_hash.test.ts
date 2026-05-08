@@ -37,6 +37,31 @@ describe('canonicalize', () => {
     expect(canonicalizeForTest(42)).toBe('42');
     expect(canonicalizeForTest(true)).toBe('true');
   });
+
+  it('skips object keys whose value is undefined', () => {
+    // Writer-shape: optional fields listed literally as `args.X` enter
+    // as `undefined`. Verifier-shape: those keys are absent because
+    // Convex drops undefined values before storage. Both must hash the
+    // same.
+    const writerShape = {
+      action: 'login',
+      actorId: 'u1',
+      actorEmail: undefined,
+      actorEmailHash: 'abc123',
+      organizationId: 'org1',
+      timestamp: 100,
+    };
+    const verifierShape = {
+      action: 'login',
+      actorId: 'u1',
+      actorEmailHash: 'abc123',
+      organizationId: 'org1',
+      timestamp: 100,
+    };
+    expect(canonicalizeForTest(writerShape)).toBe(
+      canonicalizeForTest(verifierShape),
+    );
+  });
 });
 
 describe('computeAuditHash', () => {
@@ -79,6 +104,34 @@ describe('computeAuditHash', () => {
     const hash1 = await computeAuditHash('', record1);
     const hash2 = await computeAuditHash('', record2);
     expect(hash1).toBe(hash2);
+  });
+
+  it('produces the same hash for writer-shape (undefined fields) and verifier-shape (omitted)', async () => {
+    // Regression: prior canonicalize emitted `"key":undefined` for
+    // undefined-valued keys, so a writer that listed every optional field
+    // (audit_logs/helpers.ts:165) signed a hash that the verifier — which
+    // rebuilds canonical from the stored row where Convex has dropped
+    // those keys — could never reproduce.
+    const writer = {
+      action: 'login',
+      actorId: 'u1',
+      actorEmail: undefined,
+      actorEmailHash: 'abc123',
+      ipAddress: undefined,
+      actorIpHash: undefined,
+      organizationId: 'org1',
+      timestamp: 100,
+    };
+    const verifier = {
+      action: 'login',
+      actorId: 'u1',
+      actorEmailHash: 'abc123',
+      organizationId: 'org1',
+      timestamp: 100,
+    };
+    const writerHash = await computeAuditHash('prev', writer);
+    const verifierHash = await computeAuditHash('prev', verifier);
+    expect(writerHash).toBe(verifierHash);
   });
 
   it('forms a verifiable chain', async () => {

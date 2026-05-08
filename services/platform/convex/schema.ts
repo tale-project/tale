@@ -42,6 +42,7 @@ import {
 } from './governance/schema';
 import { integrationCredentialsTable } from './integrations/credentials_schema';
 import { integrationsTable } from './integrations/schema';
+import { llmResponseCacheTable } from './lib/response_cache/schema';
 import {
   loginAttemptsTable,
   loginBlockCountersTable,
@@ -122,6 +123,8 @@ export default defineSchema({
   integrationCredentials: integrationCredentialsTable,
   /** @deprecated Retained for backward compatibility with existing data. Use integrationCredentials + file-based config. */
   integrations: integrationsTable,
+  /** @deprecated Retained only for schema-validation compatibility on deployments with prior cache rows. Read/write code removed in 83a3c28da. */
+  llmResponseCache: llmResponseCacheTable,
   loginAttempts: loginAttemptsTable,
   loginBlockCounters: loginBlockCountersTable,
   messageMetadata: messageMetadataTable,

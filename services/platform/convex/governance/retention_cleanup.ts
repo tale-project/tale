@@ -722,6 +722,7 @@ async function cleanupChatFilterEvents(
       { organizationId: org.organizationId, cutoffMs, batchSize },
     );
     for (const row of passA) {
+      if (holds.threadIds.has(row.threadId)) continue;
       await ctx.runMutation(
         internal.governance.soft_delete_helpers.markRowExpiredGeneric,
         {
@@ -751,6 +752,12 @@ async function cleanupChatFilterEvents(
           { organizationId: org.organizationId, cutoffMs, batchSize },
         );
   for (const row of expired) {
+    if (holds.threadIds.has(row.threadId)) {
+      console.info(
+        `[RetentionCleanup] chatFilterEvent ${row._id} on thread ${row.threadId} legal hold — skipping`,
+      );
+      continue;
+    }
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredChatFilterEvent,
@@ -866,6 +873,7 @@ async function cleanupMessageFeedback(
     );
     for (const row of passA) {
       if (row.userId && holds.userMembershipIds.has(row.userId)) continue;
+      if (holds.threadIds.has(row.threadId)) continue;
       await ctx.runMutation(
         internal.governance.soft_delete_helpers.markRowExpiredGeneric,
         {
@@ -898,6 +906,12 @@ async function cleanupMessageFeedback(
     if (row.userId && holds.userMembershipIds.has(row.userId)) {
       console.info(
         `[RetentionCleanup] message feedback ${row._id} from user ${row.userId} on user-custodian hold — skipping`,
+      );
+      continue;
+    }
+    if (holds.threadIds.has(row.threadId)) {
+      console.info(
+        `[RetentionCleanup] message feedback ${row._id} on thread ${row.threadId} legal hold — skipping`,
       );
       continue;
     }
@@ -940,6 +954,12 @@ async function cleanupMemoryAudit(
       { organizationId: org.organizationId, cutoffMs, batchSize },
     );
     for (const row of passA) {
+      if (
+        holds.userMembershipIds.has(row.subjectUserId) ||
+        holds.userMembershipIds.has(row.actorUserId)
+      )
+        continue;
+      if (row.threadId && holds.threadIds.has(row.threadId)) continue;
       await ctx.runMutation(
         internal.governance.soft_delete_helpers.markRowExpiredGeneric,
         {
@@ -969,6 +989,21 @@ async function cleanupMemoryAudit(
           { organizationId: org.organizationId, cutoffMs, batchSize },
         );
   for (const row of expired) {
+    if (
+      holds.userMembershipIds.has(row.subjectUserId) ||
+      holds.userMembershipIds.has(row.actorUserId)
+    ) {
+      console.info(
+        `[RetentionCleanup] memoryAudit ${row._id} on user-custodian hold (subject=${row.subjectUserId} actor=${row.actorUserId}) — skipping`,
+      );
+      continue;
+    }
+    if (row.threadId && holds.threadIds.has(row.threadId)) {
+      console.info(
+        `[RetentionCleanup] memoryAudit ${row._id} on thread ${row.threadId} legal hold — skipping`,
+      );
+      continue;
+    }
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredMemoryAuditRow,

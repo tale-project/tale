@@ -823,6 +823,8 @@ export const deleteExpiredMessageFeedback = internalMutation({
       expectedOrganizationId: args.organizationId,
       rowEffectiveMs: row._creationTime,
       cutoffMs: args.cutoffMs,
+      targetType: 'thread',
+      targetId: row.threadId,
     });
     if (!guard.proceed) {
       console.info(
@@ -845,11 +847,22 @@ export const deleteExpiredMemoryAuditRow = internalMutation({
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.rowId);
     if (!row) return null;
+    // Race-safety: prefer thread when the row carries one (most specific
+    // hold scope); otherwise gate on the subject user. Action-layer
+    // pre-filter is the primary defence; this catches list→delete races.
+    const target: {
+      targetType: 'thread' | 'userMembership';
+      targetId: string;
+    } = row.threadId
+      ? { targetType: 'thread', targetId: row.threadId }
+      : { targetType: 'userMembership', targetId: row.subjectUserId };
     const guard = await assertSafeRetentionDelete(ctx, {
       rowOrganizationId: row.organizationId,
       expectedOrganizationId: args.organizationId,
       rowEffectiveMs: row._creationTime,
       cutoffMs: args.cutoffMs,
+      targetType: target.targetType,
+      targetId: target.targetId,
     });
     if (!guard.proceed) {
       console.info(
@@ -879,6 +892,8 @@ export const deleteExpiredChatFilterEvent = internalMutation({
       expectedOrganizationId: args.organizationId,
       rowEffectiveMs: row._creationTime,
       cutoffMs: args.cutoffMs,
+      targetType: 'thread',
+      targetId: row.threadId,
     });
     if (!guard.proceed) {
       console.info(

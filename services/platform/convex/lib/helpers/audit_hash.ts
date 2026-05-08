@@ -53,9 +53,14 @@ function canonicalize(value: unknown): string {
   }
 
   if (isRecord(value)) {
+    // Skip keys whose value is `undefined` so the writer (which lists every
+    // optional field literally as `args.X`) and the verifier (which rebuilds
+    // the canonical from a stored row where Convex has dropped undefined
+    // values) produce the same string. Mirrors `JSON.stringify` semantics
+    // for object keys.
     const sortedKeys = Object.keys(value).sort();
     const entries = sortedKeys
-      .filter((key) => !EXCLUDED_FIELDS.has(key))
+      .filter((key) => !EXCLUDED_FIELDS.has(key) && value[key] !== undefined)
       .map((key) => JSON.stringify(key) + ':' + canonicalize(value[key]));
     return '{' + entries.join(',') + '}';
   }
