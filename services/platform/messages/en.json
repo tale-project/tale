@@ -3177,43 +3177,24 @@
     },
     "retentionPolicy": {
       "saved": "Retention policy has been updated",
-      "presetClamped": "Preset values outside your operator caps were clamped before save.",
+      "save": "Save changes",
+      "reset": "Reset to defaults",
+      "unsavedHint": "You have unsaved changes.",
       "enabled": "Enabled",
       "retentionDays": "Retention days",
       "retentionHours": "Retention hours",
       "envDisabled": "Retention is currently disabled by the operator (TALE_RETENTION_DISABLED=true). Cleanup will not run until the env flag is removed.",
+      "envBoundHint": "env-bound: {min}{minApplied} / {max}{maxApplied}",
       "boundHelper": "Operator caps this at {min}-{max} {unit}.",
       "errors": {
         "belowFloor": "Below operator floor (min {bound} {unit}).",
         "exceedsCeiling": "Exceeds operator ceiling (max {bound} {unit})."
       },
-      "preset": {
-        "title": "Retention preset",
-        "description": "Pick a recommended profile or customize each category individually. Switching to Standard or Strict overwrites every per-category value below.",
-        "standard": "Standard",
-        "standardDescription": "Sane defaults for most teams (90-day chat, 365-day documents, 730-day audit, 30-day grace).",
-        "strict": "Strict",
-        "strictDescription": "Halved retention windows + 7-day grace. Use when compliance or storage costs require aggressive deletion.",
-        "custom": "Custom",
-        "customDescription": "Tune each category individually below."
-      },
-      "group": {
-        "userContent": {
-          "title": "User content",
-          "description": "Chat history, documents, prompt templates, customer/vendor records, and other org-owned PII."
-        },
-        "operationalLogs": {
-          "title": "Operational logs",
-          "description": "Workflow executions and analytics ledger rows. Lower-PII derived data."
-        },
-        "securityAudit": {
-          "title": "Security & audit",
-          "description": "Audit log, login forensics, chat-filter telemetry, personalization audit. Floor pinned by operator + compliance baselines."
-        },
-        "deletionBehavior": {
-          "title": "Deletion behavior",
-          "description": "How long trashed/expired rows stay restorable in admin Trash before they hard-delete."
-        }
+      "diff": {
+        "title": "Confirm retention changes",
+        "description": "Review the changes before saving. Cleanup applies the new policy on its next run.",
+        "confirmLabel": "Save changes",
+        "noChanges": "No changes to save."
       },
       "deletionGrace": {
         "label": "Grace period (days)",
@@ -3245,8 +3226,10 @@
         "firstApplyDescription": "No bounds have been applied for this organization yet. Review the operator config and Apply to start enforcing retention.",
         "applyLabel": "Apply",
         "rejectLabel": "Reject",
-        "reviewLabel": "Review changes",
-        "hideDetails": "Hide details",
+        "detailsLabel": "View details",
+        "detailsTitle": "Proposed bound changes",
+        "detailsDescription": "Review the operator-proposed retention bound changes before applying or rejecting.",
+        "detailsEmpty": "No detailed changes recorded.",
         "diffHeading": "Bound changes",
         "impactHeading": "Impact on your stored values",
         "diffRow": "{category}: {field} {from} → {to} ({direction})",

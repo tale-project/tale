@@ -248,28 +248,6 @@ describe('applyEnvTightening — _metadata.envNames map resolution', () => {
     expect(out.maxEnv.envName).toBe('');
     expect(out.defaultEnv.source).toBe('none');
   });
-
-  it('surfaces display-only _metadata block in EffectiveBoundDef', () => {
-    const cfg: RetentionDefaultsConfig = {
-      auditLog: {
-        min: 365,
-        max: 3650,
-        default: 730,
-        unit: 'days',
-        _metadata: {
-          label: 'Custom',
-          help: 'Custom help',
-          order: 7,
-          hidden: false,
-        },
-      },
-    };
-    const out = applyEnvTightening(cfg, 'auditLog');
-    expect(out.metadata?.label).toBe('Custom');
-    expect(out.metadata?.order).toBe(7);
-    expect(out.metadata?.help).toBe('Custom help');
-    expect(out.metadata?.hidden).toBe(false);
-  });
 });
 
 describe('applyEnvTighteningAll', () => {
@@ -361,7 +339,7 @@ describe('clampConfigToBounds', () => {
     };
     const config = {
       auditLogRetentionDays: 100, // below floor 365 → 365
-      retentionDays: 9999, // above ceiling 3650 → 3650
+      documentsRetentionDays: 9999, // above ceiling 3650 → 3650
       userTempRetentionHours: 24, // in range
       workflowLogRetentionDays: 'oops', // non-numeric → untouched
     };
@@ -371,7 +349,7 @@ describe('clampConfigToBounds', () => {
       config,
     );
     expect(out.auditLogRetentionDays).toBe(365);
-    expect(out.retentionDays).toBe(3650);
+    expect(out.documentsRetentionDays).toBe(3650);
     expect(out.userTempRetentionHours).toBe(24);
     expect(out.workflowLogRetentionDays).toBe('oops');
   });

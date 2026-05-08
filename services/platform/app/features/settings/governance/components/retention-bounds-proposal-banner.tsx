@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { ShieldAlert } from 'lucide-react';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 
 import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
@@ -13,32 +13,27 @@ import {
   useRejectBoundsProposal,
 } from '../hooks/mutations';
 import { usePendingBoundsProposal } from '../hooks/queries';
+import type { DiffEntry, ImpactEntry } from './retention-bounds-details-drawer';
+
+// Lazy-load the details drawer — banner-only render path pays no
+// overhead until the admin clicks [View details].
+const RetentionBoundsDetailsDrawer = lazy(() =>
+  import('./retention-bounds-details-drawer').then((m) => ({
+    default: m.RetentionBoundsDetailsDrawer,
+  })),
+);
 
 interface Props {
   organizationId: string;
-}
-
-interface DiffEntry {
-  category: string;
-  field: 'min' | 'max';
-  from: number;
-  to: number;
-  direction: 'tighten' | 'loosen';
-}
-
-interface ImpactEntry {
-  category: string;
-  field: string;
-  current: number;
-  willClampTo: number;
 }
 
 /**
  * Banner shown at the top of the retention editor when the operator's
  * current effective bounds (file × env) differ from this org's last
  * applied snapshot. Admin can [Apply] (cleanup picks up the new bounds
- * on its next run) or [Reject] (banner stays hidden until the file
- * changes again).
+ * on its next run), [Reject] (banner stays hidden until the file
+ * changes again), or [View details] (slide-in drawer with full
+ * per-field diff and per-category impact preview).
  *
  * The proposal does NOT take effect until the admin acts. Cleanup
  * keeps using the previously-agreed bounds in the meantime.
@@ -49,7 +44,7 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
   const proposal = usePendingBoundsProposal(organizationId);
   const apply = useApplyBoundsProposal();
   const reject = useRejectBoundsProposal();
-  const [expanded, setExpanded] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   if (!proposal.data) return null;
 
@@ -115,6 +110,9 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
     ? 'Operator retention bounds need your initial approval.'
     : 'Operator has proposed retention bound changes.';
 
+  const hasDetails = diff.length > 0 || impactPreview.length > 0;
+  const inFlight = apply.isPending || reject.isPending;
+
   return (
     <div className="border-warning bg-warning/10 flex flex-col gap-3 rounded border p-3">
       <div className="flex items-start gap-3">
@@ -143,85 +141,12 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
         </div>
       </div>
 
-      {!firstApply && (diff.length > 0 || impactPreview.length > 0) && (
-        <div className="ml-7 flex flex-col gap-2">
-          <button
-            type="button"
-            className="text-foreground/80 hover:text-foreground self-start text-xs underline"
-            onClick={() => setExpanded((v) => !v)}
-          >
-            {expanded
-              ? t('retentionPolicy.boundsProposal.hideDetails', 'Hide details')
-              : t(
-                  'retentionPolicy.boundsProposal.reviewLabel',
-                  'Review changes',
-                )}
-          </button>
-          {expanded && (
-            <div className="flex flex-col gap-3 text-xs">
-              {diff.length > 0 && (
-                <div>
-                  <Text className="font-medium">
-                    {t(
-                      'retentionPolicy.boundsProposal.diffHeading',
-                      'Bound changes',
-                    )}
-                  </Text>
-                  <ul className="text-muted-foreground mt-1 list-disc space-y-0.5 pl-4">
-                    {diff.map((d) => (
-                      <li key={`${d.category}.${d.field}`}>
-                        {t(
-                          'retentionPolicy.boundsProposal.diffRow',
-                          '{category}: {field} {from} → {to} ({direction})',
-                          {
-                            category: d.category,
-                            field: d.field,
-                            from: d.from,
-                            to: d.to,
-                            direction: d.direction,
-                          },
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {impactPreview.length > 0 && (
-                <div>
-                  <Text className="font-medium">
-                    {t(
-                      'retentionPolicy.boundsProposal.impactHeading',
-                      'Impact on your stored values',
-                    )}
-                  </Text>
-                  <ul className="text-muted-foreground mt-1 list-disc space-y-0.5 pl-4">
-                    {impactPreview.map((i) => (
-                      <li key={i.category}>
-                        {t(
-                          'retentionPolicy.boundsProposal.impactRow',
-                          '{category}: {current} will clamp to {clamped}',
-                          {
-                            category: i.category,
-                            current: i.current,
-                            clamped: i.willClampTo,
-                          },
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="ml-7 flex gap-2">
+      <div className="ml-7 flex flex-wrap gap-2">
         <Button
           variant="primary"
           size="sm"
           onClick={handleApply}
-          disabled={apply.isPending || reject.isPending}
+          disabled={inFlight}
         >
           {t('retentionPolicy.boundsProposal.applyLabel', 'Apply')}
         </Button>
@@ -230,12 +155,33 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
             variant="secondary"
             size="sm"
             onClick={handleReject}
-            disabled={apply.isPending || reject.isPending}
+            disabled={inFlight}
           >
             {t('retentionPolicy.boundsProposal.rejectLabel', 'Reject')}
           </Button>
         )}
+        {hasDetails && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setDrawerOpen(true)}
+            disabled={inFlight}
+          >
+            {t('retentionPolicy.boundsProposal.detailsLabel', 'View details')}
+          </Button>
+        )}
       </div>
+
+      {drawerOpen && (
+        <Suspense fallback={null}>
+          <RetentionBoundsDetailsDrawer
+            open={drawerOpen}
+            onOpenChange={setDrawerOpen}
+            diff={diff}
+            impactPreview={impactPreview}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -24,12 +24,15 @@ const HOUR_MS = 60 * 60 * 1000;
 
 /**
  * Cheap shape check — used by the dispatcher to filter out orgs whose
- * stored config is missing the basic `retentionDays` field. Does NOT
- * clamp; clamping is per-org and happens in `clampStoredConfig` below
- * after the bounds file is loaded for that org.
+ * stored config is missing the basic `documentsRetentionDays` field.
+ * Does NOT clamp; clamping is per-org and happens in
+ * `clampStoredConfig` below after the bounds file is loaded for that
+ * org.
  */
 function hasValidConfigShape(config: unknown): config is RetentionPolicyConfig {
-  return isRecord(config) && typeof config['retentionDays'] === 'number';
+  return (
+    isRecord(config) && typeof config['documentsRetentionDays'] === 'number'
+  );
 }
 
 /**
@@ -133,7 +136,7 @@ async function cleanupDocuments(
   // Parity with sibling category guards. Schema rejects 0 (zod min(1)), but
   // legacy rows or unclamped pre-bound values could still reach here; treat
   // ≤0 as "disabled" rather than `cutoffMs = now` which would mass-delete.
-  const days = org.config.retentionDays;
+  const days = org.config.documentsRetentionDays;
   if (typeof days !== 'number' || days <= 0) return 0;
 
   if (holds.orgHeld) {
@@ -354,7 +357,7 @@ async function cleanupAuditLogs(
   deadlineMs: number,
   holds: ActiveHolds,
 ): Promise<number> {
-  if (!org.config.auditLogsEnabled) return 0;
+  if (!org.config.auditLogEnabled) return 0;
   const days = org.config.auditLogRetentionDays;
   if (typeof days !== 'number' || days <= 0) return 0;
 
@@ -407,7 +410,7 @@ async function cleanupWorkflowLogs(
   batchSize: number,
   holds: ActiveHolds,
 ): Promise<number> {
-  if (!org.config.workflowLogsEnabled) return 0;
+  if (!org.config.workflowLogEnabled) return 0;
   const days = org.config.workflowLogRetentionDays;
   if (typeof days !== 'number' || days <= 0) return 0;
 

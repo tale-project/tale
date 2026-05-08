@@ -3102,43 +3102,24 @@
     },
     "retentionPolicy": {
       "saved": "La politique de rétention a été mise à jour",
-      "presetClamped": "Les valeurs du profil dépassant les limites de l'opérateur ont été ajustées avant l'enregistrement.",
+      "save": "Enregistrer les modifications",
+      "reset": "Réinitialiser aux valeurs par défaut",
+      "unsavedHint": "Vous avez des modifications non enregistrées.",
       "enabled": "Activé",
       "retentionDays": "Jours de rétention",
       "retentionHours": "Heures de rétention",
       "envDisabled": "La rétention est actuellement désactivée par l'opérateur (TALE_RETENTION_DISABLED=true). Le nettoyage ne s'exécutera pas tant que la variable d'environnement n'est pas retirée.",
+      "envBoundHint": "Liaison env : {min}{minApplied} / {max}{maxApplied}",
       "boundHelper": "L'opérateur limite cette valeur à {min}-{max} {unit}.",
       "errors": {
         "belowFloor": "En dessous du plancher de l'opérateur (min {bound} {unit}).",
         "exceedsCeiling": "Au-dessus du plafond de l'opérateur (max {bound} {unit})."
       },
-      "preset": {
-        "title": "Préréglage de rétention",
-        "description": "Choisissez un profil recommandé ou personnalisez chaque catégorie individuellement. Passer à Standard ou Strict écrase chaque valeur ci-dessous.",
-        "standard": "Standard",
-        "standardDescription": "Valeurs par défaut raisonnables pour la plupart des équipes (90 j chat, 365 j documents, 730 j audit, 30 j de grâce).",
-        "strict": "Strict",
-        "strictDescription": "Fenêtres de rétention divisées par deux + 7 jours de grâce. À utiliser lorsque la conformité ou les coûts de stockage exigent une suppression agressive.",
-        "custom": "Personnalisé",
-        "customDescription": "Réglez chaque catégorie individuellement ci-dessous."
-      },
-      "group": {
-        "userContent": {
-          "title": "Contenu utilisateur",
-          "description": "Historique de chat, documents, modèles de prompts, fiches clients/fournisseurs et autres données personnelles propres à l'organisation."
-        },
-        "operationalLogs": {
-          "title": "Journaux opérationnels",
-          "description": "Exécutions de workflows et lignes du registre analytique. Données dérivées à faible PII."
-        },
-        "securityAudit": {
-          "title": "Sécurité & audit",
-          "description": "Journal d'audit, forensique de connexion, télémétrie chat-filter, audit de personnalisation. Plancher fixé par l'opérateur et les baselines de conformité."
-        },
-        "deletionBehavior": {
-          "title": "Comportement de suppression",
-          "description": "Combien de temps les lignes mises à la corbeille / expirées restent restaurables dans la corbeille admin avant suppression définitive."
-        }
+      "diff": {
+        "title": "Confirmer les modifications de rétention",
+        "description": "Vérifiez les modifications avant d'enregistrer. Le nettoyage applique la nouvelle politique à sa prochaine exécution.",
+        "confirmLabel": "Enregistrer les modifications",
+        "noChanges": "Aucune modification à enregistrer."
       },
       "deletionGrace": {
         "label": "Période de grâce (jours)",
@@ -3170,8 +3151,10 @@
         "firstApplyDescription": "Aucune limite n'a encore été appliquée pour cette organisation. Examinez la configuration de l'opérateur et cliquez sur Appliquer pour activer la rétention.",
         "applyLabel": "Appliquer",
         "rejectLabel": "Refuser",
-        "reviewLabel": "Examiner les changements",
-        "hideDetails": "Masquer les détails",
+        "detailsLabel": "Voir les détails",
+        "detailsTitle": "Modifications de limites proposées",
+        "detailsDescription": "Vérifiez les limites de rétention proposées par l'opérateur avant d'appliquer ou de refuser.",
+        "detailsEmpty": "Aucune modification détaillée enregistrée.",
         "diffHeading": "Modifications des limites",
         "impactHeading": "Impact sur vos valeurs enregistrées",
         "diffRow": "{category} : {field} {from} → {to} ({direction})",

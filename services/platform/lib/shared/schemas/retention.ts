@@ -96,27 +96,12 @@ export const retentionRootMetadataSchema = z
 export type RetentionRootMetadata = z.infer<typeof retentionRootMetadataSchema>;
 
 /**
- * Per-category `_metadata` block. Holds display-overrides only.
- * Env binding (`envPrefix` / `envNames`) lives at the root level —
- * `.strict()` rejects them here.
- */
-export const retentionCategoryMetadataSchema = z
-  .object({
-    label: z.string().min(1).max(200).optional(),
-    help: z.string().max(2000).optional(),
-    order: z.number().int().optional(),
-    hidden: z.boolean().optional(),
-  })
-  .strict();
-
-export type RetentionCategoryMetadata = z.infer<
-  typeof retentionCategoryMetadataSchema
->;
-
-/**
  * Per-category bounds shape stored in the JSON file. Holds `min` /
- * `max` / `default` plus the display `unit` and optional display
- * `_metadata`. Env binding is NOT here — it's at the root level.
+ * `max` / `default` plus the display `unit`. Env binding lives at the
+ * root level (`_metadata.envNames`); per-category UI metadata
+ * (label/help/order/hidden/configKey/...) lives in the TS descriptor
+ * (`WIRE_MAPPING` in the FE editor) — JSON is for instance values
+ * only.
  *
  * `unit` is a structural fact (tied to the policy field name —
  * `<name>RetentionDays` vs `<name>RetentionHours`), but lives in the
@@ -131,7 +116,6 @@ export const retentionBoundDefSchema = z
     max: z.number().int().nonnegative(),
     default: z.number().int().nonnegative(),
     unit: z.enum(['days', 'hours']),
-    _metadata: retentionCategoryMetadataSchema.optional(),
   })
   .strict()
   .refine((v) => v.min <= v.default && v.default <= v.max, {

@@ -3177,43 +3177,24 @@
     },
     "retentionPolicy": {
       "saved": "Aufbewahrungsrichtlinie wurde aktualisiert",
-      "presetClamped": "Voreinstellungswerte außerhalb deiner Operator-Grenzen wurden vor dem Speichern angepasst.",
+      "save": "Änderungen speichern",
+      "reset": "Auf Standardwerte zurücksetzen",
+      "unsavedHint": "Du hast nicht gespeicherte Änderungen.",
       "enabled": "Aktiviert",
       "retentionDays": "Aufbewahrungstage",
       "retentionHours": "Aufbewahrungsstunden",
       "envDisabled": "Aufbewahrung ist derzeit vom Operator deaktiviert (TALE_RETENTION_DISABLED=true). Bereinigung läuft erst, wenn das Env-Flag entfernt wurde.",
+      "envBoundHint": "Env-Bindung: {min}{minApplied} / {max}{maxApplied}",
       "boundHelper": "Operator beschränkt dies auf {min}-{max} {unit}.",
       "errors": {
         "belowFloor": "Unter Operator-Untergrenze (min {bound} {unit}).",
         "exceedsCeiling": "Über Operator-Obergrenze (max {bound} {unit})."
       },
-      "preset": {
-        "title": "Aufbewahrungs-Voreinstellung",
-        "description": "Wähle ein empfohlenes Profil oder passe jede Kategorie einzeln an. Mit dem Wechsel zu Standard oder Strikt werden alle Werte unten überschrieben.",
-        "standard": "Standard",
-        "standardDescription": "Sinnvolle Standardwerte für die meisten Teams (90 Tage Chat, 365 Tage Dokumente, 730 Tage Audit, 30 Tage Schonfrist).",
-        "strict": "Strikt",
-        "strictDescription": "Halbierte Aufbewahrungsfenster + 7 Tage Schonfrist. Nimm dies, wenn Compliance oder Speicherkosten aggressive Löschung erfordern.",
-        "custom": "Benutzerdefiniert",
-        "customDescription": "Jede Kategorie unten einzeln einstellen."
-      },
-      "group": {
-        "userContent": {
-          "title": "Nutzerinhalte",
-          "description": "Chat-Verlauf, Dokumente, Prompt-Vorlagen, Kunden-/Lieferantendatensätze und andere org-eigene PII."
-        },
-        "operationalLogs": {
-          "title": "Operative Protokolle",
-          "description": "Workflow-Ausführungen und Analytics-Ledger. Abgeleitete Daten mit niedrigerem PII-Anteil."
-        },
-        "securityAudit": {
-          "title": "Sicherheit & Audit",
-          "description": "Audit-Log, Login-Forensik, Chat-Filter-Telemetrie, Personalisierungs-Audit. Untergrenze durch Operator- und Compliance-Baselines fixiert."
-        },
-        "deletionBehavior": {
-          "title": "Löschverhalten",
-          "description": "Wie lange in den Papierkorb verschobene/abgelaufene Einträge im Admin-Papierkorb wiederherstellbar bleiben, bevor sie endgültig gelöscht werden."
-        }
+      "diff": {
+        "title": "Aufbewahrungsänderungen bestätigen",
+        "description": "Prüfe die Änderungen vor dem Speichern. Die Bereinigung übernimmt die neue Richtlinie beim nächsten Lauf.",
+        "confirmLabel": "Änderungen speichern",
+        "noChanges": "Keine Änderungen zum Speichern."
       },
       "deletionGrace": {
         "label": "Schonfrist (Tage)",
@@ -3245,8 +3226,10 @@
         "firstApplyDescription": "Für diese Organisation wurden noch keine Grenzen angewendet. Prüfen Sie die Betreiberkonfiguration und klicken Sie auf Anwenden, um die Aufbewahrung zu aktivieren.",
         "applyLabel": "Anwenden",
         "rejectLabel": "Ablehnen",
-        "reviewLabel": "Änderungen prüfen",
-        "hideDetails": "Details ausblenden",
+        "detailsLabel": "Details anzeigen",
+        "detailsTitle": "Vorgeschlagene Grenzwertänderungen",
+        "detailsDescription": "Prüfe die vom Betreiber vorgeschlagenen Aufbewahrungsgrenzen vor dem Anwenden oder Ablehnen.",
+        "detailsEmpty": "Keine detaillierten Änderungen erfasst.",
         "diffHeading": "Grenzwertänderungen",
         "impactHeading": "Auswirkung auf Ihre gespeicherten Werte",
         "diffRow": "{category}: {field} {from} → {to} ({direction})",

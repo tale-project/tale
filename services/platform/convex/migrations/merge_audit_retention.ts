@@ -4,7 +4,7 @@
  *
  * For every org that has an `audit_retention` row, copy its `retentionDays`
  * into the org's `retention_policy` row under `auditLogRetentionDays` +
- * `auditLogsEnabled: true`, then delete the legacy row. If the org has no
+ * `auditLogEnabled: true`, then delete the legacy row. If the org has no
  * `retention_policy` row yet, create a minimal one.
  *
  * Idempotent: if no `audit_retention` row exists, the org is skipped.
@@ -54,7 +54,7 @@ export const apply = internalMutation({
           await ctx.db.patch(existing._id, {
             config: {
               ...existingCfg,
-              auditLogsEnabled: true,
+              auditLogEnabled: true,
               auditLogRetentionDays: retentionDays,
             },
             updatedAt: Date.now(),
@@ -64,8 +64,8 @@ export const apply = internalMutation({
             organizationId: legacy.organizationId,
             policyType: 'retention_policy',
             config: {
-              retentionDays: 90,
-              auditLogsEnabled: true,
+              documentsRetentionDays: 90,
+              auditLogEnabled: true,
               auditLogRetentionDays: retentionDays,
             },
             enabled: true,

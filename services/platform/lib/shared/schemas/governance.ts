@@ -126,7 +126,7 @@ export type UploadPolicyConfig = z.infer<typeof uploadPolicyConfigSchema>;
  * Policy-level "enabled" is NOT in this schema — it lives on the
  * `governancePolicies` row (`enabled: v.optional(v.boolean())`) and is
  * managed by the upsert mutation, not the config payload. Per-category
- * gates (`documentsEnabled` / `auditLogsEnabled` / ...) are part of the
+ * gates (`documentsEnabled` / `auditLogEnabled` / ...) are part of the
  * payload and live below.
  *
  * Exceptions: `batchSize` and `deletionGraceDays` are runtime knobs
@@ -134,7 +134,7 @@ export type UploadPolicyConfig = z.infer<typeof uploadPolicyConfigSchema>;
  */
 export const retentionPolicyConfigSchema = z.object({
   documentsEnabled: z.boolean().optional(),
-  retentionDays: z.number().int().nonnegative(),
+  documentsRetentionDays: z.number().int().nonnegative().optional(),
   batchSize: z.number().int().min(1).max(10_000).optional(),
   userTempEnabled: z.boolean().optional(),
   userTempRetentionHours: z.number().int().nonnegative().optional(),
@@ -142,13 +142,13 @@ export const retentionPolicyConfigSchema = z.object({
   agentTempRetentionHours: z.number().int().nonnegative().optional(),
   chatHistoryEnabled: z.boolean().optional(),
   chatHistoryRetentionDays: z.number().int().nonnegative().optional(),
-  auditLogsEnabled: z.boolean().optional(),
+  auditLogEnabled: z.boolean().optional(),
   auditLogRetentionDays: z.number().int().nonnegative().optional(),
-  workflowLogsEnabled: z.boolean().optional(),
+  workflowLogEnabled: z.boolean().optional(),
   workflowLogRetentionDays: z.number().int().nonnegative().optional(),
   usageLedgerEnabled: z.boolean().optional(),
   usageLedgerRetentionDays: z.number().int().nonnegative().optional(),
-  loginAttemptsEnabled: z.boolean().optional(),
+  loginAttemptEnabled: z.boolean().optional(),
   loginAttemptRetentionDays: z.number().int().nonnegative().optional(),
   chatFilterEventsEnabled: z.boolean().optional(),
   chatFilterEventsRetentionDays: z.number().int().nonnegative().optional(),

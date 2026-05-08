@@ -41,7 +41,6 @@
 import {
   RETENTION_CATEGORIES,
   type RetentionCategory,
-  type RetentionCategoryMetadata,
   type RetentionDefaultsConfig,
 } from '../../lib/shared/schemas/retention';
 
@@ -79,10 +78,6 @@ export interface EffectiveBoundDef {
   maxEnv: EnvBinding;
   /** Resolution detail for the `default` env binding. */
   defaultEnv: EnvBinding;
-  /** Operator display overrides from the JSON file's per-category
-   *  `_metadata` block (label / help / order / hidden). Env binding
-   *  config lives at the root, not here. */
-  metadata?: RetentionCategoryMetadata;
 }
 
 function parseEnvNumber(name: string): number | null {
@@ -221,7 +216,6 @@ function applyEnvTighteningWithMap(
     minEnv: { ...minBinding, applied: envMin !== null },
     maxEnv: { ...maxBinding, applied: envMax !== null },
     defaultEnv: { ...defaultBinding, applied: envDefault !== null },
-    metadata: base._metadata,
   };
 }
 
@@ -350,7 +344,7 @@ export function clampToBounds(
  * config.
  */
 const CONFIG_FIELD_TO_CATEGORY: Record<string, RetentionCategory> = {
-  retentionDays: 'documents',
+  documentsRetentionDays: 'documents',
   userTempRetentionHours: 'userTempHours',
   agentTempRetentionHours: 'agentTempHours',
   chatHistoryRetentionDays: 'chatHistory',

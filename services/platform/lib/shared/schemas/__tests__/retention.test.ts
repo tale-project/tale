@@ -9,7 +9,6 @@ import {
   canonicalizeAppliedBounds,
   hashAppliedBounds,
   retentionBoundDefSchema,
-  retentionCategoryMetadataSchema,
   retentionDefaultsConfigSchema,
   retentionRootMetadataSchema,
 } from '../retention';
@@ -84,29 +83,13 @@ describe('retentionBoundDefSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects per-category _metadata that includes envPrefix (root-only)', () => {
+  it('rejects unknown keys (strict)', () => {
     const result = retentionBoundDefSchema.safeParse({
       min: 30,
       max: 365,
       default: 90,
       unit: 'days',
-      _metadata: {
-        envPrefix: 'TALE_RETENTION_',
-        label: 'Bad',
-      },
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects per-category _metadata that includes envNames (root-only)', () => {
-    const result = retentionBoundDefSchema.safeParse({
-      min: 30,
-      max: 365,
-      default: 90,
-      unit: 'days',
-      _metadata: {
-        envNames: { AUDIT_MIN: 'auditLog.min' },
-      },
+      _metadata: { label: 'should not be accepted' },
     });
     expect(result.success).toBe(false);
   });
@@ -182,29 +165,24 @@ describe('retentionDefaultsConfigSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('accepts a category with display-only _metadata', () => {
+  it('accepts a category without per-category metadata (descriptor lives in TS)', () => {
+    const result = retentionDefaultsConfigSchema.safeParse({
+      auditLog: { min: 365, max: 3650, default: 730, unit: 'days' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a category with a per-category _metadata block (descriptor moved to TS)', () => {
     const result = retentionDefaultsConfigSchema.safeParse({
       auditLog: {
         min: 365,
         max: 3650,
         default: 730,
         unit: 'days',
-        _metadata: {
-          label: 'Audit log retention',
-          help: 'PCI baseline.',
-          order: 1,
-          hidden: false,
-        },
+        _metadata: { label: 'rejected' },
       },
     });
-    expect(result.success).toBe(true);
-  });
-
-  it('accepts a category with no _metadata', () => {
-    const result = retentionDefaultsConfigSchema.safeParse({
-      auditLog: { min: 365, max: 3650, default: 730, unit: 'days' },
-    });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
   });
 
   it('accepts root _metadata with envPrefix + envNames + at least one category', () => {
@@ -239,45 +217,6 @@ describe('retentionDefaultsConfigSchema', () => {
   it('rejects root _metadata with no category present', () => {
     const result = retentionDefaultsConfigSchema.safeParse({
       _metadata: { envPrefix: 'TALE_RETENTION_' },
-    });
-    expect(result.success).toBe(false);
-  });
-});
-
-describe('retentionCategoryMetadataSchema', () => {
-  it('accepts a complete display-only metadata block', () => {
-    const result = retentionCategoryMetadataSchema.safeParse({
-      label: 'Custom label',
-      help: 'Custom help text',
-      order: 5,
-      hidden: true,
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('accepts an empty metadata block', () => {
-    const result = retentionCategoryMetadataSchema.safeParse({});
-    expect(result.success).toBe(true);
-  });
-
-  it('rejects unknown keys (strict)', () => {
-    const result = retentionCategoryMetadataSchema.safeParse({
-      label: 'OK',
-      typo: 'rejected',
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects envPrefix at the per-category level (root-only)', () => {
-    const result = retentionCategoryMetadataSchema.safeParse({
-      envPrefix: 'TALE_RETENTION_',
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects envNames at the per-category level (root-only)', () => {
-    const result = retentionCategoryMetadataSchema.safeParse({
-      envNames: { AUDIT_MIN: 'auditLog.min' },
     });
     expect(result.success).toBe(false);
   });

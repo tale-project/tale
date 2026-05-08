@@ -60,7 +60,7 @@ function detectRetentionShortening(
 ): string | null {
   if (!isRecord(oldConfig) || !isRecord(newConfig)) return null;
   const checks: Array<[string, string]> = [
-    ['retentionDays', 'documents'],
+    ['documentsRetentionDays', 'documents'],
     ['userTempRetentionHours', 'user temp files'],
     ['agentTempRetentionHours', 'agent temp files'],
     ['chatHistoryRetentionDays', 'chat history'],

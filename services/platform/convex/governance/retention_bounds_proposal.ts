@@ -90,7 +90,7 @@ async function computeEffectiveAppliedBounds(
 }
 
 const POLICY_FIELD_BY_CATEGORY: Record<RetentionCategory, string> = {
-  documents: 'retentionDays',
+  documents: 'documentsRetentionDays',
   userTempHours: 'userTempRetentionHours',
   agentTempHours: 'agentTempRetentionHours',
   chatHistory: 'chatHistoryRetentionDays',

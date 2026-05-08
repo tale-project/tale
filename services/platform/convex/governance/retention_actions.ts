@@ -200,7 +200,7 @@ export const upsertRetentionPolicyAction = action({
     // owns the policy/category coupling.
     const cfg = args.config;
     const checks: Array<[RetentionCategory, unknown]> = [
-      ['documents', cfg?.retentionDays],
+      ['documents', cfg?.documentsRetentionDays],
       ['userTempHours', cfg?.userTempRetentionHours],
       ['agentTempHours', cfg?.agentTempRetentionHours],
       ['chatHistory', cfg?.chatHistoryRetentionDays],

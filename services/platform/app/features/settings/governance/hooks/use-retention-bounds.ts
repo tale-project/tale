@@ -14,13 +14,6 @@ interface RawEnvBinding {
   applied: boolean;
 }
 
-interface RawMetadata {
-  label?: string;
-  help?: string;
-  order?: number;
-  hidden?: boolean;
-}
-
 interface RawBound {
   category: string;
   min: number;
@@ -31,7 +24,6 @@ interface RawBound {
   minEnv: RawEnvBinding;
   maxEnv: RawEnvBinding;
   defaultEnv: RawEnvBinding;
-  metadata?: RawMetadata;
 }
 
 export interface EnvBindingInfo {
@@ -42,13 +34,6 @@ export interface EnvBindingInfo {
   source: 'metadata' | 'none';
   /** Whether `process.env[envName]` is currently set (and tightening). */
   applied: boolean;
-}
-
-export interface CategoryMetadata {
-  label?: string;
-  help?: string;
-  order?: number;
-  hidden?: boolean;
 }
 
 export interface CategoryBounds {
@@ -68,8 +53,6 @@ export interface CategoryBounds {
   maxEnv: EnvBindingInfo;
   /** Resolution detail for the `default` env binding. */
   defaultEnv: EnvBindingInfo;
-  /** Operator-supplied overrides from the JSON file's `_metadata`. */
-  metadata?: CategoryMetadata;
 }
 
 /**
@@ -117,7 +100,6 @@ export function useRetentionBounds(organizationId: string | undefined) {
         minEnv: b.minEnv,
         maxEnv: b.maxEnv,
         defaultEnv: b.defaultEnv,
-        metadata: b.metadata,
       });
     }
     return out;
