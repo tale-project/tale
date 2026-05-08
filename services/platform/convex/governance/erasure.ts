@@ -189,10 +189,12 @@ export const requestErasure = mutation({
     const heldDocumentIds: string[] = subjectDocumentIds.filter((id) =>
       holds.documentIds.has(id),
     );
+    const userCustodianHeld = holds.userMembershipIds.has(args.userId);
     if (
       holds.orgHeld ||
       heldThreadIds.length > 0 ||
-      heldDocumentIds.length > 0
+      heldDocumentIds.length > 0 ||
+      userCustodianHeld
     ) {
       await createAuditLog(ctx, {
         organizationId: args.organizationId,
@@ -209,6 +211,7 @@ export const requestErasure = mutation({
         newState: {
           reason: args.reason,
           orgHeld: holds.orgHeld,
+          userCustodianHeld,
           heldThreadIds,
           heldDocumentIds,
         },
@@ -217,10 +220,13 @@ export const requestErasure = mutation({
         code: 'LEGAL_HOLD_BLOCKS_ERASURE',
         message: holds.orgHeld
           ? 'Org is under an active legal hold — release the hold before requesting erasure.'
-          : heldThreadIds.length > 0
-            ? 'One or more of the subject’s threads are under an active legal hold.'
-            : 'One or more of the subject’s documents are under an active legal hold.',
+          : userCustodianHeld
+            ? 'The subject user is on an active custodian legal hold — release the hold before requesting erasure.'
+            : heldThreadIds.length > 0
+              ? 'One or more of the subject’s threads are under an active legal hold.'
+              : 'One or more of the subject’s documents are under an active legal hold.',
         orgHeld: holds.orgHeld,
+        userCustodianHeld,
         heldThreadIds,
         heldDocumentIds,
       });

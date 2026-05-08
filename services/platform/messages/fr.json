@@ -53,6 +53,9 @@
       "rename": "Renommer",
       "deleteSelected": "Supprimer la sélection"
     },
+    "confirmDialog": {
+      "typeToConfirmLabel": "Tapez \"{phrase}\" pour confirmer"
+    },
     "bulkActions": {
       "itemsSelected": "{count, plural, one {# élément sélectionné} other {# éléments sélectionnés}}",
       "confirmDeleteTitle": "Supprimer {count, plural, one {# élément} other {# éléments}}",
@@ -3636,16 +3639,62 @@
       "policiesAndLimits": "Politiques et limites",
       "securityAndMonitoring": "Sécurité et surveillance",
       "legalHold": "Conservation légale",
+      "trash": "Corbeille",
       "guardrails": "Guardrails",
       "usage": "Utilisation",
       "feedback": "Retours"
+    },
+    "trash": {
+      "title": "Corbeille",
+      "description": "Récupérez les enregistrements supprimés par la rétention avant leur suppression définitive à la fin de la fenêtre de grâce.",
+      "accessDenied": "Réservé aux administrateurs.",
+      "empty": "Rien dans la corbeille pour cette catégorie. La rétention y déplacera les lignes expirées une fois leur fenêtre de grâce ouverte.",
+      "truncated": "Premier lot affiché uniquement. Restaurez les éléments plus anciens via le nettoyage ou contactez le support.",
+      "column": {
+        "name": "Nom",
+        "status": "Statut",
+        "statusChangedAt": "Mis à la corbeille",
+        "actions": "Actions"
+      },
+      "status": {
+        "trashed": "Mis à la corbeille",
+        "expired": "Expiré"
+      },
+      "tab": {
+        "thread": "Historique de chat",
+        "document": "Documents",
+        "fileMetadata": "Fichiers temporaires",
+        "promptTemplate": "Modèles de prompt",
+        "messageFeedback": "Retours sur messages",
+        "customer": "Clients",
+        "vendor": "Fournisseurs",
+        "externalConversation": "Conversations externes",
+        "messageMetadata": "Métadonnées de message",
+        "workflowExecution": "Exécutions de workflow",
+        "workflowTriggerLog": "Logs de déclencheur de workflow",
+        "usageLedger": "Registre d'utilisation",
+        "auditLog": "Logs d'audit",
+        "chatFilterEvent": "Événements de filtre de chat",
+        "memoryAudit": "Audit de mémoire"
+      },
+      "restore": {
+        "label": "Restaurer",
+        "confirm": "Restaurer",
+        "trashedTitle": "Restaurer l'enregistrement ?",
+        "trashedDescription": "Réactiver cet enregistrement. Il reviendra dans sa liste source.",
+        "expiredTitle": "Restaurer un enregistrement supprimé par la rétention ?",
+        "expiredDescription": "Cet enregistrement a été supprimé par la politique de rétention. Le restaurer outrepasse cette politique et le réactive. Audité.",
+        "expiredPhraseLabel": "Tapez \"restore\" pour confirmer",
+        "restoredToast": "Restauré.",
+        "failedToast": "Échec de la restauration"
+      }
     },
     "legalHold": {
       "targetTypes": {
         "thread": "Conversation",
         "document": "Document",
         "execution": "Exécution",
-        "userMembership": "Adhésion utilisateur",
+        "userMembership": "Utilisateur",
         "org": "Organisation"
       },
       "filters": {
@@ -3663,10 +3712,10 @@
       "sections": {
         "activeHolds": {
           "title": "Conservations actives",
-          "description": "Entités actuellement protégées du nettoyage et de la suppression.",
+          "description": "Entités actuellement protégées du nettoyage et de la suppression. Place des conservations au niveau utilisateur (custodian) ou organisation.",
           "empty": {
             "title": "Aucune conservation active",
-            "description": "Place une conservation depuis la section active, ou via le menu d'actions d'une conversation ou d'un document."
+            "description": "Place une conservation custodian sur un utilisateur précis, ou une conservation à l'échelle de l'organisation depuis l'action ci-dessus."
           }
         },
         "releaseRequests": {
@@ -3713,11 +3762,11 @@
         "requestedAt": "Demandé",
         "approvedBy": "Approuvé par",
         "effectiveAt": "Effective",
-        "rejectReason": "Motif de rejet"
+        "rejectReason": "Motif de rejet",
+        "legacy": "(legacy)"
       },
       "actions": {
         "placeHold": "Placer une conservation",
-        "bulkPlace": "Placement en masse",
         "requestRelease": "Demander la libération",
         "approve": "Approuver",
         "reject": "Rejeter",
@@ -3735,31 +3784,18 @@
       "dialogs": {
         "placeHold": {
           "title": "Placer une conservation légale",
-          "description": "L'entité conservée est protégée du nettoyage et de la suppression jusqu'à libération. Une raison est obligatoire et enregistrée dans le journal d'audit.",
+          "description": "Préserver le contenu pour litige, audit ou eDiscovery. Place une conservation custodian sur un utilisateur précis, ou une conservation à l'échelle de l'organisation. Une raison est obligatoire et enregistrée dans le journal d'audit.",
           "targetTypeLabel": "Type de cible",
-          "targetIdLabel": "ID de cible",
+          "userPickerLabel": "Utilisateur",
+          "userPickerPlaceholder": "Recherche par nom ou e-mail",
+          "userPickerEmpty": "Aucun utilisateur correspondant.",
+          "orgWarning": "Les conservations à l'échelle de l'organisation gèlent TOUTE rétention pour chaque entité de ce tenant. Requiert la variable d'env TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true, sinon le placement sera rejeté.",
           "reasonLabel": "Raison",
           "reasonPlaceholder": "ex. Hold litige Acme c. Co. (dossier #2026-04)",
           "matterLabel": "Dossier (optionnel)",
           "matterPlaceholder": "Choisir ou créer un dossier",
           "matterCreateNew": "Créer un nouveau dossier…",
           "submit": "Placer la conservation"
-        },
-        "bulkPlace": {
-          "title": "Placement en masse",
-          "description": "Une entrée par ligne au format targetType:targetId (ex. thread:thr_abc). Jusqu'à 200 entrées par lot.",
-          "entriesLabel": "Entrées",
-          "entriesPlaceholder": "thread:thr_abc\ndocument:doc_xyz",
-          "reasonLabel": "Raison (appliquée à toutes)",
-          "matterLabel": "Dossier (optionnel, appliqué à toutes)",
-          "previewValid": "Valide",
-          "previewInvalid": "Invalide",
-          "submit": "Placer {count} conservations",
-          "summaryPlaced": "{count} conservations placées.",
-          "summarySkipped": "{count} ignorées",
-          "showSkipped": "Afficher les ignorées",
-          "tooManyEntries": "Au maximum 200 entrées par lot.",
-          "invalidLine": "Format attendu targetType:targetId."
         },
         "requestRelease": {
           "title": "Demander la libération",
@@ -3801,8 +3837,6 @@
       "toasts": {
         "placedTitle": "Conservation placée",
         "placedDescription": "Le {targetType} est désormais protégé du nettoyage et de la suppression.",
-        "bulkPlacedTitle": "Conservations en masse placées",
-        "bulkPlacedDescription": "{placed} placées, {skipped} ignorées.",
         "releaseRequestedTitle": "Demande déposée",
         "releaseRequestedDescription": "En attente d'approbation par un autre admin.",
         "releaseApprovedTitle": "Libération approuvée",

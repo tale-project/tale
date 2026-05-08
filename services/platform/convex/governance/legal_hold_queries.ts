@@ -17,6 +17,8 @@
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
+import { getNumber, getString, isRecord } from '../../lib/utils/type-guards';
+import { components } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { query } from '../_generated/server';
 import type { QueryCtx } from '../_generated/server';
@@ -453,6 +455,17 @@ const heldByTargetValidator = v.union(
      * potentially sensitive case names or attribution.
      */
     view: v.union(v.literal('admin'), v.literal('member')),
+    /**
+     * How this entity is held: 'direct' = a hold row directly references
+     * this targetType+targetId; 'user_custodian' = the entity's author is
+     * on a userMembership hold (cascade hit); 'org' = the whole org is on
+     * a hold. Used by the UI to differentiate badge labels.
+     */
+    via: v.union(
+      v.literal('direct'),
+      v.literal('user_custodian'),
+      v.literal('org'),
+    ),
     reason: v.optional(v.string()),
     matterRef: v.optional(v.string()),
     matterName: v.optional(v.string()),
@@ -465,6 +478,39 @@ const heldByTargetValidator = v.union(
   }),
 );
 
+/**
+ * Resolve the "author" user-id for a thread or document, so the cascade
+ * lookup can match the entity against active userMembership holds.
+ * Returns `null` for entity types without user attribution (execution),
+ * or when the entity is not found.
+ */
+async function resolveEntityAuthor(
+  ctx: QueryCtx,
+  organizationId: string,
+  targetType: (typeof TARGET_TYPES)[number],
+  targetId: string,
+): Promise<string | null> {
+  if (targetType === 'thread') {
+    const meta = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', targetId))
+      .first();
+    if (!meta || meta.organizationId !== organizationId) return null;
+    return meta.userId ?? null;
+  }
+  if (targetType === 'document') {
+    try {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- targetId is a stringified _id; ctx.db.get returns null on mismatch
+      const doc = await ctx.db.get(targetId as Doc<'documents'>['_id']);
+      if (!doc || doc.organizationId !== organizationId) return null;
+      return doc.createdBy ?? null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export const getLegalHoldByTarget = query({
   args: {
     organizationId: v.string(),
@@ -475,7 +521,8 @@ export const getLegalHoldByTarget = query({
   handler: async (ctx, args) => {
     const caller = await requireMember(ctx, args.organizationId);
 
-    const hold = await ctx.db
+    // Pass A — direct match on (organizationId, targetType, targetId).
+    const directHold = await ctx.db
       .query('legalHolds')
       .withIndex('by_target', (q) =>
         q
@@ -485,7 +532,40 @@ export const getLegalHoldByTarget = query({
       )
       .filter((q) => q.eq(q.field('releasedAt'), undefined))
       .first();
+
+    // Pass B — cascade. For thread/document, look up the author user
+    // and check whether they're on a userMembership hold. Skip for
+    // userMembership/org/execution (no cascade-author concept).
+    let cascadeHold: Doc<'legalHolds'> | null = null;
+    if (
+      !directHold &&
+      (args.targetType === 'thread' || args.targetType === 'document')
+    ) {
+      const authorUserId = await resolveEntityAuthor(
+        ctx,
+        args.organizationId,
+        args.targetType,
+        args.targetId,
+      );
+      if (authorUserId) {
+        const candidate = await ctx.db
+          .query('legalHolds')
+          .withIndex('by_target', (q) =>
+            q
+              .eq('organizationId', args.organizationId)
+              .eq('targetType', 'userMembership')
+              .eq('targetId', authorUserId),
+          )
+          .filter((q) => q.eq(q.field('releasedAt'), undefined))
+          .first();
+        if (candidate) cascadeHold = candidate;
+      }
+    }
+
+    const hold = directHold ?? cascadeHold;
     if (!hold) return null;
+    const via: 'direct' | 'user_custodian' =
+      directHold !== null ? 'direct' : 'user_custodian';
 
     // Latest release request for this hold (any status).
     const latest = await ctx.db
@@ -504,6 +584,7 @@ export const getLegalHoldByTarget = query({
         targetId: hold.targetId,
         placedAt: hold.placedAt,
         view: 'member' as const,
+        via,
         hasPendingRelease,
         hasApprovedRelease,
         effectiveAt,
@@ -524,6 +605,7 @@ export const getLegalHoldByTarget = query({
       targetId: hold.targetId,
       placedAt: hold.placedAt,
       view: 'admin' as const,
+      via,
       reason: hold.reason,
       matterRef: hold.matterRef,
       matterName,
@@ -552,7 +634,9 @@ export const listActiveHoldTargetIds = query({
   }),
   handler: async (ctx, args) => {
     await requireMember(ctx, args.organizationId);
-    const rows = await ctx.db
+
+    // Direct holds against the requested target type.
+    const directRows = await ctx.db
       .query('legalHolds')
       .withIndex('by_organizationId_targetType', (q) =>
         q
@@ -560,9 +644,156 @@ export const listActiveHoldTargetIds = query({
           .eq('targetType', args.targetType),
       )
       .collect();
-    const targetIds = rows
-      .filter((r) => r.releasedAt === undefined)
-      .map((r) => r.targetId);
-    return { targetIds };
+    const ids = new Set<string>(
+      directRows
+        .filter((r) => r.releasedAt === undefined)
+        .map((r) => r.targetId),
+    );
+
+    // Cascade: for thread / document badges, also include entities whose
+    // author is on a userMembership hold. execution has no author field;
+    // userMembership / org don't cascade.
+    if (args.targetType === 'thread' || args.targetType === 'document') {
+      const heldUserRows = await ctx.db
+        .query('legalHolds')
+        .withIndex('by_organizationId_targetType', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('targetType', 'userMembership'),
+        )
+        .collect();
+      const heldUserIds = heldUserRows
+        .filter((r) => r.releasedAt === undefined)
+        .map((r) => r.targetId);
+
+      if (heldUserIds.length > 0) {
+        if (args.targetType === 'thread') {
+          for (const userId of heldUserIds) {
+            const threads = await ctx.db
+              .query('threadMetadata')
+              .withIndex('by_userId_chatType_status', (q) =>
+                q.eq('userId', userId),
+              )
+              .filter((q) =>
+                q.eq(q.field('organizationId'), args.organizationId),
+              )
+              .collect();
+            for (const t of threads) ids.add(t.threadId);
+          }
+        } else {
+          for (const userId of heldUserIds) {
+            const docs = await ctx.db
+              .query('documents')
+              .withIndex('by_organizationId_and_createdBy', (q) =>
+                q
+                  .eq('organizationId', args.organizationId)
+                  .eq('createdBy', userId),
+              )
+              .collect();
+            for (const d of docs) ids.add(String(d._id));
+          }
+        }
+      }
+    }
+
+    return { targetIds: Array.from(ids) };
+  },
+});
+
+/**
+ * Picker source for the "Place hold on user" dialog. Admin-gated. Returns
+ * up to 100 active members of the org with their email + display name so
+ * the UI can render a searchable combobox.
+ *
+ * The Better Auth `member` row points at a `userId`, but the email and
+ * name live on the `user` table — fetch in two passes (member list, then
+ * batched user lookup) and join in memory. Capped at 100 to keep the
+ * query bounded; orgs that exceed that should add server-side search
+ * later.
+ */
+export const listOrgMembersForPicker = query({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.array(
+    v.object({
+      userId: v.string(),
+      email: v.string(),
+      displayName: v.string(),
+      role: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, args.organizationId);
+
+    const memberPage = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 100 },
+        where: [
+          {
+            field: 'organizationId',
+            value: args.organizationId,
+            operator: 'eq',
+          },
+        ],
+      },
+    );
+
+    const rawRows = memberPage?.page ?? [];
+    const members: Array<{ userId: string; role: string; createdAt: number }> =
+      [];
+    for (const raw of rawRows) {
+      if (!isRecord(raw)) continue;
+      const userId = getString(raw, 'userId');
+      if (!userId) continue;
+      const role = getString(raw, 'role') ?? 'member';
+      if (role.toLowerCase() === 'disabled') continue;
+      members.push({
+        userId,
+        role,
+        createdAt: getNumber(raw, 'createdAt') ?? 0,
+      });
+    }
+
+    // Batch lookup of user.email/name. Reuse the existing helper which
+    // returns name-or-email; we then ALSO need raw email for searching,
+    // so issue per-user findMany lookups in parallel.
+    const userPromises = members.map(async (m) => {
+      try {
+        const userRes = await ctx.runQuery(
+          components.betterAuth.adapter.findMany,
+          {
+            model: 'user',
+            paginationOpts: { cursor: null, numItems: 1 },
+            where: [{ field: '_id', value: m.userId, operator: 'eq' }],
+          },
+        );
+        const userRaw = userRes?.page?.[0];
+        if (!isRecord(userRaw)) return null;
+        const email = getString(userRaw, 'email') ?? '';
+        const name = getString(userRaw, 'name') ?? '';
+        return {
+          userId: m.userId,
+          email,
+          displayName: name || email || m.userId,
+          role: m.role,
+        };
+      } catch (err) {
+        console.warn(
+          `[listOrgMembersForPicker] user lookup failed for userId='${m.userId}': ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return null;
+      }
+    });
+
+    const resolved = (await Promise.all(userPromises)).filter(
+      (u): u is NonNullable<typeof u> => u !== null,
+    );
+
+    // Sort by displayName for stable picker UX.
+    resolved.sort((a, b) => a.displayName.localeCompare(b.displayName));
+    return resolved;
   },
 });

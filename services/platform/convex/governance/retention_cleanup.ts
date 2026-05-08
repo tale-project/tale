@@ -160,6 +160,12 @@ async function cleanupDocuments(
       );
       continue;
     }
+    if (doc.createdBy && holds.userMembershipIds.has(doc.createdBy)) {
+      console.info(
+        `[RetentionCleanup] document ${doc._id} authored by user ${doc.createdBy} on user-custodian hold — skipping`,
+      );
+      continue;
+    }
 
     if (doc.fileId) {
       await deleteRagEntry(doc.fileId, `document ${doc._id}`);
@@ -211,6 +217,13 @@ async function cleanupTempFiles(
 
   let processed = 0;
   for (const file of expiredFiles) {
+    if (file.uploadedBy && holds.userMembershipIds.has(file.uploadedBy)) {
+      console.info(
+        `[RetentionCleanup] temp file ${file._id} uploaded by user ${file.uploadedBy} on user-custodian hold — skipping`,
+      );
+      continue;
+    }
+
     await deleteRagEntry(file.storageId, `temp file ${file._id}`);
 
     await ctx.runMutation(
@@ -266,6 +279,12 @@ async function cleanupChatHistory(
         );
         continue;
       }
+      if (thread.userId && holds.userMembershipIds.has(thread.userId)) {
+        console.info(
+          `[RetentionCleanup] thread ${thread.threadId} owned by user ${thread.userId} on user-custodian hold — skipping pass A`,
+        );
+        continue;
+      }
       await ctx.runMutation(
         internal.governance.internal_mutations_retention.markThreadExpired,
         {
@@ -308,6 +327,12 @@ async function cleanupChatHistory(
     if (holds.threadIds.has(thread.threadId)) {
       console.info(
         `[RetentionCleanup] thread ${thread.threadId} on legal hold — skipping pass B`,
+      );
+      continue;
+    }
+    if (thread.userId && holds.userMembershipIds.has(thread.userId)) {
+      console.info(
+        `[RetentionCleanup] thread ${thread.threadId} owned by user ${thread.userId} on user-custodian hold — skipping pass B`,
       );
       continue;
     }
@@ -504,6 +529,12 @@ async function cleanupUsageLedger(
 
   let processed = 0;
   for (const row of expired) {
+    if (row.userId && holds.userMembershipIds.has(row.userId)) {
+      console.info(
+        `[RetentionCleanup] usage ledger row for user ${row.userId} on user-custodian hold — skipping`,
+      );
+      continue;
+    }
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredUsageLedgerRow,
@@ -578,6 +609,12 @@ async function cleanupPromptTemplates(
   );
   let processed = 0;
   for (const row of expired) {
+    if (row.createdBy && holds.userMembershipIds.has(row.createdBy)) {
+      console.info(
+        `[RetentionCleanup] prompt template ${row._id} authored by user ${row.createdBy} on user-custodian hold — skipping`,
+      );
+      continue;
+    }
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredPromptTemplate,
@@ -614,6 +651,12 @@ async function cleanupMessageFeedback(
   );
   let processed = 0;
   for (const row of expired) {
+    if (row.userId && holds.userMembershipIds.has(row.userId)) {
+      console.info(
+        `[RetentionCleanup] message feedback ${row._id} from user ${row.userId} on user-custodian hold — skipping`,
+      );
+      continue;
+    }
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredMessageFeedback,

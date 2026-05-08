@@ -18,6 +18,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import { components } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation, mutation } from '../_generated/server';
 import type { QueryCtx, MutationCtx } from '../_generated/server';
@@ -235,10 +236,30 @@ async function assertTargetBelongsToOrg(
     }
     return;
   }
-  // `userMembership` falls through — Better Auth adapter lookup is a
-  // follow-up. The single-place flow already requires admin in the
-  // placing org, so the worst case is a row that never matches a
-  // cleanup gate.
+  if (targetType === 'userMembership') {
+    // Validate via the Better Auth `member` table — the userId must have
+    // an active membership in this organization. Without this, a hold
+    // could be planted on an arbitrary userId and silently never match
+    // any cleanup gate. See `audit_logs/internal_queries.ts:118` for
+    // the same lookup pattern.
+    const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+      model: 'member',
+      paginationOpts: { cursor: null, numItems: 1 },
+      where: [
+        { field: 'organizationId', value: organizationId, operator: 'eq' },
+        { field: 'userId', value: targetId, operator: 'eq' },
+      ],
+    });
+    if (!result?.page?.length) {
+      throw new ConvexError({
+        code: 'TARGET_NOT_IN_ORG',
+        message: `user ${targetId} is not a member of this organization.`,
+        targetType,
+        targetId,
+      });
+    }
+    return;
+  }
 }
 
 export const placeLegalHold = mutation({

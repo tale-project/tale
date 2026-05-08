@@ -53,6 +53,9 @@
       "rename": "Rename",
       "deleteSelected": "Delete selected"
     },
+    "confirmDialog": {
+      "typeToConfirmLabel": "Type \"{phrase}\" to confirm"
+    },
     "bulkActions": {
       "itemsSelected": "{count, plural, one {# item selected} other {# items selected}}",
       "confirmDeleteTitle": "Delete {count, plural, one {# item} other {# items}}",
@@ -3724,16 +3727,62 @@
       "policiesAndLimits": "Policies & Limits",
       "securityAndMonitoring": "Security & Monitoring",
       "legalHold": "Legal hold",
+      "trash": "Trash",
       "guardrails": "Guardrails",
       "usage": "Usage",
       "feedback": "Feedback"
+    },
+    "trash": {
+      "title": "Trash",
+      "description": "Recover retention-trashed records before they are permanently deleted at the end of the grace window.",
+      "accessDenied": "Admin only.",
+      "empty": "Nothing in the trash for this category. Retention will move expired rows here once their grace window starts.",
+      "truncated": "Showing first batch only. Restore older items via cleanup or contact support.",
+      "column": {
+        "name": "Name",
+        "status": "Status",
+        "statusChangedAt": "Trashed",
+        "actions": "Actions"
+      },
+      "status": {
+        "trashed": "Trashed",
+        "expired": "Expired"
+      },
+      "tab": {
+        "thread": "Chat history",
+        "document": "Documents",
+        "fileMetadata": "Temporary files",
+        "promptTemplate": "Prompt templates",
+        "messageFeedback": "Message feedback",
+        "customer": "Customers",
+        "vendor": "Vendors",
+        "externalConversation": "External conversations",
+        "messageMetadata": "Message metadata",
+        "workflowExecution": "Workflow runs",
+        "workflowTriggerLog": "Workflow trigger logs",
+        "usageLedger": "Usage ledger",
+        "auditLog": "Audit logs",
+        "chatFilterEvent": "Chat filter events",
+        "memoryAudit": "Memory audit"
+      },
+      "restore": {
+        "label": "Restore",
+        "confirm": "Restore",
+        "trashedTitle": "Restore record?",
+        "trashedDescription": "Bring this record back to active. It will return to its source list.",
+        "expiredTitle": "Restore retention-expired record?",
+        "expiredDescription": "This record was deleted by retention policy. Restoring overrides that policy and brings the record back to active. Audited.",
+        "expiredPhraseLabel": "Type \"restore\" to confirm",
+        "restoredToast": "Restored.",
+        "failedToast": "Failed to restore"
+      }
     },
     "legalHold": {
       "targetTypes": {
         "thread": "Thread",
         "document": "Document",
         "execution": "Execution",
-        "userMembership": "User membership",
+        "userMembership": "User",
         "org": "Organization"
       },
       "filters": {
@@ -3751,10 +3800,10 @@
       "sections": {
         "activeHolds": {
           "title": "Active holds",
-          "description": "Entities currently protected from cleanup and deletion.",
+          "description": "Entities currently protected from cleanup and deletion. Place holds at the user (custodian) or organization level.",
           "empty": {
             "title": "No active legal holds",
-            "description": "Place a hold from the active section, or from a chat or document action menu."
+            "description": "Place a custodian hold on a specific user, or an organization-wide hold from the action above."
           }
         },
         "releaseRequests": {
@@ -3801,11 +3850,11 @@
         "requestedAt": "Requested",
         "approvedBy": "Approved by",
         "effectiveAt": "Effective",
-        "rejectReason": "Reject reason"
+        "rejectReason": "Reject reason",
+        "legacy": "(legacy)"
       },
       "actions": {
         "placeHold": "Place legal hold",
-        "bulkPlace": "Bulk place",
         "requestRelease": "Request release",
         "approve": "Approve",
         "reject": "Reject",
@@ -3823,31 +3872,18 @@
       "dialogs": {
         "placeHold": {
           "title": "Place legal hold",
-          "description": "The held entity is protected from cleanup and deletion until released. A reason is required and recorded in the audit log.",
+          "description": "Preserve content for litigation, audit, or eDiscovery. Place a custodian hold on a specific user, or an organization-wide hold. A reason is required and recorded in the audit log.",
           "targetTypeLabel": "Target type",
-          "targetIdLabel": "Target ID",
+          "userPickerLabel": "User",
+          "userPickerPlaceholder": "Search by name or email",
+          "userPickerEmpty": "No matching users.",
+          "orgWarning": "Organization-wide holds freeze ALL retention for every entity in this tenant. Requires the TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true env to be set or the placement will be rejected.",
           "reasonLabel": "Reason",
           "reasonPlaceholder": "e.g. Litigation hold for Acme v. Co. (matter #2026-04)",
           "matterLabel": "Matter (optional)",
           "matterPlaceholder": "Pick or create a matter",
           "matterCreateNew": "Create new matter…",
           "submit": "Place hold"
-        },
-        "bulkPlace": {
-          "title": "Bulk place legal holds",
-          "description": "One entry per line as targetType:targetId (e.g. thread:thr_abc). Up to 200 entries per batch.",
-          "entriesLabel": "Entries",
-          "entriesPlaceholder": "thread:thr_abc\ndocument:doc_xyz",
-          "reasonLabel": "Reason (applied to all)",
-          "matterLabel": "Matter (optional, applied to all)",
-          "previewValid": "Valid",
-          "previewInvalid": "Invalid",
-          "submit": "Place {count} holds",
-          "summaryPlaced": "{count} holds placed.",
-          "summarySkipped": "{count} skipped",
-          "showSkipped": "Show skipped",
-          "tooManyEntries": "At most 200 entries per batch.",
-          "invalidLine": "Expected format targetType:targetId."
         },
         "requestRelease": {
           "title": "Request release",
@@ -3889,8 +3925,6 @@
       "toasts": {
         "placedTitle": "Legal hold placed",
         "placedDescription": "The {targetType} is now protected from cleanup and deletion.",
-        "bulkPlacedTitle": "Bulk legal holds placed",
-        "bulkPlacedDescription": "{placed} placed, {skipped} skipped.",
         "releaseRequestedTitle": "Release request filed",
         "releaseRequestedDescription": "Awaiting approval from a different admin.",
         "releaseApprovedTitle": "Release approved",

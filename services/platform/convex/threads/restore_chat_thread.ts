@@ -124,14 +124,24 @@ export const restoreChatThread = mutation({
     // wait for the hold to be released through the dual-control flow.
     if (metadata.organizationId !== undefined) {
       const holds = await loadActiveHolds(ctx, metadata.organizationId);
-      if (holds.orgHeld || holds.threadIds.has(metadata.threadId)) {
+      const ownerHeld =
+        metadata.userId !== undefined &&
+        holds.userMembershipIds.has(metadata.userId);
+      if (
+        holds.orgHeld ||
+        holds.threadIds.has(metadata.threadId) ||
+        ownerHeld
+      ) {
         throw new ConvexError({
           code: 'LEGAL_HOLD_BLOCKS_RESTORE',
           message: holds.orgHeld
             ? 'Org is under an active legal hold — restore is blocked until the hold is released.'
-            : 'Thread is under an active legal hold — restore is blocked until the hold is released.',
+            : ownerHeld
+              ? 'Thread owner is on a custodian legal hold — restore is blocked until the hold is released.'
+              : 'Thread is under an active legal hold — restore is blocked until the hold is released.',
           threadId: metadata.threadId,
           orgHeld: holds.orgHeld,
+          userCustodianHeld: ownerHeld,
         });
       }
     }

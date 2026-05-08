@@ -5,6 +5,7 @@ import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query'
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { GOVERNANCE_POLICY_TYPES } from '@/convex/governance/schema';
+import type { SoftDeleteResourceType } from '@/convex/governance/soft_delete_validators';
 import {
   CHAT_MAX_FILE_SIZE,
   CHAT_UPLOAD_ALLOWED_TYPES,
@@ -236,6 +237,13 @@ export function useActiveHoldTargetIds(args: {
   );
 }
 
+export function useOrgMembersForPicker(organizationId: string | undefined) {
+  return useConvexQuery(
+    api.governance.legal_hold_queries.listOrgMembersForPicker,
+    organizationId ? { organizationId } : 'skip',
+  );
+}
+
 export function useUploadPolicy(organizationId: string): UploadPolicyLimits {
   const { data: policy } = useGovernancePolicy(organizationId, 'upload_policy');
 
@@ -269,4 +277,15 @@ export function useUploadPolicy(organizationId: string): UploadPolicyLimits {
       policyEnabled: true,
     };
   }, [policy]);
+}
+
+export function useListTrashedRows(
+  organizationId: string,
+  resourceType: SoftDeleteResourceType,
+  enabled: boolean,
+) {
+  return useConvexQuery(
+    api.governance.queries.listTrashedRows,
+    enabled ? { organizationId, resourceType } : 'skip',
+  );
 }

@@ -36,12 +36,17 @@ export type GuardedTargetType =
 
 /**
  * Throws when the org is under an active hold OR when the targetType is
- * one of the schema-supported per-row hold types and a row matches.
+ * one of the schema-supported per-row hold types and a row matches OR
+ * when `authorUserId` is supplied and that user is on a custodian hold.
  *
  * For `customer`/`vendor`/`conversation`/`folder` the schema has no
  * per-row hold today, so only `orgHeld` blocks. The helper still accepts
  * `targetId` for those types so future per-row holds drop in without
  * call-site changes.
+ *
+ * `authorUserId` lets callers cascade through user-custodian holds
+ * (e.g. deleting a document whose `createdBy` is on hold). Pass the
+ * row's author user-id when known.
  */
 export async function assertNotHeld(
   ctx: QueryCtx | MutationCtx,
@@ -49,6 +54,7 @@ export async function assertNotHeld(
   targetType: GuardedTargetType,
   targetId: string,
   preloaded?: ActiveHolds,
+  authorUserId?: string,
 ): Promise<void> {
   const holds = preloaded ?? (await loadActiveHolds(ctx, organizationId));
   if (holds.orgHeld) {
@@ -77,5 +83,18 @@ export async function assertNotHeld(
         orgHeld: false,
       });
     }
+  }
+  // User-custodian cascade. When the row's author is on a userMembership
+  // hold, every entity authored by that user is preserved — admins must
+  // release the custodian hold before deleting individual rows.
+  if (authorUserId && holds.userMembershipIds.has(authorUserId)) {
+    throw new ConvexError({
+      code: 'LEGAL_HOLD_ACTIVE',
+      message: `This ${targetType} is owned by a user on a custodian legal hold. Release the user-level hold before deleting.`,
+      targetType,
+      targetId,
+      orgHeld: false,
+      userCustodianHeld: true,
+    });
   }
 }

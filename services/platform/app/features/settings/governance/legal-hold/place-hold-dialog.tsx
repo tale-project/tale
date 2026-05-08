@@ -1,13 +1,13 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMemo, useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Input } from '@/app/components/ui/forms/input';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -16,31 +16,29 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { usePlaceLegalHold } from '../hooks/mutations';
-import { useLegalMatters } from '../hooks/queries';
+import { useLegalMatters, useOrgMembersForPicker } from '../hooks/queries';
 import { mapLegalHoldError } from './legal-hold-errors';
 import { UpsertMatterDialog } from './upsert-matter-dialog';
 
-const TARGET_TYPES = [
-  'thread',
-  'document',
-  'execution',
-  'userMembership',
-  'org',
-] as const;
+/**
+ * UI-facing target types: only User (custodian) and Org (tenant-wide).
+ * The mutation API still accepts thread/document/execution for legacy
+ * data + advanced callers, but the operator picker no longer surfaces
+ * them — the cleaner mental model for legal/compliance teams is
+ * "preserve user X's data" or "preserve everything in this org".
+ */
+const PICKER_TARGET_TYPES = ['userMembership', 'org'] as const;
 
-type TargetType = (typeof TARGET_TYPES)[number];
+type PickerTargetType = (typeof PICKER_TARGET_TYPES)[number];
 
 interface PlaceHoldDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
-  /** When set, lock targetType/targetId in the form. Used by the chat /
-   *  document entry points. */
-  prefill?: { targetType: TargetType; targetId: string };
 }
 
 interface FormValues {
-  targetType: TargetType;
+  targetType: PickerTargetType;
   targetId: string;
   reason: string;
   matterRef: string;
@@ -50,17 +48,17 @@ export function PlaceHoldDialog({
   open,
   onOpenChange,
   organizationId,
-  prefill,
 }: PlaceHoldDialogProps) {
   const { t } = useT('governance');
   const { toast } = useToast();
   const { mutateAsync, isPending } = usePlaceLegalHold();
   const matters = useLegalMatters(organizationId, { status: 'open' });
+  const members = useOrgMembersForPicker(organizationId);
   const [createMatterOpen, setCreateMatterOpen] = useState(false);
 
   const targetTypeOptions = useMemo(
     () =>
-      TARGET_TYPES.map((value) => ({
+      PICKER_TARGET_TYPES.map((value) => ({
         value,
         label: t(`legalHold.targetTypes.${value}`),
       })),
@@ -77,10 +75,20 @@ export function PlaceHoldDialog({
     [matters.data],
   );
 
+  const memberOptions = useMemo(
+    () =>
+      (members.data ?? []).map((m) => ({
+        value: m.userId,
+        label: m.displayName,
+        description: m.email !== m.displayName ? m.email : undefined,
+      })),
+    [members.data],
+  );
+
   const schema = useMemo(
     () =>
       z.object({
-        targetType: z.enum(TARGET_TYPES),
+        targetType: z.enum(PICKER_TARGET_TYPES),
         targetId: z.string().trim().min(1, t('legalHold.errors.validation')),
         reason: z
           .string()
@@ -96,15 +104,35 @@ export function PlaceHoldDialog({
     resolver: zodResolver(schema),
     mode: 'onChange',
     defaultValues: {
-      targetType: prefill?.targetType ?? 'thread',
-      targetId: prefill?.targetId ?? '',
+      targetType: 'userMembership',
+      targetId: '',
       reason: '',
       matterRef: '',
     },
   });
-  const { register, handleSubmit, formState, reset, watch, setValue } = form;
+  const { handleSubmit, register, formState, reset, watch, setValue } = form;
   const targetType = watch('targetType');
+  const targetId = watch('targetId');
   const matterRef = watch('matterRef');
+
+  // Auto-fill targetId for org-scope so operators don't have to know
+  // that the literal value must equal the organizationId; clear it back
+  // when they switch back to user.
+  useEffect(() => {
+    if (targetType === 'org') {
+      if (targetId !== organizationId) {
+        setValue('targetId', organizationId, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
+    } else if (targetId === organizationId) {
+      setValue('targetId', '', {
+        shouldDirty: false,
+        shouldValidate: false,
+      });
+    }
+  }, [organizationId, setValue, targetId, targetType]);
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -157,23 +185,45 @@ export function PlaceHoldDialog({
             label={t('legalHold.dialogs.placeHold.targetTypeLabel')}
             value={targetType}
             onValueChange={(value) =>
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select onValueChange yields string; options are constrained to TargetType
-              setValue('targetType', value as TargetType, {
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select options are constrained to PickerTargetType
+              setValue('targetType', value as PickerTargetType, {
                 shouldDirty: true,
                 shouldValidate: true,
               })
             }
             options={targetTypeOptions}
-            disabled={prefill !== undefined}
           />
-          <Input
-            id="hold-target-id"
-            label={t('legalHold.dialogs.placeHold.targetIdLabel')}
-            required
-            disabled={prefill !== undefined}
-            {...register('targetId')}
-            errorMessage={formState.errors.targetId?.message}
-          />
+          {targetType === 'userMembership' ? (
+            <SearchableSelect
+              id="hold-user-target"
+              label={t('legalHold.dialogs.placeHold.userPickerLabel')}
+              placeholder={t(
+                'legalHold.dialogs.placeHold.userPickerPlaceholder',
+              )}
+              required
+              value={targetId || null}
+              onValueChange={(value) =>
+                setValue('targetId', value, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              options={memberOptions}
+              emptyText={t('legalHold.dialogs.placeHold.userPickerEmpty')}
+              error={!!formState.errors.targetId}
+            />
+          ) : (
+            <div
+              role="alert"
+              className="border-destructive/40 bg-destructive/5 text-destructive flex items-start gap-2 rounded-md border px-3 py-2 text-xs"
+            >
+              <AlertTriangle
+                className="mt-0.5 size-4 shrink-0"
+                aria-hidden="true"
+              />
+              <span>{t('legalHold.dialogs.placeHold.orgWarning')}</span>
+            </div>
+          )}
           <Textarea
             id="hold-reason"
             rows={3}

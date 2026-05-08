@@ -83,10 +83,6 @@ export function usePlaceLegalHold() {
   return useConvexMutation(api.governance.legal_hold.placeLegalHold);
 }
 
-export function useBulkPlaceLegalHold() {
-  return useConvexMutation(api.governance.legal_hold.bulkPlaceLegalHold);
-}
-
 export function useRequestLegalHoldRelease() {
   return useConvexMutation(api.governance.legal_hold.requestLegalHoldRelease);
 }
@@ -105,4 +101,18 @@ export function useUpsertLegalMatter() {
 
 export function useCloseLegalMatter() {
   return useConvexMutation(api.governance.legal_hold.closeLegalMatter);
+}
+
+export function useRestoreSoftDeletedRow() {
+  const queryClient = useQueryClient();
+  return useConvexMutation(api.governance.restore.restoreSoftDeletedRow, {
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) &&
+          typeof q.queryKey[0] === 'string' &&
+          q.queryKey[0].includes('listTrashedRows'),
+      });
+    },
+  });
 }

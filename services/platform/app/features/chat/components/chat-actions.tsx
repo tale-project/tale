@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { useNavigate } from '@tanstack/react-router';
-import { Archive, ArchiveRestore, Lock, Pencil, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
@@ -10,9 +10,6 @@ import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Text } from '@/app/components/ui/typography/text';
 import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
-import { PlaceHoldDialog } from '@/app/features/settings/governance/legal-hold/place-hold-dialog';
-import { RequestReleaseDialog } from '@/app/features/settings/governance/legal-hold/request-release-dialog';
-import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -42,16 +39,17 @@ export function ChatActions({
 }: ChatActionsProps) {
   const navigate = useNavigate();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [placeHoldOpen, setPlaceHoldOpen] = useState(false);
-  const [requestReleaseOpen, setRequestReleaseOpen] = useState(false);
   const { toast } = useToast();
 
   const { t: tCommon } = useT('common');
   const { t: tChat } = useT('chat');
   const { t: tGovernance } = useT('governance');
-  const ability = useAbility();
-  const canManageHolds = ability.can('write', 'orgSettings');
 
+  // Read-only consultation so archive/delete can show "blocked by legal
+  // hold". The query is reactive: a hold placed via the panel (which is
+  // the only entry point for placing holds since the User+Org refactor)
+  // automatically disables these buttons. Cascade-includes user-custodian
+  // hits via the thread author.
   const { data: hold } = useLegalHoldByTarget({
     organizationId,
     targetType: 'thread',
@@ -151,41 +149,10 @@ export function ChatActions({
     );
   }, [chat.id, unarchiveThread, toast, tChat]);
 
-  const legalHoldButton = canManageHolds ? (
-    <Tooltip
-      content={
-        isHeld
-          ? tGovernance('legalHold.actions.requestRelease')
-          : tGovernance('legalHold.actions.placeHold')
-      }
-      side="bottom"
-    >
-      <Button
-        variant="ghost"
-        className="p-1"
-        size="icon"
-        onClick={() =>
-          isHeld ? setRequestReleaseOpen(true) : setPlaceHoldOpen(true)
-        }
-        aria-label={
-          isHeld
-            ? tGovernance('legalHold.actions.requestRelease')
-            : tGovernance('legalHold.actions.placeHold')
-        }
-      >
-        <Lock
-          className={isHeld ? 'size-4 text-orange-600' : 'size-4'}
-          aria-hidden
-        />
-      </Button>
-    </Tooltip>
-  ) : null;
-
   if (isArchived) {
     return (
       <>
         <ActionRow gap={1}>
-          {legalHoldButton}
           <Tooltip content={tChat('unarchive')} side="bottom">
             <Button
               variant="ghost"
@@ -219,18 +186,6 @@ export function ChatActions({
             </Button>
           </Tooltip>
         </ActionRow>
-
-        <PlaceHoldDialog
-          open={placeHoldOpen}
-          onOpenChange={setPlaceHoldOpen}
-          organizationId={organizationId}
-          prefill={{ targetType: 'thread', targetId: chat.id }}
-        />
-        <RequestReleaseDialog
-          open={requestReleaseOpen}
-          onOpenChange={setRequestReleaseOpen}
-          holdId={hold?._id}
-        />
 
         <DeleteDialog
           open={isDeleteDialogOpen}
@@ -273,7 +228,6 @@ export function ChatActions({
   return (
     <>
       <ActionRow gap={1}>
-        {legalHoldButton}
         <Tooltip content={tCommon('actions.rename')} side="bottom">
           <Button
             variant="ghost"
@@ -326,18 +280,6 @@ export function ChatActions({
           </Button>
         </Tooltip>
       </ActionRow>
-
-      <PlaceHoldDialog
-        open={placeHoldOpen}
-        onOpenChange={setPlaceHoldOpen}
-        organizationId={organizationId}
-        prefill={{ targetType: 'thread', targetId: chat.id }}
-      />
-      <RequestReleaseDialog
-        open={requestReleaseOpen}
-        onOpenChange={setRequestReleaseOpen}
-        holdId={hold?._id}
-      />
 
       <DeleteDialog
         open={isDeleteDialogOpen}

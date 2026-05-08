@@ -53,6 +53,9 @@
       "rename": "Umbenennen",
       "deleteSelected": "Ausgewählte löschen"
     },
+    "confirmDialog": {
+      "typeToConfirmLabel": "Tippe \"{phrase}\" zum Bestätigen"
+    },
     "bulkActions": {
       "itemsSelected": "{count, plural, one {# Element ausgewählt} other {# Elemente ausgewählt}}",
       "confirmDeleteTitle": "{count, plural, one {# Element} other {# Elemente}} löschen",
@@ -3724,16 +3727,62 @@
       "policiesAndLimits": "Richtlinien & Limits",
       "securityAndMonitoring": "Sicherheit & Überwachung",
       "legalHold": "Legal Hold",
+      "trash": "Papierkorb",
       "guardrails": "Guardrails",
       "usage": "Nutzung",
       "feedback": "Feedback"
+    },
+    "trash": {
+      "title": "Papierkorb",
+      "description": "Stelle durch Aufbewahrung gelöschte Datensätze wieder her, bevor sie am Ende des Kulanzfensters endgültig entfernt werden.",
+      "accessDenied": "Nur für Administratoren.",
+      "empty": "Nichts im Papierkorb für diese Kategorie. Aufbewahrung verschiebt abgelaufene Zeilen hierhin, sobald deren Kulanzfenster beginnt.",
+      "truncated": "Nur erster Stapel angezeigt. Ältere Einträge per Cleanup wiederherstellen oder Support kontaktieren.",
+      "column": {
+        "name": "Name",
+        "status": "Status",
+        "statusChangedAt": "Verworfen",
+        "actions": "Aktionen"
+      },
+      "status": {
+        "trashed": "Verworfen",
+        "expired": "Abgelaufen"
+      },
+      "tab": {
+        "thread": "Chatverlauf",
+        "document": "Dokumente",
+        "fileMetadata": "Temporäre Dateien",
+        "promptTemplate": "Prompt-Vorlagen",
+        "messageFeedback": "Nachrichten-Feedback",
+        "customer": "Kunden",
+        "vendor": "Lieferanten",
+        "externalConversation": "Externe Konversationen",
+        "messageMetadata": "Nachrichten-Metadaten",
+        "workflowExecution": "Workflow-Läufe",
+        "workflowTriggerLog": "Workflow-Trigger-Logs",
+        "usageLedger": "Nutzungsbuch",
+        "auditLog": "Audit-Logs",
+        "chatFilterEvent": "Chat-Filter-Ereignisse",
+        "memoryAudit": "Memory-Audit"
+      },
+      "restore": {
+        "label": "Wiederherstellen",
+        "confirm": "Wiederherstellen",
+        "trashedTitle": "Datensatz wiederherstellen?",
+        "trashedDescription": "Diesen Datensatz wieder aktivieren. Er kehrt in seine Quellliste zurück.",
+        "expiredTitle": "Aufbewahrungs-abgelaufenen Datensatz wiederherstellen?",
+        "expiredDescription": "Dieser Datensatz wurde durch die Aufbewahrungsrichtlinie gelöscht. Eine Wiederherstellung übersteuert diese Richtlinie und aktiviert den Datensatz wieder. Auditiert.",
+        "expiredPhraseLabel": "Tippe \"restore\" zum Bestätigen",
+        "restoredToast": "Wiederhergestellt.",
+        "failedToast": "Wiederherstellung fehlgeschlagen"
+      }
     },
     "legalHold": {
       "targetTypes": {
         "thread": "Thread",
         "document": "Dokument",
         "execution": "Ausführung",
-        "userMembership": "Benutzer-Mitgliedschaft",
+        "userMembership": "Benutzer",
         "org": "Organisation"
       },
       "filters": {
@@ -3751,10 +3800,10 @@
       "sections": {
         "activeHolds": {
           "title": "Aktive Holds",
-          "description": "Aktuell vor Bereinigung und Löschung geschützte Entitäten.",
+          "description": "Aktuell vor Bereinigung und Löschung geschützte Entitäten. Setze Holds auf Benutzer- (Custodian) oder Organisationsebene.",
           "empty": {
             "title": "Keine aktiven Legal Holds",
-            "description": "Setze einen Hold im aktiven Bereich oder über die Aktionsmenüs eines Chats oder Dokuments."
+            "description": "Setze einen Custodian-Hold auf einen bestimmten Benutzer oder einen organisationsweiten Hold über die Aktion oben."
           }
         },
         "releaseRequests": {
@@ -3801,11 +3850,11 @@
         "requestedAt": "Beantragt",
         "approvedBy": "Genehmigt von",
         "effectiveAt": "Wirksam",
-        "rejectReason": "Ablehnungsgrund"
+        "rejectReason": "Ablehnungsgrund",
+        "legacy": "(legacy)"
       },
       "actions": {
         "placeHold": "Legal Hold setzen",
-        "bulkPlace": "Massen-Hold",
         "requestRelease": "Freigabe beantragen",
         "approve": "Genehmigen",
         "reject": "Ablehnen",
@@ -3823,31 +3872,18 @@
       "dialogs": {
         "placeHold": {
           "title": "Legal Hold setzen",
-          "description": "Die geschützte Entität ist bis zur Freigabe vor Bereinigung und Löschung geschützt. Eine Begründung ist Pflicht und wird im Audit-Log erfasst.",
+          "description": "Inhalte für Rechtsstreitigkeiten, Audits oder eDiscovery aufbewahren. Setze einen Custodian-Hold auf einen bestimmten Benutzer oder einen organisationsweiten Hold. Eine Begründung ist Pflicht und wird im Audit-Log erfasst.",
           "targetTypeLabel": "Zieltyp",
-          "targetIdLabel": "Ziel-ID",
+          "userPickerLabel": "Benutzer",
+          "userPickerPlaceholder": "Nach Name oder E-Mail suchen",
+          "userPickerEmpty": "Keine passenden Benutzer.",
+          "orgWarning": "Organisationsweite Holds frieren ALLE Aufbewahrung für jede Entität in diesem Tenant ein. Erfordert die Env-Variable TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true, andernfalls wird die Platzierung abgelehnt.",
           "reasonLabel": "Begründung",
           "reasonPlaceholder": "z. B. Beweissicherungs-Hold für Acme ./. Co. (Az. 2026-04)",
           "matterLabel": "Fall (optional)",
           "matterPlaceholder": "Fall auswählen oder anlegen",
           "matterCreateNew": "Neuen Fall anlegen…",
           "submit": "Hold setzen"
-        },
-        "bulkPlace": {
-          "title": "Legal Holds in Massen setzen",
-          "description": "Ein Eintrag pro Zeile als targetType:targetId (z. B. thread:thr_abc). Bis zu 200 Einträge pro Batch.",
-          "entriesLabel": "Einträge",
-          "entriesPlaceholder": "thread:thr_abc\ndocument:doc_xyz",
-          "reasonLabel": "Begründung (auf alle angewendet)",
-          "matterLabel": "Fall (optional, auf alle angewendet)",
-          "previewValid": "Gültig",
-          "previewInvalid": "Ungültig",
-          "submit": "{count} Holds setzen",
-          "summaryPlaced": "{count} Holds gesetzt.",
-          "summarySkipped": "{count} übersprungen",
-          "showSkipped": "Übersprungene anzeigen",
-          "tooManyEntries": "Maximal 200 Einträge pro Batch.",
-          "invalidLine": "Erwartetes Format targetType:targetId."
         },
         "requestRelease": {
           "title": "Freigabe beantragen",
@@ -3889,8 +3925,6 @@
       "toasts": {
         "placedTitle": "Legal Hold gesetzt",
         "placedDescription": "Der {targetType} ist jetzt vor Bereinigung und Löschung geschützt.",
-        "bulkPlacedTitle": "Massen-Holds gesetzt",
-        "bulkPlacedDescription": "{placed} gesetzt, {skipped} übersprungen.",
         "releaseRequestedTitle": "Freigabeantrag eingereicht",
         "releaseRequestedDescription": "Wartet auf Genehmigung durch einen anderen Admin.",
         "releaseApprovedTitle": "Freigabe genehmigt",

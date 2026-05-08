@@ -83,11 +83,15 @@ export const deleteDocument = mutation({
 
     // Synchronous hold check so the user sees an immediate error instead
     // of a silent success while the async cleanup throws (round-2 v08 B4).
+    // Pass `createdBy` so the helper also respects custodian holds on
+    // the document author.
     await assertNotHeld(
       ctx,
       document.organizationId,
       'document',
       String(args.documentId),
+      undefined,
+      document.createdBy ?? undefined,
     );
 
     await ctx.scheduler.runAfter(

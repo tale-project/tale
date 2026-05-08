@@ -15,18 +15,21 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useLegalHolds } from '../hooks/queries';
-import { BulkPlaceDialog } from './bulk-place-dialog';
 import { PlaceHoldDialog } from './place-hold-dialog';
 import { RequestReleaseDialog } from './request-release-dialog';
 
-const TARGET_TYPES = [
+/** Picker filter options. The mutation API still accepts thread /
+ *  document / execution as targetType (for legacy data), but the
+ *  operator UI only filters by the supported user-facing scopes plus a
+ *  catch-all 'all'. */
+const FILTER_TARGET_TYPES = ['userMembership', 'org'] as const;
+type FilterTargetType = (typeof FILTER_TARGET_TYPES)[number];
+
+const LEGACY_TARGET_TYPES = new Set<string>([
   'thread',
   'document',
   'execution',
-  'userMembership',
-  'org',
-] as const;
-type TargetType = (typeof TARGET_TYPES)[number];
+]);
 
 type LegalHoldRow = NonNullable<
   ReturnType<typeof useLegalHolds>['data']
@@ -40,11 +43,10 @@ export function ActiveHoldsSection({
   organizationId,
 }: ActiveHoldsSectionProps) {
   const { t } = useT('governance');
-  const [targetTypeFilter, setTargetTypeFilter] = useState<TargetType | 'all'>(
-    'all',
-  );
+  const [targetTypeFilter, setTargetTypeFilter] = useState<
+    FilterTargetType | 'all'
+  >('all');
   const [placeOpen, setPlaceOpen] = useState(false);
-  const [bulkOpen, setBulkOpen] = useState(false);
   const [releaseHoldId, setReleaseHoldId] = useState<
     Id<'legalHolds'> | undefined
   >(undefined);
@@ -57,7 +59,7 @@ export function ActiveHoldsSection({
   const targetTypeOptions = useMemo(
     () => [
       { value: 'all', label: t('legalHold.filters.allTargets') },
-      ...TARGET_TYPES.map((value) => ({
+      ...FILTER_TARGET_TYPES.map((value) => ({
         value,
         label: t(`legalHold.targetTypes.${value}`),
       })),
@@ -70,12 +72,16 @@ export function ActiveHoldsSection({
       {
         accessorKey: 'targetType',
         header: t('legalHold.columns.type'),
-        cell: ({ row }) => (
-          <Badge variant="outline">
-            {t(`legalHold.targetTypes.${row.original.targetType}`)}
-          </Badge>
-        ),
-        size: 130,
+        cell: ({ row }) => {
+          const isLegacy = LEGACY_TARGET_TYPES.has(row.original.targetType);
+          return (
+            <Badge variant={isLegacy ? 'outline' : 'blue'}>
+              {t(`legalHold.targetTypes.${row.original.targetType}`)}
+              {isLegacy ? ` ${t('legalHold.columns.legacy')}` : ''}
+            </Badge>
+          );
+        },
+        size: 150,
       },
       {
         accessorKey: 'targetId',
@@ -164,25 +170,15 @@ export function ActiveHoldsSection({
         title={t('legalHold.sections.activeHolds.title')}
         description={t('legalHold.sections.activeHolds.description')}
         action={
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => setBulkOpen(true)}
-            >
-              {t('legalHold.actions.bulkPlace')}
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={() => setPlaceOpen(true)}
-            >
-              <Lock className="mr-1.5 size-4" aria-hidden />
-              {t('legalHold.actions.placeHold')}
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={() => setPlaceOpen(true)}
+          >
+            <Lock className="mr-1.5 size-4" aria-hidden />
+            {t('legalHold.actions.placeHold')}
+          </Button>
         }
       >
         <div className="flex items-center gap-2">
@@ -190,8 +186,10 @@ export function ActiveHoldsSection({
             id="active-holds-targettype-filter"
             size="sm"
             value={targetTypeFilter}
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select onValueChange yields string; options are constrained to TargetType | 'all'
-            onValueChange={(v) => setTargetTypeFilter(v as TargetType | 'all')}
+            onValueChange={(v) =>
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select onValueChange yields string; options are constrained to FilterTargetType | 'all'
+              setTargetTypeFilter(v as FilterTargetType | 'all')
+            }
             options={targetTypeOptions}
             aria-label={t('legalHold.filters.allTargets')}
           />
@@ -213,11 +211,6 @@ export function ActiveHoldsSection({
       <PlaceHoldDialog
         open={placeOpen}
         onOpenChange={setPlaceOpen}
-        organizationId={organizationId}
-      />
-      <BulkPlaceDialog
-        open={bulkOpen}
-        onOpenChange={setBulkOpen}
         organizationId={organizationId}
       />
       <RequestReleaseDialog
