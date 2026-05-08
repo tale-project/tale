@@ -3,7 +3,6 @@
 import { useParams, useNavigate } from '@tanstack/react-router';
 import {
   CircleDotIcon,
-  Lock,
   Share2Icon,
   ChevronDown,
   MessageSquareDashedIcon,
@@ -33,6 +32,7 @@ import {
   useThreads,
 } from '../hooks/queries';
 import { ChatActions } from './chat-actions';
+import { LegalHoldIndicator } from './legal-hold-indicator';
 
 const emptySubscribe = () => () => {};
 
@@ -375,12 +375,10 @@ export function ChatHistorySidebar({
                               />
                             )}
                             {heldThreadIds.has(chat._id) && (
-                              <Lock
-                                className="size-3.5 shrink-0 text-orange-600"
-                                aria-label={t(
-                                  'history.legalHold',
-                                  'On legal hold',
-                                )}
+                              <LegalHoldIndicator
+                                organizationId={organizationId}
+                                targetType="thread"
+                                targetId={chat._id}
                               />
                             )}
                             <span
@@ -486,9 +484,10 @@ export function ChatHistorySidebar({
                   />
                   <span className="text-muted-foreground pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center gap-1.5 truncate text-left text-sm leading-snug">
                     {heldThreadIds.has(chat._id) && (
-                      <Lock
-                        className="size-3.5 shrink-0 text-orange-600"
-                        aria-label={t('history.legalHold', 'On legal hold')}
+                      <LegalHoldIndicator
+                        organizationId={organizationId}
+                        targetType="thread"
+                        targetId={chat._id}
                       />
                     )}
                     <span className="truncate">{chat.title}</span>

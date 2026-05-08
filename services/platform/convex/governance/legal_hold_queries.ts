@@ -100,6 +100,10 @@ const holdItemValidator = v.object({
   organizationId: v.string(),
   targetType: targetTypeValidator,
   targetId: v.string(),
+  /** Write-time snapshot of the target's human-readable label
+   *  (email / title / slug). Falls back to `targetId` when the held
+   *  entity has no natural label field. */
+  targetLabel: v.string(),
   reason: v.string(),
   matterRef: v.optional(v.string()),
   matterName: v.optional(v.string()),
@@ -167,6 +171,7 @@ export const listLegalHolds = query({
       organizationId: row.organizationId,
       targetType: row.targetType,
       targetId: row.targetId,
+      targetLabel: row.targetLabel,
       reason: row.reason,
       matterRef: row.matterRef,
       matterName: row.matterRef ? matterNames.get(row.matterRef) : undefined,

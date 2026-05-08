@@ -2132,6 +2132,14 @@
       "loadingMore": "Chargement...",
       "generating": "Génération de la réponse",
       "awaitingInput": "En attente de ta réponse",
+      "legalHold": {
+        "heading": "Sous conservation légale",
+        "body": "Conservé pour conformité — ne peut pas être supprimé, archivé ou renommé.",
+        "reasonLabel": "Motif",
+        "matterLabel": "Affaire",
+        "placedByLabel": "Placé par",
+        "placedAtLabel": "Placé le"
+      },
       "toast": {
         "renameFailed": "Échec du renommage du chat"
       }
@@ -3123,6 +3131,7 @@
       "envDisabled": "La rétention est actuellement désactivée par l'opérateur (TALE_RETENTION_DISABLED=true). Le nettoyage ne s'exécutera pas tant que la variable d'environnement n'est pas retirée.",
       "envBoundHint": "Liaison env : {min}{minApplied} / {max}{maxApplied}",
       "boundHelper": "L'opérateur limite cette valeur à {min}-{max} {unit}.",
+      "allowedRange": "Autorisé : {min}–{max} {unit}.",
       "errors": {
         "belowFloor": "En dessous du plancher de l'opérateur (min {bound} {unit}).",
         "exceedsCeiling": "Au-dessus du plafond de l'opérateur (max {bound} {unit})."

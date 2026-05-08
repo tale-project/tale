@@ -18,6 +18,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import { getString, isRecord } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation, mutation } from '../_generated/server';
@@ -171,24 +172,33 @@ export function isHeld(
 export { EMPTY_HOLDS as _EMPTY_HOLDS_FOR_TESTS };
 
 /**
- * Resolve `targetId` against its underlying table and assert the row's
- * `organizationId` matches the placer's org. Without this, an admin in
- * org A can plant a `legalHolds` row pointing at an org B thread / doc;
- * the row is inert (cleanup runs per-org so the hold never matches),
- * but it shows as "active" in the UI and confuses forensics
- * (round-2 v20 / M9).
+ * Resolve `targetId` against its underlying table to (a) assert the
+ * row's `organizationId` matches the placer's org and (b) return a
+ * human-readable label for the snapshot stored on the hold row.
  *
- * `userMembership` and `org` aren't validated here — `org` is enforced
- * by `targetId === organizationId` upstream, and `userMembership`
- * lookups go through Better Auth's adapter which the mutation doesn't
- * already plumb. Best-effort follow-up.
+ * Both responsibilities share the same DB read so the write path stays
+ * single-pass — admin UIs avoid an N+1 join across heterogeneous entity
+ * tables on every list query.
+ *
+ * Cross-org gate rationale: without (a), an admin in org A can plant a
+ * `legalHolds` row pointing at an org B thread / doc. The row is inert
+ * against cleanup (which runs per-org) but shows as "active" in the
+ * placer's UI and confuses forensics (round-2 v20 / M9).
+ *
+ * Label rules per type — falls back to `targetId` when the natural
+ * label field is empty:
+ *   - org            → organizations.name (Better Auth)
+ *   - thread         → threadMetadata.title
+ *   - document       → documents.title
+ *   - execution      → wfExecutions.workflowSlug
+ *   - userMembership → users.email (Better Auth)
  */
-async function assertTargetBelongsToOrg(
+async function resolveAndAssertTarget(
   ctx: MutationCtx,
   targetType: (typeof HOLD_TARGET_TYPES)[number],
   targetId: string,
   organizationId: string,
-): Promise<void> {
+): Promise<{ label: string }> {
   if (targetType === 'org') {
     if (targetId !== organizationId) {
       throw new ConvexError({
@@ -196,7 +206,12 @@ async function assertTargetBelongsToOrg(
         message: `org-scoped hold targetId must equal organizationId.`,
       });
     }
-    return;
+    const orgRes = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+      model: 'organization',
+      where: [{ field: '_id', value: organizationId, operator: 'eq' }],
+    });
+    const orgName = isRecord(orgRes) ? getString(orgRes, 'name') : undefined;
+    return { label: orgName?.trim() || targetId };
   }
   if (targetType === 'thread') {
     const meta = await ctx.db
@@ -211,7 +226,7 @@ async function assertTargetBelongsToOrg(
         targetId,
       });
     }
-    return;
+    return { label: meta.title?.trim() || targetId };
   }
   if (targetType === 'document') {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- targetId is a stringified _id; ctx.db.get returns null on mismatch
@@ -224,7 +239,7 @@ async function assertTargetBelongsToOrg(
         targetId,
       });
     }
-    return;
+    return { label: doc.title?.trim() || targetId };
   }
   if (targetType === 'execution') {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- targetId is a stringified _id; ctx.db.get returns null on mismatch
@@ -237,7 +252,7 @@ async function assertTargetBelongsToOrg(
         targetId,
       });
     }
-    return;
+    return { label: exec.workflowSlug?.trim() || targetId };
   }
   if (targetType === 'userMembership') {
     // Validate via the Better Auth `member` table — the userId must have
@@ -261,8 +276,20 @@ async function assertTargetBelongsToOrg(
         targetId,
       });
     }
-    return;
+    // Resolve the user's email for the label snapshot. A best-effort
+    // lookup — if the user row is missing or has no email (shouldn't
+    // happen for an active membership, but Better Auth's adapter
+    // doesn't enforce relational integrity at the schema layer), the
+    // label degrades to the raw userId rather than throwing.
+    const userRes = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+      model: 'user',
+      where: [{ field: '_id', value: targetId, operator: 'eq' }],
+    });
+    const email = isRecord(userRes) ? getString(userRes, 'email') : undefined;
+    return { label: email?.trim() || targetId };
   }
+  // Exhaustive — TS narrows to never; runtime fallback for forward-compat.
+  return { label: targetId };
 }
 
 export const placeLegalHold = mutation({
@@ -356,12 +383,11 @@ export const placeLegalHold = mutation({
       );
     }
 
-    // Cross-org gate: resolve `targetId` and verify it belongs to the
-    // placing org. Without this, an admin can plant a `legalHolds` row
-    // against an org B thread / doc — the row is inert against cleanup
-    // (which runs per-org) but shows as "active" in the placer's UI
-    // (round-2 v20 / M9).
-    await assertTargetBelongsToOrg(
+    // Cross-org gate + label snapshot: resolve `targetId` to verify it
+    // belongs to the placing org and capture a human-readable label
+    // (email / title / slug) frozen at write time. See the helper for
+    // the cross-org rationale and per-type label rules.
+    const { label: targetLabel } = await resolveAndAssertTarget(
       ctx,
       args.targetType,
       args.targetId,
@@ -373,6 +399,7 @@ export const placeLegalHold = mutation({
       organizationId: args.organizationId,
       targetType: args.targetType,
       targetId: args.targetId,
+      targetLabel,
       reason: args.reason.trim(),
       matterRef: args.matterRef,
       placedBy: callerId,
@@ -867,13 +894,14 @@ export const bulkPlaceLegalHold = mutation({
           continue;
         }
       }
+      let targetLabel: string;
       try {
-        await assertTargetBelongsToOrg(
+        ({ label: targetLabel } = await resolveAndAssertTarget(
           ctx,
           h.targetType,
           h.targetId,
           args.organizationId,
-        );
+        ));
       } catch (err) {
         skipped.push({
           targetType: h.targetType,
@@ -889,6 +917,7 @@ export const bulkPlaceLegalHold = mutation({
         organizationId: args.organizationId,
         targetType: h.targetType,
         targetId: h.targetId,
+        targetLabel,
         reason: h.reason.trim(),
         matterRef: h.matterRef,
         placedBy: callerId,

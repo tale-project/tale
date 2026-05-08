@@ -239,6 +239,24 @@ export const legalHoldsTable = defineTable({
   ),
   /** _id (or threadId for `'thread'`) of the held entity. */
   targetId: v.string(),
+  /**
+   * Human-readable snapshot of the target captured at placement time, so
+   * the admin UI can render `larry.luo@tale.dev` rather than a raw
+   * `k9774da8…` id without an N+1 join across heterogeneous entity
+   * tables. Snapshot semantics are deliberate: a legal hold is itself
+   * an audit record, and the held entity's identity at the moment of
+   * placement is what we want to preserve for forensics — even if the
+   * email/title later changes. Resolution rules per `targetType`:
+   *   - `userMembership` → user.email
+   *   - `org`            → organization.name
+   *   - `thread`         → threadMetadata.title
+   *   - `document`       → documents.title
+   *   - `execution`      → wfExecutions.workflowSlug
+   * Falls back to `targetId` when the entity is missing the natural
+   * label field (e.g. an untitled thread). Required field; populated by
+   * `placeLegalHold` / `bulkPlaceLegalHold` write-paths.
+   */
+  targetLabel: v.string(),
   /** Required free-text from the placing admin. */
   reason: v.string(),
   /** Optional matter / case grouping. Stored as `String(matter._id)`

@@ -93,14 +93,23 @@ function CategoryRow({
   const titleText = t(`retentionPolicy.${i18nKey}.title`, id);
   const descriptionText = t(`retentionPolicy.${i18nKey}.description`, '');
 
-  const helper =
-    bound && bound.source === 'env'
+  const categoryHelper = t(`retentionPolicy.${i18nKey}.helper`, '');
+  const rangeHelper = bound
+    ? bound.source === 'env'
       ? t(
           'retentionPolicy.boundHelper',
           'Operator caps this at {min}-{max} {unit}.',
           { min: bound.min, max: bound.max, unit },
         )
-      : t(`retentionPolicy.${i18nKey}.helper`, '');
+      : t('retentionPolicy.allowedRange', 'Allowed: {min}–{max} {unit}.', {
+          min: bound.min,
+          max: bound.max,
+          unit,
+        })
+    : '';
+  const helper = [categoryHelper, rangeHelper]
+    .filter((s) => s && s.trim() !== '')
+    .join(' ');
 
   return (
     <div className="border-border/50 flex flex-col gap-3 border-b border-dashed pb-4 last:border-b-0 last:pb-0">

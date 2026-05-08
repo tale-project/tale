@@ -2132,6 +2132,14 @@
       "loadingMore": "Loading...",
       "generating": "Generating response",
       "awaitingInput": "Awaiting your input",
+      "legalHold": {
+        "heading": "On legal hold",
+        "body": "Preserved for compliance — cannot be deleted, archived, or renamed.",
+        "reasonLabel": "Reason",
+        "matterLabel": "Matter",
+        "placedByLabel": "Placed by",
+        "placedAtLabel": "Placed"
+      },
       "toast": {
         "renameFailed": "Failed to rename chat"
       }
@@ -3198,6 +3206,7 @@
       "envDisabled": "Retention is currently disabled by the operator (TALE_RETENTION_DISABLED=true). Cleanup will not run until the env flag is removed.",
       "envBoundHint": "env-bound: {min}{minApplied} / {max}{maxApplied}",
       "boundHelper": "Operator caps this at {min}-{max} {unit}.",
+      "allowedRange": "Allowed: {min}–{max} {unit}.",
       "errors": {
         "belowFloor": "Below operator floor (min {bound} {unit}).",
         "exceedsCeiling": "Exceeds operator ceiling (max {bound} {unit})."

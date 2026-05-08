@@ -84,20 +84,25 @@ export function ActiveHoldsSection({
         size: 150,
       },
       {
-        accessorKey: 'targetId',
+        accessorKey: 'targetLabel',
         header: t('legalHold.columns.target'),
         cell: ({ row }) => (
-          <Text
-            as="span"
-            variant="muted"
-            truncate
-            className="font-mono text-xs"
-            title={row.original.targetId}
-          >
-            {row.original.targetId}
-          </Text>
+          <div className="flex min-w-0 flex-col">
+            <Text as="span" truncate title={row.original.targetLabel}>
+              {row.original.targetLabel}
+            </Text>
+            <Text
+              as="span"
+              variant="muted"
+              truncate
+              className="font-mono text-xs"
+              title={row.original.targetId}
+            >
+              {row.original.targetId}
+            </Text>
+          </div>
         ),
-        size: 220,
+        size: 240,
       },
       {
         accessorKey: 'reason',

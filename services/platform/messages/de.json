@@ -2132,6 +2132,14 @@
       "loadingMore": "Wird geladen...",
       "generating": "Antwort wird generiert",
       "awaitingInput": "Wartet auf deine Eingabe",
+      "legalHold": {
+        "heading": "Auf Legal Hold",
+        "body": "Aus Compliance-Gründen aufbewahrt — kann nicht gelöscht, archiviert oder umbenannt werden.",
+        "reasonLabel": "Grund",
+        "matterLabel": "Sachverhalt",
+        "placedByLabel": "Gesetzt von",
+        "placedAtLabel": "Gesetzt am"
+      },
       "toast": {
         "renameFailed": "Chat konnte nicht umbenannt werden"
       }
@@ -3198,6 +3206,7 @@
       "envDisabled": "Aufbewahrung ist derzeit vom Operator deaktiviert (TALE_RETENTION_DISABLED=true). Bereinigung läuft erst, wenn das Env-Flag entfernt wurde.",
       "envBoundHint": "Env-Bindung: {min}{minApplied} / {max}{maxApplied}",
       "boundHelper": "Operator beschränkt dies auf {min}-{max} {unit}.",
+      "allowedRange": "Erlaubt: {min}–{max} {unit}.",
       "errors": {
         "belowFloor": "Unter Operator-Untergrenze (min {bound} {unit}).",
         "exceedsCeiling": "Über Operator-Obergrenze (max {bound} {unit})."

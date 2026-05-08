@@ -67,6 +67,10 @@ interface MockHold {
   organizationId: string;
   targetType: 'thread' | 'document' | 'execution' | 'userMembership' | 'org';
   targetId: string;
+  /** Snapshot label, mirroring the schema. Defaults to `targetId` in
+   *  fixtures that don't care; the propagation test asserts the
+   *  distinct value flows through to the API surface. */
+  targetLabel?: string;
   reason: string;
   matterRef?: string;
   placedBy: string;
@@ -258,6 +262,38 @@ describe('legal_hold_queries.listLegalHolds', () => {
     });
     expect(result).toHaveLength(1);
     expect(result[0]._id).toBe('h2');
+  });
+
+  it('propagates the write-time targetLabel snapshot to the API surface', async () => {
+    // Snapshot semantics — the row's stored label flows through unchanged,
+    // even when the underlying entity (a user, document, thread...) would
+    // resolve to something different now. Without this, admins would see
+    // raw IDs in the Active Holds table.
+    mockGetAuthUser.mockResolvedValue(ADMIN_USER);
+    mockGetOrganizationMember.mockResolvedValue({ role: 'admin' });
+    const { listLegalHolds } = (await importQueries()) as unknown as {
+      listLegalHolds: { handler: Function };
+    };
+    const ctx = createMockCtx({
+      holds: [
+        {
+          _id: 'h1',
+          organizationId: 'org_1',
+          targetType: 'userMembership',
+          targetId: 'user_kfoo',
+          targetLabel: 'larry.luo@tale.dev',
+          reason: 'r1',
+          placedBy: 'u1',
+          placedAt: 1,
+        },
+      ],
+    });
+    const result = await listLegalHolds.handler(ctx, {
+      organizationId: 'org_1',
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].targetLabel).toBe('larry.luo@tale.dev');
+    expect(result[0].targetId).toBe('user_kfoo');
   });
 });
 
