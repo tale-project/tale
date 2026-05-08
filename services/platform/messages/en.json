@@ -3736,9 +3736,11 @@
       "title": "Trash",
       "description": "Recover retention-trashed records before they are permanently deleted at the end of the grace window.",
       "accessDenied": "Admin only.",
-      "empty": "Nothing in the trash for this category. Retention will move expired rows here once their grace window starts.",
-      "truncated": "Showing first batch only. Restore older items via cleanup or contact support.",
+      "empty": "Nothing in the trash. Retention will move expired rows here once their grace window starts.",
+      "filterTitle": "Category",
+      "loadMore": "Load more",
       "column": {
+        "type": "Type",
         "name": "Name",
         "status": "Status",
         "statusChangedAt": "Trashed",

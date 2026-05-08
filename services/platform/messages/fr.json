@@ -3648,9 +3648,11 @@
       "title": "Corbeille",
       "description": "Récupérez les enregistrements supprimés par la rétention avant leur suppression définitive à la fin de la fenêtre de grâce.",
       "accessDenied": "Réservé aux administrateurs.",
-      "empty": "Rien dans la corbeille pour cette catégorie. La rétention y déplacera les lignes expirées une fois leur fenêtre de grâce ouverte.",
-      "truncated": "Premier lot affiché uniquement. Restaurez les éléments plus anciens via le nettoyage ou contactez le support.",
+      "empty": "Rien dans la corbeille. La rétention y déplacera les lignes expirées une fois leur fenêtre de grâce ouverte.",
+      "filterTitle": "Catégorie",
+      "loadMore": "Charger plus",
       "column": {
+        "type": "Type",
         "name": "Nom",
         "status": "Statut",
         "statusChangedAt": "Mis à la corbeille",

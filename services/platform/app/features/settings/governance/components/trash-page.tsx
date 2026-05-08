@@ -3,9 +3,13 @@
 import { Button } from '@tale/ui/button';
 import { Skeleton } from '@tale/ui/skeleton';
 import { Undo2 } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import {
+  DataTableFilters,
+  type FilterConfig,
+} from '@/app/components/ui/data-table/data-table-filters';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Text } from '@/app/components/ui/typography/text';
@@ -23,7 +27,7 @@ interface Props {
   organizationId: string;
 }
 
-const VISIBLE_RESOURCE_TYPES: SoftDeleteResourceType[] =
+const VISIBLE_RESOURCE_TYPES: readonly SoftDeleteResourceType[] =
   SOFT_DELETE_RESOURCE_TYPES.filter(
     (t) => t !== 'messageMetadata' && t !== 'workflowTriggerLog',
   );
@@ -35,19 +39,108 @@ interface RestoreTarget {
   status: 'trashed' | 'expired';
 }
 
+interface TrashRow {
+  resourceType: SoftDeleteResourceType;
+  id: string;
+  status: 'trashed' | 'expired';
+  statusChangedAt: number | null;
+  createdAt: number;
+  displayName: string | null;
+}
+
+interface TrashCursor {
+  ts: number;
+  id: string;
+}
+
 export function TrashPage({ organizationId }: Props) {
   const { t } = useT('governance');
   const { t: tCommon } = useT('common');
   const ability = useAbility();
   const { toast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<SoftDeleteResourceType>('thread');
+  // Selected resource types (multi-select). Empty array = "all visible
+  // categories", which is the default and most useful entry point —
+  // admin opens the page to see what's actually in the trash.
+  const [selectedTypes, setSelectedTypes] = useState<SoftDeleteResourceType[]>(
+    [],
+  );
+
+  // Cursor-based pagination: `cursor` is what we're currently fetching
+  // with (null = first page); `loadedPages` accumulates earlier pages
+  // once the user clicks Load more.
+  const [cursor, setCursor] = useState<TrashCursor | null>(null);
+  const [loadedPages, setLoadedPages] = useState<TrashRow[][]>([]);
+
   const [restoreTarget, setRestoreTarget] = useState<RestoreTarget | null>(
     null,
   );
 
-  const trash = useListTrashedRows(organizationId, activeTab, true);
+  const queryArgs = useMemo(
+    () => ({
+      resourceTypes: selectedTypes.length > 0 ? selectedTypes : undefined,
+      cursor,
+    }),
+    [selectedTypes, cursor],
+  );
+  const trash = useListTrashedRows(organizationId, queryArgs, true);
   const restoreMutation = useRestoreSoftDeletedRow();
+
+  const resetPagination = useCallback(() => {
+    setCursor(null);
+    setLoadedPages([]);
+  }, []);
+
+  const handleFilterChange = useCallback(
+    (values: string[]) => {
+      const next: SoftDeleteResourceType[] = [];
+      for (const value of values) {
+        for (const rt of VISIBLE_RESOURCE_TYPES) {
+          if (rt === value) {
+            next.push(rt);
+            break;
+          }
+        }
+      }
+      setSelectedTypes(next);
+      resetPagination();
+    },
+    [resetPagination],
+  );
+
+  const handleClearFilters = useCallback(() => {
+    setSelectedTypes([]);
+    resetPagination();
+  }, [resetPagination]);
+
+  const handleLoadMore = useCallback(() => {
+    if (!trash.data?.nextCursor) return;
+    setLoadedPages((prev) => [...prev, trash.data.rows]);
+    setCursor(trash.data.nextCursor);
+  }, [trash.data]);
+
+  const filterConfigs: FilterConfig[] = useMemo(
+    () => [
+      {
+        key: 'resourceType',
+        title: t('trash.filterTitle', 'Category'),
+        multiSelect: true,
+        columns: 2,
+        options: VISIBLE_RESOURCE_TYPES.map((rt) => ({
+          value: rt,
+          label: t(`trash.tab.${rt}`, rt),
+        })),
+        selectedValues: selectedTypes,
+        onChange: handleFilterChange,
+      },
+    ],
+    [t, selectedTypes, handleFilterChange],
+  );
+
+  const visibleRows: TrashRow[] = useMemo(
+    () => [...loadedPages.flat(), ...(trash.data?.rows ?? [])],
+    [loadedPages, trash.data],
+  );
 
   if (ability.cannot('write', 'orgSettings')) {
     return <AccessDenied message={t('trash.accessDenied', 'Admin only.')} />;
@@ -66,6 +159,10 @@ export function TrashPage({ organizationId }: Props) {
         variant: 'success',
       });
       setRestoreTarget(null);
+      // Restored row mutates the trash pool — drop accumulated pages
+      // and let the live first-page query repaint. Simpler than
+      // surgically removing the row from `loadedPages`.
+      resetPagination();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Restore failed';
       toast({
@@ -76,6 +173,10 @@ export function TrashPage({ organizationId }: Props) {
     }
   };
 
+  const isFirstPageLoading =
+    trash.isLoading && cursor === null && loadedPages.length === 0;
+  const hasMore = Boolean(trash.data?.nextCursor);
+
   return (
     <PageSection
       title={t('trash.title', 'Trash')}
@@ -84,35 +185,23 @@ export function TrashPage({ organizationId }: Props) {
         'Recover retention-trashed records before they are permanently deleted at the end of the grace window.',
       )}
     >
-      <div className="border-border flex flex-wrap gap-1 border-b">
-        {VISIBLE_RESOURCE_TYPES.map((rt) => (
-          <button
-            key={rt}
-            type="button"
-            onClick={() => setActiveTab(rt)}
-            className={
-              rt === activeTab
-                ? 'border-foreground text-foreground -mb-px border-b-2 px-3 py-2 text-sm font-medium'
-                : 'text-muted-foreground hover:text-foreground -mb-px border-b-2 border-transparent px-3 py-2 text-sm'
-            }
-          >
-            {t(`trash.tab.${rt}`, rt)}
-          </button>
-        ))}
-      </div>
+      <DataTableFilters
+        filters={filterConfigs}
+        onClearAll={selectedTypes.length > 0 ? handleClearFilters : undefined}
+      />
 
-      {trash.isLoading ? (
+      {isFirstPageLoading ? (
         <div className="flex flex-col gap-2">
           <Skeleton className="h-8 w-full" />
           <Skeleton className="h-8 w-full" />
           <Skeleton className="h-8 w-full" />
         </div>
-      ) : !trash.data || trash.data.rows.length === 0 ? (
+      ) : visibleRows.length === 0 ? (
         <div className="border-border rounded-md border p-8 text-center">
           <Text className="text-muted-foreground text-sm">
             {t(
               'trash.empty',
-              'Nothing in the trash for this category. Retention will move expired rows here once their grace window starts.',
+              'Nothing in the trash. Retention will move expired rows here once their grace window starts.',
             )}
           </Text>
         </div>
@@ -121,6 +210,9 @@ export function TrashPage({ organizationId }: Props) {
           <table className="w-full text-sm">
             <thead className="bg-muted/40 border-border border-b">
               <tr>
+                <th className="px-3 py-2 text-left font-medium">
+                  {t('trash.column.type', 'Type')}
+                </th>
                 <th className="px-3 py-2 text-left font-medium">
                   {t('trash.column.name', 'Name')}
                 </th>
@@ -136,8 +228,14 @@ export function TrashPage({ organizationId }: Props) {
               </tr>
             </thead>
             <tbody className="divide-border divide-y">
-              {trash.data.rows.map((row) => (
-                <tr key={row.id} className="hover:bg-muted/20">
+              {visibleRows.map((row) => (
+                <tr
+                  key={`${row.resourceType}:${row.id}`}
+                  className="hover:bg-muted/20"
+                >
+                  <td className="text-muted-foreground px-3 py-2 text-xs">
+                    {t(`trash.tab.${row.resourceType}`, row.resourceType)}
+                  </td>
                   <td className="px-3 py-2 font-mono text-xs">
                     {row.displayName ?? row.id}
                   </td>
@@ -162,7 +260,7 @@ export function TrashPage({ organizationId }: Props) {
                       icon={Undo2}
                       onClick={() =>
                         setRestoreTarget({
-                          resourceType: activeTab,
+                          resourceType: row.resourceType,
                           rowId: row.id,
                           displayName: row.displayName ?? row.id,
                           status: row.status,
@@ -176,12 +274,18 @@ export function TrashPage({ organizationId }: Props) {
               ))}
             </tbody>
           </table>
-          {trash.data.truncated && (
-            <div className="text-muted-foreground border-border border-t px-3 py-2 text-xs">
-              {t(
-                'trash.truncated',
-                'Showing first batch only. Restore older items via cleanup or contact support.',
-              )}
+          {hasMore && (
+            <div className="border-border flex justify-center border-t p-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={trash.isLoading}
+                onClick={handleLoadMore}
+              >
+                {trash.isLoading
+                  ? tCommon('actions.loading')
+                  : t('trash.loadMore', 'Load more')}
+              </Button>
             </div>
           )}
         </div>

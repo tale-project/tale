@@ -3736,9 +3736,11 @@
       "title": "Papierkorb",
       "description": "Stelle durch Aufbewahrung gelöschte Datensätze wieder her, bevor sie am Ende des Kulanzfensters endgültig entfernt werden.",
       "accessDenied": "Nur für Administratoren.",
-      "empty": "Nichts im Papierkorb für diese Kategorie. Aufbewahrung verschiebt abgelaufene Zeilen hierhin, sobald deren Kulanzfenster beginnt.",
-      "truncated": "Nur erster Stapel angezeigt. Ältere Einträge per Cleanup wiederherstellen oder Support kontaktieren.",
+      "empty": "Nichts im Papierkorb. Aufbewahrung verschiebt abgelaufene Zeilen hierhin, sobald deren Kulanzfenster beginnt.",
+      "filterTitle": "Kategorie",
+      "loadMore": "Mehr laden",
       "column": {
+        "type": "Typ",
         "name": "Name",
         "status": "Status",
         "statusChangedAt": "Verworfen",

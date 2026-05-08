@@ -439,21 +439,47 @@ export const getAccessibleModelsForUser = query({
 
 /**
  * Admin-only listing of retention-trashed rows for the Trash UI under
- * `settings/governance/trash`. Per-resource dispatch because each
- * table's `lifecycleStatus` index is table-specific (Convex
- * `withIndex` typing prevents a single generic query body).
+ * `settings/governance/trash`. Unified across resource types: by
+ * default returns trashed/expired rows from every restorable category
+ * merged into one cursor-paginated stream sorted by
+ * `(effectiveTs desc, id desc)` where `effectiveTs = statusChangedAt ??
+ * createdAt`. Caller can narrow with `resourceTypes` (multi-select).
  *
- * Threads use the legacy `status` field; everyone else uses
- * `lifecycleStatus`. Returned rows project to a uniform shape so the
- * UI can render any resource type with the same column config.
+ * Per-resource dispatch internally because each table's
+ * `lifecycleStatus` index is table-specific (Convex `withIndex` typing
+ * prevents a single generic query body). Threads use the legacy
+ * `status` field; everyone else uses `lifecycleStatus`.
  *
- * Pagination is take-N (no continueCursor); typical trash volume is
- * small enough that a single page covers the active grace window. If
- * volume grows we can switch to `paginate()` later.
+ * Pagination via time-window cursor `(ts, id)`. Each per-table
+ * subquery takes `(limit + PER_TABLE_BUFFER)` rows scoped to
+ * `effectiveTs < cursor.ts || (effectiveTs === cursor.ts && id <
+ * cursor.id)`; the merge → sort → slice produces the page and the
+ * next cursor. Robust as long as no single table has more than
+ * `PER_TABLE_BUFFER` rows tied at the cursor's `ts` — true at typical
+ * org volumes (trash is bounded by retention × grace).
  */
-const TRASH_PAGE_SIZE = 200;
+const TRASH_DEFAULT_LIMIT = 50;
+const TRASH_MAX_LIMIT = 200;
+const PER_TABLE_BUFFER = 200;
+
+const TRASH_VISIBLE_RESOURCE_TYPES: ReadonlyArray<SoftDeleteResourceType> = [
+  'thread',
+  'document',
+  'fileMetadata',
+  'promptTemplate',
+  'messageFeedback',
+  'customer',
+  'vendor',
+  'externalConversation',
+  'workflowExecution',
+  'usageLedger',
+  'auditLog',
+  'chatFilterEvent',
+  'memoryAudit',
+];
 
 interface TrashRow {
+  resourceType: SoftDeleteResourceType;
   id: string;
   status: 'trashed' | 'expired';
   statusChangedAt: number | null;
@@ -461,27 +487,40 @@ interface TrashRow {
   displayName: string | null;
 }
 
+interface TrashCursor {
+  ts: number;
+  id: string;
+}
+
+const trashCursorValidator = v.object({
+  ts: v.number(),
+  id: v.string(),
+});
+
+const trashRowValidator = v.object({
+  resourceType: softDeleteResourceTypeValidator,
+  id: v.string(),
+  status: v.union(v.literal('trashed'), v.literal('expired')),
+  statusChangedAt: v.union(v.number(), v.null()),
+  createdAt: v.number(),
+  displayName: v.union(v.string(), v.null()),
+});
+
 export const listTrashedRows = query({
   args: {
     organizationId: v.string(),
-    resourceType: softDeleteResourceTypeValidator,
+    resourceTypes: v.optional(v.array(softDeleteResourceTypeValidator)),
+    cursor: v.optional(v.union(trashCursorValidator, v.null())),
+    limit: v.optional(v.number()),
   },
   returns: v.object({
-    rows: v.array(
-      v.object({
-        id: v.string(),
-        status: v.union(v.literal('trashed'), v.literal('expired')),
-        statusChangedAt: v.union(v.number(), v.null()),
-        createdAt: v.number(),
-        displayName: v.union(v.string(), v.null()),
-      }),
-    ),
-    truncated: v.boolean(),
+    rows: v.array(trashRowValidator),
+    nextCursor: v.union(trashCursorValidator, v.null()),
   }),
   handler: async (
     ctx,
     args,
-  ): Promise<{ rows: TrashRow[]; truncated: boolean }> => {
+  ): Promise<{ rows: TrashRow[]; nextCursor: TrashCursor | null }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
     const member = await getOrganizationMember(ctx, args.organizationId, {
@@ -493,39 +532,94 @@ export const listTrashedRows = query({
       throw new Error('Trash listing requires admin role.');
     }
 
-    return await listTrashForResource(
-      ctx,
-      args.organizationId,
-      args.resourceType,
+    const limit = Math.min(
+      Math.max(1, args.limit ?? TRASH_DEFAULT_LIMIT),
+      TRASH_MAX_LIMIT,
     );
+    const cursor = args.cursor ?? null;
+    const requested = args.resourceTypes;
+    const types =
+      requested && requested.length > 0
+        ? // Drop cascade children if a caller passes them explicitly —
+          // they don't have own trash entries.
+          requested.filter((rt) => TRASH_VISIBLE_RESOURCE_TYPES.includes(rt))
+        : TRASH_VISIBLE_RESOURCE_TYPES;
+
+    const merged: TrashRow[] = [];
+    for (const rt of types) {
+      const sub = await fetchTrashSubpage(
+        ctx,
+        args.organizationId,
+        rt,
+        cursor,
+        limit + PER_TABLE_BUFFER,
+      );
+      merged.push(...sub);
+    }
+
+    merged.sort(compareTrashRowDesc);
+
+    const page = merged.slice(0, limit);
+    const hasMore = merged.length > limit;
+    const last = page[page.length - 1];
+    const nextCursor =
+      hasMore && last
+        ? { ts: last.statusChangedAt ?? last.createdAt, id: last.id }
+        : null;
+
+    return { rows: page, nextCursor };
   },
 });
 
-async function listTrashForResource(
+function compareTrashRowDesc(a: TrashRow, b: TrashRow): number {
+  const aTs = a.statusChangedAt ?? a.createdAt;
+  const bTs = b.statusChangedAt ?? b.createdAt;
+  if (aTs !== bTs) return bTs - aTs;
+  if (a.id === b.id) return 0;
+  return a.id < b.id ? 1 : -1;
+}
+
+/**
+ * `cursor` semantics: caller has already seen rows with effectiveTs >
+ * cursor.ts, plus rows at exactly cursor.ts whose id >= cursor.id.
+ * Sub-page returns only rows strictly past the cursor in
+ * `(effectiveTs desc, id desc)` order.
+ */
+function passesCursor(
+  effectiveTs: number,
+  id: string,
+  cursor: TrashCursor | null,
+): boolean {
+  if (cursor === null) return true;
+  if (effectiveTs < cursor.ts) return true;
+  if (effectiveTs > cursor.ts) return false;
+  return id < cursor.id;
+}
+
+async function fetchTrashSubpage(
   ctx: QueryCtx,
   organizationId: string,
   rt: SoftDeleteResourceType,
-): Promise<{ rows: TrashRow[]; truncated: boolean }> {
+  cursor: TrashCursor | null,
+  take: number,
+): Promise<TrashRow[]> {
   const config = SOFT_DELETE_RESOURCE_CONFIG[rt];
   switch (rt) {
     case 'thread': {
-      // threadMetadata uses `status`. No by_org_status index — query by
-      // org and filter in memory. Trash is bounded by retention*grace
-      // so volume is small.
+      // threadMetadata uses the legacy `status` field.
       const all = await ctx.db
         .query('threadMetadata')
         .withIndex('by_organizationId', (q) =>
           q.eq('organizationId', organizationId),
         )
-        .take(TRASH_PAGE_SIZE * 4);
-      const filtered = all.filter(
-        (r) => r.status === 'trashed' || r.status === 'expired',
-      );
-      return projectRows(filtered, config, (r) => ({
+        .take(take);
+      return projectSubpage(rt, config, all, (r) => ({
         status: r.status,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r.createdAt ?? r._creationTime,
-      }));
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
     }
     case 'document': {
       const all = await ctx.db
@@ -533,12 +627,14 @@ async function listTrashForResource(
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
           q.eq('organizationId', organizationId),
         )
-        .take(TRASH_PAGE_SIZE * 4);
-      return projectRows(all, config, (r) => ({
+        .take(take);
+      return projectSubpage(rt, config, all, (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r._creationTime,
-      }));
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
     }
     case 'fileMetadata': {
       const all = await ctx.db
@@ -546,12 +642,14 @@ async function listTrashForResource(
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
           q.eq('organizationId', organizationId),
         )
-        .take(TRASH_PAGE_SIZE * 4);
-      return projectRows(all, config, (r) => ({
+        .take(take);
+      return projectSubpage(rt, config, all, (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r._creationTime,
-      }));
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
     }
     case 'promptTemplate': {
       const all = await ctx.db
@@ -559,12 +657,14 @@ async function listTrashForResource(
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
           q.eq('organizationId', organizationId),
         )
-        .take(TRASH_PAGE_SIZE * 4);
-      return projectRows(all, config, (r) => ({
+        .take(take);
+      return projectSubpage(rt, config, all, (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r._creationTime,
-      }));
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
     }
     case 'messageFeedback': {
       const all = await ctx.db
@@ -572,12 +672,14 @@ async function listTrashForResource(
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
           q.eq('organizationId', organizationId),
         )
-        .take(TRASH_PAGE_SIZE * 4);
-      return projectRows(all, config, (r) => ({
+        .take(take);
+      return projectSubpage(rt, config, all, (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r.createdAt ?? r._creationTime,
-      }));
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
     }
     case 'customer': {
       const all = await ctx.db
@@ -585,12 +687,14 @@ async function listTrashForResource(
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
           q.eq('organizationId', organizationId),
         )
-        .take(TRASH_PAGE_SIZE * 4);
-      return projectRows(all, config, (r) => ({
+        .take(take);
+      return projectSubpage(rt, config, all, (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r._creationTime,
-      }));
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
     }
     case 'vendor': {
       const all = await ctx.db
@@ -598,12 +702,14 @@ async function listTrashForResource(
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
           q.eq('organizationId', organizationId),
         )
-        .take(TRASH_PAGE_SIZE * 4);
-      return projectRows(all, config, (r) => ({
+        .take(take);
+      return projectSubpage(rt, config, all, (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r._creationTime,
-      }));
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
     }
     case 'externalConversation': {
       const all = await ctx.db
@@ -611,12 +717,14 @@ async function listTrashForResource(
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
           q.eq('organizationId', organizationId),
         )
-        .take(TRASH_PAGE_SIZE * 4);
-      return projectRows(all, config, (r) => ({
+        .take(take);
+      return projectSubpage(rt, config, all, (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r._creationTime,
-      }));
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
     }
     case 'workflowExecution': {
       const all = await ctx.db
@@ -624,12 +732,14 @@ async function listTrashForResource(
         .withIndex('by_org_lifecycleStatus', (q) =>
           q.eq('organizationId', organizationId),
         )
-        .take(TRASH_PAGE_SIZE * 4);
-      return projectRows(all, config, (r) => ({
+        .take(take);
+      return projectSubpage(rt, config, all, (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r.startedAt ?? r._creationTime,
-      }));
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
     }
     case 'usageLedger': {
       const all = await ctx.db
@@ -637,12 +747,14 @@ async function listTrashForResource(
         .withIndex('by_org_lifecycleStatus', (q) =>
           q.eq('organizationId', organizationId),
         )
-        .take(TRASH_PAGE_SIZE * 4);
-      return projectRows(all, config, (r) => ({
+        .take(take);
+      return projectSubpage(rt, config, all, (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r._creationTime,
-      }));
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
     }
     case 'auditLog': {
       const all = await ctx.db
@@ -650,12 +762,14 @@ async function listTrashForResource(
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
           q.eq('organizationId', organizationId),
         )
-        .take(TRASH_PAGE_SIZE * 4);
-      return projectRows(all, config, (r) => ({
+        .take(take);
+      return projectSubpage(rt, config, all, (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r.timestamp ?? r._creationTime,
-      }));
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
     }
     case 'chatFilterEvent': {
       const all = await ctx.db
@@ -663,12 +777,14 @@ async function listTrashForResource(
         .withIndex('by_org_lifecycleStatus', (q) =>
           q.eq('organizationId', organizationId),
         )
-        .take(TRASH_PAGE_SIZE * 4);
-      return projectRows(all, config, (r) => ({
+        .take(take);
+      return projectSubpage(rt, config, all, (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r.createdAt ?? r._creationTime,
-      }));
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
     }
     case 'memoryAudit': {
       const all = await ctx.db
@@ -676,22 +792,20 @@ async function listTrashForResource(
         .withIndex('by_org_lifecycleStatus', (q) =>
           q.eq('organizationId', organizationId),
         )
-        .take(TRASH_PAGE_SIZE * 4);
-      return projectRows(all, config, (r) => ({
+        .take(take);
+      return projectSubpage(rt, config, all, (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r.createdAt ?? r._creationTime,
-      }));
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
     }
     case 'messageMetadata':
     case 'workflowTriggerLog':
-      // These are cascade children of other resources; no own trash tab.
-      return { rows: [], truncated: false };
+      return [];
   }
-  // oxlint can't prove the switch is exhaustive over the resource-type
-  // union; this trailing fallback keeps consistent-return happy and
-  // documents intent.
-  return { rows: [], truncated: false };
+  return [];
 }
 
 interface RowMeta {
@@ -700,16 +814,18 @@ interface RowMeta {
   createdAt: number;
 }
 
-function projectRows<T extends { _id: unknown; _creationTime: number }>(
-  rows: T[],
+function projectSubpage<T extends { _id: unknown; _creationTime: number }>(
+  resourceType: SoftDeleteResourceType,
   config: ResourceConfig,
+  rows: T[],
   meta: (r: T) => RowMeta,
-): { rows: TrashRow[]; truncated: boolean } {
+): TrashRow[] {
   const out: TrashRow[] = [];
   for (const row of rows) {
     const m = meta(row);
     if (m.status !== 'trashed' && m.status !== 'expired') continue;
     out.push({
+      resourceType,
       id: String(row._id),
       status: m.status,
       statusChangedAt: m.statusChangedAt,
@@ -717,14 +833,7 @@ function projectRows<T extends { _id: unknown; _creationTime: number }>(
       displayName: pickDisplayName(row, config),
     });
   }
-  out.sort(
-    (a, b) =>
-      (b.statusChangedAt ?? b.createdAt) - (a.statusChangedAt ?? a.createdAt),
-  );
-  return {
-    rows: out.slice(0, TRASH_PAGE_SIZE),
-    truncated: out.length > TRASH_PAGE_SIZE,
-  };
+  return out;
 }
 
 function pickDisplayName(row: unknown, config: ResourceConfig): string | null {

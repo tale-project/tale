@@ -281,11 +281,22 @@ export function useUploadPolicy(organizationId: string): UploadPolicyLimits {
 
 export function useListTrashedRows(
   organizationId: string,
-  resourceType: SoftDeleteResourceType,
+  args: {
+    resourceTypes?: SoftDeleteResourceType[];
+    cursor?: { ts: number; id: string } | null;
+    limit?: number;
+  },
   enabled: boolean,
 ) {
   return useConvexQuery(
     api.governance.queries.listTrashedRows,
-    enabled ? { organizationId, resourceType } : 'skip',
+    enabled
+      ? {
+          organizationId,
+          resourceTypes: args.resourceTypes,
+          cursor: args.cursor ?? null,
+          limit: args.limit,
+        }
+      : 'skip',
   );
 }
