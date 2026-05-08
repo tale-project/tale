@@ -13,6 +13,9 @@ const ROOT = resolve(SCRIPT_DIR, '..');
 const DIST = resolve(ROOT, 'dist');
 const SSR_BUNDLE = resolve(ROOT, 'dist-ssr', 'entry-server.js');
 const SITE_URL = process.env.DOCS_SITE_URL ?? 'https://docs.tale.dev';
+// Mount-point prefix passed to the router during SSR so it resolves URLs
+// against the same basepath the client uses. Empty for root deployments.
+const BASE_PATH = (process.env.DOCS_BASE_URL ?? '/').replace(/\/$/, '');
 
 interface Route {
   url: string;
@@ -99,7 +102,7 @@ async function main() {
     if (seen.has(route.url)) continue;
     seen.add(route.url);
     process.stdout.write(`prerender ${route.url} ... `);
-    const { html } = await mod.render(route.url);
+    const { html } = await mod.render(`${BASE_PATH}${route.url}`);
     const withSeo = injectSeo(template, route);
     const final = withSeo.replace(
       '<div id="root"></div>',

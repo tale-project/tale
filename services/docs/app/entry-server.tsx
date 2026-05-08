@@ -16,10 +16,14 @@ interface RenderResult {
   html: string;
 }
 
+const basepath =
+  import.meta.env.BASE_URL.replace(/\/$/, '') || undefined;
+
 export async function render(url: string): Promise<RenderResult> {
   const router = createRouter({
     routeTree,
     defaultPreload: 'intent',
+    basepath,
     history: createMemoryHistory({ initialEntries: [url] }),
   });
   await router.load();

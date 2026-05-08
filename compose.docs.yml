@@ -21,6 +21,7 @@ services:
       dockerfile: services/docs/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
+        DOCS_BASE_URL: ${DOCS_BASE_URL:-/}
 
     env_file:
       - services/docs/.env

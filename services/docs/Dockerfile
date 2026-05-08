@@ -44,7 +44,9 @@ COPY packages/webui ./packages/webui
 COPY services/docs ./services/docs
 COPY docs ./docs
 
-ENV NODE_ENV=production
+ARG DOCS_BASE_URL=/
+ENV NODE_ENV=production \
+    DOCS_BASE_URL=${DOCS_BASE_URL}
 WORKDIR /app/services/docs
 RUN bun --bun scripts/build-search-index.ts \
     && bun --bun vite build \
