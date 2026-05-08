@@ -103,7 +103,7 @@ fi
 
 # Copy Caddyfile to writable location and apply TLS config
 cp "$CADDYFILE_SRC" "$CADDYFILE"
-sed -i "s|.*TLS_PLACEHOLDER.*|\\t${TLS_CONFIG}|" "$CADDYFILE"
+sed -i "s|^[[:space:]]*#[[:space:]]*TLS_PLACEHOLDER[[:space:]]*\$|\\t${TLS_CONFIG}|" "$CADDYFILE"
 
 # Replace SITE_ORIGIN in Caddyfile with SITE_URL (no subpath in SITE_URL).
 # DOCS_ORIGIN is the parallel host block for the docs site (docs.<HOST>).

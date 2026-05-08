@@ -33,8 +33,8 @@
 
 # ============================================================================
 # Docs site (docs.tale.dev) — separate host block proxying to services/docs.
-# Caddy entrypoint substitutes both TLS_PLACEHOLDER lines and the
-# {$DOCS_ORIGIN} placeholder.
+# The Caddy entrypoint substitutes the TLS placeholder line below and the
+# {$DOCS_ORIGIN} placeholder on the next line.
 # ============================================================================
 {$DOCS_ORIGIN:https://docs.tale.local} {
 	# TLS_PLACEHOLDER
