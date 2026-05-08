@@ -8,6 +8,7 @@ import * as z from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
+import { Input } from '@/app/components/ui/forms/input';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -30,6 +31,14 @@ import { UpsertMatterDialog } from './upsert-matter-dialog';
 const PICKER_TARGET_TYPES = ['userMembership', 'org'] as const;
 
 type PickerTargetType = (typeof PICKER_TARGET_TYPES)[number];
+
+/**
+ * Fixed English phrase the operator must type to confirm an org-wide
+ * hold. Industry pattern (GitHub repo deletion, AWS S3 bucket policy
+ * removal). Kept locale-stable so the typing requirement is the same
+ * across languages — the surrounding label localizes.
+ */
+const ORG_CONFIRM_PHRASE = 'ORG-WIDE HOLD';
 
 interface PlaceHoldDialogProps {
   open: boolean;
@@ -55,6 +64,7 @@ export function PlaceHoldDialog({
   const matters = useLegalMatters(organizationId, { status: 'open' });
   const members = useOrgMembersForPicker(organizationId);
   const [createMatterOpen, setCreateMatterOpen] = useState(false);
+  const [orgConfirmText, setOrgConfirmText] = useState('');
 
   const targetTypeOptions = useMemo(
     () =>
@@ -117,7 +127,9 @@ export function PlaceHoldDialog({
 
   // Auto-fill targetId for org-scope so operators don't have to know
   // that the literal value must equal the organizationId; clear it back
-  // when they switch back to user.
+  // when they switch back to user. Also reset the typed confirmation
+  // whenever target type changes — switching away from org and back
+  // shouldn't preserve a previously-typed confirmation.
   useEffect(() => {
     if (targetType === 'org') {
       if (targetId !== organizationId) {
@@ -126,13 +138,19 @@ export function PlaceHoldDialog({
           shouldValidate: true,
         });
       }
-    } else if (targetId === organizationId) {
-      setValue('targetId', '', {
-        shouldDirty: false,
-        shouldValidate: false,
-      });
+    } else {
+      if (targetId === organizationId) {
+        setValue('targetId', '', {
+          shouldDirty: false,
+          shouldValidate: false,
+        });
+      }
+      if (orgConfirmText !== '') setOrgConfirmText('');
     }
-  }, [organizationId, setValue, targetId, targetType]);
+  }, [organizationId, setValue, targetId, targetType, orgConfirmText]);
+
+  const orgConfirmed =
+    targetType !== 'org' || orgConfirmText.trim() === ORG_CONFIRM_PHRASE;
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -152,6 +170,7 @@ export function PlaceHoldDialog({
       });
       onOpenChange(false);
       reset();
+      setOrgConfirmText('');
     } catch (err) {
       const mapped = mapLegalHoldError(err, t);
       toast({
@@ -163,7 +182,10 @@ export function PlaceHoldDialog({
   });
 
   const handleOpenChange = (next: boolean) => {
-    if (!next) reset();
+    if (!next) {
+      reset();
+      setOrgConfirmText('');
+    }
     onOpenChange(next);
   };
 
@@ -175,7 +197,7 @@ export function PlaceHoldDialog({
         title={t('legalHold.dialogs.placeHold.title')}
         description={t('legalHold.dialogs.placeHold.description')}
         isSubmitting={isPending}
-        isValid={formState.isValid}
+        isValid={formState.isValid && orgConfirmed}
         onSubmit={onSubmit}
         submitText={t('legalHold.dialogs.placeHold.submit')}
       >
@@ -213,16 +235,32 @@ export function PlaceHoldDialog({
               error={!!formState.errors.targetId}
             />
           ) : (
-            <div
-              role="alert"
-              className="border-destructive/40 bg-destructive/5 text-destructive flex items-start gap-2 rounded-md border px-3 py-2 text-xs"
-            >
-              <AlertTriangle
-                className="mt-0.5 size-4 shrink-0"
-                aria-hidden="true"
+            <>
+              <div
+                role="alert"
+                className="border-destructive/40 bg-destructive/5 text-destructive flex items-start gap-2 rounded-md border px-3 py-2 text-xs"
+              >
+                <AlertTriangle
+                  className="mt-0.5 size-4 shrink-0"
+                  aria-hidden="true"
+                />
+                <span>{t('legalHold.dialogs.placeHold.orgWarning')}</span>
+              </div>
+              <Input
+                id="hold-org-confirm"
+                label={t('legalHold.dialogs.placeHold.orgConfirmLabel', {
+                  phrase: ORG_CONFIRM_PHRASE,
+                })}
+                description={t(
+                  'legalHold.dialogs.placeHold.orgConfirmDescription',
+                )}
+                required
+                value={orgConfirmText}
+                onChange={(e) => setOrgConfirmText(e.target.value)}
+                autoComplete="off"
+                placeholder={ORG_CONFIRM_PHRASE}
               />
-              <span>{t('legalHold.dialogs.placeHold.orgWarning')}</span>
-            </div>
+            </>
           )}
           <Textarea
             id="hold-reason"

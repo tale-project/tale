@@ -36,10 +36,13 @@ const HOLD_TARGET_TYPES = [
 ] as const;
 
 /**
- * Escape hatch for single-admin deployments where dual-control on
- * org-scoped holds and on the maker-checker release flow can't be
- * exercised. Defined at module scope so every reader (placement,
- * release, approve) hits the same flag without forward-ref hazards.
+ * Escape hatch for single-admin deployments where the maker-checker
+ * release flow can't be exercised (different-admin requirement +
+ * 5-minute min delay). When set, `approveLegalHoldRelease` allows
+ * self-approval and emits a loud `legal_hold_release_approved_self`
+ * audit subtype. Placement gates do NOT consult this — placement is
+ * RBAC + audit only, matching industry practice (Microsoft Purview /
+ * Google Vault / Relativity).
  */
 const SINGLE_ADMIN_OK_ENV = 'TALE_LEGAL_HOLD_SINGLE_ADMIN_OK';
 
@@ -314,25 +317,12 @@ export const placeLegalHold = mutation({
       });
     }
 
-    // `targetType: 'org'` is the nuclear "halt all retention" hold —
-    // a single admin placing it freezes cleanup for the entire tenant,
-    // which is exactly what dual-control is supposed to prevent. Refuse
-    // by default; deployments running a single admin can opt back in
-    // via the same escape-hatch env used for self-approved releases.
-    // A future maker-checker placement flow (legalHoldPlaceRequests
-    // table + approveLegalHoldPlacement mutation) supersedes this.
-    if (args.targetType === 'org') {
-      const escape = process.env[SINGLE_ADMIN_OK_ENV] === 'true';
-      if (!escape) {
-        throw new ConvexError({
-          code: 'ORG_HOLD_REQUIRES_DUAL_CONTROL',
-          message:
-            'Org-scoped legal holds require dual-control. Set ' +
-            `${SINGLE_ADMIN_OK_ENV}=true if this deployment is single-admin, ` +
-            'or place per-target holds (thread / document / execution / userMembership) instead.',
-        });
-      }
-    }
+    // `targetType: 'org'` is the nuclear "halt all retention" hold.
+    // Placement is admin-gated + audited; dual-control on placement is
+    // not industry-standard (Microsoft Purview, Google Vault, Relativity
+    // all gate on RBAC alone) because over-protection is recoverable
+    // while under-protection is the real compliance risk. The dangerous
+    // direction — release — keeps its dual-control flow below.
 
     // Refuse duplicate active holds on the same target — the audit
     // trail stays clean and the placer doesn't accidentally double-log.
@@ -831,30 +821,12 @@ export const bulkPlaceLegalHold = mutation({
     }> = [];
     const now = Date.now();
 
-    // Org-target dual-control gate: the single-place handler refuses
-    // `targetType: 'org'` unless TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true (a
-    // whole-org hold halts ALL retention for that tenant). Without
-    // re-running the gate here, a single admin could freeze the entire
-    // tenant by passing one `{targetType: 'org', ...}` entry through the
-    // bulk path. Read the env once outside the loop.
-    const singleAdminOk = process.env[SINGLE_ADMIN_OK_ENV] === 'true';
-
     for (const h of args.holds) {
       if (!h.reason.trim()) {
         skipped.push({
           targetType: h.targetType,
           targetId: h.targetId,
           reason: 'reason is required',
-        });
-        continue;
-      }
-      if (h.targetType === 'org' && !singleAdminOk) {
-        skipped.push({
-          targetType: h.targetType,
-          targetId: h.targetId,
-          reason:
-            'org-scoped holds require dual-control; use placeLegalHold or set ' +
-            `${SINGLE_ADMIN_OK_ENV}=true`,
         });
         continue;
       }

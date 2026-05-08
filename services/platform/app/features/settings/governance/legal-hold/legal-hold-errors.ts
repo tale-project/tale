@@ -114,11 +114,6 @@ export function mapLegalHoldError(
         title: fallbackTitle,
         description: t('legalHold.errors.targetOrgMismatch'),
       };
-    case 'ORG_HOLD_REQUIRES_DUAL_CONTROL':
-      return {
-        title: fallbackTitle,
-        description: t('legalHold.errors.orgRequiresDualControl'),
-      };
     case 'LEGAL_HOLD_ALREADY_RELEASED':
       return {
         title: fallbackTitle,
