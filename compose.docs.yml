@@ -22,6 +22,7 @@ services:
       args:
         VERSION: ${VERSION:-dev}
         DOCS_BASE_URL: ${DOCS_BASE_URL:-/}
+        DOCS_SITE_URL: ${DOCS_SITE_URL:-https://docs.tale.dev}
 
     env_file:
       - services/docs/.env
