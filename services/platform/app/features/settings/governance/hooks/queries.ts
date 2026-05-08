@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import { useActionQuery } from '@/app/hooks/use-action-query';
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { GOVERNANCE_POLICY_TYPES } from '@/convex/governance/schema';
@@ -140,6 +141,98 @@ export function usePendingBoundsProposal(organizationId: string) {
     ['retention-bounds-proposal', organizationId],
     api.governance.retention_bounds_proposal.getPendingBoundsProposal,
     { organizationId },
+  );
+}
+
+type LegalHoldTargetType =
+  | 'thread'
+  | 'document'
+  | 'execution'
+  | 'userMembership'
+  | 'org';
+
+type LegalHoldStatus = 'active' | 'released' | 'all';
+
+type LegalReleaseStatus = 'pending' | 'approved' | 'rejected' | 'effected';
+
+type LegalMatterStatus = 'open' | 'closed' | 'all';
+
+export function useLegalHolds(
+  organizationId: string | undefined,
+  options?: { status?: LegalHoldStatus; targetType?: LegalHoldTargetType },
+) {
+  return useConvexQuery(
+    api.governance.legal_hold_queries.listLegalHolds,
+    organizationId
+      ? {
+          organizationId,
+          status: options?.status,
+          targetType: options?.targetType,
+        }
+      : 'skip',
+  );
+}
+
+export function useLegalMatters(
+  organizationId: string | undefined,
+  options?: { status?: LegalMatterStatus },
+) {
+  return useConvexQuery(
+    api.governance.legal_hold_queries.listLegalMatters,
+    organizationId ? { organizationId, status: options?.status } : 'skip',
+  );
+}
+
+export function useLegalHoldReleaseRequests(
+  organizationId: string | undefined,
+  status: LegalReleaseStatus,
+) {
+  return useConvexQuery(
+    api.governance.legal_hold_queries.listLegalHoldReleaseRequests,
+    organizationId ? { organizationId, status } : 'skip',
+  );
+}
+
+export function useLegalHoldReleaseRequestsPaginated(args: {
+  organizationId: string | undefined;
+  status: LegalReleaseStatus;
+  initialNumItems?: number;
+}) {
+  return useCachedPaginatedQuery(
+    api.governance.legal_hold_queries.listLegalHoldReleaseRequestsPaginated,
+    args.organizationId
+      ? { organizationId: args.organizationId, status: args.status }
+      : 'skip',
+    { initialNumItems: args.initialNumItems ?? 25 },
+  );
+}
+
+export function useLegalHoldByTarget(args: {
+  organizationId: string | undefined;
+  targetType: LegalHoldTargetType;
+  targetId: string | undefined;
+}) {
+  return useConvexQuery(
+    api.governance.legal_hold_queries.getLegalHoldByTarget,
+    args.organizationId && args.targetId
+      ? {
+          organizationId: args.organizationId,
+          targetType: args.targetType,
+          targetId: args.targetId,
+        }
+      : 'skip',
+  );
+}
+
+export function useActiveHoldTargetIds(args: {
+  organizationId: string | undefined;
+  targetType: LegalHoldTargetType;
+}) {
+  return useConvexQuery(
+    api.governance.legal_hold_queries.listActiveHoldTargetIds,
+    args.organizationId
+      ? { organizationId: args.organizationId, targetType: args.targetType }
+      : 'skip',
   );
 }
 

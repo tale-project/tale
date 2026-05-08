@@ -3176,10 +3176,19 @@
       "saveFailed": "Failed to save upload policy"
     },
     "retentionPolicy": {
+      "title": "Retention policy",
+      "description": "Configure how long each data type is kept before deletion.",
       "saved": "Retention policy has been updated",
       "save": "Save changes",
       "reset": "Reset to defaults",
       "unsavedHint": "You have unsaved changes.",
+      "summary": {
+        "disabled": "Disabled"
+      },
+      "drawer": {
+        "title": "Edit retention policy",
+        "description": "Configure how long each data type is kept before deletion."
+      },
       "enabled": "Enabled",
       "retentionDays": "Retention days",
       "retentionHours": "Retention hours",
@@ -3714,9 +3723,212 @@
       "contentAndModels": "Content & Models",
       "policiesAndLimits": "Policies & Limits",
       "securityAndMonitoring": "Security & Monitoring",
+      "legalHold": "Legal hold",
       "guardrails": "Guardrails",
       "usage": "Usage",
       "feedback": "Feedback"
+    },
+    "legalHold": {
+      "targetTypes": {
+        "thread": "Thread",
+        "document": "Document",
+        "execution": "Execution",
+        "userMembership": "User membership",
+        "org": "Organization"
+      },
+      "filters": {
+        "allTargets": "All target types",
+        "allStatuses": "All statuses",
+        "active": "Active",
+        "released": "Released",
+        "open": "Open",
+        "closed": "Closed",
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "effected": "Effected"
+      },
+      "sections": {
+        "activeHolds": {
+          "title": "Active holds",
+          "description": "Entities currently protected from cleanup and deletion.",
+          "empty": {
+            "title": "No active legal holds",
+            "description": "Place a hold from the active section, or from a chat or document action menu."
+          }
+        },
+        "releaseRequests": {
+          "title": "Release requests",
+          "description": "Pending requests need a different admin to approve. Approved requests still wait out the cooldown before they take effect.",
+          "pendingHeader": "Pending approval",
+          "approvedHeader": "Approved (awaiting cooldown)",
+          "empty": {
+            "title": "No release requests",
+            "description": "Filed release requests appear here for dual-control review."
+          }
+        },
+        "matters": {
+          "title": "Matters",
+          "description": "Group holds by case. Closing a matter files release requests for every linked hold (still subject to dual-control approval).",
+          "empty": {
+            "title": "No matters",
+            "description": "Create a matter to group holds by case number or eDiscovery scope."
+          }
+        },
+        "history": {
+          "title": "Release history",
+          "description": "Read-only audit of effected and rejected release requests.",
+          "empty": {
+            "title": "No completed release requests yet",
+            "description": "Effected and rejected releases appear here."
+          }
+        }
+      },
+      "columns": {
+        "type": "Type",
+        "target": "Target",
+        "reason": "Reason",
+        "matter": "Matter",
+        "placedBy": "Placed by",
+        "placedAt": "Placed",
+        "actions": "Actions",
+        "status": "Status",
+        "name": "Name",
+        "caseNumber": "Case #",
+        "linkedHolds": "Linked holds",
+        "createdAt": "Created",
+        "requestedBy": "Requested by",
+        "requestedAt": "Requested",
+        "approvedBy": "Approved by",
+        "effectiveAt": "Effective",
+        "rejectReason": "Reject reason"
+      },
+      "actions": {
+        "placeHold": "Place legal hold",
+        "bulkPlace": "Bulk place",
+        "requestRelease": "Request release",
+        "approve": "Approve",
+        "reject": "Reject",
+        "createMatter": "Create matter",
+        "editMatter": "Edit",
+        "closeMatter": "Close matter"
+      },
+      "badges": {
+        "held": "On legal hold",
+        "releasePending": "Release pending",
+        "releaseApproved": "Release approved",
+        "releaseEffective": "Effective on next cleanup",
+        "blockedByHold": "Blocked by legal hold"
+      },
+      "dialogs": {
+        "placeHold": {
+          "title": "Place legal hold",
+          "description": "The held entity is protected from cleanup and deletion until released. A reason is required and recorded in the audit log.",
+          "targetTypeLabel": "Target type",
+          "targetIdLabel": "Target ID",
+          "reasonLabel": "Reason",
+          "reasonPlaceholder": "e.g. Litigation hold for Acme v. Co. (matter #2026-04)",
+          "matterLabel": "Matter (optional)",
+          "matterPlaceholder": "Pick or create a matter",
+          "matterCreateNew": "Create new matter…",
+          "submit": "Place hold"
+        },
+        "bulkPlace": {
+          "title": "Bulk place legal holds",
+          "description": "One entry per line as targetType:targetId (e.g. thread:thr_abc). Up to 200 entries per batch.",
+          "entriesLabel": "Entries",
+          "entriesPlaceholder": "thread:thr_abc\ndocument:doc_xyz",
+          "reasonLabel": "Reason (applied to all)",
+          "matterLabel": "Matter (optional, applied to all)",
+          "previewValid": "Valid",
+          "previewInvalid": "Invalid",
+          "submit": "Place {count} holds",
+          "summaryPlaced": "{count} holds placed.",
+          "summarySkipped": "{count} skipped",
+          "showSkipped": "Show skipped",
+          "tooManyEntries": "At most 200 entries per batch.",
+          "invalidLine": "Expected format targetType:targetId."
+        },
+        "requestRelease": {
+          "title": "Request release",
+          "description": "Filing a release request kicks off a dual-control flow. A different admin must approve, and the release does not take effect until after the cooldown.",
+          "reasonLabel": "Reason",
+          "submit": "File request"
+        },
+        "approveRelease": {
+          "title": "Approve release",
+          "description": "Approving this request will release the hold after the configured cooldown. This is the second of two admin signatures.",
+          "submit": "Approve",
+          "selfApproveBlocked": "A different admin must approve. Self-approve is blocked unless the deployment is configured for single-admin mode."
+        },
+        "rejectRelease": {
+          "title": "Reject release",
+          "description": "Rejecting closes the request without releasing the hold.",
+          "reasonLabel": "Reject reason",
+          "submit": "Reject"
+        },
+        "upsertMatter": {
+          "createTitle": "Create matter",
+          "editTitle": "Edit matter",
+          "description": "Group related holds under one matter. Closing the matter later files release requests for every linked hold.",
+          "nameLabel": "Name",
+          "namePlaceholder": "e.g. Acme v. Co. (2026-04)",
+          "caseNumberLabel": "Case number (optional)",
+          "descriptionLabel": "Description (optional)",
+          "submitCreate": "Create matter",
+          "submitEdit": "Save"
+        },
+        "closeMatter": {
+          "title": "Close matter",
+          "description": "Closing this matter will file release requests for {count} active linked hold(s). Each release still requires dual-control approval before it takes effect.",
+          "reasonLabel": "Release reason",
+          "reasonPlaceholder": "e.g. Matter closed; preservation no longer required.",
+          "submit": "Close matter"
+        }
+      },
+      "toasts": {
+        "placedTitle": "Legal hold placed",
+        "placedDescription": "The {targetType} is now protected from cleanup and deletion.",
+        "bulkPlacedTitle": "Bulk legal holds placed",
+        "bulkPlacedDescription": "{placed} placed, {skipped} skipped.",
+        "releaseRequestedTitle": "Release request filed",
+        "releaseRequestedDescription": "Awaiting approval from a different admin.",
+        "releaseApprovedTitle": "Release approved",
+        "releaseRejectedTitle": "Release rejected",
+        "matterCreatedTitle": "Matter created",
+        "matterUpdatedTitle": "Matter updated",
+        "matterClosedTitle": "Matter closed",
+        "matterClosedDescription": "{count} release request(s) filed."
+      },
+      "countdown": {
+        "ready": "Ready",
+        "soon": "Less than a minute",
+        "minutesSeconds": "{minutes}m {seconds}s",
+        "hoursMinutes": "{hours}h {minutes}m",
+        "daysHours": "{days}d {hours}h"
+      },
+      "errors": {
+        "generic": {
+          "title": "Something went wrong",
+          "description": "Please try again. If the problem persists, contact your administrator."
+        },
+        "unauthenticated": "Sign in required.",
+        "forbidden": "You don't have permission to do this.",
+        "validation": "Please check the form fields.",
+        "notFound": "Not found.",
+        "alreadyActive": "An active legal hold already exists on this target.",
+        "matterNotFound": "That matter does not exist in this organization.",
+        "targetNotInOrg": "That target does not belong to this organization.",
+        "targetOrgMismatch": "Org-scoped hold target must equal the organization itself.",
+        "orgRequiresDualControl": "Org-scoped holds require dual-control. Set TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true for single-admin deployments, or place per-target holds instead.",
+        "alreadyReleased": "This legal hold has already been released.",
+        "releaseAlreadyPending": "A release request is already pending for this hold.",
+        "releaseNotPending": "Release request is no longer in pending state.",
+        "selfApprovalBlocked": "A different admin must approve this release. Set TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true to allow self-approval in single-admin deployments.",
+        "approvalTooSoon": "Approval is allowed in {countdown}.",
+        "requesterNoLongerAdmin": "The original requester is no longer an admin of this org. Reject this request and have a current admin file a new one.",
+        "bulkTooLarge": "At most 200 entries per batch."
+      }
     },
     "modelAccess": {
       "title": "Model access",

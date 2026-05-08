@@ -17,6 +17,7 @@ export const GOVERNANCE_GROUPS = [
   'content-models',
   'policies-limits',
   'security-monitoring',
+  'legal-hold',
   'guardrails',
   'usage',
   'feedback',
@@ -91,6 +92,7 @@ function GovernanceLayout() {
   const contentModels = linkClass(`${basePath}/content-models`);
   const policiesLimits = linkClass(`${basePath}/policies-limits`);
   const securityMonitoring = linkClass(`${basePath}/security-monitoring`);
+  const legalHold = linkClass(`${basePath}/legal-hold`);
   const guardrails = linkClass(`${basePath}/guardrails`);
   const usage = linkClass(`${basePath}/usage`);
   const feedback = linkClass(`${basePath}/feedback`);
@@ -121,6 +123,14 @@ function GovernanceLayout() {
           aria-current={securityMonitoring.isActive ? 'page' : undefined}
         >
           {t('groups.securityAndMonitoring')}
+        </Link>
+        <Link
+          to="/dashboard/$id/settings/governance/legal-hold"
+          params={{ id: organizationId }}
+          className={legalHold.className}
+          aria-current={legalHold.isActive ? 'page' : undefined}
+        >
+          {t('groups.legalHold')}
         </Link>
         <Link
           to="/dashboard/$id/settings/governance/guardrails"

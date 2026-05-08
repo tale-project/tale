@@ -78,3 +78,31 @@ export function useRejectBoundsProposal() {
     },
   );
 }
+
+export function usePlaceLegalHold() {
+  return useConvexMutation(api.governance.legal_hold.placeLegalHold);
+}
+
+export function useBulkPlaceLegalHold() {
+  return useConvexMutation(api.governance.legal_hold.bulkPlaceLegalHold);
+}
+
+export function useRequestLegalHoldRelease() {
+  return useConvexMutation(api.governance.legal_hold.requestLegalHoldRelease);
+}
+
+export function useApproveLegalHoldRelease() {
+  return useConvexMutation(api.governance.legal_hold.approveLegalHoldRelease);
+}
+
+export function useRejectLegalHoldRelease() {
+  return useConvexMutation(api.governance.legal_hold.rejectLegalHoldRelease);
+}
+
+export function useUpsertLegalMatter() {
+  return useConvexMutation(api.governance.legal_hold.upsertLegalMatter);
+}
+
+export function useCloseLegalMatter() {
+  return useConvexMutation(api.governance.legal_hold.closeLegalMatter);
+}

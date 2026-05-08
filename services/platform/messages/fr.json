@@ -3101,10 +3101,19 @@
       "saveFailed": "Échec de l'enregistrement de la politique de téléversement"
     },
     "retentionPolicy": {
+      "title": "Politique de rétention",
+      "description": "Configurez la durée de conservation de chaque type de données avant suppression.",
       "saved": "La politique de rétention a été mise à jour",
       "save": "Enregistrer les modifications",
       "reset": "Réinitialiser aux valeurs par défaut",
       "unsavedHint": "Vous avez des modifications non enregistrées.",
+      "summary": {
+        "disabled": "Désactivé"
+      },
+      "drawer": {
+        "title": "Modifier la politique de rétention",
+        "description": "Configurez la durée de conservation de chaque type de données avant suppression."
+      },
       "enabled": "Activé",
       "retentionDays": "Jours de rétention",
       "retentionHours": "Heures de rétention",
@@ -3626,9 +3635,212 @@
       "contentAndModels": "Contenu et modèles",
       "policiesAndLimits": "Politiques et limites",
       "securityAndMonitoring": "Sécurité et surveillance",
+      "legalHold": "Conservation légale",
       "guardrails": "Guardrails",
       "usage": "Utilisation",
       "feedback": "Retours"
+    },
+    "legalHold": {
+      "targetTypes": {
+        "thread": "Conversation",
+        "document": "Document",
+        "execution": "Exécution",
+        "userMembership": "Adhésion utilisateur",
+        "org": "Organisation"
+      },
+      "filters": {
+        "allTargets": "Tous les types de cible",
+        "allStatuses": "Tous les statuts",
+        "active": "Active",
+        "released": "Libérée",
+        "open": "Ouvert",
+        "closed": "Fermé",
+        "pending": "En attente",
+        "approved": "Approuvée",
+        "rejected": "Rejetée",
+        "effected": "Effective"
+      },
+      "sections": {
+        "activeHolds": {
+          "title": "Conservations actives",
+          "description": "Entités actuellement protégées du nettoyage et de la suppression.",
+          "empty": {
+            "title": "Aucune conservation active",
+            "description": "Place une conservation depuis la section active, ou via le menu d'actions d'une conversation ou d'un document."
+          }
+        },
+        "releaseRequests": {
+          "title": "Demandes de libération",
+          "description": "Les demandes en attente requièrent l'approbation d'un autre admin. Les demandes approuvées attendent ensuite la fin du cooldown.",
+          "pendingHeader": "Approbation en attente",
+          "approvedHeader": "Approuvées (cooldown en cours)",
+          "empty": {
+            "title": "Aucune demande de libération",
+            "description": "Les demandes déposées apparaissent ici pour double contrôle."
+          }
+        },
+        "matters": {
+          "title": "Dossiers",
+          "description": "Grouper les conservations par dossier. La fermeture d'un dossier dépose des demandes de libération pour chaque conservation liée (toujours soumises au double contrôle).",
+          "empty": {
+            "title": "Aucun dossier",
+            "description": "Crée un dossier pour grouper les conservations par numéro d'affaire ou périmètre eDiscovery."
+          }
+        },
+        "history": {
+          "title": "Historique des libérations",
+          "description": "Audit en lecture seule des demandes effectives et rejetées.",
+          "empty": {
+            "title": "Aucune demande terminée",
+            "description": "Les libérations effectives et rejetées apparaissent ici."
+          }
+        }
+      },
+      "columns": {
+        "type": "Type",
+        "target": "Cible",
+        "reason": "Raison",
+        "matter": "Dossier",
+        "placedBy": "Posée par",
+        "placedAt": "Posée le",
+        "actions": "Actions",
+        "status": "Statut",
+        "name": "Nom",
+        "caseNumber": "N° d'affaire",
+        "linkedHolds": "Conservations liées",
+        "createdAt": "Créé",
+        "requestedBy": "Demandé par",
+        "requestedAt": "Demandé",
+        "approvedBy": "Approuvé par",
+        "effectiveAt": "Effective",
+        "rejectReason": "Motif de rejet"
+      },
+      "actions": {
+        "placeHold": "Placer une conservation",
+        "bulkPlace": "Placement en masse",
+        "requestRelease": "Demander la libération",
+        "approve": "Approuver",
+        "reject": "Rejeter",
+        "createMatter": "Créer un dossier",
+        "editMatter": "Modifier",
+        "closeMatter": "Fermer le dossier"
+      },
+      "badges": {
+        "held": "Sous conservation légale",
+        "releasePending": "Libération en attente",
+        "releaseApproved": "Libération approuvée",
+        "releaseEffective": "Effective au prochain nettoyage",
+        "blockedByHold": "Bloqué par conservation légale"
+      },
+      "dialogs": {
+        "placeHold": {
+          "title": "Placer une conservation légale",
+          "description": "L'entité conservée est protégée du nettoyage et de la suppression jusqu'à libération. Une raison est obligatoire et enregistrée dans le journal d'audit.",
+          "targetTypeLabel": "Type de cible",
+          "targetIdLabel": "ID de cible",
+          "reasonLabel": "Raison",
+          "reasonPlaceholder": "ex. Hold litige Acme c. Co. (dossier #2026-04)",
+          "matterLabel": "Dossier (optionnel)",
+          "matterPlaceholder": "Choisir ou créer un dossier",
+          "matterCreateNew": "Créer un nouveau dossier…",
+          "submit": "Placer la conservation"
+        },
+        "bulkPlace": {
+          "title": "Placement en masse",
+          "description": "Une entrée par ligne au format targetType:targetId (ex. thread:thr_abc). Jusqu'à 200 entrées par lot.",
+          "entriesLabel": "Entrées",
+          "entriesPlaceholder": "thread:thr_abc\ndocument:doc_xyz",
+          "reasonLabel": "Raison (appliquée à toutes)",
+          "matterLabel": "Dossier (optionnel, appliqué à toutes)",
+          "previewValid": "Valide",
+          "previewInvalid": "Invalide",
+          "submit": "Placer {count} conservations",
+          "summaryPlaced": "{count} conservations placées.",
+          "summarySkipped": "{count} ignorées",
+          "showSkipped": "Afficher les ignorées",
+          "tooManyEntries": "Au maximum 200 entrées par lot.",
+          "invalidLine": "Format attendu targetType:targetId."
+        },
+        "requestRelease": {
+          "title": "Demander la libération",
+          "description": "Le dépôt d'une demande déclenche le double contrôle. Un autre admin doit approuver, et la libération ne prend effet qu'après le cooldown.",
+          "reasonLabel": "Raison",
+          "submit": "Déposer la demande"
+        },
+        "approveRelease": {
+          "title": "Approuver la libération",
+          "description": "L'approbation libérera la conservation après le cooldown configuré. Il s'agit de la deuxième signature admin sur deux.",
+          "submit": "Approuver",
+          "selfApproveBlocked": "Un autre admin doit approuver. L'auto-approbation est bloquée sauf si le déploiement est en mode mono-admin."
+        },
+        "rejectRelease": {
+          "title": "Rejeter la libération",
+          "description": "Le rejet clôt la demande sans libérer la conservation.",
+          "reasonLabel": "Motif de rejet",
+          "submit": "Rejeter"
+        },
+        "upsertMatter": {
+          "createTitle": "Créer un dossier",
+          "editTitle": "Modifier le dossier",
+          "description": "Grouper les conservations connexes sous un dossier. À sa fermeture ultérieure, des demandes de libération seront déposées pour chaque conservation liée.",
+          "nameLabel": "Nom",
+          "namePlaceholder": "ex. Acme c. Co. (2026-04)",
+          "caseNumberLabel": "Numéro d'affaire (optionnel)",
+          "descriptionLabel": "Description (optionnel)",
+          "submitCreate": "Créer le dossier",
+          "submitEdit": "Enregistrer"
+        },
+        "closeMatter": {
+          "title": "Fermer le dossier",
+          "description": "La fermeture déposera des demandes de libération pour {count} conservation(s) liée(s) active(s). Chaque libération reste soumise au double contrôle.",
+          "reasonLabel": "Motif de libération",
+          "reasonPlaceholder": "ex. Dossier clos ; conservation plus requise.",
+          "submit": "Fermer le dossier"
+        }
+      },
+      "toasts": {
+        "placedTitle": "Conservation placée",
+        "placedDescription": "Le {targetType} est désormais protégé du nettoyage et de la suppression.",
+        "bulkPlacedTitle": "Conservations en masse placées",
+        "bulkPlacedDescription": "{placed} placées, {skipped} ignorées.",
+        "releaseRequestedTitle": "Demande déposée",
+        "releaseRequestedDescription": "En attente d'approbation par un autre admin.",
+        "releaseApprovedTitle": "Libération approuvée",
+        "releaseRejectedTitle": "Libération rejetée",
+        "matterCreatedTitle": "Dossier créé",
+        "matterUpdatedTitle": "Dossier mis à jour",
+        "matterClosedTitle": "Dossier fermé",
+        "matterClosedDescription": "{count} demande(s) de libération déposée(s)."
+      },
+      "countdown": {
+        "ready": "Prêt",
+        "soon": "Moins d'une minute",
+        "minutesSeconds": "{minutes}m {seconds}s",
+        "hoursMinutes": "{hours}h {minutes}m",
+        "daysHours": "{days}j {hours}h"
+      },
+      "errors": {
+        "generic": {
+          "title": "Une erreur est survenue",
+          "description": "Réessaie. Si le problème persiste, contacte l'administration."
+        },
+        "unauthenticated": "Connexion requise.",
+        "forbidden": "Tu n'as pas la permission de faire cela.",
+        "validation": "Vérifie les champs du formulaire.",
+        "notFound": "Introuvable.",
+        "alreadyActive": "Une conservation active existe déjà sur cette cible.",
+        "matterNotFound": "Ce dossier n'existe pas dans cette organisation.",
+        "targetNotInOrg": "Cette cible n'appartient pas à cette organisation.",
+        "targetOrgMismatch": "Une conservation à l'échelle de l'org doit cibler l'org elle-même.",
+        "orgRequiresDualControl": "Les conservations à l'échelle de l'org requièrent un double contrôle. Définis TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true pour les déploiements mono-admin, ou place des conservations par cible.",
+        "alreadyReleased": "Cette conservation a déjà été libérée.",
+        "releaseAlreadyPending": "Une demande de libération est déjà en attente pour cette conservation.",
+        "releaseNotPending": "La demande de libération n'est plus en attente.",
+        "selfApprovalBlocked": "Un autre admin doit approuver. Définis TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true pour autoriser l'auto-approbation en mono-admin.",
+        "approvalTooSoon": "Approbation possible dans {countdown}.",
+        "requesterNoLongerAdmin": "Le demandeur d'origine n'est plus admin de l'org. Rejette la demande et fais déposer une nouvelle par un admin actuel.",
+        "bulkTooLarge": "Au maximum 200 entrées par lot."
+      }
     },
     "modelAccess": {
       "title": "Accès aux modèles",

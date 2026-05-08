@@ -3,6 +3,7 @@
 import { useParams, useNavigate } from '@tanstack/react-router';
 import {
   CircleDotIcon,
+  Lock,
   Share2Icon,
   ChevronDown,
   MessageSquareDashedIcon,
@@ -18,6 +19,7 @@ import {
 
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
+import { useActiveHoldTargetIds } from '@/app/features/settings/governance/hooks/queries';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useToast } from '@/app/hooks/use-toast';
@@ -92,6 +94,15 @@ export function ChatHistorySidebar({
   } = useArchivedThreads({ teamId: selectedTeamId, organizationId });
 
   const { approvals } = useActiveApprovals(organizationId);
+
+  const { data: heldThreadsData } = useActiveHoldTargetIds({
+    organizationId,
+    targetType: 'thread',
+  });
+  const heldThreadIds = useMemo(
+    () => new Set(heldThreadsData?.targetIds ?? []),
+    [heldThreadsData?.targetIds],
+  );
 
   const { executingThreadIds, pendingThreadIds } = useMemo(() => {
     const executing = new Set();
@@ -363,6 +374,15 @@ export function ChatHistorySidebar({
                                 aria-label={t('history.awaitingInput')}
                               />
                             )}
+                            {heldThreadIds.has(chat._id) && (
+                              <Lock
+                                className="size-3.5 shrink-0 text-orange-600"
+                                aria-label={t(
+                                  'history.legalHold',
+                                  'On legal hold',
+                                )}
+                              />
+                            )}
                             <span
                               className="truncate"
                               aria-label={
@@ -464,7 +484,13 @@ export function ChatHistorySidebar({
                     onClick={() => handleChatClick(chat._id)}
                     className="absolute inset-0 cursor-pointer rounded-md"
                   />
-                  <span className="text-muted-foreground pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center truncate text-left text-sm leading-snug">
+                  <span className="text-muted-foreground pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center gap-1.5 truncate text-left text-sm leading-snug">
+                    {heldThreadIds.has(chat._id) && (
+                      <Lock
+                        className="size-3.5 shrink-0 text-orange-600"
+                        aria-label={t('history.legalHold', 'On legal hold')}
+                      />
+                    )}
                     <span className="truncate">{chat.title}</span>
                   </span>
                   <div className="relative z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">

@@ -1,13 +1,17 @@
 'use client';
 
-import { RefreshCw, Trash2, Users } from 'lucide-react';
+import { Lock, RefreshCw, Trash2, Users } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
 
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
+import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
+import { PlaceHoldDialog } from '@/app/features/settings/governance/legal-hold/place-hold-dialog';
+import { RequestReleaseDialog } from '@/app/features/settings/governance/legal-hold/request-release-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
@@ -45,14 +49,29 @@ export function DocumentRowActions({
 }: DocumentRowActionsProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
+  const { t: tGovernance } = useT('governance');
   const ability = useAbility();
   const canWrite = ability.can('write', 'knowledgeWrite');
-  const dialogs = useEntityRowDialogs(['delete', 'deleteFolder', 'teamTags']);
+  const canManageHolds = ability.can('write', 'orgSettings');
+  const organizationId = useOrganizationId();
+  const dialogs = useEntityRowDialogs([
+    'delete',
+    'deleteFolder',
+    'teamTags',
+    'placeHold',
+    'requestRelease',
+  ]);
   const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
   const { mutate: deleteFolder, isPending: isDeletingFolder } =
     useDeleteFolder();
   const { mutateAsync: retryRagIndexing, isPending: isReindexing } =
     useRetryRagIndexing();
+  const { data: legalHold } = useLegalHoldByTarget({
+    organizationId: organizationId ?? undefined,
+    targetType: 'document',
+    targetId: itemType === 'file' ? documentId : undefined,
+  });
+  const isHeld = legalHold !== null && legalHold !== undefined;
 
   // Determine if delete action should be visible
   const canDelete =
@@ -147,6 +166,16 @@ export function DocumentRowActions({
         visible: canWrite && !parentFolderTeamId,
       },
       {
+        key: 'placeHold',
+        label: isHeld
+          ? tGovernance('legalHold.actions.requestRelease')
+          : tGovernance('legalHold.actions.placeHold'),
+        icon: Lock,
+        onClick: () =>
+          isHeld ? dialogs.open.requestRelease() : dialogs.open.placeHold(),
+        visible: canManageHolds && itemType === 'file',
+      },
+      {
         key: 'delete',
         label:
           itemType === 'folder' && syncConfigId
@@ -156,20 +185,24 @@ export function DocumentRowActions({
         onClick: handleDeleteClick,
         destructive: true,
         visible: canWrite && canDelete,
+        disabled: isHeld,
       },
     ],
     [
       tDocuments,
       tCommon,
+      tGovernance,
       handleDeleteClick,
       handleReindex,
       canWrite,
+      canManageHolds,
       canDelete,
       itemType,
       syncConfigId,
       dialogs.open,
       isReindexing,
       parentFolderTeamId,
+      isHeld,
     ],
   );
 
@@ -203,6 +236,22 @@ export function DocumentRowActions({
         documentName={name}
         currentTeamIds={teamIds}
       />
+
+      {organizationId && itemType === 'file' && (
+        <>
+          <PlaceHoldDialog
+            open={dialogs.isOpen.placeHold}
+            onOpenChange={dialogs.setOpen.placeHold}
+            organizationId={organizationId}
+            prefill={{ targetType: 'document', targetId: documentId }}
+          />
+          <RequestReleaseDialog
+            open={dialogs.isOpen.requestRelease}
+            onOpenChange={dialogs.setOpen.requestRelease}
+            holdId={legalHold?._id}
+          />
+        </>
+      )}
     </>
   );
 }

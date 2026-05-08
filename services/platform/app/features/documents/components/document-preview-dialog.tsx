@@ -13,9 +13,12 @@ import { HStack } from '@/app/components/ui/layout/layout';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFileUrl } from '@/app/features/chat/hooks/queries';
+import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
+import { LegalHoldBadge } from '@/app/features/settings/governance/legal-hold/legal-hold-badge';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useLocale } from '@/app/hooks/use-locale';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
@@ -58,6 +61,12 @@ function DetailsSidebar({ doc }: { doc: Document }) {
   const { formatDate } = useFormatDate();
   const { locale } = useLocale();
   const { teams } = useTeams();
+  const organizationId = useOrganizationId();
+  const { data: legalHold } = useLegalHoldByTarget({
+    organizationId: organizationId ?? undefined,
+    targetType: 'document',
+    targetId: doc.id,
+  });
 
   const teamNames = useMemo(() => {
     const ids = doc.teamIds ?? [];
@@ -108,12 +117,15 @@ function DetailsSidebar({ doc }: { doc: Document }) {
       <Separator />
 
       <SidebarRow label={t('preview.sidebar.ragStatus')}>
-        <RagStatusBadge
-          status={doc.ragStatus}
-          indexedAt={doc.ragIndexedAt}
-          error={doc.ragError}
-          documentId={doc.id}
-        />
+        <HStack gap={2} className="flex-wrap items-center">
+          <RagStatusBadge
+            status={doc.ragStatus}
+            indexedAt={doc.ragIndexedAt}
+            error={doc.ragError}
+            documentId={doc.id}
+          />
+          <LegalHoldBadge hold={legalHold} />
+        </HStack>
       </SidebarRow>
 
       {doc.scannedPagesDetected != null && doc.scannedPagesDetected > 0 && (

@@ -3176,10 +3176,19 @@
       "saveFailed": "Upload-Richtlinie konnte nicht gespeichert werden"
     },
     "retentionPolicy": {
+      "title": "Aufbewahrungsrichtlinie",
+      "description": "Lege fest, wie lange jeder Datentyp vor der Löschung aufbewahrt wird.",
       "saved": "Aufbewahrungsrichtlinie wurde aktualisiert",
       "save": "Änderungen speichern",
       "reset": "Auf Standardwerte zurücksetzen",
       "unsavedHint": "Du hast nicht gespeicherte Änderungen.",
+      "summary": {
+        "disabled": "Deaktiviert"
+      },
+      "drawer": {
+        "title": "Aufbewahrungsrichtlinie bearbeiten",
+        "description": "Lege fest, wie lange jeder Datentyp vor der Löschung aufbewahrt wird."
+      },
       "enabled": "Aktiviert",
       "retentionDays": "Aufbewahrungstage",
       "retentionHours": "Aufbewahrungsstunden",
@@ -3714,9 +3723,212 @@
       "contentAndModels": "Inhalte & Modelle",
       "policiesAndLimits": "Richtlinien & Limits",
       "securityAndMonitoring": "Sicherheit & Überwachung",
+      "legalHold": "Legal Hold",
       "guardrails": "Guardrails",
       "usage": "Nutzung",
       "feedback": "Feedback"
+    },
+    "legalHold": {
+      "targetTypes": {
+        "thread": "Thread",
+        "document": "Dokument",
+        "execution": "Ausführung",
+        "userMembership": "Benutzer-Mitgliedschaft",
+        "org": "Organisation"
+      },
+      "filters": {
+        "allTargets": "Alle Zieltypen",
+        "allStatuses": "Alle Status",
+        "active": "Aktiv",
+        "released": "Freigegeben",
+        "open": "Offen",
+        "closed": "Geschlossen",
+        "pending": "Ausstehend",
+        "approved": "Genehmigt",
+        "rejected": "Abgelehnt",
+        "effected": "Wirksam"
+      },
+      "sections": {
+        "activeHolds": {
+          "title": "Aktive Holds",
+          "description": "Aktuell vor Bereinigung und Löschung geschützte Entitäten.",
+          "empty": {
+            "title": "Keine aktiven Legal Holds",
+            "description": "Setze einen Hold im aktiven Bereich oder über die Aktionsmenüs eines Chats oder Dokuments."
+          }
+        },
+        "releaseRequests": {
+          "title": "Freigabeanträge",
+          "description": "Ausstehende Anträge müssen von einem anderen Admin genehmigt werden. Genehmigte Anträge warten anschließend die Cooldown-Phase ab.",
+          "pendingHeader": "Ausstehende Genehmigung",
+          "approvedHeader": "Genehmigt (Cooldown läuft)",
+          "empty": {
+            "title": "Keine Freigabeanträge",
+            "description": "Eingereichte Freigabeanträge erscheinen hier zur Vier-Augen-Prüfung."
+          }
+        },
+        "matters": {
+          "title": "Fälle",
+          "description": "Holds nach Fall gruppieren. Beim Schließen eines Falls werden Freigabeanträge für alle verknüpften Holds eingereicht (weiterhin mit Vier-Augen-Genehmigung).",
+          "empty": {
+            "title": "Keine Fälle",
+            "description": "Lege einen Fall an, um Holds nach Aktenzeichen oder eDiscovery-Umfang zu gruppieren."
+          }
+        },
+        "history": {
+          "title": "Freigabeverlauf",
+          "description": "Schreibgeschützte Übersicht wirksam gewordener und abgelehnter Freigabeanträge.",
+          "empty": {
+            "title": "Noch keine abgeschlossenen Freigabeanträge",
+            "description": "Wirksame und abgelehnte Freigaben erscheinen hier."
+          }
+        }
+      },
+      "columns": {
+        "type": "Typ",
+        "target": "Ziel",
+        "reason": "Begründung",
+        "matter": "Fall",
+        "placedBy": "Gesetzt von",
+        "placedAt": "Gesetzt am",
+        "actions": "Aktionen",
+        "status": "Status",
+        "name": "Name",
+        "caseNumber": "Aktenzeichen",
+        "linkedHolds": "Verknüpfte Holds",
+        "createdAt": "Erstellt",
+        "requestedBy": "Antragsteller",
+        "requestedAt": "Beantragt",
+        "approvedBy": "Genehmigt von",
+        "effectiveAt": "Wirksam",
+        "rejectReason": "Ablehnungsgrund"
+      },
+      "actions": {
+        "placeHold": "Legal Hold setzen",
+        "bulkPlace": "Massen-Hold",
+        "requestRelease": "Freigabe beantragen",
+        "approve": "Genehmigen",
+        "reject": "Ablehnen",
+        "createMatter": "Fall anlegen",
+        "editMatter": "Bearbeiten",
+        "closeMatter": "Fall schließen"
+      },
+      "badges": {
+        "held": "Unter Legal Hold",
+        "releasePending": "Freigabe ausstehend",
+        "releaseApproved": "Freigabe genehmigt",
+        "releaseEffective": "Wirksam beim nächsten Cleanup",
+        "blockedByHold": "Durch Legal Hold blockiert"
+      },
+      "dialogs": {
+        "placeHold": {
+          "title": "Legal Hold setzen",
+          "description": "Die geschützte Entität ist bis zur Freigabe vor Bereinigung und Löschung geschützt. Eine Begründung ist Pflicht und wird im Audit-Log erfasst.",
+          "targetTypeLabel": "Zieltyp",
+          "targetIdLabel": "Ziel-ID",
+          "reasonLabel": "Begründung",
+          "reasonPlaceholder": "z. B. Beweissicherungs-Hold für Acme ./. Co. (Az. 2026-04)",
+          "matterLabel": "Fall (optional)",
+          "matterPlaceholder": "Fall auswählen oder anlegen",
+          "matterCreateNew": "Neuen Fall anlegen…",
+          "submit": "Hold setzen"
+        },
+        "bulkPlace": {
+          "title": "Legal Holds in Massen setzen",
+          "description": "Ein Eintrag pro Zeile als targetType:targetId (z. B. thread:thr_abc). Bis zu 200 Einträge pro Batch.",
+          "entriesLabel": "Einträge",
+          "entriesPlaceholder": "thread:thr_abc\ndocument:doc_xyz",
+          "reasonLabel": "Begründung (auf alle angewendet)",
+          "matterLabel": "Fall (optional, auf alle angewendet)",
+          "previewValid": "Gültig",
+          "previewInvalid": "Ungültig",
+          "submit": "{count} Holds setzen",
+          "summaryPlaced": "{count} Holds gesetzt.",
+          "summarySkipped": "{count} übersprungen",
+          "showSkipped": "Übersprungene anzeigen",
+          "tooManyEntries": "Maximal 200 Einträge pro Batch.",
+          "invalidLine": "Erwartetes Format targetType:targetId."
+        },
+        "requestRelease": {
+          "title": "Freigabe beantragen",
+          "description": "Ein Freigabeantrag startet den Vier-Augen-Workflow. Ein anderer Admin muss genehmigen, und die Freigabe wird erst nach dem Cooldown wirksam.",
+          "reasonLabel": "Begründung",
+          "submit": "Antrag einreichen"
+        },
+        "approveRelease": {
+          "title": "Freigabe genehmigen",
+          "description": "Die Genehmigung dieses Antrags gibt den Hold nach dem konfigurierten Cooldown frei. Dies ist die zweite von zwei Admin-Unterschriften.",
+          "submit": "Genehmigen",
+          "selfApproveBlocked": "Ein anderer Admin muss genehmigen. Selbstgenehmigung ist gesperrt, sofern das Deployment nicht für Single-Admin-Modus konfiguriert ist."
+        },
+        "rejectRelease": {
+          "title": "Freigabe ablehnen",
+          "description": "Die Ablehnung schließt den Antrag, ohne den Hold freizugeben.",
+          "reasonLabel": "Ablehnungsgrund",
+          "submit": "Ablehnen"
+        },
+        "upsertMatter": {
+          "createTitle": "Fall anlegen",
+          "editTitle": "Fall bearbeiten",
+          "description": "Verwandte Holds unter einem Fall gruppieren. Beim späteren Schließen werden Freigabeanträge für alle verknüpften Holds eingereicht.",
+          "nameLabel": "Name",
+          "namePlaceholder": "z. B. Acme ./. Co. (2026-04)",
+          "caseNumberLabel": "Aktenzeichen (optional)",
+          "descriptionLabel": "Beschreibung (optional)",
+          "submitCreate": "Fall anlegen",
+          "submitEdit": "Speichern"
+        },
+        "closeMatter": {
+          "title": "Fall schließen",
+          "description": "Beim Schließen werden Freigabeanträge für {count} aktive verknüpfte Hold(s) eingereicht. Jede Freigabe benötigt weiterhin Vier-Augen-Genehmigung.",
+          "reasonLabel": "Freigabegrund",
+          "reasonPlaceholder": "z. B. Fall geschlossen; Aufbewahrung nicht mehr erforderlich.",
+          "submit": "Fall schließen"
+        }
+      },
+      "toasts": {
+        "placedTitle": "Legal Hold gesetzt",
+        "placedDescription": "Der {targetType} ist jetzt vor Bereinigung und Löschung geschützt.",
+        "bulkPlacedTitle": "Massen-Holds gesetzt",
+        "bulkPlacedDescription": "{placed} gesetzt, {skipped} übersprungen.",
+        "releaseRequestedTitle": "Freigabeantrag eingereicht",
+        "releaseRequestedDescription": "Wartet auf Genehmigung durch einen anderen Admin.",
+        "releaseApprovedTitle": "Freigabe genehmigt",
+        "releaseRejectedTitle": "Freigabe abgelehnt",
+        "matterCreatedTitle": "Fall angelegt",
+        "matterUpdatedTitle": "Fall aktualisiert",
+        "matterClosedTitle": "Fall geschlossen",
+        "matterClosedDescription": "{count} Freigabeantrag/-anträge eingereicht."
+      },
+      "countdown": {
+        "ready": "Bereit",
+        "soon": "Weniger als eine Minute",
+        "minutesSeconds": "{minutes}m {seconds}s",
+        "hoursMinutes": "{hours}h {minutes}m",
+        "daysHours": "{days}d {hours}h"
+      },
+      "errors": {
+        "generic": {
+          "title": "Etwas ist schiefgelaufen",
+          "description": "Bitte erneut versuchen. Falls das Problem weiterhin besteht, an die Administration wenden."
+        },
+        "unauthenticated": "Anmeldung erforderlich.",
+        "forbidden": "Du hast keine Berechtigung dafür.",
+        "validation": "Bitte die Formularfelder prüfen.",
+        "notFound": "Nicht gefunden.",
+        "alreadyActive": "Auf dieses Ziel besteht bereits ein aktiver Legal Hold.",
+        "matterNotFound": "Dieser Fall existiert in der Organisation nicht.",
+        "targetNotInOrg": "Dieses Ziel gehört nicht zu dieser Organisation.",
+        "targetOrgMismatch": "Org-weite Holds müssen das Org-Ziel selbst sein.",
+        "orgRequiresDualControl": "Org-weite Holds erfordern Vier-Augen-Prinzip. Setze TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true für Single-Admin-Deployments oder verwende ziel-spezifische Holds.",
+        "alreadyReleased": "Dieser Legal Hold ist bereits freigegeben.",
+        "releaseAlreadyPending": "Für diesen Hold ist bereits ein Freigabeantrag ausstehend.",
+        "releaseNotPending": "Der Freigabeantrag ist nicht mehr ausstehend.",
+        "selfApprovalBlocked": "Ein anderer Admin muss genehmigen. Setze TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true, um Selbstgenehmigung in Single-Admin-Deployments zu erlauben.",
+        "approvalTooSoon": "Genehmigung möglich in {countdown}.",
+        "requesterNoLongerAdmin": "Der ursprüngliche Antragsteller ist kein Admin mehr. Lehne den Antrag ab und lasse einen aktuellen Admin einen neuen einreichen.",
+        "bulkTooLarge": "Maximal 200 Einträge pro Batch."
+      }
     },
     "modelAccess": {
       "title": "Modellzugriff",
