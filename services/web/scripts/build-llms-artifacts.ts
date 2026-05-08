@@ -1,7 +1,8 @@
 // Build-time: emit /llms.txt, /llms-full.txt, /sitemap.xml, /robots.txt,
 // and per-legal-page <slug>.md files for the marketing site. Mirrors the
 // docs site's build pipeline so both surfaces ship the same SEO + LLM
-// artifacts. Runs after `vite build` but before/alongside prerender.
+// artifacts. Writes into `public/` so Vite serves them in dev and copies
+// them into `dist/` during `vite build`.
 
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -17,7 +18,7 @@ import { enumerateLegalRoutes } from './legal-routes';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SCRIPT_DIR, '..');
-const DIST = resolve(ROOT, 'dist');
+const OUT_DIR = resolve(ROOT, 'public');
 const SITE_URL = 'https://tale.dev';
 
 interface MarketingRoute {
@@ -62,7 +63,7 @@ const STATIC_ROUTES: MarketingRoute[] = [
 
 async function main() {
   const legal = await enumerateLegalRoutes();
-  await mkdir(DIST, { recursive: true });
+  await mkdir(OUT_DIR, { recursive: true });
 
   // --- /llms.txt ---------------------------------------------------------
   const llmsTxt = buildLlmsTxt({
@@ -94,7 +95,7 @@ async function main() {
       { title: 'GitHub', url: 'https://github.com/tale-project/tale' },
     ],
   });
-  await writeFile(resolve(DIST, 'llms.txt'), llmsTxt);
+  await writeFile(resolve(OUT_DIR, 'llms.txt'), llmsTxt);
   process.stdout.write('built llms.txt\n');
 
   // --- /llms-full.txt (concat of static + legal markdown bodies) ---------
@@ -123,7 +124,10 @@ async function main() {
       body,
     });
   }
-  await writeFile(resolve(DIST, 'llms-full.txt'), buildLlmsFullTxt(fullPages));
+  await writeFile(
+    resolve(OUT_DIR, 'llms-full.txt'),
+    buildLlmsFullTxt(fullPages),
+  );
   process.stdout.write('built llms-full.txt\n');
 
   // --- /sitemap.xml with hreflang per legal page -------------------------
@@ -144,14 +148,14 @@ async function main() {
       sitemapPages.push({ url: `${SITE_URL}${v.url}`, alternates });
     }
   }
-  await writeFile(resolve(DIST, 'sitemap.xml'), buildSitemap(sitemapPages));
+  await writeFile(resolve(OUT_DIR, 'sitemap.xml'), buildSitemap(sitemapPages));
   process.stdout.write('built sitemap.xml\n');
 
   // --- /robots.txt -------------------------------------------------------
   const robots = buildRobotsTxt({
     sitemaps: [`${SITE_URL}/sitemap.xml`, `https://docs.tale.dev/sitemap.xml`],
   });
-  await writeFile(resolve(DIST, 'robots.txt'), robots);
+  await writeFile(resolve(OUT_DIR, 'robots.txt'), robots);
   process.stdout.write('built robots.txt\n');
 
   // --- per-legal-page .md endpoints --------------------------------------
@@ -166,7 +170,7 @@ async function main() {
     );
     const raw = await readFile(path, 'utf-8');
     const body = stripFrontmatter(raw);
-    const out = resolve(DIST, `${r.url.replace(/^\//, '')}.md`);
+    const out = resolve(OUT_DIR, `${r.url.replace(/^\//, '')}.md`);
     await mkdir(dirname(out), { recursive: true });
     await writeFile(
       out,

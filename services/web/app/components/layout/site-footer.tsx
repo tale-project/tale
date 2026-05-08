@@ -162,6 +162,10 @@ export function SiteFooter() {
         t('copyrightLine1', { year: new Date().getFullYear() }),
         t('copyrightLine2'),
       ]}
+      llmsTxtUrl="/llms.txt"
+      llmsTxtLabel={t('llmsTxtLabel')}
+      llmsFullTxtUrl="/llms-full.txt"
+      llmsFullTxtLabel={t('llmsFullTxtLabel')}
       bottomTrailing={
         <a
           href="https://github.com/tale-project/tale"

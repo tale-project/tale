@@ -41,6 +41,14 @@ interface SiteFooterProps {
   /** Localized label for the `llms.txt` link. */
   llmsTxtLabel?: string;
   /**
+   * Optional companion to `llmsTxtUrl` for sites that also publish a
+   * full-content `llms-full.txt`. Rendered next to the `llms.txt` link
+   * with identical styling.
+   */
+  llmsFullTxtUrl?: string;
+  /** Localized label for the `llms-full.txt` link. */
+  llmsFullTxtLabel?: string;
+  /**
    * Override the inner content-width container. Defaults to the marketing
    * SiteContainer frame; docs pages pass a custom class to align with
    * their wider content layout.
@@ -63,6 +71,8 @@ export function SiteFooter({
   bottomTrailing,
   llmsTxtUrl,
   llmsTxtLabel = 'llms.txt',
+  llmsFullTxtUrl,
+  llmsFullTxtLabel = 'llms-full.txt',
   containerClassName,
 }: SiteFooterProps) {
   const columnCount = columns.length;
@@ -74,14 +84,18 @@ export function SiteFooter({
         ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_repeat(2,minmax(0,1fr))]'
         : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(0,1fr))]';
 
+  const llmLinkClass =
+    'text-fg-muted hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base rounded-sm px-2 py-1 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none';
   const switcherRow = (
     <div className="flex flex-wrap items-center gap-2">
       {llmsTxtUrl ? (
-        <a
-          href={llmsTxtUrl}
-          className="text-fg-muted hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base rounded-sm px-2 py-1 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-        >
+        <a href={llmsTxtUrl} className={llmLinkClass}>
           {llmsTxtLabel}
+        </a>
+      ) : null}
+      {llmsFullTxtUrl ? (
+        <a href={llmsFullTxtUrl} className={llmLinkClass}>
+          {llmsFullTxtLabel}
         </a>
       ) : null}
       <LanguageSwitcher />
