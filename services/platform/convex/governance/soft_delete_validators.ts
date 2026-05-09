@@ -48,9 +48,13 @@ export const SOFT_DELETE_RESOURCE_TYPES = [
   'customer',
   'vendor',
   'externalConversation',
-  'messageMetadata',
+  // Round-2 V2 P1-A/B: `messageMetadata` and `workflowTriggerLog` were
+  // listed here but their schema-side state never matched (former had
+  // no organizationId/lifecycleStatus, latter mapped to the wrong
+  // table). Both already had bespoke retention paths
+  // (`deleteExpiredMessageMetadata` / `deleteExpiredWorkflowTriggerLog`)
+  // that didn't go through the generic Trash flow. Dropped.
   'workflowExecution',
-  'workflowTriggerLog',
   'usageLedger',
   'auditLog',
   'chatFilterEvent',

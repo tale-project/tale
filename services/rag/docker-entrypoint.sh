@@ -59,7 +59,13 @@ for attempt in $(seq 1 30); do
   fi
   if [ "${attempt}" -eq 30 ]; then
     echo "ERROR: dbmate migrate failed after 30 attempts:" >&2
-    cat "${DBMATE_LOG}" >&2
+    # Round-2 V9 P1-Z: redact the connection-URL password before
+    # streaming the dbmate log to stderr. Without this, a single
+    # failed deploy leaks `password=<secret>` into container logs that
+    # often persist on the host's `journalctl` history. Pattern is
+    # `:<password>@` in `postgres://<user>:<password>@<host>...`.
+    sed -E 's#(postgres(ql)?://[^:]+:)[^@]+@#\1***REDACTED***@#g' \
+      "${DBMATE_LOG}" >&2
     rm -f "${DBMATE_LOG}"
     exit 1
   fi

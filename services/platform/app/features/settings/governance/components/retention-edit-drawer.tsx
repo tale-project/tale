@@ -65,12 +65,16 @@ export function RetentionEditDrawer({
       )}
       size="md"
     >
-      {/* Keyed so each open re-mounts the form with a fresh snapshot of
-          `savedConfig`. Re-syncing via useEffect risks racing the Save
-          button's closure, the same trap CategoryEditSheet hit. */}
+      {/* Round-2 V9 P1-N: keyed on `open` (i.e. each fresh open of the
+          drawer remounts) instead of on `JSON.stringify(savedConfig)`.
+          With the previous content-based key, ANY reactive Convex
+          update to the saved config (including a parallel admin save)
+          would re-mount this form mid-edit and silently throw away
+          the user's pending input. The intentional "fresh-snapshot
+          per open" semantics still hold — the form unmounts on close
+          and the next open binds a new instance. */}
       {open && (
         <RetentionEditFormBody
-          key={JSON.stringify(savedConfig)}
           savedConfig={savedConfig}
           bounds={bounds}
           organizationId={organizationId}

@@ -70,4 +70,13 @@ export const threadMetadataTable = defineTable({
   ])
   .index('by_shareToken', ['shareToken'])
   .index('by_arenaGroupId', ['arenaGroupId'])
-  .index('by_organizationId', ['organizationId']);
+  .index('by_organizationId', ['organizationId'])
+  // Round-2 V9 / round-1 #18 P2 + #27 P1-M: admin Trash UI's
+  // `fetchTrashSubpage` needs to slice threadMetadata by status without
+  // scanning every active row first. The other 12 trashable tables
+  // already carry `by_organizationId_and_lifecycleStatus`; threadMetadata
+  // (which uses the legacy `status` field instead of `lifecycleStatus`)
+  // was the missing one — without this, an org with > ~250 active
+  // threads would never surface trashed/expired threads in the admin
+  // Trash list because the take-prefix filled with `active` rows first.
+  .index('by_organizationId_and_status', ['organizationId', 'status']);

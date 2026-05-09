@@ -243,10 +243,22 @@ async function cleanupTempFiles(
     return 0;
   }
 
-  const hours =
-    (source === 'user'
+  // Round-2 V9 / round-1 #03 P1-I: a misconfigured `userTempRetentionHours
+  // = 0` (allowed by the Zod schema) would collapse `cutoffMs` to
+  // `Date.now()` and mass-delete every temp file in the org. Mirror the
+  // `<= 0` guard the day-based cleanup categories use; treat 0 / negative
+  // as "feature-gated off" rather than "delete-everything-now".
+  const rawHours =
+    source === 'user'
       ? org.config.userTempRetentionHours
-      : org.config.agentTempRetentionHours) ?? DEFAULT_TEMP_RETENTION_HOURS;
+      : org.config.agentTempRetentionHours;
+  const hours = rawHours ?? DEFAULT_TEMP_RETENTION_HOURS;
+  if (typeof hours !== 'number' || hours <= 0 || !Number.isFinite(hours)) {
+    console.warn(
+      `[RetentionCleanup] ${source} temp retention is ${rawHours} (≤ 0 or non-finite) — skipping to prevent mass-delete`,
+    );
+    return 0;
+  }
   const cutoffMs = Date.now() - hours * HOUR_MS;
   const graceDays = org.config.deletionGraceDays ?? 0;
   let processed = 0;

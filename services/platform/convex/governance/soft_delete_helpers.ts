@@ -116,30 +116,12 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     auditResourceType: 'external_conversation',
     displayNameField: 'subject',
   },
-  messageMetadata: {
-    tableName: 'messageMetadata',
-    statusField: 'lifecycleStatus',
-    auditPrefix: 'message_metadata',
-    auditResourceType: 'message_metadata',
-    // No direct author field on messageMetadata; the cascade flows via
-    // the parent thread's `userId` and is enforced by the cleanup path
-    // in `retention_cleanup.ts:cleanupMessageMetadata` (Commit 2).
-  },
   workflowExecution: {
     tableName: 'wfExecutions',
     statusField: 'lifecycleStatus',
     auditPrefix: 'workflow_execution',
     auditResourceType: 'workflow_execution',
     displayNameField: 'workflowSlug',
-    authorField: 'userId',
-  },
-  workflowTriggerLog: {
-    // Trigger logs cascade with executions; included for completeness, not
-    // user-restorable in the Trash UI.
-    tableName: 'wfExecutions',
-    statusField: 'lifecycleStatus',
-    auditPrefix: 'workflow_trigger_log',
-    auditResourceType: 'workflow_trigger_log',
     authorField: 'userId',
   },
   usageLedger: {

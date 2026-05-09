@@ -606,13 +606,24 @@ async function fetchTrashSubpage(
   const config = SOFT_DELETE_RESOURCE_CONFIG[rt];
   switch (rt) {
     case 'thread': {
-      // threadMetadata uses the legacy `status` field.
-      const all = await ctx.db
+      // Round-2 V9 P1-M: narrow on `status` so the `take` budget isn't
+      // saturated by active rows (the index range walks the active
+      // prefix first and would never reach trashed/expired tail in any
+      // org with a non-trivial number of active threads). Two equality
+      // slices, merged by recency.
+      const trashed = await ctx.db
         .query('threadMetadata')
-        .withIndex('by_organizationId', (q) =>
-          q.eq('organizationId', organizationId),
+        .withIndex('by_organizationId_and_status', (q) =>
+          q.eq('organizationId', organizationId).eq('status', 'trashed'),
         )
         .take(take);
+      const expired = await ctx.db
+        .query('threadMetadata')
+        .withIndex('by_organizationId_and_status', (q) =>
+          q.eq('organizationId', organizationId).eq('status', 'expired'),
+        )
+        .take(take);
+      const all = [...trashed, ...expired];
       return projectSubpage(rt, config, all, (r) => ({
         status: r.status,
         statusChangedAt: r.statusChangedAt ?? null,
@@ -801,9 +812,6 @@ async function fetchTrashSubpage(
         passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
       );
     }
-    case 'messageMetadata':
-    case 'workflowTriggerLog':
-      return [];
   }
   return [];
 }

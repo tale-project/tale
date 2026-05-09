@@ -27,10 +27,11 @@ interface Props {
   organizationId: string;
 }
 
+// Trash UI surfaces every soft-deletable resource — the registry no
+// longer carries cascade-only types (messageMetadata, workflowTriggerLog)
+// after the round-2 V2 P1-A/B cleanup, so this is now an alias.
 const VISIBLE_RESOURCE_TYPES: readonly SoftDeleteResourceType[] =
-  SOFT_DELETE_RESOURCE_TYPES.filter(
-    (t) => t !== 'messageMetadata' && t !== 'workflowTriggerLog',
-  );
+  SOFT_DELETE_RESOURCE_TYPES;
 
 interface RestoreTarget {
   resourceType: SoftDeleteResourceType;
