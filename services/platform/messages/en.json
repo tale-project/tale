@@ -1094,6 +1094,7 @@
         "searchTitle": "No models found",
         "searchDescription": "Try adjusting your search."
       },
+      "costPerMillionTokens": "Cost / 1M tokens",
       "fetchingModels": "Fetching…",
       "fetchModelsError": "Could not fetch models. You can add them manually instead.",
       "modelsSelected": "{count} selected",
@@ -3061,8 +3062,8 @@
       "description": "Select and configure tools available to your agent."
     },
     "agentWebhook": {
-      "title": "Agent webhook",
-      "description": "Manage webhook URLs for your agent."
+      "title": "Agent workers",
+      "description": "Manage worker URLs for your agent."
     },
     "agentDelegation": {
       "title": "Agent delegation",

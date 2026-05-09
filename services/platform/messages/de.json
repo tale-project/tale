@@ -1094,6 +1094,7 @@
         "searchTitle": "Keine Modelle gefunden",
         "searchDescription": "Versuche, deine Suche anzupassen."
       },
+      "costPerMillionTokens": "Kosten / 1M Tokens",
       "fetchingModels": "Abrufen…",
       "fetchModelsError": "Modelle konnten nicht abgerufen werden. Du kannst sie stattdessen manuell hinzufügen.",
       "modelsSelected": "{count} ausgewählt",
@@ -3061,8 +3062,8 @@
       "description": "Tools für deinen Agent auswählen und konfigurieren."
     },
     "agentWebhook": {
-      "title": "Agent-Webhook",
-      "description": "Webhook-URLs für deinen Agent verwalten."
+      "title": "Agent-Workers",
+      "description": "Worker-URLs für deinen Agent verwalten."
     },
     "agentDelegation": {
       "title": "Agent-Delegation",

@@ -872,7 +872,7 @@ function ModelsSection({
                     {t('providers.tags')}
                   </TableHead>
                   <TableHead className="w-[140px] text-right">
-                    Cost / 1M tokens
+                    {t('providers.costPerMillionTokens')}
                   </TableHead>
                   <TableHead className="w-11" />
                 </TableRow>

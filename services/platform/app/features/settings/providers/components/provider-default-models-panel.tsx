@@ -67,10 +67,13 @@ export function ProviderDefaultModelsPanel({
 
   const isDirty =
     !!data?.ok &&
-    (defaults.chat !== (data.config.defaults?.chat ?? NONE_VALUE) ||
-      defaults.vision !== (data.config.defaults?.vision ?? NONE_VALUE) ||
-      defaults.embedding !== (data.config.defaults?.embedding ?? NONE_VALUE) ||
-      defaults.transcription !==
+    ((defaults.chat ?? NONE_VALUE) !==
+      (data.config.defaults?.chat ?? NONE_VALUE) ||
+      (defaults.vision ?? NONE_VALUE) !==
+        (data.config.defaults?.vision ?? NONE_VALUE) ||
+      (defaults.embedding ?? NONE_VALUE) !==
+        (data.config.defaults?.embedding ?? NONE_VALUE) ||
+      (defaults.transcription ?? NONE_VALUE) !==
         (data.config.defaults?.transcription ?? NONE_VALUE));
 
   const models = data?.ok ? data.config.models : [];

@@ -154,8 +154,8 @@ export function DataTableFilters({
         className,
       )}
     >
-      <div className="flex min-w-auto flex-col items-start gap-3 sm:flex-1 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="flex min-w-auto items-center gap-3">
+      <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-1 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="flex min-w-0 items-center gap-3">
           {search && (
             <SearchInput
               placeholder={search.placeholder ?? t('search.placeholder')}

@@ -1094,6 +1094,7 @@
         "searchTitle": "Aucun modèle trouvé",
         "searchDescription": "Essaie d'ajuster ta recherche."
       },
+      "costPerMillionTokens": "Coût / 1M de tokens",
       "fetchingModels": "Récupération…",
       "fetchModelsError": "Impossible de récupérer les modèles. Tu peux les ajouter manuellement à la place.",
       "modelsSelected": "{count} sélectionnés",
@@ -2986,8 +2987,8 @@
       "description": "Sélectionne et configure les outils disponibles pour ton agent."
     },
     "agentWebhook": {
-      "title": "Webhook de l'agent",
-      "description": "Gère les URL de webhook pour ton agent."
+      "title": "Workers de l'agent",
+      "description": "Gère les URL de workers pour ton agent."
     },
     "agentDelegation": {
       "title": "Délégation de l'agent",
