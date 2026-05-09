@@ -76,6 +76,12 @@ describe('deleteChatThread', () => {
       withIndex: () => dbQueryChain,
       first: vi.fn().mockResolvedValue(null),
       collect: vi.fn().mockResolvedValue([]),
+      // Round-2 fix: replaced `.collect()` with `for await` on the
+      // agentWebhookUserThreads cascade. The mock now supports async
+      // iteration so the existing tests remain green.
+      [Symbol.asyncIterator]: async function* () {
+        // No webhook mappings in default mock state.
+      },
     };
     const mockDb = {
       query: () => dbQueryChain,
@@ -191,13 +197,14 @@ describe('deleteChatThread', () => {
     const { ctx, mockDelete, dbQueryChain } = createMockCtx(
       JSON.stringify({ chatType: 'general' }),
     );
-    // First `query().withIndex().first()` → threadMetadata (returns null so the
-    // patch path is skipped). Second chain terminates in `.collect()` for
-    // the webhook mappings; return two rows so we can assert the cascade.
-    dbQueryChain.collect.mockResolvedValueOnce([
-      { _id: 'mapping_a' },
-      { _id: 'mapping_b' },
-    ]);
+    // The webhook cascade now iterates via `for await` instead of
+    // `.collect()`. Override the chain's async iterator to yield two
+    // mappings; the chain's `.first()` (used elsewhere for
+    // threadMetadata) still returns null so the patch path is skipped.
+    dbQueryChain[Symbol.asyncIterator] = async function* () {
+      yield { _id: 'mapping_a' };
+      yield { _id: 'mapping_b' };
+    };
 
     await deleteChatThread(ctx, 'parent_1');
 

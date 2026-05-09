@@ -80,14 +80,33 @@ describe('deleteDocumentById', () => {
   });
 
   it('returns error result on HTTP failure', async () => {
-    mockFetch({ detail: 'not found' }, 400);
+    mockFetch({ detail: 'service error' }, 500);
 
     const result = await deleteDocumentById({
       fileId: 'doc-fail',
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('400');
+    expect(result.error).toContain('500');
+  });
+
+  // Round-2 review HIGH (E.4.2): retention re-runs and cascade RAG
+  // purges must be idempotent. A 404 ("already deleted") needs to be
+  // a successful no-op, not a permanent failure indicator on the
+  // retention receipt. Pre-fix, the test asserted 400 was an error —
+  // but real RAG returns 404 for not-found, and the helper rethrew it
+  // as a generic failure.
+  it('treats 404 as a successful no-op for idempotency', async () => {
+    mockFetch({ detail: 'not found' }, 404);
+
+    const result = await deleteDocumentById({
+      fileId: 'doc-already-gone',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.deletedCount).toBe(0);
+    expect(result.message).toBe('already_deleted');
+    expect(result.error).toBeUndefined();
   });
 
   it('URL-encodes file IDs with special characters', async () => {

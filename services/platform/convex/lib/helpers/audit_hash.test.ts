@@ -27,6 +27,30 @@ describe('canonicalize', () => {
     expect(result).toBe('{"action":"test"}');
   });
 
+  // Round-2 review CRITICAL #8: retention soft-delete patches
+  // `lifecycleStatus` and `statusChangedAt` onto auditLogs rows. These
+  // fields were missing from EXCLUDED_FIELDS pre-fix, so any soft-
+  // deleted audit row poisoned the chain hash recompute and
+  // verifyIntegrity reported the entire chain as `valid: false`.
+  // Locking the fix in: both fields MUST be excluded.
+  it('excludes lifecycleStatus and statusChangedAt (post-soft-delete patches)', () => {
+    const result = canonicalizeForTest({
+      action: 'test',
+      lifecycleStatus: 'expired',
+      statusChangedAt: 1730000000000,
+    });
+    expect(result).toBe('{"action":"test"}');
+  });
+
+  it('excludes chainSuccessor and piiScrubbedAt (post-write patches)', () => {
+    const result = canonicalizeForTest({
+      action: 'test',
+      chainSuccessor: 'kxx_next',
+      piiScrubbedAt: 1730000000000,
+    });
+    expect(result).toBe('{"action":"test"}');
+  });
+
   it('handles null and undefined', () => {
     expect(canonicalizeForTest(null)).toBe('null');
     expect(canonicalizeForTest(undefined)).toBe('undefined');
@@ -132,6 +156,30 @@ describe('computeAuditHash', () => {
     const writerHash = await computeAuditHash('prev', writer);
     const verifierHash = await computeAuditHash('prev', verifier);
     expect(writerHash).toBe(verifierHash);
+  });
+
+  // Round-2 review CRITICAL #8 (end-to-end): the writer hashes a record
+  // that has no lifecycleStatus / statusChangedAt; the verifier later
+  // sees the row patched by retention soft-delete with both fields
+  // present. Both must hash identically (because EXCLUDED_FIELDS strips
+  // them back out), otherwise verifyIntegrity reports the chain as
+  // tampered for every soft-deleted audit row.
+  it('soft-delete patch does not change the canonical record hash', async () => {
+    const writerRecord = { action: 'login', timestamp: 1000 };
+    const writerHash = await computeAuditHash('', writerRecord);
+
+    const verifierRecordAfterSoftDelete = {
+      action: 'login',
+      timestamp: 1000,
+      lifecycleStatus: 'expired',
+      statusChangedAt: 2000,
+    };
+    const verifierHash = await computeAuditHash(
+      '',
+      verifierRecordAfterSoftDelete,
+    );
+
+    expect(verifierHash).toBe(writerHash);
   });
 
   it('forms a verifiable chain', async () => {
