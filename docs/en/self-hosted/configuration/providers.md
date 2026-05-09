@@ -73,7 +73,7 @@ Leave `cost` unset for self-hosted backends where spend is operational rather th
 
 ### Provider options (advanced)
 
-Tale forwards arbitrary provider-specific request body fields via an optional `providerOptions` block, available at **both** the provider top level and per-model. The most common use is OpenRouter's [provider routing](https://openrouter.ai/docs/features/provider-routing) — pinning quantization, allowed providers, fallback policy, etc.
+Tale forwards arbitrary provider-specific request body fields via an optional `providerOptions` block, available at **both** the provider top level and per-model. The most common use is OpenRouter's [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection) — pinning quantization, allowed providers, fallback policy, etc.
 
 ```json
 {
@@ -101,12 +101,12 @@ Tale forwards arbitrary provider-specific request body fields via an optional `p
 - **Merge precedence**: provider-level → model-level (depth-2: shared top-level keys merge, sub-keys merge with model winning, arrays replace wholesale).
 - The dashboard exposes the same JSON via the **Advanced — Provider Options** panels under _Settings → Providers → \[provider\]_ (provider-level) and the model add/edit dialog (per-model).
 
-**Rejected keys (fail at load with a clear error):**
+**Rejected keys (the file is skipped at load with the reason logged in `skippedReasons`; sibling provider files continue to load):**
 
-| Category        | Keys                                                                                                                                                                    | Reason                                                                                                                      |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| AI SDK reserved | `user`, `reasoningEffort`, `textVerbosity`, `strictJsonSchema`                                                                                                          | The OpenAI-compatible adapter strips these silently — set them at the agent level instead.                                  |
-| Body-overwrite  | `model`, `messages`, `tools`, `tool_choice`, `stream`, `temperature`, `max_tokens`, `top_p`, `frequency_penalty`, `presence_penalty`, `response_format`, `stop`, `seed` | These would clobber Tale's resolved request body — configure them via the agent's model/temperature/maxOutputTokens fields. |
+| Category        | Keys                                                                                                                                                                                                                                                          | Reason                                                                                                                                                           |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AI SDK reserved | `user`, `reasoningEffort`, `textVerbosity`, `strictJsonSchema`                                                                                                                                                                                                | The OpenAI-compatible adapter strips these silently — set them at the agent level instead.                                                                       |
+| Body-overwrite  | `model`, `messages`, `tools`, `tool_choice`, `stream`, `temperature`, `max_tokens`, `top_p`, `frequency_penalty`, `presence_penalty`, `response_format`, `stop`, `seed`, `n`, `logit_bias`, `logprobs`, `top_logprobs`, `stream_options`, `store`, `metadata` | These would clobber Tale's resolved body, silently amplify cost (`n`), break usage telemetry (`stream_options`), or leak data to upstream (`store`, `metadata`). |
 
 **OpenRouter quantization values:** `int4`, `int8`, `fp4`, `fp6`, `fp8`, `fp16`, `bf16`, `fp32`, `unknown`.
 
@@ -138,7 +138,9 @@ Tale forwards arbitrary provider-specific request body fields via an optional `p
 }
 ```
 
-**Direct vendors** (OpenAI, Anthropic, Together AI, Groq, DeepSeek, Mistral) host their own models on their own infrastructure. There is **no routing layer** and **no `quantizations` field** — the precision a model is deployed at is fixed by the vendor (Together AI, for example, exposes the same Llama via `meta-llama/Llama-3.3-70B-Instruct-Turbo` at fp8 and `…-Reference` at bf16 — to switch precision, change the model ID, not a request field). Their passthrough fields are _model-behavior knobs_ at the body's top level:
+Tale's `providerOptions` only flows into the request body. Header-level routing controls (`ai-gateway-order`, `ai-gateway-only`) are not currently settable from a provider config; pin routing via the model-ID prefix instead.
+
+**Direct vendors** (OpenAI, Anthropic, Together AI, Groq, DeepSeek, Mistral) host their own models on their own infrastructure. There is **no routing layer** and **no `quantizations` field** — the precision a model is deployed at is fixed by the vendor (Together AI, for example, only exposes Llama 3.3 70B via `meta-llama/Llama-3.3-70B-Instruct-Turbo` at fp8; to pick a different precision you'd change the model ID rather than a request field, and only older Llama 3 70B has a `…-Instruct-Reference` (bf16) variant). Their passthrough fields are _model-behavior knobs_ at the body's top level:
 
 ```json
 // OpenAI — SLA tier, parallel tools, prompt cache routing
@@ -152,14 +154,14 @@ Tale forwards arbitrary provider-specific request body fields via an optional `p
 ```json
 // Together AI — moderation routing, sampling controls beyond AI SDK defaults
 "providerOptions": {
-  "safety_model": "Meta-Llama-Guard-3-8B",
+  "safety_model": "meta-llama/Llama-Guard-4-12B",
   "repetition_penalty": 1.1
 }
 ```
 
 Tale forwards verbatim — refer to each provider's API reference for the exact field names and accepted values. Fields the upstream doesn't recognize are silently ignored at the gateway, so a typo will look like a no-op rather than fail loudly.
 
-**Verifying it landed:** set `TALE_DEBUG_LLM_WIRE=1` in the platform process env and watch the platform logs. Each outgoing LLM request prints its URL plus body keys (with `messages`/`input` redacted), so you can confirm the merged `provider:` (or any other) field is present.
+**Verifying it landed:** set `TALE_DEBUG_LLM_WIRE=1` in the Convex backend process env (the self-hosted Convex container, or your `bun run dev` Convex shell locally) and watch its stdout. Each outgoing chat / embedding / image LLM request routed through the AI SDK prints its URL plus body keys (with `messages`/`input` redacted), so you can confirm the merged `provider:` (or any other) field is present. Note: the wrapper does not cover transcription, connection-test probes, or the direct-fetch image-gen path, and only redacts `messages`/`input` — other body fields including `system`, `tools`, `metadata`, `prompt_cache_key`, and `user` are logged verbatim.
 
 **Migration:** existing `$TALE_CONFIG_DIR/providers/*.json` files without a `providerOptions` block continue to work unchanged — the field is optional. New models added in `examples/providers/openrouter.json` (GLM 5.x, Kimi K2.6, Qwen 3.6, Gemma 4) need to be merged manually into deployed configs.
 

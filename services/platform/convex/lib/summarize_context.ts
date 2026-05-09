@@ -71,16 +71,14 @@ Guidelines:
 Output ONLY the updated summary, not commentary about changes.`;
 
 /**
- * Create a lightweight summarizer agent (no tools, just for summarization)
+ * Create a lightweight summarizer agent (no tools, just for summarization).
+ * Caller passes `providerOptions` per-call into `summarizer.generateText({...})`
+ * — Agent-level providerOptions is `@deprecated`.
  */
 function createSummarizerAgent(
   languageModel: LanguageModelV3,
-  modelData: ResolvedModelData | undefined,
   incremental: boolean = false,
 ): Agent {
-  const callProviderOptions = modelData
-    ? buildCallProviderOptions(modelData)
-    : undefined;
   return new Agent(components.agent, {
     name: 'summarizer',
     languageModel,
@@ -90,7 +88,6 @@ function createSummarizerAgent(
     // Cap output to ensure the model has room to respond without OpenRouter
     // defaulting to a low limit and truncating mid-summary.
     callSettings: { maxOutputTokens: 8192 },
-    ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
   });
 }
 
@@ -285,7 +282,10 @@ async function summarizeSingleChunk(
     `summarizeSingleChunk Formatted ${messages.length} messages, total chars: ${formattedMessages.length}`,
   );
 
-  const summarizer = createSummarizerAgent(languageModel, modelData, false);
+  const summarizer = createSummarizerAgent(languageModel, false);
+  const callProviderOptions = modelData
+    ? buildCallProviderOptions(modelData)
+    : undefined;
 
   let prompt = '';
   if (currentPrompt) {
@@ -304,7 +304,10 @@ ${formattedMessages}`;
   const result = await summarizer.generateText(
     ctx,
     { userId },
-    { prompt },
+    {
+      prompt,
+      ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
+    },
     { storageOptions: { saveMessages: 'none' } },
   );
 
@@ -340,7 +343,10 @@ export async function updateSummary(
   }
 
   const formattedNewMessages = formatMessagesForSummary(newMessages);
-  const summarizer = createSummarizerAgent(languageModel, modelData, true);
+  const summarizer = createSummarizerAgent(languageModel, true);
+  const callProviderOptions = modelData
+    ? buildCallProviderOptions(modelData)
+    : undefined;
 
   let prompt = `## Existing Summary
 
@@ -362,7 +368,10 @@ ${formattedNewMessages}`;
   const result = await summarizer.generateText(
     ctx,
     { userId },
-    { prompt },
+    {
+      prompt,
+      ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
+    },
     { storageOptions: { saveMessages: 'none' } },
   );
 

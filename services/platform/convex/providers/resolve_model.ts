@@ -213,10 +213,28 @@ const toolSchemaFixMiddleware: LanguageModelV3Middleware = {
 };
 
 /**
- * Optional fetch wrapper for `TALE_DEBUG_LLM_WIRE=1` — logs the outgoing URL
- * and JSON body keys (with `messages`/`input` redacted to keep prompts out
- * of logs) on every LLM request. Returns `undefined` when the flag is unset
- * so the SDK uses its default `globalThis.fetch`.
+ * Optional fetch wrapper for `TALE_DEBUG_LLM_WIRE=1` — logs outgoing chat,
+ * embedding, and image LLM requests routed through the AI SDK's openai-
+ * compatible client.
+ *
+ * SCOPE — what is covered:
+ * - Chat (`/v1/chat/completions`) and embeddings (`/v1/embeddings`)
+ * - Image-generation via `generateImage` and chat-multimodal
+ *
+ * SCOPE — what is NOT covered (uses raw `fetch` directly):
+ * - Transcription (`/v1/audio/transcriptions`)
+ * - The direct OpenRouter image-fetch path in
+ *   `agents/image_generation/run_image_generation.ts` (multimodal output)
+ * - Connection-test and model-discovery probes in
+ *   `providers/file_actions.ts`
+ *
+ * REDACTION — only `messages` and `input` are blanked. Other body fields
+ * including `system`, `tools`, `tool_choice`, `metadata`, `prompt_cache_key`,
+ * `user`, `prediction` are logged verbatim. Use this flag for development;
+ * not appropriate for production logs.
+ *
+ * Returns `undefined` when the flag is unset so the SDK uses its default
+ * `globalThis.fetch`.
  */
 type FetchFn = (
   input: Parameters<typeof fetch>[0],

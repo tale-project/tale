@@ -59,28 +59,61 @@ describe('createAgentConfig', () => {
     });
   });
 
-  describe('providerOptions forwarding', () => {
-    it('forwards caller-provided providerOptions verbatim', () => {
-      const callerOptions = {
-        openrouter: { provider: { quantizations: ['fp8'] } },
-      };
+  describe('modelMaxOutputTokens precedence', () => {
+    it('uses modelMaxOutputTokens when caller does not provide maxTokens', () => {
       const config = createAgentConfig({
         name: 'test-agent',
         languageModel: makeFakeModel(),
         instructions: 'You are a test assistant.',
-        providerOptions: callerOptions,
+        modelMaxOutputTokens: 4096,
       });
 
-      expect(config.providerOptions).toEqual(callerOptions);
+      const callSettings = config.callSettings as
+        | Record<string, number>
+        | undefined;
+      expect(callSettings?.maxOutputTokens).toBe(4096);
     });
 
-    it('omits providerOptions when none are passed', () => {
+    it('caller maxTokens wins over modelMaxOutputTokens', () => {
+      const config = createAgentConfig({
+        name: 'test-agent',
+        languageModel: makeFakeModel(),
+        instructions: 'You are a test assistant.',
+        maxTokens: 1024,
+        modelMaxOutputTokens: 4096,
+      });
+
+      const callSettings = config.callSettings as
+        | Record<string, number>
+        | undefined;
+      expect(callSettings?.maxOutputTokens).toBe(1024);
+    });
+
+    it('falls back to 8192 default when neither is provided', () => {
       const config = createAgentConfig({
         name: 'test-agent',
         languageModel: makeFakeModel(),
         instructions: 'You are a test assistant.',
       });
 
+      const callSettings = config.callSettings as
+        | Record<string, number>
+        | undefined;
+      expect(callSettings?.maxOutputTokens).toBe(8192);
+    });
+  });
+
+  describe('providerOptions is no longer agent-level', () => {
+    it('config does not carry a providerOptions field', () => {
+      const config = createAgentConfig({
+        name: 'test-agent',
+        languageModel: makeFakeModel(),
+        instructions: 'You are a test assistant.',
+      });
+
+      // providerOptions moved out of the Agent constructor and onto per-call
+      // streamText/generateText/generateObject args. The createAgentConfig
+      // shape should never produce it.
       expect(config).not.toHaveProperty('providerOptions');
     });
   });

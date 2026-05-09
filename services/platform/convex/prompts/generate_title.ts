@@ -15,7 +15,6 @@ import { components } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { buildCallProviderOptions } from '../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
-import type { ResolvedModelData } from '../providers/resolve_model';
 
 const TITLE_TIMEOUT_MS = 10_000;
 
@@ -28,18 +27,12 @@ Given the prompt content below, produce a concise, descriptive title (3-8 words)
 - Do not add punctuation at the end
 - Return ONLY the title text, nothing else`;
 
-function createTitleGenerator(
-  languageModel: LanguageModelV3,
-  modelData: ResolvedModelData,
-): Agent {
+function createTitleGenerator(languageModel: LanguageModelV3): Agent {
   return new Agent(components.agent, {
     name: 'prompt-title-generator',
     languageModel,
     instructions: TITLE_INSTRUCTIONS,
     callSettings: { maxOutputTokens: 64 },
-    ...(buildCallProviderOptions(modelData)
-      ? { providerOptions: buildCallProviderOptions(modelData) }
-      : {}),
   });
 }
 
@@ -60,7 +53,8 @@ export const generatePromptTitle = internalAction({
             tag: 'chat',
           });
 
-        const generator = createTitleGenerator(languageModel, modelData);
+        const generator = createTitleGenerator(languageModel);
+        const callProviderOptions = buildCallProviderOptions(modelData);
         const userId = `prompt-title-${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 9)}`;
@@ -68,7 +62,12 @@ export const generatePromptTitle = internalAction({
         const result = await generator.generateText(
           ctx,
           { userId },
-          { prompt: args.content.slice(0, 4000) },
+          {
+            prompt: args.content.slice(0, 4000),
+            ...(callProviderOptions
+              ? { providerOptions: callProviderOptions }
+              : {}),
+          },
           { storageOptions: { saveMessages: 'none' } },
         );
 

@@ -401,6 +401,7 @@ export async function generateAgentResponse(
     instructions,
     toolsSummary,
     personalizationMode,
+    providerOptions,
   } = config;
   const {
     ctx,
@@ -1061,6 +1062,7 @@ export async function generateAgentResponse(
             ...(generationParams?.stopSequences != null && {
               stopSequences: generationParams.stopSequences,
             }),
+            ...(providerOptions ? { providerOptions } : {}),
             onChunk: ({ chunk }: { chunk: { type: string } }) => {
               if (firstTokenTime === null && chunk.type === 'text-delta') {
                 firstTokenTime = Date.now();
@@ -1281,6 +1283,7 @@ export async function generateAgentResponse(
               ...(generationParams?.stopSequences != null && {
                 stopSequences: generationParams.stopSequences,
               }),
+              ...(providerOptions ? { providerOptions } : {}),
             },
             {
               contextOptions: {
@@ -1463,6 +1466,7 @@ export async function generateAgentResponse(
                   ...(generationParams?.maxTokens != null && {
                     maxTokens: generationParams.maxTokens,
                   }),
+                  ...(providerOptions ? { providerOptions } : {}),
                 },
                 {
                   contextOptions: {
@@ -1655,6 +1659,7 @@ export async function generateAgentResponse(
                     ? `The previous attempt to respond timed out. Based on any available context and tool results, provide a helpful response to: ${promptMessage}`
                     : 'The previous attempt timed out. Based on the conversation and any available tool results, provide a summary response.',
                   abortSignal: recoveryAbortController.signal,
+                  ...(providerOptions ? { providerOptions } : {}),
                 },
                 {
                   contextOptions: {

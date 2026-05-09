@@ -8,12 +8,8 @@ import type { ResolvedModelData } from '../providers/resolve_model';
 
 function createImproveMessageAgent(
   languageModel: LanguageModelV3,
-  modelData: ResolvedModelData | undefined,
   instruction?: string,
 ) {
-  const callProviderOptions = modelData
-    ? buildCallProviderOptions(modelData)
-    : undefined;
   return new Agent(components.agent, {
     name: 'message-improver',
     languageModel,
@@ -27,7 +23,6 @@ Guidelines:
 - Make the tone professional yet friendly
 - Keep the message concise but complete
 - Return only the improved message without any explanation`,
-    ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
   });
 }
 
@@ -43,15 +38,22 @@ export async function improveMessage(
   try {
     const agent = createImproveMessageAgent(
       args.languageModel,
-      args.modelData,
       args.instruction,
     );
+    const callProviderOptions = args.modelData
+      ? buildCallProviderOptions(args.modelData)
+      : undefined;
     const userId = `improve-msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
     const result = await agent.generateText(
       ctx,
       { userId },
-      { prompt: args.originalMessage },
+      {
+        prompt: args.originalMessage,
+        ...(callProviderOptions
+          ? { providerOptions: callProviderOptions }
+          : {}),
+      },
       { storageOptions: { saveMessages: 'none' } },
     );
 

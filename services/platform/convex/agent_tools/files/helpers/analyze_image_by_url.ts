@@ -7,6 +7,7 @@
 import { components } from '../../../_generated/api';
 import type { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
+import { buildCallProviderOptions } from '../../../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../../../providers/failover';
 import type { AnalyzeImageResult } from './analyze_image';
 import { createVisionAgent } from './vision_agent';
@@ -47,7 +48,8 @@ export async function analyzeImageByUrl(
 
   try {
     // Create a vision agent
-    const visionAgent = createVisionAgent(languageModel, modelData);
+    const visionAgent = createVisionAgent(languageModel);
+    const callProviderOptions = buildCallProviderOptions(modelData);
 
     // Create a temporary thread for this analysis
     const thread = await ctx.runMutation(
@@ -75,6 +77,9 @@ export async function analyzeImageByUrl(
             ],
           },
         ],
+        ...(callProviderOptions
+          ? { providerOptions: callProviderOptions }
+          : {}),
       },
     );
 

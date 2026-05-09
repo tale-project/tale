@@ -17,11 +17,13 @@ import { parseModelRef } from '../../../lib/shared/utils/model-ref';
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { internalAction } from '../../_generated/server';
+import { roundCents } from '../../governance/cost_estimation';
 import { onAgentComplete } from '../../lib/agent_completion';
 import { createDebugLog } from '../../lib/debug_log';
 import { buildDownloadUrl } from '../../lib/helpers/public_storage_url';
 import {
   buildCallProviderOptions,
+  isPlainObject,
   stripDenyListed,
 } from '../../lib/provider_options';
 import {
@@ -257,7 +259,7 @@ export const runImageGeneration = internalAction({
       const perImageCost = resolved.modelData.imageCentsPerImage;
       const imageCostCents =
         providerCostUsd != null
-          ? providerCostUsd * 100
+          ? roundCents(providerCostUsd * 100)
           : perImageCost != null
             ? imageBlobs.length * perImageCost
             : undefined;
@@ -396,11 +398,9 @@ async function fetchChatCompletionImages(opts: {
   // the protected keys below win on collision: `model`/`messages`/`modalities`
   // must never be overridable from config, and `usage` requires a nested
   // merge so callers can extend without dropping `include: true`.
-  const incomingUsage =
-    opts.providerOptions && typeof opts.providerOptions.usage === 'object'
-      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- usage is JSON-derived from provider config
-        (opts.providerOptions.usage as Record<string, unknown>)
-      : {};
+  const incomingUsage = isPlainObject(opts.providerOptions?.usage)
+    ? opts.providerOptions.usage
+    : {};
   const body = {
     ...(opts.providerOptions ? opts.providerOptions : {}),
     model: opts.modelId,

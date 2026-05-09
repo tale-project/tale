@@ -348,14 +348,17 @@ async function executeJsonOutputWithoutTools(
       name: config.name,
       languageModel,
       instructions: prompts.systemPrompt,
-      providerOptions,
     }),
   );
 
   const result = await agent.generateObject(
     ctx,
     { threadId, userId },
-    { prompt: prompts.userPrompt, schema: zodSchema },
+    {
+      prompt: prompts.userPrompt,
+      schema: zodSchema,
+      ...(providerOptions ? { providerOptions } : {}),
+    },
     { contextOptions: { excludeToolMessages: false } },
   );
 
@@ -413,14 +416,16 @@ async function executeTextOutput(
       instructions: prompts.systemPrompt,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- config.tools contains valid ToolName strings from workflow step configuration
       convexToolNames: (config.tools ?? []) as ToolName[],
-      providerOptions,
     }),
   );
 
   const result = await agent.generateText(
     ctx,
     { threadId, userId },
-    { prompt: prompts.userPrompt },
+    {
+      prompt: prompts.userPrompt,
+      ...(providerOptions ? { providerOptions } : {}),
+    },
     { contextOptions: { excludeToolMessages: false } },
   );
 

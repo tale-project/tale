@@ -79,10 +79,12 @@ export async function resolveLanguageModelWithFallback(
     });
   }
 
-  // Attempt 3: provider-level fallback (if different from model-level)
+  // Attempt 3: tag-search in the fallback provider (only if it's a
+  // different provider than the primary — otherwise we'd be re-searching
+  // the same provider that the primary attempt already covered).
   if (
     params.fallbackProviderName &&
-    params.fallbackModelId !== params.fallbackModelId
+    params.fallbackProviderName !== params.providerName
   ) {
     attempts.push({
       tag: params.tag ?? 'chat',

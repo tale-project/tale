@@ -3,7 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { Pencil, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 
 import { JsonInput } from '@/app/components/ui/forms/json-input';
@@ -24,6 +24,40 @@ const PROVIDER_OPTIONS_PLACEHOLDER = JSON.stringify(
 // authoritative gate (it carries the deny-list). This schema only catches
 // "is JSON, is an object" so we don't ship obviously malformed input.
 const providerOptionsClientSchema = z.record(z.string(), z.unknown());
+
+/**
+ * Convert a server-side `ConvexError({code:'INVALID_PROVIDER_CONFIG',
+ * issues:[{path,message}]})` into a multi-line toast description so the user
+ * can see WHICH field was rejected. Falls back to the raw error message for
+ * non-ConvexError throws.
+ */
+function formatProviderOptionsError(err: unknown): string {
+  if (err != null && typeof err === 'object' && 'data' in err) {
+    const data = (err as { data: unknown }).data;
+    if (
+      data != null &&
+      typeof data === 'object' &&
+      'code' in data &&
+      (data as { code: unknown }).code === 'INVALID_PROVIDER_CONFIG' &&
+      'issues' in data &&
+      Array.isArray((data as { issues: unknown }).issues)
+    ) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `issues` was just structurally checked as `Array.isArray((data as { issues: unknown }).issues)` on the previous line; narrowing it to `unknown[]` to iterate doesn't add new claims
+      const rawIssues = (data as { issues: unknown[] }).issues;
+      const lines: string[] = [];
+      for (const issue of rawIssues) {
+        if (issue == null || typeof issue !== 'object') continue;
+        const path = (issue as { path?: unknown }).path;
+        const message = (issue as { message?: unknown }).message;
+        lines.push(
+          `${typeof path === 'string' ? path : ''}: ${typeof message === 'string' ? message : ''}`,
+        );
+      }
+      return lines.join('\n');
+    }
+  }
+  return err instanceof Error ? err.message : String(err);
+}
 
 interface Props {
   /** The current value as a JSON string (empty string = absent / no override). */
@@ -69,11 +103,16 @@ export function ProviderOptionsEditor({
   const [draft, setDraft] = useState(initialJson);
   const [submitting, setSubmitting] = useState(false);
 
-  // Reset draft whenever the panel opens so a previous half-edit doesn't
-  // come back to bite the user.
+  // Reset draft only on the open->true transition so a previous half-edit
+  // doesn't come back to bite the user. Read `initialJson` via a ref so a
+  // parent refresh during the edit doesn't clobber unsaved changes — the
+  // effect only fires when `open` toggles, picking up the latest snapshot
+  // at that moment.
+  const initialJsonRef = useRef(initialJson);
+  initialJsonRef.current = initialJson;
   useEffect(() => {
-    if (open) setDraft(initialJson);
-  }, [open, initialJson]);
+    if (open) setDraft(initialJsonRef.current);
+  }, [open]);
 
   const handleSave = async () => {
     let parsed: Record<string, unknown> | undefined;
@@ -110,10 +149,14 @@ export function ProviderOptionsEditor({
       toast({ title: copy.saveSuccess });
       setOpen(false);
     } catch (err) {
+      // When the server returns ConvexError({ code:'INVALID_PROVIDER_CONFIG',
+      // issues:[...] }), surface each issue's path + message instead of the
+      // raw stringified ZodError array.
+      const description = formatProviderOptionsError(err);
       toast({
         variant: 'destructive',
         title: copy.saveError,
-        description: err instanceof Error ? err.message : String(err),
+        description,
       });
     } finally {
       setSubmitting(false);

@@ -58,6 +58,7 @@ import {
 import { modelTagLabel } from '@/app/features/settings/providers/utils/model-tag-label';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { modelTagLiterals } from '@/lib/shared/schemas/providers';
 import { cn } from '@/lib/utils/cn';
 
 export const Route = createFileRoute(
@@ -82,6 +83,24 @@ function readConvexErrorData(
   if (data == null || typeof data !== 'object') return undefined;
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- data is a runtime-checked object; downstream reads narrow per-field
   return data as Record<string, unknown>;
+}
+
+/**
+ * Surface a permission-denied toast when the server rejects with the
+ * developerSettings gate's discriminator. Returns `true` if the error was
+ * handled (caller should NOT also toast a generic failure).
+ */
+function dispatchForbiddenDeveloperSettings(
+  err: unknown,
+  t: (key: string) => string,
+): boolean {
+  const data = readConvexErrorData(err);
+  if (data?.code !== 'FORBIDDEN_DEVELOPER_SETTINGS') return false;
+  toast({
+    title: t('providers.forbiddenDeveloperSettings'),
+    variant: 'destructive',
+  });
+  return true;
 }
 
 function ProviderDetailRoute() {
@@ -506,10 +525,12 @@ function ApiKeySection({
           // toasting so the destructive ConfirmDialog doesn't sit open behind
           // a toast.
           setOverwritePrompt(null);
-          toast({
-            title: t('providers.secretSaveFailed'),
-            variant: 'destructive',
-          });
+          if (!dispatchForbiddenDeveloperSettings(err, t)) {
+            toast({
+              title: t('providers.secretSaveFailed'),
+              variant: 'destructive',
+            });
+          }
         }
       } finally {
         setSaving(false);
@@ -794,10 +815,8 @@ function ModelsSection({
         id: form.id,
         displayName: form.displayName,
         description: form.description || undefined,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- tags are constrained to checkbox values
-        tags: form.tags as Array<
-          'chat' | 'vision' | 'embedding' | 'image-generation' | 'image-edit'
-        >,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- tags are constrained to modelTagLiterals values
+        tags: form.tags as Array<(typeof modelTagLiterals)[number]>,
         dimensions: form.dimensions ? Number(form.dimensions) : undefined,
         imageGenerationMode:
           isImageGen && form.imageGenerationMode
@@ -829,8 +848,10 @@ function ModelsSection({
           }
         }
         setDialogOpen(false);
-      } catch {
-        toast({ title: t('providers.saveFailed'), variant: 'destructive' });
+      } catch (err) {
+        if (!dispatchForbiddenDeveloperSettings(err, t)) {
+          toast({ title: t('providers.saveFailed'), variant: 'destructive' });
+        }
       }
     },
     [
@@ -861,8 +882,10 @@ function ModelsSection({
         });
       }
       setDeleteIndex(null);
-    } catch {
-      toast({ title: t('providers.saveFailed'), variant: 'destructive' });
+    } catch (err) {
+      if (!dispatchForbiddenDeveloperSettings(err, t)) {
+        toast({ title: t('providers.saveFailed'), variant: 'destructive' });
+      }
     }
   }, [
     deleteIndex,
@@ -984,7 +1007,9 @@ function ModelsSection({
                             <Badge
                               variant="outline"
                               className="text-[10px]"
-                              title={JSON.stringify(model.providerOptions)}
+                              title={Object.keys(model.providerOptions).join(
+                                ', ',
+                              )}
                             >
                               {t('providers.providerOptions.indicator')}
                             </Badge>
@@ -1129,15 +1154,7 @@ function ModelsSection({
                 rows={2}
               />
               <HStack gap={4} align="center" className="flex-wrap">
-                {(
-                  [
-                    'chat',
-                    'vision',
-                    'embedding',
-                    'image-generation',
-                    'image-edit',
-                  ] as const
-                ).map((tag) => (
+                {modelTagLiterals.map((tag) => (
                   <label
                     key={tag}
                     className="flex items-center gap-1.5 text-sm"

@@ -160,6 +160,13 @@ describe('providerJsonSchema', () => {
         'response_format',
         'stop',
         'seed',
+        'n',
+        'logit_bias',
+        'logprobs',
+        'top_logprobs',
+        'stream_options',
+        'store',
+        'metadata',
       ];
 
       const sdkReservedSamples = [
@@ -252,6 +259,36 @@ describe('providerJsonSchema', () => {
           },
         });
         expect(result.success).toBe(true);
+      });
+    });
+
+    describe('value shape', () => {
+      it('accepts top-level primitive values (OpenAI service_tier style)', () => {
+        const result = providerJsonSchema.safeParse({
+          ...baseProvider,
+          providerOptions: {
+            service_tier: 'priority',
+            parallel_tool_calls: false,
+            prompt_cache_key: 'agent-foo-v1',
+          },
+        });
+        expect(result.success).toBe(true);
+      });
+
+      it('accepts top-level null values', () => {
+        const result = providerJsonSchema.safeParse({
+          ...baseProvider,
+          providerOptions: { provider: null },
+        });
+        expect(result.success).toBe(true);
+      });
+
+      it('rejects top-level array values (would spread numeric keys)', () => {
+        const result = providerJsonSchema.safeParse({
+          ...baseProvider,
+          providerOptions: { provider: ['fp8', 'fp16'] as never },
+        });
+        expect(result.success).toBe(false);
       });
     });
   });

@@ -1,7 +1,4 @@
-import type {
-  LanguageModelV3,
-  SharedV3ProviderOptions,
-} from '@ai-sdk/provider';
+import type { LanguageModelV3 } from '@ai-sdk/provider';
 import { Agent } from '@convex-dev/agent';
 
 import { loadConvexToolsAsObject } from '../agent_tools/load_convex_tools_as_object';
@@ -17,6 +14,11 @@ const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[AgentConfig]');
  * maxOutputTokens / maxSteps defaults, and passes `instructions` through as-is.
  * Tool behavior rules live on each tool's own `description`; agent system prompts
  * live on the agent config. This factory does not wrap or mutate `instructions`.
+ *
+ * Note: `providerOptions` is NOT part of the agent config. Pass it per-call to
+ * `agent.streamText({ providerOptions })` / `agent.generateText({...})` /
+ * `agent.generateObject({...})`. The agent-level field on `@convex-dev/agent` is
+ * `@deprecated` and will be removed; the per-call form is the supported path.
  */
 export function createAgentConfig(opts: {
   name: string;
@@ -24,18 +26,23 @@ export function createAgentConfig(opts: {
   languageModel: LanguageModelV3;
   /** Pre-resolved text embedding model for vector search */
   textEmbeddingModel?: unknown;
+  /**
+   * Caller-specified output cap. Wins over `modelMaxOutputTokens` and the
+   * default. Use 0 to opt out (unlimited).
+   */
   maxTokens?: number;
+  /**
+   * Per-model cap from `modelData.maxOutputTokens`. Used when the caller
+   * doesn't provide an explicit `maxTokens`. Lets a provider config raise or
+   * lower the default for a specific model (e.g. mistral entries declare
+   * `maxOutputTokens: 8192` to escape OpenRouter's lower default).
+   */
+  modelMaxOutputTokens?: number;
   instructions: string;
   convexToolNames?: ToolName[];
   /** Additional tools to merge (e.g., dynamic json_output tool) */
   extraTools?: Record<string, unknown>;
   maxSteps?: number;
-  /**
-   * Pre-namespaced provider options from `buildCallProviderOptions(modelData)`.
-   * Shape: `{ [providerName]: { ...resolvedFromJson } }`. Forwarded into the
-   * Convex Agent SDK which lifts it into `aiArgs` for streamText/generateText.
-   */
-  providerOptions?: SharedV3ProviderOptions;
 }): ConstructorParameters<typeof Agent>[1] {
   // Build Convex tools as an object when names are provided
   const convexToolsObject = opts.convexToolNames?.length
@@ -81,13 +88,18 @@ export function createAgentConfig(opts: {
     estimatedInstructionTokens,
   });
 
-  // Call settings: cap output tokens to a sensible default (8192) when the
-  // caller didn't pass an explicit maxTokens, to keep OpenRouter from
-  // truncating responses with its much lower default cap. Temperature and
-  // frequencyPenalty are intentionally NOT set — reasoning models (e.g.
-  // DeepSeek V3.2) treat them as `0` and return empty content.
+  // Call settings: cap output tokens via priority caller > model config >
+  // 8192 default. The default keeps OpenRouter from truncating responses
+  // with its much lower built-in cap. Temperature and frequencyPenalty are
+  // intentionally NOT set — reasoning models (e.g. DeepSeek V3.2) treat
+  // them as `0` and return empty content.
   const callSettings: Record<string, number> = {
-    maxOutputTokens: typeof opts.maxTokens === 'number' ? opts.maxTokens : 8192,
+    maxOutputTokens:
+      typeof opts.maxTokens === 'number'
+        ? opts.maxTokens
+        : typeof opts.modelMaxOutputTokens === 'number'
+          ? opts.modelMaxOutputTokens
+          : 8192,
   };
 
   // Default maxSteps to 40 when tools are configured but maxSteps is not set.
@@ -102,7 +114,6 @@ export function createAgentConfig(opts: {
     instructions: opts.instructions,
     languageModel: opts.languageModel,
     callSettings,
-    ...(opts.providerOptions ? { providerOptions: opts.providerOptions } : {}),
     ...(hasAnyTools ? { tools: mergedTools } : {}),
     ...(typeof effectiveMaxSteps === 'number'
       ? { maxSteps: effectiveMaxSteps }

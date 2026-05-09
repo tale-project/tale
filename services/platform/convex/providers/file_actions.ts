@@ -19,7 +19,6 @@ import type { ProviderSecrets } from '../../lib/shared/schemas/providers';
 import { providerJsonSchema } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
-import { authComponent } from '../auth';
 import { resolveAgeRecipients } from '../lib/age_keygen';
 import {
   atomicWrite,
@@ -27,6 +26,7 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
+import { isPrivateIp, safeFetch, SafeFetchError } from '../lib/http/safe_fetch';
 import { mergeModelLevel } from '../lib/provider_options';
 import {
   EncryptedFileWithoutKeyError,
@@ -66,6 +66,61 @@ function maskApiKey(key: string): string {
 /** True iff `err` is a Node ErrnoException with the given code. */
 function isErrnoCode(err: unknown, code: string): boolean {
   return err instanceof Error && 'code' in err && err.code === code;
+}
+
+/**
+ * Cloud metadata service hosts. Always blocked, regardless of
+ * `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` — there is no legitimate reason for an
+ * LLM provider endpoint to live at AWS/GCP IMDS.
+ */
+const BLOCKED_METADATA_HOSTS = new Set<string>([
+  '169.254.169.254',
+  'metadata.google.internal',
+  'fd00:ec2::254',
+]);
+
+/**
+ * Reject the URL at the policy layer before issuing any request. Two gates:
+ *
+ * 1. Cloud metadata services (`169.254.169.254`, `metadata.google.internal`,
+ *    GCP/AWS IMDSv2 IPv6) are always blocked.
+ * 2. Other private/loopback hosts (RFC1918, `127.0.0.0/8`, `localhost`,
+ *    link-local, ULA) are blocked by default. To support self-hosted
+ *    backends like Ollama on `localhost:11434`, operators set
+ *    `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` in the platform process env.
+ *
+ * Throws `ConvexError` so the UI can dispatch on `data.code`.
+ */
+function checkProviderHostPolicy(rawUrl: string): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new ConvexError({
+      code: 'INVALID_URL',
+      message: `Invalid URL: ${rawUrl}`,
+    });
+  }
+  const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (BLOCKED_METADATA_HOSTS.has(host)) {
+    throw new ConvexError({
+      code: 'BLOCKED_HOST',
+      message: `Host "${host}" is blocked (cloud metadata endpoint).`,
+    });
+  }
+  if (
+    isPrivateIp(host) &&
+    process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS !== '1'
+  ) {
+    throw new ConvexError({
+      code: 'PRIVATE_HOST_BLOCKED',
+      message:
+        `Host "${host}" is a private/loopback address and is blocked. ` +
+        'Set TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 in the platform process env to ' +
+        'enable self-hosted backends like Ollama on localhost.',
+    });
+  }
+  return parsed;
 }
 
 async function readProviderFile(
@@ -297,7 +352,20 @@ export const saveProvider = action({
 
     if (!validateProviderName(args.providerName))
       throw new Error(`Invalid provider name: ${args.providerName}`);
-    const config = providerJsonSchema.parse(args.config);
+    // Wrap ZodError in ConvexError with `issues` so the dashboard can render
+    // a per-field error message. Raw `parse` would surface as a generic
+    // stringified ZodError array in the toast description.
+    const parseResult = providerJsonSchema.safeParse(args.config);
+    if (!parseResult.success) {
+      throw new ConvexError({
+        code: 'INVALID_PROVIDER_CONFIG',
+        issues: parseResult.error.issues.map((i) => ({
+          path: i.path.join('.'),
+          message: i.message,
+        })),
+      });
+    }
+    const config = parseResult.data;
     const content = serializeProviderJson(config);
     const filePath = resolveProviderFilePath(args.orgSlug, args.providerName);
     await atomicWrite(filePath, content);
@@ -309,17 +377,23 @@ export const deleteProvider = action({
   args: { orgSlug: v.string(), providerName: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
+    const auth = await requireDeveloperSettingsAccess(ctx, args.orgSlug);
     const filePath = resolveProviderFilePath(args.orgSlug, args.providerName);
     const secretsPath = resolveProviderSecretsPath(
       args.orgSlug,
       args.providerName,
     );
-    await unlink(filePath).catch((err: unknown) => {
+    // Order: secrets first, then public config. If the secrets unlink fails
+    // (rare — EACCES / EIO on a network FS), the public file remains and the
+    // entry stays visible in the provider list so the operator can retry the
+    // delete. The reversed order would leave an orphaned ciphertext that
+    // discovery can't enumerate (loadAllProviders only iterates *.json),
+    // requiring shell access to recover.
+    await unlink(secretsPath).catch((err: unknown) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always have .code
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     });
-    await unlink(secretsPath).catch((err: unknown) => {
+    await unlink(filePath).catch((err: unknown) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always have .code
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     });
@@ -328,6 +402,33 @@ export const deleteProvider = action({
     // restart (next read would ENOENT before reaching the cache, so this is
     // a memory-residency concern, not a stale-serve risk).
     invalidateSecretsCache(secretsPath);
+
+    // Audit log — destructive op should leave a security-category trail.
+    // Best-effort: a successful delete should not be reported as failed
+    // because the audit table was unreachable.
+    try {
+      await ctx.runMutation(
+        internal.audit_logs.internal_mutations.createAuditLog,
+        {
+          organizationId: auth.orgId,
+          actorId: auth.userId,
+          actorEmail: auth.email,
+          actorRole: auth.member.role,
+          actorType: 'user',
+          action: 'provider_deleted',
+          category: 'security',
+          resourceType: 'provider',
+          resourceId: args.providerName,
+          resourceName: args.providerName,
+          status: 'success',
+        },
+      );
+    } catch (err) {
+      console.warn(
+        `[deleteProvider] failed to write audit log for ${args.providerName}`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
     return null;
   },
 });
@@ -725,13 +826,19 @@ export const getAllProviderConfigs = action({
  * Used by the "Add provider" panel to auto-populate models.
  */
 export const fetchProviderModels = action({
-  args: { baseUrl: v.string(), apiKey: v.string() },
+  args: {
+    orgSlug: v.string(),
+    baseUrl: v.string(),
+    apiKey: v.string(),
+  },
   returns: v.array(v.object({ id: v.string() })),
   handler: async (ctx, args): Promise<Array<{ id: string }>> => {
-    // No orgSlug here — this action probes an arbitrary URL with the user's
-    // own pasted apiKey, no filesystem read. Authenticated check only.
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    // Same gate as the rest of the provider mutations — operators with
+    // developerSettings access only. Pre-this-fix, this action accepted any
+    // authenticated user (`authComponent.getAuthUser`) and any baseUrl, which
+    // allowed any logged-in member to issue authenticated GETs from inside
+    // the Convex action runtime to internal services / cloud metadata.
+    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
 
     // Normalize base URL: strip trailing slash, append /models if needed
     let url = args.baseUrl.replace(/\/+$/, '');
@@ -739,22 +846,53 @@ export const fetchProviderModels = action({
       url = url.endsWith('/v1') ? `${url}/models` : `${url}/v1/models`;
     }
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${args.apiKey}`,
-        Accept: 'application/json',
-      },
-      signal: AbortSignal.timeout(15_000),
-    });
+    // Block IMDS + private hosts (unless TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1).
+    checkProviderHostPolicy(url);
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `Failed to fetch models (${response.status}): ${errorText || response.statusText}`,
-      );
+    let response;
+    try {
+      response = await safeFetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${args.apiKey}`,
+          Accept: 'application/json',
+        },
+        timeoutMs: 15_000,
+      });
+    } catch (err) {
+      if (err instanceof SafeFetchError) {
+        throw new ConvexError({
+          code: 'PROVIDER_FETCH_FAILED',
+          message: `Failed to fetch models: ${err.message}`,
+        });
+      }
+      throw err;
     }
 
-    const json: unknown = await response.json();
+    if (response.status < 200 || response.status >= 300) {
+      // Don't echo the upstream body to the caller — that would let an
+      // attacker who somehow got past the policy gate use this as a partial
+      // read primitive against an unresponsive-to-Authorization endpoint.
+      // Log the body server-side for ops visibility.
+      console.warn(
+        `[fetchProviderModels] non-2xx ${response.status} from ${url}: ${response.body.slice(0, 500)}`,
+      );
+      throw new ConvexError({
+        code: 'PROVIDER_FETCH_FAILED',
+        message: `Failed to fetch models (${response.status} ${response.statusText})`,
+      });
+    }
+
+    let json: unknown;
+    try {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- raw JSON narrowed below
+      json = JSON.parse(response.body);
+    } catch {
+      throw new ConvexError({
+        code: 'PROVIDER_FETCH_FAILED',
+        message: 'Provider returned non-JSON response',
+      });
+    }
     const models =
       json != null &&
       typeof json === 'object' &&
@@ -764,9 +902,11 @@ export const fetchProviderModels = action({
         : null;
 
     if (!models) {
-      throw new Error(
-        'Unexpected response format: expected { data: [...] } from /v1/models',
-      );
+      throw new ConvexError({
+        code: 'PROVIDER_FETCH_FAILED',
+        message:
+          'Unexpected response format: expected { data: [...] } from /v1/models',
+      });
     }
 
     return models
@@ -1126,7 +1266,11 @@ export const testProviderConnection = action({
     skipped: v.array(v.object({ modelId: v.string(), reason: v.string() })),
   }),
   handler: async (ctx, args) => {
-    await requireOrgMembership(ctx, args.orgSlug);
+    // Test connection issues real authenticated requests against the saved
+    // provider with the org's API key; gate on developerSettings to match
+    // the write actions' threat model (a regular member calling this could
+    // burn quota / trigger fraud signals in the org's name).
+    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
 
     if (!validateProviderName(args.providerName))
       throw new Error(`Invalid provider name: ${args.providerName}`);
@@ -1141,6 +1285,13 @@ export const testProviderConnection = action({
       );
     }
     const config = configResult.config;
+
+    // Reject IMDS / private hosts unless explicitly allowed via env. Probes
+    // call the upstream over the network with a real API key; running them
+    // against a metadata service would either expose the key or surface a
+    // partial-read primitive in the error path. The check happens once
+    // here and protects all four downstream probe helpers.
+    checkProviderHostPolicy(config.baseUrl);
 
     const secretsPath = resolveProviderSecretsPath(
       args.orgSlug,

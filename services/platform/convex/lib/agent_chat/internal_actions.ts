@@ -424,13 +424,13 @@ export const runAgentGeneration = internalAction({
               name: agentConfig.name,
               instructions: finalInstructions,
               languageModel,
+              modelMaxOutputTokens: modelData.maxOutputTokens,
               convexToolNames:
                 filteredToolNames && filteredToolNames.length > 0
                   ? filteredToolNames
                   : undefined,
               extraTools: allExtraTools,
               maxSteps: agentConfig.maxSteps,
-              providerOptions: buildCallProviderOptions(modelData),
             });
             return new Agent(components.agent, config);
           };
@@ -458,6 +458,7 @@ export const runAgentGeneration = internalAction({
               instructions: finalInstructions,
               toolsSummary,
               personalizationMode: agentConfig.personalizationMode,
+              providerOptions: buildCallProviderOptions(modelData),
             },
             {
               ctx,

@@ -10,21 +10,19 @@ import { Agent } from '@convex-dev/agent';
 
 import { components } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
-import { buildCallProviderOptions } from '../../../lib/provider_options';
-import type { ResolvedModelData } from '../../../providers/resolve_model';
 
 const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[VisionAgent]');
 
 /**
  * Creates a vision agent for image analysis.
- * The caller must resolve the language model via ctx.runAction before calling this.
+ * The caller must resolve the language model via ctx.runAction before calling
+ * this. The caller is also responsible for passing `providerOptions` directly
+ * to `agent.generateText({ providerOptions })` — the Agent constructor's
+ * `providerOptions` field is `@deprecated` in `@convex-dev/agent` and not
+ * used here.
  */
-export function createVisionAgent(
-  languageModel: LanguageModelV3,
-  modelData: ResolvedModelData,
-): Agent {
+export function createVisionAgent(languageModel: LanguageModelV3): Agent {
   debugLog('Creating vision agent');
-  const callProviderOptions = buildCallProviderOptions(modelData);
   return new Agent(components.agent, {
     name: 'vision-analyzer',
     languageModel,
@@ -36,6 +34,5 @@ Answer the user's question thoroughly with the specific content from the image.`
     // Cap output to ensure the model has room to respond without OpenRouter's
     // low default truncating mid-answer.
     callSettings: { maxOutputTokens: 8192 },
-    ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
   });
 }

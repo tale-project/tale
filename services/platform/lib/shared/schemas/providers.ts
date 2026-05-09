@@ -35,6 +35,11 @@ export const SDK_RESERVED_KEYS = [
  * providerOptions spread. Without rejecting these at parse time, a config
  * could silently overwrite the resolved model, blow past the token cap, or
  * mute the prompt — see plan "Body-overwrite blocker" for details.
+ *
+ * Also includes caller-only knobs that are not SDK-assembled but, if set via
+ * provider config, would silently amplify cost (`n`), corrupt usage telemetry
+ * (`stream_options`), inflate response size (`logprobs`/`top_logprobs`), or
+ * leak PII to the upstream (`metadata`/`store`/`logit_bias`).
  */
 export const BODY_OVERWRITE_KEYS = [
   'model',
@@ -50,6 +55,13 @@ export const BODY_OVERWRITE_KEYS = [
   'response_format',
   'stop',
   'seed',
+  'n',
+  'logit_bias',
+  'logprobs',
+  'top_logprobs',
+  'stream_options',
+  'store',
+  'metadata',
 ] as const;
 
 const SDK_RESERVED_SET = new Set<string>(SDK_RESERVED_KEYS);
@@ -73,14 +85,24 @@ function denyListRefine(
         message: `'${key}' would overwrite the request body's '${key}' field. Configure it via the agent's model/temperature/maxOutputTokens fields, not providerOptions.`,
         path: [...pathPrefix, key],
       });
+    } else if (pathPrefix.length === 0 && Array.isArray(sub)) {
+      // Top-level value of an array spreads as numeric keys into the body —
+      // `{provider: ['fp8']}` would surface as `body.provider = ['fp8']`,
+      // which is almost never what the user means. Reject so the user gets a
+      // clear error pointing at the bad key.
+      ctx.addIssue({
+        code: 'custom',
+        message: `'${key}' value must be an object or primitive, not an array. Wrap fields in an object (e.g. { provider: { quantizations: ['fp8'] } }).`,
+        path: [...pathPrefix, key],
+      });
     } else if (
       pathPrefix.length === 0 &&
       sub !== null &&
-      typeof sub === 'object' &&
-      !Array.isArray(sub)
+      typeof sub === 'object'
     ) {
       // Recurse one level so a double-wrap like
-      // `providerOptions.openrouter.model` is also caught.
+      // `providerOptions.openrouter.model` is also caught as an authoring
+      // mistake.
       denyListRefine(sub as Record<string, unknown>, ctx, [...pathPrefix, key]);
     }
   }
@@ -99,7 +121,8 @@ function denyListRefine(
  *
  * Rejected keys: anything in `SDK_RESERVED_KEYS` (silently stripped by SDK)
  * or `BODY_OVERWRITE_KEYS` (would clobber legit body fields). Both are
- * checked at the top level and one level deep.
+ * checked at the top level and one level deep. Top-level array values are
+ * also rejected (they would spread as numeric-key fields).
  */
 const providerOptionsSchema = z
   .record(z.string(), z.unknown())

@@ -194,7 +194,7 @@ export function ProviderAddPanel({
 
     setFetchError(null);
     try {
-      const result = await fetchModels({ baseUrl, apiKey });
+      const result = await fetchModels({ orgSlug: 'default', baseUrl, apiKey });
       const ids = result.map((m) => m.id);
       setFetchedModels(ids);
       // Auto-select all fetched models, excluding any already added manually
@@ -453,6 +453,12 @@ export function ProviderAddPanel({
             reason:
               typeof errData.reason === 'string' ? errData.reason : undefined,
             pendingFormData: data,
+          });
+        } else if (errData?.code === 'FORBIDDEN_DEVELOPER_SETTINGS') {
+          setOverwritePrompt(null);
+          toast({
+            title: t('providers.forbiddenDeveloperSettings'),
+            variant: 'destructive',
           });
         } else {
           // Non-overwrite failure (e.g. saveProvider zod-shape on second

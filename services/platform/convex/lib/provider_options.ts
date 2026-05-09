@@ -22,7 +22,9 @@ const DENY_LIST = new Set<string>([
   ...BODY_OVERWRITE_KEYS,
 ]);
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+export function isPlainObject(
+  value: unknown,
+): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
@@ -77,9 +79,10 @@ function pruneEmpty(
 /**
  * Defensive belt-and-braces filter that removes any deny-listed key (SDK
  * reserved or body-overwrite) at the top level and one nested level. Logs a
- * `console.warn` per stripped key — this should never fire in practice
- * because the Zod schema rejects them at parse time, so a hit signals a
- * hand-edit that bypassed validation.
+ * `console.error` per stripped key — every entry point that produces a
+ * `providerOptions` value runs through `providerJsonSchema` first (file-load
+ * via `parseProviderJson`, dashboard-save via `saveProvider`), so this
+ * filter only fires on a code regression where validation was bypassed.
  */
 export function stripDenyListed(
   options: Record<string, unknown> | undefined,
@@ -88,8 +91,8 @@ export function stripDenyListed(
   const cleaned: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(options)) {
     if (DENY_LIST.has(key)) {
-      console.warn(
-        `[providerOptions] stripped deny-listed key '${key}' at runtime — should have been rejected at parse time`,
+      console.error(
+        `[providerOptions] code regression: deny-listed key '${key}' reached call site — parse-time validation should have rejected this`,
       );
       continue;
     }
@@ -97,8 +100,8 @@ export function stripDenyListed(
       const subCleaned: Record<string, unknown> = {};
       for (const [subKey, subValue] of Object.entries(value)) {
         if (DENY_LIST.has(subKey)) {
-          console.warn(
-            `[providerOptions] stripped deny-listed key '${key}.${subKey}' at runtime`,
+          console.error(
+            `[providerOptions] code regression: deny-listed key '${key}.${subKey}' reached call site — parse-time validation should have rejected this`,
           );
           continue;
         }

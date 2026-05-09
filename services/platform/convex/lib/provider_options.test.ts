@@ -2,9 +2,33 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   buildCallProviderOptions,
+  isPlainObject,
   mergeModelLevel,
   stripDenyListed,
 } from './provider_options';
+
+describe('isPlainObject', () => {
+  it('returns true for plain objects', () => {
+    expect(isPlainObject({})).toBe(true);
+    expect(isPlainObject({ a: 1 })).toBe(true);
+  });
+
+  it('returns false for null', () => {
+    expect(isPlainObject(null)).toBe(false);
+  });
+
+  it('returns false for arrays', () => {
+    expect(isPlainObject([])).toBe(false);
+    expect(isPlainObject([1, 2, 3])).toBe(false);
+  });
+
+  it('returns false for primitives', () => {
+    expect(isPlainObject(0)).toBe(false);
+    expect(isPlainObject('')).toBe(false);
+    expect(isPlainObject(false)).toBe(false);
+    expect(isPlainObject(undefined)).toBe(false);
+  });
+});
 
 describe('mergeModelLevel', () => {
   it('returns undefined when both sides are absent', () => {
@@ -95,32 +119,32 @@ describe('mergeModelLevel', () => {
 });
 
 describe('stripDenyListed', () => {
-  let warn: ReturnType<typeof vi.spyOn>;
+  let errorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    warn.mockRestore();
+    errorSpy.mockRestore();
   });
 
   it('returns undefined for undefined input', () => {
     expect(stripDenyListed(undefined)).toBeUndefined();
   });
 
-  it('strips top-level body-overwrite keys with a warning', () => {
+  it('strips top-level body-overwrite keys with an error log', () => {
     expect(
       stripDenyListed({ provider: { quantizations: ['fp8'] }, model: 'evil' }),
     ).toEqual({ provider: { quantizations: ['fp8'] } });
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("'model'"));
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("'model'"));
   });
 
-  it('strips SDK-reserved keys with a warning', () => {
+  it('strips SDK-reserved keys with an error log', () => {
     expect(
       stripDenyListed({ provider: {}, reasoningEffort: 'high' }),
     ).toBeUndefined();
-    expect(warn).toHaveBeenCalledWith(
+    expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining("'reasoningEffort'"),
     );
   });
@@ -133,7 +157,7 @@ describe('stripDenyListed', () => {
     ).toEqual({
       openrouter: { provider: { quantizations: ['fp8'] } },
     });
-    expect(warn).toHaveBeenCalledWith(
+    expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining("'openrouter.model'"),
     );
   });
@@ -173,7 +197,7 @@ describe('buildCallProviderOptions', () => {
   });
 
   it('applies the deny-list strip before namespacing', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
       expect(
         buildCallProviderOptions({
@@ -187,9 +211,9 @@ describe('buildCallProviderOptions', () => {
       ).toEqual({
         openrouter: { provider: { quantizations: ['fp8'] } },
       });
-      expect(warn).toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalled();
     } finally {
-      warn.mockRestore();
+      errorSpy.mockRestore();
     }
   });
 });

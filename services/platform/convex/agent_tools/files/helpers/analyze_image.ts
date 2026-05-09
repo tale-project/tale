@@ -15,6 +15,7 @@ import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 import { imageAnalysisCache } from '../../../lib/action_cache';
 import { createDebugLog } from '../../../lib/debug_log';
+import { buildCallProviderOptions } from '../../../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../../../providers/failover';
 import { createVisionAgent } from './vision_agent';
 
@@ -99,7 +100,8 @@ export async function analyzeImage(
       mimeType,
     });
 
-    const visionAgent = createVisionAgent(languageModel, modelData);
+    const visionAgent = createVisionAgent(languageModel);
+    const callProviderOptions = buildCallProviderOptions(modelData);
 
     // Create a temporary thread for this analysis
     const thread = await ctx.runMutation(
@@ -133,6 +135,9 @@ export async function analyzeImage(
               ],
             },
           ],
+          ...(callProviderOptions
+            ? { providerOptions: callProviderOptions }
+            : {}),
         },
       );
     } catch (err) {
