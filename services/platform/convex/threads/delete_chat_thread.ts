@@ -57,14 +57,12 @@ export async function deleteChatThread(
     const ownerHeld =
       existing.userId !== undefined &&
       holds.userMembershipIds.has(existing.userId);
-    if (holds.orgHeld || holds.threadIds.has(threadId) || ownerHeld) {
+    if (holds.orgHeld || ownerHeld) {
       throw new ConvexError({
         code: 'LEGAL_HOLD_BLOCKS_DELETE',
         message: holds.orgHeld
           ? 'Org is under an active legal hold — delete is blocked.'
-          : ownerHeld
-            ? 'Thread owner is on a custodian legal hold — delete is blocked.'
-            : 'Thread is under an active legal hold — delete is blocked.',
+          : 'Thread owner is on a custodian legal hold — delete is blocked.',
         threadId,
         orgHeld: holds.orgHeld,
         userCustodianHeld: ownerHeld,

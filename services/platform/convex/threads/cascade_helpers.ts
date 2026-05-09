@@ -134,7 +134,20 @@ export async function cascadeDeleteThreadChildren(
   // for surfacing the skip in its audit row.
   if (organizationId !== undefined) {
     const holds = args.holds ?? (await loadActiveHolds(ctx, organizationId));
-    if (holds.orgHeld || holds.threadIds.has(threadId)) {
+    // Org-wide hold blocks every cascade. Per-thread hold target type
+    // was deprecated by the User+Org pivot; user-custodian cascade is
+    // checked via the thread metadata's `userId` (round-2 V3 P0).
+    let userCustodianHeld = false;
+    if (!holds.orgHeld) {
+      const meta = await ctx.db
+        .query('threadMetadata')
+        .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+        .first();
+      if (meta?.userId && holds.userMembershipIds.has(meta.userId)) {
+        userCustodianHeld = true;
+      }
+    }
+    if (holds.orgHeld || userCustodianHeld) {
       // Emit a real audit row so the chain reflects "we attempted to
       // cascade and refused due to hold". Without this, the verifier /
       // operator UI sees no record of the skip — only a console line —
@@ -151,7 +164,7 @@ export async function cascadeDeleteThreadChildren(
         status: 'denied',
         metadata: {
           orgHeld: holds.orgHeld,
-          threadHeld: holds.threadIds.has(threadId),
+          userCustodianHeld,
         },
       });
       return { done: true, remaining: 0 };

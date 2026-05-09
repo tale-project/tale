@@ -20,18 +20,12 @@ export const loadActiveHoldsForOrg = internalQuery({
   // result back into Sets for O(1) lookup.
   returns: v.object({
     orgHeld: v.boolean(),
-    threadIds: v.array(v.string()),
-    documentIds: v.array(v.string()),
-    executionIds: v.array(v.string()),
     userMembershipIds: v.array(v.string()),
   }),
   handler: async (ctx, args) => {
     const holds = await loadActiveHolds(ctx, args.organizationId);
     return {
       orgHeld: holds.orgHeld,
-      threadIds: [...holds.threadIds],
-      documentIds: [...holds.documentIds],
-      executionIds: [...holds.executionIds],
       userMembershipIds: [...holds.userMembershipIds],
     };
   },

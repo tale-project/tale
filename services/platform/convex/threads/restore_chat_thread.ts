@@ -127,18 +127,12 @@ export const restoreChatThread = mutation({
       const ownerHeld =
         metadata.userId !== undefined &&
         holds.userMembershipIds.has(metadata.userId);
-      if (
-        holds.orgHeld ||
-        holds.threadIds.has(metadata.threadId) ||
-        ownerHeld
-      ) {
+      if (holds.orgHeld || ownerHeld) {
         throw new ConvexError({
           code: 'LEGAL_HOLD_BLOCKS_RESTORE',
           message: holds.orgHeld
             ? 'Org is under an active legal hold — restore is blocked until the hold is released.'
-            : ownerHeld
-              ? 'Thread owner is on a custodian legal hold — restore is blocked until the hold is released.'
-              : 'Thread is under an active legal hold — restore is blocked until the hold is released.',
+            : 'Thread owner is on a custodian legal hold — restore is blocked until the hold is released.',
           threadId: metadata.threadId,
           orgHeld: holds.orgHeld,
           userCustodianHeld: ownerHeld,

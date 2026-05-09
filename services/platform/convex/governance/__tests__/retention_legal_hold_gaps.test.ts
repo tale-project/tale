@@ -64,69 +64,53 @@ const NOW = 1_700_000_000_000;
 function emptyHolds() {
   return {
     orgHeld: false,
-    threadIds: new Set<string>(),
-    documentIds: new Set<string>(),
-    executionIds: new Set<string>(),
     userMembershipIds: new Set<string>(),
   };
 }
 
-describe('assertSafeRetentionDelete — thread / userMembership gates', () => {
-  it('blocks delete when targetType=thread and the thread is held', async () => {
+describe('assertSafeRetentionDelete — org + custodian-cascade gates', () => {
+  // After the legal-hold simplification (commit 2 of the data-protection
+  // bundle), `HOLD_TARGET_TYPES` was narrowed to `org` + `userMembership`
+  // and `assertSafeRetentionDelete` accepts `authorUserId` instead of
+  // `targetType+targetId`. Per-row thread/document/execution holds are
+  // gone; cascade flows entirely through the row's author user id.
+
+  it('blocks delete when authorUserId is on a userMembership hold', async () => {
     mockLoadActiveHolds.mockResolvedValueOnce({
       ...emptyHolds(),
-      threadIds: new Set(['thr_held']),
+      userMembershipIds: new Set(['user_held']),
     });
     const result = await assertSafeRetentionDelete({} as never, {
       rowOrganizationId: ORG,
       expectedOrganizationId: ORG,
       rowEffectiveMs: NOW - 1000,
       cutoffMs: NOW,
-      targetType: 'thread',
-      targetId: 'thr_held',
+      authorUserId: 'user_held',
     });
-    expect(result).toEqual({ proceed: false, reason: 'thread legal hold' });
+    expect(result).toEqual({
+      proceed: false,
+      reason: 'user-custodian legal hold',
+    });
   });
 
-  it('permits delete when targetType=thread but the thread is not held', async () => {
+  it('permits delete when authorUserId is set but not on hold', async () => {
     mockLoadActiveHolds.mockResolvedValueOnce({
       ...emptyHolds(),
-      threadIds: new Set(['thr_other']),
+      userMembershipIds: new Set(['user_other']),
     });
     const result = await assertSafeRetentionDelete({} as never, {
       rowOrganizationId: ORG,
       expectedOrganizationId: ORG,
       rowEffectiveMs: NOW - 1000,
       cutoffMs: NOW,
-      targetType: 'thread',
-      targetId: 'thr_free',
+      authorUserId: 'user_free',
     });
     expect(result).toEqual({ proceed: true });
   });
 
-  it('blocks delete when targetType=userMembership and the subject user is held', async () => {
+  it('permits delete when authorUserId is omitted and only org holds matter', async () => {
     mockLoadActiveHolds.mockResolvedValueOnce({
       ...emptyHolds(),
-      userMembershipIds: new Set(['user_subject']),
-    });
-    const result = await assertSafeRetentionDelete({} as never, {
-      rowOrganizationId: ORG,
-      expectedOrganizationId: ORG,
-      rowEffectiveMs: NOW - 1000,
-      cutoffMs: NOW,
-      targetType: 'userMembership',
-      targetId: 'user_subject',
-    });
-    expect(result).toEqual({
-      proceed: false,
-      reason: 'user-membership legal hold',
-    });
-  });
-
-  it('regression: caller that omits targetType bypasses thread/user holds (the broken pattern)', async () => {
-    mockLoadActiveHolds.mockResolvedValueOnce({
-      ...emptyHolds(),
-      threadIds: new Set(['thr_held']),
       userMembershipIds: new Set(['user_held']),
     });
     const result = await assertSafeRetentionDelete({} as never, {
@@ -135,15 +119,12 @@ describe('assertSafeRetentionDelete — thread / userMembership gates', () => {
       rowEffectiveMs: NOW - 1000,
       cutoffMs: NOW,
     });
-    // Documents the *old* bug: with no targetType, only org-wide holds
-    // gate the row. The fix in this PR is that the three retention
-    // mutations (chatFilterEvent / messageFeedback / memoryAuditRow)
-    // now thread targetType through — the source-grep tests below
-    // lock that in.
+    // CRM tables (customers, vendors, conversations) have no author
+    // concept; with no `authorUserId` provided, only org-wide holds gate.
     expect(result).toEqual({ proceed: true });
   });
 
-  it('still blocks every category under an org-wide hold', async () => {
+  it('blocks every category under an org-wide hold', async () => {
     mockLoadActiveHolds.mockResolvedValueOnce({
       ...emptyHolds(),
       orgHeld: true,
@@ -153,17 +134,46 @@ describe('assertSafeRetentionDelete — thread / userMembership gates', () => {
       expectedOrganizationId: ORG,
       rowEffectiveMs: NOW - 1000,
       cutoffMs: NOW,
+      authorUserId: 'user_anything',
     });
     expect(result).toEqual({ proceed: false, reason: 'org legal hold' });
   });
+
+  it('refuses cross-org row before consulting holds', async () => {
+    mockLoadActiveHolds.mockClear();
+    const result = await assertSafeRetentionDelete({} as never, {
+      rowOrganizationId: 'org_other',
+      expectedOrganizationId: ORG,
+      rowEffectiveMs: NOW - 1000,
+      cutoffMs: NOW,
+      authorUserId: 'user_held',
+    });
+    expect(result).toEqual({ proceed: false, reason: 'cross-org mismatch' });
+    expect(mockLoadActiveHolds).not.toHaveBeenCalled();
+  });
+
+  it('refuses TOCTOU-touched row before consulting holds', async () => {
+    mockLoadActiveHolds.mockClear();
+    const result = await assertSafeRetentionDelete({} as never, {
+      rowOrganizationId: ORG,
+      expectedOrganizationId: ORG,
+      rowEffectiveMs: NOW + 1000,
+      cutoffMs: NOW,
+      authorUserId: 'user_held',
+    });
+    expect(result).toEqual({
+      proceed: false,
+      reason: 'row no longer expired (TOCTOU)',
+    });
+    expect(mockLoadActiveHolds).not.toHaveBeenCalled();
+  });
 });
 
-describe('retention mutations thread the right targetType (source-grep regression)', () => {
-  // The bug was that the three mutations below didn't pass targetType /
-  // targetId to assertSafeRetentionDelete, so thread / user holds were
-  // bypassed. Behavioural mocking of internalMutation handlers is
-  // heavyweight; a source-grep is the cheapest stable assertion that
-  // the call site stays correct.
+describe('retention mutations thread the right authorUserId (source-grep regression)', () => {
+  // The bug being guarded: a retention mutation that doesn't pass
+  // `authorUserId` to `assertSafeRetentionDelete` silently bypasses the
+  // user-custodian cascade. Source-grep is the cheapest stable assertion
+  // that the call site stays correct as new categories are added.
   const source = readFileSync(
     join(__dirname, '..', 'internal_mutations_retention.ts'),
     'utf-8',
@@ -177,35 +187,63 @@ describe('retention mutations thread the right targetType (source-grep regressio
       throw new Error(`could not find export ${exportName}`);
     }
     // Bound the slice to the next top-level `export const` (or EOF) so
-    // we don't catch the next handler's targetType.
+    // we don't catch the next handler's authorUserId.
     const next = source.indexOf('\nexport const ', start + 1);
     return source.slice(start, next === -1 ? undefined : next);
   }
 
-  it('deleteExpiredChatFilterEvent gates by thread hold', () => {
-    const body = bodyOf('deleteExpiredChatFilterEvent');
-    expect(body).toMatch(/targetType:\s*'thread'/);
-    expect(body).toMatch(/targetId:\s*row\.threadId/);
+  it('deleteExpiredDocument cascades through doc.createdBy', () => {
+    const body = bodyOf('deleteExpiredDocument');
+    expect(body).toMatch(/authorUserId:\s*doc\.createdBy/);
   });
 
-  it('deleteExpiredMessageFeedback gates by thread hold', () => {
+  it('markThreadExpired cascades through thread.userId', () => {
+    const body = bodyOf('markThreadExpired');
+    expect(body).toMatch(/authorUserId:\s*thread\.userId/);
+  });
+
+  it('deleteExpiredThread cascades through thread.userId', () => {
+    const body = bodyOf('deleteExpiredThread');
+    expect(body).toMatch(/authorUserId:\s*thread\.userId/);
+  });
+
+  it('deleteExpiredWorkflowExecution cascades through execution.userId', () => {
+    const body = bodyOf('deleteExpiredWorkflowExecution');
+    expect(body).toMatch(/authorUserId:\s*execution\.userId/);
+  });
+
+  it('deleteExpiredMessageFeedback cascades through row.userId', () => {
     const body = bodyOf('deleteExpiredMessageFeedback');
-    expect(body).toMatch(/targetType:\s*'thread'/);
-    expect(body).toMatch(/targetId:\s*row\.threadId/);
+    expect(body).toMatch(/authorUserId:\s*row\.userId/);
   });
 
-  it('deleteExpiredMemoryAuditRow gates by thread (when row has one) or subject user', () => {
+  it('deleteExpiredMemoryAuditRow cascades through subjectUserId', () => {
     const body = bodyOf('deleteExpiredMemoryAuditRow');
-    expect(body).toMatch(/row\.threadId/);
-    expect(body).toMatch(/'userMembership'/);
     expect(body).toMatch(/row\.subjectUserId/);
+    expect(body).toMatch(/authorUserId/);
+  });
+
+  it('deleteExpiredChatFilterEvent cascades via parent thread userId', () => {
+    const body = bodyOf('deleteExpiredChatFilterEvent');
+    expect(body).toMatch(/authorUserId:\s*thread\?\.userId/);
+  });
+
+  it('deleteExpiredUsageLedgerRow cascades through row.userId', () => {
+    const body = bodyOf('deleteExpiredUsageLedgerRow');
+    expect(body).toMatch(/authorUserId:\s*row\.userId/);
+  });
+
+  it('deleteExpiredPromptTemplate cascades through row.createdBy', () => {
+    const body = bodyOf('deleteExpiredPromptTemplate');
+    expect(body).toMatch(/authorUserId:\s*row\.createdBy/);
   });
 });
 
-describe('retention_cleanup action-layer pre-filters by hold sets (source-grep regression)', () => {
+describe('retention_cleanup action-layer pre-filters via custodian cascade (source-grep regression)', () => {
   // First-line defence: the action drops held rows BEFORE calling the
   // mutation, so the mutation never wastes a write on a row that will
-  // be refused. Mirror of the mutation regressions above.
+  // be refused. After the simplification the only surviving cascade is
+  // user-membership; per-thread / per-document target types are gone.
   const cleanupSource = readFileSync(
     join(__dirname, '..', 'retention_cleanup.ts'),
     'utf-8',
@@ -218,22 +256,65 @@ describe('retention_cleanup action-layer pre-filters by hold sets (source-grep r
     return cleanupSource.slice(start, next === -1 ? undefined : next);
   }
 
-  it('cleanupChatFilterEvents pre-filters by holds.threadIds', () => {
-    expect(bodyOf('cleanupChatFilterEvents')).toMatch(
-      /holds\.threadIds\.has\(row\.threadId\)/,
-    );
+  it('cleanupDocuments pre-filters by holds.userMembershipIds via createdBy', () => {
+    const body = bodyOf('cleanupDocuments');
+    expect(body).toMatch(/holds\.userMembershipIds\.has\(doc\.createdBy\)/);
   });
 
-  it('cleanupMessageFeedback pre-filters by holds.threadIds (in addition to userMembership)', () => {
+  it('cleanupChatHistory pre-filters via thread.userId', () => {
+    const body = bodyOf('cleanupChatHistory');
+    expect(body).toMatch(/holds\.userMembershipIds\.has\(thread\.userId\)/);
+  });
+
+  it('cleanupMessageFeedback pre-filters via row.userId', () => {
     const body = bodyOf('cleanupMessageFeedback');
-    expect(body).toMatch(/holds\.threadIds\.has\(row\.threadId\)/);
     expect(body).toMatch(/holds\.userMembershipIds\.has\(row\.userId\)/);
   });
 
-  it('cleanupMemoryAudit pre-filters by subject/actor user holds and thread hold', () => {
+  it('cleanupMemoryAudit pre-filters by subject/actor user holds', () => {
     const body = bodyOf('cleanupMemoryAudit');
     expect(body).toMatch(/holds\.userMembershipIds\.has\(row\.subjectUserId\)/);
     expect(body).toMatch(/holds\.userMembershipIds\.has\(row\.actorUserId\)/);
-    expect(body).toMatch(/holds\.threadIds\.has\(row\.threadId\)/);
+  });
+
+  it('cleanupWorkflowLogs pre-filters via execution.userId', () => {
+    const body = bodyOf('cleanupWorkflowLogs');
+    expect(body).toMatch(/holds\.userMembershipIds\.has\(execution\.userId\)/);
+  });
+});
+
+describe('hold simplification regression — per-row Sets are gone', () => {
+  // The schema-level dead-code cleanup: ActiveHolds no longer carries
+  // threadIds / documentIds / executionIds Sets, and no production
+  // path consults them. Source-grep ensures the simplification stays in.
+  const cleanupSource = readFileSync(
+    join(__dirname, '..', 'retention_cleanup.ts'),
+    'utf-8',
+  );
+  const erasureSource = readFileSync(
+    join(__dirname, '..', 'erasure.ts'),
+    'utf-8',
+  );
+  const guardSource = readFileSync(
+    join(__dirname, '..', 'legal_hold_guard.ts'),
+    'utf-8',
+  );
+
+  it('retention_cleanup.ts has no holds.threadIds / documentIds / executionIds checks', () => {
+    expect(cleanupSource).not.toMatch(/holds\.threadIds\.has/);
+    expect(cleanupSource).not.toMatch(/holds\.documentIds\.has/);
+    expect(cleanupSource).not.toMatch(/holds\.executionIds\.has/);
+  });
+
+  it('erasure.ts has no holds.threadIds / documentIds checks', () => {
+    expect(erasureSource).not.toMatch(/holds\.threadIds\.has/);
+    expect(erasureSource).not.toMatch(/holds\.documentIds\.has/);
+  });
+
+  it('legal_hold_guard.ts checks org + userMembership only', () => {
+    expect(guardSource).not.toMatch(/threadIds\.has/);
+    expect(guardSource).not.toMatch(/documentIds\.has/);
+    expect(guardSource).not.toMatch(/executionIds\.has/);
+    expect(guardSource).toMatch(/userMembershipIds\.has/);
   });
 });

@@ -72,14 +72,18 @@ async function assertNoHeldDescendantDocs(
       q.eq('organizationId', organizationId).eq('folderId', folderId),
     );
   for await (const doc of childDocs) {
-    if (holds.documentIds.has(String(doc._id))) {
+    // Per-document hold target type was deprecated by the User+Org
+    // pivot; the user-custodian cascade now triggers when any
+    // descendant document's `createdBy` is on a userMembership hold.
+    if (doc.createdBy && holds.userMembershipIds.has(doc.createdBy)) {
       throw new ConvexError({
         code: 'LEGAL_HOLD_ACTIVE',
         message:
-          'A document inside this folder is under an active legal hold. Release the hold before deleting the folder.',
+          'A document inside this folder is owned by a user on a custodian legal hold. Release the user-level hold before deleting the folder.',
         targetType: 'document',
         targetId: String(doc._id),
         orgHeld: false,
+        userCustodianHeld: true,
       });
     }
   }

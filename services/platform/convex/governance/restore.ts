@@ -77,18 +77,9 @@ export const restoreSoftDeletedRow = mutation({
         orgHeld: true,
       });
     }
-    if (args.resourceType === 'thread' && holds.threadIds.has(args.rowId)) {
-      throw new ConvexError({
-        code: 'LEGAL_HOLD_BLOCKS_RESTORE',
-        message: 'Thread is on legal hold — restore is blocked.',
-      });
-    }
-    if (args.resourceType === 'document' && holds.documentIds.has(args.rowId)) {
-      throw new ConvexError({
-        code: 'LEGAL_HOLD_BLOCKS_RESTORE',
-        message: 'Document is on legal hold — restore is blocked.',
-      });
-    }
+    // Per-row holds (thread/document) deprecated by the User+Org pivot;
+    // the user-membership cascade is enforced inside `restoreRowToActive`
+    // / the thread branch's own metadata fetch below.
 
     const config = SOFT_DELETE_RESOURCE_CONFIG[args.resourceType];
 

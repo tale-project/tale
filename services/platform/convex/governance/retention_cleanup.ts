@@ -158,7 +158,9 @@ async function cleanupDocuments(
       { organizationId: org.organizationId, cutoffMs, batchSize },
     );
     for (const doc of passA) {
-      if (holds.documentIds.has(doc._id)) continue;
+      // Document holds are now cascade-only via the user-custodian
+      // (`userMembership`) target type. Per-document holds were
+      // deprecated by the User+Org pivot.
       if (doc.createdBy && holds.userMembershipIds.has(doc.createdBy)) continue;
       await ctx.runMutation(
         internal.governance.soft_delete_helpers.markRowExpiredGeneric,
@@ -193,12 +195,6 @@ async function cleanupDocuments(
         );
 
   for (const doc of passB) {
-    if (holds.documentIds.has(doc._id)) {
-      console.info(
-        `[RetentionCleanup] document ${doc._id} on legal hold — skipping`,
-      );
-      continue;
-    }
     if (doc.createdBy && holds.userMembershipIds.has(doc.createdBy)) {
       console.info(
         `[RetentionCleanup] document ${doc._id} authored by user ${doc.createdBy} on user-custodian hold — skipping`,
@@ -351,12 +347,8 @@ async function cleanupChatHistory(
       { organizationId: org.organizationId, cutoffMs, batchSize },
     );
     for (const thread of passA) {
-      if (holds.threadIds.has(thread.threadId)) {
-        console.info(
-          `[RetentionCleanup] thread ${thread.threadId} on legal hold — skipping pass A`,
-        );
-        continue;
-      }
+      // Per-thread hold target type was deprecated by the User+Org
+      // pivot. Cascade flows via the thread owner's `userId`.
       if (thread.userId && holds.userMembershipIds.has(thread.userId)) {
         console.info(
           `[RetentionCleanup] thread ${thread.threadId} owned by user ${thread.userId} on user-custodian hold — skipping pass A`,
@@ -399,15 +391,7 @@ async function cleanupChatHistory(
         );
 
   for (const thread of passB) {
-    // Per-thread hold check. The threadMetadata row's `threadId` (not
-    // the Convex `_id`) is the hold target — that's what admins paste
-    // into the place-hold UI and what audit logs record.
-    if (holds.threadIds.has(thread.threadId)) {
-      console.info(
-        `[RetentionCleanup] thread ${thread.threadId} on legal hold — skipping pass B`,
-      );
-      continue;
-    }
+    // Per-thread hold target type is deprecated; cascade through owner.
     if (thread.userId && holds.userMembershipIds.has(thread.userId)) {
       console.info(
         `[RetentionCleanup] thread ${thread.threadId} owned by user ${thread.userId} on user-custodian hold — skipping pass B`,
@@ -535,7 +519,11 @@ async function cleanupWorkflowLogs(
       { organizationId: org.organizationId, cutoffMs, batchSize },
     );
     for (const execution of passA) {
-      if (holds.executionIds.has(execution._id)) continue;
+      // Per-execution hold target type was deprecated by the User+Org
+      // pivot. Cascade flows via the execution triggerer's userId.
+      if (execution.userId && holds.userMembershipIds.has(execution.userId)) {
+        continue;
+      }
       await ctx.runMutation(
         internal.governance.soft_delete_helpers.markRowExpiredGeneric,
         {
@@ -566,11 +554,11 @@ async function cleanupWorkflowLogs(
           { organizationId: org.organizationId, cutoffMs, batchSize },
         );
   for (const execution of expiredExecutions) {
-    // Per-execution hold (`targetType: 'execution'`). The hold UI pastes
-    // the execution `_id` as `targetId`; match exactly.
-    if (holds.executionIds.has(execution._id)) {
+    // Cascade via the execution triggerer's `userId` — per-execution
+    // hold target type is deprecated.
+    if (execution.userId && holds.userMembershipIds.has(execution.userId)) {
       console.info(
-        `[RetentionCleanup] execution ${execution._id} on legal hold — skipping`,
+        `[RetentionCleanup] execution ${execution._id} triggered by user ${execution.userId} on user-custodian hold — skipping`,
       );
       continue;
     }
@@ -593,17 +581,12 @@ async function cleanupWorkflowLogs(
     { organizationId: org.organizationId, cutoffMs, batchSize },
   );
   for (const log of expiredTriggerLogs) {
-    // Action-layer preview: skip held executions without the mutation
-    // round-trip. Mutation re-checks under TOCTOU to cover races.
-    if (
-      log.wfExecutionId &&
-      holds.executionIds.has(String(log.wfExecutionId))
-    ) {
-      console.info(
-        `[RetentionCleanup] execution ${String(log.wfExecutionId)} on legal hold — skipping trigger log ${String(log._id)}`,
-      );
-      continue;
-    }
+    // Action-layer preview is no longer reliable per-execution
+    // (custodian cascade requires the parent execution's `userId`,
+    // which we can read here but is mutation-side anyway). The
+    // mutation does the cascade re-check under TOCTOU. Skip preview
+    // to keep this loop simple — falling through to the mutation is
+    // safe.
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredWorkflowTriggerLog,
@@ -722,7 +705,10 @@ async function cleanupChatFilterEvents(
       { organizationId: org.organizationId, cutoffMs, batchSize },
     );
     for (const row of passA) {
-      if (holds.threadIds.has(row.threadId)) continue;
+      // Per-thread hold target type is deprecated. The custodian
+      // cascade fires inside `markRowExpiredGeneric → assertSafeRetentionDelete`,
+      // which the mutation re-reads under TOCTOU. Skip action-layer
+      // pre-filter — falling through to the mutation is safe.
       await ctx.runMutation(
         internal.governance.soft_delete_helpers.markRowExpiredGeneric,
         {
@@ -752,12 +738,7 @@ async function cleanupChatFilterEvents(
           { organizationId: org.organizationId, cutoffMs, batchSize },
         );
   for (const row of expired) {
-    if (holds.threadIds.has(row.threadId)) {
-      console.info(
-        `[RetentionCleanup] chatFilterEvent ${row._id} on thread ${row.threadId} legal hold — skipping`,
-      );
-      continue;
-    }
+    // Per-thread hold deprecated — mutation does the cascade re-check.
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredChatFilterEvent,
@@ -872,8 +853,9 @@ async function cleanupMessageFeedback(
       { organizationId: org.organizationId, cutoffMs, batchSize },
     );
     for (const row of passA) {
+      // Per-row custodian cascade. Per-thread hold target is deprecated;
+      // user-membership cascade is the only remaining gate beyond org.
       if (row.userId && holds.userMembershipIds.has(row.userId)) continue;
-      if (holds.threadIds.has(row.threadId)) continue;
       await ctx.runMutation(
         internal.governance.soft_delete_helpers.markRowExpiredGeneric,
         {
@@ -906,12 +888,6 @@ async function cleanupMessageFeedback(
     if (row.userId && holds.userMembershipIds.has(row.userId)) {
       console.info(
         `[RetentionCleanup] message feedback ${row._id} from user ${row.userId} on user-custodian hold — skipping`,
-      );
-      continue;
-    }
-    if (holds.threadIds.has(row.threadId)) {
-      console.info(
-        `[RetentionCleanup] message feedback ${row._id} on thread ${row.threadId} legal hold — skipping`,
       );
       continue;
     }
@@ -959,7 +935,7 @@ async function cleanupMemoryAudit(
         holds.userMembershipIds.has(row.actorUserId)
       )
         continue;
-      if (row.threadId && holds.threadIds.has(row.threadId)) continue;
+      // Per-thread hold deprecated; cascade is via subject/actor user.
       await ctx.runMutation(
         internal.governance.soft_delete_helpers.markRowExpiredGeneric,
         {
@@ -998,12 +974,8 @@ async function cleanupMemoryAudit(
       );
       continue;
     }
-    if (row.threadId && holds.threadIds.has(row.threadId)) {
-      console.info(
-        `[RetentionCleanup] memoryAudit ${row._id} on thread ${row.threadId} legal hold — skipping`,
-      );
-      continue;
-    }
+    // Per-thread hold target type deprecated; subject/actor user cascade
+    // above is the only remaining gate beyond org-wide.
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredMemoryAuditRow,
@@ -1257,15 +1229,11 @@ async function cleanupMessageMetadata(
   );
   let processed = 0;
   for (const row of expired) {
-    // Action-layer thread-hold preview: skip without invoking the
-    // mutation when the snapshot already reports a hold. The mutation
-    // re-reads holds as defense-in-depth (covers a hold placed mid-loop).
-    if (holds.threadIds.has(row.threadId)) {
-      console.info(
-        `[RetentionCleanup] thread ${row.threadId} on legal hold — skipping messageMetadata row ${String(row._id)}`,
-      );
-      continue;
-    }
+    // Per-thread hold target type is deprecated. The mutation
+    // (`deleteExpiredMessageMetadata`) does the cascade re-check via
+    // a parent-thread lookup → user-membership hold; falling through
+    // to it is sufficient defence (and keeps this loop free of an
+    // extra index hit per row).
     await ctx.runMutation(
       internal.governance.internal_mutations_retention
         .deleteExpiredMessageMetadata,
@@ -1530,9 +1498,6 @@ export const runOrgRetentionCleanup = internalAction({
       );
       const holds: ActiveHolds = {
         orgHeld: holdRows.orgHeld,
-        threadIds: new Set(holdRows.threadIds),
-        documentIds: new Set(holdRows.documentIds),
-        executionIds: new Set(holdRows.executionIds),
         userMembershipIds: new Set(holdRows.userMembershipIds),
       };
 

@@ -28,13 +28,22 @@ import { authComponent } from '../auth';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
-const HOLD_TARGET_TYPES = [
-  'thread',
-  'document',
-  'execution',
-  'userMembership',
-  'org',
-] as const;
+/**
+ * Hold target types that the **write-side** mutations (placeLegalHold,
+ * bulkPlaceLegalHold) accept. Per round-2 V4 + the user-pivot in
+ * commit `42de58846`: in practice only `org` (whole-tenant freeze) and
+ * `userMembership` (custodian-cascade preservation) are operator-facing.
+ *
+ * `thread` / `document` / `execution` were modeled in the original
+ * fine-grained hold design but never wired into the place-hold UI;
+ * `loadActiveHolds` and `assertNotHeld` consequently never saw rows
+ * of those types. This narrowing makes the dead state explicit.
+ *
+ * The **read-side** validator in `legal_hold_queries.ts` stays
+ * permissive so admin UIs can still render any historical
+ * `(legacy)` rows that pre-date this change.
+ */
+const HOLD_TARGET_TYPES = ['userMembership', 'org'] as const;
 
 /**
  * Escape hatch for single-admin deployments where the maker-checker
@@ -85,17 +94,16 @@ const targetTypeValidator = v.union(
 export interface ActiveHolds {
   /** True if the entire org is held (`targetType: 'org'` row active). */
   orgHeld: boolean;
-  threadIds: Set<string>;
-  documentIds: Set<string>;
-  executionIds: Set<string>;
+  /**
+   * User ids on an active custodian hold. Cascade rule: every artifact
+   * whose author/owner is in this set is preserved (delete + restore
+   * paths refuse via `assertNotHeld(... authorUserId)`).
+   */
   userMembershipIds: Set<string>;
 }
 
 const EMPTY_HOLDS: ActiveHolds = {
   orgHeld: false,
-  threadIds: new Set<string>(),
-  documentIds: new Set<string>(),
-  executionIds: new Set<string>(),
   userMembershipIds: new Set<string>(),
 };
 
@@ -120,9 +128,6 @@ export async function loadActiveHolds(
 
   const result: ActiveHolds = {
     orgHeld: false,
-    threadIds: new Set<string>(),
-    documentIds: new Set<string>(),
-    executionIds: new Set<string>(),
     userMembershipIds: new Set<string>(),
   };
 
@@ -132,18 +137,12 @@ export async function loadActiveHolds(
       case 'org':
         result.orgHeld = true;
         break;
-      case 'thread':
-        result.threadIds.add(row.targetId);
-        break;
-      case 'document':
-        result.documentIds.add(row.targetId);
-        break;
-      case 'execution':
-        result.executionIds.add(row.targetId);
-        break;
       case 'userMembership':
         result.userMembershipIds.add(row.targetId);
         break;
+      // Legacy thread/document/execution rows (pre-User+Org pivot) are
+      // intentionally ignored. The write-side validator no longer
+      // accepts them, and the read-side UI tags them `(legacy)`.
     }
   }
 
@@ -154,6 +153,11 @@ export async function loadActiveHolds(
  * Pure-data check used by callers that already pre-fetched holds.
  * Returns `true` when the entity is protected (the cleanup / restore
  * caller should skip).
+ *
+ * After the hold-type narrowing (commit-2 of the data-protection bundle)
+ * only `org` and `userMembership` are valid placement targets. The
+ * `userMembership` branch is the custodian cascade — match against the
+ * row's author/owner user id rather than a "row's targetId" concept.
  */
 export function isHeld(
   holds: ActiveHolds,
@@ -161,9 +165,6 @@ export function isHeld(
   targetId: string,
 ): boolean {
   if (holds.orgHeld) return true;
-  if (targetType === 'thread') return holds.threadIds.has(targetId);
-  if (targetType === 'document') return holds.documentIds.has(targetId);
-  if (targetType === 'execution') return holds.executionIds.has(targetId);
   if (targetType === 'userMembership')
     return holds.userMembershipIds.has(targetId);
   return false;
@@ -188,10 +189,12 @@ export { EMPTY_HOLDS as _EMPTY_HOLDS_FOR_TESTS };
  * Label rules per type — falls back to `targetId` when the natural
  * label field is empty:
  *   - org            → organizations.name (Better Auth)
- *   - thread         → threadMetadata.title
- *   - document       → documents.title
- *   - execution      → wfExecutions.workflowSlug
  *   - userMembership → users.email (Better Auth)
+ *
+ * `thread`/`document`/`execution` placement was deprecated by the
+ * User+Org pivot (commit `42de58846`); the write-side validator no
+ * longer accepts them, so the per-type lookups for those have been
+ * removed.
  */
 async function resolveAndAssertTarget(
   ctx: MutationCtx,
@@ -212,47 +215,6 @@ async function resolveAndAssertTarget(
     });
     const orgName = isRecord(orgRes) ? getString(orgRes, 'name') : undefined;
     return { label: orgName?.trim() || targetId };
-  }
-  if (targetType === 'thread') {
-    const meta = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', targetId))
-      .first();
-    if (!meta || meta.organizationId !== organizationId) {
-      throw new ConvexError({
-        code: 'TARGET_NOT_IN_ORG',
-        message: `thread ${targetId} does not belong to this organization.`,
-        targetType,
-        targetId,
-      });
-    }
-    return { label: meta.title?.trim() || targetId };
-  }
-  if (targetType === 'document') {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- targetId is a stringified _id; ctx.db.get returns null on mismatch
-    const doc = await ctx.db.get(targetId as Id<'documents'>);
-    if (!doc || doc.organizationId !== organizationId) {
-      throw new ConvexError({
-        code: 'TARGET_NOT_IN_ORG',
-        message: `document ${targetId} does not belong to this organization.`,
-        targetType,
-        targetId,
-      });
-    }
-    return { label: doc.title?.trim() || targetId };
-  }
-  if (targetType === 'execution') {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- targetId is a stringified _id; ctx.db.get returns null on mismatch
-    const exec = await ctx.db.get(targetId as Id<'wfExecutions'>);
-    if (!exec || exec.organizationId !== organizationId) {
-      throw new ConvexError({
-        code: 'TARGET_NOT_IN_ORG',
-        message: `execution ${targetId} does not belong to this organization.`,
-        targetType,
-        targetId,
-      });
-    }
-    return { label: exec.workflowSlug?.trim() || targetId };
   }
   if (targetType === 'userMembership') {
     // Validate via the Better Auth `member` table — the userId must have

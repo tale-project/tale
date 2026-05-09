@@ -178,24 +178,20 @@ export const requestErasure = mutation({
     const subjectDocumentIds = subjectDocuments.map((d) => String(d._id));
 
     // Legal-hold gate. GDPR Art 17(3)(e) preserves data subject to legal
-    // claims. Refuse the WHOLE request when any of the subject's threads
-    // OR documents are held — the receipt cannot lie about coverage, and
-    // a partial erasure that omits held neighbors would confuse a future
-    // regulator audit. Operator must release the hold first.
+    // claims. Refuse the WHOLE request when the subject is under any
+    // active hold (org-wide or user-custodian) — the receipt cannot lie
+    // about coverage, and a partial erasure that omits held neighbors
+    // would confuse a future regulator audit. Operator must release the
+    // hold first.
+    //
+    // After the User+Org pivot, per-row hold target types
+    // (thread/document/execution) were dropped. Hold scope is now
+    // expressed entirely as "this whole org is held" or "this user's
+    // entire footprint is held" — both of which already cover every
+    // artifact owned by the subject.
     const holds = await loadActiveHolds(ctx, args.organizationId);
-    const heldThreadIds: string[] = threadIds.filter((id) =>
-      holds.threadIds.has(id),
-    );
-    const heldDocumentIds: string[] = subjectDocumentIds.filter((id) =>
-      holds.documentIds.has(id),
-    );
     const userCustodianHeld = holds.userMembershipIds.has(args.userId);
-    if (
-      holds.orgHeld ||
-      heldThreadIds.length > 0 ||
-      heldDocumentIds.length > 0 ||
-      userCustodianHeld
-    ) {
+    if (holds.orgHeld || userCustodianHeld) {
       await createAuditLog(ctx, {
         organizationId: args.organizationId,
         actorId: callerId,
@@ -212,23 +208,15 @@ export const requestErasure = mutation({
           reason: args.reason,
           orgHeld: holds.orgHeld,
           userCustodianHeld,
-          heldThreadIds,
-          heldDocumentIds,
         },
       });
       throw new ConvexError({
         code: 'LEGAL_HOLD_BLOCKS_ERASURE',
         message: holds.orgHeld
           ? 'Org is under an active legal hold — release the hold before requesting erasure.'
-          : userCustodianHeld
-            ? 'The subject user is on an active custodian legal hold — release the hold before requesting erasure.'
-            : heldThreadIds.length > 0
-              ? 'One or more of the subject’s threads are under an active legal hold.'
-              : 'One or more of the subject’s documents are under an active legal hold.',
+          : 'The subject user is on an active custodian legal hold — release the hold before requesting erasure.',
         orgHeld: holds.orgHeld,
         userCustodianHeld,
-        heldThreadIds,
-        heldDocumentIds,
       });
     }
 
@@ -470,7 +458,13 @@ export const eraseSubjectDocuments = internalMutation({
           .eq('organizationId', args.organizationId)
           .eq('createdBy', args.userId),
       )) {
-      if (holds.orgHeld || holds.documentIds.has(String(doc._id))) {
+      // Per-document hold target type was deprecated by the User+Org
+      // pivot; refusal at request time gates org-wide and user-custodian
+      // holds upstream. The remaining `orgHeld` re-check defends against
+      // a hold placed mid-flight between scheduling and processor run
+      // (round-2 v09 H4). Subject-cascade is implicit: this iteration
+      // only touches docs `createdBy: args.userId`.
+      if (holds.orgHeld) {
         skippedByHold++;
         continue;
       }
