@@ -36,55 +36,18 @@ import { normalizeHtmlBlocks } from './normalize-html-blocks';
 import { remendMarkdown } from './remend-markdown';
 
 /**
- * Streaming-safe defaults derived from `<Markdown>`'s `baseComponents` so
- * streaming and static prose render visually identical. We strip:
+ * Streaming defaults — the *exact same* component map `<Markdown>` uses,
+ * so streaming and static prose render with the same code blocks,
+ * headings (with hover-anchor links), tables, callouts, accordions,
+ * everything. Caller-provided overrides (chat citations, debounced
+ * highlighters) merge on top.
  *
- *   - `pre` / `code` — the static `<CodeBlock>` re-tokenises Shiki on every
- *     reveal step, flickering and slowing the typewriter loop.
- *   - `h1`–`h4` — the static heading wrappers nest content inside `<a>`
- *     tags for hover-anchors; that confuses the cursor wrapper which
- *     walks the AST to find the last text node. Streaming uses plain
- *     headings styled to match.
- *
- * Caller-provided overrides (chat citations, etc.) merge on top.
+ * Trade-off: keeping the static `<CodeBlock>` for `pre` means Shiki
+ * re-tokenises on every reveal step. Storybook + casual streaming live
+ * with that; chat callers stream large code blocks via their own
+ * debounced highlighter passed through `components`.
  */
-const STREAMING_BASE: MarkdownComponentMap = (() => {
-  const map = baseComponents as unknown as MarkdownComponentMap;
-  // Destructure-to-omit pattern — vars are intentionally unused.
-  // oxlint-disable-next-line typescript/no-unused-vars
-  const {
-    pre: _pre,
-    code: _code,
-    h1: _h1,
-    h2: _h2,
-    h3: _h3,
-    h4: _h4,
-    ...rest
-  } = map;
-  return {
-    ...rest,
-    h1: ({ children }: { children?: React.ReactNode }) => (
-      <h1 className="text-fg-base mt-12 mb-4 text-3xl font-semibold first:mt-0">
-        {children}
-      </h1>
-    ),
-    h2: ({ children }: { children?: React.ReactNode }) => (
-      <h2 className="text-fg-base mt-10 mb-3 text-2xl font-semibold">
-        {children}
-      </h2>
-    ),
-    h3: ({ children }: { children?: React.ReactNode }) => (
-      <h3 className="text-fg-base mt-6 mb-2 text-lg font-semibold">
-        {children}
-      </h3>
-    ),
-    h4: ({ children }: { children?: React.ReactNode }) => (
-      <h4 className="text-fg-base mt-4 mb-2 text-base font-semibold">
-        {children}
-      </h4>
-    ),
-  };
-})();
+const STREAMING_BASE = baseComponents as unknown as MarkdownComponentMap;
 
 const chatSanitizeSchema = {
   ...defaultSchema,

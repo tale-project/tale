@@ -7,9 +7,14 @@ import { IncrementalMarkdown } from '../incremental-markdown';
 // HELPERS
 // ============================================================================
 
-/** Count visible cursor elements (useLayoutEffect hides duplicates via display:none) */
+/**
+ * Count visible cursor elements (useLayoutEffect hides duplicates via
+ * display:none). We match the cursor's specific class so other
+ * aria-hidden decorations rendered by `baseComponents` (anchor-link
+ * indicators, copy-button icons, etc.) don't get miscounted as cursors.
+ */
 function countCursors(container: HTMLElement) {
-  const all = container.querySelectorAll<HTMLElement>('[aria-hidden="true"]');
+  const all = container.querySelectorAll<HTMLElement>('.animate-cursor-blink');
   let visible = 0;
   for (const el of all) {
     if (el.style.display !== 'none') visible++;
