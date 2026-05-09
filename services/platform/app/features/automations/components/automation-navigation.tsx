@@ -21,6 +21,7 @@ import type { WorkflowJsonConfig } from '@/lib/shared/schemas/workflows';
 import { workflowJsonSchema } from '@/lib/shared/schemas/workflows';
 
 import { useWorkflowConfig } from '../hooks/use-workflow-config-context';
+import { useWorkflowActivity } from '../triggers/hooks/queries';
 import { AutomationHistoryDiffDialog } from './automation-history-diff-dialog';
 
 interface AutomationNavigationProps {
@@ -64,6 +65,11 @@ export function AutomationNavigation({
   const [isRestoring, setIsRestoring] = useState(false);
   const [isDiffOpen, setIsDiffOpen] = useState(false);
 
+  const { hasActiveTrigger } = useWorkflowActivity(
+    organizationId,
+    workflowSlug,
+  );
+
   const navigationItems: TabNavigationItem[] = automationId
     ? [
         {
@@ -82,6 +88,11 @@ export function AutomationNavigation({
         {
           label: t('triggers.title'),
           href: `/dashboard/${organizationId}/automations/${automationId}/triggers`,
+          trailing: !hasActiveTrigger ? (
+            <span className="border-border bg-background text-foreground ml-2 inline-flex items-center rounded-md border px-1.5 py-0.5 text-xs leading-4 font-medium">
+              {tCommon('status.inactive')}
+            </span>
+          ) : null,
         },
       ]
     : [];

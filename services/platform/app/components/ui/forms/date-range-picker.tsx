@@ -170,8 +170,8 @@ const DateInputHeader = memo(function DateInputHeader({
       <Text>{format(date, 'MMMM yyyy')}</Text>
       <Button
         type="button"
-        variant="secondary"
         size="sm"
+        variant="secondary"
         disabled={nextMonthButtonDisabled}
         onClick={increaseMonth}
         className="hover:bg-accent size-6 p-0"
@@ -208,6 +208,7 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
     <div className="ring-border flex divide-x rounded-lg ring-1">
       <Button
         ref={ref}
+        size="sm"
         type="button"
         variant="secondary"
         disabled={isLoading}
@@ -237,6 +238,7 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
       <DropdownMenu
         trigger={
           <Button
+            size="sm"
             type="button"
             variant="secondary"
             disabled={isLoading}
@@ -361,10 +363,10 @@ export function DatePickerWithRange({
         onChange={handleDateChange}
         dateFormat="dd / MM / yyyy"
         disabled={isLoading}
+        placeholderText={t('upload.pickADate')}
         customInput={
           <CustomInput
             isLoading={isLoading}
-            placeholder={t('upload.pickADate')}
             presetLabel={presetLabel}
             presetOptions={presetOptions}
             onPresetSelect={handlePresetSelect}

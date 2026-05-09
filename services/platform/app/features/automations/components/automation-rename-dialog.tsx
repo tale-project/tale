@@ -86,7 +86,7 @@ export function AutomationRenameDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={tCommon('actions.rename')}
+      title={tAutomations('renameTitle')}
       submitText={tCommon('actions.save')}
       submittingText={tCommon('actions.saving')}
       isSubmitting={isSubmitting}

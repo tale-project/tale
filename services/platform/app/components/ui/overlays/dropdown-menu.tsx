@@ -29,6 +29,8 @@ export interface DropdownMenuSubItem {
   icon?: ComponentType<{ className?: string }>;
   items: DropdownMenuGroup[];
   className?: string;
+  /** Optional trailing text shown before the chevron (e.g. current selection). */
+  trailing?: ReactNode;
 }
 
 export interface DropdownMenuRadioGroupItem {
@@ -138,6 +140,11 @@ function renderItem(item: DropdownMenuItem, key: number) {
           >
             {SubIcon && <SubIcon />}
             <span>{item.label}</span>
+            {item.trailing != null && (
+              <span className="text-muted-foreground ml-auto max-w-[10rem] truncate text-xs">
+                {item.trailing}
+              </span>
+            )}
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="24"
@@ -148,7 +155,10 @@ function renderItem(item: DropdownMenuItem, key: number) {
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="ml-auto size-4"
+              className={cn(
+                'size-4 shrink-0',
+                item.trailing == null && 'ml-auto',
+              )}
             >
               <path d="m9 18 6-6-6-6" />
             </svg>

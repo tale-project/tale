@@ -162,10 +162,16 @@ export function UserButton({
       const settingsGroup: DropdownMenuItem[] = [];
 
       if (teams && teams.length > 0) {
+        const selectedTeamLabel = selectedTeamId
+          ? (teams.find((team) => team.id === selectedTeamId)?.name ??
+            tNav('teamFilter.allTeams'))
+          : tNav('teamFilter.allTeams');
+
         settingsGroup.push({
           type: 'sub',
           label: tNav('teamFilter.label'),
           icon: UsersRound,
+          trailing: selectedTeamLabel,
           items: [
             [
               {

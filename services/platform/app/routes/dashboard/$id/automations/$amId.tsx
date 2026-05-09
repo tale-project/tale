@@ -1,4 +1,3 @@
-import { Badge } from '@tale/ui/badge';
 import { Skeleton } from '@tale/ui/skeleton';
 import {
   createFileRoute,
@@ -241,7 +240,6 @@ function AutomationDetailInner({
 }: AutomationDetailInnerProps) {
   const location = useLocation();
   const { t } = useT('automations');
-  const { t: tCommon } = useT('common');
   const { config } = useWorkflowConfig();
   const { hasActiveTrigger } = useWorkflowActivity(
     organizationId,
@@ -298,20 +296,6 @@ function AutomationDetailInner({
               <span className="hidden md:inline">/&nbsp;&nbsp;</span>
               {config.name}
             </Heading>
-            {hasActiveTrigger ? (
-              <Badge variant="green" className="ml-2">
-                {tCommon('status.active')}
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="ml-2">
-                {tCommon('status.inactive')}
-              </Badge>
-            )}
-            {config.version && (
-              <Badge variant="outline" className="ml-2">
-                v{config.version}
-              </Badge>
-            )}
           </AdaptiveHeaderRoot>
           <AutomationNavigation
             organizationId={organizationId}
