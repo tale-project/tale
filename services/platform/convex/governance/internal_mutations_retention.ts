@@ -700,6 +700,36 @@ export const deleteExpiredExternalConversation = internalMutation({
   },
 });
 
+/**
+ * Round-2 V6 P0-17 — hard-delete an expired notification row. Notifications
+ * are admin telemetry (lockout alerts, system messages) with PII in
+ * `params` that has no value past a short admin review window; no
+ * grace/trash, no per-row author cascade (org-wide hold is the only
+ * gate, applied at the action layer).
+ */
+export const deleteExpiredNotification = internalMutation({
+  args: {
+    rowId: v.id('notifications'),
+    organizationId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.rowId);
+    if (!row) return null;
+    // Cross-org guard: refuse if the row was created in a different org
+    // (defends against caller-supplied id from another tenant).
+    if (row.organizationId !== args.organizationId) {
+      return null;
+    }
+    // Re-read holds at mutation time to defeat the snapshot-race
+    // window where an org-wide hold is placed mid-loop.
+    const holds = await loadActiveHolds(ctx, args.organizationId);
+    if (holds.orgHeld) return null;
+    await ctx.db.delete(args.rowId);
+    return null;
+  },
+});
+
 export const deleteExpiredMessageMetadata = internalMutation({
   args: {
     rowId: v.id('messageMetadata'),

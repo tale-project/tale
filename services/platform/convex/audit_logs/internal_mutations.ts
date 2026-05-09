@@ -310,6 +310,18 @@ export const scrubSubjectAuditLogs = internalMutation({
         previousState: undefined,
         newState: undefined,
         metadata: undefined,
+        // Round-2 V6 P0-16: peppered hashes (`actorEmailHash` /
+        // `actorIpHash`) are pseudonymized PII per GDPR Art 4(5) and
+        // must be cleared alongside the plaintext columns. Without
+        // this, scrubbed rows still carry a stable identifier for the
+        // subject — re-identification is possible by the controller
+        // (or anyone with the pepper) by hashing a known email and
+        // matching. The signed `pii_scrub` checkpoint window already
+        // permits the row's hash to diverge from its original (the
+        // verifier skips chain re-compute inside the window), so
+        // clearing these columns is chain-safe.
+        actorEmailHash: undefined,
+        actorIpHash: undefined,
         piiScrubbed: true,
         piiScrubbedAt: now,
       };

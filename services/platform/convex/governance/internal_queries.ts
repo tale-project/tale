@@ -802,6 +802,35 @@ export const listExpiredMessageMetadataForOrg = internalQuery({
   },
 });
 
+/**
+ * Round-2 V6 P0-17 — list notifications past the org's retention
+ * cutoff. Walks the `by_org_created` index range, no per-row hold
+ * cascade (notifications are admin telemetry, not user-attributed
+ * artifacts; org-wide hold is the only gate).
+ */
+export const listExpiredNotifications = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('notifications')
+      .withIndex('by_org_created', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .lt('createdAt', args.cutoffMs),
+      )) {
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
 export const listExpiredMemoryAuditRows = internalQuery({
   args: {
     organizationId: v.string(),

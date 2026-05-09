@@ -60,6 +60,7 @@ import {
 } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
+import { hashEmailForAudit } from '../lib/helpers/pii_hash';
 import { ragFetch } from '../lib/helpers/rag_config';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -784,6 +785,69 @@ export const lookupSubjectEmail = internalMutation({
   },
 });
 
+/**
+ * Round-2 V6 P0-17 — subject-scope erasure for `notifications` rows.
+ *
+ * Notifications carry the subject's email + (optionally) IP in
+ * `params` (e.g. lockout alerts: "{email, ip, consecutiveFailures}").
+ * When the audit pepper is configured, those fields are hashed; when
+ * not, they're plaintext. Either form is personal data per Art 4(5) +
+ * 17 and must be removed alongside the rest of the subject's footprint.
+ *
+ * Match strategy: walk the org's notifications via `by_org_created`,
+ * compare `params.email` against (a) the subject's plaintext email
+ * (looked up via `lookupSubjectEmail` and lowercased) and (b) the
+ * peppered hash of that email. Either match → delete the row.
+ */
+export const eraseSubjectNotifications = internalMutation({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    /**
+     * Resolved at the action layer via `lookupSubjectEmail` so the
+     * mutation doesn't have to call into Better Auth (which is not
+     * available from a Node-only mutation context). When the user's
+     * email cannot be resolved (deleted account, etc.), the action
+     * passes `null` and the mutation skips the email-match branch.
+     */
+    subjectEmail: v.union(v.string(), v.null()),
+  },
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
+  handler: async (ctx, args) => {
+    const holds = await loadActiveHolds(ctx, args.organizationId);
+    if (holds.orgHeld) {
+      // Notifications under org-wide hold are preserved like every other
+      // category; the request was already refused at scheduling time
+      // unless a hold landed mid-flight.
+      return { rows: 0, skippedByHold: 0 };
+    }
+    const subjectEmailLc = args.subjectEmail?.toLowerCase() ?? null;
+    const subjectEmailHash = subjectEmailLc
+      ? await hashEmailForAudit(subjectEmailLc)
+      : null;
+
+    let rows = 0;
+    for await (const row of ctx.db
+      .query('notifications')
+      .withIndex('by_org_created', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      const params = row.params;
+      if (!params || typeof params !== 'object') continue;
+      const paramEmail = (params as Record<string, unknown>).email;
+      const matches =
+        typeof paramEmail === 'string' &&
+        ((subjectEmailLc !== null &&
+          paramEmail.toLowerCase() === subjectEmailLc) ||
+          (subjectEmailHash !== null && paramEmail === subjectEmailHash));
+      if (!matches) continue;
+      await ctx.db.delete(row._id);
+      rows++;
+    }
+    return { rows, skippedByHold: 0 };
+  },
+});
+
 export const eraseSubjectLoginAttempts = internalMutation({
   // Tables are email-keyed and global, but the GDPR request is org-scoped.
   // Re-read holds for the requesting org so a mid-flight hold blocks this
@@ -1039,7 +1103,10 @@ export const processErasureRequest = internalAction({
 
       // loginAttempts / loginBlockCounters are email-keyed (not
       // userId-keyed). Look up the email via BetterAuth before the
-      // user row itself is touched.
+      // user row itself is touched. The email is also handed to
+      // `eraseSubjectNotifications` (round-2 V6 P0-17) so the
+      // notifications walker can match either plaintext-email or
+      // peppered-hash entries written by lockout alerts.
       const subjectEmail = await ctx.runMutation(
         internal.governance.erasure.lookupSubjectEmail,
         { userId: state.targetUserId },
@@ -1053,6 +1120,14 @@ export const processErasureRequest = internalAction({
           },
         );
       }
+      await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectNotifications,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+          subjectEmail: subjectEmail ?? null,
+        },
+      );
 
       // Audit-chain PII scrub (W3 #4): wipe email / IP / UA / state
       // payloads on auditLogs rows where the subject was the actor.

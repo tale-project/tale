@@ -22,6 +22,12 @@ export const RETENTION_CATEGORIES = [
   'vendors',
   'externalConversations',
   'messageMetadata',
+  // Round-2 V6 P0-17: in-app notifications (security alerts, lockout
+  // notices, system messages) carry peppered email + IP in `params`.
+  // Without retention they accumulate indefinitely AND survive
+  // subject erasure — a NotificationBell entry from years ago could
+  // still expose `alice@x.com locked at 203.0.113.45/24`.
+  'notifications',
 ] as const;
 
 export type RetentionCategory = (typeof RETENTION_CATEGORIES)[number];

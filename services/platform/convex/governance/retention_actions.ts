@@ -216,6 +216,7 @@ export const upsertRetentionPolicyAction = action({
       ['vendors', cfg?.vendorsRetentionDays],
       ['externalConversations', cfg?.externalConversationsRetentionDays],
       ['messageMetadata', cfg?.messageMetadataRetentionDays],
+      ['notifications', cfg?.notificationsRetentionDays],
     ];
     for (const [cat, val] of checks) {
       if (typeof val !== 'number') continue;

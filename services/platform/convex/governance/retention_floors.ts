@@ -360,6 +360,7 @@ const CONFIG_FIELD_TO_CATEGORY: Record<string, RetentionCategory> = {
   vendorsRetentionDays: 'vendors',
   externalConversationsRetentionDays: 'externalConversations',
   messageMetadataRetentionDays: 'messageMetadata',
+  notificationsRetentionDays: 'notifications',
 };
 
 /**

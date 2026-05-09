@@ -166,6 +166,15 @@ export const retentionPolicyConfigSchema = z.object({
   externalConversationsRetentionDays: z.number().int().nonnegative().optional(),
   messageMetadataEnabled: z.boolean().optional(),
   messageMetadataRetentionDays: z.number().int().nonnegative().optional(),
+  /**
+   * In-app notification retention. Notifications carry peppered email +
+   * IP for security alerts (lockouts, etc.) and have no value past a
+   * short admin review window. Default 30 days; bounded by the
+   * `notifications` retention category in the JSON config.
+   * Round-2 V6 P0-17.
+   */
+  notificationsEnabled: z.boolean().optional(),
+  notificationsRetentionDays: z.number().int().nonnegative().optional(),
   deletionGraceDays: z.number().int().min(0).max(90).optional(),
 });
 export type RetentionPolicyConfig = z.infer<typeof retentionPolicyConfigSchema>;

@@ -4,6 +4,7 @@ import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
+import { splitEmailForAudit, splitIpForAudit } from '../lib/helpers/pii_hash';
 import {
   computeLockedUntil,
   DEFAULT_LOGIN_POLICY,
@@ -119,6 +120,18 @@ export const recordFailure = internalMutation({
       });
     }
 
+    // Round-2 V6 P1-F: route email + IP through the pepper helper so
+    // the audit chain stores `actorEmailHash` / `actorIpHash` (with
+    // `TALE_AUDIT_PEPPER` set) instead of plaintext. Plaintext fallback
+    // remains when no pepper is configured — matches login_attempts
+    // shape so chain-wide rotation is one env-var flip.
+    const emailParts = user.email
+      ? await splitEmailForAudit(user.email)
+      : { plaintext: undefined, hash: undefined };
+    const ipParts = args.ip
+      ? await splitIpForAudit(args.ip)
+      : { plaintext: undefined, hash: undefined };
+
     const action =
       args.method === 'backup_code'
         ? '2fa_backup_code_failed'
@@ -127,13 +140,21 @@ export const recordFailure = internalMutation({
       await createAuditLog(ctx, {
         organizationId,
         actorId: user.userId,
-        actorEmail: user.email ?? undefined,
+        ...(emailParts.plaintext !== undefined && {
+          actorEmail: emailParts.plaintext,
+        }),
+        ...(emailParts.hash !== undefined && {
+          actorEmailHash: emailParts.hash,
+        }),
         actorType: 'user',
         action,
         category: 'security',
         resourceType: 'twoFactorAuth',
         resourceId: user.userId,
-        ipAddress: args.ip,
+        ...(ipParts.plaintext !== undefined && {
+          ipAddress: ipParts.plaintext,
+        }),
+        ...(ipParts.hash !== undefined && { actorIpHash: ipParts.hash }),
         userAgent: args.userAgent,
         status: 'failure',
         errorMessage: 'Invalid two-factor code',
@@ -170,19 +191,35 @@ export const clearOnSuccess = internalMutation({
     if (!user) return null;
 
     const orgs = await findMemberOrgs(ctx, user.userId);
+    // Round-2 V6 P1-F: pepper helper for the success path too.
+    const emailParts = user.email
+      ? await splitEmailForAudit(user.email)
+      : { plaintext: undefined, hash: undefined };
+    const ipParts = args.ip
+      ? await splitIpForAudit(args.ip)
+      : { plaintext: undefined, hash: undefined };
+
     const action =
       args.method === 'backup_code' ? '2fa_backup_code_used' : '2fa_verified';
     for (const { organizationId } of orgs) {
       await createAuditLog(ctx, {
         organizationId,
         actorId: user.userId,
-        actorEmail: user.email ?? undefined,
+        ...(emailParts.plaintext !== undefined && {
+          actorEmail: emailParts.plaintext,
+        }),
+        ...(emailParts.hash !== undefined && {
+          actorEmailHash: emailParts.hash,
+        }),
         actorType: 'user',
         action,
         category: 'security',
         resourceType: 'twoFactorAuth',
         resourceId: user.userId,
-        ipAddress: args.ip,
+        ...(ipParts.plaintext !== undefined && {
+          ipAddress: ipParts.plaintext,
+        }),
+        ...(ipParts.hash !== undefined && { actorIpHash: ipParts.hash }),
         userAgent: args.userAgent,
         status: 'success',
       });
@@ -249,17 +286,32 @@ export const logEnrollmentEvent = internalMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const orgs = await findMemberOrgs(ctx, args.userId);
+    // Round-2 V6 P1-F: pepper helper for the enrollment audit chain too.
+    const emailParts = args.actorEmail
+      ? await splitEmailForAudit(args.actorEmail)
+      : { plaintext: undefined, hash: undefined };
+    const ipParts = args.ip
+      ? await splitIpForAudit(args.ip)
+      : { plaintext: undefined, hash: undefined };
     for (const { organizationId } of orgs) {
       await createAuditLog(ctx, {
         organizationId,
         actorId: args.actorId,
-        actorEmail: args.actorEmail,
+        ...(emailParts.plaintext !== undefined && {
+          actorEmail: emailParts.plaintext,
+        }),
+        ...(emailParts.hash !== undefined && {
+          actorEmailHash: emailParts.hash,
+        }),
         actorType: 'user',
         action: args.action,
         category: 'security',
         resourceType: 'twoFactorAuth',
         resourceId: args.userId,
-        ipAddress: args.ip,
+        ...(ipParts.plaintext !== undefined && {
+          ipAddress: ipParts.plaintext,
+        }),
+        ...(ipParts.hash !== undefined && { actorIpHash: ipParts.hash }),
         userAgent: args.userAgent,
         status: 'success',
         metadata: args.metadata,
