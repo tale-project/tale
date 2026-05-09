@@ -79,7 +79,11 @@ describe('deleteChatThread', () => {
       // Round-2 fix: replaced `.collect()` with `for await` on the
       // agentWebhookUserThreads cascade. The mock now supports async
       // iteration so the existing tests remain green.
-      [Symbol.asyncIterator]: async function* () {
+      [Symbol.asyncIterator]: async function* (): AsyncGenerator<
+        { _id: string },
+        void,
+        unknown
+      > {
         // No webhook mappings in default mock state.
       },
     };

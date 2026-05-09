@@ -223,8 +223,6 @@
         "he": "1.2.0",
         "hono": "4.12.14",
         "i18next": "26.0.4",
-        "i18next-icu": "2.4.3",
-        "intl-messageformat": "11.2.0",
         "ipaddr.js": "^2.4.0",
         "jexl": "2.3.0",
         "jose": "6.2.2",
