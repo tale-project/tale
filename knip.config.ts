@@ -87,6 +87,25 @@ export default {
         'storybook',
       ],
     },
+    'packages/markdown': {
+      storybook: {
+        config: ['.storybook/main.ts'],
+        entry: [
+          '.storybook/{main,manager,preview}.{ts,tsx}',
+          '**/*.stories.{ts,tsx}',
+        ],
+      },
+      entry: ['src/**/*.{ts,tsx}', 'src/**/*.stories.{ts,tsx}'],
+      project: ['**/*.{ts,tsx}'],
+      ignoreDependencies: [
+        '@storybook/addon-a11y',
+        '@storybook/addon-docs',
+        '@storybook/addon-themes',
+        '@storybook/react',
+        '@storybook/react-vite',
+        'storybook',
+      ],
+    },
     'packages/ui': {
       storybook: {
         config: ['.storybook/main.ts'],

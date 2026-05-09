@@ -13,12 +13,14 @@ vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
-// Mock Shiki — returns a predictable HTML string
+// Mock Shiki — returns the `{ html, language }` shape the shared
+// `@tale/markdown/shiki` exports so callers extracting `.html` work.
 vi.mock('@/lib/utils/shiki', () => ({
-  highlightCode: vi.fn((code: string) =>
-    Promise.resolve(
-      `<pre class="shiki"><code><span class="line">${code}</span></code></pre>`,
-    ),
+  highlightCode: vi.fn((code: string, language: string) =>
+    Promise.resolve({
+      html: `<pre class="shiki"><code><span class="line">${code}</span></code></pre>`,
+      language,
+    }),
   ),
 }));
 

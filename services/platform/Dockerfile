@@ -20,6 +20,7 @@ WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
 COPY packages/i18n/package.json ./packages/i18n/
+COPY packages/markdown/package.json ./packages/markdown/
 COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
 COPY packages/tale_shared/package.json ./packages/tale_shared/
 COPY packages/tale_telemetry/package.json ./packages/tale_telemetry/
@@ -69,6 +70,7 @@ COPY services/platform/vite.config.ts \
      ./services/platform/
 
 COPY packages/i18n ./packages/i18n
+COPY packages/markdown ./packages/markdown
 COPY packages/ui ./packages/ui
 
 COPY services/platform/app ./services/platform/app
@@ -103,6 +105,7 @@ FROM builder AS pruner
 
 COPY --from=workspace-deps /app/package.json /app/bun.lock /app/bunfig.toml /tmp/workspace/
 COPY --from=workspace-deps /app/packages/i18n/package.json /tmp/workspace/packages/i18n/
+COPY --from=workspace-deps /app/packages/markdown/package.json /tmp/workspace/packages/markdown/
 COPY --from=workspace-deps /app/packages/tale_knowledge/package.json /tmp/workspace/packages/tale_knowledge/
 COPY --from=workspace-deps /app/packages/tale_shared/package.json /tmp/workspace/packages/tale_shared/
 COPY --from=workspace-deps /app/packages/tale_telemetry/package.json /tmp/workspace/packages/tale_telemetry/

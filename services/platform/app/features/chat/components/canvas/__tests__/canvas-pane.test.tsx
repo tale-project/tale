@@ -75,7 +75,7 @@ vi.mock('@/app/components/theme/theme-provider', () => ({
 }));
 
 vi.mock('@/lib/utils/shiki', () => ({
-  highlightCode: vi.fn(() => Promise.resolve('')),
+  highlightCode: vi.fn(() => Promise.resolve({ html: '', language: 'text' })),
 }));
 
 function OpenCanvasButton() {
