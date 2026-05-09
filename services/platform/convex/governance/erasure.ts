@@ -833,8 +833,19 @@ export const eraseSubjectNotifications = internalMutation({
         q.eq('organizationId', args.organizationId),
       )) {
       const params = row.params;
-      if (!params || typeof params !== 'object') continue;
-      const paramEmail = (params as Record<string, unknown>).email;
+      if (
+        params === undefined ||
+        params === null ||
+        typeof params !== 'object'
+      ) {
+        continue;
+      }
+      // params is `jsonRecordValidator` (Record<string, unknown>) at the
+      // schema layer but Convex hands it back as a generic JSON value;
+      // narrow via Object.hasOwn + Reflect.get to avoid an unsafe cast.
+      const paramEmail = Object.hasOwn(params, 'email')
+        ? Reflect.get(params, 'email')
+        : undefined;
       const matches =
         typeof paramEmail === 'string' &&
         ((subjectEmailLc !== null &&

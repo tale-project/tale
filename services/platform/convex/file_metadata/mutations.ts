@@ -52,12 +52,11 @@ export const saveFileMetadata = mutation({
     // threadId. Verify the supplied thread belongs to the same org.
     // (Caller-thread membership / role is enforced by the chat send
     // mutation upstream; this is the cross-org gate.)
-    if (args.threadId !== undefined) {
+    const threadId = args.threadId;
+    if (threadId !== undefined) {
       const threadMeta = await ctx.db
         .query('threadMetadata')
-        .withIndex('by_threadId', (q) =>
-          q.eq('threadId', args.threadId as string),
-        )
+        .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
         .unique();
       if (
         threadMeta &&

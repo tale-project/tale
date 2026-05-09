@@ -856,10 +856,11 @@ export const deleteExpiredMemoryAuditRow = internalMutation({
     // are usually the same user, but membership rebinding could
     // diverge during account migration).
     let authorUserId: string | undefined = row.subjectUserId;
-    if (!authorUserId && row.threadId) {
+    const rowThreadId = row.threadId;
+    if (!authorUserId && rowThreadId) {
       const thread = await ctx.db
         .query('threadMetadata')
-        .withIndex('by_threadId', (q) => q.eq('threadId', row.threadId!))
+        .withIndex('by_threadId', (q) => q.eq('threadId', rowThreadId))
         .first();
       authorUserId = thread?.userId;
     }

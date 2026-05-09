@@ -354,6 +354,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
       generateUploadUrl,
       saveFileMetadata,
       config.organizationId,
+      config.threadId,
       mergedConfig,
       policyLimits,
       t,
