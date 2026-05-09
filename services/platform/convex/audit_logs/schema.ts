@@ -129,3 +129,26 @@ export const auditLogsTable = defineTable({
     'resourceId',
   ])
   .index('by_timestamp', ['timestamp']);
+
+/**
+ * Per-org chain-genesis sentinel.
+ *
+ * `createAuditLog`'s OCC anti-fork mechanism patches the prior row's
+ * `chainSuccessor` to force concurrent writers to conflict on a real
+ * document. That mechanism breaks for the very first audit row of an
+ * org — `lastEntry` is null, the patch is skipped, and two concurrent
+ * first-writers can both insert with `previousHash: ''`, permanently
+ * forking the chain.
+ *
+ * This sentinel exists so every `createAuditLog` call has a guaranteed
+ * write target. Each writer reads + patches `lastInsertedAt` in the
+ * same transaction; concurrent first-writers contend on this single
+ * row and serialize via OCC. The row is upserted lazily on first audit
+ * insert per org.
+ *
+ * Read by `audit_logs/helpers.ts:createAuditLog`.
+ */
+export const auditLogChainGenesisTable = defineTable({
+  organizationId: v.string(),
+  lastInsertedAt: v.number(),
+}).index('by_organizationId', ['organizationId']);

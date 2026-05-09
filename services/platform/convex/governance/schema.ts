@@ -281,6 +281,39 @@ export const legalHoldsTable = defineTable({
   .index('by_organizationId_matterRef', ['organizationId', 'matterRef']);
 
 /**
+ * Per-target active-hold claim row.
+ *
+ * Naive `placeLegalHold` does a TOCTOU range query on `legalHolds`
+ * `by_target` to refuse a duplicate active hold. Two concurrent
+ * `placeLegalHold` calls on the same `(organizationId, targetType,
+ * targetId)` both observe `existing: null`, both insert, and Convex's
+ * row-level OCC does not detect the range-phantom — the invariant
+ * "at most one active hold per target" is broken with no schema
+ * unique constraint to catch it.
+ *
+ * This table maintains exactly one row per target (lazily created on
+ * first place). `placeLegalHold` reads + patches `activeHoldId` in the
+ * same transaction; concurrent placers contend on this single row and
+ * serialize via OCC. Released holds patch `activeHoldId` back to
+ * `undefined`; the row itself is kept so subsequent placements take
+ * the patch path (no insert race).
+ */
+export const activeLegalHoldClaimsTable = defineTable({
+  organizationId: v.string(),
+  targetType: v.union(
+    v.literal('thread'),
+    v.literal('document'),
+    v.literal('execution'),
+    v.literal('userMembership'),
+    v.literal('org'),
+  ),
+  targetId: v.string(),
+  /** When set, points at the currently-active hold for this target.
+   *  Cleared by the release path so the next placer can take over. */
+  activeHoldId: v.optional(v.id('legalHolds')),
+}).index('by_target', ['organizationId', 'targetType', 'targetId']);
+
+/**
  * Audit-log integrity checkpoint (Phase 9).
  *
  * `audit_logs/internal_mutations.deleteOldLogs` (formerly

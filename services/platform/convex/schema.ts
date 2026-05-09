@@ -11,7 +11,7 @@ import {
 } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
 import { artifactRevisionsTable, artifactsTable } from './artifacts/schema';
-import { auditLogsTable } from './audit_logs/schema';
+import { auditLogChainGenesisTable, auditLogsTable } from './audit_logs/schema';
 import {
   brandingBindingsTable,
   brandingSettingsLegacyTable,
@@ -27,6 +27,7 @@ import { messageFeedbackTable } from './feedback/schema';
 import { fileMetadataTable } from './file_metadata/schema';
 import { foldersTable } from './folders/schema';
 import {
+  activeLegalHoldClaimsTable,
   auditLogCheckpointsTable,
   gdprErasureRequestsTable,
   governancePoliciesTable,
@@ -88,9 +89,11 @@ export default defineSchema({
   artifactRevisions: artifactRevisionsTable,
   artifacts: artifactsTable,
   auditLogs: auditLogsTable,
+  auditLogChainGenesis: auditLogChainGenesisTable,
   governancePolicies: governancePoliciesTable,
   governanceSecrets: governanceSecretsTable,
   legalHolds: legalHoldsTable,
+  activeLegalHoldClaims: activeLegalHoldClaimsTable,
   legalMatters: legalMattersTable,
   legalHoldReleaseRequests: legalHoldReleaseRequestsTable,
   auditLogCheckpoints: auditLogCheckpointsTable,

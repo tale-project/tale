@@ -71,6 +71,13 @@ export const threadMetadataTable = defineTable({
   .index('by_shareToken', ['shareToken'])
   .index('by_arenaGroupId', ['arenaGroupId'])
   .index('by_organizationId', ['organizationId'])
+  // Round-2 fix: GDPR `requestErasure` enumerates a single user's
+  // threads within an org. Without this compound, the only path was
+  // `by_organizationId.collect()` then JS-filter by `userId` — silent
+  // truncation past the 16K per-transaction read limit on large orgs.
+  // Used by `governance/erasure.ts:eraseUserThreadsBatch` (paged) and
+  // any future cross-tenant scope checks that key on (org, user).
+  .index('by_org_user', ['organizationId', 'userId'])
   // Round-2 V9 / round-1 #18 P2 + #27 P1-M: admin Trash UI's
   // `fetchTrashSubpage` needs to slice threadMetadata by status without
   // scanning every active row first. The other 12 trashable tables
