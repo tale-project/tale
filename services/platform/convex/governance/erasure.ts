@@ -64,6 +64,7 @@ import { ragFetch } from '../lib/helpers/rag_config';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
+import { eraseDocumentBlobs } from './erase_document_blobs';
 import { loadActiveHolds } from './legal_hold';
 
 const SLA_DAYS = 30;
@@ -131,7 +132,13 @@ export const requestErasure = mutation({
     // rows + schedule two processors racing the same subject. Reject the
     // second click with the existing requestId so the UI can surface the
     // in-flight row instead of retrying (round-2 v05 B6 part 1).
-    for (const status of ['pending', 'running'] as const) {
+    //
+    // `'blocked'` is also reject-on-collide: a hold-blocked row is
+    // terminal and the operator must release the hold + call
+    // `retryErasureRequest` to re-schedule. Re-using a blocked row
+    // (instead of stacking new ones) keeps the receipt history clean
+    // for regulator audits.
+    for (const status of ['pending', 'running', 'blocked'] as const) {
       const active = await ctx.db
         .query('gdprErasureRequests')
         .withIndex('by_org_target_status', (q) =>
@@ -162,36 +169,54 @@ export const requestErasure = mutation({
     const userThreads = threads.filter((t) => t.userId === args.userId);
     const threadIds = userThreads.map((t) => t.threadId);
 
-    // Subject's own `documents` rows (uploads). The `documents` table
-    // has its own legal-hold target type, so an Art 17 request that
-    // would erase a held document must be blocked at request time —
-    // not at execution time, since the receipt would otherwise lie
-    // about coverage.
-    const subjectDocuments = await ctx.db
-      .query('documents')
-      .withIndex('by_organizationId_and_createdBy', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('createdBy', args.userId),
-      )
-      .collect();
-    const subjectDocumentIds = subjectDocuments.map((d) => String(d._id));
+    // Round-2 V5 P0-15: insert the receipt row BEFORE the hold gate so
+    // a regulator audit has structured proof that the request was
+    // received. Previously, hold-blocked requests threw without writing
+    // the row, leaving only an audit-log entry — `gdprErasureRequests`
+    // showed zero rows for the subject and `threadsBlockedByHold` /
+    // `documentsBlockedByHold` schema fields stayed dead.
+    const now = Date.now();
+    const requestId = await ctx.db.insert('gdprErasureRequests', {
+      organizationId: args.organizationId,
+      targetUserId: args.userId,
+      reason: args.reason.trim(),
+      requestedBy: callerId,
+      requestedAt: now,
+      slaDeadlineAt: now + SLA_DAYS * DAY_MS,
+      status: 'pending',
+      threadsTargeted: threadIds,
+    });
 
     // Legal-hold gate. GDPR Art 17(3)(e) preserves data subject to legal
-    // claims. Refuse the WHOLE request when the subject is under any
-    // active hold (org-wide or user-custodian) — the receipt cannot lie
-    // about coverage, and a partial erasure that omits held neighbors
-    // would confuse a future regulator audit. Operator must release the
-    // hold first.
-    //
-    // After the User+Org pivot, per-row hold target types
-    // (thread/document/execution) were dropped. Hold scope is now
-    // expressed entirely as "this whole org is held" or "this user's
-    // entire footprint is held" — both of which already cover every
-    // artifact owned by the subject.
+    // claims. After the User+Org pivot, hold scope is fully expressed as
+    // org-wide or user-custodian (per-row hold target types were dropped),
+    // both of which cover every artifact owned by the subject — so refuse
+    // when either is active. Persists the held arrays on the row before
+    // throwing so the UI surfaces "blocked at: <list>" without a separate
+    // audit-log query.
     const holds = await loadActiveHolds(ctx, args.organizationId);
     const userCustodianHeld = holds.userMembershipIds.has(args.userId);
     if (holds.orgHeld || userCustodianHeld) {
+      // Subject's own `documents` rows (uploads) — collected for the
+      // blocked-receipt's `documentsBlockedByHold` so the row tells the
+      // regulator exactly which artifacts were preserved.
+      const subjectDocuments = await ctx.db
+        .query('documents')
+        .withIndex('by_organizationId_and_createdBy', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('createdBy', args.userId),
+        )
+        .collect();
+      const subjectDocumentIds = subjectDocuments.map((d) => String(d._id));
+
+      await ctx.db.patch(requestId, {
+        status: 'blocked',
+        threadsBlockedByHold: threadIds,
+        documentsBlockedByHold: subjectDocumentIds,
+        errorMessage: holds.orgHeld ? 'org_hold' : 'user_custodian_hold',
+        completedAt: now,
+      });
       await createAuditLog(ctx, {
         organizationId: args.organizationId,
         actorId: callerId,
@@ -205,32 +230,24 @@ export const requestErasure = mutation({
         status: 'failure',
         errorMessage: 'LEGAL_HOLD_BLOCKS_ERASURE',
         newState: {
+          requestId,
           reason: args.reason,
           orgHeld: holds.orgHeld,
           userCustodianHeld,
+          threadsBlockedByHold: threadIds.length,
+          documentsBlockedByHold: subjectDocumentIds.length,
         },
       });
       throw new ConvexError({
         code: 'LEGAL_HOLD_BLOCKS_ERASURE',
         message: holds.orgHeld
-          ? 'Org is under an active legal hold — release the hold before requesting erasure.'
-          : 'The subject user is on an active custodian legal hold — release the hold before requesting erasure.',
+          ? 'Org is under an active legal hold — release the hold and use Retry to re-schedule erasure.'
+          : 'The subject user is on an active custodian legal hold — release the hold and use Retry to re-schedule erasure.',
         orgHeld: holds.orgHeld,
         userCustodianHeld,
+        requestId,
       });
     }
-
-    const now = Date.now();
-    const requestId = await ctx.db.insert('gdprErasureRequests', {
-      organizationId: args.organizationId,
-      targetUserId: args.userId,
-      reason: args.reason.trim(),
-      requestedBy: callerId,
-      requestedAt: now,
-      slaDeadlineAt: now + SLA_DAYS * DAY_MS,
-      status: 'pending',
-      threadsTargeted: threadIds,
-    });
 
     await createAuditLog(ctx, {
       organizationId: args.organizationId,
@@ -468,8 +485,17 @@ export const eraseSubjectDocuments = internalMutation({
         skippedByHold++;
         continue;
       }
-      if (typeof doc.fileId === 'string' && doc.fileId.length > 0) {
-        fileIds.push(doc.fileId);
+
+      // Round-2 V5 P0-12: previously this loop only collected `doc.fileId`
+      // for the RAG fan-out and never deleted the `_storage` blob OR the
+      // `doc.historyFiles[]` blobs OR the corresponding fileMetadata
+      // rows. Lift the retention-path pattern into the shared helper so
+      // both routes physically erase the same set of bytes. Returns
+      // every storageId touched (primary + history) so the processor's
+      // RAG fan-out covers history blobs too.
+      const erased = await eraseDocumentBlobs(ctx, doc);
+      for (const storageId of erased.storageIdsDeleted) {
+        fileIds.push(storageId);
       }
       await ctx.db.delete(doc._id);
       rows++;
@@ -596,6 +622,13 @@ export const eraseSubjectFileMetadata = internalMutation({
   returns: v.object({
     rows: v.number(),
     blobs: v.number(),
+    /**
+     * `_storage` ids the action layer should propagate to RAG (DELETE
+     * `/api/v1/documents/:fileId`). Round-2 V5 P0-13: chat-uploaded
+     * files index by `storageId` directly (no `documents` row), so
+     * RAG residue would otherwise survive Art 17 erasure indefinitely.
+     */
+    ragPurgeStorageIds: v.array(v.string()),
     skippedByHold: v.number(),
   }),
   handler: async (ctx, args) => {
@@ -609,10 +642,16 @@ export const eraseSubjectFileMetadata = internalMutation({
         );
     const guard = await countOrSkip(ctx, args.organizationId, iter);
     if (guard.orgHeld) {
-      return { rows: 0, blobs: 0, skippedByHold: guard.skippedByHold };
+      return {
+        rows: 0,
+        blobs: 0,
+        ragPurgeStorageIds: [],
+        skippedByHold: guard.skippedByHold,
+      };
     }
     let rows = 0;
     let blobs = 0;
+    const ragPurgeStorageIds: string[] = [];
     for await (const meta of iter()) {
       // Delete the underlying _storage blob first; row delete after.
       try {
@@ -624,10 +663,13 @@ export const eraseSubjectFileMetadata = internalMutation({
           error,
         );
       }
+      // Even if storage.delete failed, propagate to RAG so the index
+      // is consistent with the (about-to-be-deleted) DB row.
+      ragPurgeStorageIds.push(String(meta.storageId));
       await ctx.db.delete(meta._id);
       rows++;
     }
-    return { rows, blobs, skippedByHold: 0 };
+    return { rows, blobs, ragPurgeStorageIds, skippedByHold: 0 };
   },
 });
 
@@ -938,6 +980,34 @@ export const processErasureRequest = internalAction({
           userId: state.targetUserId,
         },
       );
+      // Round-2 V5 P0-13: chat-uploaded files index by `storageId` (no
+      // `documents` row, so the per-document RAG fan-out above misses
+      // them). Fan out RAG DELETE for every storageId the fileMetadata
+      // erasure touched so vector chunks containing PII are purged
+      // alongside the DB row + the `_storage` blob.
+      const fileMetaResult = perCategory.fileMetadata as {
+        ragPurgeStorageIds?: string[];
+      };
+      for (const storageId of fileMetaResult.ragPurgeStorageIds ?? []) {
+        try {
+          const res = await ragFetch(
+            `/api/v1/documents/${encodeURIComponent(storageId)}`,
+            { method: 'DELETE', timeoutMs: 10_000 },
+          );
+          if (res.ok || res.status === 404) {
+            ragDocumentsRemoved += 1;
+          } else {
+            console.warn(
+              `[gdprErasure] RAG DELETE returned ${res.status} for chat-upload storageId=${storageId}`,
+            );
+          }
+        } catch (error) {
+          console.warn(
+            `[gdprErasure] RAG DELETE failed for chat-upload storageId=${storageId}:`,
+            error,
+          );
+        }
+      }
       perCategory.usageLedger = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectUsageLedger,
         {
@@ -1023,6 +1093,7 @@ interface RowsAndHold {
 
 interface FileMetadataCounts extends RowsAndHold {
   blobs: number;
+  ragPurgeStorageIds?: string[];
 }
 
 interface LoginAttemptsCounts {
@@ -1042,3 +1113,137 @@ interface PerCategoryCounts {
   onedrive: RowsAndHold;
   loginAttempts: LoginAttemptsCounts;
 }
+
+// =============================================================================
+// Watchdog + retry — round-2 V5 P0-14
+// =============================================================================
+//
+// Convex actions hard-stop at 30 minutes. A subject with thousands of
+// rows + RAG fan-out can blow that ceiling, leaving the request row
+// stuck at `status: 'running'` forever — and the `ALREADY_PENDING`
+// guard in `requestErasure` then refuses re-requests, silently letting
+// the 30-day Art 12(3) SLA elapse with no path forward.
+//
+// Mirror of the transcription watchdog
+// (`file_metadata/internal_mutations.ts:recoverStuckTranscriptions`):
+// every 5 minutes, scan rows whose `status === 'running'` and
+// `startedAt < now - 35 min`; flip them to `'failed'` with a watchdog
+// error message so admins can call `retryErasureRequest`.
+
+const ERASURE_WATCHDOG_TIMEOUT_MS = 35 * 60 * 1000;
+
+export const recoverStuckErasureRequests = internalMutation({
+  args: {},
+  returns: v.object({ recovered: v.number() }),
+  handler: async (ctx) => {
+    const cutoff = Date.now() - ERASURE_WATCHDOG_TIMEOUT_MS;
+    let recovered = 0;
+    for await (const row of ctx.db
+      .query('gdprErasureRequests')
+      .withIndex('by_status', (q) => q.eq('status', 'running'))) {
+      const startedAt = row.startedAt ?? row.requestedAt;
+      if (startedAt >= cutoff) continue;
+      await ctx.db.patch(row._id, {
+        status: 'failed',
+        errorMessage: 'Erasure timed out (watchdog)',
+        completedAt: Date.now(),
+      });
+      await createAuditLog(ctx, {
+        organizationId: row.organizationId,
+        actorId: 'system',
+        actorEmail: 'system@tale.so',
+        actorType: 'system',
+        action: 'gdpr_erasure_watchdog_failed',
+        category: 'admin',
+        resourceType: 'user',
+        resourceId: row.targetUserId,
+        resourceName: row.targetUserId,
+        status: 'failure',
+        errorMessage: 'Erasure timed out (watchdog)',
+        newState: { requestId: row._id, startedAt, cutoff },
+      });
+      recovered++;
+    }
+    return { recovered };
+  },
+});
+
+/**
+ * Admin-only retry for `'failed'` or `'blocked'` erasure requests. The
+ * mutation flips the row back to `'pending'` and re-schedules the
+ * processor. The hold gate re-runs at processor start (covers a hold
+ * placed during the operator's "release hold then retry" interval).
+ */
+export const retryErasureRequest = mutation({
+  args: { requestId: v.id('gdprErasureRequests') },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'unauthenticated',
+        message: 'Sign in required.',
+      });
+    }
+    const callerId = String(authUser._id);
+
+    const row = await ctx.db.get(args.requestId);
+    if (!row) {
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'Erasure request does not exist.',
+      });
+    }
+
+    const member = await getOrganizationMember(ctx, row.organizationId, {
+      userId: callerId,
+      email: authUser.email ?? '',
+      name: authUser.name,
+    });
+    if (!isAdmin(member.role)) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only org admins can retry erasure requests.',
+      });
+    }
+
+    if (row.status !== 'failed' && row.status !== 'blocked') {
+      throw new ConvexError({
+        code: 'NOT_RETRIABLE',
+        message: `Only failed or blocked requests can be retried (status=${row.status}).`,
+      });
+    }
+
+    await ctx.db.patch(args.requestId, {
+      status: 'pending',
+      errorMessage: undefined,
+      threadsBlockedByHold: undefined,
+      documentsBlockedByHold: undefined,
+      startedAt: undefined,
+      completedAt: undefined,
+    });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.governance.erasure.processErasureRequest,
+      { requestId: args.requestId },
+    );
+
+    await createAuditLog(ctx, {
+      organizationId: row.organizationId,
+      actorId: callerId,
+      actorEmail: authUser.email ?? '',
+      actorType: 'user',
+      action: 'gdpr_erasure_retried',
+      category: 'admin',
+      resourceType: 'user',
+      resourceId: row.targetUserId,
+      resourceName: row.targetUserId,
+      status: 'success',
+      previousState: { status: row.status },
+      newState: { status: 'pending', requestId: args.requestId },
+    });
+
+    return null;
+  },
+});

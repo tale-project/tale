@@ -5,6 +5,7 @@ import type { MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { deleteStorageWithMetadata } from '../file_metadata/helpers';
 import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
+import { eraseDocumentBlobs } from './erase_document_blobs';
 import { loadActiveHolds } from './legal_hold';
 
 /**
@@ -94,33 +95,7 @@ export const deleteExpiredDocument = internalMutation({
       return null;
     }
 
-    if (doc.fileId) {
-      const fileId = doc.fileId;
-      await ctx.storage.delete(fileId);
-
-      const metadata = await ctx.db
-        .query('fileMetadata')
-        .withIndex('by_storageId', (q) => q.eq('storageId', fileId))
-        .first();
-      if (metadata) {
-        await ctx.db.delete(metadata._id);
-      }
-    }
-
-    if (doc.historyFiles) {
-      for (const historyFileId of doc.historyFiles) {
-        await ctx.storage.delete(historyFileId);
-
-        const histMeta = await ctx.db
-          .query('fileMetadata')
-          .withIndex('by_storageId', (q) => q.eq('storageId', historyFileId))
-          .first();
-        if (histMeta) {
-          await ctx.db.delete(histMeta._id);
-        }
-      }
-    }
-
+    await eraseDocumentBlobs(ctx, doc);
     await ctx.db.delete(args.documentId);
 
     await createAuditLog(ctx, {

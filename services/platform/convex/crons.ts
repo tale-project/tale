@@ -80,4 +80,18 @@ crons.cron(
   {},
 );
 
+// GDPR erasure watchdog (round-2 V5 P0-14) - the same shape as the
+// transcription watchdog above. Convex actions hard-stop at 30 min;
+// `gdprErasureRequests` rows whose subject has too many rows / RAG
+// fan-out exceeding that cap stay at `status: 'running'` forever
+// without admin recovery. Flip rows past 35 min to `'failed'` so
+// admins can call `retryErasureRequest`. The 30-day Art 12(3) SLA
+// would otherwise elapse with no path forward.
+crons.cron(
+  'recover stuck gdpr erasure requests (every 5 min)',
+  '*/5 * * * *',
+  internal.governance.erasure.recoverStuckErasureRequests,
+  {},
+);
+
 export default crons;

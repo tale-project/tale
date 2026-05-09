@@ -523,6 +523,14 @@ export const gdprErasureRequestsTable = defineTable({
     v.literal('done'),
     v.literal('partial'),
     v.literal('failed'),
+    /**
+     * Round-2 V5 P0-15: hold-blocked at request time. The receipt row
+     * is inserted BEFORE the hold gate so a regulator audit can find
+     * structured proof that the request was received and refused due
+     * to an active legal hold. Operator must release the hold and
+     * call `retryErasureRequest` to re-schedule.
+     */
+    v.literal('blocked'),
   ),
   /** Snapshot of the threads list at request time. Processed
    *  iteratively; resume token if status='partial'. */
@@ -553,4 +561,10 @@ export const gdprErasureRequestsTable = defineTable({
   // when an active (`pending` | `running`) row already exists for this
   // (org, subject) pair. Without this, parallel admin clicks create two
   // rows + two processors racing the same subject (round-2 v05 B6).
-  .index('by_org_target_status', ['organizationId', 'targetUserId', 'status']);
+  .index('by_org_target_status', ['organizationId', 'targetUserId', 'status'])
+  // Round-2 V5 P0-14: stuck-running watchdog cron scans by status only
+  // every 5 min. Convex action timeout is 30 min; the watchdog flips
+  // rows whose `startedAt` is older than 35 min back to `failed` so
+  // admins can `retryErasureRequest`. Without an indexed scan, the
+  // cron pays a full-table read on every tick.
+  .index('by_status', ['status']);
