@@ -15,11 +15,13 @@ import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useUpdatePassword } from '@/app/features/settings/account/hooks/mutations';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
+import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
+import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
 
@@ -47,6 +49,21 @@ function ForcedChangePasswordPage() {
   const { toast } = useToast();
   const { mutateAsync: updatePassword } = useUpdatePassword();
   const policy = usePasswordPolicy(organizationId);
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      // Hard navigation to fully drop auth state — see UserButton for rationale.
+      window.location.href = getEnv('BASE_PATH') || '/';
+    } catch (e) {
+      console.error(e);
+      toast({
+        title: tAuth('userButton.toast.signOutFailed'),
+        variant: 'destructive',
+      });
+    }
+  };
 
   const { data: expiryStatus } = useConvexQuery(
     api.users.queries.getPasswordExpiryStatus,
@@ -148,6 +165,11 @@ function ForcedChangePasswordPage() {
                     : 'forcedChange.description',
                 )}
               </Text>
+              {user?.email && (
+                <Text variant="muted" className="text-xs">
+                  {tAuth('forcedChange.signedInAs', { email: user.email })}
+                </Text>
+              )}
             </Stack>
             <div className="border-border bg-card rounded-lg border p-6 shadow-sm">
               <FormSection>
@@ -195,6 +217,16 @@ function ForcedChangePasswordPage() {
                 </Form>
               </FormSection>
             </div>
+            <Text variant="muted" className="text-center text-xs">
+              {tAuth('forcedChange.notYou')}{' '}
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="text-foreground hover:underline focus-visible:underline focus-visible:outline-none"
+              >
+                {tAuth('forcedChange.logOut')}
+              </button>
+            </Text>
           </Stack>
         </div>
       </main>

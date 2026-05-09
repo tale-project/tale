@@ -295,6 +295,17 @@ export function AgentWebhookSection({
       <PageSection
         title={t('agents.webhook.title')}
         description={t('agents.webhook.description')}
+        action={
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleCreate}
+            disabled={isCreating}
+          >
+            <Plus className="mr-2 size-4" />
+            {t('agents.webhook.createButton')}
+          </Button>
+        }
       >
         {!isPublished && (
           <Alert
@@ -313,17 +324,6 @@ export function AgentWebhookSection({
             title: t('agents.webhook.emptyTitle'),
             description: t('agents.webhook.emptyDescription'),
           }}
-          actionMenu={
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleCreate}
-              disabled={isCreating}
-            >
-              <Plus className="mr-2 size-4" />
-              {t('agents.webhook.createButton')}
-            </Button>
-          }
         />
 
         {createdUrl && (

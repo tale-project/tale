@@ -62,7 +62,7 @@ function NavigationItem({ item }: { item: NavItem }) {
             href={item.href}
             target="_blank"
             rel="noopener noreferrer"
-            className="block"
+            className="focus-visible:ring-ring block rounded-lg focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
           >
             <div
               className={cn(
@@ -95,7 +95,7 @@ function NavigationItem({ item }: { item: NavItem }) {
           to={item.to}
           params={item.params}
           preload="render"
-          className="block"
+          className="focus-visible:ring-ring block rounded-lg focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
         >
           <div
             className={cn(

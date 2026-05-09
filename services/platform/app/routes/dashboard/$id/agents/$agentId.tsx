@@ -162,7 +162,7 @@ function AgentDetailLayout() {
                   to="/dashboard/$id/agents"
                   params={{ id: organizationId }}
                   className={cn(
-                    'hidden md:inline text-foreground',
+                    'hidden md:inline text-foreground rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
                     resolvedDisplayName &&
                       'text-muted-foreground cursor-pointer',
                   )}

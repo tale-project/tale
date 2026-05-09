@@ -43,7 +43,7 @@ const listVariants = cva(
 );
 
 const triggerVariants = cva(
-  'ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center text-sm font-medium whitespace-nowrap focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50',
+  'focus-visible:ring-ring inline-flex items-center justify-center text-sm font-medium whitespace-nowrap focus-visible:ring-2 focus-visible:ring-inset focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
@@ -101,7 +101,7 @@ export function Tabs({
               <TabsPrimitive.Content
                 key={item.value}
                 value={item.value}
-                className="ring-offset-background focus-visible:ring-ring mt-5 flex min-h-0 flex-1 flex-col focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                className="focus-visible:ring-ring mt-5 flex min-h-0 flex-1 flex-col focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
               >
                 {item.content}
               </TabsPrimitive.Content>

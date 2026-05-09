@@ -454,7 +454,10 @@
       "title": "Passwortänderung erforderlich",
       "submit": "Passwort aktualisieren",
       "description": "Dein Passwort ist gemäß der Rotationsrichtlinie der Organisation abgelaufen. Lege ein neues Passwort fest, um fortzufahren.",
-      "descriptionAdminSet": "Dein Passwort wurde von einem Administrator festgelegt. Bitte wähle ein neues Passwort, um fortzufahren."
+      "descriptionAdminSet": "Dein Passwort wurde von einem Administrator festgelegt. Bitte wähle ein neues Passwort, um fortzufahren.",
+      "signedInAs": "Angemeldet als {email}",
+      "notYou": "Nicht du?",
+      "logOut": "Abmelden"
     },
     "setPassword": {
       "title": "Passwort festlegen",
@@ -594,7 +597,7 @@
         "instructionsModel": "Anweisungen & Modell",
         "tools": "Tools",
         "knowledge": "Wissen",
-        "webhook": "Webhook",
+        "webhook": "Worker",
         "delegation": "Delegation",
         "conversationStarters": "Gesprächseinstiege",
         "history": "Verlauf"
@@ -757,38 +760,38 @@
         "webSearchHintLink": "Websites verwalten"
       },
       "webhook": {
-        "title": "Webhook",
+        "title": "Worker",
         "description": "Eindeutige URLs erstellen, um mit diesem Agent von externen Systemen zu chatten.",
-        "notPublished": "Veröffentliche diesen Agent, um Webhook-Zugriff zu aktivieren.",
-        "createButton": "Webhook erstellen",
-        "createdTitle": "Webhook erstellt",
+        "notPublished": "Veröffentliche diesen Agent, um Worker-Zugriff zu aktivieren.",
+        "createButton": "Worker erstellen",
+        "createdTitle": "Worker erstellt",
         "urlWarning": "Kopiere diese URL jetzt. Sie wird nur einmal angezeigt.",
-        "webhookUrl": "Webhook-URL",
-        "copyUrl": "Webhook-URL kopieren",
+        "webhookUrl": "Worker-URL",
+        "copyUrl": "Worker-URL kopieren",
         "copyExample": "Beispiel kopieren",
-        "deleteWebhook": "Webhook löschen",
-        "emptyTitle": "Noch keine Webhooks",
-        "emptyDescription": "Erstelle einen Webhook, damit externe Systeme mit diesem Agent chatten können.",
+        "deleteWebhook": "Worker löschen",
+        "emptyTitle": "Noch keine Worker",
+        "emptyDescription": "Erstelle einen Worker, damit externe Systeme mit diesem Agent chatten können.",
         "never": "Nie",
         "columns": {
           "url": "URL",
           "active": "Aktiv",
           "lastTriggered": "Zuletzt ausgelöst"
         },
-        "deleteTitle": "Webhook löschen",
-        "deleteDescription": "Bist du sicher? Alle Systeme, die diese Webhook-URL verwenden, verlieren den Zugriff.",
+        "deleteTitle": "Worker löschen",
+        "deleteDescription": "Bist du sicher? Alle Systeme, die diese Worker-URL verwenden, verlieren den Zugriff.",
         "toast": {
-          "created": "Webhook erstellt",
-          "createFailed": "Webhook konnte nicht erstellt werden",
-          "enabled": "Webhook aktiviert",
-          "disabled": "Webhook deaktiviert",
-          "toggleFailed": "Webhook konnte nicht aktualisiert werden",
-          "deleted": "Webhook gelöscht",
-          "deleteFailed": "Webhook konnte nicht gelöscht werden",
+          "created": "Worker erstellt",
+          "createFailed": "Worker konnte nicht erstellt werden",
+          "enabled": "Worker aktiviert",
+          "disabled": "Worker deaktiviert",
+          "toggleFailed": "Worker konnte nicht aktualisiert werden",
+          "deleted": "Worker gelöscht",
+          "deleteFailed": "Worker konnte nicht gelöscht werden",
           "urlCopied": "URL kopiert"
         },
         "usageExamples": "Verwendungsbeispiele",
-        "usageExamplesDescription": "Sende einen POST-Request an die Webhook-URL mit einem JSON-Body oder Multipart-Formulardaten.",
+        "usageExamplesDescription": "Sende einen POST-Request an die Worker-URL mit einem JSON-Body oder Multipart-Formulardaten.",
         "exampleNonStreaming": "Nicht-Streaming (JSON-Antwort)",
         "exampleStreaming": "Streaming (SSE-Antwort)",
         "exampleMultiTurn": "Mehrstufige Konversation",
@@ -1000,6 +1003,7 @@
       "deleteProvider": "Anbieter löschen",
       "apiKey": "API-Schlüssel",
       "apiKeyConfigured": "API-Schlüssel konfiguriert",
+      "apiKeyNotConfigured": "Nicht konfiguriert",
       "models": "Modelle",
       "addModel": "Modell hinzufügen",
       "editModel": "Modell bearbeiten",
@@ -1043,6 +1047,9 @@
       "saving": "Wird gespeichert...",
       "saveKey": "Schlüssel speichern",
       "editGeneral": "Details bearbeiten",
+      "editGeneralTitle": "Allgemeine Details bearbeiten",
+      "editDefaults": "Standards bearbeiten",
+      "editDefaultModels": "Standardmodelle bearbeiten",
       "editKey": "Bearbeiten",
       "testConnection": "Verbindung testen",
       "testDialogTitle": "Provider-Verbindungstest",
@@ -1081,6 +1088,13 @@
       "modelsRequired": "Mindestens ein Modell ist erforderlich",
       "fetchModels": "Modelle abrufen",
       "searchModels": "Modelle suchen…",
+      "modelsEmpty": {
+        "noModelsTitle": "Noch keine Modelle",
+        "noModelsDescription": "Füge ein Modell hinzu, um es für diesen Anbieter verfügbar zu machen.",
+        "searchTitle": "Keine Modelle gefunden",
+        "searchDescription": "Versuche, deine Suche anzupassen."
+      },
+      "costPerMillionTokens": "Kosten / 1M Tokens",
       "fetchingModels": "Abrufen…",
       "fetchModelsError": "Modelle konnten nicht abgerufen werden. Du kannst sie stattdessen manuell hinzufügen.",
       "modelsSelected": "{count} ausgewählt",
@@ -1319,6 +1333,7 @@
     },
     "entityLabel": "Automatisierungen",
     "createWithAI": "Automatisierung mit KI erstellen",
+    "renameTitle": "Automatisierung umbenennen",
     "navigation": {
       "editor": "Editor",
       "history": "Verlauf"
@@ -3047,8 +3062,8 @@
       "description": "Tools für deinen Agent auswählen und konfigurieren."
     },
     "agentWebhook": {
-      "title": "Agent-Webhook",
-      "description": "Webhook-URLs für deinen Agent verwalten."
+      "title": "Agent-Workers",
+      "description": "Worker-URLs für deinen Agent verwalten."
     },
     "agentDelegation": {
       "title": "Agent-Delegation",

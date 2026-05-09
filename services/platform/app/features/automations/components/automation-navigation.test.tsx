@@ -36,6 +36,15 @@ vi.mock('@/app/hooks/use-toast', () => ({
   toast: vi.fn(),
 }));
 
+vi.mock('../triggers/hooks/queries', () => ({
+  useWorkflowActivity: () => ({
+    hasActiveTrigger: false,
+    activeTriggers: 0,
+    totalTriggers: 0,
+    isLoading: false,
+  }),
+}));
+
 vi.mock('../hooks/use-workflow-config-context', () => ({
   useWorkflowConfig: () => ({
     config: {

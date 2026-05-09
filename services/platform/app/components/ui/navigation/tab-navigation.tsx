@@ -27,6 +27,8 @@ export interface TabNavigationItem {
   matchMode?: 'exact' | 'startsWith';
   /** Search params to include in the link */
   search?: Record<string, unknown>;
+  /** Optional trailing element rendered after the label (e.g. status badge) */
+  trailing?: ReactNode;
 }
 
 export interface TabNavigationProps {
@@ -167,13 +169,14 @@ export function TabNavigation({
             preload={prefetch ? 'render' : false}
             aria-current={isActive ? 'page' : undefined}
             className={cn(
-              'relative h-full flex items-center py-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0',
+              "relative h-full flex items-center py-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0 rounded-sm focus-visible:outline-none focus-visible:after:content-[''] focus-visible:after:absolute focus-visible:after:-inset-x-1 focus-visible:after:inset-y-0.5 focus-visible:after:rounded-sm focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset focus-visible:after:pointer-events-none",
               isActive
                 ? 'text-foreground'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
             {item.label}
+            {item.trailing}
           </Link>
         );
       })}
