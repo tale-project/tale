@@ -49,7 +49,10 @@
       "INBOX_DEFAULT": "externalConversations.default",
       "MSG_META_MIN": "messageMetadata.min",
       "MSG_META_MAX": "messageMetadata.max",
-      "MSG_META_DEFAULT": "messageMetadata.default"
+      "MSG_META_DEFAULT": "messageMetadata.default",
+      "NOTIFICATIONS_MIN": "notifications.min",
+      "NOTIFICATIONS_MAX": "notifications.max",
+      "NOTIFICATIONS_DEFAULT": "notifications.default"
     }
   },
   "documents": { "min": 30, "max": 3650, "default": 365, "unit": "days" },
@@ -72,5 +75,6 @@
     "default": 730,
     "unit": "days"
   },
-  "messageMetadata": { "min": 30, "max": 3650, "default": 365, "unit": "days" }
+  "messageMetadata": { "min": 30, "max": 3650, "default": 365, "unit": "days" },
+  "notifications": { "min": 1, "max": 365, "default": 30, "unit": "days" }
 }

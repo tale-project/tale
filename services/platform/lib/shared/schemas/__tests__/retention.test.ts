@@ -96,7 +96,7 @@ describe('retentionBoundDefSchema', () => {
 });
 
 describe('retentionDefaultsConfigSchema', () => {
-  it('accepts examples/retention/default.json (all 16 categories + root envPrefix + full envNames map)', () => {
+  it('accepts examples/retention/default.json (every category + root envPrefix + full envNames map)', () => {
     // Resolve from this test's directory up to repo root, then to examples/.
     // __dirname is services/platform/lib/shared/schemas/__tests__/
     const examplePath = join(
