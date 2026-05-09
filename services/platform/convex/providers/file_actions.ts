@@ -27,13 +27,14 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
+import { mergeModelLevel } from '../lib/provider_options';
 import {
   EncryptedFileWithoutKeyError,
   decryptSecretsFile,
   hasSopsKey,
   invalidateSecretsCache,
 } from '../lib/sops';
-import { requireOrgMembership } from './auth';
+import { requireDeveloperSettingsAccess, requireOrgMembership } from './auth';
 import { NoProviderAvailableError } from './errors';
 import type { ProviderJson, ProviderReadResult } from './file_utils';
 import {
@@ -292,7 +293,7 @@ export const saveProvider = action({
   args: { orgSlug: v.string(), providerName: v.string(), config: v.any() },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
-    await requireOrgMembership(ctx, args.orgSlug);
+    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
 
     if (!validateProviderName(args.providerName))
       throw new Error(`Invalid provider name: ${args.providerName}`);
@@ -308,7 +309,7 @@ export const deleteProvider = action({
   args: { orgSlug: v.string(), providerName: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    await requireOrgMembership(ctx, args.orgSlug);
+    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
     const filePath = resolveProviderFilePath(args.orgSlug, args.providerName);
     const secretsPath = resolveProviderSecretsPath(
       args.orgSlug,
@@ -361,6 +362,7 @@ export const resolveModelData = internalAction({
     outputCentsPerMillion: v.optional(v.number()),
     imageCentsPerImage: v.optional(v.number()),
     centsPerAudioMinute: v.optional(v.number()),
+    providerOptions: v.optional(v.record(v.string(), v.any())),
   }),
   handler: async (_ctx, args) => {
     const orgSlug = args.orgSlug ?? 'default';
@@ -425,6 +427,10 @@ export const resolveModelData = internalAction({
         outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
         imageCentsPerImage: definition.cost?.imageCentsPerImage,
         centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+        providerOptions: mergeModelLevel(
+          provider.config.providerOptions,
+          definition.providerOptions,
+        ),
       };
     }
 
@@ -463,6 +469,7 @@ export const resolveModelByTag = internalAction({
     outputCentsPerMillion: v.optional(v.number()),
     imageCentsPerImage: v.optional(v.number()),
     centsPerAudioMinute: v.optional(v.number()),
+    providerOptions: v.optional(v.record(v.string(), v.any())),
   }),
   handler: async (_ctx, args) => {
     const orgSlug = args.orgSlug ?? 'default';
@@ -510,6 +517,10 @@ export const resolveModelByTag = internalAction({
             outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
             imageCentsPerImage: definition.cost?.imageCentsPerImage,
             centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+            providerOptions: mergeModelLevel(
+              provider.config.providerOptions,
+              definition.providerOptions,
+            ),
           };
         }
       }
@@ -540,6 +551,10 @@ export const resolveModelByTag = internalAction({
           outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
           imageCentsPerImage: definition.cost?.imageCentsPerImage,
           centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+          providerOptions: mergeModelLevel(
+            provider.config.providerOptions,
+            definition.providerOptions,
+          ),
         };
       }
     }
@@ -1222,7 +1237,7 @@ export const saveProviderSecret = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const auth = await requireOrgMembership(ctx, args.orgSlug);
+    const auth = await requireDeveloperSettingsAccess(ctx, args.orgSlug);
 
     if (!validateProviderName(args.providerName))
       throw new Error(`Invalid provider name: ${args.providerName}`);

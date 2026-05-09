@@ -10,6 +10,7 @@ import { ConvexError } from 'convex/values';
 import { parseModelRef } from '../../../../../lib/shared/utils/model-ref';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
+import { buildCallProviderOptions } from '../../../../lib/provider_options';
 import { resolveOrgSlug } from '../../../../organizations/resolve_org_slug';
 import { recordFailure } from '../../../../providers/circuit_breaker';
 import {
@@ -107,6 +108,7 @@ export async function executeLLMNode(
             userId,
             languageModel,
             resolvedModelId: modelData.modelId,
+            providerOptions: buildCallProviderOptions(modelData),
           },
         );
         return createLLMResult(llmResult, normalizedConfig, {
@@ -161,6 +163,7 @@ export async function executeLLMNode(
       userId,
       languageModel,
       resolvedModelId: chatModelData.modelId,
+      providerOptions: buildCallProviderOptions(chatModelData),
     },
   );
   return createLLMResult(llmResult, normalizedConfig, {

@@ -13,7 +13,9 @@ import { Agent } from '@convex-dev/agent';
 
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
+import type { ResolvedModelData } from '../providers/resolve_model';
 import { createDebugLog } from './debug_log';
+import { buildCallProviderOptions } from './provider_options';
 
 const debugLog = createDebugLog('DEBUG_CONTEXT_SUMMARY', '[ContextSummary]');
 
@@ -73,16 +75,22 @@ Output ONLY the updated summary, not commentary about changes.`;
  */
 function createSummarizerAgent(
   languageModel: LanguageModelV3,
+  modelData: ResolvedModelData | undefined,
   incremental: boolean = false,
 ): Agent {
+  const callProviderOptions = modelData
+    ? buildCallProviderOptions(modelData)
+    : undefined;
   return new Agent(components.agent, {
     name: 'summarizer',
     languageModel,
     instructions: incremental
       ? INCREMENTAL_SUMMARIZATION_INSTRUCTIONS
       : SUMMARIZATION_INSTRUCTIONS,
-    // Set maxOutputTokens to ensure the model has room to respond (OpenRouter may default to low values)
-    providerOptions: { openai: { maxOutputTokens: 8192 } },
+    // Cap output to ensure the model has room to respond without OpenRouter
+    // defaulting to a low limit and truncating mid-summary.
+    callSettings: { maxOutputTokens: 8192 },
+    ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
   });
 }
 
@@ -187,6 +195,7 @@ export async function summarizeMessages(
   messages: MessageForSummary[],
   currentPrompt: string | undefined,
   languageModel: LanguageModelV3,
+  modelData?: ResolvedModelData,
 ): Promise<string> {
   if (messages.length === 0) {
     debugLog('summarizeMessages No messages to summarize');
@@ -203,6 +212,7 @@ export async function summarizeMessages(
       chunks[0],
       currentPrompt,
       languageModel,
+      modelData,
     );
   }
 
@@ -233,6 +243,7 @@ export async function summarizeMessages(
         chunk,
         currentPrompt,
         languageModel,
+        modelData,
       );
     } else {
       // Subsequent chunks: update existing summary with new messages
@@ -242,6 +253,7 @@ export async function summarizeMessages(
         chunk,
         currentPrompt,
         languageModel,
+        modelData,
       );
     }
 
@@ -266,13 +278,14 @@ async function summarizeSingleChunk(
   messages: MessageForSummary[],
   currentPrompt: string | undefined,
   languageModel: LanguageModelV3,
+  modelData: ResolvedModelData | undefined,
 ): Promise<string> {
   const formattedMessages = formatMessagesForSummary(messages);
   debugLog(
     `summarizeSingleChunk Formatted ${messages.length} messages, total chars: ${formattedMessages.length}`,
   );
 
-  const summarizer = createSummarizerAgent(languageModel, false);
+  const summarizer = createSummarizerAgent(languageModel, modelData, false);
 
   let prompt = '';
   if (currentPrompt) {
@@ -320,13 +333,14 @@ export async function updateSummary(
   newMessages: MessageForSummary[],
   currentPrompt: string | undefined,
   languageModel: LanguageModelV3,
+  modelData?: ResolvedModelData,
 ): Promise<string> {
   if (newMessages.length === 0) {
     return existingSummary;
   }
 
   const formattedNewMessages = formatMessagesForSummary(newMessages);
-  const summarizer = createSummarizerAgent(languageModel, true);
+  const summarizer = createSummarizerAgent(languageModel, modelData, true);
 
   let prompt = `## Existing Summary
 

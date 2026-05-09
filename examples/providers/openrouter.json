@@ -241,6 +241,109 @@
         "inputCentsPerMillion": 14,
         "outputCentsPerMillion": 28
       }
+    },
+    {
+      "id": "z-ai/glm-5.1",
+      "displayName": "GLM 5.1",
+      "description": "Z.ai GLM 5.1 flagship — 202K context. Example below pins fp8 quantization via OpenRouter's `provider.quantizations`; remove the `providerOptions` block to let OpenRouter pick.",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 105,
+        "outputCentsPerMillion": 350
+      },
+      "providerOptions": {
+        "provider": { "quantizations": ["fp8"] }
+      }
+    },
+    {
+      "id": "z-ai/glm-5-turbo",
+      "displayName": "GLM 5 Turbo",
+      "description": "Z.ai GLM 5 Turbo — fast 202K-context variant of the GLM 5 family",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 120,
+        "outputCentsPerMillion": 400
+      }
+    },
+    {
+      "id": "z-ai/glm-5v-turbo",
+      "displayName": "GLM 5V Turbo",
+      "description": "Z.ai GLM 5V Turbo — multimodal (text + image) variant of GLM 5 Turbo",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 120,
+        "outputCentsPerMillion": 400
+      }
+    },
+    {
+      "id": "moonshotai/kimi-k2.6",
+      "displayName": "Kimi K2.6",
+      "description": "Moonshot AI Kimi K2.6 — 262K context, multimodal (text + image)",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 75,
+        "outputCentsPerMillion": 350
+      }
+    },
+    {
+      "id": "qwen/qwen3.6-max-preview",
+      "displayName": "Qwen3.6 Max Preview",
+      "description": "Alibaba Qwen3.6 Max — flagship preview, 262K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 104,
+        "outputCentsPerMillion": 624
+      }
+    },
+    {
+      "id": "qwen/qwen3.6-plus",
+      "displayName": "Qwen3.6 Plus",
+      "description": "Alibaba Qwen3.6 Plus — 1M context, multimodal",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 33,
+        "outputCentsPerMillion": 195
+      }
+    },
+    {
+      "id": "qwen/qwen3.6-flash",
+      "displayName": "Qwen3.6 Flash",
+      "description": "Alibaba Qwen3.6 Flash — fastest 1M-context variant, multimodal",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 25,
+        "outputCentsPerMillion": 150
+      }
+    },
+    {
+      "id": "qwen/qwen3.6-35b-a3b",
+      "displayName": "Qwen3.6 35B A3B",
+      "description": "Alibaba Qwen3.6 35B-A3B — refresh of the 3.5 35B-A3B entry; multimodal",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 15,
+        "outputCentsPerMillion": 100
+      }
+    },
+    {
+      "id": "google/gemma-4-31b-it",
+      "displayName": "Gemma 4 31B IT",
+      "description": "Google Gemma 4 31B Instruct — open-weight, multimodal, 262K context",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 13,
+        "outputCentsPerMillion": 38
+      }
+    },
+    {
+      "id": "google/gemma-4-26b-a4b-it",
+      "displayName": "Gemma 4 26B A4B IT",
+      "description": "Google Gemma 4 26B-A4B Instruct — smaller MoE Gemma 4 variant, multimodal",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 6,
+        "outputCentsPerMillion": 33
+      }
     }
   ],
   "i18n": {

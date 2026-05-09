@@ -71,6 +71,98 @@ Pricing is declared per model so the usage ledger can compute cost estimates. To
 
 Leave `cost` unset for self-hosted backends where spend is operational rather than per-call — usage is still logged, but the estimated cost column is `0`.
 
+### Provider options (advanced)
+
+Tale forwards arbitrary provider-specific request body fields via an optional `providerOptions` block, available at **both** the provider top level and per-model. The most common use is OpenRouter's [provider routing](https://openrouter.ai/docs/features/provider-routing) — pinning quantization, allowed providers, fallback policy, etc.
+
+```json
+{
+  "displayName": "OpenRouter",
+  "baseUrl": "https://openrouter.ai/api/v1",
+  "providerOptions": {
+    "provider": { "allow_fallbacks": false, "data_collection": "deny" }
+  },
+  "models": [
+    {
+      "id": "z-ai/glm-5.1",
+      "displayName": "GLM 5.1",
+      "tags": ["chat"],
+      "providerOptions": {
+        "provider": { "quantizations": ["fp8"] }
+      }
+    }
+  ]
+}
+```
+
+**Authoring rules:**
+
+- Write the **inner** request body shape — Tale namespaces it under the actual provider name at call time. Do **not** wrap in `{ "openrouter": { ... } }`.
+- **Merge precedence**: provider-level → model-level (depth-2: shared top-level keys merge, sub-keys merge with model winning, arrays replace wholesale).
+- The dashboard exposes the same JSON via the **Advanced — Provider Options** panels under _Settings → Providers → \[provider\]_ (provider-level) and the model add/edit dialog (per-model).
+
+**Rejected keys (fail at load with a clear error):**
+
+| Category        | Keys                                                                                                                                                                    | Reason                                                                                                                      |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| AI SDK reserved | `user`, `reasoningEffort`, `textVerbosity`, `strictJsonSchema`                                                                                                          | The OpenAI-compatible adapter strips these silently — set them at the agent level instead.                                  |
+| Body-overwrite  | `model`, `messages`, `tools`, `tool_choice`, `stream`, `temperature`, `max_tokens`, `top_p`, `frequency_penalty`, `presence_penalty`, `response_format`, `stop`, `seed` | These would clobber Tale's resolved request body — configure them via the agent's model/temperature/maxOutputTokens fields. |
+
+**OpenRouter quantization values:** `int4`, `int8`, `fp4`, `fp6`, `fp8`, `fp16`, `bf16`, `fp32`, `unknown`.
+
+#### Gateways vs. direct vendors
+
+`providerOptions` mirrors each upstream's API exactly — but the **kinds** of knobs available depend on whether the upstream is a routing gateway or a direct inference vendor.
+
+**Gateways** (OpenRouter, Vercel AI Gateway) sit in front of multiple backends and aggregate them under a single endpoint. Their passthrough fields are _routing controls_ — pick which backend serves the request, in what precision, with what fallback policy. The two well-known gateways structure those controls differently:
+
+```json
+// OpenRouter — routing options under a top-level "provider" key. This is
+// the field Tale's example config exercises end-to-end.
+"providerOptions": {
+  "provider": {
+    "quantizations": ["fp8"],
+    "allow_fallbacks": false,
+    "data_collection": "deny"
+  }
+}
+```
+
+```json
+// Vercel AI Gateway — primary routing happens via the model-ID prefix
+// (e.g. "anthropic/claude-3.5") and HTTP headers like `ai-gateway-order`.
+// Body-level passthrough is mostly useful for observability tags Vercel
+// surfaces in its dashboard.
+"providerOptions": {
+  "metadata": { "tale_agent": "support" }
+}
+```
+
+**Direct vendors** (OpenAI, Anthropic, Together AI, Groq, DeepSeek, Mistral) host their own models on their own infrastructure. There is **no routing layer** and **no `quantizations` field** — the precision a model is deployed at is fixed by the vendor (Together AI, for example, exposes the same Llama via `meta-llama/Llama-3.3-70B-Instruct-Turbo` at fp8 and `…-Reference` at bf16 — to switch precision, change the model ID, not a request field). Their passthrough fields are _model-behavior knobs_ at the body's top level:
+
+```json
+// OpenAI — SLA tier, parallel tools, prompt cache routing
+"providerOptions": {
+  "service_tier": "priority",
+  "parallel_tool_calls": false,
+  "prompt_cache_key": "agent-foo-v1"
+}
+```
+
+```json
+// Together AI — moderation routing, sampling controls beyond AI SDK defaults
+"providerOptions": {
+  "safety_model": "Meta-Llama-Guard-3-8B",
+  "repetition_penalty": 1.1
+}
+```
+
+Tale forwards verbatim — refer to each provider's API reference for the exact field names and accepted values. Fields the upstream doesn't recognize are silently ignored at the gateway, so a typo will look like a no-op rather than fail loudly.
+
+**Verifying it landed:** set `TALE_DEBUG_LLM_WIRE=1` in the platform process env and watch the platform logs. Each outgoing LLM request prints its URL plus body keys (with `messages`/`input` redacted), so you can confirm the merged `provider:` (or any other) field is present.
+
+**Migration:** existing `$TALE_CONFIG_DIR/providers/*.json` files without a `providerOptions` block continue to work unchanged — the field is optional. New models added in `examples/providers/openrouter.json` (GLM 5.x, Kimi K2.6, Qwen 3.6, Gemma 4) need to be merged manually into deployed configs.
+
 ## Provider secrets storage
 
 Tale supports two on-disk forms for `providers/<name>.secrets.json`. The format detection is **content-based** — the file format speaks for itself, and Tale picks the right path regardless of which process (Convex, CLI, Python services) is reading it.

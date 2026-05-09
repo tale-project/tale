@@ -20,6 +20,7 @@ import { listMessages, type MessageDoc } from '@convex-dev/agent';
 import { narrowStringUnion } from '../../../lib/utils/type-guards';
 import { components } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
+import type { ResolvedModelData } from '../../providers/resolve_model';
 import { createDebugLog } from '../debug_log';
 import {
   summarizeMessages,
@@ -70,6 +71,12 @@ interface ThreadSummaryData {
 export interface AutoSummarizeIfNeededArgs {
   threadId: string;
   languageModel: LanguageModelV3;
+  /**
+   * Optional resolved-model bundle for the language model. When present, the
+   * summarizer forwards `modelData.providerOptions` so the summarization
+   * request inherits any per-model knobs (quantization, routing, etc.).
+   */
+  modelData?: ResolvedModelData;
 }
 
 export interface AutoSummarizeIfNeededResult {
@@ -250,6 +257,7 @@ export async function autoSummarizeIfNeededModel(
       newMessagesForSummary,
       undefined,
       args.languageModel,
+      args.modelData,
     );
   } else {
     // First summary: summarize all new messages
@@ -258,6 +266,7 @@ export async function autoSummarizeIfNeededModel(
       newMessagesForSummary,
       undefined,
       args.languageModel,
+      args.modelData,
     );
   }
 

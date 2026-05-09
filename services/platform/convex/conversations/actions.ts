@@ -24,13 +24,17 @@ export const improveMessage = action({
     }
 
     // Resolve fast/chat model from provider files
-    const { languageModel } = await resolveLanguageModelWithFallback(ctx, {
-      tag: 'chat',
-    });
+    const { languageModel, modelData } = await resolveLanguageModelWithFallback(
+      ctx,
+      {
+        tag: 'chat',
+      },
+    );
 
     return improveMessageHandler(ctx, {
       ...args,
       languageModel,
+      modelData,
     });
   },
 });

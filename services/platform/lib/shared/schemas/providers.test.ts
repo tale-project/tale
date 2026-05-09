@@ -85,4 +85,174 @@ describe('providerJsonSchema', () => {
       expect(result.success).toBe(false);
     });
   });
+
+  describe('providerOptions', () => {
+    it('accepts a provider-level providerOptions block', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        providerOptions: {
+          provider: { allow_fallbacks: false, data_collection: 'deny' },
+        },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a model-level providerOptions block', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'test/model-1',
+            displayName: 'Test Model 1',
+            tags: ['chat'],
+            providerOptions: { provider: { quantizations: ['fp8'] } },
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts both placements simultaneously', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        providerOptions: { provider: { allow_fallbacks: false } },
+        models: [
+          {
+            id: 'test/model-1',
+            displayName: 'Test Model 1',
+            tags: ['chat'],
+            providerOptions: { provider: { quantizations: ['fp8'] } },
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('treats absent field as undefined', () => {
+      const result = providerJsonSchema.safeParse(baseProvider);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.providerOptions).toBeUndefined();
+        expect(result.data.models[0].providerOptions).toBeUndefined();
+      }
+    });
+
+    it('rejects non-object providerOptions value', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        providerOptions: 'oops' as never,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    describe('deny-list rejection', () => {
+      const bodyOverwriteSamples = [
+        'model',
+        'messages',
+        'tools',
+        'tool_choice',
+        'stream',
+        'temperature',
+        'max_tokens',
+        'top_p',
+        'frequency_penalty',
+        'presence_penalty',
+        'response_format',
+        'stop',
+        'seed',
+      ];
+
+      const sdkReservedSamples = [
+        'user',
+        'reasoningEffort',
+        'textVerbosity',
+        'strictJsonSchema',
+      ];
+
+      for (const key of bodyOverwriteSamples) {
+        it(`rejects body-overwrite key '${key}' at provider level`, () => {
+          const result = providerJsonSchema.safeParse({
+            ...baseProvider,
+            providerOptions: { [key]: 'evil' },
+          });
+          expect(result.success).toBe(false);
+          if (!result.success) {
+            expect(result.error.issues[0].message).toContain(
+              "would overwrite the request body's",
+            );
+          }
+        });
+      }
+
+      for (const key of sdkReservedSamples) {
+        it(`rejects SDK-reserved key '${key}' at provider level`, () => {
+          const result = providerJsonSchema.safeParse({
+            ...baseProvider,
+            providerOptions: { [key]: 'value' },
+          });
+          expect(result.success).toBe(false);
+          if (!result.success) {
+            expect(result.error.issues[0].message).toContain(
+              'set it at the agent level',
+            );
+          }
+        });
+      }
+
+      it("rejects deny-listed key one level deep (double-wrap like 'openrouter.model')", () => {
+        const result = providerJsonSchema.safeParse({
+          ...baseProvider,
+          providerOptions: { openrouter: { model: 'evil' } },
+        });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          const paths = result.error.issues.map((i) => i.path.join('.'));
+          expect(paths).toContain('providerOptions.openrouter.model');
+        }
+      });
+
+      it('rejects at model-level too', () => {
+        const result = providerJsonSchema.safeParse({
+          ...baseProvider,
+          models: [
+            {
+              id: 'test/model-1',
+              displayName: 'Test Model 1',
+              tags: ['chat'],
+              providerOptions: { max_tokens: 999_999 },
+            },
+          ],
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it('emits two distinct errors when both categories of bad keys are present', () => {
+        const result = providerJsonSchema.safeParse({
+          ...baseProvider,
+          providerOptions: { model: 'evil', reasoningEffort: 'high' },
+        });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          const messages = result.error.issues.map((i) => i.message);
+          expect(messages.some((m) => m.includes('overwrite'))).toBe(true);
+          expect(
+            messages.some((m) => m.includes('set it at the agent level')),
+          ).toBe(true);
+        }
+      });
+
+      it('does not recurse below depth 2 (provider.foo.model is allowed as a body sub-field)', () => {
+        // The SDK only spreads top-level keys of providerOptions[name] into the
+        // body. Nested `provider.model` would just be a sub-field of the
+        // outgoing `provider:` object — not a body field that gets clobbered.
+        const result = providerJsonSchema.safeParse({
+          ...baseProvider,
+          providerOptions: {
+            provider: { quantizations: ['fp8'], extra: { model: 'inner' } },
+          },
+        });
+        expect(result.success).toBe(true);
+      });
+    });
+  });
 });

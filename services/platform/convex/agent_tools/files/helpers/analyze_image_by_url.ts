@@ -47,7 +47,7 @@ export async function analyzeImageByUrl(
 
   try {
     // Create a vision agent
-    const visionAgent = createVisionAgent(languageModel);
+    const visionAgent = createVisionAgent(languageModel, modelData);
 
     // Create a temporary thread for this analysis
     const thread = await ctx.runMutation(

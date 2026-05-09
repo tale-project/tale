@@ -63,6 +63,7 @@ import {
   NonRetryableError,
   classifyProviderError,
 } from '../error_classification';
+import { buildCallProviderOptions } from '../provider_options';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[runAgentGeneration]');
 
@@ -429,6 +430,7 @@ export const runAgentGeneration = internalAction({
                   : undefined,
               extraTools: allExtraTools,
               maxSteps: agentConfig.maxSteps,
+              providerOptions: buildCallProviderOptions(modelData),
             });
             return new Agent(components.agent, config);
           };

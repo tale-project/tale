@@ -35,6 +35,14 @@ export interface ResolvedModelData {
   imageCentsPerImage?: number;
   /** For per-minute pricing (transcription models, e.g. OpenAI whisper-1). */
   centsPerAudioMinute?: number;
+  /**
+   * Resolver-merged passthrough (provider-level + model-level, depth-2 merged
+   * with model-level winning). Authored as the inner body shape (e.g.
+   * `{ provider: { quantizations: ['fp8'] } }`); the call-site helper
+   * `buildCallProviderOptions` namespaces it under `providerName` and applies
+   * the deny-list strip before handing it to streamText/generateText.
+   */
+  providerOptions?: Record<string, unknown>;
 }
 
 interface ResolvedLanguageModel {
@@ -204,12 +212,63 @@ const toolSchemaFixMiddleware: LanguageModelV3Middleware = {
   },
 };
 
+/**
+ * Optional fetch wrapper for `TALE_DEBUG_LLM_WIRE=1` — logs the outgoing URL
+ * and JSON body keys (with `messages`/`input` redacted to keep prompts out
+ * of logs) on every LLM request. Returns `undefined` when the flag is unset
+ * so the SDK uses its default `globalThis.fetch`.
+ */
+type FetchFn = (
+  input: Parameters<typeof fetch>[0],
+  init?: RequestInit,
+) => Promise<Response>;
+
+function createDebugFetch(providerName: string): FetchFn | undefined {
+  if (process.env.TALE_DEBUG_LLM_WIRE !== '1') return undefined;
+  return async (input, init) => {
+    try {
+      let url: string;
+      if (typeof input === 'string') url = input;
+      else if (input instanceof URL) url = input.href;
+      else url = input.url;
+      const bodyText = typeof init?.body === 'string' ? init.body : undefined;
+      let parsed: unknown = undefined;
+      if (bodyText) {
+        try {
+          parsed = JSON.parse(bodyText);
+        } catch {
+          parsed = '[non-JSON body]';
+        }
+      }
+      let redacted: unknown = parsed;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const entries: Array<[string, unknown]> = [];
+        for (const [k, v] of Object.entries(parsed)) {
+          entries.push(
+            k === 'messages' || k === 'input' ? [k, '[REDACTED]'] : [k, v],
+          );
+        }
+        redacted = Object.fromEntries(entries);
+      }
+      console.debug(
+        `[TALE_DEBUG_LLM_WIRE] ${providerName} POST ${url}\n${JSON.stringify(redacted, null, 2)}`,
+      );
+    } catch (err) {
+      console.warn('[TALE_DEBUG_LLM_WIRE] failed to log outgoing request', err);
+    }
+    return fetch(input, init);
+  };
+}
+
 function createLanguageModel(modelData: ResolvedModelData): LanguageModelV3 {
+  const debugFetch = createDebugFetch(modelData.providerName);
   const provider = createOpenAICompatible({
     name: modelData.providerName,
     baseURL: modelData.baseUrl,
     apiKey: modelData.apiKey,
     supportsStructuredOutputs: modelData.supportsStructuredOutputs,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- @ai-sdk/openai-compatible types `fetch` as `typeof fetch` which carries an irrelevant `preconnect` static; the wrapped function is structurally compatible for runtime fetch calls
+    ...(debugFetch ? { fetch: debugFetch as typeof fetch } : {}),
   });
   return wrapLanguageModel({
     model: provider.chatModel(modelData.modelId),
@@ -299,10 +358,13 @@ export async function resolveLanguageModelById(
 function buildImageResolution(
   modelData: ResolvedModelData,
 ): ResolvedImageModel {
+  const debugFetch = createDebugFetch(modelData.providerName);
   const provider = createOpenAICompatible({
     name: modelData.providerName,
     baseURL: modelData.baseUrl,
     apiKey: modelData.apiKey,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- @ai-sdk/openai-compatible types `fetch` as `typeof fetch` which carries an irrelevant `preconnect` static; the wrapped function is structurally compatible for runtime fetch calls
+    ...(debugFetch ? { fetch: debugFetch as typeof fetch } : {}),
   });
   if (modelData.imageGenerationMode === 'chat-multimodal') {
     return {

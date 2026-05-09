@@ -40,6 +40,11 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { ProviderDefaultModelsPanel } from '@/app/features/settings/providers/components/provider-default-models-panel';
 import { ProviderEditPanel } from '@/app/features/settings/providers/components/provider-edit-panel';
+import {
+  ModelProviderOptionsField,
+  ProviderOptionsEditor,
+  providerOptionsToJsonString,
+} from '@/app/features/settings/providers/components/provider-options-editor';
 import { TestConnectionSheet } from '@/app/features/settings/providers/components/test-connection-sheet';
 import { useSaveProviderSecret } from '@/app/features/settings/providers/hooks/mutations';
 import {
@@ -261,6 +266,7 @@ function ProviderDetailContent({
         maskedKey={maskedKey}
       />
       <DefaultModelsSection providerName={providerName} />
+      <ProviderOptionsSection />
       <ModelsSection
         orgSlug={orgSlug}
         providerName={providerName}
@@ -415,6 +421,32 @@ function DefaultModelsSection({ providerName }: { providerName: string }) {
         providerName={providerName}
       />
     </>
+  );
+}
+
+function ProviderOptionsSection() {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
+  const { config, isSaving, saveConfig } = useProviderConfig();
+
+  return (
+    <ProviderOptionsEditor
+      initialJson={providerOptionsToJsonString(config.providerOptions)}
+      isSaving={isSaving}
+      onSave={async (parsed) => {
+        await saveConfig({ providerOptions: parsed });
+      }}
+      copy={{
+        title: t('providers.providerOptions.providerLevelTitle'),
+        description: t('providers.providerOptions.providerLevelDescription'),
+        notConfigured: t('providers.providerOptions.notConfigured'),
+        editLabel: t('providers.editGeneral'),
+        saveLabel: t('providers.providerOptions.save'),
+        cancelLabel: tCommon('actions.cancel'),
+        saveSuccess: t('providers.providerOptions.saveSuccess'),
+        saveError: t('providers.providerOptions.saveError'),
+      }}
+    />
   );
 }
 
@@ -611,6 +643,12 @@ interface ModelFormState {
   imageGenerationMode: '' | 'images-api' | 'chat-multimodal';
   baseUrl: string;
   apiKey: string;
+  /**
+   * Free-form JSON for `providerOptions` — empty string means absent. Stored
+   * as a string here so the JsonInput's textarea state and our form state
+   * stay aligned without a separate parse step until submit.
+   */
+  providerOptionsJson: string;
 }
 
 const EMPTY_MODEL_FORM: ModelFormState = {
@@ -625,6 +663,7 @@ const EMPTY_MODEL_FORM: ModelFormState = {
   imageGenerationMode: '',
   baseUrl: '',
   apiKey: '',
+  providerOptionsJson: '',
 };
 
 function ModelsSection({
@@ -686,6 +725,7 @@ function ModelsSection({
         imageGenerationMode: model.imageGenerationMode ?? '',
         baseUrl: model.baseUrl ?? '',
         apiKey: '',
+        providerOptionsJson: providerOptionsToJsonString(model.providerOptions),
       };
       setForm(formData);
       setInitialForm(formData);
@@ -724,6 +764,32 @@ function ModelsSection({
             }
           : undefined;
       const isImageGen = form.tags.includes('image-generation');
+      let providerOptions: Record<string, unknown> | undefined;
+      const trimmedProviderOptions = form.providerOptionsJson.trim();
+      if (trimmedProviderOptions) {
+        try {
+          const parsed: unknown = JSON.parse(trimmedProviderOptions);
+          if (
+            parsed != null &&
+            typeof parsed === 'object' &&
+            !Array.isArray(parsed)
+          ) {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime checks above narrow `parsed` to a non-null, non-array plain object; TS can't track the narrowing across JSON.parse
+            const obj = parsed as Record<string, unknown>;
+            if (Object.keys(obj).length > 0) {
+              providerOptions = obj;
+            }
+          }
+        } catch (parseErr) {
+          toast({
+            title: t('providers.providerOptions.invalidJson'),
+            description:
+              parseErr instanceof Error ? parseErr.message : String(parseErr),
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
       const model = {
         id: form.id,
         displayName: form.displayName,
@@ -739,6 +805,7 @@ function ModelsSection({
             : undefined,
         baseUrl: form.baseUrl.trim() || undefined,
         cost,
+        providerOptions,
       };
       const updatedModels =
         editingIndex != null
@@ -912,6 +979,16 @@ function ModelsSection({
                             {t('providers.modelApiKeyOverrideIndicator')}
                           </Badge>
                         )}
+                        {model.providerOptions &&
+                          Object.keys(model.providerOptions).length > 0 && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px]"
+                              title={JSON.stringify(model.providerOptions)}
+                            >
+                              {t('providers.providerOptions.indicator')}
+                            </Badge>
+                          )}
                       </HStack>
                     </TableCell>
                     <TableCell>
@@ -1239,6 +1316,19 @@ function ModelsSection({
                   </Text>
                 </>
               )}
+              <ModelProviderOptionsField
+                value={form.providerOptionsJson}
+                onChange={(next) =>
+                  setForm((f) => ({ ...f, providerOptionsJson: next }))
+                }
+                copy={{
+                  title: t('providers.providerOptions.modelLevelTitle'),
+                  description: t(
+                    'providers.providerOptions.modelLevelDescription',
+                  ),
+                  helpText: t('providers.providerOptions.modelLevelHelp'),
+                }}
+              />
             </Stack>
           </div>
 

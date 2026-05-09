@@ -9,7 +9,10 @@
  * - JSON output with tools: NOT ALLOWED — split into two explicit LLM steps
  */
 
-import type { LanguageModelV3 } from '@ai-sdk/provider';
+import type {
+  LanguageModelV3,
+  SharedV3ProviderOptions,
+} from '@ai-sdk/provider';
 import { Agent } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
@@ -149,6 +152,11 @@ export async function executeAgentWithTools(
     knowledgeFileIds?: string[];
     languageModel: LanguageModelV3;
     resolvedModelId?: string;
+    /**
+     * Pre-namespaced provider options from `buildCallProviderOptions(modelData)`,
+     * forwarded into the `Agent` constructor for per-model knobs like quantization.
+     */
+    providerOptions?: SharedV3ProviderOptions;
   },
 ): Promise<LLMExecutionResult> {
   if (config.outputFormat === 'json' && !config.outputSchema) {
@@ -262,6 +270,7 @@ export async function executeAgentWithTools(
       _args.languageModel,
       _args.organizationId,
       _args.stepSlug,
+      _args.providerOptions,
     );
   }
 
@@ -283,6 +292,7 @@ export async function executeAgentWithTools(
     _args.languageModel,
     _args.organizationId,
     _args.stepSlug,
+    _args.providerOptions,
   );
 }
 
@@ -320,6 +330,7 @@ async function executeJsonOutputWithoutTools(
   languageModel: LanguageModelV3,
   organizationId: string | undefined,
   stepSlug: string | undefined,
+  providerOptions: SharedV3ProviderOptions | undefined,
 ): Promise<LLMExecutionResult> {
   debugLog('executeJsonOutputWithoutTools START', {
     configName: config.name,
@@ -337,6 +348,7 @@ async function executeJsonOutputWithoutTools(
       name: config.name,
       languageModel,
       instructions: prompts.systemPrompt,
+      providerOptions,
     }),
   );
 
@@ -380,6 +392,7 @@ async function executeTextOutput(
   languageModel: LanguageModelV3,
   organizationId: string | undefined,
   stepSlug: string | undefined,
+  providerOptions: SharedV3ProviderOptions | undefined,
 ): Promise<LLMExecutionResult> {
   debugLog('executeTextOutput START', {
     configName: config.name,
@@ -400,6 +413,7 @@ async function executeTextOutput(
       instructions: prompts.systemPrompt,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- config.tools contains valid ToolName strings from workflow step configuration
       convexToolNames: (config.tools ?? []) as ToolName[],
+      providerOptions,
     }),
   );
 

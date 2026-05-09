@@ -1,4 +1,7 @@
-import type { LanguageModelV3 } from '@ai-sdk/provider';
+import type {
+  LanguageModelV3,
+  SharedV3ProviderOptions,
+} from '@ai-sdk/provider';
 import { Agent } from '@convex-dev/agent';
 
 import { loadConvexToolsAsObject } from '../agent_tools/load_convex_tools_as_object';
@@ -27,6 +30,12 @@ export function createAgentConfig(opts: {
   /** Additional tools to merge (e.g., dynamic json_output tool) */
   extraTools?: Record<string, unknown>;
   maxSteps?: number;
+  /**
+   * Pre-namespaced provider options from `buildCallProviderOptions(modelData)`.
+   * Shape: `{ [providerName]: { ...resolvedFromJson } }`. Forwarded into the
+   * Convex Agent SDK which lifts it into `aiArgs` for streamText/generateText.
+   */
+  providerOptions?: SharedV3ProviderOptions;
 }): ConstructorParameters<typeof Agent>[1] {
   // Build Convex tools as an object when names are provided
   const convexToolsObject = opts.convexToolNames?.length
@@ -72,10 +81,14 @@ export function createAgentConfig(opts: {
     estimatedInstructionTokens,
   });
 
-  // Call settings are intentionally empty
-  // temperature and frequencyPenalty are not supported by reasoning models (e.g., DeepSeek V3.2)
-  // and cause empty responses when set. Let the model use its defaults.
-  const callSettings: Record<string, number> = {};
+  // Call settings: cap output tokens to a sensible default (8192) when the
+  // caller didn't pass an explicit maxTokens, to keep OpenRouter from
+  // truncating responses with its much lower default cap. Temperature and
+  // frequencyPenalty are intentionally NOT set — reasoning models (e.g.
+  // DeepSeek V3.2) treat them as `0` and return empty content.
+  const callSettings: Record<string, number> = {
+    maxOutputTokens: typeof opts.maxTokens === 'number' ? opts.maxTokens : 8192,
+  };
 
   // Default maxSteps to 40 when tools are configured but maxSteps is not set.
   // Without maxSteps, AI SDK defaults to stepCountIs(1), which prevents tool call loops
@@ -89,14 +102,7 @@ export function createAgentConfig(opts: {
     instructions: opts.instructions,
     languageModel: opts.languageModel,
     callSettings,
-    ...(typeof opts.maxTokens === 'number'
-      ? { maxOutputTokens: opts.maxTokens }
-      : {
-          // Set default maxOutputTokens via providerOptions to prevent OpenRouter
-          // from applying its own low defaults, which causes response truncation.
-          // Mirrors the pattern used in summarize_context.ts and vision_agent.ts.
-          providerOptions: { openai: { maxOutputTokens: 8192 } },
-        }),
+    ...(opts.providerOptions ? { providerOptions: opts.providerOptions } : {}),
     ...(hasAnyTools ? { tools: mergedTools } : {}),
     ...(typeof effectiveMaxSteps === 'number'
       ? { maxSteps: effectiveMaxSteps }

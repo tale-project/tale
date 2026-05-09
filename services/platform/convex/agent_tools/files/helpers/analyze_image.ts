@@ -99,7 +99,7 @@ export async function analyzeImage(
       mimeType,
     });
 
-    const visionAgent = createVisionAgent(languageModel);
+    const visionAgent = createVisionAgent(languageModel, modelData);
 
     // Create a temporary thread for this analysis
     const thread = await ctx.runMutation(

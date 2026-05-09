@@ -468,6 +468,7 @@ import type * as lib_moderation_semaphore from "../lib/moderation/semaphore.js";
 import type * as lib_pagination_helpers from "../lib/pagination/helpers.js";
 import type * as lib_pagination_index from "../lib/pagination/index.js";
 import type * as lib_pagination_types from "../lib/pagination/types.js";
+import type * as lib_provider_options from "../lib/provider_options.js";
 import type * as lib_rate_limiter_helpers from "../lib/rate_limiter/helpers.js";
 import type * as lib_rate_limiter_index from "../lib/rate_limiter/index.js";
 import type * as lib_rest_helpers from "../lib/rest/helpers.js";
@@ -1516,6 +1517,7 @@ declare const fullApi: ApiFromModules<{
   "lib/pagination/helpers": typeof lib_pagination_helpers;
   "lib/pagination/index": typeof lib_pagination_index;
   "lib/pagination/types": typeof lib_pagination_types;
+  "lib/provider_options": typeof lib_provider_options;
   "lib/rate_limiter/helpers": typeof lib_rate_limiter_helpers;
   "lib/rate_limiter/index": typeof lib_rate_limiter_index;
   "lib/rest/helpers": typeof lib_rest_helpers;

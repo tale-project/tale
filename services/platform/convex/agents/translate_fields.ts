@@ -5,7 +5,9 @@ import { z } from 'zod';
 
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
+import { buildCallProviderOptions } from '../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
+import type { ResolvedModelData } from '../providers/resolve_model';
 
 const MAX_RETRIES = 3;
 
@@ -25,7 +27,9 @@ export type TranslateOutput = Record<string, string | string[]>;
 function createTranslationAgent(
   targetLocale: string,
   languageModel: import('@ai-sdk/provider').LanguageModelV3,
+  modelData: ResolvedModelData,
 ) {
+  const callProviderOptions = buildCallProviderOptions(modelData);
   return new Agent(components.agent, {
     name: 'field-translator',
     languageModel,
@@ -36,6 +40,7 @@ Rules:
 - Keep translations concise and natural
 - Translate every item in the input array
 - The output array must have the same number of items as the input`,
+    ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
   });
 }
 
@@ -103,11 +108,18 @@ export async function translateFields(
   });
 
   // Resolve chat model from provider files
-  const { languageModel } = await resolveLanguageModelWithFallback(ctx, {
-    tag: 'chat',
-  });
+  const { languageModel, modelData } = await resolveLanguageModelWithFallback(
+    ctx,
+    {
+      tag: 'chat',
+    },
+  );
 
-  const agent = createTranslationAgent(args.targetLocale, languageModel);
+  const agent = createTranslationAgent(
+    args.targetLocale,
+    languageModel,
+    modelData,
+  );
   const userId = `translate-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const prompt = JSON.stringify(flat);
 

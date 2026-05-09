@@ -3,11 +3,17 @@ import { Agent } from '@convex-dev/agent';
 
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
+import { buildCallProviderOptions } from '../lib/provider_options';
+import type { ResolvedModelData } from '../providers/resolve_model';
 
 function createImproveMessageAgent(
   languageModel: LanguageModelV3,
+  modelData: ResolvedModelData | undefined,
   instruction?: string,
 ) {
+  const callProviderOptions = modelData
+    ? buildCallProviderOptions(modelData)
+    : undefined;
   return new Agent(components.agent, {
     name: 'message-improver',
     languageModel,
@@ -21,6 +27,7 @@ Guidelines:
 - Make the tone professional yet friendly
 - Keep the message concise but complete
 - Return only the improved message without any explanation`,
+    ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
   });
 }
 
@@ -30,11 +37,13 @@ export async function improveMessage(
     originalMessage: string;
     instruction?: string;
     languageModel: LanguageModelV3;
+    modelData?: ResolvedModelData;
   },
 ): Promise<{ improvedMessage: string; error?: string }> {
   try {
     const agent = createImproveMessageAgent(
       args.languageModel,
+      args.modelData,
       args.instruction,
     );
     const userId = `improve-msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
