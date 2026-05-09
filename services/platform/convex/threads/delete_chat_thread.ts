@@ -142,9 +142,10 @@ export async function deleteChatThread(
     // the thread is already trashed/expired (defeats a grace-extension
     // attack where a user re-trashes to keep the row alive forever).
     if (existing.status !== 'trashed' && existing.status !== 'expired') {
+      const trashedAt = Date.now();
       await ctx.db.patch(existing._id, {
         status: 'trashed',
-        statusChangedAt: Date.now(),
+        statusChangedAt: trashedAt,
       });
       if (existing.organizationId) {
         const identity = await getAuthUserIdentity(ctx);
@@ -160,6 +161,35 @@ export async function deleteChatThread(
           resourceName: existing.title ?? threadId,
           status: 'success',
         });
+
+        // Cascade soft-delete to chat-uploaded fileMetadata rows. The
+        // user mental model: "trashing the conversation also trashes
+        // the files attached in it". Pass B (`cascadeDeleteThreadChildren`)
+        // physically removes them once grace expires. Restore-thread
+        // walks the same index to flip these back to 'active'.
+        //
+        // Skip rows already in a terminal-ish state ('trashed' /
+        // 'expired' / 'deleted') so we don't reset their grace clocks
+        // (mirrors the grace-extension defense applied to threads above).
+        const orgId = existing.organizationId;
+        for await (const fileMeta of ctx.db
+          .query('fileMetadata')
+          .withIndex('by_organizationId_and_threadId', (q) =>
+            q.eq('organizationId', orgId).eq('threadId', threadId),
+          )) {
+          const status = fileMeta.lifecycleStatus;
+          if (
+            status === 'trashed' ||
+            status === 'expired' ||
+            status === 'deleted'
+          ) {
+            continue;
+          }
+          await ctx.db.patch(fileMeta._id, {
+            lifecycleStatus: 'trashed',
+            statusChangedAt: trashedAt,
+          });
+        }
       }
     }
   }

@@ -87,6 +87,7 @@ import type * as agent_tools_products_product_read_tool from "../agent_tools/pro
 import type * as agent_tools_rag_format_search_results from "../agent_tools/rag/format_search_results.js";
 import type * as agent_tools_rag_helpers_fetch_document_chunks from "../agent_tools/rag/helpers/fetch_document_chunks.js";
 import type * as agent_tools_rag_helpers_list_indexed_documents from "../agent_tools/rag/helpers/list_indexed_documents.js";
+import type * as agent_tools_rag_helpers_verify_thread_scoped_access from "../agent_tools/rag/helpers/verify_thread_scoped_access.js";
 import type * as agent_tools_rag_parse_search_results from "../agent_tools/rag/parse_search_results.js";
 import type * as agent_tools_rag_query_rag_context from "../agent_tools/rag/query_rag_context.js";
 import type * as agent_tools_rag_rag_search_tool from "../agent_tools/rag/rag_search_tool.js";
@@ -730,6 +731,7 @@ import type * as threads_get_message_error from "../threads/get_message_error.js
 import type * as threads_get_or_create_sub_thread from "../threads/get_or_create_sub_thread.js";
 import type * as threads_get_parent_thread_id from "../threads/get_parent_thread_id.js";
 import type * as threads_get_shared_thread from "../threads/get_shared_thread.js";
+import type * as threads_get_thread_ancestor_chain from "../threads/get_thread_ancestor_chain.js";
 import type * as threads_get_thread_messages from "../threads/get_thread_messages.js";
 import type * as threads_get_thread_messages_streaming from "../threads/get_thread_messages_streaming.js";
 import type * as threads_helpers from "../threads/helpers.js";
@@ -1132,6 +1134,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/rag/format_search_results": typeof agent_tools_rag_format_search_results;
   "agent_tools/rag/helpers/fetch_document_chunks": typeof agent_tools_rag_helpers_fetch_document_chunks;
   "agent_tools/rag/helpers/list_indexed_documents": typeof agent_tools_rag_helpers_list_indexed_documents;
+  "agent_tools/rag/helpers/verify_thread_scoped_access": typeof agent_tools_rag_helpers_verify_thread_scoped_access;
   "agent_tools/rag/parse_search_results": typeof agent_tools_rag_parse_search_results;
   "agent_tools/rag/query_rag_context": typeof agent_tools_rag_query_rag_context;
   "agent_tools/rag/rag_search_tool": typeof agent_tools_rag_rag_search_tool;
@@ -1775,6 +1778,7 @@ declare const fullApi: ApiFromModules<{
   "threads/get_or_create_sub_thread": typeof threads_get_or_create_sub_thread;
   "threads/get_parent_thread_id": typeof threads_get_parent_thread_id;
   "threads/get_shared_thread": typeof threads_get_shared_thread;
+  "threads/get_thread_ancestor_chain": typeof threads_get_thread_ancestor_chain;
   "threads/get_thread_messages": typeof threads_get_thread_messages;
   "threads/get_thread_messages_streaming": typeof threads_get_thread_messages_streaming;
   "threads/helpers": typeof threads_helpers;

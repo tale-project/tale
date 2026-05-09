@@ -300,6 +300,43 @@ export async function cascadeDeleteThreadChildren(
     }
   }
 
+  // 7.5 chat-upload fileMetadata bound to this thread.
+  //
+  // Files uploaded via the chat composer carry `fileMetadata.threadId` set
+  // to the chat thread (no `documents` row — chat uploads index by
+  // storageId only, see file_metadata/internal_actions.ts:uploadFileToRag).
+  // Cascading them here closes the chat-upload "ghost file" residue that
+  // would otherwise outlive the deleted thread on disk.
+  //
+  // Deletes the underlying _storage blob first (strict — surfaces real
+  // failures like missing-blob via thrown errors), then the fileMetadata
+  // row. RAG-side purge is NOT done here (mutation can't fetch HTTP); the
+  // shared eraseDocumentBlobs helper introduced in the GDPR-completeness
+  // commit will fan that out via a scheduled action so this cascade and
+  // the GDPR processor share the same code path.
+  if (organizationId) {
+    const filesPage = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_organizationId_and_threadId', (q) =>
+        q.eq('organizationId', organizationId).eq('threadId', threadId),
+      )
+      .take(PAGE_SIZE);
+    for (const fileMeta of filesPage) {
+      try {
+        await ctx.storage.delete(fileMeta.storageId);
+      } catch (error) {
+        console.warn(
+          `[cascadeDeleteThreadChildren] storage.delete failed for ${String(fileMeta.storageId)}:`,
+          error,
+        );
+      }
+      await ctx.db.delete(fileMeta._id);
+    }
+    if (filesPage.length === PAGE_SIZE) {
+      return { done: false, remaining: 1 };
+    }
+  }
+
   // 8. agentWebhookUserThreads
   const webhookPage = await ctx.db
     .query('agentWebhookUserThreads')

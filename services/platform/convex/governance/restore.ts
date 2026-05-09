@@ -63,6 +63,12 @@ export const restoreSoftDeletedRow = mutation({
 
     // Org-wide hold blocks every restore. Thread/document-specific holds
     // also blocked here so the helper layer below doesn't need to know.
+    // User-membership cascade: if the row's author is on a custodian
+    // hold, restore is blocked (mirrors `restoreChatThread` and the
+    // public delete paths). This check requires reading the row's
+    // author up-front; thread branch reads it from `threadMetadata.userId`,
+    // generic branch reads it from `<row>.createdBy` / `<row>.userId` /
+    // similar after `restoreRowToActive` reports the row exists.
     const holds = await loadActiveHolds(ctx, args.organizationId);
     if (holds.orgHeld) {
       throw new ConvexError({
@@ -105,10 +111,22 @@ export const restoreSoftDeletedRow = mutation({
           message: 'Thread does not exist.',
         });
       }
+      // `not_found` (not `forbidden`) on cross-org so the mutation isn't
+      // a foreign-id existence oracle.
       if (metadata.organizationId !== args.organizationId) {
         throw new ConvexError({
-          code: 'forbidden',
-          message: 'Thread is not in this organization.',
+          code: 'not_found',
+          message: 'Thread does not exist.',
+        });
+      }
+      // User-membership cascade: thread author on custodian hold blocks
+      // restore. Mirrors `restoreChatThread` and `assertNotHeld`.
+      if (holds.userMembershipIds.has(metadata.userId)) {
+        throw new ConvexError({
+          code: 'LEGAL_HOLD_BLOCKS_RESTORE',
+          message:
+            'Thread author is on a custodian legal hold — restore is blocked.',
+          userCustodianHeld: true,
         });
       }
       const status = metadata.status;
@@ -147,8 +165,22 @@ export const restoreSoftDeletedRow = mutation({
       return null;
     }
 
-    const result = await restoreRowToActive(ctx, args.resourceType, args.rowId);
+    const result = await restoreRowToActive(
+      ctx,
+      args.resourceType,
+      args.rowId,
+      args.organizationId,
+      holds.userMembershipIds,
+    );
     if (!result.ok) {
+      if (result.reason === 'user_custodian_hold') {
+        throw new ConvexError({
+          code: 'LEGAL_HOLD_BLOCKS_RESTORE',
+          message:
+            'Row author is on a custodian legal hold — restore is blocked.',
+          userCustodianHeld: true,
+        });
+      }
       const code =
         result.reason === 'not_found'
           ? 'not_found'

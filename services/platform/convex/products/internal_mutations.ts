@@ -55,6 +55,14 @@ export const updateProducts = internalMutation({
       externalId: v.optional(v.union(v.string(), v.number())),
       metadata: v.optional(jsonRecordValidator),
     }),
+    /**
+     * Caller's organizationId — closes the cross-tenant write IDOR on
+     * REST `PATCH /api/v1/products/:id`. Optional for in-process
+     * callers; REST handlers MUST pass this. When set with a single
+     * `productId`, the helper rejects writes whose target row is in
+     * a different org.
+     */
+    callerOrgId: v.optional(v.string()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -62,16 +70,42 @@ export const updateProducts = internalMutation({
     updatedIds: v.array(v.id('products')),
   }),
   handler: async (ctx, args): Promise<UpdateProductsResult> => {
-    return await ProductsHelpers.updateProducts(ctx, args);
+    if (args.callerOrgId !== undefined && args.productId !== undefined) {
+      const existing = await ctx.db.get(args.productId);
+      if (!existing || existing.organizationId !== args.callerOrgId) {
+        return { success: false, updatedCount: 0, updatedIds: [] };
+      }
+    }
+    if (
+      args.callerOrgId !== undefined &&
+      args.organizationId !== undefined &&
+      args.organizationId !== args.callerOrgId
+    ) {
+      return { success: false, updatedCount: 0, updatedIds: [] };
+    }
+    const { callerOrgId: _drop, ...rest } = args;
+    return await ProductsHelpers.updateProducts(ctx, rest);
   },
 });
 
 export const deleteProduct = internalMutation({
   args: {
     productId: v.id('products'),
+    /**
+     * Caller's organizationId — closes the cross-tenant DELETE IDOR
+     * on REST `DELETE /api/v1/products/:id`. Optional for in-process
+     * callers; REST handlers MUST pass this.
+     */
+    callerOrgId: v.optional(v.string()),
   },
   returns: v.id('products'),
   handler: async (ctx, args): Promise<Id<'products'>> => {
+    if (args.callerOrgId !== undefined) {
+      const existing = await ctx.db.get(args.productId);
+      if (!existing || existing.organizationId !== args.callerOrgId) {
+        throw new Error('Product not found');
+      }
+    }
     return await deleteProductHandler(ctx, args.productId);
   },
 });

@@ -100,7 +100,10 @@ export const getVendor = withRestAuth('rest:api', async (rc, request) => {
 
   const vendor = await rc.ctx.runQuery(
     internal.vendors.internal_queries.getVendor,
-    { vendorId: toId<'vendors'>(id) },
+    {
+      vendorId: toId<'vendors'>(id),
+      callerOrgId: rc.org.organizationId,
+    },
   );
 
   if (!vendor) {
@@ -132,6 +135,7 @@ export const patchVendor = withRestAuth('rest:api', async (rc, request) => {
     tags: body.tags,
     metadata: body.metadata,
     notes: body.notes,
+    callerOrgId: rc.org.organizationId,
   });
 
   return jsonNoContent();
@@ -147,6 +151,7 @@ export const deleteVendor = withRestAuth('rest:api', async (rc, request) => {
 
   await rc.ctx.runMutation(internal.vendors.internal_mutations.deleteVendor, {
     vendorId: toId<'vendors'>(id),
+    callerOrgId: rc.org.organizationId,
   });
 
   return jsonNoContent();

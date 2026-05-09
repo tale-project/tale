@@ -78,7 +78,7 @@ export const getThread = withRestAuth('rest:api', async (rc, request) => {
   if (subPath === 'messages') {
     const result = await rc.ctx.runQuery(
       internal.threads.internal_queries.getThreadMessagesInternal,
-      { threadId: id },
+      { threadId: id, callerOrgId: rc.org.organizationId },
     );
     return jsonOk(result);
   }
@@ -90,7 +90,7 @@ export const getThread = withRestAuth('rest:api', async (rc, request) => {
   // GET /api/v1/threads/:id — thread metadata
   const thread = await rc.ctx.runQuery(
     internal.threads.internal_queries.getThreadMetadata,
-    { threadId: id },
+    { threadId: id, callerOrgId: rc.org.organizationId },
   );
 
   if (!thread) {

@@ -80,7 +80,10 @@ export const getCustomer = withRestAuth('rest:api', async (rc, request) => {
 
   const customer = await rc.ctx.runQuery(
     internal.customers.internal_queries.getCustomerById,
-    { customerId: toId<'customers'>(id) },
+    {
+      customerId: toId<'customers'>(id),
+      callerOrgId: rc.org.organizationId,
+    },
   );
 
   if (!customer) {
@@ -112,6 +115,7 @@ export const patchCustomer = withRestAuth('rest:api', async (rc, request) => {
       locale: body.locale,
       address: body.address,
       metadata: body.metadata,
+      callerOrgId: rc.org.organizationId,
     },
   );
 
@@ -132,7 +136,10 @@ export const deleteCustomer = withRestAuth('rest:api', async (rc, request) => {
 
   await rc.ctx.runMutation(
     internal.customers.internal_mutations.deleteCustomer,
-    { customerId: toId<'customers'>(id) },
+    {
+      customerId: toId<'customers'>(id),
+      callerOrgId: rc.org.organizationId,
+    },
   );
 
   return jsonNoContent();

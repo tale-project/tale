@@ -14,9 +14,24 @@ import { sourceProviderValidator } from './validators';
 export const getDocumentByIdRaw = internalQuery({
   args: {
     documentId: v.id('documents'),
+    /**
+     * Caller's organizationId — closes the cross-tenant read IDOR on
+     * REST `GET /api/v1/documents/:id`. Optional for in-process
+     * callers (workflow / agent flows that already operate within the
+     * caller's org); REST handlers MUST pass this.
+     */
+    callerOrgId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    return await DocumentsHelpers.getDocumentById(ctx, args.documentId);
+    const row = await DocumentsHelpers.getDocumentById(ctx, args.documentId);
+    if (!row) return null;
+    if (
+      args.callerOrgId !== undefined &&
+      row.organizationId !== args.callerOrgId
+    ) {
+      return null;
+    }
+    return row;
   },
 });
 

@@ -79,10 +79,16 @@ export const updateVendor = internalMutation({
     tags: v.optional(v.array(v.string())),
     metadata: v.optional(jsonRecordValidator),
     notes: v.optional(v.string()),
+    /**
+     * Caller's organizationId — closes the cross-tenant write IDOR on
+     * REST `PATCH /api/v1/vendors/:id`. Optional for in-process
+     * callers; REST handlers MUST pass this.
+     */
+    callerOrgId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { vendorId, ...updateData } = args;
+    const { vendorId, callerOrgId, ...updateData } = args;
 
     if (updateData.email) {
       updateData.email = updateData.email.toLowerCase().trim() || undefined;
@@ -90,6 +96,12 @@ export const updateVendor = internalMutation({
 
     const existingVendor = await ctx.db.get(vendorId);
     if (!existingVendor) {
+      throw new Error('Vendor not found');
+    }
+    if (
+      callerOrgId !== undefined &&
+      existingVendor.organizationId !== callerOrgId
+    ) {
       throw new Error('Vendor not found');
     }
 
@@ -144,11 +156,23 @@ export const updateVendor = internalMutation({
 export const deleteVendor = internalMutation({
   args: {
     vendorId: v.id('vendors'),
+    /**
+     * Caller's organizationId — closes the cross-tenant DELETE IDOR
+     * on REST `DELETE /api/v1/vendors/:id`. Optional for in-process
+     * callers; REST handlers MUST pass this.
+     */
+    callerOrgId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const vendor = await ctx.db.get(args.vendorId);
     if (!vendor) {
+      throw new Error('Vendor not found');
+    }
+    if (
+      args.callerOrgId !== undefined &&
+      vendor.organizationId !== args.callerOrgId
+    ) {
       throw new Error('Vendor not found');
     }
 

@@ -147,15 +147,46 @@ export const restoreChatThread = mutation({
     }
 
     // Restore: clear status + statusChangedAt; un-archive the agent thread.
+    const restoredAt = Date.now();
     await ctx.db.patch(metadata._id, {
       status: 'active',
-      statusChangedAt: Date.now(),
+      statusChangedAt: restoredAt,
     });
 
     await ctx.runMutation(components.agent.threads.updateThread, {
       threadId: args.threadId,
       patch: { status: 'active' },
     });
+
+    // Cascade restore to chat-uploaded fileMetadata rows. Mirrors the
+    // soft-delete cascade in `delete_chat_thread.ts`. Files that were
+    // independently trashed (e.g. user trashed an attachment via a file
+    // action) BEFORE the thread was trashed must NOT auto-restore here
+    // — gate on a small skew tolerance around `metadata.statusChangedAt`
+    // so we only flip files that were trashed together with the thread.
+    const SKEW_MS = 5_000;
+    if (metadata.organizationId !== undefined) {
+      const orgId = metadata.organizationId;
+      const threadTrashedAt = metadata.statusChangedAt;
+      for await (const fileMeta of ctx.db
+        .query('fileMetadata')
+        .withIndex('by_organizationId_and_threadId', (q) =>
+          q.eq('organizationId', orgId).eq('threadId', args.threadId),
+        )) {
+        if (fileMeta.lifecycleStatus !== 'trashed') continue;
+        if (
+          threadTrashedAt !== undefined &&
+          fileMeta.statusChangedAt !== undefined &&
+          Math.abs(fileMeta.statusChangedAt - threadTrashedAt) > SKEW_MS
+        ) {
+          continue;
+        }
+        await ctx.db.patch(fileMeta._id, {
+          lifecycleStatus: 'active',
+          statusChangedAt: restoredAt,
+        });
+      }
+    }
 
     const action =
       status === 'expired'

@@ -51,7 +51,10 @@ export const getWorkflow = withRestAuth('rest:api', async (rc, request) => {
     const executionId = subPath.split('/')[0];
     const execution = await rc.ctx.runQuery(
       internal.wf_executions.internal_queries.getExecutionStepJournalInternal,
-      { executionId: toId<'wfExecutions'>(executionId) },
+      {
+        executionId: toId<'wfExecutions'>(executionId),
+        callerOrgId: rc.org.organizationId,
+      },
     );
     if (!execution) {
       return jsonError('Execution not found', 404);
@@ -113,6 +116,7 @@ export const getWorkflow = withRestAuth('rest:api', async (rc, request) => {
         status,
         dateFrom,
         dateTo,
+        callerOrgId: rc.org.organizationId,
       },
     );
     return jsonOk(executions);
@@ -142,7 +146,10 @@ export const postWorkflow = withRestAuth('rest:api', async (rc, request) => {
     if (action === 'cancel') {
       await rc.ctx.runMutation(
         internal.workflows.triggers.internal_mutations.cancelExecutionInternal,
-        { executionId: toId<'wfExecutions'>(executionId) },
+        {
+          executionId: toId<'wfExecutions'>(executionId),
+          callerOrgId: rc.org.organizationId,
+        },
       );
       return jsonOk({ status: 'canceled' });
     }
@@ -230,6 +237,7 @@ export const patchWorkflow = withRestAuth('rest:api', async (rc, request) => {
         timezone: body.timezone,
         isActive: body.isActive,
         variables: body.variables,
+        callerOrgId: rc.org.organizationId,
       },
     );
     return jsonNoContent();
@@ -250,7 +258,10 @@ export const deleteWorkflow = withRestAuth('rest:api', async (rc, request) => {
     const scheduleId = subPath.split('/')[0];
     await rc.ctx.runMutation(
       internal.workflows.triggers.internal_mutations.deleteScheduleInternal,
-      { scheduleId: toId<'wfSchedules'>(scheduleId) },
+      {
+        scheduleId: toId<'wfSchedules'>(scheduleId),
+        callerOrgId: rc.org.organizationId,
+      },
     );
     return jsonNoContent();
   }
@@ -259,7 +270,10 @@ export const deleteWorkflow = withRestAuth('rest:api', async (rc, request) => {
     const webhookId = subPath.split('/')[0];
     await rc.ctx.runMutation(
       internal.workflows.triggers.internal_mutations.deleteWebhookInternal,
-      { webhookId: toId<'wfWebhooks'>(webhookId) },
+      {
+        webhookId: toId<'wfWebhooks'>(webhookId),
+        callerOrgId: rc.org.organizationId,
+      },
     );
     return jsonNoContent();
   }

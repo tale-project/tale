@@ -22,9 +22,22 @@ export const updateDocument = internalMutation({
     contentHash: v.optional(v.string()),
     teamId: v.optional(v.string()),
     folderId: v.optional(v.id('folders')),
+    /**
+     * Caller's organizationId — closes the cross-tenant write IDOR on
+     * REST `PATCH /api/v1/documents/:id`. Optional for in-process
+     * callers; REST handlers MUST pass this.
+     */
+    callerOrgId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await updateDocumentInternalHelper(ctx, args);
+    if (args.callerOrgId !== undefined) {
+      const existing = await ctx.db.get(args.documentId);
+      if (!existing || existing.organizationId !== args.callerOrgId) {
+        return;
+      }
+    }
+    const { callerOrgId: _drop, ...rest } = args;
+    await updateDocumentInternalHelper(ctx, rest);
   },
 });
 
@@ -41,19 +54,38 @@ export const updateDocumentRagInfo = internalMutation({
 export const deleteDocumentById = internalMutation({
   args: {
     documentId: v.id('documents'),
+    /**
+     * Caller's organizationId — closes the cross-tenant DELETE IDOR
+     * on REST `DELETE /api/v1/documents/:id`. Optional for in-process
+     * callers (retention sweep, workflow); REST handlers MUST pass this.
+     */
+    callerOrgId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const document = await ctx.db.get(args.documentId);
     if (document) {
+      if (
+        args.callerOrgId !== undefined &&
+        document.organizationId !== args.callerOrgId
+      ) {
+        return null;
+      }
       // Defense-in-depth: every public/REST/internal caller flows through
       // here; gating at this single point covers the surfaces flagged in
       // round-2 v08 B4. Retention has its own held-aware path.
+      //
+      // Pass `document.createdBy` so the user-membership cascade fires on
+      // the document's author the same way the public `deleteDocument`
+      // does. Without this, an internal cascade or REST delete bypasses
+      // the custodian-hold cascade. (Round-2 V3 finding.)
       await assertNotHeld(
         ctx,
         document.organizationId,
         'document',
         String(args.documentId),
+        undefined,
+        document.createdBy ?? undefined,
       );
       const { fileId } = document;
       if (fileId) {

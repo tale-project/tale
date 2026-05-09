@@ -34,6 +34,20 @@ export interface ResourceConfig {
   readonly auditPrefix: string;
   readonly auditResourceType: string;
   readonly displayNameField?: string;
+  /**
+   * Field on the row that identifies the row's "author" / "owner" for
+   * the user-membership legal-hold cascade. When set, restore + delete
+   * paths consult `holds.userMembershipIds.has(row[authorField])` and
+   * refuse if the author is on a custodian hold. When unset (e.g. CRM
+   * tables that aren't user-attributed), the cascade is a no-op and
+   * only org-wide holds apply.
+   */
+  readonly authorField?:
+    | 'userId'
+    | 'createdBy'
+    | 'uploadedBy'
+    | 'actorId'
+    | 'subjectUserId';
 }
 
 export const SOFT_DELETE_RESOURCE_CONFIG: Record<
@@ -46,6 +60,7 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     auditPrefix: 'chat_thread',
     auditResourceType: 'thread',
     displayNameField: 'title',
+    authorField: 'userId',
   },
   document: {
     tableName: 'documents',
@@ -53,6 +68,7 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     auditPrefix: 'document',
     auditResourceType: 'document',
     displayNameField: 'title',
+    authorField: 'createdBy',
   },
   fileMetadata: {
     tableName: 'fileMetadata',
@@ -60,6 +76,7 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     auditPrefix: 'file_metadata',
     auditResourceType: 'file',
     displayNameField: 'fileName',
+    authorField: 'uploadedBy',
   },
   promptTemplate: {
     tableName: 'promptTemplates',
@@ -67,12 +84,14 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     auditPrefix: 'prompt_template',
     auditResourceType: 'prompt_template',
     displayNameField: 'title',
+    authorField: 'createdBy',
   },
   messageFeedback: {
     tableName: 'messageFeedback',
     statusField: 'lifecycleStatus',
     auditPrefix: 'message_feedback',
     auditResourceType: 'message_feedback',
+    authorField: 'userId',
   },
   customer: {
     tableName: 'customers',
@@ -80,6 +99,8 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     auditPrefix: 'customer',
     auditResourceType: 'customer',
     displayNameField: 'name',
+    // No author field — CRM rows aren't user-attributed; only org-wide
+    // holds gate restore for these.
   },
   vendor: {
     tableName: 'vendors',
@@ -100,6 +121,9 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     statusField: 'lifecycleStatus',
     auditPrefix: 'message_metadata',
     auditResourceType: 'message_metadata',
+    // No direct author field on messageMetadata; the cascade flows via
+    // the parent thread's `userId` and is enforced by the cleanup path
+    // in `retention_cleanup.ts:cleanupMessageMetadata` (Commit 2).
   },
   workflowExecution: {
     tableName: 'wfExecutions',
@@ -107,6 +131,7 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     auditPrefix: 'workflow_execution',
     auditResourceType: 'workflow_execution',
     displayNameField: 'workflowSlug',
+    authorField: 'userId',
   },
   workflowTriggerLog: {
     // Trigger logs cascade with executions; included for completeness, not
@@ -115,6 +140,7 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     statusField: 'lifecycleStatus',
     auditPrefix: 'workflow_trigger_log',
     auditResourceType: 'workflow_trigger_log',
+    authorField: 'userId',
   },
   usageLedger: {
     tableName: 'usageLedger',
@@ -122,6 +148,7 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     auditPrefix: 'usage_ledger',
     auditResourceType: 'usage_ledger',
     displayNameField: 'periodKey',
+    authorField: 'userId',
   },
   auditLog: {
     tableName: 'auditLogs',
@@ -129,12 +156,15 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     auditPrefix: 'audit_log',
     auditResourceType: 'audit_log',
     displayNameField: 'action',
+    authorField: 'actorId',
   },
   chatFilterEvent: {
     tableName: 'chatFilterEvents',
     statusField: 'lifecycleStatus',
     auditPrefix: 'chat_filter_event',
     auditResourceType: 'chat_filter_event',
+    // No direct author; cascade flows via the parent thread's `userId`
+    // and is enforced by `retention_cleanup.ts:cleanupChatFilterEvents`.
   },
   memoryAudit: {
     tableName: 'userMemoryAuditLog',
@@ -142,6 +172,7 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     auditPrefix: 'memory_audit',
     auditResourceType: 'memory_audit',
     displayNameField: 'action',
+    authorField: 'subjectUserId',
   },
 };
 
@@ -268,8 +299,32 @@ export async function restoreRowToActive(
   ctx: MutationCtx,
   resourceType: SoftDeleteResourceType,
   rowId: string,
+  /**
+   * Caller's organizationId. The helper refuses to restore a row whose
+   * `organizationId` does not match — without this gate, an admin of
+   * org A who knows or guesses an org B row id can patch the row to
+   * `active`, bypass legal-hold checks (which load against caller's
+   * org), and emit an audit row attributing the restore to the wrong
+   * org. Mirrors `markRowExpiredGeneric`'s symmetric org guard.
+   *
+   * Returns `not_found` (NOT a distinguished `forbidden`) on cross-org
+   * mismatch so the caller cannot use the helper as an id-existence
+   * oracle for foreign orgs.
+   */
+  organizationId: string,
+  /**
+   * Set of user ids on an active custodian (`userMembership`) legal
+   * hold for `organizationId`. The helper refuses to restore when the
+   * row's author (per `config.authorField`) is in this set, so
+   * generic admin-trash restore enforces the same custodian cascade
+   * the user-facing `restoreChatThread` and the public delete paths
+   * already enforce. Pass an empty Set to skip the cascade check
+   * (e.g. when no user-membership holds are active).
+   */
+  userMembershipIds: Set<string>,
 ): Promise<
-  { ok: true; previousStatus: string } | { ok: false; reason: string }
+  | { ok: true; previousStatus: string }
+  | { ok: false; reason: string; authorUserId?: string }
 > {
   const config = SOFT_DELETE_RESOURCE_CONFIG[resourceType];
   const id = ctx.db.normalizeId(config.tableName, rowId);
@@ -277,6 +332,24 @@ export async function restoreRowToActive(
   const row = await ctx.db.get(id);
   if (!row || typeof row !== 'object') {
     return { ok: false, reason: 'not_found' };
+  }
+
+  const rowOrgIdRaw = readField(row, 'organizationId');
+  const rowOrgId = typeof rowOrgIdRaw === 'string' ? rowOrgIdRaw : undefined;
+  if (rowOrgId !== organizationId) {
+    return { ok: false, reason: 'not_found' };
+  }
+
+  if (config.authorField) {
+    const authorRaw = readField(row, config.authorField);
+    const authorUserId = typeof authorRaw === 'string' ? authorRaw : undefined;
+    if (authorUserId && userMembershipIds.has(authorUserId)) {
+      return {
+        ok: false,
+        reason: 'user_custodian_hold',
+        authorUserId,
+      };
+    }
   }
 
   const statusValue = readField(row, config.statusField);
