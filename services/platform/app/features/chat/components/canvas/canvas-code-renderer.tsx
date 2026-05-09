@@ -156,7 +156,7 @@ function CanvasCodeRendererComponent({
     let cancelled = false;
     void highlightCode(code, language, shikiTheme).then((result) => {
       if (!cancelled && result) {
-        setHtml(extractShikiCodeContent(result));
+        setHtml(extractShikiCodeContent(result.html));
       }
     });
     return () => {

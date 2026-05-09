@@ -23,6 +23,7 @@
   "dependencies": {
     "@fontsource-variable/inter": "5.2.8",
     "@tale/i18n": "workspace:*",
+    "@tale/markdown": "workspace:*",
     "@tale/ui": "workspace:*",
     "@tale/webui": "workspace:*",
     "framer-motion": "12.38.0"

@@ -1,0 +1,16 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  "extends": ["../../.oxlintrc.json"],
+  "rules": {
+    "typescript/no-unsafe-type-assertion": "off",
+    "typescript/consistent-return": "off"
+  },
+  "ignorePatterns": [
+    ".turbo",
+    "node_modules",
+    "dist",
+    "storybook-static",
+    "**/*.gen.ts",
+    "**/*.gen.tsx"
+  ]
+}

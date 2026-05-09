@@ -1,9 +1,9 @@
+import { mintlifyComponents } from '@tale/markdown/components/registry';
+import { extractToc } from '@tale/markdown/extract-toc';
+import { readingTimeMinutes } from '@tale/markdown/reading-time';
+import { RoutedMarkdown } from '@tale/markdown/routed-markdown';
 import { PageActions } from '@tale/webui/ai/page-actions';
 import { pageAsMarkdown } from '@tale/webui/llm/page-as-markdown';
-import { mintlifyComponents } from '@tale/webui/markdown/components/registry';
-import { extractToc } from '@tale/webui/markdown/extract-toc';
-import { Markdown } from '@tale/webui/markdown/markdown';
-import { readingTimeMinutes } from '@tale/webui/markdown/reading-time';
 import { useDocumentMeta } from '@tale/webui/seo/document-meta';
 import {
   buildArticleJsonLd,
@@ -205,13 +205,13 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
             ) : null}
           </p>
         </header>
-        <Markdown
+        <RoutedMarkdown
           // oxlint-disable-next-line typescript/no-explicit-any -- mintlify keys aren't HTML element tags; react-markdown's `Components` type only models built-in elements
           components={mintlifyComponents as any}
           className="mt-6"
         >
           {doc.body}
-        </Markdown>
+        </RoutedMarkdown>
         <DocsPrevNext locale={locale} prevSlug={prev} nextSlug={next} />
         <div className="mt-4 flex justify-end">
           <EditOnGithub contentPath={contentPath} />

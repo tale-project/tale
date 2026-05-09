@@ -49,7 +49,7 @@ export const HighlightedCode = memo(function HighlightedCode({
       void highlightCode(code, lang, shikiTheme).then((result) => {
         if (!cancelled && result) {
           highlightedForRef.current = code;
-          setHtml(extractShikiCodeContent(result));
+          setHtml(extractShikiCodeContent(result.html));
         }
       });
     }, HIGHLIGHT_DEBOUNCE_MS);

@@ -89,6 +89,10 @@
       "cache": false,
       "outputs": []
     },
+    "storybook": {
+      "cache": false,
+      "persistent": true
+    },
     "storybook:build": {
       "outputs": ["storybook-static/**"]
     },

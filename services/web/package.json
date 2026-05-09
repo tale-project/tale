@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@tale/i18n": "workspace:*",
+    "@tale/markdown": "workspace:*",
     "@tale/ui": "workspace:*",
     "@tale/webui": "workspace:*",
     "react-markdown": "10.1.0",
