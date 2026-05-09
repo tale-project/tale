@@ -63,19 +63,44 @@ export const updateCustomer = internalMutation({
     locale: v.optional(v.string()),
     address: v.optional(customerAddressValidator),
     metadata: v.optional(jsonRecordValidator),
+    /**
+     * Caller's organizationId — closes the cross-tenant write IDOR on
+     * REST `PATCH /api/v1/customers/:id`. Optional for in-process
+     * callers; REST handlers MUST pass this.
+     */
+    callerOrgId: v.optional(v.string()),
   },
   returns: v.union(customerValidator, v.null()),
   handler: async (ctx, args) => {
-    return await updateCustomerHelper(ctx, args);
+    if (args.callerOrgId !== undefined) {
+      const existing = await ctx.db.get(args.customerId);
+      if (!existing || existing.organizationId !== args.callerOrgId) {
+        return null;
+      }
+    }
+    const { callerOrgId: _drop, ...rest } = args;
+    return await updateCustomerHelper(ctx, rest);
   },
 });
 
 export const deleteCustomer = internalMutation({
   args: {
     customerId: v.id('customers'),
+    /**
+     * Caller's organizationId — closes the cross-tenant DELETE IDOR
+     * on REST `DELETE /api/v1/customers/:id`. Optional for in-process
+     * callers (e.g. retention cleanup); REST handlers MUST pass this.
+     */
+    callerOrgId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    if (args.callerOrgId !== undefined) {
+      const existing = await ctx.db.get(args.customerId);
+      if (!existing || existing.organizationId !== args.callerOrgId) {
+        return null;
+      }
+    }
     return await deleteCustomerHelper(ctx, args.customerId);
   },
 });

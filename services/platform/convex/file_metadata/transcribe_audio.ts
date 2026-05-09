@@ -8,7 +8,6 @@ import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { estimateTranscriptionCostCents } from '../governance/cost_estimation';
 import { classifyError } from '../lib/error_classification';
-import { getRagConfig } from '../lib/helpers/rag_config';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import type { ResolvedModelData } from '../providers/resolve_model';
 import { resolveTranscriptionModel } from '../providers/resolve_model';
@@ -206,9 +205,6 @@ async function indexTranscriptToRag(
       internal.file_metadata.internal_mutations.updateFileRagStatus,
       { storageId, ragStatus: 'running' },
     );
-    const ragConfig = getRagConfig();
-    if (!ragConfig.serviceUrl) return;
-
     const transcriptBlob = new Blob([args.transcript], { type: 'text/plain' });
     // RAG validates by extension (SUPPORTED_EXTENSIONS in documents.py). The
     // original audio extension (.mp3/.wav/etc.) is not in that set, so append
@@ -219,7 +215,6 @@ async function indexTranscriptToRag(
     // doesn't confuse users.
     const ragFilename = `${args.fileName}.txt`;
     await uploadFile({
-      ragServiceUrl: ragConfig.serviceUrl,
       file: transcriptBlob,
       filename: ragFilename,
       contentType: 'text/plain',

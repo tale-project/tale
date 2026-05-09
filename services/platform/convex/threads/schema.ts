@@ -8,6 +8,14 @@ export const threadMetadataTable = defineTable({
   userId: v.string(),
   chatType: chatTypeValidator,
   status: threadStatusValidator,
+  /**
+   * Timestamp of the last `status` transition. Required for the retention
+   * grace-window math: a `trashed`/`expired` row hard-deletes when
+   * `now - statusChangedAt > graceDays`. `optional` for backward-compat
+   * with rows written before this field was introduced; treat missing as
+   * "no grace timer started" (cleanup falls back to `_creationTime`).
+   */
+  statusChangedAt: v.optional(v.number()),
   title: v.optional(v.string()),
   createdAt: v.number(),
   generationStatus: v.optional(
@@ -62,4 +70,20 @@ export const threadMetadataTable = defineTable({
   ])
   .index('by_shareToken', ['shareToken'])
   .index('by_arenaGroupId', ['arenaGroupId'])
-  .index('by_organizationId', ['organizationId']);
+  .index('by_organizationId', ['organizationId'])
+  // Round-2 fix: GDPR `requestErasure` enumerates a single user's
+  // threads within an org. Without this compound, the only path was
+  // `by_organizationId.collect()` then JS-filter by `userId` — silent
+  // truncation past the 16K per-transaction read limit on large orgs.
+  // Used by `governance/erasure.ts:eraseUserThreadsBatch` (paged) and
+  // any future cross-tenant scope checks that key on (org, user).
+  .index('by_org_user', ['organizationId', 'userId'])
+  // Round-2 V9 / round-1 #18 P2 + #27 P1-M: admin Trash UI's
+  // `fetchTrashSubpage` needs to slice threadMetadata by status without
+  // scanning every active row first. The other 12 trashable tables
+  // already carry `by_organizationId_and_lifecycleStatus`; threadMetadata
+  // (which uses the legacy `status` field instead of `lifecycleStatus`)
+  // was the missing one — without this, an org with > ~250 active
+  // threads would never surface trashed/expired threads in the admin
+  // Trash list because the take-prefix filled with `active` rows first.
+  .index('by_organizationId_and_status', ['organizationId', 'status']);

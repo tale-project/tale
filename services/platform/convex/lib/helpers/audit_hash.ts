@@ -15,9 +15,29 @@
 
 /**
  * Fields excluded from hash computation because they are part of the
- * hash chain metadata itself, not the record payload.
+ * hash chain metadata itself (or post-write annotations), not the
+ * record payload that the writer signed.
+ *
+ * - `chainSuccessor` is patched onto a row by its successor's insert.
+ * - `piiScrubbedAt` is patched by the GDPR Art 17 scrub pipeline.
+ * - `lifecycleStatus` / `statusChangedAt` are patched by retention
+ *   soft-delete (`markRowExpiredGeneric` in `soft_delete_helpers.ts`)
+ *   when an audit log row is reaped past TTL. Pre-fix, soft-deleting
+ *   any audit row poisoned the hash recompute for the entire chain
+ *   because verify_integrity destructured neither out of the canonical
+ *   record. Round-2 review CRITICAL #8.
+ *
+ * Including any of these in the verifier's hash input would diverge
+ * from the writer and report every patched row as tampered.
  */
-const EXCLUDED_FIELDS = new Set(['integrityHash', 'previousHash']);
+const EXCLUDED_FIELDS = new Set([
+  'integrityHash',
+  'previousHash',
+  'chainSuccessor',
+  'piiScrubbedAt',
+  'lifecycleStatus',
+  'statusChangedAt',
+]);
 
 function isRecord(val: unknown): val is Record<string, unknown> {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
@@ -41,9 +61,14 @@ function canonicalize(value: unknown): string {
   }
 
   if (isRecord(value)) {
+    // Skip keys whose value is `undefined` so the writer (which lists every
+    // optional field literally as `args.X`) and the verifier (which rebuilds
+    // the canonical from a stored row where Convex has dropped undefined
+    // values) produce the same string. Mirrors `JSON.stringify` semantics
+    // for object keys.
     const sortedKeys = Object.keys(value).sort();
     const entries = sortedKeys
-      .filter((key) => !EXCLUDED_FIELDS.has(key))
+      .filter((key) => !EXCLUDED_FIELDS.has(key) && value[key] !== undefined)
       .map((key) => JSON.stringify(key) + ':' + canonicalize(value[key]));
     return '{' + entries.join(',') + '}';
   }

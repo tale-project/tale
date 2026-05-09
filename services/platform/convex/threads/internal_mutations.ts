@@ -1,7 +1,8 @@
 import { v } from 'convex/values';
 
-import { internalMutation } from '../_generated/server';
+import { internalMutation, type MutationCtx } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
+import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { persistentStreaming } from '../streaming/helpers';
 import {
   archiveChatThread as archiveHelper,
@@ -12,6 +13,40 @@ import { createChatThread as createHelper } from './create_chat_thread';
 import { deleteChatThread as deleteHelper } from './delete_chat_thread';
 import { getOrCreateSubThread } from './get_or_create_sub_thread';
 import { updateChatThread as updateHelper } from './update_chat_thread';
+
+/**
+ * Caller-identity gate for the REST-facing thread internal mutations.
+ *
+ * REST handlers (`threads/rest_api.ts`) resolve the caller's userId + org
+ * via `withRestAuth` and forward both to the internal mutation. The
+ * mutation then runs `assertThreadAccess` so that an org-A API key can't
+ * mutate an org-B thread by guessing the threadId — same gate the public
+ * mutations enforce (round-2 v14 B8).
+ *
+ * System-internal callers (e.g. `generate_thread_title.ts`) write on
+ * behalf of no user and pass neither arg; the gate is skipped. Any NEW
+ * REST surface added to this file MUST pass both args.
+ */
+async function gateThreadAccess(
+  ctx: MutationCtx,
+  threadId: string,
+  callerUserId: string | undefined,
+  callerOrgId: string | undefined,
+): Promise<void> {
+  if (callerUserId === undefined && callerOrgId === undefined) return;
+  if (callerUserId === undefined || callerOrgId === undefined) {
+    // Half-specified caller is a programming error, not an auth bypass.
+    throw new Error(
+      'Both callerUserId and callerOrgId must be provided together',
+    );
+  }
+  await assertThreadAccess(
+    ctx,
+    threadId,
+    { userId: callerUserId },
+    callerOrgId,
+  );
+}
 
 export const getOrCreateSubThreadAtomic = internalMutation({
   args: {
@@ -138,10 +173,27 @@ export const createChatThreadInternal = internalMutation({
   args: {
     userId: v.string(),
     title: v.optional(v.string()),
+    /**
+     * Required for REST callers so the inserted threadMetadata row
+     * carries `organizationId`. Without it, `getThreadMetadata` rejects
+     * the row on every subsequent read because `callerOrgId !== undefined
+     * && row.organizationId !== callerOrgId` always fires when row.org
+     * is undefined — the POST→GET round-trip silently 404s. Optional for
+     * legacy callers; REST handlers MUST pass `rc.org.organizationId`.
+     */
+    organizationId: v.optional(v.string()),
   },
   returns: v.string(),
   handler: async (ctx, args) => {
-    return await createHelper(ctx, args.userId, args.title, 'general');
+    return await createHelper(
+      ctx,
+      args.userId,
+      args.title,
+      'general',
+      undefined,
+      undefined,
+      args.organizationId,
+    );
   },
 });
 
@@ -149,36 +201,74 @@ export const updateChatThreadInternal = internalMutation({
   args: {
     threadId: v.string(),
     title: v.string(),
+    callerUserId: v.optional(v.string()),
+    callerOrgId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    await gateThreadAccess(
+      ctx,
+      args.threadId,
+      args.callerUserId,
+      args.callerOrgId,
+    );
     await updateHelper(ctx, args.threadId, args.title);
     return null;
   },
 });
 
 export const deleteChatThreadInternal = internalMutation({
-  args: { threadId: v.string() },
+  args: {
+    threadId: v.string(),
+    callerUserId: v.optional(v.string()),
+    callerOrgId: v.optional(v.string()),
+  },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    await gateThreadAccess(
+      ctx,
+      args.threadId,
+      args.callerUserId,
+      args.callerOrgId,
+    );
     await deleteHelper(ctx, args.threadId);
     return null;
   },
 });
 
 export const archiveChatThreadInternal = internalMutation({
-  args: { threadId: v.string() },
+  args: {
+    threadId: v.string(),
+    callerUserId: v.optional(v.string()),
+    callerOrgId: v.optional(v.string()),
+  },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    await gateThreadAccess(
+      ctx,
+      args.threadId,
+      args.callerUserId,
+      args.callerOrgId,
+    );
     await archiveHelper(ctx, args.threadId);
     return null;
   },
 });
 
 export const unarchiveChatThreadInternal = internalMutation({
-  args: { threadId: v.string() },
+  args: {
+    threadId: v.string(),
+    callerUserId: v.optional(v.string()),
+    callerOrgId: v.optional(v.string()),
+  },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    await gateThreadAccess(
+      ctx,
+      args.threadId,
+      args.callerUserId,
+      args.callerOrgId,
+    );
     await unarchiveHelper(ctx, args.threadId);
     return null;
   },

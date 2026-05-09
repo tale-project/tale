@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 import asyncpg
+import httpx
 from loguru import logger
 from openai import AsyncOpenAI
 from tale_knowledge.embedding import EmbeddingService
@@ -26,7 +27,6 @@ from .database import (
     pin_embedding_dimensions,
 )
 from .indexing_service import index_document
-from .llm_response_cache import LlmResponseCache
 from .search_service import RagSearchService
 
 RAG_TOP_K = 30
@@ -69,7 +69,6 @@ class RagService:
         self._vision_client: VisionClient | None = None
         self._openai_client: AsyncOpenAI | None = None
         self._search_service: RagSearchService | None = None
-        self._llm_response_cache: LlmResponseCache | None = None
         self._llm_config: dict | None = None
         self._vision_config: tuple | None = None
         self._last_config_check: float = 0
@@ -126,19 +125,18 @@ class RagService:
             logger.info("No vision model configured, Vision features disabled")
             self._vision_client = None
 
-        # OpenAI client for generation
+        # OpenAI client for generation. Explicit timeout: the SDK
+        # default is 600 s, which can hold the asyncio event loop for
+        # 10 minutes on a stuck provider endpoint and starve the DB
+        # pool. Round-2 review MEDIUM (E.4.7).
         self._openai_client = AsyncOpenAI(
             api_key=llm_config["api_key"],
             base_url=llm_config["base_url"],
+            timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=5.0),
         )
 
         # Search service
         self._search_service = RagSearchService(self._pool, self._embedding_service)
-
-        # LLM response cache
-        self._llm_response_cache = LlmResponseCache(self._pool, dimensions)
-        await self._llm_response_cache.ensure_table()
-        logger.info("LLM response cache initialized")
 
         self._last_config_check = time.monotonic()
         self.initialized = True
@@ -147,10 +145,6 @@ class RagService:
     @property
     def embedding_service(self) -> EmbeddingService | None:
         return self._embedding_service
-
-    @property
-    def llm_response_cache(self) -> LlmResponseCache | None:
-        return self._llm_response_cache
 
     def _maybe_refresh_clients(self) -> None:
         """Check provider config freshness; rebuild clients if changed.
@@ -189,6 +183,7 @@ class RagService:
                     new_oai = AsyncOpenAI(
                         api_key=new_llm_config["api_key"],
                         base_url=new_llm_config["base_url"],
+                        timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=5.0),
                     )
 
                     # Swap all at once (atomic from asyncio's cooperative perspective)

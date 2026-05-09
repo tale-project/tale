@@ -1,12 +1,9 @@
-'use node';
-
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { fetchDocumentComparisonByUrls } from '../agent_tools/documents/helpers/fetch_document_comparison';
 import { authComponent } from '../auth';
-import { getRagConfig } from '../lib/helpers/rag_config';
 import { toId } from '../lib/type_cast_helpers';
 
 export const compareDocuments = action({
@@ -34,7 +31,30 @@ export const compareDocuments = action({
       throw new Error('Unauthorized: not a member of this organization');
     }
 
-    const { serviceUrl } = getRagConfig();
+    // Convex `_storage` is global — membership in args.organizationId is
+    // not by itself enough; verify each storage id is owned by a
+    // fileMetadata row in this org. Without this gate, any org member
+    // can supply another org's storage ids and read its files via the
+    // diff endpoint (cross-tenant IDOR).
+    const ownsStorage = await ctx.runQuery(
+      internal.documents.internal_queries.verifyStorageIdsBelongToOrg,
+      {
+        organizationId: args.organizationId,
+        storageIds: [args.baseStorageId, args.comparisonStorageId],
+      },
+    );
+    if (!ownsStorage) {
+      throw new Error(
+        'Unauthorized: one or more storage ids do not belong to this organization',
+      );
+    }
+    // FOLLOW-UP / round-2 M5: this gate is org-level, not team-ACL-level.
+    // A same-org user who does NOT have access to a team-scoped document
+    // can still diff it via this path. The fix requires plumbing
+    // `userTeamIds` + `hasTeamAccess(doc, userTeamIds)` per storage id
+    // (mirror `folders/mutations.ts`). Tracked as a separate issue
+    // because the team-ACL scaffold is partially in place but not
+    // consistently applied to all document read paths yet.
 
     const [baseFileUrl, compFileUrl] = await Promise.all([
       resolveStorageUrl(ctx, args.baseStorageId),
@@ -42,7 +62,6 @@ export const compareDocuments = action({
     ]);
 
     return await fetchDocumentComparisonByUrls(
-      serviceUrl,
       baseFileUrl,
       args.baseFileName,
       compFileUrl,

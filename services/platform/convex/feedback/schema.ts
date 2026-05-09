@@ -1,6 +1,8 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
+
 export const messageFeedbackTable = defineTable({
   organizationId: v.string(),
   threadId: v.string(),
@@ -23,8 +25,14 @@ export const messageFeedbackTable = defineTable({
   model: v.optional(v.string()),
   provider: v.optional(v.string()),
   createdAt: v.number(),
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
 })
   .index('by_messageId_userId', ['messageId', 'userId'])
+  .index('by_organizationId_and_lifecycleStatus', [
+    'organizationId',
+    'lifecycleStatus',
+  ])
   .index('by_organizationId', ['organizationId'])
   .index('by_org_rating', ['organizationId', 'rating'])
   .index('by_threadId', ['threadId'])

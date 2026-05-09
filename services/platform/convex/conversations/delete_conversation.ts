@@ -4,6 +4,7 @@
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
+import { assertNotHeld } from '../governance/legal_hold_guard';
 
 export async function deleteConversation(
   ctx: MutationCtx,
@@ -13,6 +14,15 @@ export async function deleteConversation(
   if (!conversation) {
     throw new Error('Conversation not found');
   }
+
+  // Conversations have no per-row hold today; this only blocks on
+  // org-level "nuclear halt" holds (round-2 v08 B4).
+  await assertNotHeld(
+    ctx,
+    conversation.organizationId,
+    'conversation',
+    String(conversationId),
+  );
 
   // Collect message IDs first, then delete in parallel
   const messageIds: Id<'conversationMessages'>[] = [];

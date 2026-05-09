@@ -4,6 +4,13 @@ interface DocumentMeta {
   title: string;
   description: string;
   canonicalPath?: string;
+  /**
+   * When true, emits `<meta name="robots" content="noindex,nofollow">`.
+   * Legal pages set `noindex: true` in their YAML frontmatter; pre-fix
+   * this wrapper didn't accept the flag, so legal docs shipped indexable.
+   * Round-2 review CRITICAL #26 / F.1.
+   */
+  noindex?: boolean;
 }
 
 const SITE_URL = 'https://tale.dev';
@@ -17,11 +24,13 @@ export function useDocumentMeta({
   title,
   description,
   canonicalPath,
+  noindex,
 }: DocumentMeta) {
   useDocumentMetaBase({
     title,
     description,
     canonicalPath,
     siteUrl: SITE_URL,
+    noindex,
   });
 }

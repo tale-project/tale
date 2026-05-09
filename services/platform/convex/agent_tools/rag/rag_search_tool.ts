@@ -20,7 +20,8 @@ import { z } from 'zod/v4';
 import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
-import { getRagConfig } from '../../lib/helpers/rag_config';
+import { ragFetch } from '../../lib/helpers/rag_config';
+import { getThreadAncestorChain } from '../../threads/get_thread_ancestor_chain';
 import type { ToolDefinition } from '../types';
 import {
   formatSearchResults,
@@ -43,6 +44,24 @@ const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 const DEFAULT_TOP_K = 10;
 const DEFAULT_SIMILARITY_THRESHOLD = 0.3;
 
+/**
+ * Resolve the agent's pre-configured RAG scope (the default-search
+ * allow-list, computed from `agentTeamId` / `includeOrgKnowledge` /
+ * `knowledgeFileIds` etc.).
+ *
+ * NOT a security gate. When an `explicitFileIds` array is supplied the
+ * function returns it AS-IS — callers must authorize those ids
+ * separately via
+ * `internal.agent_tools.rag.helpers.verify_thread_scoped_access.verifyStorageIdsInThreadScope`
+ * BEFORE calling this with explicit ids. The legitimate use of
+ * explicit-ids passthrough is "caller already authorized; this is a
+ * convenience shortcut to skip re-resolving the agent scope".
+ *
+ * Production callers in this file pass `undefined` for `explicitFileIds`
+ * — the search-op handler routes explicit ids through the verifier
+ * directly and only falls back to `resolveFileIds` for the default
+ * (no-explicit-ids) branch.
+ */
 export async function resolveFileIds(
   ctx: ToolCtx,
   explicitFileIds?: string[],
@@ -192,15 +211,58 @@ RESPONSE (list_indexed):
         const start = args.chunkStart ?? 1;
         const end = args.chunkEnd ?? start + DEFAULT_PAGE_SIZE - 1;
 
+        // Authorize the requested fileId. Same-org check is the IDOR
+        // floor (RAG treats `file_id` as a global identifier; no
+        // tenant filter on the documents router). For chat-bound files
+        // (fileMetadata.threadId set), additionally require the bound
+        // thread to be in the caller's accessible chain — current
+        // thread + delegation ancestors. Document Hub and legacy /
+        // integration uploads pass on same-org alone.
+        //
+        // Replaces commit d7bc3daa6's stricter "agent allow-list"
+        // check, which blocked legitimate chat-attachment retrieval —
+        // the over-strict gate ignored thread-bound uploads, since
+        // chat uploads never appear in the agent's pre-configured
+        // `knowledgeFileIds` / `agentTeamId` / `includeOrgKnowledge`
+        // sets. Same-org + thread-scope is the correct invariant.
+        const orgIdRetrieve = ctx.organizationId;
+        if (!orgIdRetrieve) {
+          throw new Error('rag_search requires organizationId in ToolCtx.');
+        }
+        const accessibleThreadsRetrieve = ctx.threadId
+          ? await getThreadAncestorChain(ctx, ctx.threadId, orgIdRetrieve)
+          : [];
+        const retrieveAuthorized = await ctx.runQuery(
+          internal.agent_tools.rag.helpers.verify_thread_scoped_access
+            .verifyStorageIdsInThreadScope,
+          {
+            organizationId: orgIdRetrieve,
+            accessibleThreadIds: accessibleThreadsRetrieve,
+            storageIds: [args.fileId],
+          },
+        );
+        if (!retrieveAuthorized) {
+          debugLog('tool:rag_search retrieve refused (out of scope)', {
+            fileId: args.fileId,
+            threadId: ctx.threadId,
+            chainDepth: accessibleThreadsRetrieve.length,
+          });
+          return {
+            success: false,
+            response:
+              'File is not accessible from this thread or does not exist.',
+          };
+        }
+
         debugLog('tool:rag_search retrieve start', {
           fileId: args.fileId,
           chunkStart: start,
           chunkEnd: end,
         });
 
-        const ragServiceUrl = getRagConfig().serviceUrl;
-        const url = `${ragServiceUrl}/api/v1/documents/${encodeURIComponent(args.fileId)}/content?return_chunks=true&chunk_start=${start}&chunk_end=${end}`;
-        const response = await fetch(url);
+        const response = await ragFetch(
+          `/api/v1/documents/${encodeURIComponent(args.fileId)}/content?return_chunks=true&chunk_start=${start}&chunk_end=${end}`,
+        );
 
         if (!response.ok) {
           const errorText = await response.text().catch(() => '');
@@ -266,7 +328,47 @@ RESPONSE (list_indexed):
         explicitFileIds: args.fileIds?.length,
       });
 
-      const fileIds = await resolveFileIds(ctx, args.fileIds);
+      // When the agent passes explicit `fileIds` (typically chat-attachment
+      // ids surfaced from the user message), do NOT trust them as-is — the
+      // RAG service treats fileIds as global identifiers, so an unchecked
+      // pass-through is a cross-org IDOR. Authorize each id against the
+      // caller's same-org + thread-scope invariant. When no explicit ids,
+      // fall through to the agent's pre-configured allow-list (default
+      // "search the agent's own knowledge").
+      let fileIds: string[];
+      if (args.fileIds && args.fileIds.length > 0) {
+        const orgIdSearch = ctx.organizationId;
+        if (!orgIdSearch) {
+          throw new Error('rag_search requires organizationId in ToolCtx.');
+        }
+        const accessibleThreadsSearch = ctx.threadId
+          ? await getThreadAncestorChain(ctx, ctx.threadId, orgIdSearch)
+          : [];
+        const searchAuthorized = await ctx.runQuery(
+          internal.agent_tools.rag.helpers.verify_thread_scoped_access
+            .verifyStorageIdsInThreadScope,
+          {
+            organizationId: orgIdSearch,
+            accessibleThreadIds: accessibleThreadsSearch,
+            storageIds: args.fileIds,
+          },
+        );
+        if (!searchAuthorized) {
+          debugLog('tool:rag_search search refused (cross-scope ids)', {
+            count: args.fileIds.length,
+            threadId: ctx.threadId,
+            chainDepth: accessibleThreadsSearch.length,
+          });
+          return {
+            success: false,
+            response:
+              'One or more requested files are not accessible from this thread.',
+          };
+        }
+        fileIds = args.fileIds;
+      } else {
+        fileIds = await resolveFileIds(ctx, undefined);
+      }
 
       if (fileIds.length === 0) {
         return {
@@ -275,9 +377,6 @@ RESPONSE (list_indexed):
             'No documents available in the knowledge base. Upload documents first.',
         };
       }
-
-      const ragServiceUrl = getRagConfig().serviceUrl;
-      const url = `${ragServiceUrl}/api/v1/search`;
 
       const payload = {
         query: args.query,
@@ -293,11 +392,9 @@ RESPONSE (list_indexed):
       });
 
       try {
-        const response = await fetch(url, {
+        const response = await ragFetch('/api/v1/search', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
 

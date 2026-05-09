@@ -53,6 +53,9 @@
       "rename": "Rename",
       "deleteSelected": "Delete selected"
     },
+    "confirmDialog": {
+      "typeToConfirmLabel": "Type \"{phrase}\" to confirm"
+    },
     "bulkActions": {
       "itemsSelected": "{count, plural, one {# item selected} other {# items selected}}",
       "confirmDeleteTitle": "Delete {count, plural, one {# item} other {# items}}",
@@ -625,9 +628,7 @@
         "sectionAdvanced": "Advanced",
         "sectionAdvancedDescription": "Fine-tune agent execution behavior.",
         "timeoutMinutes": "Execution timeout (minutes)",
-        "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations.",
-        "responseCache": "Cache responses",
-        "responseCacheHelp": "When the same prompt is sent again under similar context, return the previously generated response instead of re-running the model. Saves cost and latency at the price of freshness."
+        "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations."
       },
       "conversationStarters": {
         "title": "Conversation starters",
@@ -1931,7 +1932,7 @@
     "moreActions": "More actions",
     "deleteChat": "Delete chat",
     "deleteConfirmation": "Are you sure you want to delete {title}?",
-    "deletePermanentMessage": "This action cannot be undone. The chat will be permanently deleted.",
+    "deletePermanentMessage": "Move chat to Trash. You can restore it for the org's grace period; after that retention permanently deletes the chat and its messages.",
     "deleteFailed": "Failed to delete chat",
     "archive": "Archive",
     "unarchive": "Unarchive",
@@ -2131,6 +2132,14 @@
       "loadingMore": "Loading...",
       "generating": "Generating response",
       "awaitingInput": "Awaiting your input",
+      "legalHold": {
+        "heading": "On legal hold",
+        "body": "Preserved for compliance — cannot be deleted, archived, or renamed.",
+        "reasonLabel": "Reason",
+        "matterLabel": "Matter",
+        "placedByLabel": "Placed by",
+        "placedAtLabel": "Placed"
+      },
       "toast": {
         "renameFailed": "Failed to rename chat"
       }
@@ -3178,10 +3187,117 @@
       "saveFailed": "Failed to save upload policy"
     },
     "retentionPolicy": {
+      "title": "Retention policy",
+      "description": "Configure how long each data type is kept before deletion.",
       "saved": "Retention policy has been updated",
+      "save": "Save changes",
+      "reset": "Reset to defaults",
+      "unsavedHint": "You have unsaved changes.",
+      "summary": {
+        "disabled": "Disabled"
+      },
+      "drawer": {
+        "title": "Edit retention policy",
+        "description": "Configure how long each data type is kept before deletion."
+      },
       "enabled": "Enabled",
       "retentionDays": "Retention days",
       "retentionHours": "Retention hours",
+      "envDisabled": "Retention is currently disabled by the operator (TALE_RETENTION_DISABLED=true). Cleanup will not run until the env flag is removed.",
+      "envBoundHint": "env-bound: {min}{minApplied} / {max}{maxApplied}",
+      "boundHelper": "Operator caps this at {min}-{max} {unit}.",
+      "allowedRange": "Allowed: {min}–{max} {unit}.",
+      "errors": {
+        "belowFloor": "Below operator floor (min {bound} {unit}).",
+        "exceedsCeiling": "Exceeds operator ceiling (max {bound} {unit})."
+      },
+      "diff": {
+        "title": "Confirm retention changes",
+        "description": "Review the changes before saving. Cleanup applies the new policy on its next run.",
+        "confirmLabel": "Save changes",
+        "noChanges": "No changes to save."
+      },
+      "deletionGrace": {
+        "label": "Grace period (days)",
+        "helper": "0 = Pass A immediately hard-deletes (no trash window). >0 keeps rows visible in admin Trash for that many days before Pass B physically removes them."
+      },
+      "timeline": {
+        "ariaLabel": "Deletion lifecycle visualization",
+        "activeLabel": "Active",
+        "activeSub": "Visible, fully accessible",
+        "trashedLabel": "Trashed / Expired",
+        "trashedSub": "{days}-day grace, restorable",
+        "skipTrashLabel": "Skipped",
+        "skipTrashSub": "graceDays = 0",
+        "permanentLabel": "Permanently deleted",
+        "permanentSub": "Row + descendants gone",
+        "graceConnector": "after retention window",
+        "noGraceConnector": "no grace window",
+        "cascadeConnector": "cascade delete"
+      },
+      "pendingChange": {
+        "title": "A retention reduction is pending.",
+        "applyIn": "applies in {days} day(s).",
+        "cancel": "Cancel"
+      },
+      "boundsProposal": {
+        "title": "Operator has proposed retention bound changes.",
+        "firstApplyTitle": "Operator retention bounds need your initial approval.",
+        "summary": "{tightened} of {total} change(s) tighten retention. Review before applying.",
+        "firstApplyDescription": "No bounds have been applied for this organization yet. Review the operator config and Apply to start enforcing retention.",
+        "applyLabel": "Apply",
+        "rejectLabel": "Reject",
+        "detailsLabel": "View details",
+        "detailsTitle": "Proposed bound changes",
+        "detailsDescription": "Review the operator-proposed retention bound changes before applying or rejecting.",
+        "detailsEmpty": "No detailed changes recorded.",
+        "diffHeading": "Bound changes",
+        "impactHeading": "Impact on your stored values",
+        "diffRow": "{category}: {field} {from} → {to} ({direction})",
+        "impactRow": "{category}: {current} will clamp to {clamped}",
+        "appliedToast": "Bounds proposal applied. Cleanup will use new bounds on next run.",
+        "rejectedToast": "Bounds proposal rejected. Cleanup continues with previous bounds."
+      },
+      "promptTemplates": {
+        "title": "Prompt templates",
+        "description": "Saved prompts (org-scoped). Global-scope templates are operator content and are not retention-managed."
+      },
+      "messageFeedback": {
+        "title": "Message feedback",
+        "description": "Thumbs/comments left on agent messages. Free-text comments may contain quoted user content."
+      },
+      "memoryAudit": {
+        "title": "Memory audit log",
+        "description": "Change-log of personalization memories (proposed, approved, edited, dismissed, deleted)."
+      },
+      "customers": {
+        "title": "Customers",
+        "description": "Per-org CRM records: name, email, address, locale, metadata."
+      },
+      "vendors": {
+        "title": "Vendors",
+        "description": "Per-org vendor records: name, email, phone, address, free-text notes."
+      },
+      "externalConversations": {
+        "title": "External conversations",
+        "description": "Top-level customer-channel inbox (email/chat integrations). Cascades to message bodies."
+      },
+      "messageMetadata": {
+        "title": "Message metadata",
+        "description": "Per-message reasoning, full prompt context window, tool I/O. High-PII derived data; sweep follows the message's thread retention."
+      },
+      "chatFilterEvents": {
+        "title": "Chat filter events",
+        "description": "Telemetry for content-filter triggers (PII, profanity, custom rules). Useful for tuning the filter; carries quoted message excerpts.",
+        "placeholder": "e.g. 90",
+        "helper": "Filter-event telemetry rows older than this will be deleted."
+      },
+      "notifications": {
+        "title": "Notifications",
+        "description": "In-app notifications (mentions, agent results, system alerts). May reference content from chats, documents, or workflow runs.",
+        "placeholder": "e.g. 30",
+        "helper": "Notification rows older than this will be deleted."
+      },
       "chatHistory": {
         "title": "Chat history",
         "description": "Automatically delete chat threads (conversations with agents) older than the retention period. Message contents in the agent component are archived. Deletion is irreversible.",
@@ -3625,9 +3741,247 @@
       "contentAndModels": "Content & Models",
       "policiesAndLimits": "Policies & Limits",
       "securityAndMonitoring": "Security & Monitoring",
+      "legalHold": "Legal hold",
+      "trash": "Trash",
       "guardrails": "Guardrails",
       "usage": "Usage",
       "feedback": "Feedback"
+    },
+    "trash": {
+      "title": "Trash",
+      "description": "Recover retention-trashed records before they are permanently deleted at the end of the grace window.",
+      "accessDenied": "Admin only.",
+      "empty": "Nothing in the trash. Retention will move expired rows here once their grace window starts.",
+      "filterTitle": "Category",
+      "loadMore": "Load more",
+      "column": {
+        "type": "Type",
+        "name": "Name",
+        "owner": "Owner",
+        "status": "Status",
+        "statusChangedAt": "Trashed",
+        "actions": "Actions"
+      },
+      "status": {
+        "trashed": "Trashed",
+        "expired": "Expired"
+      },
+      "tab": {
+        "thread": "Chat history",
+        "document": "Documents",
+        "fileMetadata": "Temporary files",
+        "promptTemplate": "Prompt templates",
+        "messageFeedback": "Message feedback",
+        "customer": "Customers",
+        "vendor": "Vendors",
+        "externalConversation": "External conversations",
+        "messageMetadata": "Message metadata",
+        "workflowExecution": "Workflow runs",
+        "workflowTriggerLog": "Workflow trigger logs",
+        "usageLedger": "Usage ledger",
+        "auditLog": "Audit logs",
+        "chatFilterEvent": "Chat filter events",
+        "memoryAudit": "Memory audit"
+      },
+      "restore": {
+        "label": "Restore",
+        "confirm": "Restore",
+        "trashedTitle": "Restore record?",
+        "trashedDescription": "Bring this record back to active. It will return to its source list.",
+        "expiredTitle": "Restore retention-expired record?",
+        "expiredDescription": "This record was deleted by retention policy. Restoring overrides that policy and brings the record back to active. Audited.",
+        "expiredPhraseLabel": "Type \"restore\" to confirm",
+        "restoredToast": "Restored.",
+        "failedToast": "Failed to restore"
+      }
+    },
+    "legalHold": {
+      "targetTypes": {
+        "thread": "Thread",
+        "document": "Document",
+        "execution": "Execution",
+        "userMembership": "User",
+        "org": "Organization"
+      },
+      "filters": {
+        "allTargets": "All target types",
+        "allStatuses": "All statuses",
+        "active": "Active",
+        "released": "Released",
+        "open": "Open",
+        "closed": "Closed",
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "effected": "Effected"
+      },
+      "sections": {
+        "activeHolds": {
+          "title": "Active holds",
+          "description": "Entities currently protected from cleanup and deletion. Place holds at the user (custodian) or organization level.",
+          "empty": {
+            "title": "No active legal holds",
+            "description": "Place a custodian hold on a specific user, or an organization-wide hold from the action above."
+          }
+        },
+        "releaseRequests": {
+          "title": "Release requests",
+          "description": "Pending requests need a different admin to approve. Approved requests still wait out the cooldown before they take effect.",
+          "pendingHeader": "Pending approval",
+          "approvedHeader": "Approved (awaiting cooldown)",
+          "empty": {
+            "title": "No release requests",
+            "description": "Filed release requests appear here for dual-control review."
+          }
+        },
+        "matters": {
+          "title": "Matters",
+          "description": "Group holds by case. Closing a matter files release requests for every linked hold (still subject to dual-control approval).",
+          "empty": {
+            "title": "No matters",
+            "description": "Create a matter to group holds by case number or eDiscovery scope."
+          }
+        },
+        "history": {
+          "title": "Release history",
+          "description": "Read-only audit of effected and rejected release requests.",
+          "empty": {
+            "title": "No completed release requests yet",
+            "description": "Effected and rejected releases appear here."
+          }
+        }
+      },
+      "columns": {
+        "type": "Type",
+        "target": "Target",
+        "reason": "Reason",
+        "matter": "Matter",
+        "placedBy": "Placed by",
+        "placedAt": "Placed",
+        "actions": "Actions",
+        "status": "Status",
+        "name": "Name",
+        "caseNumber": "Case #",
+        "linkedHolds": "Linked holds",
+        "createdAt": "Created",
+        "requestedBy": "Requested by",
+        "requestedAt": "Requested",
+        "approvedBy": "Approved by",
+        "effectiveAt": "Effective",
+        "rejectReason": "Reject reason",
+        "legacy": "(legacy)"
+      },
+      "actions": {
+        "placeHold": "Place legal hold",
+        "requestRelease": "Request release",
+        "approve": "Approve",
+        "reject": "Reject",
+        "createMatter": "Create matter",
+        "editMatter": "Edit",
+        "closeMatter": "Close matter"
+      },
+      "badges": {
+        "held": "On legal hold",
+        "releasePending": "Release pending",
+        "releaseApproved": "Release approved",
+        "releaseEffective": "Effective on next cleanup",
+        "blockedByHold": "Blocked by legal hold"
+      },
+      "dialogs": {
+        "placeHold": {
+          "title": "Place legal hold",
+          "description": "Preserve content for litigation, audit, or eDiscovery. Place a custodian hold on a specific user, or an organization-wide hold. A reason is required and recorded in the audit log.",
+          "targetTypeLabel": "Target type",
+          "userPickerLabel": "User",
+          "userPickerPlaceholder": "Search by name or email",
+          "userPickerEmpty": "No matching users.",
+          "orgWarning": "Organization-wide holds freeze ALL retention for every entity in this tenant. This is a deliberate, audit-logged action — review the matter context before continuing.",
+          "orgConfirmLabel": "Type {phrase} to confirm",
+          "orgConfirmDescription": "Required for organization-wide holds. The submit button stays disabled until the phrase matches exactly.",
+          "reasonLabel": "Reason",
+          "reasonPlaceholder": "e.g. Litigation hold for Acme v. Co. (matter #2026-04)",
+          "matterLabel": "Matter (optional)",
+          "matterPlaceholder": "Pick or create a matter",
+          "matterCreateNew": "Create new matter…",
+          "submit": "Place hold"
+        },
+        "requestRelease": {
+          "title": "Request release",
+          "description": "Filing a release request kicks off a dual-control flow. A different admin must approve, and the release does not take effect until after the cooldown.",
+          "reasonLabel": "Reason",
+          "submit": "File request"
+        },
+        "approveRelease": {
+          "title": "Approve release",
+          "description": "Approving this request will release the hold after the configured cooldown. This is the second of two admin signatures.",
+          "submit": "Approve",
+          "selfApproveBlocked": "A different admin must approve. Self-approve is blocked unless the deployment is configured for single-admin mode."
+        },
+        "rejectRelease": {
+          "title": "Reject release",
+          "description": "Rejecting closes the request without releasing the hold.",
+          "reasonLabel": "Reject reason",
+          "submit": "Reject"
+        },
+        "upsertMatter": {
+          "createTitle": "Create matter",
+          "editTitle": "Edit matter",
+          "description": "Group related holds under one matter. Closing the matter later files release requests for every linked hold.",
+          "nameLabel": "Name",
+          "namePlaceholder": "e.g. Acme v. Co. (2026-04)",
+          "caseNumberLabel": "Case number (optional)",
+          "descriptionLabel": "Description (optional)",
+          "submitCreate": "Create matter",
+          "submitEdit": "Save"
+        },
+        "closeMatter": {
+          "title": "Close matter",
+          "description": "Closing this matter will file release requests for {count} active linked hold(s). Each release still requires dual-control approval before it takes effect.",
+          "reasonLabel": "Release reason",
+          "reasonPlaceholder": "e.g. Matter closed; preservation no longer required.",
+          "submit": "Close matter"
+        }
+      },
+      "toasts": {
+        "placedTitle": "Legal hold placed",
+        "placedDescription": "The {targetType} is now protected from cleanup and deletion.",
+        "releaseRequestedTitle": "Release request filed",
+        "releaseRequestedDescription": "Awaiting approval from a different admin.",
+        "releaseApprovedTitle": "Release approved",
+        "releaseRejectedTitle": "Release rejected",
+        "matterCreatedTitle": "Matter created",
+        "matterUpdatedTitle": "Matter updated",
+        "matterClosedTitle": "Matter closed",
+        "matterClosedDescription": "{count} release request(s) filed."
+      },
+      "countdown": {
+        "ready": "Ready",
+        "soon": "Less than a minute",
+        "minutesSeconds": "{minutes}m {seconds}s",
+        "hoursMinutes": "{hours}h {minutes}m",
+        "daysHours": "{days}d {hours}h"
+      },
+      "errors": {
+        "generic": {
+          "title": "Something went wrong",
+          "description": "Please try again. If the problem persists, contact your administrator."
+        },
+        "unauthenticated": "Sign in required.",
+        "forbidden": "You don't have permission to do this.",
+        "validation": "Please check the form fields.",
+        "notFound": "Not found.",
+        "alreadyActive": "An active legal hold already exists on this target.",
+        "matterNotFound": "That matter does not exist in this organization.",
+        "targetNotInOrg": "That target does not belong to this organization.",
+        "targetOrgMismatch": "Org-scoped hold target must equal the organization itself.",
+        "alreadyReleased": "This legal hold has already been released.",
+        "releaseAlreadyPending": "A release request is already pending for this hold.",
+        "releaseNotPending": "Release request is no longer in pending state.",
+        "selfApprovalBlocked": "A different admin must approve this release. Set TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true to allow self-approval in single-admin deployments.",
+        "approvalTooSoon": "Approval is allowed in {countdown}.",
+        "requesterNoLongerAdmin": "The original requester is no longer an admin of this org. Reject this request and have a current admin file a new one.",
+        "bulkTooLarge": "At most 200 entries per batch."
+      }
     },
     "modelAccess": {
       "title": "Model access",
@@ -4061,6 +4415,12 @@
       "discarded": "Discarded.",
       "deleted": "Deleted.",
       "preferencesUpdated": "Preferences updated."
+    }
+  },
+  "dataNotice": {
+    "default": "Treat this chat as you would email — avoid customer data, credentials, and unreleased information.",
+    "footer": {
+      "ariaLabel": "Confidentiality notice"
     }
   }
 }

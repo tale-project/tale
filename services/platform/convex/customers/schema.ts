@@ -1,6 +1,7 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
 import { dataSourceValidator } from '../lib/validators/common';
 import { jsonRecordValidator } from '../lib/validators/json';
 
@@ -24,8 +25,14 @@ export const customersTable = defineTable({
     }),
   ),
   metadata: v.optional(jsonRecordValidator),
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
 })
   .index('by_organizationId', ['organizationId'])
+  .index('by_organizationId_and_lifecycleStatus', [
+    'organizationId',
+    'lifecycleStatus',
+  ])
   .index('by_organizationId_and_email', ['organizationId', 'email'])
   .index('by_organizationId_and_externalId', ['organizationId', 'externalId'])
   .index('by_organizationId_and_status', ['organizationId', 'status'])

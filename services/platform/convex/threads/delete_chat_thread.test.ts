@@ -76,6 +76,16 @@ describe('deleteChatThread', () => {
       withIndex: () => dbQueryChain,
       first: vi.fn().mockResolvedValue(null),
       collect: vi.fn().mockResolvedValue([]),
+      // Round-2 fix: replaced `.collect()` with `for await` on the
+      // agentWebhookUserThreads cascade. The mock now supports async
+      // iteration so the existing tests remain green.
+      [Symbol.asyncIterator]: async function* (): AsyncGenerator<
+        { _id: string },
+        void,
+        unknown
+      > {
+        // No webhook mappings in default mock state.
+      },
     };
     const mockDb = {
       query: () => dbQueryChain,
@@ -118,15 +128,25 @@ describe('deleteChatThread', () => {
     );
   });
 
-  it('should archive threadMetadata when present', async () => {
+  it('should soft-trash threadMetadata when present (user-trash mode)', async () => {
     const summary = JSON.stringify({ chatType: 'general' });
     const { ctx, mockPatch, dbQueryChain } = createMockCtx(summary);
-    const mockRecord = { _id: 'meta_1' };
+    // dbQueryChain.first is consulted twice: once for legalHolds (no row,
+    // returns the same default-undefined), once for threadMetadata.
+    const mockRecord = { _id: 'meta_1', organizationId: undefined };
     dbQueryChain.first.mockResolvedValue(mockRecord);
 
     await deleteChatThread(ctx, 'parent_1');
 
-    expect(mockPatch).toHaveBeenCalledWith('meta_1', { status: 'deleted' });
+    // Default mode is 'user-trash': flips status to 'trashed' AND sets
+    // statusChangedAt. We don't pin the timestamp so just assert shape.
+    expect(mockPatch).toHaveBeenCalledWith(
+      'meta_1',
+      expect.objectContaining({
+        status: 'trashed',
+        statusChangedAt: expect.any(Number),
+      }),
+    );
   });
 
   it('should not patch threadMetadata when not found', async () => {
@@ -181,13 +201,14 @@ describe('deleteChatThread', () => {
     const { ctx, mockDelete, dbQueryChain } = createMockCtx(
       JSON.stringify({ chatType: 'general' }),
     );
-    // First `query().withIndex().first()` → threadMetadata (returns null so the
-    // patch path is skipped). Second chain terminates in `.collect()` for
-    // the webhook mappings; return two rows so we can assert the cascade.
-    dbQueryChain.collect.mockResolvedValueOnce([
-      { _id: 'mapping_a' },
-      { _id: 'mapping_b' },
-    ]);
+    // The webhook cascade now iterates via `for await` instead of
+    // `.collect()`. Override the chain's async iterator to yield two
+    // mappings; the chain's `.first()` (used elsewhere for
+    // threadMetadata) still returns null so the patch path is skipped.
+    dbQueryChain[Symbol.asyncIterator] = async function* () {
+      yield { _id: 'mapping_a' };
+      yield { _id: 'mapping_b' };
+    };
 
     await deleteChatThread(ctx, 'parent_1');
 

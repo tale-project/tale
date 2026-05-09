@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 
 import { useActionQuery } from '@/app/hooks/use-action-query';
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { GOVERNANCE_POLICY_TYPES } from '@/convex/governance/schema';
+import type { SoftDeleteResourceType } from '@/convex/governance/soft_delete_validators';
 import {
   CHAT_MAX_FILE_SIZE,
   CHAT_UPLOAD_ALLOWED_TYPES,
@@ -124,6 +126,124 @@ export function useModerationSecretStatus(organizationId: string) {
   );
 }
 
+/**
+ * Banner feed for the operator-side bounds proposal gate.
+ *
+ * One-shot fetch (TanStack Query, no Convex reactivity) — bounds change
+ * rarely and the banner only needs to refetch on mount + after the
+ * admin clicks Apply/Reject (mutation hooks invalidate this key).
+ *
+ * Returns `null` when nothing is pending: applied bounds match the
+ * operator's current effective bounds, OR the admin already rejected
+ * the current hash and the operator hasn't edited since.
+ */
+export function usePendingBoundsProposal(organizationId: string) {
+  return useActionQuery(
+    ['retention-bounds-proposal', organizationId],
+    api.governance.retention_bounds_proposal.getPendingBoundsProposal,
+    { organizationId },
+  );
+}
+
+type LegalHoldTargetType =
+  | 'thread'
+  | 'document'
+  | 'execution'
+  | 'userMembership'
+  | 'org';
+
+type LegalHoldStatus = 'active' | 'released' | 'all';
+
+type LegalReleaseStatus = 'pending' | 'approved' | 'rejected' | 'effected';
+
+type LegalMatterStatus = 'open' | 'closed' | 'all';
+
+export function useLegalHolds(
+  organizationId: string | undefined,
+  options?: { status?: LegalHoldStatus; targetType?: LegalHoldTargetType },
+) {
+  return useConvexQuery(
+    api.governance.legal_hold_queries.listLegalHolds,
+    organizationId
+      ? {
+          organizationId,
+          status: options?.status,
+          targetType: options?.targetType,
+        }
+      : 'skip',
+  );
+}
+
+export function useLegalMatters(
+  organizationId: string | undefined,
+  options?: { status?: LegalMatterStatus },
+) {
+  return useConvexQuery(
+    api.governance.legal_hold_queries.listLegalMatters,
+    organizationId ? { organizationId, status: options?.status } : 'skip',
+  );
+}
+
+export function useLegalHoldReleaseRequests(
+  organizationId: string | undefined,
+  status: LegalReleaseStatus,
+) {
+  return useConvexQuery(
+    api.governance.legal_hold_queries.listLegalHoldReleaseRequests,
+    organizationId ? { organizationId, status } : 'skip',
+  );
+}
+
+export function useLegalHoldReleaseRequestsPaginated(args: {
+  organizationId: string | undefined;
+  status: LegalReleaseStatus;
+  initialNumItems?: number;
+}) {
+  return useCachedPaginatedQuery(
+    api.governance.legal_hold_queries.listLegalHoldReleaseRequestsPaginated,
+    args.organizationId
+      ? { organizationId: args.organizationId, status: args.status }
+      : 'skip',
+    { initialNumItems: args.initialNumItems ?? 25 },
+  );
+}
+
+export function useLegalHoldByTarget(args: {
+  organizationId: string | undefined;
+  targetType: LegalHoldTargetType;
+  targetId: string | undefined;
+}) {
+  return useConvexQuery(
+    api.governance.legal_hold_queries.getLegalHoldByTarget,
+    args.organizationId && args.targetId
+      ? {
+          organizationId: args.organizationId,
+          targetType: args.targetType,
+          targetId: args.targetId,
+        }
+      : 'skip',
+  );
+}
+
+export function useActiveHoldTargetIds(args: {
+  organizationId: string | undefined;
+  targetType: LegalHoldTargetType;
+}) {
+  return useConvexQuery(
+    api.governance.legal_hold_queries.listActiveHoldTargetIds,
+    args.organizationId
+      ? { organizationId: args.organizationId, targetType: args.targetType }
+      : 'skip',
+  );
+}
+
+export function useOrgMembersForPicker(organizationId: string | undefined) {
+  return useConvexQuery(
+    api.governance.legal_hold_queries.listOrgMembersForPicker,
+    organizationId ? { organizationId } : 'skip',
+  );
+}
+
 export function useUploadPolicy(organizationId: string): UploadPolicyLimits {
   const { data: policy } = useGovernancePolicy(organizationId, 'upload_policy');
 
@@ -157,4 +277,26 @@ export function useUploadPolicy(organizationId: string): UploadPolicyLimits {
       policyEnabled: true,
     };
   }, [policy]);
+}
+
+export function useListTrashedRows(
+  organizationId: string,
+  args: {
+    resourceTypes?: SoftDeleteResourceType[];
+    cursor?: { ts: number; id: string } | null;
+    limit?: number;
+  },
+  enabled: boolean,
+) {
+  return useConvexQuery(
+    api.governance.queries.listTrashedRows,
+    enabled
+      ? {
+          organizationId,
+          resourceTypes: args.resourceTypes,
+          cursor: args.cursor ?? null,
+          limit: args.limit,
+        }
+      : 'skip',
+  );
 }

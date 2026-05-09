@@ -9,6 +9,72 @@ import {
   auditLogStatusValidator,
 } from './validators';
 
+/**
+ * HMAC-SHA256 sign the checkpoint contents with the operator's
+ * deploy-time signing key. Returns `undefined` when no key is set —
+ * the chain is still tamper-evident via the SHA-256 chain; the
+ * signature is defense-in-depth against an attacker who can both
+ * delete the chain prefix AND forge a checkpoint over it.
+ *
+ * Key rotation: when an operator rotates `TALE_AUDIT_SIGNING_KEY`,
+ * older checkpoints verify against the old key (kept in
+ * `TALE_AUDIT_SIGNING_KEY_PREVIOUS` until the next rotation cycle).
+ * `verify_integrity.ts` tries both during walk.
+ */
+/**
+ * Signature payload schema version. v1 (the original) signed only the
+ * cut-window descriptor. v2 also binds `subtype` and `scrubbedSubjectId`,
+ * so an attacker who captures a `retention` checkpoint's HMAC cannot
+ * replay it as a forged `pii_scrub` checkpoint with an arbitrary subject
+ * id. Verifier dispatches by version; v1 stays valid for the lifetime
+ * of historical rows (audit chain is append-only).
+ */
+const SIGNATURE_VERSION = 2 as const;
+
+async function signCheckpoint(payload: {
+  organizationId: string;
+  subtype: 'retention' | 'pii_scrub';
+  lastDeletedHash: string;
+  firstRetainedPreviousHash: string | undefined;
+  maxDeletedTimestamp: number;
+  deletedCount: number;
+  scrubbedSubjectId: string | undefined;
+}): Promise<string | undefined> {
+  const key = process.env.TALE_AUDIT_SIGNING_KEY;
+  if (!key) return undefined;
+  // v2 canonical form. Field order is significant — DO NOT reorder, and
+  // append new fields at the end if v3 is ever introduced. The verifier
+  // re-builds the same string from stored row fields.
+  const canonical = JSON.stringify({
+    organizationId: payload.organizationId,
+    lastDeletedHash: payload.lastDeletedHash,
+    firstRetainedPreviousHash: payload.firstRetainedPreviousHash ?? null,
+    maxDeletedTimestamp: payload.maxDeletedTimestamp,
+    deletedCount: payload.deletedCount,
+    subtype: payload.subtype,
+    scrubbedSubjectId: payload.scrubbedSubjectId ?? null,
+  });
+  const enc = new TextEncoder();
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(key),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const sig = await crypto.subtle.sign(
+    'HMAC',
+    cryptoKey,
+    enc.encode(canonical),
+  );
+  // V8 mutation runtime does NOT reliably provide `Buffer`; this file has no
+  // `'use node'` directive (mutations run in Convex V8). Use the same hex
+  // pattern as `lib/helpers/audit_hash.ts:computeAuditHash`.
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 export const createAuditLog = internalMutation({
   args: {
     organizationId: v.string(),
@@ -28,6 +94,8 @@ export const createAuditLog = internalMutation({
     ipAddress: v.optional(v.string()),
     userAgent: v.optional(v.string()),
     requestId: v.optional(v.string()),
+    actorEmailHash: v.optional(v.string()),
+    actorIpHash: v.optional(v.string()),
     status: auditLogStatusValidator,
     errorMessage: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
@@ -54,19 +122,49 @@ export const logJoinedOrganization = internalMutation({
   },
 });
 
-export const archiveOldLogs = internalMutation({
+/**
+ * Hard-delete audit-log rows older than `olderThanTimestamp`.
+ *
+ * Phase 9 — chain integrity:
+ *   The audit_logs table maintains a SHA-256 chain via
+ *   `previousHash`/`integrityHash` (audit_logs/helpers.ts). Hard-deleting
+ *   the chain prefix breaks `verify_integrity.ts` for every retained
+ *   successor: the oldest retained row's `previousHash` references a
+ *   row that no longer exists. To preserve detectability across the
+ *   archive boundary, this mutation writes a row to
+ *   `auditLogCheckpoints` capturing the last deleted row's
+ *   `integrityHash` and the count + max timestamp of deleted rows.
+ *   `verify_integrity.ts` walks checkpoint→checkpoint to re-anchor the
+ *   chain after a retention cut.
+ *
+ * Was named `archiveOldLogs` despite hard-deleting; renamed for honesty.
+ * The legacy export name is re-exported below for backward compat with
+ * any external scheduler-config that still references it.
+ */
+export const deleteOldLogs = internalMutation({
   args: {
     organizationId: v.string(),
     olderThanTimestamp: v.number(),
     batchSize: v.optional(v.number()),
+    /**
+     * UserIds whose audit rows must be preserved despite age (they are
+     * on a custodian hold). Skipped at the per-row level — `actorId`
+     * matches OR `resourceId` matches when `resourceType === 'user'` /
+     * `'userMembership'`. FRCP 37(e) spoliation defense. Round-2 review
+     * CRITICAL #11.
+     */
+    protectedUserIds: v.optional(v.array(v.string())),
   },
   returns: v.object({
-    archivedCount: v.number(),
+    deletedCount: v.number(),
     hasMore: v.boolean(),
   }),
   handler: async (ctx, args) => {
     const batchSize = args.batchSize ?? 100;
-    let archivedCount = 0;
+    const protectedUserIds = new Set(args.protectedUserIds ?? []);
+    let deletedCount = 0;
+    let lastDeletedHash = '';
+    let maxDeletedTimestamp = 0;
 
     for await (const log of ctx.db
       .query('auditLogs')
@@ -78,33 +176,211 @@ export const archiveOldLogs = internalMutation({
         break;
       }
 
-      await ctx.db.delete(log._id);
-      archivedCount++;
+      // Skip rows whose actor OR user-typed resource is on a custodian
+      // hold. Cross-cutting iteration: we keep paging until we find a
+      // deletable row OR exhaust this batch. (`hasMore` below uses
+      // `deletedCount` rather than scanned count, so a window full of
+      // protected rows correctly reports `hasMore: false` when nothing
+      // was deletable in this slice — the cleanup will revisit later.)
+      const targetIsHeldUser =
+        (log.resourceType === 'user' ||
+          log.resourceType === 'userMembership') &&
+        log.resourceId !== undefined &&
+        protectedUserIds.has(log.resourceId);
+      if (protectedUserIds.has(log.actorId) || targetIsHeldUser) {
+        continue;
+      }
 
-      if (archivedCount >= batchSize) {
+      // Track the chain head we're deleting so the checkpoint can
+      // anchor the retained chain.
+      if (log.integrityHash) {
+        lastDeletedHash = log.integrityHash;
+      }
+      if (log.timestamp > maxDeletedTimestamp) {
+        maxDeletedTimestamp = log.timestamp;
+      }
+
+      await ctx.db.delete(log._id);
+      deletedCount++;
+
+      if (deletedCount >= batchSize) {
         break;
       }
     }
 
-    if (archivedCount > 0) {
+    const hasMore = deletedCount >= batchSize;
+
+    if (deletedCount > 0) {
+      // `firstRetainedPreviousHash` is signed and stored ONLY on the
+      // terminal batch. Mid-sweep batches have a "first retained" row
+      // that the next batch will itself delete, so signing a pointer to
+      // it would attest to an already-deleted anchor. The verifier
+      // re-anchors via `lastDeletedHash` (correct in every batch); the
+      // forward pointer is a defense-in-depth nicety reserved for the
+      // final batch where it is actually durable (round-2 v01 H1).
+      const firstRetained = hasMore
+        ? null
+        : await ctx.db
+            .query('auditLogs')
+            .withIndex('by_organizationId_and_timestamp', (q) =>
+              q.eq('organizationId', args.organizationId),
+            )
+            .order('asc')
+            .first();
+
+      // Phase 9 — deploy-key signature. The signing key lives in
+      // `TALE_AUDIT_SIGNING_KEY` (operator-set, ideally rotated via
+      // SOPS in production). Without a key the checkpoint is still
+      // written but `signature` stays undefined — the chain is
+      // tamper-evident through the SHA-256 chain itself; the signature
+      // is defense-in-depth against an attacker who can both delete a
+      // chain row AND write a fresh checkpoint over it.
+      const signature = await signCheckpoint({
+        organizationId: args.organizationId,
+        subtype: 'retention',
+        lastDeletedHash,
+        firstRetainedPreviousHash: firstRetained?.previousHash,
+        maxDeletedTimestamp,
+        deletedCount,
+        scrubbedSubjectId: undefined,
+      });
+      await ctx.db.insert('auditLogCheckpoints', {
+        organizationId: args.organizationId,
+        subtype: 'retention',
+        lastDeletedHash,
+        firstRetainedPreviousHash: firstRetained?.previousHash,
+        maxDeletedTimestamp,
+        deletedCount,
+        signature,
+        signatureVersion: signature ? SIGNATURE_VERSION : undefined,
+        createdAt: Date.now(),
+      });
+
       await AuditLogHelpers.createAuditLog(ctx, {
         organizationId: args.organizationId,
         actorId: 'system',
         actorType: 'system',
-        action: 'audit_log.archived',
+        action: 'audit_log.retention_deleted',
         category: 'admin',
         resourceType: 'audit_log_archive',
         status: 'success',
         metadata: {
-          archivedCount,
+          deletedCount,
           olderThanTimestamp: args.olderThanTimestamp,
+          checkpointHash: lastDeletedHash,
         },
       });
     }
 
     return {
-      archivedCount,
-      hasMore: archivedCount >= batchSize,
+      deletedCount,
+      hasMore,
     };
+  },
+});
+
+/**
+ * GDPR Art 17 audit-chain PII scrub.
+ *
+ * Strategy: KEEP the row (so the audit trail of "user X did Y at time
+ * T" remains for compliance / forensics), but blank the PII payload —
+ * `actorEmail`, `ipAddress`, `userAgent`, `previousState`, `newState`,
+ * `metadata`. The row is marked `piiScrubbed: true`, `piiScrubbedAt`
+ * captured. After scrubbing the per-org integrity chain hashes stop
+ * matching the canonical recompute on these rows; an
+ * `auditLogCheckpoints` row with `subtype: 'pii_scrub'` is inserted +
+ * signed so `verifyIntegrity` accepts the divergence as intentional.
+ *
+ * Per Art 17(3)(b)/(e), the row's existence (timestamp, action,
+ * resource type) is permitted to remain — the scrubbed body
+ * extinguishes the personal data while preserving the operator's
+ * compliance + accountability obligations.
+ *
+ * Idempotent: rows already marked `piiScrubbed: true` are skipped.
+ */
+export const scrubSubjectAuditLogs = internalMutation({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+  },
+  returns: v.object({ scrubbedRowCount: v.number() }),
+  handler: async (ctx, args) => {
+    let scrubbedRowCount = 0;
+    let lastScrubbedHash = '';
+    let maxScrubbedTimestamp = 0;
+    const now = Date.now();
+
+    for await (const log of ctx.db
+      .query('auditLogs')
+      .withIndex('by_organizationId_and_actorId', (q) =>
+        q.eq('organizationId', args.organizationId).eq('actorId', args.userId),
+      )) {
+      if (log.piiScrubbed === true) continue;
+      const patch: Partial<typeof log> & {
+        piiScrubbed: true;
+        piiScrubbedAt: number;
+      } = {
+        actorEmail: undefined,
+        actorRole: undefined,
+        ipAddress: undefined,
+        userAgent: undefined,
+        previousState: undefined,
+        newState: undefined,
+        metadata: undefined,
+        // Round-2 V6 P0-16: peppered hashes (`actorEmailHash` /
+        // `actorIpHash`) are pseudonymized PII per GDPR Art 4(5) and
+        // must be cleared alongside the plaintext columns. Without
+        // this, scrubbed rows still carry a stable identifier for the
+        // subject — re-identification is possible by the controller
+        // (or anyone with the pepper) by hashing a known email and
+        // matching. The signed `pii_scrub` checkpoint window already
+        // permits the row's hash to diverge from its original (the
+        // verifier skips chain re-compute inside the window), so
+        // clearing these columns is chain-safe.
+        actorEmailHash: undefined,
+        actorIpHash: undefined,
+        piiScrubbed: true,
+        piiScrubbedAt: now,
+      };
+      await ctx.db.patch(log._id, patch);
+      scrubbedRowCount++;
+      if (log.integrityHash) lastScrubbedHash = log.integrityHash;
+      if (log.timestamp > maxScrubbedTimestamp) {
+        maxScrubbedTimestamp = log.timestamp;
+      }
+    }
+
+    if (scrubbedRowCount === 0) return { scrubbedRowCount: 0 };
+
+    // Insert a signed boundary so the verifier knows hash recomputes
+    // on scrubbed rows are expected to mismatch. v2 binds `subtype` and
+    // `scrubbedSubjectId` into the HMAC payload so the signature
+    // attests *which* subject's rows the scrub authorized — without
+    // this, a captured retention HMAC could be replayed with arbitrary
+    // subject ids.
+    const signature = await signCheckpoint({
+      organizationId: args.organizationId,
+      subtype: 'pii_scrub',
+      lastDeletedHash: lastScrubbedHash,
+      firstRetainedPreviousHash: undefined,
+      maxDeletedTimestamp: maxScrubbedTimestamp,
+      deletedCount: scrubbedRowCount,
+      scrubbedSubjectId: args.userId,
+    });
+    await ctx.db.insert('auditLogCheckpoints', {
+      organizationId: args.organizationId,
+      subtype: 'pii_scrub',
+      lastDeletedHash: lastScrubbedHash,
+      firstRetainedPreviousHash: undefined,
+      maxDeletedTimestamp: maxScrubbedTimestamp,
+      deletedCount: scrubbedRowCount,
+      scrubbedSubjectId: args.userId,
+      scrubbedRowCount,
+      signature,
+      signatureVersion: signature ? SIGNATURE_VERSION : undefined,
+      createdAt: now,
+    });
+
+    return { scrubbedRowCount };
   },
 });

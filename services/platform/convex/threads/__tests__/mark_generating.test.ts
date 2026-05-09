@@ -2,6 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../_generated/server', () => ({
   internalMutation: ({ handler }: { handler: Function }) => handler,
+  // Adds for the side-imports pulled in via legal_hold (placeLegalHold etc.)
+  // when the helper transitively loads now that delete_chat_thread imports
+  // loadActiveHolds. The mocked passthrough is fine because none of these
+  // are exercised by the tests in this file.
+  mutation: ({ handler }: { handler: Function }) => handler,
+  query: ({ handler }: { handler: Function }) => handler,
+  internalQuery: ({ handler }: { handler: Function }) => handler,
 }));
 
 const mockGetAuthUserIdentity = vi.fn();

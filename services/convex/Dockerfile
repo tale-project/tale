@@ -44,10 +44,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && groupadd --system --gid 1001 app || true \
     && useradd --system --uid 1001 --gid app app || true \
     && mkdir -p /home/app && chown app:app /home/app && chmod 755 /home/app \
-    && mkdir -p /app/data/convex /app/data/agents /app/data/workflows /app/data/integrations /app/data/providers /app/data/branding \
+    && mkdir -p /app/data/convex /app/data/agents /app/data/workflows /app/data/integrations /app/data/providers /app/data/branding /app/data/retention \
                 /dashboard \
-                /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin /app/branding-builtin \
-    && chown -R app:app /app/data /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin /app/branding-builtin \
+                /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin /app/branding-builtin /app/retention-builtin \
+    && chown -R app:app /app/data /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin /app/branding-builtin /app/retention-builtin \
     # Strip system bloat from Convex backend base (~155 MB)
     && ARCH_LIB="/usr/lib/$(dpkg --print-architecture | sed 's/amd64/x86_64-linux-gnu/;s/arm64/aarch64-linux-gnu/')" \
     && rm -rf "${ARCH_LIB}"/libLLVM* "${ARCH_LIB}"/libclang* \
@@ -95,6 +95,13 @@ ENV NODE_ENV=production \
     # Sub-dirs (agents/workflows/integrations/providers) are derived inside
     # Convex via `convex/*/file_utils.ts` — no need to set them explicitly.
     TALE_CONFIG_DIR=/app/data
+    # NOTE: RAG_AUTH_TOKEN is not baked into the image. If set on BOTH
+    # the platform/convex container and the RAG container (values must
+    # match), every platform-to-RAG request carries
+    # `Authorization: Bearer ${RAG_AUTH_TOKEN}` and RAG rejects mismatches
+    # with 401. If unset, RAG runs unauthenticated — only safe when the
+    # RAG port is bound to a private network. Auth is presence-based:
+    # there is no dev-only fallback token.
 
 # ----------------------------------------------------------------------------
 # Convex Dashboard (Next.js standalone) — served as /convex-dashboard via Caddy
@@ -110,6 +117,7 @@ COPY --chown=app:app examples/workflows/    /app/workflows-builtin/
 COPY --chown=app:app examples/integrations/ /app/integrations-builtin/
 COPY --chown=app:app examples/providers/    /app/providers-builtin/
 COPY --chown=app:app examples/branding/     /app/branding-builtin/
+COPY --chown=app:app examples/retention/    /app/retention-builtin/
 
 # ----------------------------------------------------------------------------
 # Entrypoint scripts

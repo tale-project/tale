@@ -35,6 +35,20 @@ interface FileAttachment {
 
 interface ConvexFileUploadConfig {
   organizationId: string;
+  /**
+   * The chat thread the upload belongs to. When provided, the
+   * `fileMetadata` row is bound to the thread so its lifecycle
+   * (trash → grace → hard-delete + restore) cascades to the file,
+   * and access checks scope chat-uploaded RAG content to the
+   * thread + its delegation ancestors.
+   *
+   * Optional: a fresh chat composes attachments before the thread
+   * exists (the thread is created on first send). Those uploads
+   * happen with `threadId === undefined` and bind retroactively only
+   * if the API gets extended later — for v1 the legacy/grandfather
+   * path keeps them readable to the agent in the same org.
+   */
+  threadId?: string;
   maxFileSize?: number;
   allowedTypes?: string[];
 }
@@ -300,6 +314,9 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
               contentType: resolvedType || 'application/octet-stream',
               size: fileToUpload.size,
               source: 'user' as const,
+              ...(config.threadId !== undefined && {
+                threadId: config.threadId,
+              }),
             });
 
             const attachment: FileAttachment = {
@@ -337,6 +354,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
       generateUploadUrl,
       saveFileMetadata,
       config.organizationId,
+      config.threadId,
       mergedConfig,
       policyLimits,
       t,

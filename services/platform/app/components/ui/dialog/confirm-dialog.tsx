@@ -4,6 +4,7 @@ import { Button } from '@tale/ui/button';
 import { cva } from 'class-variance-authority';
 import * as React from 'react';
 
+import { Input } from '@/app/components/ui/forms/input';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -48,6 +49,16 @@ export interface ConfirmDialogProps {
   variant?: 'default' | 'destructive';
   /** Additional className for DialogContent */
   className?: string;
+  /**
+   * When set, render an `<Input>` between description and footer; the
+   * confirm button stays disabled until the trimmed input matches the
+   * phrase exactly. Used for high-stakes destructive flows like
+   * restoring a retention-expired row, where we want the admin to
+   * deliberately type a confirmation token.
+   */
+  requireConfirmPhrase?: string;
+  /** Optional label shown above the type-to-confirm input. */
+  requireConfirmPhraseLabel?: string;
 }
 
 /**
@@ -68,8 +79,21 @@ export function ConfirmDialog({
   onConfirm,
   variant = 'default',
   className,
+  requireConfirmPhrase,
+  requireConfirmPhraseLabel,
 }: ConfirmDialogProps) {
   const { t: tCommon } = useT('common');
+  const [phraseInput, setPhraseInput] = React.useState('');
+
+  // Reset the type-to-confirm input whenever the dialog re-opens, so a
+  // previously-typed phrase doesn't auto-enable a fresh confirm step.
+  React.useEffect(() => {
+    if (open) setPhraseInput('');
+  }, [open, requireConfirmPhrase]);
+
+  const phraseSatisfied =
+    requireConfirmPhrase === undefined ||
+    phraseInput.trim() === requireConfirmPhrase;
 
   const handleClose = () => {
     if (!isLoading) {
@@ -97,7 +121,7 @@ export function ConfirmDialog({
           e.stopPropagation();
           onConfirm();
         }}
-        disabled={isLoading || disableConfirm}
+        disabled={isLoading || disableConfirm || !phraseSatisfied}
         className={cn(confirmButtonVariants({ variant }))}
       >
         {isLoading
@@ -117,6 +141,23 @@ export function ConfirmDialog({
       className={className}
     >
       {children}
+      {requireConfirmPhrase !== undefined && (
+        <div className="mt-3 flex flex-col gap-1">
+          <Input
+            label={
+              requireConfirmPhraseLabel ??
+              tCommon('confirmDialog.typeToConfirmLabel', {
+                phrase: requireConfirmPhrase,
+              })
+            }
+            value={phraseInput}
+            onChange={(e) => setPhraseInput(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+            size="sm"
+          />
+        </div>
+      )}
     </Dialog>
   );
 }

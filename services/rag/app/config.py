@@ -22,6 +22,13 @@ class Settings(BaseServiceSettings):
     # Override base defaults
     port: int = 8001
 
+    # Shared-secret auth token. When set (via `RAG_AUTH_TOKEN` env), every
+    # request to the RAG service must carry `Authorization: Bearer <token>`
+    # and the platform-side `RAG_AUTH_TOKEN` must match. When unset, the
+    # service runs unauthenticated — only safe when the RAG port is bound
+    # to a private network. Startup logs a SECURITY warning if unset.
+    auth_token: str | None = None
+
     # Database pool sizing
     database_pool_min: int = 2
     database_pool_max: int = 10
@@ -51,10 +58,6 @@ class Settings(BaseServiceSettings):
     semantic_cache_enabled: bool = False
     semantic_cache_similarity_threshold: float = 0.95
     semantic_cache_ttl_hours: int = 24
-
-    # LLM response cache (semantic similarity)
-    llm_cache_similarity_threshold: float = 0.95
-    llm_cache_ttl_hours: int = 24
 
     # Re-ranking (cross-encoder)
     reranking_enabled: bool = False

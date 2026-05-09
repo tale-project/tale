@@ -10,10 +10,24 @@ import { productStatusValidator, productDocValidator } from './validators';
 export const getProductById = internalQuery({
   args: {
     productId: v.id('products'),
+    /**
+     * Caller's organizationId — closes the cross-tenant read IDOR on
+     * REST `GET /api/v1/products/:id`. Optional for in-process callers;
+     * REST handlers MUST pass this.
+     */
+    callerOrgId: v.optional(v.string()),
   },
   returns: v.union(productDocValidator, v.null()),
   handler: async (ctx, args): Promise<Doc<'products'> | null> => {
-    return await ProductsHelpers.getProductById(ctx, args.productId);
+    const row = await ProductsHelpers.getProductById(ctx, args.productId);
+    if (!row) return null;
+    if (
+      args.callerOrgId !== undefined &&
+      row.organizationId !== args.callerOrgId
+    ) {
+      return null;
+    }
+    return row;
   },
 });
 

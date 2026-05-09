@@ -101,8 +101,6 @@ const serializableAgentConfigValidator = v.object({
   structuredResponsesEnabled: v.optional(v.boolean()),
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
-  responseCacheEnabled: v.optional(v.boolean()),
-  responseCacheTtlMs: v.optional(v.number()),
   fallbackModels: v.optional(v.array(v.string())),
   personalizationMode: v.optional(v.union(v.literal('on'), v.literal('off'))),
 });
@@ -454,8 +452,6 @@ export const runAgentGeneration = internalAction({
               knowledgeFileIds: agentConfig.knowledgeFileIds,
               structuredResponsesEnabled:
                 agentConfig.structuredResponsesEnabled,
-              responseCacheEnabled: agentConfig.responseCacheEnabled,
-              responseCacheTtlMs: agentConfig.responseCacheTtlMs,
               maxContextTokens,
               instructions: finalInstructions,
               toolsSummary,

@@ -311,8 +311,15 @@ export const recoverStuckTranscriptions = internalMutation({
   returns: v.null(),
   handler: async (ctx) => {
     const cutoff = Date.now() - 35 * 60 * 1000;
-    for await (const row of ctx.db.query('fileMetadata')) {
-      if (row.transcriptionStatus === 'running' && row._creationTime < cutoff) {
+    // Index-range chain on transcriptionStatus so the cron pays only for
+    // rows currently `'running'` instead of scanning the whole table
+    // every 5 minutes (round-2 M2).
+    for await (const row of ctx.db
+      .query('fileMetadata')
+      .withIndex('by_transcriptionStatus', (q) =>
+        q.eq('transcriptionStatus', 'running'),
+      )) {
+      if (row._creationTime < cutoff) {
         await ctx.db.patch(row._id, {
           transcriptionStatus: 'failed',
           transcriptionError: 'Transcription timed out (watchdog)',

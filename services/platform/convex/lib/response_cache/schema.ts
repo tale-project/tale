@@ -1,6 +1,13 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+/**
+ * @deprecated Retained only for schema-validation compatibility on
+ * deployments that hold prior cache rows. Read/write code paths were
+ * removed in 83a3c28da. A follow-up release will purge legacy rows and
+ * drop the table once all environments have completed the inactivity
+ * window.
+ */
 export const llmResponseCacheTable = defineTable({
   cacheKey: v.string(),
   responseText: v.string(),

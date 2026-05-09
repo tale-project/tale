@@ -9,6 +9,7 @@ import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Text } from '@/app/components/ui/typography/text';
+import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -42,6 +43,19 @@ export function ChatActions({
 
   const { t: tCommon } = useT('common');
   const { t: tChat } = useT('chat');
+  const { t: tGovernance } = useT('governance');
+
+  // Read-only consultation so archive/delete can show "blocked by legal
+  // hold". The query is reactive: a hold placed via the panel (which is
+  // the only entry point for placing holds since the User+Org refactor)
+  // automatically disables these buttons. Cascade-includes user-custodian
+  // hits via the thread author.
+  const { data: hold } = useLegalHoldByTarget({
+    organizationId,
+    targetType: 'thread',
+    targetId: chat.id,
+  });
+  const isHeld = hold !== null && hold !== undefined;
 
   const { mutate: deleteThread, isPending: isDeleting } = useDeleteThread();
   const { mutate: archiveThread, isPending: isArchiving } = useArchiveThread();
@@ -137,31 +151,48 @@ export function ChatActions({
 
   if (isArchived) {
     return (
-      <ActionRow gap={1}>
-        <Tooltip content={tChat('unarchive')} side="bottom">
-          <Button
-            variant="ghost"
-            className="p-1"
-            size="icon"
-            onClick={handleUnarchive}
-            disabled={isUnarchiving}
-            aria-label={tChat('unarchive')}
+      <>
+        <ActionRow gap={1}>
+          <Tooltip
+            content={
+              isHeld
+                ? tGovernance('legalHold.badges.blockedByHold')
+                : tChat('unarchive')
+            }
+            side="bottom"
           >
-            <ArchiveRestore className="size-4" />
-          </Button>
-        </Tooltip>
+            <Button
+              variant="ghost"
+              className="p-1"
+              size="icon"
+              onClick={handleUnarchive}
+              disabled={isUnarchiving || isHeld}
+              aria-label={tChat('unarchive')}
+            >
+              <ArchiveRestore className="size-4" />
+            </Button>
+          </Tooltip>
 
-        <Tooltip content={tCommon('actions.delete')} side="bottom">
-          <Button
-            variant="ghost"
-            className="p-1"
-            size="icon"
-            onClick={() => setIsDeleteDialogOpen(true)}
-            aria-label={tCommon('actions.delete')}
+          <Tooltip
+            content={
+              isHeld
+                ? tGovernance('legalHold.badges.blockedByHold')
+                : tCommon('actions.delete')
+            }
+            side="bottom"
           >
-            <Trash2 className="size-4" />
-          </Button>
-        </Tooltip>
+            <Button
+              variant="ghost"
+              className="p-1"
+              size="icon"
+              onClick={() => setIsDeleteDialogOpen(true)}
+              disabled={isHeld}
+              aria-label={tCommon('actions.delete')}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </Tooltip>
+        </ActionRow>
 
         <DeleteDialog
           open={isDeleteDialogOpen}
@@ -197,7 +228,7 @@ export function ChatActions({
           isDeleting={isDeleting}
           onDelete={handleDelete}
         />
-      </ActionRow>
+      </>
     );
   }
 
@@ -216,25 +247,40 @@ export function ChatActions({
           </Button>
         </Tooltip>
 
-        <Tooltip content={tChat('archive')} side="bottom">
+        <Tooltip
+          content={
+            isHeld
+              ? tGovernance('legalHold.badges.blockedByHold')
+              : tChat('archive')
+          }
+          side="bottom"
+        >
           <Button
             variant="ghost"
             className="p-1"
             size="icon"
             onClick={handleArchive}
-            disabled={isArchiving}
+            disabled={isArchiving || isHeld}
             aria-label={tChat('archive')}
           >
             <Archive className="size-4" />
           </Button>
         </Tooltip>
 
-        <Tooltip content={tCommon('actions.delete')} side="bottom">
+        <Tooltip
+          content={
+            isHeld
+              ? tGovernance('legalHold.badges.blockedByHold')
+              : tCommon('actions.delete')
+          }
+          side="bottom"
+        >
           <Button
             variant="ghost"
             className="p-1"
             size="icon"
             onClick={() => setIsDeleteDialogOpen(true)}
+            disabled={isHeld}
             aria-label={tCommon('actions.delete')}
           >
             <Trash2 className="size-4" />

@@ -9,7 +9,7 @@ import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { getPollingInterval } from '../documents/internal_actions';
 import { readJsonFile } from '../lib/file_io';
-import { getRagConfig } from '../lib/helpers/rag_config';
+import { ragFetch } from '../lib/helpers/rag_config';
 import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import { uploadDocument } from '../workflow_engine/action_defs/rag/helpers/upload_document';
 import type { AgentJsonConfig, AgentReadResult } from './file_utils';
@@ -33,10 +33,8 @@ export const indexKnowledgeFile = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const ragServiceUrl = getRagConfig().serviceUrl;
-
     try {
-      await uploadDocument(ctx, ragServiceUrl, String(args.fileId));
+      await uploadDocument(ctx, String(args.fileId));
 
       await ctx.scheduler.runAfter(
         INITIAL_POLLING_DELAY_MS,
@@ -95,15 +93,12 @@ export const checkKnowledgeFileStatus = internalAction({
       return null;
     }
 
-    const ragUrl = getRagConfig().serviceUrl;
-    const url = `${ragUrl}/api/v1/documents/statuses`;
-
     try {
-      const response = await fetch(url, {
+      const response = await ragFetch('/api/v1/documents/statuses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file_ids: [String(args.fileId)] }),
-        signal: AbortSignal.timeout(10000),
+        timeoutMs: 10_000,
       });
 
       if (response.status === 429 || !response.ok) {
@@ -239,11 +234,8 @@ export const deleteKnowledgeFileFromRag = internalAction({
   },
   returns: v.null(),
   handler: async (_ctx, args): Promise<null> => {
-    const ragServiceUrl = getRagConfig().serviceUrl;
-
     try {
       await deleteDocumentById({
-        ragServiceUrl,
         fileId: String(args.fileId),
       });
     } catch (error) {

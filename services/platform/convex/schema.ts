@@ -11,7 +11,7 @@ import {
 } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
 import { artifactRevisionsTable, artifactsTable } from './artifacts/schema';
-import { auditLogsTable } from './audit_logs/schema';
+import { auditLogChainGenesisTable, auditLogsTable } from './audit_logs/schema';
 import {
   brandingBindingsTable,
   brandingSettingsLegacyTable,
@@ -27,8 +27,18 @@ import { messageFeedbackTable } from './feedback/schema';
 import { fileMetadataTable } from './file_metadata/schema';
 import { foldersTable } from './folders/schema';
 import {
+  activeLegalHoldClaimsTable,
+  auditLogCheckpointsTable,
+  gdprErasureRequestsTable,
   governancePoliciesTable,
   governanceSecretsTable,
+  legalHoldReleaseRequestsTable,
+  legalHoldsTable,
+  legalMattersTable,
+  policyAcknowledgementsTable,
+  retentionAppliedBoundsTable,
+  retentionPolicyPendingChangesTable,
+  retentionRunsTable,
   usageLedgerTable,
 } from './governance/schema';
 import { integrationCredentialsTable } from './integrations/credentials_schema';
@@ -79,8 +89,19 @@ export default defineSchema({
   artifactRevisions: artifactRevisionsTable,
   artifacts: artifactsTable,
   auditLogs: auditLogsTable,
+  auditLogChainGenesis: auditLogChainGenesisTable,
   governancePolicies: governancePoliciesTable,
   governanceSecrets: governanceSecretsTable,
+  legalHolds: legalHoldsTable,
+  activeLegalHoldClaims: activeLegalHoldClaimsTable,
+  legalMatters: legalMattersTable,
+  legalHoldReleaseRequests: legalHoldReleaseRequestsTable,
+  auditLogCheckpoints: auditLogCheckpointsTable,
+  retentionRuns: retentionRunsTable,
+  retentionPolicyPendingChanges: retentionPolicyPendingChangesTable,
+  retentionAppliedBounds: retentionAppliedBoundsTable,
+  gdprErasureRequests: gdprErasureRequestsTable,
+  policyAcknowledgements: policyAcknowledgementsTable,
   chatFilterEvents: chatFilterEventsTable,
   usageLedger: usageLedgerTable,
   promptTemplates: promptTemplatesTable,
@@ -105,6 +126,7 @@ export default defineSchema({
   integrationCredentials: integrationCredentialsTable,
   /** @deprecated Retained for backward compatibility with existing data. Use integrationCredentials + file-based config. */
   integrations: integrationsTable,
+  /** @deprecated Retained only for schema-validation compatibility on deployments with prior cache rows. Read/write code removed in 83a3c28da. */
   llmResponseCache: llmResponseCacheTable,
   loginAttempts: loginAttemptsTable,
   loginBlockCounters: loginBlockCountersTable,

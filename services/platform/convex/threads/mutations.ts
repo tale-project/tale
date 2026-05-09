@@ -4,6 +4,8 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import { internalMutation, mutation } from '../_generated/server';
 import { authComponent } from '../auth';
+import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import {
   archiveChatThread as archiveChatThreadHelper,
   unarchiveChatThread as unarchiveChatThreadHelper,
@@ -157,10 +159,18 @@ export const deleteChatThread = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
       throw new Error('Unauthenticated');
     }
+
+    // Cross-tenant gate: verify the caller can read this thread before any
+    // mutation runs. The helper itself only checks legal-hold (using the
+    // target row's own orgId) and is otherwise blind to caller identity, so
+    // without this assertion any signed-in user could trash any thread by
+    // guessing the threadId. assertThreadAccess matches the same gate used
+    // by every read and by other thread mutations.
+    await assertThreadAccess(ctx, args.threadId, identity);
 
     await deleteChatThreadHelper(ctx, args.threadId);
     return null;
@@ -174,10 +184,16 @@ export const updateChatThread = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
       throw new Error('Unauthenticated');
     }
+
+    // Cross-tenant gate, same rationale as deleteChatThread above:
+    // updateChatThreadHelper looks up by threadId and is blind to caller
+    // identity, so any signed-in user could rename any thread without
+    // this assertion.
+    await assertThreadAccess(ctx, args.threadId, identity);
 
     await updateChatThreadHelper(ctx, args.threadId, args.title);
     return null;
@@ -212,10 +228,16 @@ export const archiveChatThread = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
       throw new Error('Unauthenticated');
     }
+
+    // Cross-tenant gate, same rationale as deleteChatThread above:
+    // archiveChatThreadHelper is blind to caller identity, so without
+    // this assertion any signed-in user could archive any thread by
+    // guessing the threadId.
+    await assertThreadAccess(ctx, args.threadId, identity);
 
     await archiveChatThreadHelper(ctx, args.threadId);
     return null;
@@ -228,10 +250,13 @@ export const unarchiveChatThread = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
       throw new Error('Unauthenticated');
     }
+
+    // Cross-tenant gate, same rationale as archiveChatThread above.
+    await assertThreadAccess(ctx, args.threadId, identity);
 
     await unarchiveChatThreadHelper(ctx, args.threadId);
     return null;
@@ -245,8 +270,16 @@ export const updateBranchSelections = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
+      throw new Error('Unauthenticated');
+    }
+
+    // Cross-tenant gate: without this, any authenticated user could
+    // overwrite any thread's branchSelections by guessing the threadId.
+    // Matches the pattern used by every other thread mutation in this
+    // file (delete/archive/unarchive/cancelGeneration/updateChatThread).
+    await assertThreadAccess(ctx, args.threadId, identity);
 
     const metadata = await ctx.db
       .query('threadMetadata')
@@ -417,8 +450,10 @@ export const cleanupArenaBranch = mutation({
       }
     }
 
-    // Delete Thread B
-    await deleteChatThreadHelper(ctx, args.threadIdB);
+    // Delete Thread B — arena losers are ephemeral internal artifacts.
+    // Use the internal-cascade mode so it does NOT enter the user's
+    // Trash (the user never saw Thread B as a separate entity).
+    await deleteChatThreadHelper(ctx, args.threadIdB, 'internal-cascade');
 
     // Remove all branch links for Thread B (there may be multiple from old
     // data written before createArenaBranchLink was made idempotent).

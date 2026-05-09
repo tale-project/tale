@@ -255,7 +255,7 @@ export function ChatInterface({
     uploadFiles,
     removeAttachment,
     clearAttachments,
-  } = useConvexFileUpload({ organizationId });
+  } = useConvexFileUpload({ organizationId, threadId });
 
   const { isIndexing, statusMap: indexingStatuses } =
     useFileIndexingStatus(attachments);

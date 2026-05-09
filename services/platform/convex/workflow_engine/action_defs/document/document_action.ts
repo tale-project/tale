@@ -17,7 +17,6 @@ import { fetchDocumentComparisonByUrls } from '../../../agent_tools/documents/he
 import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fetch_document_content';
 import { getDocumentEffectiveDate } from '../../../documents/transform_to_document_item';
 import type { DocumentMetadata } from '../../../documents/types';
-import { getRagConfig } from '../../../lib/helpers/rag_config';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import { jsonRecordValidator } from '../../../lib/validators/json';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
@@ -268,8 +267,33 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       }
 
       case 'retrieve': {
-        const { serviceUrl } = getRagConfig();
-        return await fetchDocumentContent(serviceUrl, params.fileId, {
+        // Cross-org gate: `_variables.organizationId` is set by
+        // `initializeExecutionVariables` from `args.organizationId` (which
+        // is verified at trigger time). `params.fileId` may flow in from
+        // a prior step's output, so we must reject any fileId that does
+        // not have a `documents` row in this org. The agent-tool
+        // equivalent (`retrieveDocument`) enforces the same gate via
+        // `findDocumentByFileId` + `getAccessibleDocumentIds`; the
+        // workflow path was missing it.
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+        if (!organizationId) {
+          throw new Error(
+            'organizationId is required in workflow variables to retrieve a document',
+          );
+        }
+        const ownsDocument = await ctx.runQuery(
+          internal.documents.internal_queries.findDocumentByFileId,
+          { organizationId, fileId: params.fileId },
+        );
+        if (!ownsDocument) {
+          throw new Error(
+            `Document with file ID "${params.fileId}" not found in this organization`,
+          );
+        }
+        return await fetchDocumentContent(params.fileId, {
           chunkStart: params.chunkStart,
           chunkEnd: params.chunkEnd,
           returnChunks: params.returnChunks,
@@ -302,7 +326,32 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       }
 
       case 'compare': {
-        const { serviceUrl } = getRagConfig();
+        // Cross-org gate: same rationale as `retrieve` — workflow params
+        // can carry caller-controlled storage ids from upstream steps,
+        // and Convex `_storage` is a global namespace. The public
+        // `compareDocuments` action enforces this with
+        // `verifyStorageIdsBelongToOrg`; the workflow path must too.
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+        if (!organizationId) {
+          throw new Error(
+            'organizationId is required in workflow variables to compare documents',
+          );
+        }
+        const ownsStorage = await ctx.runQuery(
+          internal.documents.internal_queries.verifyStorageIdsBelongToOrg,
+          {
+            organizationId,
+            storageIds: [params.baseFileId, params.comparisonFileId],
+          },
+        );
+        if (!ownsStorage) {
+          throw new Error(
+            'One or more storage ids do not belong to this organization',
+          );
+        }
 
         const [baseFileUrl, compFileUrl] = await Promise.all([
           resolveStorageUrl(ctx, params.baseFileId),
@@ -318,7 +367,6 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
               ]);
 
         return await fetchDocumentComparisonByUrls(
-          serviceUrl,
           baseFileUrl,
           baseFileName,
           compFileUrl,

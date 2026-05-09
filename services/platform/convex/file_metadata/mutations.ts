@@ -19,6 +19,14 @@ export const saveFileMetadata = mutation({
     size: v.number(),
     documentId: v.optional(v.id('documents')),
     source: v.optional(v.union(v.literal('user'), v.literal('agent'))),
+    /**
+     * For chat-uploaded files only. Binds the row to a chat thread so the
+     * thread's lifecycle (trash → grace → hard-delete + restore) cascades
+     * to the file. Document Hub uploads omit this field. The mutation
+     * verifies the caller has access to the supplied thread to prevent
+     * spoofing across orgs.
+     */
+    threadId: v.optional(v.string()),
   },
   async handler(ctx, args) {
     const authUser = await authComponent.getAuthUser(ctx);
@@ -38,6 +46,25 @@ export const saveFileMetadata = mutation({
     );
     if (!check.allowed) {
       throw new Error(check.reason ?? 'Upload rejected by organization policy');
+    }
+
+    // Defense-in-depth: a malicious client could pass a foreign org's
+    // threadId. Verify the supplied thread belongs to the same org.
+    // (Caller-thread membership / role is enforced by the chat send
+    // mutation upstream; this is the cross-org gate.)
+    const threadId = args.threadId;
+    if (threadId !== undefined) {
+      const threadMeta = await ctx.db
+        .query('threadMetadata')
+        .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+        .unique();
+      if (
+        threadMeta &&
+        threadMeta.organizationId !== undefined &&
+        threadMeta.organizationId !== args.organizationId
+      ) {
+        throw new Error('Thread does not belong to this organization');
+      }
     }
 
     // Audio AND video files go through the transcription pipeline (ffmpeg
@@ -135,6 +162,7 @@ export const saveFileMetadata = mutation({
       uploadedBy: userId,
       ...(args.documentId !== undefined && { documentId: args.documentId }),
       ...(args.source !== undefined && { source: args.source }),
+      ...(args.threadId !== undefined && { threadId: args.threadId }),
     });
 
     if (!isAudio) {

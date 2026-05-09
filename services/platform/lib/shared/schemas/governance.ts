@@ -1,6 +1,9 @@
 import safe from 'safe-regex2';
 import { z } from 'zod/v4';
 
+// Single source of truth for policy types. The Convex side
+// `governance/schema.ts::GOVERNANCE_POLICY_TYPES` MUST stay in sync;
+// drift causes silent type holes and `as const` casts at call sites.
 export const POLICY_TYPES = [
   'system_prompt',
   'budgets',
@@ -16,6 +19,8 @@ export const POLICY_TYPES = [
   'chat_filter',
   'moderation_provider',
   'personalization',
+  // Phase 12 — admin-customizable confidentiality notice.
+  'data_classification_notice',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -25,6 +30,49 @@ export type PolicyType = (typeof POLICY_TYPES)[number];
 // Missing row entirely → effective default is OFF.
 export const personalizationConfigSchema = z.object({
   enabled: z.boolean(),
+});
+
+/**
+ * Org-wide system prompt override that gets prepended to every agent's
+ * generated system prompt. Round-2 review CRITICAL #24 / E.1.3:
+ * `upsertPolicy` had a Zod safeParse branch for every other policy type
+ * but `system_prompt` — meaning arbitrary JSON could be persisted under
+ * this policyType and read back without validation. Schema kept tight
+ * (enabled flag + bounded prompt text) to fit the actual write surface.
+ */
+export const systemPromptConfigSchema = z.object({
+  enabled: z.boolean(),
+  prompt: z.string().max(20_000),
+});
+
+/**
+ * Phase 12 — admin-customizable confidentiality notice.
+ *
+ * Rendered in chat composer + upload dialog footers. `messages` is a
+ * per-locale map (en/de/fr/de-AT/de-CH/fr-CH); resolution falls back
+ * to platform default in `messages/{locale}.json` when an org's locale
+ * key is absent.
+ *
+ * `requireAcknowledgment: true` triggers a one-time onboarding modal
+ * on first message send + on every `version` bump (the bump is what
+ * forces re-acknowledgment when admins update the notice).
+ *
+ * Per-locale char cap: 280 chars warn at 240. German is typically
+ * +30% longer than English; aggregate caps would force translators to
+ * truncate, so the cap is per-locale.
+ */
+export const dataNoticeConfigSchema = z.object({
+  enabled: z.boolean(),
+  requireAcknowledgment: z.boolean().optional(),
+  /** locale-keyed (e.g., `en`, `de`, `fr-CH`); each value ≤ 280 chars. */
+  messages: z
+    .record(
+      z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/, 'Invalid locale code'),
+      z.string().min(1).max(280),
+    )
+    .optional(),
+  /** Bump to force re-acknowledgment of the notice. */
+  version: z.number().int().nonnegative().default(1),
 });
 
 export const budgetRuleSchema = z.object({
@@ -80,26 +128,67 @@ export const uploadPolicyConfigSchema = z.object({
 });
 export type UploadPolicyConfig = z.infer<typeof uploadPolicyConfigSchema>;
 
+/**
+ * Per-org retention policy payload. Schema only validates structural
+ * shape (integer + non-negative); category min/max bounds live in
+ * `examples/retention/default.json` (or per-org override files) and are
+ * enforced at write time by `assertWithinBounds` inside
+ * `upsertRetentionPolicyAction`. Operators tighten or rename bounds by
+ * editing the JSON file; the schema does not duplicate them.
+ *
+ * Policy-level "enabled" is NOT in this schema — it lives on the
+ * `governancePolicies` row (`enabled: v.optional(v.boolean())`) and is
+ * managed by the upsert mutation, not the config payload. Per-category
+ * gates (`documentsEnabled` / `auditLogEnabled` / ...) are part of the
+ * payload and live below.
+ *
+ * Exceptions: `batchSize` and `deletionGraceDays` are runtime knobs
+ * with no file-layer counterpart, so their caps stay here.
+ */
 export const retentionPolicyConfigSchema = z.object({
-  enabled: z.boolean(),
-  retentionDays: z.number().nonnegative(),
-  batchSize: z.number().nonnegative().optional(),
+  documentsEnabled: z.boolean().optional(),
+  documentsRetentionDays: z.number().int().nonnegative().optional(),
+  batchSize: z.number().int().min(1).max(10_000).optional(),
   userTempEnabled: z.boolean().optional(),
-  userTempRetentionHours: z.number().nonnegative().optional(),
+  userTempRetentionHours: z.number().int().nonnegative().optional(),
   agentTempEnabled: z.boolean().optional(),
-  agentTempRetentionHours: z.number().nonnegative().optional(),
+  agentTempRetentionHours: z.number().int().nonnegative().optional(),
   chatHistoryEnabled: z.boolean().optional(),
-  chatHistoryRetentionDays: z.number().int().min(1).max(3650).optional(),
-  auditLogsEnabled: z.boolean().optional(),
-  auditLogRetentionDays: z.number().int().min(30).max(365).optional(),
-  workflowLogsEnabled: z.boolean().optional(),
-  workflowLogRetentionDays: z.number().int().min(1).max(365).optional(),
+  chatHistoryRetentionDays: z.number().int().nonnegative().optional(),
+  auditLogEnabled: z.boolean().optional(),
+  auditLogRetentionDays: z.number().int().nonnegative().optional(),
+  workflowLogEnabled: z.boolean().optional(),
+  workflowLogRetentionDays: z.number().int().nonnegative().optional(),
   usageLedgerEnabled: z.boolean().optional(),
-  usageLedgerRetentionDays: z.number().int().min(30).max(3650).optional(),
-  loginAttemptsEnabled: z.boolean().optional(),
-  loginAttemptRetentionDays: z.number().int().min(7).max(365).optional(),
+  usageLedgerRetentionDays: z.number().int().nonnegative().optional(),
+  loginAttemptEnabled: z.boolean().optional(),
+  loginAttemptRetentionDays: z.number().int().nonnegative().optional(),
   chatFilterEventsEnabled: z.boolean().optional(),
-  chatFilterEventsRetentionDays: z.number().int().min(1).max(365).optional(),
+  chatFilterEventsRetentionDays: z.number().int().nonnegative().optional(),
+  promptTemplatesEnabled: z.boolean().optional(),
+  promptTemplatesRetentionDays: z.number().int().nonnegative().optional(),
+  messageFeedbackEnabled: z.boolean().optional(),
+  messageFeedbackRetentionDays: z.number().int().nonnegative().optional(),
+  memoryAuditEnabled: z.boolean().optional(),
+  memoryAuditRetentionDays: z.number().int().nonnegative().optional(),
+  customersEnabled: z.boolean().optional(),
+  customersRetentionDays: z.number().int().nonnegative().optional(),
+  vendorsEnabled: z.boolean().optional(),
+  vendorsRetentionDays: z.number().int().nonnegative().optional(),
+  externalConversationsEnabled: z.boolean().optional(),
+  externalConversationsRetentionDays: z.number().int().nonnegative().optional(),
+  messageMetadataEnabled: z.boolean().optional(),
+  messageMetadataRetentionDays: z.number().int().nonnegative().optional(),
+  /**
+   * In-app notification retention. Notifications carry peppered email +
+   * IP for security alerts (lockouts, etc.) and have no value past a
+   * short admin review window. Default 30 days; bounded by the
+   * `notifications` retention category in the JSON config.
+   * Round-2 V6 P0-17.
+   */
+  notificationsEnabled: z.boolean().optional(),
+  notificationsRetentionDays: z.number().int().nonnegative().optional(),
+  deletionGraceDays: z.number().int().min(0).max(90).optional(),
 });
 export type RetentionPolicyConfig = z.infer<typeof retentionPolicyConfigSchema>;
 

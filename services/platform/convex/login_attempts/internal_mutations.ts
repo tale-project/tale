@@ -4,6 +4,7 @@ import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
+import { splitEmailForAudit, splitIpForAudit } from '../lib/helpers/pii_hash';
 import { writeNotificationForOrgs } from '../notifications/helpers';
 import {
   computeLockedUntil,
@@ -134,17 +135,27 @@ export const recordFailure = internalMutation({
     }
 
     // Audit logs are org-scoped, so we write one per org the user belongs to.
+    // Email and IP are hashed when TALE_AUDIT_PEPPER is set, written into
+    // separate `actorEmailHash` / `actorIpHash` columns. Plaintext columns
+    // stay empty in that case so CSV export and search filters don't
+    // surface raw `sha256:...` strings to operators (round-2 v14 H12).
+    const emailParts = await splitEmailForAudit(email);
+    const ipParts = args.ip !== undefined ? await splitIpForAudit(args.ip) : {};
+    const notifyEmail = emailParts.hash ?? emailParts.plaintext ?? email;
+    const notifyIp = ipParts.hash ?? ipParts.plaintext ?? 'unknown';
     for (const { organizationId } of orgs) {
       await createAuditLog(ctx, {
         organizationId,
         actorId: user.userId,
-        actorEmail: email,
+        actorEmail: emailParts.plaintext,
+        actorEmailHash: emailParts.hash,
         actorType: 'user',
         action: 'login_attempt',
         category: 'security',
         resourceType: 'user',
         resourceId: user.userId,
-        ipAddress: args.ip,
+        ipAddress: ipParts.plaintext,
+        actorIpHash: ipParts.hash,
         userAgent: args.userAgent,
         status: 'failure',
         errorMessage: 'Invalid credentials',
@@ -164,13 +175,15 @@ export const recordFailure = internalMutation({
         await createAuditLog(ctx, {
           organizationId,
           actorId: user.userId,
-          actorEmail: email,
+          actorEmail: emailParts.plaintext,
+          actorEmailHash: emailParts.hash,
           actorType: 'system',
           action: 'login_lockout',
           category: 'security',
           resourceType: 'user',
           resourceId: user.userId,
-          ipAddress: args.ip,
+          ipAddress: ipParts.plaintext,
+          actorIpHash: ipParts.hash,
           userAgent: args.userAgent,
           status: 'denied',
           errorMessage: 'Account temporarily locked due to repeated failures',
@@ -195,9 +208,14 @@ export const recordFailure = internalMutation({
         // we do NOT include the namespace prefix in storage.
         titleKey: 'accountLocked',
         bodyKey: 'lockoutDetails',
+        // `notifications` rows have no TTL today — they live indefinitely
+        // until dismissed. Storing plaintext email + raw IP would leak
+        // PII for years past the 30-day `loginAttempts` window. Mirror
+        // the audit chain's peppered shape so the notification carries
+        // the same opaque identifiers an admin would investigate from.
         params: {
-          email,
-          ip: args.ip ?? 'unknown',
+          email: notifyEmail,
+          ip: notifyIp,
           consecutiveFailures: newFailures,
         },
       });
@@ -294,17 +312,21 @@ export const clearOnSuccess = internalMutation({
     if (!user) return null;
 
     const orgs = await findMemberOrgs(ctx, user.userId);
+    const emailParts = await splitEmailForAudit(email);
+    const ipParts = args.ip !== undefined ? await splitIpForAudit(args.ip) : {};
     for (const { organizationId } of orgs) {
       await createAuditLog(ctx, {
         organizationId,
         actorId: user.userId,
-        actorEmail: email,
+        actorEmail: emailParts.plaintext,
+        actorEmailHash: emailParts.hash,
         actorType: 'user',
         action: 'login_success',
         category: 'security',
         resourceType: 'user',
         resourceId: user.userId,
-        ipAddress: args.ip,
+        ipAddress: ipParts.plaintext,
+        actorIpHash: ipParts.hash,
         userAgent: args.userAgent,
         status: 'success',
       });

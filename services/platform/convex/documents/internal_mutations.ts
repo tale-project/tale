@@ -1,7 +1,9 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
+import { eraseDocumentBlobs } from '../governance/erase_document_blobs';
+import { assertNotHeld } from '../governance/legal_hold_guard';
 import { createDocument as createDocumentHelper } from './create_document';
 import { updateDocumentInternal as updateDocumentInternalHelper } from './update_document_internal';
 import { updateDocumentRagInfo as updateDocumentRagInfoHelper } from './update_document_rag_info';
@@ -21,9 +23,29 @@ export const updateDocument = internalMutation({
     contentHash: v.optional(v.string()),
     teamId: v.optional(v.string()),
     folderId: v.optional(v.id('folders')),
+    /**
+     * Caller's organizationId — closes the cross-tenant write IDOR on
+     * REST `PATCH /api/v1/documents/:id`. Optional for in-process
+     * callers; REST handlers MUST pass this.
+     */
+    callerOrgId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await updateDocumentInternalHelper(ctx, args);
+    if (args.callerOrgId !== undefined) {
+      const existing = await ctx.db.get(args.documentId);
+      if (!existing || existing.organizationId !== args.callerOrgId) {
+        // Cross-org or missing — surface as not_found so REST returns 404
+        // instead of silently 204'ing the caller into thinking the patch
+        // succeeded. Existence is already gated by `callerOrgId`, so this
+        // does not leak document presence across tenants.
+        throw new ConvexError({
+          code: 'not_found',
+          message: 'Document not found',
+        });
+      }
+    }
+    const { callerOrgId: _drop, ...rest } = args;
+    await updateDocumentInternalHelper(ctx, rest);
   },
 });
 
@@ -40,11 +62,39 @@ export const updateDocumentRagInfo = internalMutation({
 export const deleteDocumentById = internalMutation({
   args: {
     documentId: v.id('documents'),
+    /**
+     * Caller's organizationId — closes the cross-tenant DELETE IDOR
+     * on REST `DELETE /api/v1/documents/:id`. Optional for in-process
+     * callers (retention sweep, workflow); REST handlers MUST pass this.
+     */
+    callerOrgId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const document = await ctx.db.get(args.documentId);
     if (document) {
+      if (
+        args.callerOrgId !== undefined &&
+        document.organizationId !== args.callerOrgId
+      ) {
+        return null;
+      }
+      // Defense-in-depth: every public/REST/internal caller flows through
+      // here; gating at this single point covers the surfaces flagged in
+      // round-2 v08 B4. Retention has its own held-aware path.
+      //
+      // Pass `document.createdBy` so the user-membership cascade fires on
+      // the document's author the same way the public `deleteDocument`
+      // does. Without this, an internal cascade or REST delete bypasses
+      // the custodian-hold cascade. (Round-2 V3 finding.)
+      await assertNotHeld(
+        ctx,
+        document.organizationId,
+        'document',
+        String(args.documentId),
+        undefined,
+        document.createdBy ?? undefined,
+      );
       const { fileId } = document;
       if (fileId) {
         const metadata = await ctx.db
@@ -55,6 +105,14 @@ export const deleteDocumentById = internalMutation({
           await ctx.db.patch(metadata._id, { documentId: undefined });
         }
       }
+      // Erase _storage blob (primary `fileId` + every `historyFiles[]`)
+      // before dropping the row. Pre-fix, the public delete + REST DELETE
+      // path only patched the documents row out and unlinked
+      // fileMetadata, leaving every blob the row pointed at orphaned in
+      // _storage forever — both the storage cost and the unreachable-blob
+      // privacy risk. The retention path was already correct via the
+      // helper. Round-2 review CRITICAL #18.
+      await eraseDocumentBlobs(ctx, document);
       await ctx.db.delete(args.documentId);
     }
     return null;

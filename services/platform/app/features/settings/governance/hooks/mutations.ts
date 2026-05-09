@@ -8,6 +8,19 @@ export function useUpsertGovernancePolicy() {
   return useConvexMutation(api.governance.mutations.upsertPolicy);
 }
 
+/**
+ * Retention is the one policy type that can't go through the generic
+ * `upsertPolicy` mutation: bounds validation needs to read the per-org
+ * file at `$TALE_CONFIG_DIR/retention/{orgSlug}.json`, which only the
+ * Node-side action layer can do. The V8 action wrapper validates and
+ * then calls an internal mutation for the actual write.
+ */
+export function useUpsertRetentionPolicy() {
+  return useConvexAction(
+    api.governance.retention_actions.upsertRetentionPolicyAction,
+  );
+}
+
 export function useSaveModerationSecret() {
   const queryClient = useQueryClient();
   return useConvexAction(
@@ -27,4 +40,87 @@ export function useTestModerationProvider() {
   return useConvexAction(
     api.governance.moderation_provider.test_action.testModerationProvider,
   );
+}
+
+/**
+ * Admin accepts the operator's proposed bound changes. On success,
+ * invalidates the proposal query so the banner clears immediately.
+ */
+export function useApplyBoundsProposal() {
+  const queryClient = useQueryClient();
+  return useConvexAction(
+    api.governance.retention_bounds_proposal.applyBoundsProposal,
+    {
+      onSuccess: (_data, variables) => {
+        void queryClient.invalidateQueries({
+          queryKey: ['retention-bounds-proposal', variables.organizationId],
+        });
+      },
+    },
+  );
+}
+
+/**
+ * Admin refuses the operator's proposed bound changes. Records the
+ * rejected hash; banner stays hidden until operator's effective hash
+ * diverges from BOTH applied and rejected. Same invalidation pattern.
+ */
+export function useRejectBoundsProposal() {
+  const queryClient = useQueryClient();
+  return useConvexAction(
+    api.governance.retention_bounds_proposal.rejectBoundsProposal,
+    {
+      onSuccess: (_data, variables) => {
+        void queryClient.invalidateQueries({
+          queryKey: ['retention-bounds-proposal', variables.organizationId],
+        });
+      },
+    },
+  );
+}
+
+export function usePlaceLegalHold() {
+  return useConvexMutation(api.governance.legal_hold.placeLegalHold);
+}
+
+export function useRequestLegalHoldRelease() {
+  return useConvexMutation(api.governance.legal_hold.requestLegalHoldRelease);
+}
+
+export function useApproveLegalHoldRelease() {
+  return useConvexMutation(api.governance.legal_hold.approveLegalHoldRelease);
+}
+
+export function useRejectLegalHoldRelease() {
+  return useConvexMutation(api.governance.legal_hold.rejectLegalHoldRelease);
+}
+
+export function useUpsertLegalMatter() {
+  return useConvexMutation(api.governance.legal_hold.upsertLegalMatter);
+}
+
+export function useCloseLegalMatter() {
+  return useConvexMutation(api.governance.legal_hold.closeLegalMatter);
+}
+
+export function useRestoreSoftDeletedRow() {
+  const queryClient = useQueryClient();
+  return useConvexMutation(api.governance.restore.restoreSoftDeletedRow, {
+    onSuccess: () => {
+      // `convexQuery` produces keys of shape
+      //   ['convexQuery', '<module>:<query>', args]
+      // so the function name lives at index 1, not 0. Pre-fix this
+      // predicate matched nothing (queryKey[0] is always 'convexQuery')
+      // and the cache was never invalidated post-restore. The Convex
+      // subscription naturally refreshes single-page views, but
+      // multi-page accumulators kept the stale entries. Round-2 review
+      // F.5.
+      void queryClient.invalidateQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) &&
+          typeof q.queryKey[1] === 'string' &&
+          q.queryKey[1].includes('listTrashedRows'),
+      });
+    },
+  });
 }

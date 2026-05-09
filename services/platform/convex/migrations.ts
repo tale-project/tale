@@ -15,5 +15,11 @@ export const runAll = internalAction({
     await ctx.runMutation(
       internal.migrations.backfill_ledger_granularity.apply,
     );
+    // Idempotent: orgs that already carry an applied-bounds snapshot are
+    // skipped inside `seedInitialBoundsInternal`, so re-running on every
+    // deploy is safe. Without this seed, retention_cleanup silently no-ops
+    // for any org that enabled retention before the explicit-apply-gate
+    // landed (round-2 v17 B3).
+    await ctx.runAction(internal.migrations.seed_applied_bounds.apply, {});
   },
 });

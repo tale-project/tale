@@ -23,6 +23,14 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => true }),
 }));
 
+vi.mock('@/app/hooks/use-organization-id', () => ({
+  useOrganizationId: () => 'org-1',
+}));
+
+vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
+  useLegalHoldByTarget: () => ({ data: null }),
+}));
+
 vi.mock('@/app/hooks/use-toast', () => ({
   toast: vi.fn(),
 }));

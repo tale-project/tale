@@ -1,6 +1,8 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
+
 export const fileMetadataTable = defineTable({
   organizationId: v.string(),
   storageId: v.id('_storage'),
@@ -61,8 +63,32 @@ export const fileMetadataTable = defineTable({
   // org has completed transcription of the same content.
   contentHash: v.optional(v.string()),
   uploadedBy: v.optional(v.string()),
+  /**
+   * For chat-uploaded files, the chat thread the file was attached to.
+   *
+   * Three classes of `fileMetadata` after this field landed:
+   *  - Document Hub: `documentId` set, `threadId` unset → org-wide knowledge
+   *  - Chat upload: `documentId` unset, `threadId` set → bound to thread chain
+   *  - Legacy / integration: both unset → falls back to same-org check
+   *
+   * Drives:
+   *  - `rag_search` access: chat-bound files require caller's `ctx.threadId`
+   *    to be in the same chain (verified by
+   *    `verifyStorageIdsInThreadScope` + a chain walk in action context)
+   *  - Soft-delete cascade: trashing a thread also trashes its bound files
+   *    (lifecycleStatus='trashed' + statusChangedAt sync); restoring the
+   *    thread restores the same set; hard-delete cascades to `_storage`
+   *    blob + RAG purge via `eraseDocumentBlobs` style helper
+   */
+  threadId: v.optional(v.string()),
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
 })
   .index('by_organizationId', ['organizationId'])
+  .index('by_organizationId_and_lifecycleStatus', [
+    'organizationId',
+    'lifecycleStatus',
+  ])
   .index('by_storageId', ['storageId'])
   .index('by_organizationId_and_documentId', ['organizationId', 'documentId'])
   .index('by_organizationId_and_source_and_documentId', [
@@ -71,4 +97,15 @@ export const fileMetadataTable = defineTable({
     'documentId',
   ])
   .index('by_org_user', ['organizationId', 'uploadedBy'])
-  .index('by_org_contentHash', ['organizationId', 'contentHash']);
+  .index('by_org_contentHash', ['organizationId', 'contentHash'])
+  // Chat-upload cascade: trash/restore/erase a thread → enumerate the
+  // thread's bound files in O(1) per thread. Same shape as the soft-delete
+  // composite index for status-narrowed sweeps.
+  .index('by_organizationId_and_threadId', ['organizationId', 'threadId'])
+  // Watchdog sweep: the `recoverStuckTranscriptions` cron runs every 5
+  // minutes and only cares about rows whose `transcriptionStatus` is
+  // `'running'`. The vast majority of rows are `'completed'` /
+  // `'skipped'` / unset and an unindexed scan was paying for those on
+  // every tick (round-2 M2). Indexing on the status field plus
+  // `_creationTime` lets the cron iterate the tiny live set directly.
+  .index('by_transcriptionStatus', ['transcriptionStatus']);

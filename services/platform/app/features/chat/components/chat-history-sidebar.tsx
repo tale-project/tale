@@ -18,6 +18,7 @@ import {
 
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
+import { useActiveHoldTargetIds } from '@/app/features/settings/governance/hooks/queries';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useToast } from '@/app/hooks/use-toast';
@@ -31,6 +32,7 @@ import {
   useThreads,
 } from '../hooks/queries';
 import { ChatActions } from './chat-actions';
+import { LegalHoldIndicator } from './legal-hold-indicator';
 
 const emptySubscribe = () => () => {};
 
@@ -92,6 +94,23 @@ export function ChatHistorySidebar({
   } = useArchivedThreads({ teamId: selectedTeamId, organizationId });
 
   const { approvals } = useActiveApprovals(organizationId);
+
+  const { data: heldThreadsData } = useActiveHoldTargetIds({
+    organizationId,
+    targetType: 'thread',
+  });
+  // Org-wide hold: every thread in the org is implicitly held; the
+  // sidebar shows the lock indicator on every row regardless of
+  // explicit per-thread hold matches. Closes round-2 V4 P0 — before
+  // the org-cascade fix landed, an org-wide hold was silently invisible
+  // at the chat-sidebar surface.
+  const orgWideHeld = heldThreadsData?.orgHeld ?? false;
+  const heldThreadIds = useMemo(
+    () => new Set(heldThreadsData?.targetIds ?? []),
+    [heldThreadsData?.targetIds],
+  );
+  const isThreadHeld = (threadId: string) =>
+    orgWideHeld || heldThreadIds.has(threadId);
 
   const { executingThreadIds, pendingThreadIds } = useMemo(() => {
     const executing = new Set();
@@ -363,6 +382,13 @@ export function ChatHistorySidebar({
                                 aria-label={t('history.awaitingInput')}
                               />
                             )}
+                            {isThreadHeld(chat._id) && (
+                              <LegalHoldIndicator
+                                organizationId={organizationId}
+                                targetType="thread"
+                                targetId={chat._id}
+                              />
+                            )}
                             <span
                               className="truncate"
                               aria-label={
@@ -464,7 +490,14 @@ export function ChatHistorySidebar({
                     onClick={() => handleChatClick(chat._id)}
                     className="absolute inset-0 cursor-pointer rounded-md"
                   />
-                  <span className="text-muted-foreground pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center truncate text-left text-sm leading-snug">
+                  <span className="text-muted-foreground pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center gap-1.5 truncate text-left text-sm leading-snug">
+                    {isThreadHeld(chat._id) && (
+                      <LegalHoldIndicator
+                        organizationId={organizationId}
+                        targetType="thread"
+                        targetId={chat._id}
+                      />
+                    )}
                     <span className="truncate">{chat.title}</span>
                   </span>
                   <div className="relative z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">

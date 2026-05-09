@@ -56,8 +56,8 @@ describe('uploadPolicyConfigSchema', () => {
 describe('retentionPolicyConfigSchema', () => {
   it('accepts a valid full config', () => {
     const result = retentionPolicyConfigSchema.safeParse({
-      enabled: true,
-      retentionDays: 90,
+      documentsEnabled: true,
+      documentsRetentionDays: 90,
       batchSize: 50,
       userTempEnabled: true,
       userTempRetentionHours: 24,
@@ -68,27 +68,23 @@ describe('retentionPolicyConfigSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('accepts minimal config with enabled and retentionDays', () => {
+  it('accepts minimal config with only documentsRetentionDays (policy-level enabled lives on the row, not the payload)', () => {
     const result = retentionPolicyConfigSchema.safeParse({
-      enabled: true,
-      retentionDays: 30,
+      documentsRetentionDays: 30,
     });
 
     expect(result.success).toBe(true);
   });
 
-  it('rejects config without retentionDays', () => {
-    const result = retentionPolicyConfigSchema.safeParse({
-      enabled: true,
-    });
+  it('accepts an empty config (all category fields are optional after the rename refactor)', () => {
+    const result = retentionPolicyConfigSchema.safeParse({});
 
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
-  it('rejects negative retentionDays', () => {
+  it('rejects negative documentsRetentionDays', () => {
     const result = retentionPolicyConfigSchema.safeParse({
-      enabled: true,
-      retentionDays: -1,
+      documentsRetentionDays: -1,
     });
 
     expect(result.success).toBe(false);
@@ -96,8 +92,7 @@ describe('retentionPolicyConfigSchema', () => {
 
   it('rejects negative batchSize', () => {
     const result = retentionPolicyConfigSchema.safeParse({
-      enabled: true,
-      retentionDays: 30,
+      documentsRetentionDays: 30,
       batchSize: -1,
     });
 
@@ -106,8 +101,7 @@ describe('retentionPolicyConfigSchema', () => {
 
   it('accepts config with temp file settings', () => {
     const result = retentionPolicyConfigSchema.safeParse({
-      enabled: true,
-      retentionDays: 30,
+      documentsRetentionDays: 30,
       userTempEnabled: true,
       userTempRetentionHours: 12,
     });
@@ -117,8 +111,7 @@ describe('retentionPolicyConfigSchema', () => {
 
   it('rejects negative temp retention hours', () => {
     const result = retentionPolicyConfigSchema.safeParse({
-      enabled: true,
-      retentionDays: 30,
+      documentsRetentionDays: 30,
       agentTempRetentionHours: -5,
     });
 

@@ -176,10 +176,18 @@ export const updateScheduleInternal = internalMutation({
     timezone: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
     variables: v.optional(jsonRecordValidator),
+    /** Caller's organizationId — REST handlers MUST pass this. */
+    callerOrgId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const { scheduleId, ...patch } = args;
+    const { scheduleId, callerOrgId, ...patch } = args;
+    if (callerOrgId !== undefined) {
+      const existing = await ctx.db.get(scheduleId);
+      if (!existing || existing.organizationId !== callerOrgId) {
+        return null;
+      }
+    }
     const updates: Record<string, unknown> = {};
     if (patch.cronExpression !== undefined)
       updates.cronExpression = patch.cronExpression;
@@ -194,9 +202,19 @@ export const updateScheduleInternal = internalMutation({
 });
 
 export const deleteScheduleInternal = internalMutation({
-  args: { scheduleId: v.id('wfSchedules') },
+  args: {
+    scheduleId: v.id('wfSchedules'),
+    /** Caller's organizationId — REST handlers MUST pass this. */
+    callerOrgId: v.optional(v.string()),
+  },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    if (args.callerOrgId !== undefined) {
+      const existing = await ctx.db.get(args.scheduleId);
+      if (!existing || existing.organizationId !== args.callerOrgId) {
+        return null;
+      }
+    }
     await ctx.db.delete(args.scheduleId);
     return null;
   },
@@ -224,19 +242,40 @@ export const createWebhookInternal = internalMutation({
 });
 
 export const deleteWebhookInternal = internalMutation({
-  args: { webhookId: v.id('wfWebhooks') },
+  args: {
+    webhookId: v.id('wfWebhooks'),
+    /** Caller's organizationId — REST handlers MUST pass this. */
+    callerOrgId: v.optional(v.string()),
+  },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    if (args.callerOrgId !== undefined) {
+      const existing = await ctx.db.get(args.webhookId);
+      if (!existing || existing.organizationId !== args.callerOrgId) {
+        return null;
+      }
+    }
     await ctx.db.delete(args.webhookId);
     return null;
   },
 });
 
 export const cancelExecutionInternal = internalMutation({
-  args: { executionId: v.id('wfExecutions') },
+  args: {
+    executionId: v.id('wfExecutions'),
+    /** Caller's organizationId — REST handlers MUST pass this. */
+    callerOrgId: v.optional(v.string()),
+  },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const execution = await ctx.db.get(args.executionId);
+    if (
+      args.callerOrgId !== undefined &&
+      execution &&
+      execution.organizationId !== args.callerOrgId
+    ) {
+      return null;
+    }
     if (
       execution &&
       (execution.status === 'running' || execution.status === 'pending')

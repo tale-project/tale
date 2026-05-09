@@ -20,4 +20,8 @@ export const twoFactorAttemptsTable = defineTable({
   consecutiveFailures: v.number(),
   lastFailureAt: v.number(),
   lockedUntil: v.union(v.number(), v.null()),
-}).index('by_userId', ['userId']);
+})
+  .index('by_userId', ['userId'])
+  // Retention sweep: index-range chain on `lastFailureAt` so the global
+  // sweep scales with expired-row count, not table size (round-2 M11).
+  .index('by_lastFailureAt', ['lastFailureAt']);

@@ -53,6 +53,9 @@
       "rename": "Umbenennen",
       "deleteSelected": "Ausgewählte löschen"
     },
+    "confirmDialog": {
+      "typeToConfirmLabel": "Tippe \"{phrase}\" zum Bestätigen"
+    },
     "bulkActions": {
       "itemsSelected": "{count, plural, one {# Element ausgewählt} other {# Elemente ausgewählt}}",
       "confirmDeleteTitle": "{count, plural, one {# Element} other {# Elemente}} löschen",
@@ -625,9 +628,7 @@
         "sectionAdvanced": "Erweitert",
         "sectionAdvancedDescription": "Ausführungsverhalten des Agents feinabstimmen.",
         "timeoutMinutes": "Ausführungs-Timeout (Minuten)",
-        "timeoutMinutesHelp": "Maximale Laufzeit des Agents pro Nachricht. Erhöhe den Wert für Aufgaben mit vielen Dateioperationen oder Sub-Agent-Delegationen.",
-        "responseCache": "Antworten zwischenspeichern",
-        "responseCacheHelp": "Wenn dieselbe Anfrage in ähnlichem Kontext erneut gestellt wird, die zuvor generierte Antwort zurückgeben statt das Modell erneut auszuführen. Spart Kosten und Latenz auf Kosten der Aktualität."
+        "timeoutMinutesHelp": "Maximale Laufzeit des Agents pro Nachricht. Erhöhe den Wert für Aufgaben mit vielen Dateioperationen oder Sub-Agent-Delegationen."
       },
       "conversationStarters": {
         "title": "Gesprächseinstiege",
@@ -1931,7 +1932,7 @@
     "moreActions": "Weitere Aktionen",
     "deleteChat": "Chat löschen",
     "deleteConfirmation": "Möchtest du {title} wirklich löschen?",
-    "deletePermanentMessage": "Diese Aktion kann nicht rückgängig gemacht werden. Der Chat wird dauerhaft gelöscht.",
+    "deletePermanentMessage": "Chat in den Papierkorb verschieben. Du kannst ihn während der Schonfrist der Org wiederherstellen; danach löscht die Aufbewahrungsrichtlinie den Chat und seine Nachrichten endgültig.",
     "deleteFailed": "Chat konnte nicht gelöscht werden",
     "archive": "Archivieren",
     "unarchive": "Dearchivieren",
@@ -2131,6 +2132,14 @@
       "loadingMore": "Wird geladen...",
       "generating": "Antwort wird generiert",
       "awaitingInput": "Wartet auf deine Eingabe",
+      "legalHold": {
+        "heading": "Auf Legal Hold",
+        "body": "Aus Compliance-Gründen aufbewahrt — kann nicht gelöscht, archiviert oder umbenannt werden.",
+        "reasonLabel": "Grund",
+        "matterLabel": "Sachverhalt",
+        "placedByLabel": "Gesetzt von",
+        "placedAtLabel": "Gesetzt am"
+      },
       "toast": {
         "renameFailed": "Chat konnte nicht umbenannt werden"
       }
@@ -3178,10 +3187,117 @@
       "saveFailed": "Upload-Richtlinie konnte nicht gespeichert werden"
     },
     "retentionPolicy": {
+      "title": "Aufbewahrungsrichtlinie",
+      "description": "Lege fest, wie lange jeder Datentyp vor der Löschung aufbewahrt wird.",
       "saved": "Aufbewahrungsrichtlinie wurde aktualisiert",
+      "save": "Änderungen speichern",
+      "reset": "Auf Standardwerte zurücksetzen",
+      "unsavedHint": "Du hast nicht gespeicherte Änderungen.",
+      "summary": {
+        "disabled": "Deaktiviert"
+      },
+      "drawer": {
+        "title": "Aufbewahrungsrichtlinie bearbeiten",
+        "description": "Lege fest, wie lange jeder Datentyp vor der Löschung aufbewahrt wird."
+      },
       "enabled": "Aktiviert",
       "retentionDays": "Aufbewahrungstage",
       "retentionHours": "Aufbewahrungsstunden",
+      "envDisabled": "Aufbewahrung ist derzeit vom Operator deaktiviert (TALE_RETENTION_DISABLED=true). Bereinigung läuft erst, wenn das Env-Flag entfernt wurde.",
+      "envBoundHint": "Env-Bindung: {min}{minApplied} / {max}{maxApplied}",
+      "boundHelper": "Operator beschränkt dies auf {min}-{max} {unit}.",
+      "allowedRange": "Erlaubt: {min}–{max} {unit}.",
+      "errors": {
+        "belowFloor": "Unter Operator-Untergrenze (min {bound} {unit}).",
+        "exceedsCeiling": "Über Operator-Obergrenze (max {bound} {unit})."
+      },
+      "diff": {
+        "title": "Aufbewahrungsänderungen bestätigen",
+        "description": "Prüfe die Änderungen vor dem Speichern. Die Bereinigung übernimmt die neue Richtlinie beim nächsten Lauf.",
+        "confirmLabel": "Änderungen speichern",
+        "noChanges": "Keine Änderungen zum Speichern."
+      },
+      "deletionGrace": {
+        "label": "Schonfrist (Tage)",
+        "helper": "0 = Pass A löscht sofort permanent (kein Trash-Fenster). >0 hält Einträge so viele Tage im Admin-Trash sichtbar, bevor Pass B sie physisch entfernt."
+      },
+      "timeline": {
+        "ariaLabel": "Visualisierung des Lösch-Lebenszyklus",
+        "activeLabel": "Aktiv",
+        "activeSub": "Sichtbar, voll zugänglich",
+        "trashedLabel": "Im Papierkorb / Abgelaufen",
+        "trashedSub": "{days}-Tage-Schonfrist, wiederherstellbar",
+        "skipTrashLabel": "Übersprungen",
+        "skipTrashSub": "graceDays = 0",
+        "permanentLabel": "Endgültig gelöscht",
+        "permanentSub": "Eintrag + Nachfahren weg",
+        "graceConnector": "nach Aufbewahrungsfenster",
+        "noGraceConnector": "kein Schonfrist-Fenster",
+        "cascadeConnector": "Kaskaden-Löschung"
+      },
+      "pendingChange": {
+        "title": "Eine Aufbewahrungsverkürzung steht aus.",
+        "applyIn": "wird in {days} Tag(en) wirksam.",
+        "cancel": "Abbrechen"
+      },
+      "boundsProposal": {
+        "title": "Der Betreiber hat Änderungen an den Aufbewahrungsgrenzen vorgeschlagen.",
+        "firstApplyTitle": "Die Aufbewahrungsgrenzen des Betreibers benötigen Ihre erste Freigabe.",
+        "summary": "{tightened} von {total} Änderung(en) verschärfen die Aufbewahrung. Vor dem Anwenden prüfen.",
+        "firstApplyDescription": "Für diese Organisation wurden noch keine Grenzen angewendet. Prüfen Sie die Betreiberkonfiguration und klicken Sie auf Anwenden, um die Aufbewahrung zu aktivieren.",
+        "applyLabel": "Anwenden",
+        "rejectLabel": "Ablehnen",
+        "detailsLabel": "Details anzeigen",
+        "detailsTitle": "Vorgeschlagene Grenzwertänderungen",
+        "detailsDescription": "Prüfe die vom Betreiber vorgeschlagenen Aufbewahrungsgrenzen vor dem Anwenden oder Ablehnen.",
+        "detailsEmpty": "Keine detaillierten Änderungen erfasst.",
+        "diffHeading": "Grenzwertänderungen",
+        "impactHeading": "Auswirkung auf Ihre gespeicherten Werte",
+        "diffRow": "{category}: {field} {from} → {to} ({direction})",
+        "impactRow": "{category}: {current} wird auf {clamped} begrenzt",
+        "appliedToast": "Grenzwertvorschlag angewendet. Die Bereinigung verwendet beim nächsten Lauf die neuen Grenzen.",
+        "rejectedToast": "Grenzwertvorschlag abgelehnt. Die Bereinigung verwendet weiterhin die bisherigen Grenzen."
+      },
+      "promptTemplates": {
+        "title": "Prompt-Vorlagen",
+        "description": "Gespeicherte Prompts (org-scoped). Globale Vorlagen sind Operator-Inhalte und werden nicht aufbewahrungsverwaltet."
+      },
+      "messageFeedback": {
+        "title": "Nachrichten-Feedback",
+        "description": "Daumen/Kommentare zu Agenten-Nachrichten. Freitext-Kommentare können zitierten Nutzerinhalt enthalten."
+      },
+      "memoryAudit": {
+        "title": "Memory-Audit-Log",
+        "description": "Änderungsprotokoll von Personalisierungs-Memories (vorgeschlagen, genehmigt, bearbeitet, verworfen, gelöscht)."
+      },
+      "customers": {
+        "title": "Kunden",
+        "description": "Pro-Org CRM-Datensätze: Name, E-Mail, Adresse, Locale, Metadaten."
+      },
+      "vendors": {
+        "title": "Lieferanten",
+        "description": "Pro-Org Lieferantendatensätze: Name, E-Mail, Telefon, Adresse, Freitext-Notizen."
+      },
+      "externalConversations": {
+        "title": "Externe Konversationen",
+        "description": "Top-Level-Kundenkanal-Posteingang (E-Mail/Chat-Integrationen). Kaskadiert zu Nachrichteninhalten."
+      },
+      "messageMetadata": {
+        "title": "Nachrichten-Metadaten",
+        "description": "Pro-Nachricht Reasoning, vollständiges Prompt-Kontextfenster, Tool-I/O. Stark PII-haltige abgeleitete Daten."
+      },
+      "chatFilterEvents": {
+        "title": "Chat-Filter-Ereignisse",
+        "description": "Telemetrie für Content-Filter-Auslöser (PII, Profanität, eigene Regeln). Nützlich zum Tuning des Filters; enthält zitierte Nachrichtenausschnitte.",
+        "placeholder": "z. B. 90",
+        "helper": "Filter-Ereignis-Telemetrie älter als dies wird gelöscht."
+      },
+      "notifications": {
+        "title": "Benachrichtigungen",
+        "description": "In-App-Benachrichtigungen (Erwähnungen, Agentenergebnisse, Systemwarnungen). Können Inhalte aus Chats, Dokumenten oder Workflow-Läufen referenzieren.",
+        "placeholder": "z. B. 30",
+        "helper": "Benachrichtigungen, die älter als dies sind, werden gelöscht."
+      },
       "chatHistory": {
         "title": "Chat-Verlauf",
         "description": "Konversationen mit Agents (Chat-Threads), die älter als die Aufbewahrungsfrist sind, automatisch löschen. Nachrichteninhalte in der Agent-Komponente werden archiviert. Die Löschung ist unumkehrbar.",
@@ -3625,9 +3741,247 @@
       "contentAndModels": "Inhalte & Modelle",
       "policiesAndLimits": "Richtlinien & Limits",
       "securityAndMonitoring": "Sicherheit & Überwachung",
+      "legalHold": "Legal Hold",
+      "trash": "Papierkorb",
       "guardrails": "Guardrails",
       "usage": "Nutzung",
       "feedback": "Feedback"
+    },
+    "trash": {
+      "title": "Papierkorb",
+      "description": "Stelle durch Aufbewahrung gelöschte Datensätze wieder her, bevor sie am Ende des Kulanzfensters endgültig entfernt werden.",
+      "accessDenied": "Nur für Administratoren.",
+      "empty": "Nichts im Papierkorb. Aufbewahrung verschiebt abgelaufene Zeilen hierhin, sobald deren Kulanzfenster beginnt.",
+      "filterTitle": "Kategorie",
+      "loadMore": "Mehr laden",
+      "column": {
+        "type": "Typ",
+        "name": "Name",
+        "owner": "Eigentümer",
+        "status": "Status",
+        "statusChangedAt": "Verworfen",
+        "actions": "Aktionen"
+      },
+      "status": {
+        "trashed": "Verworfen",
+        "expired": "Abgelaufen"
+      },
+      "tab": {
+        "thread": "Chatverlauf",
+        "document": "Dokumente",
+        "fileMetadata": "Temporäre Dateien",
+        "promptTemplate": "Prompt-Vorlagen",
+        "messageFeedback": "Nachrichten-Feedback",
+        "customer": "Kunden",
+        "vendor": "Lieferanten",
+        "externalConversation": "Externe Konversationen",
+        "messageMetadata": "Nachrichten-Metadaten",
+        "workflowExecution": "Workflow-Läufe",
+        "workflowTriggerLog": "Workflow-Trigger-Logs",
+        "usageLedger": "Nutzungsbuch",
+        "auditLog": "Audit-Logs",
+        "chatFilterEvent": "Chat-Filter-Ereignisse",
+        "memoryAudit": "Memory-Audit"
+      },
+      "restore": {
+        "label": "Wiederherstellen",
+        "confirm": "Wiederherstellen",
+        "trashedTitle": "Datensatz wiederherstellen?",
+        "trashedDescription": "Diesen Datensatz wieder aktivieren. Er kehrt in seine Quellliste zurück.",
+        "expiredTitle": "Aufbewahrungs-abgelaufenen Datensatz wiederherstellen?",
+        "expiredDescription": "Dieser Datensatz wurde durch die Aufbewahrungsrichtlinie gelöscht. Eine Wiederherstellung übersteuert diese Richtlinie und aktiviert den Datensatz wieder. Auditiert.",
+        "expiredPhraseLabel": "Tippe \"restore\" zum Bestätigen",
+        "restoredToast": "Wiederhergestellt.",
+        "failedToast": "Wiederherstellung fehlgeschlagen"
+      }
+    },
+    "legalHold": {
+      "targetTypes": {
+        "thread": "Thread",
+        "document": "Dokument",
+        "execution": "Ausführung",
+        "userMembership": "Benutzer",
+        "org": "Organisation"
+      },
+      "filters": {
+        "allTargets": "Alle Zieltypen",
+        "allStatuses": "Alle Status",
+        "active": "Aktiv",
+        "released": "Freigegeben",
+        "open": "Offen",
+        "closed": "Geschlossen",
+        "pending": "Ausstehend",
+        "approved": "Genehmigt",
+        "rejected": "Abgelehnt",
+        "effected": "Wirksam"
+      },
+      "sections": {
+        "activeHolds": {
+          "title": "Aktive Holds",
+          "description": "Aktuell vor Bereinigung und Löschung geschützte Entitäten. Setze Holds auf Benutzer- (Custodian) oder Organisationsebene.",
+          "empty": {
+            "title": "Keine aktiven Legal Holds",
+            "description": "Setze einen Custodian-Hold auf einen bestimmten Benutzer oder einen organisationsweiten Hold über die Aktion oben."
+          }
+        },
+        "releaseRequests": {
+          "title": "Freigabeanträge",
+          "description": "Ausstehende Anträge müssen von einem anderen Admin genehmigt werden. Genehmigte Anträge warten anschließend die Cooldown-Phase ab.",
+          "pendingHeader": "Ausstehende Genehmigung",
+          "approvedHeader": "Genehmigt (Cooldown läuft)",
+          "empty": {
+            "title": "Keine Freigabeanträge",
+            "description": "Eingereichte Freigabeanträge erscheinen hier zur Vier-Augen-Prüfung."
+          }
+        },
+        "matters": {
+          "title": "Fälle",
+          "description": "Holds nach Fall gruppieren. Beim Schließen eines Falls werden Freigabeanträge für alle verknüpften Holds eingereicht (weiterhin mit Vier-Augen-Genehmigung).",
+          "empty": {
+            "title": "Keine Fälle",
+            "description": "Lege einen Fall an, um Holds nach Aktenzeichen oder eDiscovery-Umfang zu gruppieren."
+          }
+        },
+        "history": {
+          "title": "Freigabeverlauf",
+          "description": "Schreibgeschützte Übersicht wirksam gewordener und abgelehnter Freigabeanträge.",
+          "empty": {
+            "title": "Noch keine abgeschlossenen Freigabeanträge",
+            "description": "Wirksame und abgelehnte Freigaben erscheinen hier."
+          }
+        }
+      },
+      "columns": {
+        "type": "Typ",
+        "target": "Ziel",
+        "reason": "Begründung",
+        "matter": "Fall",
+        "placedBy": "Gesetzt von",
+        "placedAt": "Gesetzt am",
+        "actions": "Aktionen",
+        "status": "Status",
+        "name": "Name",
+        "caseNumber": "Aktenzeichen",
+        "linkedHolds": "Verknüpfte Holds",
+        "createdAt": "Erstellt",
+        "requestedBy": "Antragsteller",
+        "requestedAt": "Beantragt",
+        "approvedBy": "Genehmigt von",
+        "effectiveAt": "Wirksam",
+        "rejectReason": "Ablehnungsgrund",
+        "legacy": "(legacy)"
+      },
+      "actions": {
+        "placeHold": "Legal Hold setzen",
+        "requestRelease": "Freigabe beantragen",
+        "approve": "Genehmigen",
+        "reject": "Ablehnen",
+        "createMatter": "Fall anlegen",
+        "editMatter": "Bearbeiten",
+        "closeMatter": "Fall schließen"
+      },
+      "badges": {
+        "held": "Unter Legal Hold",
+        "releasePending": "Freigabe ausstehend",
+        "releaseApproved": "Freigabe genehmigt",
+        "releaseEffective": "Wirksam beim nächsten Cleanup",
+        "blockedByHold": "Durch Legal Hold blockiert"
+      },
+      "dialogs": {
+        "placeHold": {
+          "title": "Legal Hold setzen",
+          "description": "Inhalte für Rechtsstreitigkeiten, Audits oder eDiscovery aufbewahren. Setze einen Custodian-Hold auf einen bestimmten Benutzer oder einen organisationsweiten Hold. Eine Begründung ist Pflicht und wird im Audit-Log erfasst.",
+          "targetTypeLabel": "Zieltyp",
+          "userPickerLabel": "Benutzer",
+          "userPickerPlaceholder": "Nach Name oder E-Mail suchen",
+          "userPickerEmpty": "Keine passenden Benutzer.",
+          "orgWarning": "Organisationsweite Holds frieren ALLE Aufbewahrung für jede Entität in diesem Tenant ein. Es handelt sich um eine bewusste, im Audit-Log erfasste Aktion — prüfe den Fallkontext, bevor du fortfährst.",
+          "orgConfirmLabel": "{phrase} eingeben, um zu bestätigen",
+          "orgConfirmDescription": "Pflicht für organisationsweite Holds. Der Senden-Button bleibt deaktiviert, bis die Phrase exakt übereinstimmt.",
+          "reasonLabel": "Begründung",
+          "reasonPlaceholder": "z. B. Beweissicherungs-Hold für Acme ./. Co. (Az. 2026-04)",
+          "matterLabel": "Fall (optional)",
+          "matterPlaceholder": "Fall auswählen oder anlegen",
+          "matterCreateNew": "Neuen Fall anlegen…",
+          "submit": "Hold setzen"
+        },
+        "requestRelease": {
+          "title": "Freigabe beantragen",
+          "description": "Ein Freigabeantrag startet den Vier-Augen-Workflow. Ein anderer Admin muss genehmigen, und die Freigabe wird erst nach dem Cooldown wirksam.",
+          "reasonLabel": "Begründung",
+          "submit": "Antrag einreichen"
+        },
+        "approveRelease": {
+          "title": "Freigabe genehmigen",
+          "description": "Die Genehmigung dieses Antrags gibt den Hold nach dem konfigurierten Cooldown frei. Dies ist die zweite von zwei Admin-Unterschriften.",
+          "submit": "Genehmigen",
+          "selfApproveBlocked": "Ein anderer Admin muss genehmigen. Selbstgenehmigung ist gesperrt, sofern das Deployment nicht für Single-Admin-Modus konfiguriert ist."
+        },
+        "rejectRelease": {
+          "title": "Freigabe ablehnen",
+          "description": "Die Ablehnung schließt den Antrag, ohne den Hold freizugeben.",
+          "reasonLabel": "Ablehnungsgrund",
+          "submit": "Ablehnen"
+        },
+        "upsertMatter": {
+          "createTitle": "Fall anlegen",
+          "editTitle": "Fall bearbeiten",
+          "description": "Verwandte Holds unter einem Fall gruppieren. Beim späteren Schließen werden Freigabeanträge für alle verknüpften Holds eingereicht.",
+          "nameLabel": "Name",
+          "namePlaceholder": "z. B. Acme ./. Co. (2026-04)",
+          "caseNumberLabel": "Aktenzeichen (optional)",
+          "descriptionLabel": "Beschreibung (optional)",
+          "submitCreate": "Fall anlegen",
+          "submitEdit": "Speichern"
+        },
+        "closeMatter": {
+          "title": "Fall schließen",
+          "description": "Beim Schließen werden Freigabeanträge für {count} aktive verknüpfte Hold(s) eingereicht. Jede Freigabe benötigt weiterhin Vier-Augen-Genehmigung.",
+          "reasonLabel": "Freigabegrund",
+          "reasonPlaceholder": "z. B. Fall geschlossen; Aufbewahrung nicht mehr erforderlich.",
+          "submit": "Fall schließen"
+        }
+      },
+      "toasts": {
+        "placedTitle": "Legal Hold gesetzt",
+        "placedDescription": "Der {targetType} ist jetzt vor Bereinigung und Löschung geschützt.",
+        "releaseRequestedTitle": "Freigabeantrag eingereicht",
+        "releaseRequestedDescription": "Wartet auf Genehmigung durch einen anderen Admin.",
+        "releaseApprovedTitle": "Freigabe genehmigt",
+        "releaseRejectedTitle": "Freigabe abgelehnt",
+        "matterCreatedTitle": "Fall angelegt",
+        "matterUpdatedTitle": "Fall aktualisiert",
+        "matterClosedTitle": "Fall geschlossen",
+        "matterClosedDescription": "{count} Freigabeantrag/-anträge eingereicht."
+      },
+      "countdown": {
+        "ready": "Bereit",
+        "soon": "Weniger als eine Minute",
+        "minutesSeconds": "{minutes}m {seconds}s",
+        "hoursMinutes": "{hours}h {minutes}m",
+        "daysHours": "{days}d {hours}h"
+      },
+      "errors": {
+        "generic": {
+          "title": "Etwas ist schiefgelaufen",
+          "description": "Bitte erneut versuchen. Falls das Problem weiterhin besteht, an die Administration wenden."
+        },
+        "unauthenticated": "Anmeldung erforderlich.",
+        "forbidden": "Du hast keine Berechtigung dafür.",
+        "validation": "Bitte die Formularfelder prüfen.",
+        "notFound": "Nicht gefunden.",
+        "alreadyActive": "Auf dieses Ziel besteht bereits ein aktiver Legal Hold.",
+        "matterNotFound": "Dieser Fall existiert in der Organisation nicht.",
+        "targetNotInOrg": "Dieses Ziel gehört nicht zu dieser Organisation.",
+        "targetOrgMismatch": "Org-weite Holds müssen das Org-Ziel selbst sein.",
+        "alreadyReleased": "Dieser Legal Hold ist bereits freigegeben.",
+        "releaseAlreadyPending": "Für diesen Hold ist bereits ein Freigabeantrag ausstehend.",
+        "releaseNotPending": "Der Freigabeantrag ist nicht mehr ausstehend.",
+        "selfApprovalBlocked": "Ein anderer Admin muss genehmigen. Setze TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true, um Selbstgenehmigung in Single-Admin-Deployments zu erlauben.",
+        "approvalTooSoon": "Genehmigung möglich in {countdown}.",
+        "requesterNoLongerAdmin": "Der ursprüngliche Antragsteller ist kein Admin mehr. Lehne den Antrag ab und lasse einen aktuellen Admin einen neuen einreichen.",
+        "bulkTooLarge": "Maximal 200 Einträge pro Batch."
+      }
     },
     "modelAccess": {
       "title": "Modellzugriff",
@@ -4061,6 +4415,12 @@
       "discarded": "Verworfen.",
       "deleted": "Gelöscht.",
       "preferencesUpdated": "Einstellungen aktualisiert."
+    }
+  },
+  "dataNotice": {
+    "default": "Behandeln Sie diesen Chat wie eine E-Mail — vermeiden Sie Kundendaten, Zugangsdaten und unveröffentlichte Informationen.",
+    "footer": {
+      "ariaLabel": "Vertraulichkeitshinweis"
     }
   }
 }

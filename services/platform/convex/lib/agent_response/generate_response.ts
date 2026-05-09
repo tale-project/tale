@@ -168,7 +168,6 @@ function buildBlockedReturn(
     durationMs: Date.now() - startTime,
   };
 }
-import { computeCacheKey } from '../response_cache/cache_key';
 import { resolveTemplateVariables } from './resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
 import type {
@@ -188,69 +187,6 @@ import { AgentTimeoutError, withTimeout } from './with_timeout';
  * from the agent's configured timeoutMs.
  */
 const PLATFORM_HARD_LIMIT_MS = 540_000;
-
-/**
- * Fast non-cryptographic hash of a byte buffer (FNV-1a, double-pass for
- * 64-bit equivalent uniqueness). Used to fingerprint inlined image bytes
- * for cache-key derivation — collision-resistant enough for cache dedup,
- * not for security.
- */
-function fnv1aBytes(bytes: Uint8Array): string {
-  let h1 = 0x811c9dc5;
-  for (let i = 0; i < bytes.length; i++) {
-    h1 ^= bytes[i];
-    h1 = Math.imul(h1, 0x01000193);
-  }
-  let h2 = 0x6c62272e;
-  for (let i = bytes.length - 1; i >= 0; i--) {
-    h2 ^= bytes[i];
-    h2 = Math.imul(h2, 0x01000193);
-  }
-  return (
-    (h1 >>> 0).toString(16).padStart(8, '0') +
-    (h2 >>> 0).toString(16).padStart(8, '0')
-  );
-}
-
-/**
- * Stringify a prompt for the response-cache key. Multimodal prompts must
- * contribute every image identity, otherwise two requests with the same
- * text but different images would share a key.
- */
-function fingerprintPrompt(prompt: string | ModelMessage[]): string {
-  if (typeof prompt === 'string') return prompt;
-  return JSON.stringify(
-    prompt.map((m) => {
-      const content = m.content;
-      if (typeof content === 'string') {
-        return { role: m.role, text: content };
-      }
-      const parts = (Array.isArray(content) ? content : []).map((p) => {
-        if (p.type === 'text') return { t: 'text', v: p.text };
-        if (p.type === 'image') {
-          const img = p.image;
-          if (img instanceof URL) return { t: 'image', v: img.toString() };
-          if (typeof img === 'string') return { t: 'image', v: img };
-          if (img instanceof Uint8Array) {
-            return { t: 'image', v: fnv1aBytes(img) };
-          }
-          return { t: 'image', v: 'unknown' };
-        }
-        if (p.type === 'file') {
-          const data = p.data;
-          if (data instanceof URL) return { t: 'file', v: data.toString() };
-          if (typeof data === 'string') return { t: 'file', v: data };
-          if (data instanceof Uint8Array) {
-            return { t: 'file', v: fnv1aBytes(data) };
-          }
-          return { t: 'file', v: 'unknown' };
-        }
-        return { t: p.type };
-      });
-      return { role: m.role, parts };
-    }),
-  );
-}
 
 /**
  * How often the abort watcher polls the stream status (ms).
@@ -462,8 +398,6 @@ export async function generateAgentResponse(
     agentTeamIds,
     knowledgeFileIds,
     structuredResponsesEnabled,
-    responseCacheEnabled,
-    responseCacheTtlMs,
     instructions,
     toolsSummary,
     personalizationMode,
@@ -998,127 +932,6 @@ export async function generateAgentResponse(
           agentSlug: agentSlug ?? undefined,
         },
       );
-    }
-
-    // ── Response cache lookup ──
-    // Cache is opt-in: only compute a key when the agent explicitly sets
-    // `responseCacheEnabled: true`. Multimodal prompts (ModelMessage[]) must
-    // contribute a stable fingerprint to the key, otherwise two requests with
-    // identical text but different images would collide on an empty-string
-    // user-message slot.
-    const cacheKey =
-      responseCacheEnabled === true
-        ? computeCacheKey({
-            agentName: agentType,
-            model,
-            instructions: instructions ?? '',
-            threadContext: structuredThreadContext.threadContext,
-            userMessage: fingerprintPrompt(promptToSend),
-            generationParams,
-            userPersonalizationFingerprint: userPersonalization.fingerprint,
-          })
-        : null;
-
-    if (cacheKey) {
-      const exactLookupStart = Date.now();
-      let cached: {
-        responseText: string;
-        model: string;
-        provider?: string;
-        usage?: {
-          inputTokens?: number;
-          outputTokens?: number;
-          totalTokens?: number;
-        };
-      } | null = null;
-      try {
-        cached = await ctx.runQuery(
-          internal.lib.response_cache.internal_queries.lookupCache,
-          { cacheKey },
-        );
-      } catch (err) {
-        debugLog('CACHE_LOOKUP_ERROR', { error: String(err), cacheKey });
-      }
-      const exactLookupMs = Date.now() - exactLookupStart;
-      debugLog('EXACT_CACHE_LOOKUP', {
-        cacheKey,
-        hit: !!cached,
-        durationMs: exactLookupMs,
-      });
-      if (cached) {
-        // Save assistant message via Agent SDK
-        const { messageId } = await saveMessage(ctx, components.agent, {
-          threadId,
-          message: { role: 'assistant', content: cached.responseText },
-        });
-
-        // Write to persistent stream so frontend receives the response
-        if (streamId) {
-          try {
-            await ctx.runMutation(
-              internal.streaming.internal_mutations.appendToStream,
-              { streamId, text: cached.responseText },
-            );
-            await ctx.runMutation(
-              internal.streaming.internal_mutations.completeStream,
-              { streamId },
-            );
-            await ctx.runMutation(
-              internal.threads.internal_mutations.clearGenerationStatus,
-              { threadId, streamId },
-            );
-          } catch (err) {
-            debugLog('CACHE_HIT_STREAM_ERROR', {
-              error: String(err),
-              streamId,
-            });
-          }
-        }
-
-        const durationMs = Date.now() - startTime;
-        // Zero out usage for cached responses — tokens were already counted
-        // when the original (non-cached) response was generated.
-        const zeroUsage = {
-          inputTokens: 0,
-          outputTokens: 0,
-          totalTokens: 0,
-        };
-        const cachedResult: GenerateResponseResult = {
-          threadId,
-          text: cached.responseText,
-          savedMessageId: messageId,
-          usage: zeroUsage,
-          finishReason: 'cached',
-          durationMs,
-          model: cached.model,
-          provider: cached.provider,
-        };
-
-        if (hooks?.afterGenerate) {
-          await hooks.afterGenerate(ctx, args, cachedResult, hookData);
-        }
-        await onAgentComplete(ctx, {
-          threadId,
-          agentType,
-          result: {
-            threadId,
-            messageId,
-            text: cached.responseText,
-            model: cached.model,
-            provider: cached.provider,
-            usage: zeroUsage,
-            durationMs,
-          },
-          organizationId,
-          userId,
-          teamIds,
-          agentSlug,
-          providerCost,
-        });
-
-        abortWatcher?.stop();
-        return cachedResult;
-      }
     }
 
     debugLog('PRE_LLM_CALL', {
@@ -2018,36 +1831,6 @@ export async function generateAgentResponse(
     // fall back to context citations when no tool calls produced citations.
     const citations =
       toolCitations.length > 0 ? toolCitations : contextCitations;
-
-    // ── Response cache store ──
-    // `cacheKey` is non-null only when responseCacheEnabled === true; the
-    // gate at the top of the function is the single source of truth.
-    if (cacheKey && result.text?.trim()) {
-      try {
-        await ctx.runMutation(
-          internal.lib.response_cache.internal_mutations.storeCache,
-          {
-            cacheKey,
-            responseText: result.text,
-            model: result.response?.modelId ?? model,
-            provider,
-            usage: result.usage
-              ? {
-                  inputTokens: result.usage.inputTokens,
-                  outputTokens: result.usage.outputTokens,
-                  totalTokens: result.usage.totalTokens,
-                }
-              : undefined,
-            organizationId,
-            agentSlug: agentType,
-            ttlMs: responseCacheTtlMs,
-          },
-        );
-        debugLog('CACHE_STORE', { cacheKey, threadId });
-      } catch (err) {
-        debugLog('CACHE_STORE_ERROR', { error: String(err), cacheKey });
-      }
-    }
 
     // Build complete context window for metadata (uses <details> for collapsible display)
     const contextWindowParts = [];

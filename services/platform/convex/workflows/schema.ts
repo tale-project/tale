@@ -1,6 +1,7 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
 import {
   jsonRecordValidator,
   jsonValueValidator,
@@ -172,8 +173,11 @@ export const wfExecutionsTable = defineTable({
   triggerData: v.optional(jsonValueValidator),
   error: v.optional(v.string()),
   metadata: v.optional(v.string()),
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
 })
   .index('by_org', ['organizationId'])
+  .index('by_org_lifecycleStatus', ['organizationId', 'lifecycleStatus'])
   .index('by_definition', ['wfDefinitionId'])
   .index('by_definition_status', ['wfDefinitionId', 'status'])
   .index('by_definition_startedAt', ['wfDefinitionId', 'startedAt'])

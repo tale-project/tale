@@ -4,6 +4,7 @@
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
+import { assertNotHeld } from '../governance/legal_hold_guard';
 import { emitEvent } from '../workflows/triggers/emit_event';
 
 export async function deleteCustomer(
@@ -14,6 +15,15 @@ export async function deleteCustomer(
   if (!customer) {
     throw new Error('Customer not found');
   }
+
+  // Customers have no per-row hold today; this only blocks on org-level
+  // "nuclear halt" holds (round-2 v08 B4).
+  await assertNotHeld(
+    ctx,
+    customer.organizationId,
+    'customer',
+    String(customerId),
+  );
 
   await emitEvent(ctx, {
     organizationId: customer.organizationId,

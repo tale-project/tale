@@ -7,7 +7,6 @@ import { isRecord, getNumber } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { getCrawlerUrl } from '../documents/generate_document_helpers';
-import { getRagConfig } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
 /**
@@ -24,22 +23,6 @@ export const uploadFileToRag = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const ragConfig = getRagConfig();
-    if (!ragConfig.serviceUrl) {
-      // Mark failed explicitly — returning null silently would leave
-      // ragStatus at 'queued' forever, and the client would poll RAG
-      // `/statuses` indefinitely with no data coming back.
-      await ctx.runMutation(
-        internal.file_metadata.internal_mutations.updateFileRagStatus,
-        {
-          storageId: args.storageId,
-          ragStatus: 'failed',
-          ragError: 'RAG service is not configured',
-        },
-      );
-      return null;
-    }
-
     try {
       await ragAction.execute(
         ctx,

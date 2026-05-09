@@ -139,6 +139,13 @@ ENV TALE_VERSION=${VERSION} \
     DO_NOT_TRACK=1 \
     TALE_PLATFORM_SHARED_CONFIG_DIR=/app/platform-config
 
+# NOTE: RAG_AUTH_TOKEN is not baked into the image. If set on BOTH the
+# RAG container and the platform/convex container (values must match),
+# Bearer auth is enforced and mismatched/missing tokens return 401. If
+# unset, the service runs unauthenticated — only safe when the RAG port
+# is bound to a private network. Auth is presence-based: there is no
+# dev-only fallback token.
+
 # Expose port
 EXPOSE 8001
 
@@ -148,6 +155,15 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 # Create mountpoints for volumes (must exist before FROM scratch squash)
 RUN mkdir -p /app/platform-config/providers /app/data
+
+# Run as non-root inside the container. The RAG service ingests untrusted
+# PDFs/DOCX through native parsers (PyMuPDF, python-docx) — the largest
+# container-escape blast radius of any service in the stack. Drop privs.
+# UID 1001 / GID 1001 mirrors services/convex/Dockerfile's `app` user.
+RUN addgroup --system --gid 1001 app \
+    && adduser --system --uid 1001 --gid 1001 --no-create-home --shell /sbin/nologin app \
+    && chown -R app:app /app
+USER app:app
 
 # Use entrypoint script for environment setup and application startup
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
@@ -177,9 +193,14 @@ ENV TALE_VERSION=${VERSION} \
     DO_NOT_TRACK=1 \
     TALE_PLATFORM_SHARED_CONFIG_DIR=/app/platform-config
 
+# NOTE: RAG_AUTH_TOKEN is not baked into the image — see the runtime
+# stage above for the full rationale.
+
 EXPOSE 8001
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${RAG_PORT:-8001}/health || exit 1
+
+USER app:app
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

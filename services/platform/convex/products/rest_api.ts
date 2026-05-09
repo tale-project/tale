@@ -78,7 +78,10 @@ export const getProduct = withRestAuth('rest:api', async (rc, request) => {
 
   const product = await rc.ctx.runQuery(
     internal.products.internal_queries.getProductById,
-    { productId: toId<'products'>(id) },
+    {
+      productId: toId<'products'>(id),
+      callerOrgId: rc.org.organizationId,
+    },
   );
 
   if (!product) {
@@ -102,6 +105,7 @@ export const patchProduct = withRestAuth('rest:api', async (rc, request) => {
     internal.products.internal_mutations.updateProducts,
     {
       productId: toId<'products'>(id),
+      callerOrgId: rc.org.organizationId,
       updates: {
         name: body.name,
         description: body.description,
@@ -131,6 +135,7 @@ export const deleteProduct = withRestAuth('rest:api', async (rc, request) => {
 
   await rc.ctx.runMutation(internal.products.internal_mutations.deleteProduct, {
     productId: toId<'products'>(id),
+    callerOrgId: rc.org.organizationId,
   });
 
   return jsonNoContent();

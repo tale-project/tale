@@ -81,7 +81,10 @@ export const getDocument = withRestAuth('rest:api', async (rc, request) => {
 
   const document = await rc.ctx.runQuery(
     internal.documents.internal_queries.getDocumentByIdRaw,
-    { documentId: toId<'documents'>(id) },
+    {
+      documentId: toId<'documents'>(id),
+      callerOrgId: rc.org.organizationId,
+    },
   );
 
   if (!document) {
@@ -113,6 +116,7 @@ export const patchDocument = withRestAuth('rest:api', async (rc, request) => {
       sourceProvider: body.sourceProvider,
       teamId: body.teamId,
       folderId: body.folderId,
+      callerOrgId: rc.org.organizationId,
     },
   );
 
@@ -129,7 +133,10 @@ export const deleteDocument = withRestAuth('rest:api', async (rc, request) => {
 
   await rc.ctx.runMutation(
     internal.documents.internal_mutations.deleteDocumentById,
-    { documentId: toId<'documents'>(id) },
+    {
+      documentId: toId<'documents'>(id),
+      callerOrgId: rc.org.organizationId,
+    },
   );
 
   return jsonNoContent();
@@ -146,9 +153,22 @@ export const documentSubActions = withRestAuth(
     }
 
     if (subPath === 'retry-indexing') {
+      const documentId = toId<'documents'>(id);
+      // Cross-tenant gate: every other REST handler in this file passes
+      // `callerOrgId` so `getDocumentByIdRaw` can return null on cross-org
+      // access. The retry-indexing path was missing this check; without
+      // it, an OrgA REST key could re-index any OrgB document by id and
+      // observe its existence + trigger writes in the other org's RAG.
+      const doc = await rc.ctx.runQuery(
+        internal.documents.internal_queries.getDocumentByIdRaw,
+        { documentId, callerOrgId: rc.org.organizationId },
+      );
+      if (!doc) {
+        return jsonError('Document not found', 404);
+      }
       await rc.ctx.runAction(
         internal.documents.internal_actions.uploadDocumentToRag,
-        { documentId: toId<'documents'>(id) },
+        { documentId },
       );
       return jsonOk({ status: 'indexing' });
     }

@@ -313,6 +313,32 @@ run_seed() {
     done
   fi
 
+  # --- Retention (per-org JSON files: $TALE_CONFIG_DIR/retention/{slug}.json) ---
+  # Default org's slug is hardcoded to `default`, so default.json fits
+  # the {orgSlug}.json convention. Retention has no secrets to skip
+  # (compare with providers' .secrets.json branch above).
+  local retention_dir="${data_dir}/retention"
+  local retention_builtin="/app/retention-builtin"
+  mkdir -p "$retention_dir"
+  if [ -d "$retention_builtin" ] && [ "$(ls -A "$retention_builtin" 2>/dev/null)" ]; then
+    for src in "$retention_builtin"/*.json; do
+      [ -f "$src" ] || continue
+      local name="$(basename "$src")"
+      local slug="$(basename "$src" .json)"
+      local dest="$retention_dir/$name"
+      local history_dir="$retention_dir/.history/$slug"
+      if [ "$FORCE_SEED" = "true" ]; then
+        cp "$src" "$dest"; echo "   ✓ Seeded retention $name (forced)"
+      elif [ -f "$dest" ]; then
+        echo "   ⏭ Skipping retention $name (already exists)"
+      elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+        echo "   ⏭ Skipping retention $name (user has modifications in .history)"
+      else
+        cp "$src" "$dest"; echo "   ✓ Seeded retention $name"
+      fi
+    done
+  fi
+
   touch "$seed_marker"
   log_ok "Builtin seed complete"
 }

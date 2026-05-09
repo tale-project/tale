@@ -92,8 +92,6 @@ export const agentJsonSchema = z
     roleRestriction: z.literal('admin_developer').optional(),
     conversationStarters: z.array(z.string().max(200)).max(4).optional(),
     visibleInChat: z.boolean().optional(),
-    responseCacheEnabled: z.boolean().optional(),
-    responseCacheTtlMs: z.number().int().min(1000).max(604_800_000).optional(),
     /**
      * Per-agent personalization toggle. 'off' suppresses user memory and
      * customInstructions injection AND strips the propose_memory tool.

@@ -11,6 +11,7 @@ import {
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
+import { assertNotHeld } from '../governance/legal_hold_guard';
 import { checkUploadPolicy } from '../governance/upload_enforcement';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
@@ -79,6 +80,19 @@ export const deleteDocument = mutation({
       email: authUser.email,
       name: authUser.name,
     });
+
+    // Synchronous hold check so the user sees an immediate error instead
+    // of a silent success while the async cleanup throws (round-2 v08 B4).
+    // Pass `createdBy` so the helper also respects custodian holds on
+    // the document author.
+    await assertNotHeld(
+      ctx,
+      document.organizationId,
+      'document',
+      String(args.documentId),
+      undefined,
+      document.createdBy ?? undefined,
+    );
 
     await ctx.scheduler.runAfter(
       0,

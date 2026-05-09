@@ -1,4 +1,5 @@
 import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
+import { ragFetch } from '../../../lib/helpers/rag_config';
 
 const MAX_CHUNK_WINDOW = 200;
 /** Stop fetching once accumulated content exceeds this size (~15K tokens). */
@@ -22,7 +23,6 @@ export interface DocumentChunksResult {
 }
 
 export async function fetchDocumentChunks(
-  serviceUrl: string,
   fileId: string,
 ): Promise<DocumentChunksResult> {
   const allChunks: Array<{ index: number; content: string }> = [];
@@ -31,11 +31,19 @@ export async function fetchDocumentChunks(
   let title: string | null = null;
   let chunkStart = 1;
 
-  while (true) {
+  // Cap inner pagination iterations as a defense-in-depth against an
+  // adversarial / buggy RAG response whose chunk_range.end never advances
+  // (would otherwise spin until the 30-min action ceiling).
+  const MAX_ITERATIONS = 30;
+  for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
     const chunkEnd = chunkStart + MAX_CHUNK_WINDOW - 1;
-    const url = `${serviceUrl}/api/v1/documents/${encodeURIComponent(fileId)}/content?return_chunks=true&chunk_start=${chunkStart}&chunk_end=${chunkEnd}`;
-
-    const response = await fetch(url);
+    const response = await ragFetch(
+      `/api/v1/documents/${encodeURIComponent(fileId)}/content?return_chunks=true&chunk_start=${chunkStart}&chunk_end=${chunkEnd}`,
+      // Default ragFetch timeout is 10s; sibling RAG ops in
+      // workflow_engine use 30–120s. Matching that here so chunk
+      // pagination doesn't fail mid-scan on a slow embedding tail.
+      { timeoutMs: 60_000 },
+    );
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
@@ -61,7 +69,15 @@ export async function fetchDocumentChunks(
       break;
     }
 
-    chunkStart = result.chunk_range.end + 1;
+    const nextStart = result.chunk_range.end + 1;
+    if (nextStart <= chunkStart) {
+      // Server did not advance the cursor — bail out instead of looping.
+      console.warn(
+        `[fetchDocumentChunks] chunk_range did not advance for fileId=${fileId} (start=${chunkStart}, end=${result.chunk_range.end}); breaking`,
+      );
+      break;
+    }
+    chunkStart = nextStart;
   }
 
   return { documentId, title, chunks: allChunks, totalChunks };

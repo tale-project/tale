@@ -27,6 +27,30 @@ describe('canonicalize', () => {
     expect(result).toBe('{"action":"test"}');
   });
 
+  // Round-2 review CRITICAL #8: retention soft-delete patches
+  // `lifecycleStatus` and `statusChangedAt` onto auditLogs rows. These
+  // fields were missing from EXCLUDED_FIELDS pre-fix, so any soft-
+  // deleted audit row poisoned the chain hash recompute and
+  // verifyIntegrity reported the entire chain as `valid: false`.
+  // Locking the fix in: both fields MUST be excluded.
+  it('excludes lifecycleStatus and statusChangedAt (post-soft-delete patches)', () => {
+    const result = canonicalizeForTest({
+      action: 'test',
+      lifecycleStatus: 'expired',
+      statusChangedAt: 1730000000000,
+    });
+    expect(result).toBe('{"action":"test"}');
+  });
+
+  it('excludes chainSuccessor and piiScrubbedAt (post-write patches)', () => {
+    const result = canonicalizeForTest({
+      action: 'test',
+      chainSuccessor: 'kxx_next',
+      piiScrubbedAt: 1730000000000,
+    });
+    expect(result).toBe('{"action":"test"}');
+  });
+
   it('handles null and undefined', () => {
     expect(canonicalizeForTest(null)).toBe('null');
     expect(canonicalizeForTest(undefined)).toBe('undefined');
@@ -36,6 +60,31 @@ describe('canonicalize', () => {
     expect(canonicalizeForTest('hello')).toBe('"hello"');
     expect(canonicalizeForTest(42)).toBe('42');
     expect(canonicalizeForTest(true)).toBe('true');
+  });
+
+  it('skips object keys whose value is undefined', () => {
+    // Writer-shape: optional fields listed literally as `args.X` enter
+    // as `undefined`. Verifier-shape: those keys are absent because
+    // Convex drops undefined values before storage. Both must hash the
+    // same.
+    const writerShape = {
+      action: 'login',
+      actorId: 'u1',
+      actorEmail: undefined,
+      actorEmailHash: 'abc123',
+      organizationId: 'org1',
+      timestamp: 100,
+    };
+    const verifierShape = {
+      action: 'login',
+      actorId: 'u1',
+      actorEmailHash: 'abc123',
+      organizationId: 'org1',
+      timestamp: 100,
+    };
+    expect(canonicalizeForTest(writerShape)).toBe(
+      canonicalizeForTest(verifierShape),
+    );
   });
 });
 
@@ -79,6 +128,58 @@ describe('computeAuditHash', () => {
     const hash1 = await computeAuditHash('', record1);
     const hash2 = await computeAuditHash('', record2);
     expect(hash1).toBe(hash2);
+  });
+
+  it('produces the same hash for writer-shape (undefined fields) and verifier-shape (omitted)', async () => {
+    // Regression: prior canonicalize emitted `"key":undefined` for
+    // undefined-valued keys, so a writer that listed every optional field
+    // (audit_logs/helpers.ts:165) signed a hash that the verifier — which
+    // rebuilds canonical from the stored row where Convex has dropped
+    // those keys — could never reproduce.
+    const writer = {
+      action: 'login',
+      actorId: 'u1',
+      actorEmail: undefined,
+      actorEmailHash: 'abc123',
+      ipAddress: undefined,
+      actorIpHash: undefined,
+      organizationId: 'org1',
+      timestamp: 100,
+    };
+    const verifier = {
+      action: 'login',
+      actorId: 'u1',
+      actorEmailHash: 'abc123',
+      organizationId: 'org1',
+      timestamp: 100,
+    };
+    const writerHash = await computeAuditHash('prev', writer);
+    const verifierHash = await computeAuditHash('prev', verifier);
+    expect(writerHash).toBe(verifierHash);
+  });
+
+  // Round-2 review CRITICAL #8 (end-to-end): the writer hashes a record
+  // that has no lifecycleStatus / statusChangedAt; the verifier later
+  // sees the row patched by retention soft-delete with both fields
+  // present. Both must hash identically (because EXCLUDED_FIELDS strips
+  // them back out), otherwise verifyIntegrity reports the chain as
+  // tampered for every soft-deleted audit row.
+  it('soft-delete patch does not change the canonical record hash', async () => {
+    const writerRecord = { action: 'login', timestamp: 1000 };
+    const writerHash = await computeAuditHash('', writerRecord);
+
+    const verifierRecordAfterSoftDelete = {
+      action: 'login',
+      timestamp: 1000,
+      lifecycleStatus: 'expired',
+      statusChangedAt: 2000,
+    };
+    const verifierHash = await computeAuditHash(
+      '',
+      verifierRecordAfterSoftDelete,
+    );
+
+    expect(verifierHash).toBe(writerHash);
   });
 
   it('forms a verifiable chain', async () => {

@@ -32,6 +32,16 @@ export interface CreateAuditLogArgs {
   ipAddress?: string;
   userAgent?: string;
   requestId?: string;
+  /**
+   * Peppered hash of `actorEmail`. Mutually exclusive with `actorEmail`
+   * on the same row — see schema.ts for the rationale.
+   */
+  actorEmailHash?: string;
+  /**
+   * Peppered hash of a coarse network prefix of `ipAddress`. Mutually
+   * exclusive with `ipAddress` on the same row.
+   */
+  actorIpHash?: string;
   status: AuditLogStatus;
   errorMessage?: string;
   metadata?: Record<string, unknown>;

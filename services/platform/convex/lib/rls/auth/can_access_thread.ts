@@ -44,6 +44,18 @@ export async function canAccessThread(
   ]);
   if (!metadata) return null;
 
+  // Trashed/expired/deleted threads are NOT accessible via this RLS path.
+  // Admin Trash management uses a separate query that bypasses this check.
+  // Without this gate, a holder of a thread URL could keep reading/writing
+  // a soft-deleted thread until retention Pass B physically removes it.
+  if (
+    metadata.status === 'trashed' ||
+    metadata.status === 'expired' ||
+    metadata.status === 'deleted'
+  ) {
+    return null;
+  }
+
   // Owner branch
   if (metadata.userId === authUser.userId) {
     if (!metadata.organizationId) return metadata; // legacy: no org to check

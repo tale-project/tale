@@ -38,11 +38,16 @@ crons.cron(
   {},
 );
 
-// LLM response cache cleanup - purge expired entries hourly
+// Effect approved legal-hold releases standalone — runs even when the
+// retention kill-switch (`TALE_RETENTION_DISABLED`) is set, and is not
+// gated on a successful per-category sweep. Without this, a maker-
+// checker release that has cleared its 24h cooldown can stall
+// indefinitely (compliance regression). Picks an off-peak hour so it
+// doesn't compete with the main 04:00 sweep.
 crons.cron(
-  'purge expired LLM response cache (hourly)',
-  '0 * * * *',
-  internal.lib.response_cache.internal_mutations.purgeExpired,
+  'effect approved legal-hold releases (daily)',
+  '0 1 * * *',
+  internal.governance.retention_cleanup.effectReleasesOnly,
   {},
 );
 
@@ -72,6 +77,20 @@ crons.cron(
   'clear stale artifact streams (every 5 min)',
   '*/5 * * * *',
   internal.artifacts.internal_mutations.cleanupStaleStreams,
+  {},
+);
+
+// GDPR erasure watchdog (round-2 V5 P0-14) - the same shape as the
+// transcription watchdog above. Convex actions hard-stop at 30 min;
+// `gdprErasureRequests` rows whose subject has too many rows / RAG
+// fan-out exceeding that cap stay at `status: 'running'` forever
+// without admin recovery. Flip rows past 35 min to `'failed'` so
+// admins can call `retryErasureRequest`. The 30-day Art 12(3) SLA
+// would otherwise elapse with no path forward.
+crons.cron(
+  'recover stuck gdpr erasure requests (every 5 min)',
+  '*/5 * * * *',
+  internal.governance.erasure.recoverStuckErasureRequests,
   {},
 );
 
