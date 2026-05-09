@@ -3669,6 +3669,7 @@
       "column": {
         "type": "Type",
         "name": "Nom",
+        "owner": "Propriétaire",
         "status": "Statut",
         "statusChangedAt": "Mis à la corbeille",
         "actions": "Actions"

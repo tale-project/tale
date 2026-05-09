@@ -3757,6 +3757,7 @@
       "column": {
         "type": "Typ",
         "name": "Name",
+        "owner": "Eigentümer",
         "status": "Status",
         "statusChangedAt": "Verworfen",
         "actions": "Aktionen"

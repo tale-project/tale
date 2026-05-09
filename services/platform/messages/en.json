@@ -3757,6 +3757,7 @@
       "column": {
         "type": "Type",
         "name": "Name",
+        "owner": "Owner",
         "status": "Status",
         "statusChangedAt": "Trashed",
         "actions": "Actions"

@@ -485,6 +485,8 @@ interface TrashRow {
   statusChangedAt: number | null;
   createdAt: number;
   displayName: string | null;
+  ownerId: string | null;
+  ownerName: string | null;
 }
 
 interface TrashCursor {
@@ -504,6 +506,8 @@ const trashRowValidator = v.object({
   statusChangedAt: v.union(v.number(), v.null()),
   createdAt: v.number(),
   displayName: v.union(v.string(), v.null()),
+  ownerId: v.union(v.string(), v.null()),
+  ownerName: v.union(v.string(), v.null()),
 });
 
 export const listTrashedRows = query({
@@ -566,6 +570,22 @@ export const listTrashedRows = query({
       hasMore && last
         ? { ts: last.statusChangedAt ?? last.createdAt, id: last.id }
         : null;
+
+    // Resolve owner display names against Better Auth in one batched
+    // pass. Only on the visible page so the lookup count stays bounded
+    // by `TRASH_MAX_LIMIT` regardless of per-subpage buffer size.
+    const ownerIds: string[] = [];
+    for (const row of page) {
+      if (row.ownerId) ownerIds.push(row.ownerId);
+    }
+    if (ownerIds.length > 0) {
+      const names = await getUserNamesBatch(ctx, ownerIds);
+      for (const row of page) {
+        if (row.ownerId) {
+          row.ownerName = names.get(row.ownerId) ?? null;
+        }
+      }
+    }
 
     return { rows: page, nextCursor };
   },
@@ -965,17 +985,22 @@ function projectSubpage<T extends { _id: unknown; _creationTime: number }>(
       status: m.status,
       statusChangedAt: m.statusChangedAt,
       createdAt: m.createdAt,
-      displayName: pickDisplayName(row, config),
+      displayName: pickStringField(row, config.displayNameField),
+      ownerId: pickStringField(row, config.authorField),
+      ownerName: null,
     });
   }
   return out;
 }
 
-function pickDisplayName(row: unknown, config: ResourceConfig): string | null {
-  if (!config.displayNameField || row === null || typeof row !== 'object') {
+function pickStringField(
+  row: unknown,
+  field: string | undefined,
+): string | null {
+  if (!field || row === null || typeof row !== 'object') {
     return null;
   }
-  if (!Object.hasOwn(row, config.displayNameField)) return null;
-  const value = Reflect.get(row, config.displayNameField);
-  return typeof value === 'string' ? value : null;
+  if (!Object.hasOwn(row, field)) return null;
+  const value = Reflect.get(row, field);
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }

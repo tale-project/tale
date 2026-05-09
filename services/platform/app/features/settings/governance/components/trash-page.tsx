@@ -47,6 +47,8 @@ interface TrashRow {
   statusChangedAt: number | null;
   createdAt: number;
   displayName: string | null;
+  ownerId: string | null;
+  ownerName: string | null;
 }
 
 interface TrashCursor {
@@ -218,6 +220,9 @@ export function TrashPage({ organizationId }: Props) {
                   {t('trash.column.name', 'Name')}
                 </th>
                 <th className="px-3 py-2 text-left font-medium">
+                  {t('trash.column.owner', 'Owner')}
+                </th>
+                <th className="px-3 py-2 text-left font-medium">
                   {t('trash.column.status', 'Status')}
                 </th>
                 <th className="px-3 py-2 text-left font-medium">
@@ -239,6 +244,15 @@ export function TrashPage({ organizationId }: Props) {
                   </td>
                   <td className="px-3 py-2 font-mono text-xs">
                     {row.displayName ?? row.id}
+                  </td>
+                  <td
+                    className={
+                      row.ownerName
+                        ? 'text-muted-foreground px-3 py-2 text-xs'
+                        : 'text-muted-foreground px-3 py-2 font-mono text-xs'
+                    }
+                  >
+                    {row.ownerName ?? row.ownerId ?? '—'}
                   </td>
                   <td className="px-3 py-2">
                     <span
