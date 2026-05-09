@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 
+import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
 import { jsonRecordValidator } from '../lib/validators/json';
 import {
   AUDIT_LOG_ACTOR_TYPES,
@@ -56,6 +57,13 @@ export const auditLogItemValidator = v.object({
 
   actorEmailHash: v.optional(v.string()),
   actorIpHash: v.optional(v.string()),
+
+  // Patched onto the row by retention soft-delete (`markRowExpiredGeneric`).
+  // Excluded from the integrity hash via `EXCLUDED_FIELDS` in
+  // `audit_hash.ts`; declared here so query-return validators don't reject
+  // soft-deleted rows.
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
 });
 
 export const auditLogFilterValidator = v.object({

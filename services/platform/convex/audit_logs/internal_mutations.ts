@@ -256,13 +256,6 @@ export const deleteOldLogs = internalMutation({
 });
 
 /**
- * @deprecated — renamed to `deleteOldLogs`. Re-exported so callers
- * registered with the cron scheduler under the old name keep working
- * during the rename window.
- */
-export const archiveOldLogs = deleteOldLogs;
-
-/**
  * GDPR Art 17 audit-chain PII scrub.
  *
  * Strategy: KEEP the row (so the audit trail of "user X did Y at time

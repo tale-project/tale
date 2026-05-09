@@ -18,17 +18,25 @@
  * hash chain metadata itself (or post-write annotations), not the
  * record payload that the writer signed.
  *
- * `chainSuccessor` is patched onto a row by its successor's insert, so
- * it cannot be in the writer's hash input. `piiScrubbedAt` is patched
- * by the scrub pipeline and similarly post-dates the original signature.
- * Including either in the verifier's hash input would diverge from the
- * writer and report every patched row as tampered.
+ * - `chainSuccessor` is patched onto a row by its successor's insert.
+ * - `piiScrubbedAt` is patched by the GDPR Art 17 scrub pipeline.
+ * - `lifecycleStatus` / `statusChangedAt` are patched by retention
+ *   soft-delete (`markRowExpiredGeneric` in `soft_delete_helpers.ts`)
+ *   when an audit log row is reaped past TTL. Pre-fix, soft-deleting
+ *   any audit row poisoned the hash recompute for the entire chain
+ *   because verify_integrity destructured neither out of the canonical
+ *   record. Round-2 review CRITICAL #8.
+ *
+ * Including any of these in the verifier's hash input would diverge
+ * from the writer and report every patched row as tampered.
  */
 const EXCLUDED_FIELDS = new Set([
   'integrityHash',
   'previousHash',
   'chainSuccessor',
   'piiScrubbedAt',
+  'lifecycleStatus',
+  'statusChangedAt',
 ]);
 
 function isRecord(val: unknown): val is Record<string, unknown> {

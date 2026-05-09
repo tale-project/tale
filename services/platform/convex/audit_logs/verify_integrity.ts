@@ -23,6 +23,7 @@
 
 import { v } from 'convex/values';
 
+import type { Doc } from '../_generated/dataModel';
 import { query } from '../_generated/server';
 import { computeAuditHash } from '../lib/helpers/audit_hash';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
@@ -129,6 +130,16 @@ export const verifyIntegrity = query({
   args: {
     organizationId: v.string(),
     maxEntries: v.optional(v.number()),
+    /**
+     * Page-resume cursor: when set, the walk skips rows with timestamp
+     * < `fromTimestamp` and assumes the caller has already verified the
+     * chain up to that point. The `isFirstEntry` anchor check is skipped
+     * because the caller starts mid-chain. Pre-fix, the response promised
+     * "page from `lastVerifiedTimestamp + 1`" but the query had no such
+     * arg — large-org chains could not be paged, only re-walked from
+     * scratch with bigger `maxEntries`. Round-2 review C.4.1.
+     */
+    fromTimestamp: v.optional(v.number()),
   },
   returns: v.object({
     valid: v.boolean(),
@@ -257,26 +268,26 @@ export const verifyIntegrity = query({
     // 3. Load the live chain (oldest first) up to `maxEntries`. Track
     //    truncation explicitly: returning `valid: true` for a long
     //    chain that we only walked the head of would silently mask
-    //    tampering past the cut.
-    const entries: Array<{
-      _id: string;
-      timestamp: number;
-      integrityHash?: string;
-      previousHash?: string;
-      [key: string]: unknown;
-    }> = [];
+    //    tampering past the cut. Resume from `fromTimestamp` when the
+    //    caller is paging mid-chain.
+    const entries: Doc<'auditLogs'>[] = [];
     let truncated = false;
-    for await (const log of ctx.db
+    const indexQuery = ctx.db
       .query('auditLogs')
       .withIndex('by_organizationId_and_timestamp', (q) =>
-        q.eq('organizationId', args.organizationId),
+        args.fromTimestamp !== undefined
+          ? q
+              .eq('organizationId', args.organizationId)
+              .gte('timestamp', args.fromTimestamp)
+          : q.eq('organizationId', args.organizationId),
       )
-      .order('asc')) {
+      .order('asc');
+    for await (const log of indexQuery) {
       if (entries.length >= maxEntries) {
         truncated = true;
         break;
       }
-      entries.push({ ...log, _id: String(log._id) });
+      entries.push(log);
     }
 
     // 4. Re-anchor across deletion boundaries. The chain head's
@@ -289,7 +300,12 @@ export const verifyIntegrity = query({
     //    against the live head: a re-write attack post-cut would bend
     //    `previousHash` away from `lastDeletedHash`, surfacing here.
     let previousExpectedHash = '';
-    let isFirstEntry = true;
+    // Suppress the head-anchor check when paging mid-chain: the caller
+    // is resuming from `fromTimestamp` and has already verified the
+    // anchor on a prior page. Treating row N (mid-chain) as a "first
+    // entry" would force its previousHash to match a checkpoint, which
+    // it never does for non-anchor rows.
+    let isFirstEntry = args.fromTimestamp === undefined;
 
     // Build per-subject scrub windows from SIGNED pii_scrub checkpoints
     // only. A row carrying `actorId === X` is allowed to skip hash
@@ -301,7 +317,6 @@ export const verifyIntegrity = query({
     // Unsigned legacy scrub checkpoints are tracked separately below.
     type ScrubWindow = { maxTimestamp: number; checkpointId: string };
     const subjectScrubWindows = new Map<string, ScrubWindow[]>();
-    const unsignedScrubSubjects = new Set<string>();
     for (const cp of checkpoints) {
       if (cp.subtype !== 'pii_scrub' || cp.scrubbedSubjectId === undefined) {
         continue;
@@ -313,15 +328,14 @@ export const verifyIntegrity = query({
           checkpointId: cp._id,
         });
         subjectScrubWindows.set(cp.scrubbedSubjectId, list);
-      } else {
-        // Pre-signing-key checkpoints (or deployments that never set
-        // TALE_AUDIT_SIGNING_KEY) cannot attest the scrub authority.
-        // We still let the verifier accept them (otherwise upgrading to
-        // signed checkpoints would fail every historical chain), but
-        // the count surfaces in the return so operators see the
-        // unsigned trust window.
-        unsignedScrubSubjects.add(cp.scrubbedSubjectId);
       }
+      // Unsigned scrub checkpoints (legacy / pre-signing-key) are
+      // intentionally NOT tracked in a per-subject set: the only gate
+      // that grants trust to bare `piiScrubbed: true` rows is the
+      // `!hasSigningKey` branch below, which is a deployment-wide
+      // signal independent of subject identity. Adding a per-subject
+      // set here would let an attacker plant an unsigned pii_scrub row
+      // on a signed deployment to bypass recompute (round-2 v02 H2 F6).
     }
 
     // Anchor pick: the most recent retention checkpoint (highest
@@ -337,8 +351,15 @@ export const verifyIntegrity = query({
     //     anchor and matching one would let an attacker re-anchor a
     //     forged head against an unrelated scrub checkpoint
     //     (round-2 v02 H2 F1).
+    // Match `canonicalCheckpointPayload`'s `?? 'retention'` fallback for
+    // pre-`subtype`-field rows. Strict equality dropped legacy retention
+    // checkpoints (`subtype: undefined`) so any deployment that ran retention
+    // before the subtype field was introduced fails verifyIntegrity at the
+    // first run after upgrade — chain head's previousHash references a
+    // deleted row, anchor candidate set is empty, valid=false.
+    // Round-2 review CRITICAL #9.
     const anchorCandidates = checkpoints
-      .filter((cp) => cp.subtype === 'retention')
+      .filter((cp) => cp.subtype === 'retention' || cp.subtype === undefined)
       .sort((a, b) => b.createdAt - a.createdAt);
 
     for (const entry of entries) {
@@ -381,19 +402,12 @@ export const verifyIntegrity = query({
             // configured, so signed-checkpoint coverage is impossible
             // and the bare `piiScrubbed` flag is the best signal we
             // have. Surface the count so operators see the unsigned
-            // trust window. Round-2 v02 H2 F6: this branch was
-            // previously reachable even on signed deployments via the
-            // `unsignedScrubSubjects` set — a checkpoint downgrade
-            // attacker could plant an unsigned `pii_scrub` row to
-            // bypass recompute. Now strictly gated on `!hasSigningKey`.
+            // trust window. Round-2 v02 H2 F6: this branch is strictly
+            // gated on `!hasSigningKey` so a checkpoint-downgrade
+            // attacker on a signed deployment cannot plant an unsigned
+            // `pii_scrub` row to bypass recompute.
             isScrubbed = true;
             unsignedScrubCount++;
-            // Best-effort: track that we accepted an unsigned subject
-            // for the operator-visible count, but do not require it
-            // for trust.
-            if (unsignedScrubSubjects.has(actorId)) {
-              // already counted above; no-op
-            }
           }
         } else if (!hasSigningKey) {
           // No actorId on the row + legacy unsigned deployment.

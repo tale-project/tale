@@ -1,5 +1,5 @@
 import { isRecord } from '../../lib/utils/type-guards';
-import type { Id } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { computeAuditHash } from '../lib/helpers/audit_hash';
 import type {
@@ -137,6 +137,55 @@ export function computeChangedFields(
   return changedFields;
 }
 
+/**
+ * Single source of truth for the canonical record payload that goes into
+ * `computeAuditHash`. Both the writer (`createAuditLog`) and the inline
+ * self-check use this — keeping the field list in one place eliminates
+ * drift risk: adding a field to the writer literal without adding it
+ * here would silently change the hash output across writes vs. the
+ * self-checker, producing false-positive tamper detections. Round-2
+ * review C.5.
+ */
+export function buildAuditRecordHashInput(
+  source:
+    | (CreateAuditLogArgs & {
+        timestamp: number;
+        previousState?: Record<string, unknown>;
+        newState?: Record<string, unknown>;
+        changedFields?: string[];
+      })
+    | Doc<'auditLogs'>,
+): Record<string, unknown> {
+  return {
+    organizationId: source.organizationId,
+    actorId: source.actorId,
+    actorEmail: source.actorEmail,
+    actorEmailHash: source.actorEmailHash,
+    actorRole: source.actorRole,
+    actorType: source.actorType,
+    action: source.action,
+    category: source.category,
+    resourceType: source.resourceType,
+    resourceId: source.resourceId,
+    resourceName: source.resourceName,
+    previousState: source.previousState,
+    newState: source.newState,
+    changedFields:
+      source.changedFields && source.changedFields.length > 0
+        ? source.changedFields
+        : undefined,
+    sessionId: source.sessionId,
+    ipAddress: source.ipAddress,
+    actorIpHash: source.actorIpHash,
+    userAgent: source.userAgent,
+    requestId: source.requestId,
+    timestamp: source.timestamp,
+    status: source.status,
+    errorMessage: source.errorMessage,
+    metadata: source.metadata,
+  };
+}
+
 export async function createAuditLog(
   ctx: MutationCtx,
   args: CreateAuditLogArgs,
@@ -150,6 +199,30 @@ export async function createAuditLog(
 
   const timestamp = Date.now();
 
+  // Genesis sentinel: read + patch a per-org row to force OCC
+  // serialization on the very first audit write per org. Without this,
+  // two concurrent first-writers both observe `lastEntry === null`,
+  // both insert with `previousHash: ''`, and the chain forks
+  // permanently with no schema unique constraint to catch it. Lazily
+  // upserted on first write per org. Round-2 review CRITICAL #10.
+  const genesis = await ctx.db
+    .query('auditLogChainGenesis')
+    .withIndex('by_organizationId', (q) =>
+      q.eq('organizationId', args.organizationId),
+    )
+    .first();
+  if (genesis) {
+    // Patch forces OCC contention with any concurrent writer for the
+    // same org. The loser's transaction aborts and retries; on retry it
+    // observes the winner's just-committed audit row as `lastEntry`.
+    await ctx.db.patch(genesis._id, { lastInsertedAt: timestamp });
+  } else {
+    await ctx.db.insert('auditLogChainGenesis', {
+      organizationId: args.organizationId,
+      lastInsertedAt: timestamp,
+    });
+  }
+
   // Look up the most recent audit log for this organization to chain hashes
   const lastEntry = await ctx.db
     .query('auditLogs')
@@ -159,34 +232,47 @@ export async function createAuditLog(
     .order('desc')
     .first();
 
+  // Inline self-check: recompute the prior row's integrity hash and compare
+  // to the stored value. Catches naive tampering (field changed but hash
+  // not updated) at the next legitimate audit write — the only automated
+  // tamper detection we have today (verifyIntegrity is a manual query
+  // with no operational wiring). MUST NOT abort the legitimate write
+  // under any failure mode: console.error/warn, then proceed.
+  // Round-2 review C.5.
+  if (lastEntry && lastEntry.piiScrubbed !== true) {
+    try {
+      const recomputed = await computeAuditHash(
+        lastEntry.previousHash ?? '',
+        buildAuditRecordHashInput(lastEntry),
+      );
+      if (recomputed !== lastEntry.integrityHash) {
+        console.error('[audit-chain] tamper detected on prior row', {
+          orgId: args.organizationId,
+          rowId: lastEntry._id,
+          stored: lastEntry.integrityHash,
+          recomputed,
+        });
+      }
+    } catch (err) {
+      console.warn('[audit-chain] self-check threw, skipping', {
+        err: String(err),
+      });
+    }
+  }
+
   const previousHash = lastEntry?.integrityHash ?? '';
 
-  // Build the record payload for hashing (all fields except hash chain metadata)
-  const recordForHash: Record<string, unknown> = {
-    organizationId: args.organizationId,
-    actorId: args.actorId,
-    actorEmail: args.actorEmail,
-    actorEmailHash: args.actorEmailHash,
-    actorRole: args.actorRole,
-    actorType: args.actorType,
-    action: args.action,
-    category: args.category,
-    resourceType: args.resourceType,
-    resourceId: args.resourceId,
-    resourceName: args.resourceName,
+  // Build the record payload for hashing via the shared helper. The
+  // returned shape MUST be the same one the verifier reconstructs from
+  // the persisted row (driven by the same helper), so the chain hash
+  // round-trips byte-for-byte.
+  const recordForHash = buildAuditRecordHashInput({
+    ...args,
     previousState: redactedPreviousState,
     newState: redactedNewState,
-    changedFields: changedFields.length > 0 ? changedFields : undefined,
-    sessionId: args.sessionId,
-    ipAddress: args.ipAddress,
-    actorIpHash: args.actorIpHash,
-    userAgent: args.userAgent,
-    requestId: args.requestId,
+    changedFields,
     timestamp,
-    status: args.status,
-    errorMessage: args.errorMessage,
-    metadata: args.metadata,
-  };
+  });
 
   // Compute integrity hash: SHA-256(previousHash + canonicalized record)
   const integrityHash = await computeAuditHash(previousHash, recordForHash);
