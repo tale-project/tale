@@ -99,10 +99,18 @@ export function ChatHistorySidebar({
     organizationId,
     targetType: 'thread',
   });
+  // Org-wide hold: every thread in the org is implicitly held; the
+  // sidebar shows the lock indicator on every row regardless of
+  // explicit per-thread hold matches. Closes round-2 V4 P0 — before
+  // the org-cascade fix landed, an org-wide hold was silently invisible
+  // at the chat-sidebar surface.
+  const orgWideHeld = heldThreadsData?.orgHeld ?? false;
   const heldThreadIds = useMemo(
     () => new Set(heldThreadsData?.targetIds ?? []),
     [heldThreadsData?.targetIds],
   );
+  const isThreadHeld = (threadId: string) =>
+    orgWideHeld || heldThreadIds.has(threadId);
 
   const { executingThreadIds, pendingThreadIds } = useMemo(() => {
     const executing = new Set();
@@ -374,7 +382,7 @@ export function ChatHistorySidebar({
                                 aria-label={t('history.awaitingInput')}
                               />
                             )}
-                            {heldThreadIds.has(chat._id) && (
+                            {isThreadHeld(chat._id) && (
                               <LegalHoldIndicator
                                 organizationId={organizationId}
                                 targetType="thread"

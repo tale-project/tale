@@ -5,6 +5,7 @@ import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { authComponent } from '../auth';
+import { assertNotHeld } from '../governance/legal_hold_guard';
 import { cascadeOnMemberRemoved } from '../lib/cascades/personalization_cascade';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import type {
@@ -167,6 +168,23 @@ export const removeMember = mutation({
           }),
         )
       : undefined;
+
+    // Round-2 V4 P0-11: removing a member cascades into
+    // `cascadeOnMemberRemoved`, which hard-deletes the user's userMemories
+    // + userPreferences + (per Commit 1) thread-bound chat-uploads scoped
+    // to this org. Refuse if the org is on a hold OR if the member's
+    // userId is on a userMembership custodian hold — without this gate,
+    // an admin could silently wipe a held custodian's footprint.
+    if (member.userId) {
+      await assertNotHeld(
+        ctx,
+        member.organizationId,
+        'userMembership',
+        member.userId,
+        undefined,
+        member.userId,
+      );
+    }
 
     await ctx.runMutation(components.betterAuth.adapter.deleteOne, {
       input: {

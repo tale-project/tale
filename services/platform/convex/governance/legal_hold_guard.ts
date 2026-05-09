@@ -37,7 +37,8 @@ export type GuardedTargetType =
   | 'customer'
   | 'vendor'
   | 'conversation'
-  | 'folder';
+  | 'folder'
+  | 'org';
 
 /**
  * Throws when the org is under an active hold OR when `authorUserId` is

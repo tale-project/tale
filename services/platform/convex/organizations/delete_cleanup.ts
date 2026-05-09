@@ -12,6 +12,7 @@ import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { logSuccess } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
+import { assertNotHeld } from '../governance/legal_hold_guard';
 import { cascadeOnOrgDeleted } from '../lib/cascades/personalization_cascade';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { resolveOrgSlug } from './resolve_org_slug';
@@ -40,6 +41,21 @@ export const prepareOrganizationDeletion = mutation({
     if (slug === 'default') {
       throw new Error('The default organization cannot be deleted');
     }
+
+    // Round-2 V4 P0-10: cascadeOnOrgDeleted hard-deletes userMemories +
+    // userPreferences + (per Commit 1) thread-bound chat-upload files
+    // org-wide. Without this gate, an owner could wipe a hold-held org's
+    // PII directly — FRCP 37(e) spoliation. assertNotHeld refuses with
+    // `LEGAL_HOLD_ACTIVE` (orgHeld + any active userMembership cascade
+    // implicitly fires too — passing the actor's id as authorUserId).
+    await assertNotHeld(
+      ctx,
+      args.organizationId,
+      'org',
+      args.organizationId,
+      undefined,
+      String(authUser._id),
+    );
 
     await logSuccess(ctx, {
       auditCtx: {

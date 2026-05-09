@@ -567,10 +567,33 @@ export const getLegalHoldByTarget = query({
       }
     }
 
-    const hold = directHold ?? cascadeHold;
+    // Pass C — org-wide hold cascade. When the whole org is on a
+    // hold, every entity is implicitly held; surface that to the UI
+    // with `via: 'org'` so badges + tooltips render. Round-2 V4 P0:
+    // before this fix, the validator declared `via: 'org'` but no
+    // producer ever emitted it, leaving org-wide holds silently
+    // invisible at the per-entity surface.
+    let orgWideHold: Doc<'legalHolds'> | null = null;
+    if (!directHold && !cascadeHold) {
+      orgWideHold = await ctx.db
+        .query('legalHolds')
+        .withIndex('by_target', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('targetType', 'org')
+            .eq('targetId', args.organizationId),
+        )
+        .filter((q) => q.eq(q.field('releasedAt'), undefined))
+        .first();
+    }
+
+    const hold = directHold ?? cascadeHold ?? orgWideHold;
     if (!hold) return null;
-    const via: 'direct' | 'user_custodian' =
-      directHold !== null ? 'direct' : 'user_custodian';
+    const via: 'direct' | 'user_custodian' | 'org' = directHold
+      ? 'direct'
+      : cascadeHold
+        ? 'user_custodian'
+        : 'org';
 
     // Latest release request for this hold (any status).
     const latest = await ctx.db
@@ -635,10 +658,34 @@ export const listActiveHoldTargetIds = query({
     targetType: targetTypeValidator,
   },
   returns: v.object({
+    /**
+     * `true` when an org-wide hold (`targetType: 'org'`) is active.
+     * Every entity in the org is implicitly held; the per-target
+     * `targetIds` array still enumerates direct + custodian-cascade
+     * matches so badge UI keeps working at the per-row surface, but
+     * the recommended UI pattern is "OR with `orgHeld` and render a
+     * blanket banner when set." Round-2 V4 P0 fix: before this,
+     * org-wide holds were silently invisible to per-entity badges.
+     */
+    orgHeld: v.boolean(),
     targetIds: v.array(v.string()),
   }),
   handler: async (ctx, args) => {
     await requireMember(ctx, args.organizationId);
+
+    // Org-wide hold lookup once per call; the UI ORs this with the
+    // per-target set to decide "show indicator on every row".
+    const orgRow = await ctx.db
+      .query('legalHolds')
+      .withIndex('by_target', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('targetType', 'org')
+          .eq('targetId', args.organizationId),
+      )
+      .filter((q) => q.eq(q.field('releasedAt'), undefined))
+      .first();
+    const orgHeld = orgRow !== null;
 
     // Direct holds against the requested target type.
     const directRows = await ctx.db
@@ -701,7 +748,7 @@ export const listActiveHoldTargetIds = query({
       }
     }
 
-    return { targetIds: Array.from(ids) };
+    return { orgHeld, targetIds: Array.from(ids) };
   },
 });
 
