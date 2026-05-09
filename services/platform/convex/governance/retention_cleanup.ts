@@ -492,6 +492,12 @@ async function cleanupAuditLogs(
         organizationId: org.organizationId,
         olderThanTimestamp,
         batchSize,
+        // FRCP 37(e) preservation: even when the org as a whole is not
+        // held, individual users on a custodian hold must have their
+        // audit trail (actor or target) preserved. Mirror the per-row
+        // gate cleanupMemoryAuditLogs already applies. Round-2 review
+        // CRITICAL #11.
+        protectedUserIds: [...holds.userMembershipIds],
       },
     );
     processed += result.deletedCount;
@@ -1483,12 +1489,9 @@ export const runOrgRetentionCleanup = internalAction({
     const categoryErrors: CategoryError[] = [];
 
     try {
-      const rawPolicies = await ctx.runQuery(
-        internal.governance.internal_queries.listRetentionPolicies,
-        {},
-      );
-      const policy = rawPolicies.find(
-        (p) => p.organizationId === args.organizationId,
+      const policy = await ctx.runQuery(
+        internal.governance.internal_queries.getRetentionPolicyForOrg,
+        { organizationId: args.organizationId },
       );
       if (!policy) return null;
 

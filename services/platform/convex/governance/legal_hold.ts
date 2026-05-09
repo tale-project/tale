@@ -313,24 +313,34 @@ export const placeLegalHold = mutation({
     // while under-protection is the real compliance risk. The dangerous
     // direction — release — keeps its dual-control flow below.
 
-    // Refuse duplicate active holds on the same target — the audit
-    // trail stays clean and the placer doesn't accidentally double-log.
-    const existing = await ctx.db
-      .query('legalHolds')
+    // Refuse duplicate active holds on the same target. Round-2 review
+    // CRITICAL #21: a bare `legalHolds.by_target` range query was
+    // racy — Convex OCC is row-level, not range-level, so two
+    // concurrent placeLegalHold calls both observed `existing: null`
+    // and both inserted, producing two active holds for the same
+    // target with no schema unique constraint to catch it. Fix: read +
+    // patch the per-target `activeLegalHoldClaims` row in this same
+    // transaction. Concurrent placers contend on the claim row, OCC
+    // serializes them, and the loser retries → re-reads claim →
+    // observes the winner's `activeHoldId` → throws ALREADY_ACTIVE.
+    const claim = await ctx.db
+      .query('activeLegalHoldClaims')
       .withIndex('by_target', (q) =>
         q
           .eq('organizationId', args.organizationId)
           .eq('targetType', args.targetType)
           .eq('targetId', args.targetId),
       )
-      .filter((q) => q.eq(q.field('releasedAt'), undefined))
       .first();
-    if (existing) {
-      throw new ConvexError({
-        code: 'LEGAL_HOLD_ALREADY_ACTIVE',
-        message: `An active legal hold already exists on ${args.targetType}:${args.targetId}.`,
-        existingHoldId: existing._id,
-      });
+    if (claim?.activeHoldId !== undefined) {
+      const heldRow = await ctx.db.get(claim.activeHoldId);
+      if (heldRow && heldRow.releasedAt === undefined) {
+        throw new ConvexError({
+          code: 'LEGAL_HOLD_ALREADY_ACTIVE',
+          message: `An active legal hold already exists on ${args.targetType}:${args.targetId}.`,
+          existingHoldId: claim.activeHoldId,
+        });
+      }
     }
 
     // FK gate: matterRef is stored as `String(matter._id)`. Reject any
@@ -367,6 +377,21 @@ export const placeLegalHold = mutation({
       placedBy: callerId,
       placedAt: now,
     });
+
+    // Set the per-target claim. Convex OCC: any concurrent placer that
+    // already read `claim` at the previous version conflicts on this
+    // patch (or on the matching insert below) and retries — at retry
+    // it observes the winner's holdId and throws ALREADY_ACTIVE.
+    if (claim) {
+      await ctx.db.patch(claim._id, { activeHoldId: holdId });
+    } else {
+      await ctx.db.insert('activeLegalHoldClaims', {
+        organizationId: args.organizationId,
+        targetType: args.targetType,
+        targetId: args.targetId,
+        activeHoldId: holdId,
+      });
+    }
 
     await createAuditLog(ctx, {
       organizationId: args.organizationId,
@@ -752,6 +777,21 @@ export const effectApprovedReleases = internalMutation({
         releaseReason: req.reason,
       });
       await ctx.db.patch(req._id, { status: 'effected' });
+      // Clear the per-target claim so the next placeLegalHold for this
+      // target takes the patch path (no insert race) and the duplicate-
+      // active-hold check correctly observes "no active hold".
+      const claim = await ctx.db
+        .query('activeLegalHoldClaims')
+        .withIndex('by_target', (q) =>
+          q
+            .eq('organizationId', hold.organizationId)
+            .eq('targetType', hold.targetType)
+            .eq('targetId', hold.targetId),
+        )
+        .first();
+      if (claim && claim.activeHoldId === req.holdId) {
+        await ctx.db.patch(claim._id, { activeHoldId: undefined });
+      }
       await createAuditLog(ctx, {
         organizationId: hold.organizationId,
         actorId: 'system',

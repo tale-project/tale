@@ -43,7 +43,19 @@ export async function eraseDocumentBlobs(
 
   if (doc.fileId) {
     const fileId = doc.fileId;
-    await ctx.storage.delete(fileId);
+    // Mirror the try/catch already used by erasure.ts:658 and
+    // internal_mutations_retention.ts:301 — a missing blob (already
+    // deleted by a prior partial run) must NOT abort the whole
+    // transaction, leaving the documents row permanently behind.
+    // Round-2 review HIGH cluster.
+    try {
+      await ctx.storage.delete(fileId);
+    } catch (err) {
+      console.warn('[erase_document_blobs] storage.delete failed', {
+        fileId: String(fileId),
+        err: String(err),
+      });
+    }
     storageIdsDeleted.push(String(fileId));
     const meta = await ctx.db
       .query('fileMetadata')
@@ -57,7 +69,14 @@ export async function eraseDocumentBlobs(
 
   if (doc.historyFiles) {
     for (const historyFileId of doc.historyFiles) {
-      await ctx.storage.delete(historyFileId);
+      try {
+        await ctx.storage.delete(historyFileId);
+      } catch (err) {
+        console.warn('[erase_document_blobs] history storage.delete failed', {
+          fileId: String(historyFileId),
+          err: String(err),
+        });
+      }
       storageIdsDeleted.push(String(historyFileId));
       const histMeta = await ctx.db
         .query('fileMetadata')

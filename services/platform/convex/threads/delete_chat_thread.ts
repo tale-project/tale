@@ -196,11 +196,14 @@ export async function deleteChatThread(
   // at this thread. Otherwise a deleted thread remains reachable via the
   // OpenAI-compat webhook path, and new POSTs would try to write into a
   // tombstoned thread.
-  const webhookMappings = await ctx.db
+  // Per-thread mapping cardinality is small (typically ≤ 10) so a
+  // straight `for await` over the thread-scoped index is safely bounded
+  // far below Convex's 16K per-transaction read limit. If a future
+  // scenario lands a thread with thousands of webhook mappings, switch
+  // to the paged scheduler-driven pattern in `cascade_helpers.ts`.
+  for await (const row of ctx.db
     .query('agentWebhookUserThreads')
-    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
-    .collect();
-  for (const row of webhookMappings) {
+    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))) {
     await ctx.db.delete(row._id);
   }
 
@@ -223,7 +226,15 @@ export function parseSubThreadIds(summary: string | undefined): string[] {
     return Object.values(parsed.subThreads).filter(
       (id): id is string => typeof id === 'string',
     );
-  } catch {
+  } catch (err) {
+    // Malformed summary — log so an operator can investigate, but
+    // gracefully fall back to "no sub-threads" so the cascade can
+    // continue. CLAUDE.md prohibits silent catches; this surfaces the
+    // failure without making the cascade brittle.
+    console.warn(
+      '[parseSubThreadIds] failed to parse summary; treating as no sub-threads',
+      err,
+    );
     return [];
   }
 }

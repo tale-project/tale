@@ -28,7 +28,7 @@
  * we look it up via `threadId` which is sufficient for cascade.
  */
 
-import { components } from '../_generated/api';
+import { components, internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import type { ActiveHolds } from '../governance/legal_hold';
@@ -97,7 +97,6 @@ export async function cascadeDeleteThreadChildren(
   },
 ): Promise<{ done: boolean; remaining: number }> {
   const { threadId, organizationId } = args;
-  const remaining = 0;
   const depth = args.depth ?? 0;
   if (depth >= MAX_CASCADE_DEPTH) {
     if (organizationId !== undefined) {
@@ -321,12 +320,12 @@ export async function cascadeDeleteThreadChildren(
   // Cascading them here closes the chat-upload "ghost file" residue that
   // would otherwise outlive the deleted thread on disk.
   //
-  // Deletes the underlying _storage blob first (strict — surfaces real
-  // failures like missing-blob via thrown errors), then the fileMetadata
-  // row. RAG-side purge is NOT done here (mutation can't fetch HTTP); the
-  // shared eraseDocumentBlobs helper introduced in the GDPR-completeness
-  // commit will fan that out via a scheduled action so this cascade and
-  // the GDPR processor share the same code path.
+  // Deletes the underlying _storage blob first, then the fileMetadata
+  // row. Round-2 review CRITICAL #17: also schedule a RAG-side purge for
+  // every storage id we deleted — without this the chat upload's vector
+  // chunks survive thread deletion forever (the GDPR `eraseSubjectFileMetadata`
+  // path can't reach them either, because the fileMetadata row is gone
+  // by the time it runs after this cascade).
   if (organizationId) {
     const filesPage = await ctx.db
       .query('fileMetadata')
@@ -334,6 +333,7 @@ export async function cascadeDeleteThreadChildren(
         q.eq('organizationId', organizationId).eq('threadId', threadId),
       )
       .take(PAGE_SIZE);
+    const ragPurgeStorageIds: string[] = [];
     for (const fileMeta of filesPage) {
       try {
         await ctx.storage.delete(fileMeta.storageId);
@@ -343,7 +343,16 @@ export async function cascadeDeleteThreadChildren(
           error,
         );
       }
+      ragPurgeStorageIds.push(String(fileMeta.storageId));
       await ctx.db.delete(fileMeta._id);
+    }
+    if (ragPurgeStorageIds.length > 0) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.workflow_engine.action_defs.rag.helpers.delete_document
+          .deleteFromRagBatch,
+        { fileIds: ragPurgeStorageIds },
+      );
     }
     if (filesPage.length === PAGE_SIZE) {
       return { done: false, remaining: 1 };
@@ -379,19 +388,30 @@ export async function cascadeDeleteThreadChildren(
     threadId,
   });
 
-  // 12. Recurse for sub-threads (best-effort — done after parent's children
-  // gone so a cascade interruption can still pick up sub-threads later).
-  // The recursive call inherits args.holds (set above when orgId is known)
-  // so the per-sub-thread hold check uses the same snapshot the dispatcher
-  // pre-fetched, falling back to a fresh re-read when no snapshot exists.
+  // 12. Recurse for sub-threads. Round-2 review CRITICAL #16: previously
+  // the recursive return value was discarded and the parent metadata row
+  // was deleted unconditionally. When a sub-thread itself had > PAGE_SIZE
+  // child rows (recursive call returns `done: false`), the parent's
+  // summary — the only place sub-thread IDs are recorded — was deleted
+  // with the parent's metadata row, leaving the sub-thread's children
+  // permanently orphaned. Now: if any sub-cascade is incomplete, return
+  // `done: false` BEFORE deleting the parent so the dispatcher re-invokes
+  // and can pick up where it left off via the still-present summary.
+  let allSubThreadsDone = true;
   for (const subId of subThreadIds) {
-    await cascadeDeleteThreadChildren(ctx, {
+    const subResult = await cascadeDeleteThreadChildren(ctx, {
       threadId: subId,
       organizationId,
       holds: args.holds,
       visited,
       depth: depth + 1,
     });
+    if (!subResult.done) {
+      allSubThreadsDone = false;
+    }
+  }
+  if (!allSubThreadsDone) {
+    return { done: false, remaining: 1 };
   }
 
   // 13. threadMetadata row itself — last step, only fires when every child
@@ -404,5 +424,5 @@ export async function cascadeDeleteThreadChildren(
     await ctx.db.delete(metaRow._id);
   }
 
-  return { done: true, remaining };
+  return { done: true, remaining: 0 };
 }

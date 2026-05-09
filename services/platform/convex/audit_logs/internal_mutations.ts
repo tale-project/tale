@@ -146,6 +146,14 @@ export const deleteOldLogs = internalMutation({
     organizationId: v.string(),
     olderThanTimestamp: v.number(),
     batchSize: v.optional(v.number()),
+    /**
+     * UserIds whose audit rows must be preserved despite age (they are
+     * on a custodian hold). Skipped at the per-row level — `actorId`
+     * matches OR `resourceId` matches when `resourceType === 'user'` /
+     * `'userMembership'`. FRCP 37(e) spoliation defense. Round-2 review
+     * CRITICAL #11.
+     */
+    protectedUserIds: v.optional(v.array(v.string())),
   },
   returns: v.object({
     deletedCount: v.number(),
@@ -153,6 +161,7 @@ export const deleteOldLogs = internalMutation({
   }),
   handler: async (ctx, args) => {
     const batchSize = args.batchSize ?? 100;
+    const protectedUserIds = new Set(args.protectedUserIds ?? []);
     let deletedCount = 0;
     let lastDeletedHash = '';
     let maxDeletedTimestamp = 0;
@@ -165,6 +174,21 @@ export const deleteOldLogs = internalMutation({
       .order('asc')) {
       if (log.timestamp >= args.olderThanTimestamp) {
         break;
+      }
+
+      // Skip rows whose actor OR user-typed resource is on a custodian
+      // hold. Cross-cutting iteration: we keep paging until we find a
+      // deletable row OR exhaust this batch. (`hasMore` below uses
+      // `deletedCount` rather than scanned count, so a window full of
+      // protected rows correctly reports `hasMore: false` when nothing
+      // was deletable in this slice — the cleanup will revisit later.)
+      const targetIsHeldUser =
+        (log.resourceType === 'user' ||
+          log.resourceType === 'userMembership') &&
+        log.resourceId !== undefined &&
+        protectedUserIds.has(log.resourceId);
+      if (protectedUserIds.has(log.actorId) || targetIsHeldUser) {
+        continue;
       }
 
       // Track the chain head we're deleting so the checkpoint can

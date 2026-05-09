@@ -2,6 +2,7 @@ import { ConvexError, v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
+import { eraseDocumentBlobs } from '../governance/erase_document_blobs';
 import { assertNotHeld } from '../governance/legal_hold_guard';
 import { createDocument as createDocumentHelper } from './create_document';
 import { updateDocumentInternal as updateDocumentInternalHelper } from './update_document_internal';
@@ -104,6 +105,14 @@ export const deleteDocumentById = internalMutation({
           await ctx.db.patch(metadata._id, { documentId: undefined });
         }
       }
+      // Erase _storage blob (primary `fileId` + every `historyFiles[]`)
+      // before dropping the row. Pre-fix, the public delete + REST DELETE
+      // path only patched the documents row out and unlinked
+      // fileMetadata, leaving every blob the row pointed at orphaned in
+      // _storage forever — both the storage cost and the unreachable-blob
+      // privacy risk. The retention path was already correct via the
+      // helper. Round-2 review CRITICAL #18.
+      await eraseDocumentBlobs(ctx, document);
       await ctx.db.delete(args.documentId);
     }
     return null;

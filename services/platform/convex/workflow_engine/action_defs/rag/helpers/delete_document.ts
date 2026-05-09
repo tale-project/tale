@@ -1,3 +1,5 @@
+import { v } from 'convex/values';
+
 import {
   getString,
   getNumber,
@@ -5,6 +7,7 @@ import {
   getArray,
   isRecord,
 } from '../../../../../lib/utils/type-guards';
+import { internalAction } from '../../../../_generated/server';
 import { ragFetch } from '../../../../lib/helpers/rag_config';
 import type { RagDeleteResult } from './types';
 
@@ -31,6 +34,23 @@ export async function deleteDocumentById({
       `/api/v1/documents/${encodeURIComponent(fileId)}`,
       { method: 'DELETE', timeoutMs },
     );
+
+    // Round-2 review HIGH: 404 means the document was already deleted
+    // — treat as a successful no-op so retention re-runs and cascade
+    // RAG purges are idempotent. Without this, a previously-purged
+    // document would surface as `success: false` on every subsequent
+    // run, producing a permanent failure indicator on retention
+    // receipts that operators cannot clear.
+    if (response.status === 404) {
+      return {
+        success: true,
+        deletedCount: 0,
+        deletedDataIds: [],
+        message: 'already_deleted',
+        processingTimeMs: Date.now() - startTime,
+        timestamp: Date.now(),
+      };
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -67,3 +87,31 @@ export async function deleteDocumentById({
     };
   }
 }
+
+/**
+ * Scheduler-friendly wrapper around `deleteDocumentById` that fans out
+ * over a list of fileIds. Mutations cannot reach the RAG service
+ * directly (HTTP requires an action context), so cascading thread
+ * deletes that need to purge RAG-side vector chunks schedule this
+ * action with the storageIds of the chat-upload files they removed.
+ * Best-effort: failures per file log but do not abort the batch.
+ * Round-2 review CRITICAL #17.
+ */
+export const deleteFromRagBatch = internalAction({
+  args: {
+    fileIds: v.array(v.string()),
+  },
+  returns: v.null(),
+  handler: async (_ctx, args) => {
+    for (const fileId of args.fileIds) {
+      const result = await deleteDocumentById({ fileId });
+      if (!result.success) {
+        console.warn(
+          `[deleteFromRagBatch] delete failed for ${fileId}:`,
+          result.error ?? result.message,
+        );
+      }
+    }
+    return null;
+  },
+});

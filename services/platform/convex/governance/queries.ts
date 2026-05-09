@@ -632,14 +632,31 @@ async function fetchTrashSubpage(
         passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
       );
     }
+    // Round-2 review CRITICAL #15: the `(organizationId, lifecycleStatus)`
+    // compound index orders rows alphabetically by status (`'active' <
+    // 'deleted' < 'expired' < 'trashed'`), so a `.take(N)` query that
+    // only `.eq`'s on `organizationId` consumes its budget on active
+    // rows first — the Trash UI renders empty for any org with ≥250
+    // active rows of that type. Fix: issue two `.eq('lifecycleStatus',
+    // ...)` queries and merge. Mirrors the thread case above.
     case 'document': {
-      const all = await ctx.db
+      const trashed = await ctx.db
         .query('documents')
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
-          q.eq('organizationId', organizationId),
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
         )
         .take(take);
-      return projectSubpage(rt, config, all, (r) => ({
+      const expired = await ctx.db
+        .query('documents')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r._creationTime,
@@ -648,13 +665,23 @@ async function fetchTrashSubpage(
       );
     }
     case 'fileMetadata': {
-      const all = await ctx.db
+      const trashed = await ctx.db
         .query('fileMetadata')
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
-          q.eq('organizationId', organizationId),
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
         )
         .take(take);
-      return projectSubpage(rt, config, all, (r) => ({
+      const expired = await ctx.db
+        .query('fileMetadata')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r._creationTime,
@@ -663,13 +690,23 @@ async function fetchTrashSubpage(
       );
     }
     case 'promptTemplate': {
-      const all = await ctx.db
+      const trashed = await ctx.db
         .query('promptTemplates')
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
-          q.eq('organizationId', organizationId),
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
         )
         .take(take);
-      return projectSubpage(rt, config, all, (r) => ({
+      const expired = await ctx.db
+        .query('promptTemplates')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r._creationTime,
@@ -678,13 +715,23 @@ async function fetchTrashSubpage(
       );
     }
     case 'messageFeedback': {
-      const all = await ctx.db
+      const trashed = await ctx.db
         .query('messageFeedback')
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
-          q.eq('organizationId', organizationId),
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
         )
         .take(take);
-      return projectSubpage(rt, config, all, (r) => ({
+      const expired = await ctx.db
+        .query('messageFeedback')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r.createdAt ?? r._creationTime,
@@ -693,13 +740,23 @@ async function fetchTrashSubpage(
       );
     }
     case 'customer': {
-      const all = await ctx.db
+      const trashed = await ctx.db
         .query('customers')
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
-          q.eq('organizationId', organizationId),
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
         )
         .take(take);
-      return projectSubpage(rt, config, all, (r) => ({
+      const expired = await ctx.db
+        .query('customers')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r._creationTime,
@@ -708,13 +765,23 @@ async function fetchTrashSubpage(
       );
     }
     case 'vendor': {
-      const all = await ctx.db
+      const trashed = await ctx.db
         .query('vendors')
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
-          q.eq('organizationId', organizationId),
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
         )
         .take(take);
-      return projectSubpage(rt, config, all, (r) => ({
+      const expired = await ctx.db
+        .query('vendors')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r._creationTime,
@@ -723,13 +790,23 @@ async function fetchTrashSubpage(
       );
     }
     case 'externalConversation': {
-      const all = await ctx.db
+      const trashed = await ctx.db
         .query('conversations')
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
-          q.eq('organizationId', organizationId),
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
         )
         .take(take);
-      return projectSubpage(rt, config, all, (r) => ({
+      const expired = await ctx.db
+        .query('conversations')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r._creationTime,
@@ -738,13 +815,23 @@ async function fetchTrashSubpage(
       );
     }
     case 'workflowExecution': {
-      const all = await ctx.db
+      const trashed = await ctx.db
         .query('wfExecutions')
         .withIndex('by_org_lifecycleStatus', (q) =>
-          q.eq('organizationId', organizationId),
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
         )
         .take(take);
-      return projectSubpage(rt, config, all, (r) => ({
+      const expired = await ctx.db
+        .query('wfExecutions')
+        .withIndex('by_org_lifecycleStatus', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r.startedAt ?? r._creationTime,
@@ -753,13 +840,23 @@ async function fetchTrashSubpage(
       );
     }
     case 'usageLedger': {
-      const all = await ctx.db
+      const trashed = await ctx.db
         .query('usageLedger')
         .withIndex('by_org_lifecycleStatus', (q) =>
-          q.eq('organizationId', organizationId),
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
         )
         .take(take);
-      return projectSubpage(rt, config, all, (r) => ({
+      const expired = await ctx.db
+        .query('usageLedger')
+        .withIndex('by_org_lifecycleStatus', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r._creationTime,
@@ -768,13 +865,23 @@ async function fetchTrashSubpage(
       );
     }
     case 'auditLog': {
-      const all = await ctx.db
+      const trashed = await ctx.db
         .query('auditLogs')
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
-          q.eq('organizationId', organizationId),
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
         )
         .take(take);
-      return projectSubpage(rt, config, all, (r) => ({
+      const expired = await ctx.db
+        .query('auditLogs')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r.timestamp ?? r._creationTime,
@@ -783,13 +890,23 @@ async function fetchTrashSubpage(
       );
     }
     case 'chatFilterEvent': {
-      const all = await ctx.db
+      const trashed = await ctx.db
         .query('chatFilterEvents')
         .withIndex('by_org_lifecycleStatus', (q) =>
-          q.eq('organizationId', organizationId),
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
         )
         .take(take);
-      return projectSubpage(rt, config, all, (r) => ({
+      const expired = await ctx.db
+        .query('chatFilterEvents')
+        .withIndex('by_org_lifecycleStatus', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r.createdAt ?? r._creationTime,
@@ -798,13 +915,23 @@ async function fetchTrashSubpage(
       );
     }
     case 'memoryAudit': {
-      const all = await ctx.db
+      const trashed = await ctx.db
         .query('userMemoryAuditLog')
         .withIndex('by_org_lifecycleStatus', (q) =>
-          q.eq('organizationId', organizationId),
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
         )
         .take(take);
-      return projectSubpage(rt, config, all, (r) => ({
+      const expired = await ctx.db
+        .query('userMemoryAuditLog')
+        .withIndex('by_org_lifecycleStatus', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
         status: r.lifecycleStatus,
         statusChangedAt: r.statusChangedAt ?? null,
         createdAt: r.createdAt ?? r._creationTime,

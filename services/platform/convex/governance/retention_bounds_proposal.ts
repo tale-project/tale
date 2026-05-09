@@ -316,19 +316,18 @@ export const getPendingBoundsProposal = action({
     }
 
     // For impact preview we want to know how the admin's stored values
-    // would clamp under the new bounds. Read the retention policy row.
-    const policyRow = await ctx.runQuery(
-      internal.governance.internal_queries.listRetentionPolicies,
-      {},
+    // would clamp under the new bounds. Use the per-org index lookup —
+    // pre-fix this called the cross-org enumerator on every page load,
+    // burning Convex's read budget on multi-org deployments.
+    const orgPolicyRaw = await ctx.runQuery(
+      internal.governance.internal_queries.getRetentionPolicyForOrg,
+      { organizationId: args.organizationId },
     );
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal query returns v.any()
-    const policies = policyRow as Array<{
+    const orgPolicy = orgPolicyRaw as {
       organizationId: string;
       config: unknown;
-    }>;
-    const orgPolicy = policies.find(
-      (p) => p.organizationId === args.organizationId,
-    );
+    } | null;
 
     // First-apply state with no retention feature enabled has nothing
     // to bound: impact preview is empty, diff is null→defaults, and the
