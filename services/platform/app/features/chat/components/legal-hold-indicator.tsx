@@ -4,6 +4,7 @@ import { Lock } from 'lucide-react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
 interface LegalHoldIndicatorProps {
@@ -29,6 +30,7 @@ export function LegalHoldIndicator({
   targetId,
 }: LegalHoldIndicatorProps) {
   const { t } = useT('chat');
+  const { formatDate } = useFormatDate();
   const { data: hold } = useLegalHoldByTarget({
     organizationId,
     targetType,
@@ -38,8 +40,10 @@ export function LegalHoldIndicator({
   const heading = t('history.legalHold.heading');
   const body = t('history.legalHold.body');
 
+  // AGENTS.md prohibits `toLocaleDateString` (drops the configured
+  // locale + timezone). Round-2 review CRITICAL #23 / F.2.
   const placedAt = hold?.placedAt
-    ? new Date(hold.placedAt).toLocaleDateString()
+    ? formatDate(new Date(hold.placedAt), 'short')
     : undefined;
 
   const adminDetails =

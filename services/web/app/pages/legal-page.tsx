@@ -197,6 +197,10 @@ export function LegalPage({ slug }: LegalPageProps) {
     title,
     description,
     canonicalPath: legalPath(locale, slug),
+    // Legal docs declare `noindex: true` in YAML frontmatter; pre-fix
+    // this was parsed but never forwarded to the meta hook, so all
+    // legal pages shipped indexable. Round-2 review CRITICAL #26.
+    noindex: doc?.frontmatter.noindex,
   });
 
   if (!doc) {

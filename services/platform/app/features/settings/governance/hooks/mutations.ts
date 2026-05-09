@@ -107,11 +107,19 @@ export function useRestoreSoftDeletedRow() {
   const queryClient = useQueryClient();
   return useConvexMutation(api.governance.restore.restoreSoftDeletedRow, {
     onSuccess: () => {
+      // `convexQuery` produces keys of shape
+      //   ['convexQuery', '<module>:<query>', args]
+      // so the function name lives at index 1, not 0. Pre-fix this
+      // predicate matched nothing (queryKey[0] is always 'convexQuery')
+      // and the cache was never invalidated post-restore. The Convex
+      // subscription naturally refreshes single-page views, but
+      // multi-page accumulators kept the stale entries. Round-2 review
+      // F.5.
       void queryClient.invalidateQueries({
         predicate: (q) =>
           Array.isArray(q.queryKey) &&
-          typeof q.queryKey[0] === 'string' &&
-          q.queryKey[0].includes('listTrashedRows'),
+          typeof q.queryKey[1] === 'string' &&
+          q.queryKey[1].includes('listTrashedRows'),
       });
     },
   });

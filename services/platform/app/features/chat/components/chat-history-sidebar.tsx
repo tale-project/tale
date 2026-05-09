@@ -491,7 +491,7 @@ export function ChatHistorySidebar({
                     className="absolute inset-0 cursor-pointer rounded-md"
                   />
                   <span className="text-muted-foreground pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center gap-1.5 truncate text-left text-sm leading-snug">
-                    {heldThreadIds.has(chat._id) && (
+                    {isThreadHeld(chat._id) && (
                       <LegalHoldIndicator
                         organizationId={organizationId}
                         targetType="thread"

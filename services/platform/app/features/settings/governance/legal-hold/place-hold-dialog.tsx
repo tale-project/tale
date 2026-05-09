@@ -153,6 +153,13 @@ export function PlaceHoldDialog({
     targetType !== 'org' || orgConfirmText.trim() === ORG_CONFIRM_PHRASE;
 
   const onSubmit = handleSubmit(async (values) => {
+    // Defense-in-depth: the submit button is disabled when
+    // `orgConfirmed` is false, but a determined user can drop the
+    // disabled attribute via devtools or trigger handleSubmit
+    // programmatically. Re-check here so the org-wide hold gate
+    // cannot be bypassed without typing the phrase. Round-2 review
+    // CRITICAL #19 / F.3.
+    if (!orgConfirmed) return;
     try {
       await mutateAsync({
         organizationId,

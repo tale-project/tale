@@ -153,7 +153,14 @@ export function ChatActions({
     return (
       <>
         <ActionRow gap={1}>
-          <Tooltip content={tChat('unarchive')} side="bottom">
+          <Tooltip
+            content={
+              isHeld
+                ? tGovernance('legalHold.badges.blockedByHold')
+                : tChat('unarchive')
+            }
+            side="bottom"
+          >
             <Button
               variant="ghost"
               className="p-1"
