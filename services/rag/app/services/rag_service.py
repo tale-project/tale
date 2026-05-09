@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 import asyncpg
+import httpx
 from loguru import logger
 from openai import AsyncOpenAI
 from tale_knowledge.embedding import EmbeddingService
@@ -124,10 +125,14 @@ class RagService:
             logger.info("No vision model configured, Vision features disabled")
             self._vision_client = None
 
-        # OpenAI client for generation
+        # OpenAI client for generation. Explicit timeout: the SDK
+        # default is 600 s, which can hold the asyncio event loop for
+        # 10 minutes on a stuck provider endpoint and starve the DB
+        # pool. Round-2 review MEDIUM (E.4.7).
         self._openai_client = AsyncOpenAI(
             api_key=llm_config["api_key"],
             base_url=llm_config["base_url"],
+            timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=5.0),
         )
 
         # Search service
@@ -178,6 +183,7 @@ class RagService:
                     new_oai = AsyncOpenAI(
                         api_key=new_llm_config["api_key"],
                         base_url=new_llm_config["base_url"],
+                        timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=5.0),
                     )
 
                     # Swap all at once (atomic from asyncio's cooperative perspective)

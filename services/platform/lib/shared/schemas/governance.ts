@@ -33,6 +33,19 @@ export const personalizationConfigSchema = z.object({
 });
 
 /**
+ * Org-wide system prompt override that gets prepended to every agent's
+ * generated system prompt. Round-2 review CRITICAL #24 / E.1.3:
+ * `upsertPolicy` had a Zod safeParse branch for every other policy type
+ * but `system_prompt` — meaning arbitrary JSON could be persisted under
+ * this policyType and read back without validation. Schema kept tight
+ * (enabled flag + bounded prompt text) to fit the actual write surface.
+ */
+export const systemPromptConfigSchema = z.object({
+  enabled: z.boolean(),
+  prompt: z.string().max(20_000),
+});
+
+/**
  * Phase 12 — admin-customizable confidentiality notice.
  *
  * Rendered in chat composer + upload dialog footers. `messages` is a

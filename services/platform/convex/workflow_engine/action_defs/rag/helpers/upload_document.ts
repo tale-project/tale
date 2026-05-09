@@ -38,7 +38,13 @@ export async function uploadDocument(
     throw new Error(`File URL not available: ${fileId}`);
   }
 
-  const fileResponse = await fetch(fileUrl);
+  // 30s timeout: the storage CDN can stall; without a timeout the
+  // entire workflow action blocks indefinitely, holding a Convex
+  // concurrency slot until the surrounding 30 min action timeout fires.
+  // Round-2 review HIGH (E.4.3).
+  const fileResponse = await fetch(fileUrl, {
+    signal: AbortSignal.timeout(30_000),
+  });
   if (!fileResponse.ok) {
     throw new Error(`Failed to download file: ${fileResponse.status}`);
   }

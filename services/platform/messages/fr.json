@@ -3217,6 +3217,12 @@
         "placeholder": "ex. 90",
         "helper": "Les lignes de télémétrie de filtre plus anciennes seront supprimées."
       },
+      "notifications": {
+        "title": "Notifications",
+        "description": "Notifications in-app (mentions, résultats d'agent, alertes système). Peuvent référencer du contenu de chats, documents ou exécutions de workflow.",
+        "placeholder": "ex. 30",
+        "helper": "Les notifications plus anciennes seront supprimées."
+      },
       "chatHistory": {
         "title": "Historique de chat",
         "description": "Supprime automatiquement les conversations avec les agents (threads de chat) plus anciennes que la période de rétention. Le contenu des messages dans le composant agent est archivé. La suppression est irréversible.",

@@ -60,8 +60,6 @@ const SSRF_BLOCKED_HOSTNAMES = new Set<string>([
   'metadata',
 ]);
 
-let cached: RagConfig | null = null;
-
 function ipInAnyCidr(ip: string, cidrs: readonly string[]): string | null {
   let parsed: ipaddr.IPv4 | ipaddr.IPv6;
   try {
@@ -142,44 +140,57 @@ export function validateRagUrl(rawUrl: string): URL {
 }
 
 /**
- * Get the validated RAG configuration. Lazily computed on first call and
- * cached for the lifetime of the process. Fully sync — works in both V8
- * and Node Convex runtimes.
+ * Get the validated RAG configuration.
+ *
+ * URL validation is cached for the process lifetime (the validation
+ * itself is deterministic given an unchanged env var, and re-running it
+ * per request is wasteful). The `authToken` is RE-READ from the env on
+ * every call so that a runtime rotation (operator pushes a new
+ * `RAG_AUTH_TOKEN` and rolls the platform) takes effect without a
+ * process restart. Round-2 review HIGH cluster (E.4.1).
  *
  * Throws on:
  *   - missing / malformed `RAG_URL`
  *   - non-http(s) scheme
- *   - literal-IP host inside an SSRF-blocked CIDR (link-local / IMDS / 0.0.0.0/8)
+ *   - literal-IP host inside an SSRF-blocked CIDR
  *   - hostname matching a known cloud-metadata endpoint
  *
- * Auth is presence-based: when `RAG_AUTH_TOKEN` is set, every request to
- * RAG carries `Authorization: Bearer ${token}`; when unset, no header is
- * sent and RAG runs open. Logs a SECURITY warning (once) when unset.
+ * Auth is presence-based: when `RAG_AUTH_TOKEN` is set at the time of
+ * the call, every request to RAG carries `Authorization: Bearer
+ * ${token}`; when unset, no header is sent and RAG runs open. The
+ * SECURITY warning is logged at most once per process to keep startup
+ * logs readable.
  */
+let validatedServiceUrl: string | null = null;
+let warnedAuthMissing = false;
+
 export function getRagConfig(): RagConfig {
-  if (cached) return cached;
+  if (validatedServiceUrl === null) {
+    const serviceUrl = process.env.RAG_URL || DEFAULT_SERVICE_URL;
+    validateRagUrl(serviceUrl);
+    validatedServiceUrl = serviceUrl;
+  }
 
-  const serviceUrl = process.env.RAG_URL || DEFAULT_SERVICE_URL;
+  // Read the token fresh on every call. Cheap (~10 ns) and removes the
+  // "operator must restart the process to rotate the token" surprise.
   const authToken = process.env.RAG_AUTH_TOKEN || undefined;
-
-  validateRagUrl(serviceUrl);
-
-  if (authToken === undefined) {
+  if (authToken === undefined && !warnedAuthMissing) {
     console.warn(
       '[SECURITY] RAG_AUTH_TOKEN unset — requests to the RAG service will ' +
         'be unauthenticated. Set RAG_AUTH_TOKEN to a shared secret on both ' +
         'the platform and RAG containers (values must match) to enable ' +
         'Bearer auth.',
     );
+    warnedAuthMissing = true;
   }
 
-  cached = { serviceUrl, authToken };
-  return cached;
+  return { serviceUrl: validatedServiceUrl, authToken };
 }
 
 /** Test-only — clear the cached config so the next `getRagConfig()` re-runs validation. */
 export function _resetRagConfigForTests(): void {
-  cached = null;
+  validatedServiceUrl = null;
+  warnedAuthMissing = false;
 }
 
 /**

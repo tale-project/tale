@@ -3292,6 +3292,12 @@
         "placeholder": "e.g. 90",
         "helper": "Filter-event telemetry rows older than this will be deleted."
       },
+      "notifications": {
+        "title": "Notifications",
+        "description": "In-app notifications (mentions, agent results, system alerts). May reference content from chats, documents, or workflow runs.",
+        "placeholder": "e.g. 30",
+        "helper": "Notification rows older than this will be deleted."
+      },
       "chatHistory": {
         "title": "Chat history",
         "description": "Automatically delete chat threads (conversations with agents) older than the retention period. Message contents in the agent component are archived. Deletion is irreversible.",

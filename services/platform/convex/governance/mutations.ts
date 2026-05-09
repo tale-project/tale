@@ -13,6 +13,7 @@ import {
   personalizationConfigSchema,
   piiConfigSchema,
   retentionPolicyConfigSchema,
+  systemPromptConfigSchema,
   twoFactorPolicyConfigSchema,
   uploadPolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
@@ -129,6 +130,19 @@ export const upsertPolicy = mutation({
       if (!parsed.success) {
         throw new Error(
           `Invalid budget configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    // Round-2 review CRITICAL #24 / E.1.3: every other policyType
+    // branched into a Zod safeParse; system_prompt was missing,
+    // letting arbitrary JSON persist under this policy type and be
+    // read back without validation.
+    if (args.policyType === 'system_prompt') {
+      const parsed = systemPromptConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid system_prompt configuration: ${parsed.error.message}`,
         );
       }
     }

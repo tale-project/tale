@@ -131,17 +131,29 @@ export const WIRE_MAPPING: readonly CategoryWireMapping[] = [
     enabledKey: 'memoryAuditEnabled',
     i18nKey: 'memoryAudit',
   },
-];
+  {
+    id: 'notifications',
+    configKey: 'notificationsRetentionDays',
+    enabledKey: 'notificationsEnabled',
+    i18nKey: 'notifications',
+  },
+] as const;
 
 // Compile-time exhaustiveness: every canonical category must appear in
-// WIRE_MAPPING. A new category added to the zod tuple without a row
-// here trips this assertion at typecheck time.
+// WIRE_MAPPING. Pre-fix, the type was `Exclude<RetentionCategory,
+// CategoryWireMapping['id']>` which evaluated to `never` permanently
+// because `CategoryWireMapping['id']` is the FULL `RetentionCategory`
+// union (the type alias), not the literal union of ids actually present
+// in the array. Adding the missing `notifications` entry above wouldn't
+// have been caught. The fix derives the literal union from the array's
+// own contents via `(typeof WIRE_MAPPING)[number]['id']`.
+// Round-2 review CRITICAL #25.
 const _exhaustive: ReadonlySet<RetentionCategory> = new Set(
   WIRE_MAPPING.map((m) => m.id),
 );
 type _Missing = Exclude<
   (typeof RETENTION_CATEGORIES)[number],
-  CategoryWireMapping['id']
+  (typeof WIRE_MAPPING)[number]['id']
 >;
 const _missingCheck: _Missing extends never ? true : false = true;
 void _exhaustive;

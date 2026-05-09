@@ -3292,6 +3292,12 @@
         "placeholder": "z. B. 90",
         "helper": "Filter-Ereignis-Telemetrie älter als dies wird gelöscht."
       },
+      "notifications": {
+        "title": "Benachrichtigungen",
+        "description": "In-App-Benachrichtigungen (Erwähnungen, Agentenergebnisse, Systemwarnungen). Können Inhalte aus Chats, Dokumenten oder Workflow-Läufen referenzieren.",
+        "placeholder": "z. B. 30",
+        "helper": "Benachrichtigungen, die älter als dies sind, werden gelöscht."
+      },
       "chatHistory": {
         "title": "Chat-Verlauf",
         "description": "Konversationen mit Agents (Chat-Threads), die älter als die Aufbewahrungsfrist sind, automatisch löschen. Nachrichteninhalte in der Agent-Komponente werden archiviert. Die Löschung ist unumkehrbar.",

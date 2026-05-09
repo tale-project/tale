@@ -61,7 +61,11 @@ async def health():
                 await conn.fetchval("SELECT 1")
             db_ok = True
         except Exception:
-            logger.warning("Health check database ping failed")
+            # Round-2 review LOW (E.4.10): include the stack trace so
+            # operators can diagnose health-check failures without
+            # additional reproduction steps. Pre-fix, this swallowed
+            # the exception with no detail.
+            logger.warning("Health check database ping failed", exc_info=True)
 
     if is_initialized and db_ok:
         health_status = "healthy"

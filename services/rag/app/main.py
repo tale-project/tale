@@ -153,8 +153,8 @@ app.include_router(documents_router, dependencies=[Depends(verify_auth_token)])
 app.include_router(search_router, dependencies=[Depends(verify_auth_token)])
 init_telemetry(app)
 
-
-@app.get("/", include_in_schema=False)
-async def root() -> dict[str, str]:
-    """Root endpoint — exempt from auth so liveness probes can hit it."""
-    return {"service": "tale-rag", "version": __version__, "status": "ok"}
+# Round-2 review MEDIUM (E.4.6): the `@app.get("/")` route that lived
+# here was unreachable — `health_public_router` registers `/` first via
+# `include_router`, and FastAPI route resolution is first-registered-
+# wins. The route below was dead code returning a different shape than
+# the actual `/` handler in `health.py:root()`. Removed.
