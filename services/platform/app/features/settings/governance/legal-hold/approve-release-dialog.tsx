@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -37,6 +38,7 @@ export function ApproveReleaseDialog({
 }: ApproveReleaseDialogProps) {
   const { t } = useT('governance');
   const { toast } = useToast();
+  const organizationId = useOrganizationId();
   const { mutateAsync, isPending } = useApproveLegalHoldRelease();
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [tooSoonUntil, setTooSoonUntil] = useState<number | null>(null);
@@ -70,10 +72,10 @@ export function ApproveReleaseDialog({
   const tooSoonActive = tooSoonRemaining > 0;
 
   const onConfirm = async () => {
-    if (!request) return;
+    if (!request || !organizationId) return;
     setFieldError(null);
     try {
-      await mutateAsync({ requestId: request._id });
+      await mutateAsync({ organizationId, requestId: request._id });
       toast({
         title: t('legalHold.toasts.releaseApprovedTitle'),
         variant: 'success',

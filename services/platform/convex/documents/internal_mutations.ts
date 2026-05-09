@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
@@ -33,7 +33,14 @@ export const updateDocument = internalMutation({
     if (args.callerOrgId !== undefined) {
       const existing = await ctx.db.get(args.documentId);
       if (!existing || existing.organizationId !== args.callerOrgId) {
-        return;
+        // Cross-org or missing — surface as not_found so REST returns 404
+        // instead of silently 204'ing the caller into thinking the patch
+        // succeeded. Existence is already gated by `callerOrgId`, so this
+        // does not leak document presence across tenants.
+        throw new ConvexError({
+          code: 'not_found',
+          message: 'Document not found',
+        });
       }
     }
     const { callerOrgId: _drop, ...rest } = args;

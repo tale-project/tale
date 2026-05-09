@@ -270,8 +270,16 @@ export const updateBranchSelections = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
+      throw new Error('Unauthenticated');
+    }
+
+    // Cross-tenant gate: without this, any authenticated user could
+    // overwrite any thread's branchSelections by guessing the threadId.
+    // Matches the pattern used by every other thread mutation in this
+    // file (delete/archive/unarchive/cancelGeneration/updateChatThread).
+    await assertThreadAccess(ctx, args.threadId, identity);
 
     const metadata = await ctx.db
       .query('threadMetadata')

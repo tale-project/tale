@@ -401,6 +401,7 @@ export const placeLegalHold = mutation({
  */
 export const requestLegalHoldRelease = mutation({
   args: {
+    organizationId: v.string(),
     holdId: v.id('legalHolds'),
     reason: v.string(),
   },
@@ -414,8 +415,26 @@ export const requestLegalHoldRelease = mutation({
       });
     }
     const callerId = String(authUser._id);
+    // Authorize BEFORE reading the hold row. The previous order let any
+    // authenticated user fetch any hold's metadata (reason, targetType,
+    // targetId, organizationId) by passing a guessed holdId, then learned
+    // from the resulting error whether the id existed. Membership-first
+    // means the caller must declare and belong to the org before any
+    // read of the hold record happens.
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: callerId,
+      email: authUser.email ?? '',
+    });
+    if (!isAdmin(member.role)) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only org admins can request legal-hold release.',
+      });
+    }
     const hold = await ctx.db.get(args.holdId);
-    if (!hold) {
+    if (!hold || hold.organizationId !== args.organizationId) {
+      // Treat cross-org as "not found" so existence does not leak across
+      // tenant boundaries.
       throw new ConvexError({
         code: 'not_found',
         message: 'Legal hold does not exist.',
@@ -427,27 +446,26 @@ export const requestLegalHoldRelease = mutation({
         message: 'This legal hold has already been released.',
       });
     }
-    const member = await getOrganizationMember(ctx, hold.organizationId, {
-      userId: callerId,
-      email: authUser.email ?? '',
-    });
-    if (!isAdmin(member.role)) {
-      throw new ConvexError({
-        code: 'forbidden',
-        message: 'Only org admins can request legal-hold release.',
-      });
-    }
     if (!args.reason.trim()) {
       throw new ConvexError({
         code: 'validation',
         message: 'reason is required.',
       });
     }
-    // Refuse if a pending request already exists for this hold.
+    // Refuse if a pending OR approved-cooldown-pending request already
+    // exists for this hold. Approved-but-not-effected requests are still
+    // outstanding state — letting a second pending request file in
+    // parallel produces a confusing dual-request UI and muddies the
+    // audit trail. Mirror `closeLegalMatter`'s same filter.
     const existing = await ctx.db
       .query('legalHoldReleaseRequests')
       .withIndex('by_holdId', (q) => q.eq('holdId', args.holdId))
-      .filter((q) => q.eq(q.field('status'), 'pending'))
+      .filter((q) =>
+        q.or(
+          q.eq(q.field('status'), 'pending'),
+          q.eq(q.field('status'), 'approved'),
+        ),
+      )
       .first();
     if (existing) {
       throw new ConvexError({
@@ -501,6 +519,7 @@ function readReleaseCooldownMs(): number {
 
 export const approveLegalHoldRelease = mutation({
   args: {
+    organizationId: v.string(),
     requestId: v.id('legalHoldReleaseRequests'),
   },
   returns: v.null(),
@@ -514,8 +533,22 @@ export const approveLegalHoldRelease = mutation({
     }
     const callerId = String(authUser._id);
 
+    // Authorize before reading the request row — caller must declare
+    // and belong to the org first, so request metadata never leaks
+    // across tenants on a guessed requestId.
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: callerId,
+      email: authUser.email ?? '',
+    });
+    if (!isAdmin(member.role)) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only org admins can approve legal-hold release.',
+      });
+    }
+
     const request = await ctx.db.get(args.requestId);
-    if (!request) {
+    if (!request || request.organizationId !== args.organizationId) {
       throw new ConvexError({
         code: 'not_found',
         message: 'Release request does not exist.',
@@ -525,17 +558,6 @@ export const approveLegalHoldRelease = mutation({
       throw new ConvexError({
         code: 'LEGAL_HOLD_RELEASE_NOT_PENDING',
         message: `Release request is in '${request.status}' state.`,
-      });
-    }
-
-    const member = await getOrganizationMember(ctx, request.organizationId, {
-      userId: callerId,
-      email: authUser.email ?? '',
-    });
-    if (!isAdmin(member.role)) {
-      throw new ConvexError({
-        code: 'forbidden',
-        message: 'Only org admins can approve legal-hold release.',
       });
     }
 
@@ -637,6 +659,7 @@ export const approveLegalHoldRelease = mutation({
 
 export const rejectLegalHoldRelease = mutation({
   args: {
+    organizationId: v.string(),
     requestId: v.id('legalHoldReleaseRequests'),
     reason: v.string(),
   },
@@ -650,8 +673,20 @@ export const rejectLegalHoldRelease = mutation({
       });
     }
     const callerId = String(authUser._id);
+    // Authorize before reading the request — same rationale as
+    // `approveLegalHoldRelease`.
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: callerId,
+      email: authUser.email ?? '',
+    });
+    if (!isAdmin(member.role)) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only org admins can reject legal-hold release.',
+      });
+    }
     const request = await ctx.db.get(args.requestId);
-    if (!request) {
+    if (!request || request.organizationId !== args.organizationId) {
       throw new ConvexError({
         code: 'not_found',
         message: 'Release request does not exist.',
@@ -661,16 +696,6 @@ export const rejectLegalHoldRelease = mutation({
       throw new ConvexError({
         code: 'LEGAL_HOLD_RELEASE_NOT_PENDING',
         message: `Release request is in '${request.status}' state.`,
-      });
-    }
-    const member = await getOrganizationMember(ctx, request.organizationId, {
-      userId: callerId,
-      email: authUser.email ?? '',
-    });
-    if (!isAdmin(member.role)) {
-      throw new ConvexError({
-        code: 'forbidden',
-        message: 'Only org admins can reject legal-hold release.',
       });
     }
     await ctx.db.patch(args.requestId, {

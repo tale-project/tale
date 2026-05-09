@@ -173,10 +173,27 @@ export const createChatThreadInternal = internalMutation({
   args: {
     userId: v.string(),
     title: v.optional(v.string()),
+    /**
+     * Required for REST callers so the inserted threadMetadata row
+     * carries `organizationId`. Without it, `getThreadMetadata` rejects
+     * the row on every subsequent read because `callerOrgId !== undefined
+     * && row.organizationId !== callerOrgId` always fires when row.org
+     * is undefined — the POST→GET round-trip silently 404s. Optional for
+     * legacy callers; REST handlers MUST pass `rc.org.organizationId`.
+     */
+    organizationId: v.optional(v.string()),
   },
   returns: v.string(),
   handler: async (ctx, args) => {
-    return await createHelper(ctx, args.userId, args.title, 'general');
+    return await createHelper(
+      ctx,
+      args.userId,
+      args.title,
+      'general',
+      undefined,
+      undefined,
+      args.organizationId,
+    );
   },
 });
 

@@ -230,7 +230,7 @@ RESPONSE (list_indexed):
           throw new Error('rag_search requires organizationId in ToolCtx.');
         }
         const accessibleThreadsRetrieve = ctx.threadId
-          ? await getThreadAncestorChain(ctx, ctx.threadId)
+          ? await getThreadAncestorChain(ctx, ctx.threadId, orgIdRetrieve)
           : [];
         const retrieveAuthorized = await ctx.runQuery(
           internal.agent_tools.rag.helpers.verify_thread_scoped_access
@@ -342,7 +342,7 @@ RESPONSE (list_indexed):
           throw new Error('rag_search requires organizationId in ToolCtx.');
         }
         const accessibleThreadsSearch = ctx.threadId
-          ? await getThreadAncestorChain(ctx, ctx.threadId)
+          ? await getThreadAncestorChain(ctx, ctx.threadId, orgIdSearch)
           : [];
         const searchAuthorized = await ctx.runQuery(
           internal.agent_tools.rag.helpers.verify_thread_scoped_access

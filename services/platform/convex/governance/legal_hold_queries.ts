@@ -344,6 +344,13 @@ async function shapeReleaseRequests(
 ) {
   const userIds = new Set<string>();
   const holdIds = new Set<Doc<'legalHolds'>['_id']>();
+  // All release requests in `rows` are scoped to a single organization
+  // by every caller (admin-gated, by_organizationId-indexed query). Use
+  // any row's organizationId as the boundary for defense-in-depth: the
+  // hold fetched by `holdId` must agree, otherwise a future write that
+  // sets a cross-org `holdId` (data integrity bug) would silently leak
+  // hold metadata across tenants.
+  const expectedOrgId = rows[0]?.organizationId;
   for (const r of rows) {
     if (r.requestedBy) userIds.add(r.requestedBy);
     if (r.approvedBy) userIds.add(r.approvedBy);
@@ -357,7 +364,7 @@ async function shapeReleaseRequests(
   >();
   for (const id of holdIds) {
     const h = await ctx.db.get(id);
-    if (h) {
+    if (h && (!expectedOrgId || h.organizationId === expectedOrgId)) {
       holdMap.set(String(id), {
         targetType: h.targetType,
         targetId: h.targetId,

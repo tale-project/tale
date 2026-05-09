@@ -153,9 +153,22 @@ export const documentSubActions = withRestAuth(
     }
 
     if (subPath === 'retry-indexing') {
+      const documentId = toId<'documents'>(id);
+      // Cross-tenant gate: every other REST handler in this file passes
+      // `callerOrgId` so `getDocumentByIdRaw` can return null on cross-org
+      // access. The retry-indexing path was missing this check; without
+      // it, an OrgA REST key could re-index any OrgB document by id and
+      // observe its existence + trigger writes in the other org's RAG.
+      const doc = await rc.ctx.runQuery(
+        internal.documents.internal_queries.getDocumentByIdRaw,
+        { documentId, callerOrgId: rc.org.organizationId },
+      );
+      if (!doc) {
+        return jsonError('Document not found', 404);
+      }
       await rc.ctx.runAction(
         internal.documents.internal_actions.uploadDocumentToRag,
-        { documentId: toId<'documents'>(id) },
+        { documentId },
       );
       return jsonOk({ status: 'indexing' });
     }

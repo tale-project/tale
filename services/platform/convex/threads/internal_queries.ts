@@ -43,11 +43,20 @@ export const getThreadMetadata = internalQuery({
 export const listThreadsInternal = internalQuery({
   args: {
     userId: v.string(),
+    /**
+     * Required for REST callers so cross-org threads (when the user
+     * belongs to multiple orgs) are filtered out. Without it,
+     * `listThreadsHelper` skips the `organizationId` predicate and
+     * returns threads from every org the user is in — a multi-tenant
+     * boundary leak. Optional for legacy in-process callers.
+     */
+    organizationId: v.optional(v.string()),
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
     return await listThreadsHelper(ctx, {
       userId: args.userId,
+      organizationId: args.organizationId,
       paginationOpts: args.paginationOpts,
     });
   },
@@ -56,6 +65,8 @@ export const listThreadsInternal = internalQuery({
 export const listArchivedThreadsInternal = internalQuery({
   args: {
     userId: v.string(),
+    /** Same cross-org rationale as `listThreadsInternal`. */
+    organizationId: v.optional(v.string()),
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
@@ -72,7 +83,16 @@ export const listArchivedThreadsInternal = internalQuery({
 
     return {
       page: result.page
-        .filter((row) => !row.isBranch)
+        .filter((row) => {
+          if (row.isBranch) return false;
+          if (
+            args.organizationId !== undefined &&
+            row.organizationId !== args.organizationId
+          ) {
+            return false;
+          }
+          return true;
+        })
         .map((row) => ({
           _id: row.threadId,
           _creationTime: row.updatedAt ?? row.createdAt,

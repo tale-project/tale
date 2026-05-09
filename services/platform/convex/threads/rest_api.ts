@@ -36,6 +36,7 @@ export const listThreads = withRestAuth('rest:api', async (rc, request) => {
       internal.threads.internal_queries.listArchivedThreadsInternal,
       {
         userId: rc.user.userId,
+        organizationId: rc.org.organizationId,
         paginationOpts: { numItems: limit, cursor },
       },
     );
@@ -46,6 +47,7 @@ export const listThreads = withRestAuth('rest:api', async (rc, request) => {
     internal.threads.internal_queries.listThreadsInternal,
     {
       userId: rc.user.userId,
+      organizationId: rc.org.organizationId,
       paginationOpts: { numItems: limit, cursor },
     },
   );
@@ -59,6 +61,7 @@ export const createThread = withRestAuth('rest:api', async (rc, request) => {
     internal.threads.internal_mutations.createChatThreadInternal,
     {
       userId: rc.user.userId,
+      organizationId: rc.org.organizationId,
       title: body.title,
     },
   );

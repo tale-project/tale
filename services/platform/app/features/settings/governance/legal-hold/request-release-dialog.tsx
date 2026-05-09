@@ -8,6 +8,7 @@ import * as z from 'zod';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -32,6 +33,7 @@ export function RequestReleaseDialog({
 }: RequestReleaseDialogProps) {
   const { t } = useT('governance');
   const { toast } = useToast();
+  const organizationId = useOrganizationId();
   const { mutateAsync, isPending } = useRequestLegalHoldRelease();
 
   const schema = useMemo(
@@ -54,9 +56,10 @@ export function RequestReleaseDialog({
   const { register, handleSubmit, formState, reset } = form;
 
   const onSubmit = handleSubmit(async (values) => {
-    if (!holdId) return;
+    if (!holdId || !organizationId) return;
     try {
       await mutateAsync({
+        organizationId,
         holdId,
         reason: values.reason.trim(),
       });

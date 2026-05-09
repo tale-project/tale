@@ -5,6 +5,8 @@
  * URL parsing, and CORS handling used across all /api/v1/* REST routes.
  */
 
+import { ConvexError } from 'convex/values';
+
 import { internal } from '../../_generated/api';
 import { httpAction } from '../../_generated/server';
 import { createAuth } from '../../auth';
@@ -284,10 +286,53 @@ export function withRestAuth(
     try {
       return await handler({ ctx, user, org }, request);
     } catch (error) {
+      // Map structured ConvexError codes to proper HTTP statuses so
+      // typed errors thrown by mutations (e.g. cross-tenant rejections,
+      // legal-hold blocks) surface to REST clients as actionable
+      // 4xx responses rather than opaque 500s.
+      if (error instanceof ConvexError) {
+        const data = error.data;
+        const code =
+          typeof data === 'object' &&
+          data !== null &&
+          'code' in data &&
+          typeof data.code === 'string'
+            ? data.code
+            : undefined;
+        const dataMessage =
+          typeof data === 'object' &&
+          data !== null &&
+          'message' in data &&
+          typeof data.message === 'string'
+            ? data.message
+            : undefined;
+        const message = dataMessage ?? error.message;
+        const status = httpStatusForConvexCode(code);
+        if (status >= 400 && status < 500) {
+          return jsonError(message, status);
+        }
+      }
       console.error(`[REST ${rateLimitKey}]`, error);
       const msg =
         error instanceof Error ? error.message : 'Internal server error';
       return jsonError(msg, 500);
     }
   });
+}
+
+function httpStatusForConvexCode(code: string | undefined): number {
+  switch (code) {
+    case 'unauthenticated':
+      return 401;
+    case 'forbidden':
+      return 403;
+    case 'not_found':
+      return 404;
+    case 'validation':
+      return 400;
+    default:
+      // Codes we don't recognize fall through to the 500 path so the
+      // outer console.error still logs them; no silent swallow.
+      return 500;
+  }
 }
