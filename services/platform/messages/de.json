@@ -4294,7 +4294,17 @@
       "saved": "Governance für Anfragen betroffener Personen aktualisiert.",
       "saveFailed": "Die Governance-Richtlinie konnte nicht gespeichert werden. Versuche es erneut.",
       "invalidCoolingOffHours": "Die Karenzzeit muss eine ganze Zahl zwischen 0 und 72 sein.",
-      "invalidDailyLimit": "Das tägliche Limit muss eine ganze Zahl zwischen 1 und 50 sein."
+      "invalidDailyLimit": "Das tägliche Limit muss eine ganze Zahl zwischen 1 und 50 sein.",
+      "ownerOnlyNotice": "Nur der Owner kann diese Richtlinie ändern. Admins können sie lesen. Jede Lockerung der Schutzmaßnahmen (kürzere Karenzzeit, Deaktivieren der Doppelfreigabe, Anheben des täglichen Limits) wird 24 Stunden lang gestaffelt, damit jeder Admin sie zurücksetzen kann.",
+      "loosenProposedTitle": "Änderung vorgemerkt — 24-Stunden-Prüffenster gestartet",
+      "loosenProposedDescription": "Lockernde Änderungen werden erst nach einem 24-Stunden-Karenzfenster wirksam. Jeder Admin kann sie vorher abbrechen.",
+      "loosenCancelledTitle": "Vorgemerkte Änderung abgebrochen.",
+      "pendingFieldLocked": "Während des Prüffensters gesperrt",
+      "pendingBanner": {
+        "title": "Vorgemerkte Richtlinien-Lockerung",
+        "description": "Vorgeschlagen von {name}. Jeder Admin kann sie vor Wirksamwerden abbrechen.",
+        "cancel": "Vorgemerkte Änderung abbrechen"
+      }
     }
   },
   "prompts": {
@@ -4440,7 +4450,15 @@
     "dsarApprovalNeeded": "Löschungsanfrage wartet auf deine Freigabe",
     "dsarApprovalNeededBody": "Eine Löschungsanfrage wurde eingereicht und benötigt die Freigabe eines zweiten Admins, bevor sie ausgeführt werden kann.",
     "dsarCancelled": "Löschungsanfrage abgebrochen",
-    "dsarCancelledBody": "Eine offene Löschungsanfrage wurde vor Ablauf der Karenzzeit abgebrochen."
+    "dsarCancelledBody": "Eine offene Löschungsanfrage wurde vor Ablauf der Karenzzeit abgebrochen.",
+    "dsarPolicyTightened": "DSAR-Governance verschärft",
+    "dsarPolicyTightenedBody": "Die DSAR-Governance-Richtlinie wurde strenger eingestellt. Strengere Änderungen werden sofort wirksam.",
+    "dsarPolicyLoosenProposed": "Lockerung der DSAR-Governance vorgeschlagen",
+    "dsarPolicyLoosenProposedBody": "Eine Lockerung der DSAR-Governance wurde vorgeschlagen. Jeder Admin kann sie vor Ablauf des 24-Stunden-Karenzfensters abbrechen.",
+    "dsarPolicyLoosenApplied": "DSAR-Governance gelockert",
+    "dsarPolicyLoosenAppliedBody": "Die vorgeschlagene Lockerung der DSAR-Governance wurde nach Ablauf des 24-Stunden-Karenzfensters wirksam.",
+    "dsarPolicyLoosenCancelled": "Vorgemerkte DSAR-Richtlinienänderung abgebrochen",
+    "dsarPolicyLoosenCancelledBody": "Die vorgemerkte Lockerung der DSAR-Governance wurde abgebrochen, bevor sie wirksam wurde."
   },
   "analytics": {
     "usage": {

@@ -4294,7 +4294,17 @@
       "saved": "Data subject request governance updated.",
       "saveFailed": "Could not save the governance policy. Please try again.",
       "invalidCoolingOffHours": "Cooling-off window must be a whole number between 0 and 72.",
-      "invalidDailyLimit": "Daily limit must be a whole number between 1 and 50."
+      "invalidDailyLimit": "Daily limit must be a whole number between 1 and 50.",
+      "ownerOnlyNotice": "Only the org owner can change this policy. Admins can read it. To weaken any safeguard (shorter cooling-off, disabling dual approval, or raising the daily limit), the change is staged for 24 hours so any admin can revert it.",
+      "loosenProposedTitle": "Change staged — 24h review window started",
+      "loosenProposedDescription": "Weakening changes apply after a 24-hour grace window. Any admin can cancel before then.",
+      "loosenCancelledTitle": "Pending change cancelled.",
+      "pendingFieldLocked": "Locked while review window is open",
+      "pendingBanner": {
+        "title": "Pending policy weakening",
+        "description": "Proposed by {name}. Any admin can cancel before this takes effect.",
+        "cancel": "Cancel pending change"
+      }
     }
   },
   "prompts": {
@@ -4440,7 +4450,15 @@
     "dsarApprovalNeeded": "Erasure request awaiting your approval",
     "dsarApprovalNeededBody": "An erasure request was filed and requires a second admin's approval before it can run.",
     "dsarCancelled": "Erasure request cancelled",
-    "dsarCancelledBody": "A pending erasure request was cancelled before its cooling-off window elapsed."
+    "dsarCancelledBody": "A pending erasure request was cancelled before its cooling-off window elapsed.",
+    "dsarPolicyTightened": "DSAR governance policy tightened",
+    "dsarPolicyTightenedBody": "The DSAR governance policy was changed to a stricter setting. Stricter changes apply immediately.",
+    "dsarPolicyLoosenProposed": "DSAR governance policy weakening proposed",
+    "dsarPolicyLoosenProposedBody": "A weakening of the DSAR governance policy was proposed. Any admin can cancel before the 24-hour grace window elapses.",
+    "dsarPolicyLoosenApplied": "DSAR governance policy weakened",
+    "dsarPolicyLoosenAppliedBody": "The proposed weakening of the DSAR governance policy took effect after the 24-hour grace window.",
+    "dsarPolicyLoosenCancelled": "Pending DSAR policy change cancelled",
+    "dsarPolicyLoosenCancelledBody": "The pending weakening of the DSAR governance policy was cancelled before it took effect."
   },
   "analytics": {
     "usage": {

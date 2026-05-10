@@ -4219,7 +4219,17 @@
       "saved": "Gouvernance des demandes mise à jour.",
       "saveFailed": "Impossible d'enregistrer la politique. Réessaie.",
       "invalidCoolingOffHours": "Le délai de réflexion doit être un nombre entier entre 0 et 72.",
-      "invalidDailyLimit": "La limite quotidienne doit être un nombre entier entre 1 et 50."
+      "invalidDailyLimit": "La limite quotidienne doit être un nombre entier entre 1 et 50.",
+      "ownerOnlyNotice": "Seul le propriétaire de l'organisation peut modifier cette politique. Les admins peuvent la lire. Tout assouplissement (réduction du délai de réflexion, désactivation de la double approbation ou augmentation de la limite quotidienne) est différé pendant 24 heures pour qu'un admin puisse l'annuler.",
+      "loosenProposedTitle": "Modification mise en attente — fenêtre de revue de 24h démarrée",
+      "loosenProposedDescription": "Les modifications d'assouplissement prennent effet après un délai de grâce de 24 heures. Tout admin peut les annuler avant.",
+      "loosenCancelledTitle": "Modification en attente annulée.",
+      "pendingFieldLocked": "Verrouillé pendant la fenêtre de revue",
+      "pendingBanner": {
+        "title": "Assouplissement de politique en attente",
+        "description": "Proposé par {name}. Tout admin peut l'annuler avant qu'il ne prenne effet.",
+        "cancel": "Annuler la modification en attente"
+      }
     }
   },
   "prompts": {
@@ -4365,7 +4375,15 @@
     "dsarApprovalNeeded": "Demande d'effacement en attente de ton approbation",
     "dsarApprovalNeededBody": "Une demande d'effacement a été déposée et nécessite l'approbation d'un second admin avant de pouvoir s'exécuter.",
     "dsarCancelled": "Demande d'effacement annulée",
-    "dsarCancelledBody": "Une demande d'effacement en attente a été annulée avant l'expiration de son délai de réflexion."
+    "dsarCancelledBody": "Une demande d'effacement en attente a été annulée avant l'expiration de son délai de réflexion.",
+    "dsarPolicyTightened": "Gouvernance DSAR renforcée",
+    "dsarPolicyTightenedBody": "La politique de gouvernance DSAR a été modifiée vers un réglage plus strict. Les modifications strictes prennent effet immédiatement.",
+    "dsarPolicyLoosenProposed": "Assouplissement de la gouvernance DSAR proposé",
+    "dsarPolicyLoosenProposedBody": "Un assouplissement de la gouvernance DSAR a été proposé. Tout admin peut l'annuler avant l'expiration du délai de grâce de 24 heures.",
+    "dsarPolicyLoosenApplied": "Gouvernance DSAR assouplie",
+    "dsarPolicyLoosenAppliedBody": "L'assouplissement proposé de la gouvernance DSAR a pris effet après le délai de grâce de 24 heures.",
+    "dsarPolicyLoosenCancelled": "Modification de politique DSAR en attente annulée",
+    "dsarPolicyLoosenCancelledBody": "L'assouplissement en attente de la gouvernance DSAR a été annulé avant de prendre effet."
   },
   "changelog": {
     "toast": {
