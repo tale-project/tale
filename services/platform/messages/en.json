@@ -3787,7 +3787,8 @@
       "trash": "Trash",
       "guardrails": "Guardrails",
       "usage": "Usage",
-      "feedback": "Feedback"
+      "feedback": "Feedback",
+      "dataSubjectRequests": "Data subject requests"
     },
     "trash": {
       "title": "Trash",
@@ -4059,6 +4060,157 @@
       "removeDefaultConfirmTitle": "Remove permission for active default model?",
       "removeDefaultConfirmBody": "The following default model rule(s) currently assign models that would no longer be permitted: {rules}. Affected users will fall back to another permitted model.",
       "removeDefaultConfirmAction": "Save anyway"
+    },
+    "dataSubjectRequests": {
+      "title": "Data subject requests",
+      "description": "GDPR Art. 17 erasure receipts. File new requests, monitor SLA deadlines, and grant Art. 12(3) extensions when complex cases need more time.",
+      "accessDenied": "Admin only.",
+      "filters": {
+        "statusTitle": "Status"
+      },
+      "sections": {
+        "requestsList": {
+          "title": "Requests",
+          "empty": {
+            "title": "No erasure requests yet",
+            "description": "File a request from the action above to record an Art. 17 receipt."
+          }
+        }
+      },
+      "columns": {
+        "status": "Status",
+        "sla": "SLA",
+        "target": "Subject",
+        "reasonCode": "Reason code",
+        "requestedBy": "Filed by",
+        "requestedAt": "Filed"
+      },
+      "status": {
+        "pending": "Pending",
+        "running": "Running",
+        "done": "Completed",
+        "partial": "Partial",
+        "failed": "Failed",
+        "blocked": "Blocked"
+      },
+      "slaBadge": {
+        "daysLeft": "{days}d left",
+        "daysLeftOne": "1d left",
+        "overdue": "Overdue {days}d",
+        "terminal": "—"
+      },
+      "reasonCodes": {
+        "consent_withdrawn": {
+          "label": "Consent withdrawn"
+        },
+        "no_longer_necessary": {
+          "label": "No longer necessary"
+        },
+        "unlawful_processing": {
+          "label": "Unlawful processing"
+        },
+        "legal_obligation": {
+          "label": "Legal obligation"
+        },
+        "objection": {
+          "label": "Subject objection"
+        },
+        "child": {
+          "label": "Child subject"
+        },
+        "contract_termination": {
+          "label": "Contract termination"
+        }
+      },
+      "actions": {
+        "fileRequest": "File request",
+        "extendDeadline": "Extend deadline",
+        "retry": "Retry",
+        "loadMore": "Load more"
+      },
+      "drawer": {
+        "title": "Erasure request",
+        "description": "Receipt detail with audit timeline.",
+        "headerTitle": "Erasure receipt",
+        "subjectSection": "Subject and request",
+        "countersSection": "Counters",
+        "auditSection": "Audit timeline",
+        "auditEmpty": "No audit entries yet.",
+        "reasonNarrative": "Reason narrative",
+        "slaDeadline": "SLA deadline",
+        "extensionGrantedTitle": "Extension granted by {name}",
+        "threadsErased": "Threads erased",
+        "ragDocumentsRemoved": "RAG documents removed",
+        "documentsErased": "Documents erased",
+        "documentsSkippedByHold": "Documents skipped by hold",
+        "errorMessage": "Error"
+      },
+      "legalHoldBlock": {
+        "title": "Erasure blocked by legal hold",
+        "orgHeld": "An organization-wide hold is preserving every entity in this tenant. Release it before retrying erasure.",
+        "userCustodianHeld": "The subject is on a custodian hold. Release it before retrying erasure.",
+        "generic": "An active legal hold is preserving the subject's data.",
+        "threadsCount": "{count, plural, =1 {# held thread} other {# held threads}} preserved.",
+        "documentsCount": "{count, plural, =1 {# held document} other {# held documents}} preserved.",
+        "openLegalHold": "Open legal hold settings",
+        "openLegalHoldAria": "Open legal hold settings"
+      },
+      "dialogs": {
+        "fileRequest": {
+          "title": "File erasure request",
+          "description": "Records an Art. 17 receipt for the chosen subject and runs the cascade asynchronously. Identity verification is the filing admin's responsibility — confirm the subject's identity through your organization's process before continuing.",
+          "userPickerLabel": "Subject",
+          "userPickerPlaceholder": "Search by name or email",
+          "userPickerEmpty": "No matching members.",
+          "reasonCodeLabel": "Lawful ground",
+          "reasonCodeDescription": "GDPR Art. 17(1)(a)–(f) plus the operational contract-termination ground.",
+          "reasonLabel": "Reason narrative",
+          "reasonPlaceholder": "e.g. Subject withdrew consent on 2026-05-08 — HR ticket #4711",
+          "confirmLabel": "Type {phrase} to confirm",
+          "confirmDescription": "Required for every erasure request. The submit button stays disabled until the phrase matches exactly.",
+          "submit": "File request"
+        },
+        "extendDeadline": {
+          "title": "Extend Art. 12(3) deadline",
+          "description": "Add up to 60 days to the response window. The extension itself must be communicated to the subject within the original month, with reasons, per Art. 12(3). Each request can be extended at most once.",
+          "extraDaysLabel": "Extra days ({min}–{max})",
+          "extraDaysDescription": "Whole days added on top of the original 30-day deadline.",
+          "extraDaysError": "Enter a whole number between {min} and {max}.",
+          "extensionReasonLabel": "Extension reason",
+          "extensionReasonPlaceholder": "e.g. Cross-border legal review — counsel asked for an extra two weeks",
+          "submit": "Grant extension"
+        },
+        "retry": {
+          "title": "Retry erasure",
+          "description": "Re-runs the cascade for this request. Use after releasing a blocking legal hold or after fixing whatever caused the previous failure.",
+          "confirm": "Retry"
+        }
+      },
+      "toasts": {
+        "filedTitle": "Erasure request filed",
+        "filedDescription": "The cascade is running. Open the receipt to track progress.",
+        "extendedTitle": "Deadline extended",
+        "extendedDescription": "Added {days, plural, =1 {# day} other {# days}} to the response window.",
+        "retryTitle": "Erasure retry started",
+        "retryDescription": "The cascade has been re-scheduled."
+      },
+      "errors": {
+        "generic": {
+          "title": "Something went wrong",
+          "description": "Please try again. If the problem persists, contact your administrator."
+        },
+        "unauthenticated": "Sign in required.",
+        "forbidden": "You don't have permission to do this.",
+        "validation": "Please check the form fields.",
+        "notFound": "Not found.",
+        "alreadyPending": "An erasure request for this subject is already pending or running.",
+        "legalHoldBlocked": "An active legal hold is preserving this subject's data.",
+        "notRetriable": "This request is not in a state that can be retried.",
+        "notExtendable": "This request is in a terminal state and cannot be extended.",
+        "alreadyExtended": "This request has already been extended once. Art. 12(3) allows a single extension.",
+        "deadlineLapsed": "The original Art. 12(3) deadline has already passed; extensions cannot be granted retroactively.",
+        "reasonTooShort": "Provide a reason of at least 10 characters."
+      }
     }
   },
   "prompts": {

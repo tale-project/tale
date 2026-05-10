@@ -2,6 +2,7 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../lib/validators/json';
+import { ERASURE_REASON_CODES } from './erasure_constants';
 import { lifecycleStatusValidator } from './soft_delete_validators';
 
 export const GOVERNANCE_POLICY_TYPES = [
@@ -518,6 +519,10 @@ export const retentionAppliedBoundsTable = defineTable({
   rejectedBy: v.optional(v.string()),
 }).index('by_organizationId', ['organizationId']);
 
+const erasureReasonCodeValidator = v.union(
+  ...ERASURE_REASON_CODES.map((c) => v.literal(c)),
+);
+
 /**
  * GDPR Art 17 erasure request state machine.
  *
@@ -540,16 +545,31 @@ export const retentionAppliedBoundsTable = defineTable({
  *   - failed   → unrecoverable error (e.g. RAG service permanently
  *                unreachable); operator must inspect `errorMessage`
  *
- * `slaDeadlineAt = requestedAt + 30 days` per Art 12(3); operators
- * see overdue requests in the admin UI.
+ * `slaDeadlineAt = requestedAt + 30 days` per Art 12(3); the controller
+ * may grant a single extension of up to 60 additional days for complex
+ * requests, persisted via the `extension*` fields below. The extension
+ * must be granted before the original deadline lapses (Art 12(3)
+ * requires the extension to be communicated within the original month).
  */
 export const gdprErasureRequestsTable = defineTable({
   organizationId: v.string(),
   targetUserId: v.string(),
   reason: v.string(),
+  /** Structured lawful ground for the erasure (Art 17(1)(a)–(f) plus the
+   *  operational `contract_termination`). Required for new requests at
+   *  the mutation layer; schema-optional so pre-feature rows still load. */
+  reasonCode: v.optional(erasureReasonCodeValidator),
   requestedBy: v.string(),
   requestedAt: v.number(),
   slaDeadlineAt: v.number(),
+  /** Single Art 12(3) extension. Granted at most once per request, by an
+   *  admin, before `slaDeadlineAt` lapses. `extensionDeadlineAt =
+   *  slaDeadlineAt + extraDays * 86_400_000`; the SLA badge derives from
+   *  `extensionDeadlineAt ?? slaDeadlineAt`. */
+  extensionGrantedAt: v.optional(v.number()),
+  extensionGrantedBy: v.optional(v.string()),
+  extensionReason: v.optional(v.string()),
+  extensionDeadlineAt: v.optional(v.number()),
   status: v.union(
     v.literal('pending'),
     v.literal('running'),

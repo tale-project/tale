@@ -66,11 +66,23 @@ import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
 import { eraseDocumentBlobs } from './erase_document_blobs';
+import { ERASURE_REASON_CODES } from './erasure_constants';
 import { loadActiveHolds } from './legal_hold';
 
 const SLA_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_CASCADE_ATTEMPTS_PER_THREAD = 50;
+/**
+ * Art 12(3) caps the controller's response window at one month plus, for
+ * complex requests, up to two further months. We expose a single
+ * extension capped at 60 additional days; granting twice is rejected
+ * with `ALREADY_EXTENDED`.
+ */
+const MAX_EXTENSION_DAYS = 60;
+
+const erasureReasonCodeValidator = v.union(
+  ...ERASURE_REASON_CODES.map((c) => v.literal(c)),
+);
 
 /**
  * Public admin entry point. Records a `gdprErasureRequests` row,
@@ -83,6 +95,10 @@ export const requestErasure = mutation({
     organizationId: v.string(),
     userId: v.string(),
     reason: v.string(),
+    /** GDPR Art 17(1)(a)–(f) lawful ground or operational
+     *  `contract_termination`. Required for new requests so receipts
+     *  can be classified by ground for regulator reporting. */
+    reasonCode: erasureReasonCodeValidator,
   },
   returns: v.object({
     requestId: v.id('gdprErasureRequests'),
@@ -192,6 +208,7 @@ export const requestErasure = mutation({
       organizationId: args.organizationId,
       targetUserId: args.userId,
       reason: args.reason.trim(),
+      reasonCode: args.reasonCode,
       requestedBy: callerId,
       requestedAt: now,
       slaDeadlineAt: now + SLA_DAYS * DAY_MS,
@@ -276,6 +293,7 @@ export const requestErasure = mutation({
       newState: {
         requestId,
         reason: args.reason,
+        reasonCode: args.reasonCode,
         threadsTargeted: threadIds.length,
         slaDeadlineAt: now + SLA_DAYS * DAY_MS,
       },
@@ -1440,5 +1458,135 @@ export const retryErasureRequest = mutation({
     });
 
     return null;
+  },
+});
+
+/**
+ * Admin-only Art 12(3) deadline extension. The controller may extend the
+ * one-month response window by up to two further months for complex
+ * requests, but the extension itself must be communicated to the
+ * subject within the original month, with reasons. We model that by
+ * refusing to grant the extension after `slaDeadlineAt` has passed and
+ * by capping the per-request grant at one (each request can be extended
+ * at most once, total extra ≤ 60 days).
+ *
+ * On success, the row carries `extensionDeadlineAt`, which the SLA
+ * countdown badge in the admin UI uses in preference to the original
+ * `slaDeadlineAt`.
+ */
+export const extendErasureDeadline = mutation({
+  args: {
+    requestId: v.id('gdprErasureRequests'),
+    extraDays: v.number(),
+    extensionReason: v.string(),
+  },
+  returns: v.object({
+    extensionDeadlineAt: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'unauthenticated',
+        message: 'Sign in required.',
+      });
+    }
+    const callerId = String(authUser._id);
+
+    const row = await ctx.db.get(args.requestId);
+    if (!row) {
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'Erasure request does not exist.',
+      });
+    }
+
+    const member = await getOrganizationMember(ctx, row.organizationId, {
+      userId: callerId,
+      email: authUser.email ?? '',
+      name: authUser.name,
+    });
+    if (!isAdmin(member.role)) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only org admins can extend erasure deadlines.',
+      });
+    }
+
+    const extraDays = Math.trunc(args.extraDays);
+    if (
+      !Number.isFinite(extraDays) ||
+      extraDays < 1 ||
+      extraDays > MAX_EXTENSION_DAYS
+    ) {
+      throw new ConvexError({
+        code: 'validation',
+        message: `extraDays must be an integer between 1 and ${MAX_EXTENSION_DAYS}.`,
+      });
+    }
+    const reason = args.extensionReason.trim();
+    if (reason.length < 10) {
+      throw new ConvexError({
+        code: 'validation',
+        message: 'extensionReason must be at least 10 characters.',
+      });
+    }
+
+    if (row.status === 'done' || row.status === 'failed') {
+      throw new ConvexError({
+        code: 'NOT_EXTENDABLE',
+        message: `Request is in a terminal state (status=${row.status}).`,
+      });
+    }
+    if (row.extensionGrantedAt !== undefined) {
+      throw new ConvexError({
+        code: 'ALREADY_EXTENDED',
+        message:
+          'This request has already been extended. Art 12(3) allows a single extension.',
+      });
+    }
+    const now = Date.now();
+    if (row.slaDeadlineAt < now) {
+      // Art 12(3) requires the extension to be communicated within the
+      // original month — granting it after the deadline lapses would not
+      // be lawful. Operators must instead document the breach.
+      throw new ConvexError({
+        code: 'DEADLINE_LAPSED',
+        message:
+          'Original Art 12(3) deadline has already passed; extensions cannot be granted retroactively.',
+      });
+    }
+
+    const extensionDeadlineAt = row.slaDeadlineAt + extraDays * DAY_MS;
+    await ctx.db.patch(args.requestId, {
+      extensionGrantedAt: now,
+      extensionGrantedBy: callerId,
+      extensionReason: reason,
+      extensionDeadlineAt,
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: row.organizationId,
+      actorId: callerId,
+      actorEmail: authUser.email ?? '',
+      actorType: 'user',
+      action: 'gdpr_erasure_extended',
+      category: 'admin',
+      resourceType: 'user',
+      resourceId: row.targetUserId,
+      resourceName: row.targetUserId,
+      status: 'success',
+      previousState: {
+        slaDeadlineAt: row.slaDeadlineAt,
+      },
+      newState: {
+        requestId: args.requestId,
+        extraDays,
+        extensionReason: reason,
+        extensionDeadlineAt,
+      },
+    });
+
+    return { extensionDeadlineAt };
   },
 });

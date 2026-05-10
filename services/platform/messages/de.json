@@ -3787,7 +3787,8 @@
       "trash": "Papierkorb",
       "guardrails": "Guardrails",
       "usage": "Nutzung",
-      "feedback": "Feedback"
+      "feedback": "Feedback",
+      "dataSubjectRequests": "Betroffene Personen"
     },
     "trash": {
       "title": "Papierkorb",
@@ -4059,6 +4060,157 @@
       "removeDefaultConfirmTitle": "Berechtigung für aktives Standardmodell entfernen?",
       "removeDefaultConfirmBody": "Folgende Standardmodell-Regel(n) verwenden Modelle, die nicht mehr erlaubt wären: {rules}. Betroffene Benutzer weichen auf ein anderes erlaubtes Modell aus.",
       "removeDefaultConfirmAction": "Trotzdem speichern"
+    },
+    "dataSubjectRequests": {
+      "title": "Anfragen betroffener Personen",
+      "description": "DSGVO Art. 17 Löschungsbelege. Neue Anfragen einreichen, Fristen überwachen und Art. 12(3)-Verlängerungen gewähren, wenn komplexe Fälle mehr Zeit brauchen.",
+      "accessDenied": "Nur Administratoren.",
+      "filters": {
+        "statusTitle": "Status"
+      },
+      "sections": {
+        "requestsList": {
+          "title": "Anfragen",
+          "empty": {
+            "title": "Noch keine Löschungsanfragen",
+            "description": "Reiche oben eine Anfrage ein, um einen Art.-17-Beleg zu erfassen."
+          }
+        }
+      },
+      "columns": {
+        "status": "Status",
+        "sla": "Frist",
+        "target": "Person",
+        "reasonCode": "Rechtsgrund",
+        "requestedBy": "Eingereicht von",
+        "requestedAt": "Eingereicht"
+      },
+      "status": {
+        "pending": "Offen",
+        "running": "Läuft",
+        "done": "Abgeschlossen",
+        "partial": "Teilweise",
+        "failed": "Fehlgeschlagen",
+        "blocked": "Blockiert"
+      },
+      "slaBadge": {
+        "daysLeft": "noch {days}T",
+        "daysLeftOne": "noch 1T",
+        "overdue": "Überfällig {days}T",
+        "terminal": "—"
+      },
+      "reasonCodes": {
+        "consent_withdrawn": {
+          "label": "Einwilligung widerrufen"
+        },
+        "no_longer_necessary": {
+          "label": "Nicht mehr erforderlich"
+        },
+        "unlawful_processing": {
+          "label": "Unrechtmäßige Verarbeitung"
+        },
+        "legal_obligation": {
+          "label": "Rechtliche Verpflichtung"
+        },
+        "objection": {
+          "label": "Widerspruch der Person"
+        },
+        "child": {
+          "label": "Minderjährige Person"
+        },
+        "contract_termination": {
+          "label": "Vertragsbeendigung"
+        }
+      },
+      "actions": {
+        "fileRequest": "Anfrage einreichen",
+        "extendDeadline": "Frist verlängern",
+        "retry": "Erneut versuchen",
+        "loadMore": "Mehr laden"
+      },
+      "drawer": {
+        "title": "Löschungsanfrage",
+        "description": "Beleg mit Audit-Verlauf.",
+        "headerTitle": "Löschungsbeleg",
+        "subjectSection": "Person und Anfrage",
+        "countersSection": "Zähler",
+        "auditSection": "Audit-Verlauf",
+        "auditEmpty": "Noch keine Audit-Einträge.",
+        "reasonNarrative": "Begründung",
+        "slaDeadline": "Frist",
+        "extensionGrantedTitle": "Verlängerung gewährt von {name}",
+        "threadsErased": "Gelöschte Threads",
+        "ragDocumentsRemoved": "Aus RAG entfernte Dokumente",
+        "documentsErased": "Gelöschte Dokumente",
+        "documentsSkippedByHold": "Durch Sperre übersprungene Dokumente",
+        "errorMessage": "Fehler"
+      },
+      "legalHoldBlock": {
+        "title": "Löschung durch rechtliche Sperre blockiert",
+        "orgHeld": "Eine organisationsweite Sperre bewahrt jede Entität in diesem Tenant. Hebe sie auf, bevor du es erneut versuchst.",
+        "userCustodianHeld": "Die Person steht unter einer Aufbewahrungssperre. Hebe sie auf, bevor du es erneut versuchst.",
+        "generic": "Eine aktive rechtliche Sperre bewahrt die Daten der Person.",
+        "threadsCount": "{count, plural, =1 {# bewahrter Thread} other {# bewahrte Threads}}.",
+        "documentsCount": "{count, plural, =1 {# bewahrtes Dokument} other {# bewahrte Dokumente}}.",
+        "openLegalHold": "Einstellungen für rechtliche Sperren öffnen",
+        "openLegalHoldAria": "Einstellungen für rechtliche Sperren öffnen"
+      },
+      "dialogs": {
+        "fileRequest": {
+          "title": "Löschungsanfrage einreichen",
+          "description": "Erfasst einen Art.-17-Beleg für die ausgewählte Person und führt die Kaskade asynchron aus. Die Identitätsprüfung liegt beim einreichenden Admin — bestätige die Identität über euren Prozess, bevor du fortfährst.",
+          "userPickerLabel": "Person",
+          "userPickerPlaceholder": "Nach Name oder E-Mail suchen",
+          "userPickerEmpty": "Keine passenden Mitglieder.",
+          "reasonCodeLabel": "Rechtsgrund",
+          "reasonCodeDescription": "DSGVO Art. 17(1)(a)–(f) plus operativer Vertragsbeendigungs-Grund.",
+          "reasonLabel": "Begründung",
+          "reasonPlaceholder": "z. B. Person hat Einwilligung am 2026-05-08 widerrufen — HR-Ticket #4711",
+          "confirmLabel": "Tippe {phrase} zur Bestätigung",
+          "confirmDescription": "Für jede Löschungsanfrage erforderlich. Der Absende-Button bleibt deaktiviert, bis der Text exakt übereinstimmt.",
+          "submit": "Anfrage einreichen"
+        },
+        "extendDeadline": {
+          "title": "Art.-12(3)-Frist verlängern",
+          "description": "Bis zu 60 Tage zum Antwortfenster hinzufügen. Die Verlängerung selbst muss innerhalb des ursprünglichen Monats begründet mitgeteilt werden (Art. 12(3)). Jede Anfrage kann höchstens einmal verlängert werden.",
+          "extraDaysLabel": "Zusätzliche Tage ({min}–{max})",
+          "extraDaysDescription": "Ganze Tage zusätzlich zur ursprünglichen 30-Tage-Frist.",
+          "extraDaysError": "Gib eine ganze Zahl zwischen {min} und {max} ein.",
+          "extensionReasonLabel": "Verlängerungsgrund",
+          "extensionReasonPlaceholder": "z. B. grenzüberschreitende rechtliche Prüfung — Anwalt bittet um zwei zusätzliche Wochen",
+          "submit": "Verlängerung gewähren"
+        },
+        "retry": {
+          "title": "Löschung erneut versuchen",
+          "description": "Führt die Kaskade für diese Anfrage erneut aus. Nutze dies nach Aufhebung einer Sperre oder nach Behebung der vorherigen Fehlerursache.",
+          "confirm": "Erneut versuchen"
+        }
+      },
+      "toasts": {
+        "filedTitle": "Löschungsanfrage eingereicht",
+        "filedDescription": "Die Kaskade läuft. Öffne den Beleg, um den Fortschritt zu verfolgen.",
+        "extendedTitle": "Frist verlängert",
+        "extendedDescription": "{days, plural, =1 {# Tag} other {# Tage}} zum Antwortfenster hinzugefügt.",
+        "retryTitle": "Erneuter Löschversuch gestartet",
+        "retryDescription": "Die Kaskade wurde neu eingeplant."
+      },
+      "errors": {
+        "generic": {
+          "title": "Etwas ist schiefgelaufen",
+          "description": "Versuche es erneut. Wende dich an deinen Administrator, falls das Problem bestehen bleibt."
+        },
+        "unauthenticated": "Anmeldung erforderlich.",
+        "forbidden": "Du hast keine Berechtigung dafür.",
+        "validation": "Bitte überprüfe die Formularfelder.",
+        "notFound": "Nicht gefunden.",
+        "alreadyPending": "Für diese Person läuft bereits eine Löschungsanfrage.",
+        "legalHoldBlocked": "Eine aktive rechtliche Sperre bewahrt die Daten dieser Person.",
+        "notRetriable": "Diese Anfrage befindet sich nicht in einem wiederholbaren Zustand.",
+        "notExtendable": "Diese Anfrage ist in einem Endzustand und kann nicht verlängert werden.",
+        "alreadyExtended": "Diese Anfrage wurde bereits einmal verlängert. Art. 12(3) erlaubt eine einzige Verlängerung.",
+        "deadlineLapsed": "Die ursprüngliche Art.-12(3)-Frist ist bereits abgelaufen; eine rückwirkende Verlängerung ist nicht möglich.",
+        "reasonTooShort": "Gib eine Begründung mit mindestens 10 Zeichen an."
+      }
     }
   },
   "prompts": {

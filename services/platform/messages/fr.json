@@ -3699,7 +3699,8 @@
       "trash": "Corbeille",
       "guardrails": "Guardrails",
       "usage": "Utilisation",
-      "feedback": "Retours"
+      "feedback": "Retours",
+      "dataSubjectRequests": "Personnes concernées"
     },
     "trash": {
       "title": "Corbeille",
@@ -3984,6 +3985,157 @@
       "invalidGrace": "La période de grâce doit être un entier compris entre 0 et 30.",
       "saved": "La politique de double facteur a été mise à jour",
       "saveFailed": "Échec de l'enregistrement de la politique de double facteur"
+    },
+    "dataSubjectRequests": {
+      "title": "Demandes de personnes concernées",
+      "description": "Reçus d'effacement RGPD art. 17. Dépose de nouvelles demandes, surveille les délais et accorde des prolongations art. 12(3) lorsque les dossiers complexes l'exigent.",
+      "accessDenied": "Réservé aux administrateurs.",
+      "filters": {
+        "statusTitle": "Statut"
+      },
+      "sections": {
+        "requestsList": {
+          "title": "Demandes",
+          "empty": {
+            "title": "Aucune demande d'effacement",
+            "description": "Dépose une demande depuis l'action ci-dessus pour enregistrer un reçu art. 17."
+          }
+        }
+      },
+      "columns": {
+        "status": "Statut",
+        "sla": "Délai",
+        "target": "Personne",
+        "reasonCode": "Motif",
+        "requestedBy": "Déposée par",
+        "requestedAt": "Déposée"
+      },
+      "status": {
+        "pending": "En attente",
+        "running": "En cours",
+        "done": "Terminée",
+        "partial": "Partielle",
+        "failed": "Échouée",
+        "blocked": "Bloquée"
+      },
+      "slaBadge": {
+        "daysLeft": "il reste {days}j",
+        "daysLeftOne": "il reste 1j",
+        "overdue": "En retard de {days}j",
+        "terminal": "—"
+      },
+      "reasonCodes": {
+        "consent_withdrawn": {
+          "label": "Consentement retiré"
+        },
+        "no_longer_necessary": {
+          "label": "Plus nécessaire"
+        },
+        "unlawful_processing": {
+          "label": "Traitement illicite"
+        },
+        "legal_obligation": {
+          "label": "Obligation légale"
+        },
+        "objection": {
+          "label": "Opposition de la personne"
+        },
+        "child": {
+          "label": "Personne mineure"
+        },
+        "contract_termination": {
+          "label": "Fin de contrat"
+        }
+      },
+      "actions": {
+        "fileRequest": "Déposer une demande",
+        "extendDeadline": "Prolonger le délai",
+        "retry": "Réessayer",
+        "loadMore": "Charger plus"
+      },
+      "drawer": {
+        "title": "Demande d'effacement",
+        "description": "Détail du reçu avec piste d'audit.",
+        "headerTitle": "Reçu d'effacement",
+        "subjectSection": "Personne et demande",
+        "countersSection": "Compteurs",
+        "auditSection": "Piste d'audit",
+        "auditEmpty": "Aucune entrée d'audit pour le moment.",
+        "reasonNarrative": "Motif détaillé",
+        "slaDeadline": "Échéance",
+        "extensionGrantedTitle": "Prolongation accordée par {name}",
+        "threadsErased": "Conversations effacées",
+        "ragDocumentsRemoved": "Documents retirés du RAG",
+        "documentsErased": "Documents effacés",
+        "documentsSkippedByHold": "Documents ignorés (rétention)",
+        "errorMessage": "Erreur"
+      },
+      "legalHoldBlock": {
+        "title": "Effacement bloqué par une rétention légale",
+        "orgHeld": "Une rétention organisationnelle préserve toutes les entités de ce tenant. Lève-la avant de réessayer.",
+        "userCustodianHeld": "La personne est sous rétention de garde. Lève-la avant de réessayer.",
+        "generic": "Une rétention légale active préserve les données de la personne.",
+        "threadsCount": "{count, plural, =1 {# conversation préservée} other {# conversations préservées}}.",
+        "documentsCount": "{count, plural, =1 {# document préservé} other {# documents préservés}}.",
+        "openLegalHold": "Ouvrir les paramètres de rétention légale",
+        "openLegalHoldAria": "Ouvrir les paramètres de rétention légale"
+      },
+      "dialogs": {
+        "fileRequest": {
+          "title": "Déposer une demande d'effacement",
+          "description": "Enregistre un reçu art. 17 pour la personne choisie et exécute la cascade de manière asynchrone. La vérification d'identité incombe à l'admin déposant — confirme l'identité via le processus de ton organisation avant de continuer.",
+          "userPickerLabel": "Personne",
+          "userPickerPlaceholder": "Recherche par nom ou e-mail",
+          "userPickerEmpty": "Aucun membre correspondant.",
+          "reasonCodeLabel": "Fondement légal",
+          "reasonCodeDescription": "RGPD art. 17(1)(a)–(f) plus le motif opérationnel de fin de contrat.",
+          "reasonLabel": "Motif détaillé",
+          "reasonPlaceholder": "ex. Personne a retiré son consentement le 2026-05-08 — ticket RH #4711",
+          "confirmLabel": "Tape {phrase} pour confirmer",
+          "confirmDescription": "Requis pour chaque demande d'effacement. Le bouton d'envoi reste désactivé tant que la phrase ne correspond pas exactement.",
+          "submit": "Déposer la demande"
+        },
+        "extendDeadline": {
+          "title": "Prolonger le délai art. 12(3)",
+          "description": "Ajoute jusqu'à 60 jours à la fenêtre de réponse. La prolongation elle-même doit être communiquée à la personne dans le mois initial, avec motifs (art. 12(3)). Chaque demande ne peut être prolongée qu'une seule fois.",
+          "extraDaysLabel": "Jours supplémentaires ({min}–{max})",
+          "extraDaysDescription": "Jours entiers ajoutés au délai initial de 30 jours.",
+          "extraDaysError": "Saisis un nombre entier entre {min} et {max}.",
+          "extensionReasonLabel": "Motif de prolongation",
+          "extensionReasonPlaceholder": "ex. Revue juridique transfrontalière — le conseil demande deux semaines de plus",
+          "submit": "Accorder la prolongation"
+        },
+        "retry": {
+          "title": "Réessayer l'effacement",
+          "description": "Réexécute la cascade pour cette demande. À utiliser après avoir levé une rétention bloquante ou corrigé la cause de l'échec précédent.",
+          "confirm": "Réessayer"
+        }
+      },
+      "toasts": {
+        "filedTitle": "Demande d'effacement déposée",
+        "filedDescription": "La cascade est en cours. Ouvre le reçu pour suivre la progression.",
+        "extendedTitle": "Délai prolongé",
+        "extendedDescription": "{days, plural, =1 {# jour} other {# jours}} ajoutés à la fenêtre de réponse.",
+        "retryTitle": "Nouvelle tentative d'effacement lancée",
+        "retryDescription": "La cascade a été reprogrammée."
+      },
+      "errors": {
+        "generic": {
+          "title": "Quelque chose s'est mal passé",
+          "description": "Réessaie. Contacte ton administrateur si le problème persiste."
+        },
+        "unauthenticated": "Connexion requise.",
+        "forbidden": "Tu n'as pas la permission.",
+        "validation": "Vérifie les champs du formulaire.",
+        "notFound": "Introuvable.",
+        "alreadyPending": "Une demande d'effacement est déjà en cours pour cette personne.",
+        "legalHoldBlocked": "Une rétention légale active préserve les données de cette personne.",
+        "notRetriable": "Cette demande n'est pas dans un état qui permet une nouvelle tentative.",
+        "notExtendable": "Cette demande est dans un état terminal et ne peut pas être prolongée.",
+        "alreadyExtended": "Cette demande a déjà été prolongée une fois. Art. 12(3) n'autorise qu'une seule prolongation.",
+        "deadlineLapsed": "Le délai initial art. 12(3) est déjà dépassé ; aucune prolongation rétroactive n'est possible.",
+        "reasonTooShort": "Saisis un motif d'au moins 10 caractères."
+      }
     }
   },
   "prompts": {
