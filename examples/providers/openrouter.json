@@ -192,13 +192,13 @@
       }
     },
     {
-      "id": "nvidia/nemotron-3-super",
+      "id": "nvidia/nemotron-3-super-120b-a12b",
       "displayName": "NVIDIA Nemotron 3 Super",
       "description": "NVIDIA frontier open-weight reasoning model",
       "tags": ["chat"],
       "cost": {
-        "inputCentsPerMillion": 60,
-        "outputCentsPerMillion": 180
+        "inputCentsPerMillion": 9,
+        "outputCentsPerMillion": 45
       }
     },
     {
@@ -416,10 +416,10 @@
   ],
   "i18n": {
     "de": {
-      "description": "Multi-Modell-KI-Gateway mit Zugang zu fuhrenden LLM-Anbietern",
+      "description": "Multi-Modell-KI-Gateway mit Zugang zu führenden LLM-Anbietern",
       "models": {
         "anthropic/claude-opus-4.6": {
-          "description": "Leistungsstarkstes Modell fur komplexe Aufgaben und Programmierung"
+          "description": "Leistungsstärkstes Modell für komplexe Aufgaben und Programmierung"
         }
       }
     }
