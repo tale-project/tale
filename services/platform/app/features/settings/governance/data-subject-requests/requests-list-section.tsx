@@ -3,8 +3,8 @@
 import { Button } from '@tale/ui/button';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Trash2 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { FileText } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
@@ -39,45 +39,51 @@ export function RequestsListSection({
   organizationId,
 }: RequestsListSectionProps) {
   const { t } = useT('governance');
-  const { t: tCommon } = useT('common');
   const ability = useAbility();
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<ErasureStatus[]>([]);
   const [fileOpen, setFileOpen] = useState(false);
 
-  const { results, status, loadMore, isLoading } = useListErasureRequests({
-    organizationId,
+  // H9-3: gate the query on ability so the Convex subscription does not
+  // fire (and the server doesn't reject) for non-admin users — they hit
+  // AccessDenied below regardless. The hook treats `undefined`
+  // organizationId as `'skip'`.
+  const canRead = ability.can('write', 'orgSettings');
+  const { results, status, loadMore } = useListErasureRequests({
+    organizationId: canRead ? organizationId : undefined,
     statuses: statusFilter,
   });
+  // H9-1: derive load-states from `status` so DataTable doesn't replace
+  // existing rows with skeleton placeholders every time the user clicks
+  // "Load more" (matches release-history-section.tsx pattern).
+  const isInitialLoading = status === 'LoadingFirstPage';
+  const isLoadingMore = status === 'LoadingMore';
 
-  const filterConfigs: FilterConfig[] = useMemo(
-    () => [
-      {
-        key: 'status',
-        title: t('dataSubjectRequests.filters.statusTitle'),
-        multiSelect: true,
-        columns: 2,
-        options: ERASURE_STATUSES.map((s) => ({
-          value: s,
-          label: t(`dataSubjectRequests.status.${s}`),
-        })),
-        selectedValues: statusFilter,
-        onChange: (values: string[]) => {
-          const next: ErasureStatus[] = [];
-          for (const value of values) {
-            for (const s of ERASURE_STATUSES) {
-              if (s === value) {
-                next.push(s);
-                break;
-              }
+  const filterConfigs: FilterConfig[] = [
+    {
+      key: 'status',
+      title: t('dataSubjectRequests.filters.statusTitle'),
+      multiSelect: true,
+      columns: 2,
+      options: ERASURE_STATUSES.map((s) => ({
+        value: s,
+        label: t(`dataSubjectRequests.status.${s}`),
+      })),
+      selectedValues: statusFilter,
+      onChange: (values: string[]) => {
+        const next: ErasureStatus[] = [];
+        for (const value of values) {
+          for (const s of ERASURE_STATUSES) {
+            if (s === value) {
+              next.push(s);
+              break;
             }
           }
-          setStatusFilter(next);
-        },
+        }
+        setStatusFilter(next);
       },
-    ],
-    [t, statusFilter],
-  );
+    },
+  ];
 
   const columns = useMemo<ColumnDef<ErasureRow>[]>(
     () => [
@@ -159,19 +165,7 @@ export function RequestsListSection({
     [t],
   );
 
-  const handleRowClick = useCallback(
-    (row: { original: ErasureRow }) => {
-      void navigate({
-        to: '/dashboard/$id/settings/governance/data-subject-requests/$requestId',
-        params: { id: organizationId, requestId: String(row.original._id) },
-      });
-    },
-    [navigate, organizationId],
-  );
-
-  const hasMore = status === 'CanLoadMore';
-
-  if (ability.cannot('write', 'orgSettings')) {
+  if (!canRead) {
     return <AccessDenied message={t('dataSubjectRequests.accessDenied')} />;
   }
 
@@ -187,7 +181,10 @@ export function RequestsListSection({
             size="sm"
             onClick={() => setFileOpen(true)}
           >
-            <Trash2 className="mr-1.5 size-4" aria-hidden />
+            {/* H9-5: FileText conveys "file an erasure request" — the
+                previous Trash2 mis-signaled "delete-now" for an action
+                that just opens the file-request dialog. */}
+            <FileText className="mr-1.5 size-4" aria-hidden />
             {t('dataSubjectRequests.actions.fileRequest')}
           </Button>
         }
@@ -196,10 +193,29 @@ export function RequestsListSection({
         <DataTable<ErasureRow>
           columns={columns}
           data={results ?? []}
-          isLoading={isLoading}
+          // H9-1: only mark loading on the initial fetch — `Load more`
+          // fetches keep the existing rows visible.
+          isLoading={isInitialLoading}
           approxRowCount={results?.length}
           getRowId={(row) => String(row._id)}
-          onRowClick={handleRowClick}
+          onRowClick={(row) => {
+            void navigate({
+              to: '/dashboard/$id/settings/governance/data-subject-requests/$requestId',
+              params: {
+                id: organizationId,
+                requestId: String(row.original._id),
+              },
+            });
+          }}
+          // H9-2: use DataTable's built-in infiniteScroll (auto IntersectionObserver
+          // + accessible loading/end-of-list affordances) instead of a hand-rolled
+          // button outside the table border.
+          infiniteScroll={{
+            hasMore: status === 'CanLoadMore',
+            onLoadMore: () => loadMore(25),
+            isLoadingMore,
+            isInitialLoading,
+          }}
           emptyState={{
             title: t('dataSubjectRequests.sections.requestsList.empty.title'),
             description: t(
@@ -208,20 +224,6 @@ export function RequestsListSection({
           }}
           caption={t('dataSubjectRequests.sections.requestsList.title')}
         />
-        {hasMore && (
-          <div className="flex justify-center">
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={isLoading}
-              onClick={() => loadMore(25)}
-            >
-              {isLoading
-                ? tCommon('actions.loading')
-                : t('dataSubjectRequests.actions.loadMore')}
-            </Button>
-          </div>
-        )}
       </PageSection>
 
       <FileRequestDialog

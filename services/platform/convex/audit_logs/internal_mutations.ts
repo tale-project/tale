@@ -303,19 +303,35 @@ export const scrubSubjectAuditLogs = internalMutation({
     organizationId: v.string(),
     userId: v.string(),
   },
-  returns: v.object({ scrubbedRowCount: v.number() }),
+  returns: v.object({
+    scrubbedRowCount: v.number(),
+    scrubbedActorRowCount: v.number(),
+    scrubbedResourceRowCount: v.number(),
+  }),
   handler: async (ctx, args) => {
-    let scrubbedRowCount = 0;
+    let scrubbedActorRowCount = 0;
+    let scrubbedResourceRowCount = 0;
     let lastScrubbedHash = '';
     let maxScrubbedTimestamp = 0;
     const now = Date.now();
+    // Two-pass scrub: rows where the subject is the actor (e.g. their
+    // own login attempts, their own data writes) AND rows where the
+    // subject is the resource (admin-authored events about the subject:
+    // member invites, password resets, the very `gdpr_erasure_requested`
+    // row). Pre-fix only the actor-pass ran, leaving subject `resourceName`
+    // / `previousState` / `newState` / `errorMessage` / `metadata` PII on
+    // every admin-authored row about the subject — the `pii_scrub`
+    // checkpoint then over-claimed coverage for the regulator.
+    const seen = new Set<string>();
 
+    // Pass 1 — subject as actor (clears actor* + ip* + user-agent + free-text JSON)
     for await (const log of ctx.db
       .query('auditLogs')
       .withIndex('by_organizationId_and_actorId', (q) =>
         q.eq('organizationId', args.organizationId).eq('actorId', args.userId),
       )) {
       if (log.piiScrubbed === true) continue;
+      seen.add(String(log._id));
       const patch: Partial<typeof log> & {
         piiScrubbed: true;
         piiScrubbedAt: number;
@@ -343,14 +359,57 @@ export const scrubSubjectAuditLogs = internalMutation({
         piiScrubbedAt: now,
       };
       await ctx.db.patch(log._id, patch);
-      scrubbedRowCount++;
+      scrubbedActorRowCount++;
       if (log.integrityHash) lastScrubbedHash = log.integrityHash;
       if (log.timestamp > maxScrubbedTimestamp) {
         maxScrubbedTimestamp = log.timestamp;
       }
     }
 
-    if (scrubbedRowCount === 0) return { scrubbedRowCount: 0 };
+    // Pass 2 — subject as resource (admin authored a row ABOUT the subject).
+    // Clear subject-side PII surfaces (`resourceName`, free-text payloads,
+    // `errorMessage`); leave actor* fields intact — the actor here is the
+    // admin, not the subject, and admin PII is the admin's own retention
+    // concern. ipAddress/userAgent on these rows are the admin's session
+    // metadata, not the subject's, so do not touch them either.
+    for await (const log of ctx.db
+      .query('auditLogs')
+      .withIndex('by_org_resourceType_resourceId', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('resourceType', 'user')
+          .eq('resourceId', args.userId),
+      )) {
+      if (log.piiScrubbed === true) continue;
+      if (seen.has(String(log._id))) continue;
+      const patch: Partial<typeof log> & {
+        piiScrubbed: true;
+        piiScrubbedAt: number;
+      } = {
+        resourceName: undefined,
+        previousState: undefined,
+        newState: undefined,
+        errorMessage: undefined,
+        metadata: undefined,
+        piiScrubbed: true,
+        piiScrubbedAt: now,
+      };
+      await ctx.db.patch(log._id, patch);
+      scrubbedResourceRowCount++;
+      if (log.integrityHash) lastScrubbedHash = log.integrityHash;
+      if (log.timestamp > maxScrubbedTimestamp) {
+        maxScrubbedTimestamp = log.timestamp;
+      }
+    }
+
+    const scrubbedRowCount = scrubbedActorRowCount + scrubbedResourceRowCount;
+    if (scrubbedRowCount === 0) {
+      return {
+        scrubbedRowCount: 0,
+        scrubbedActorRowCount: 0,
+        scrubbedResourceRowCount: 0,
+      };
+    }
 
     // Insert a signed boundary so the verifier knows hash recomputes
     // on scrubbed rows are expected to mismatch. v2 binds `subtype` and
@@ -381,6 +440,10 @@ export const scrubSubjectAuditLogs = internalMutation({
       createdAt: now,
     });
 
-    return { scrubbedRowCount };
+    return {
+      scrubbedRowCount,
+      scrubbedActorRowCount,
+      scrubbedResourceRowCount,
+    };
   },
 });

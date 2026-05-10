@@ -36,4 +36,8 @@ export const messageFeedbackTable = defineTable({
   .index('by_organizationId', ['organizationId'])
   .index('by_org_rating', ['organizationId', 'rating'])
   .index('by_threadId', ['threadId'])
-  .index('by_org_createdAt', ['organizationId', 'createdAt']);
+  .index('by_org_createdAt', ['organizationId', 'createdAt'])
+  // Subject-scoped scan for GDPR Art 17 erasure (`eraseSubjectMessageFeedback`).
+  // Pre-fix the eraser walked `by_organizationId` and JS-filtered by `userId`
+  // — same 16K-cap spoliation pattern that was fixed for `threadMetadata`.
+  .index('by_org_user', ['organizationId', 'userId']);

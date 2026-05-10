@@ -111,8 +111,12 @@
     "contentSafety": {
       "wordsDescription": "Ein Wort oder eine Phrase pro Zeile. Gross-/Kleinschreibung egal. Für CJK/Thai/Laotisch wird automatisch Teilstring-Matching verwendet; andere Schriften nutzen Unicode-basierte Wortgrenzen."
     },
-    "groups": {
-      "dataSubjectRequests": "Betroffene Personen"
+    "dataSubjectRequests": {
+      "reasonCodes": {
+        "unlawful_processing": {
+          "label": "Unrechtmässige Verarbeitung"
+        }
+      }
     }
   },
   "personalization": {

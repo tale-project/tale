@@ -4005,7 +4005,7 @@
       "columns": {
         "status": "Statut",
         "sla": "Délai",
-        "target": "Personne",
+        "target": "Personne concernée",
         "reasonCode": "Motif",
         "requestedBy": "Déposée par",
         "requestedAt": "Déposée"
@@ -4013,10 +4013,10 @@
       "status": {
         "pending": "En attente",
         "running": "En cours",
-        "done": "Terminée",
-        "partial": "Partielle",
-        "failed": "Échouée",
-        "blocked": "Bloquée"
+        "done": "Terminé",
+        "partial": "Partiel",
+        "failed": "Échoué",
+        "blocked": "Bloqué"
       },
       "slaBadge": {
         "daysLeft": "il reste {days}j",
@@ -4054,10 +4054,10 @@
         "loadMore": "Charger plus"
       },
       "drawer": {
-        "title": "Demande d'effacement",
+        "title": "Reçu d'effacement",
         "description": "Détail du reçu avec piste d'audit.",
         "headerTitle": "Reçu d'effacement",
-        "subjectSection": "Personne et demande",
+        "subjectSection": "Personne concernée et demande",
         "countersSection": "Compteurs",
         "auditSection": "Piste d'audit",
         "auditEmpty": "Aucune entrée d'audit pour le moment.",
@@ -4065,10 +4065,31 @@
         "slaDeadline": "Échéance",
         "extensionGrantedTitle": "Prolongation accordée par {name}",
         "threadsErased": "Conversations effacées",
+        "threadsSkippedByHold": "Conversations ignorées (rétention)",
+        "threadsBlockedByHold": "Conversations bloquées (rétention)",
+        "documentsBlockedByHold": "Documents bloqués (rétention)",
         "ragDocumentsRemoved": "Documents retirés du RAG",
         "documentsErased": "Documents effacés",
         "documentsSkippedByHold": "Documents ignorés (rétention)",
-        "errorMessage": "Erreur"
+        "startedAt": "Démarré",
+        "completedAt": "Terminé",
+        "errorMessage": "Erreur",
+        "errorState": {
+          "title": "Impossible de charger cette demande",
+          "description": "Le reçu a peut-être été supprimé ou tu n'as pas les droits requis.",
+          "retry": "Réessayer"
+        }
+      },
+      "auditActions": {
+        "gdpr_erasure_requested": "Déposée",
+        "gdpr_erasure_denied": "Refusée",
+        "gdpr_erasure_blocked_by_hold": "Bloquée par rétention légale",
+        "gdpr_erasure_executed": "Exécutée",
+        "gdpr_erasure_watchdog_failed": "Délai dépassé (watchdog)",
+        "gdpr_erasure_late_finalize_dropped": "Finalisation tardive ignorée",
+        "gdpr_erasure_cascade_attempts_exhausted": "Tentatives de cascade épuisées",
+        "gdpr_erasure_extended": "Échéance prolongée",
+        "gdpr_erasure_retried": "Réessayée"
       },
       "legalHoldBlock": {
         "title": "Effacement bloqué par une rétention légale",
@@ -4084,7 +4105,7 @@
         "fileRequest": {
           "title": "Déposer une demande d'effacement",
           "description": "Enregistre un reçu art. 17 pour la personne choisie et exécute la cascade de manière asynchrone. La vérification d'identité incombe à l'admin déposant — confirme l'identité via le processus de ton organisation avant de continuer.",
-          "userPickerLabel": "Personne",
+          "userPickerLabel": "Personne concernée",
           "userPickerPlaceholder": "Recherche par nom ou e-mail",
           "userPickerEmpty": "Aucun membre correspondant.",
           "reasonCodeLabel": "Fondement légal",

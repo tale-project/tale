@@ -1,4 +1,3 @@
-import { ConvexError } from 'convex/values';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../_generated/api', () => ({
@@ -89,6 +88,24 @@ vi.mock('../../_generated/server', async (importOriginal) => {
   };
 });
 
+// Single shared cast: vi.mock above replaces `mutation` /
+// `internalMutation` / `internalAction` with identity functions, so the
+// runtime shape is `{ args, returns, handler }`. The module's static
+// type is still the original Convex function-reference, so we narrow
+// once here and reuse across tests. Treated as a "third-party gap"
+// per AGENTS.md (Convex types describe the deployment-time function
+// reference, not the per-test mocked-mutation shape).
+//
+// oxlint-disable-next-line typescript/no-explicit-any -- see above
+type ErasureHandler = { handler: (...args: unknown[]) => Promise<any> };
+async function loadErasure(): Promise<Record<string, ErasureHandler>> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see above
+  return (await import('../erasure')) as unknown as Record<
+    string,
+    ErasureHandler
+  >;
+}
+
 const DAY_MS = 86_400_000;
 const NOW = 1_700_000_000_000;
 const SLA_DEFAULT = NOW + 30 * DAY_MS;
@@ -148,10 +165,7 @@ describe('extendErasureDeadline', () => {
 
   it('rejects when caller is not authenticated', async () => {
     mockGetAuthUser.mockResolvedValue(null);
-    const { extendErasureDeadline } =
-      (await import('../erasure')) as unknown as {
-        extendErasureDeadline: { handler: Function };
-      };
+    const { extendErasureDeadline } = await loadErasure();
     const ctx = createMockCtx([rowFixture()]);
     await expect(
       extendErasureDeadline.handler(ctx, {
@@ -165,10 +179,7 @@ describe('extendErasureDeadline', () => {
   it('rejects when caller is not an admin', async () => {
     mockGetAuthUser.mockResolvedValue(MEMBER_USER);
     mockGetOrganizationMember.mockResolvedValue({ role: 'member' });
-    const { extendErasureDeadline } =
-      (await import('../erasure')) as unknown as {
-        extendErasureDeadline: { handler: Function };
-      };
+    const { extendErasureDeadline } = await loadErasure();
     const ctx = createMockCtx([rowFixture()]);
     await expect(
       extendErasureDeadline.handler(ctx, {
@@ -182,10 +193,7 @@ describe('extendErasureDeadline', () => {
   it('rejects extraDays out of range', async () => {
     mockGetAuthUser.mockResolvedValue(ADMIN_USER);
     mockGetOrganizationMember.mockResolvedValue({ role: 'admin' });
-    const { extendErasureDeadline } =
-      (await import('../erasure')) as unknown as {
-        extendErasureDeadline: { handler: Function };
-      };
+    const { extendErasureDeadline } = await loadErasure();
     const ctx = createMockCtx([rowFixture()]);
     for (const extraDays of [0, -3, 61, 9999]) {
       await expect(
@@ -201,10 +209,7 @@ describe('extendErasureDeadline', () => {
   it('rejects extensionReason shorter than 10 chars', async () => {
     mockGetAuthUser.mockResolvedValue(ADMIN_USER);
     mockGetOrganizationMember.mockResolvedValue({ role: 'admin' });
-    const { extendErasureDeadline } =
-      (await import('../erasure')) as unknown as {
-        extendErasureDeadline: { handler: Function };
-      };
+    const { extendErasureDeadline } = await loadErasure();
     const ctx = createMockCtx([rowFixture()]);
     await expect(
       extendErasureDeadline.handler(ctx, {
@@ -218,10 +223,7 @@ describe('extendErasureDeadline', () => {
   it('rejects extension on terminal (done/failed) requests', async () => {
     mockGetAuthUser.mockResolvedValue(ADMIN_USER);
     mockGetOrganizationMember.mockResolvedValue({ role: 'admin' });
-    const { extendErasureDeadline } =
-      (await import('../erasure')) as unknown as {
-        extendErasureDeadline: { handler: Function };
-      };
+    const { extendErasureDeadline } = await loadErasure();
     for (const status of ['done', 'failed'] as const) {
       const ctx = createMockCtx([rowFixture({ status })]);
       await expect(
@@ -239,10 +241,7 @@ describe('extendErasureDeadline', () => {
   it('rejects a second extension once one has been granted', async () => {
     mockGetAuthUser.mockResolvedValue(ADMIN_USER);
     mockGetOrganizationMember.mockResolvedValue({ role: 'admin' });
-    const { extendErasureDeadline } =
-      (await import('../erasure')) as unknown as {
-        extendErasureDeadline: { handler: Function };
-      };
+    const { extendErasureDeadline } = await loadErasure();
     const ctx = createMockCtx([
       rowFixture({
         extensionGrantedAt: NOW - DAY_MS,
@@ -265,10 +264,7 @@ describe('extendErasureDeadline', () => {
   it('rejects when slaDeadlineAt has already lapsed', async () => {
     mockGetAuthUser.mockResolvedValue(ADMIN_USER);
     mockGetOrganizationMember.mockResolvedValue({ role: 'admin' });
-    const { extendErasureDeadline } =
-      (await import('../erasure')) as unknown as {
-        extendErasureDeadline: { handler: Function };
-      };
+    const { extendErasureDeadline } = await loadErasure();
     const ctx = createMockCtx([rowFixture({ slaDeadlineAt: NOW - DAY_MS })]);
     await expect(
       extendErasureDeadline.handler(ctx, {
@@ -284,10 +280,7 @@ describe('extendErasureDeadline', () => {
   it('grants the extension on a valid request and writes the audit row', async () => {
     mockGetAuthUser.mockResolvedValue(ADMIN_USER);
     mockGetOrganizationMember.mockResolvedValue({ role: 'admin' });
-    const { extendErasureDeadline } =
-      (await import('../erasure')) as unknown as {
-        extendErasureDeadline: { handler: Function };
-      };
+    const { extendErasureDeadline } = await loadErasure();
     const rows = [rowFixture({ status: 'partial' })];
     const ctx = createMockCtx(rows);
     const result = await extendErasureDeadline.handler(ctx, {
@@ -310,12 +303,5 @@ describe('extendErasureDeadline', () => {
         status: 'success',
       }),
     );
-  });
-});
-
-// Smoke check that ConvexError is reachable in this env (used in matchers).
-describe('module sanity', () => {
-  it('exposes ConvexError', () => {
-    expect(typeof ConvexError).toBe('function');
   });
 });

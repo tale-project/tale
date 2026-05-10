@@ -3788,7 +3788,7 @@
       "guardrails": "Guardrails",
       "usage": "Nutzung",
       "feedback": "Feedback",
-      "dataSubjectRequests": "Betroffene Personen"
+      "dataSubjectRequests": "Anfragen betroffener Personen"
     },
     "trash": {
       "title": "Papierkorb",
@@ -4129,7 +4129,7 @@
         "loadMore": "Mehr laden"
       },
       "drawer": {
-        "title": "Löschungsanfrage",
+        "title": "Löschungsbeleg",
         "description": "Beleg mit Audit-Verlauf.",
         "headerTitle": "Löschungsbeleg",
         "subjectSection": "Person und Anfrage",
@@ -4139,21 +4139,42 @@
         "reasonNarrative": "Begründung",
         "slaDeadline": "Frist",
         "extensionGrantedTitle": "Verlängerung gewährt von {name}",
-        "threadsErased": "Gelöschte Threads",
+        "threadsErased": "Gelöschte Konversationen",
+        "threadsSkippedByHold": "Durch Legal Hold übersprungene Konversationen",
+        "threadsBlockedByHold": "Durch Legal Hold blockierte Konversationen",
+        "documentsBlockedByHold": "Durch Legal Hold blockierte Dokumente",
         "ragDocumentsRemoved": "Aus RAG entfernte Dokumente",
         "documentsErased": "Gelöschte Dokumente",
-        "documentsSkippedByHold": "Durch Sperre übersprungene Dokumente",
-        "errorMessage": "Fehler"
+        "documentsSkippedByHold": "Durch Legal Hold übersprungene Dokumente",
+        "startedAt": "Gestartet",
+        "completedAt": "Abgeschlossen",
+        "errorMessage": "Fehler",
+        "errorState": {
+          "title": "Diese Anfrage konnte nicht geladen werden",
+          "description": "Der Beleg wurde möglicherweise gelöscht oder du hast keinen Zugriff darauf.",
+          "retry": "Erneut versuchen"
+        }
+      },
+      "auditActions": {
+        "gdpr_erasure_requested": "Eingereicht",
+        "gdpr_erasure_denied": "Abgelehnt",
+        "gdpr_erasure_blocked_by_hold": "Durch Legal Hold blockiert",
+        "gdpr_erasure_executed": "Ausgeführt",
+        "gdpr_erasure_watchdog_failed": "Zeitüberschreitung (Watchdog)",
+        "gdpr_erasure_late_finalize_dropped": "Verspäteter Abschluss ignoriert",
+        "gdpr_erasure_cascade_attempts_exhausted": "Kaskaden-Versuche erschöpft",
+        "gdpr_erasure_extended": "Frist verlängert",
+        "gdpr_erasure_retried": "Wiederholt"
       },
       "legalHoldBlock": {
-        "title": "Löschung durch rechtliche Sperre blockiert",
-        "orgHeld": "Eine organisationsweite Sperre bewahrt jede Entität in diesem Tenant. Hebe sie auf, bevor du es erneut versuchst.",
-        "userCustodianHeld": "Die Person steht unter einer Aufbewahrungssperre. Hebe sie auf, bevor du es erneut versuchst.",
-        "generic": "Eine aktive rechtliche Sperre bewahrt die Daten der Person.",
-        "threadsCount": "{count, plural, =1 {# bewahrter Thread} other {# bewahrte Threads}}.",
-        "documentsCount": "{count, plural, =1 {# bewahrtes Dokument} other {# bewahrte Dokumente}}.",
-        "openLegalHold": "Einstellungen für rechtliche Sperren öffnen",
-        "openLegalHoldAria": "Einstellungen für rechtliche Sperren öffnen"
+        "title": "Löschung durch Legal Hold blockiert",
+        "orgHeld": "Ein organisationsweiter Legal Hold bewahrt jede Entität in diesem Tenant. Hebe ihn auf, bevor du es erneut versuchst.",
+        "userCustodianHeld": "Die Person steht unter einem Custodian-Legal-Hold. Hebe ihn auf, bevor du es erneut versuchst.",
+        "generic": "Ein aktiver Legal Hold bewahrt die Daten der Person.",
+        "threadsCount": "{count, plural, one {# bewahrte Konversation} other {# bewahrte Konversationen}}.",
+        "documentsCount": "{count, plural, one {# bewahrtes Dokument} other {# bewahrte Dokumente}}.",
+        "openLegalHold": "Legal-Hold-Einstellungen öffnen",
+        "openLegalHoldAria": "Legal-Hold-Einstellungen öffnen"
       },
       "dialogs": {
         "fileRequest": {
@@ -4204,7 +4225,7 @@
         "validation": "Bitte überprüfe die Formularfelder.",
         "notFound": "Nicht gefunden.",
         "alreadyPending": "Für diese Person läuft bereits eine Löschungsanfrage.",
-        "legalHoldBlocked": "Eine aktive rechtliche Sperre bewahrt die Daten dieser Person.",
+        "legalHoldBlocked": "Ein aktiver Legal Hold bewahrt die Daten dieser Person.",
         "notRetriable": "Diese Anfrage befindet sich nicht in einem wiederholbaren Zustand.",
         "notExtendable": "Diese Anfrage ist in einem Endzustand und kann nicht verlängert werden.",
         "alreadyExtended": "Diese Anfrage wurde bereits einmal verlängert. Art. 12(3) erlaubt eine einzige Verlängerung.",

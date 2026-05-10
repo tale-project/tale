@@ -4129,7 +4129,7 @@
         "loadMore": "Load more"
       },
       "drawer": {
-        "title": "Erasure request",
+        "title": "Erasure receipt",
         "description": "Receipt detail with audit timeline.",
         "headerTitle": "Erasure receipt",
         "subjectSection": "Subject and request",
@@ -4140,10 +4140,31 @@
         "slaDeadline": "SLA deadline",
         "extensionGrantedTitle": "Extension granted by {name}",
         "threadsErased": "Threads erased",
+        "threadsSkippedByHold": "Threads skipped by hold",
+        "threadsBlockedByHold": "Threads blocked by hold",
+        "documentsBlockedByHold": "Documents blocked by hold",
         "ragDocumentsRemoved": "RAG documents removed",
         "documentsErased": "Documents erased",
         "documentsSkippedByHold": "Documents skipped by hold",
-        "errorMessage": "Error"
+        "startedAt": "Started",
+        "completedAt": "Completed",
+        "errorMessage": "Error",
+        "errorState": {
+          "title": "Could not load this request",
+          "description": "The receipt may have been deleted, or you may not have access to it.",
+          "retry": "Try again"
+        }
+      },
+      "auditActions": {
+        "gdpr_erasure_requested": "Filed",
+        "gdpr_erasure_denied": "Denied",
+        "gdpr_erasure_blocked_by_hold": "Blocked by legal hold",
+        "gdpr_erasure_executed": "Executed",
+        "gdpr_erasure_watchdog_failed": "Timed out (watchdog)",
+        "gdpr_erasure_late_finalize_dropped": "Late finalize ignored",
+        "gdpr_erasure_cascade_attempts_exhausted": "Cascade attempts exhausted",
+        "gdpr_erasure_extended": "Deadline extended",
+        "gdpr_erasure_retried": "Retried"
       },
       "legalHoldBlock": {
         "title": "Erasure blocked by legal hold",

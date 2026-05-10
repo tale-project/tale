@@ -62,11 +62,15 @@ import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
 import { hashEmailForAudit } from '../lib/helpers/pii_hash';
 import { ragFetch } from '../lib/helpers/rag_config';
+import { UnauthorizedError } from '../lib/rls/errors';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
 import { eraseDocumentBlobs } from './erase_document_blobs';
-import { ERASURE_REASON_CODES } from './erasure_constants';
+import {
+  ERASURE_REASON_CODES,
+  ERASURE_WATCHDOG_TIMEOUT_MESSAGE,
+} from './erasure_constants';
 import { loadActiveHolds } from './legal_hold';
 
 const SLA_DAYS = 30;
@@ -83,6 +87,43 @@ const MAX_EXTENSION_DAYS = 60;
 const erasureReasonCodeValidator = v.union(
   ...ERASURE_REASON_CODES.map((c) => v.literal(c)),
 );
+
+/**
+ * Clear the per-subject `activeErasureClaims.requestId` IFF the claim
+ * still points at the row identified by `requestId`. Defensive against
+ * a race where a watchdog/finalize tries to clear a claim that's been
+ * reassigned to a newer request — only the row that owns the claim
+ * gets to release it.
+ *
+ * Called from terminal-state transitions where the next request should
+ * be free to start fresh:
+ *   - `finalizeProcessing` on `done` (subject successfully erased)
+ *   - `recoverStuckErasureRequests` (watchdog) on `running→failed`
+ *   - `requestErasure` blocked-path (operator must release hold; they
+ *     may file again or use Retry on the row)
+ *
+ * Claim STAYS set on `partial` and non-watchdog `failed` so a stray
+ * `requestErasure` cannot insert a parallel receipt while the operator
+ * is in the middle of a retry flow.
+ */
+async function clearErasureClaimByRow(
+  ctx: import('../_generated/server').MutationCtx,
+  requestId: import('../_generated/dataModel').Id<'gdprErasureRequests'>,
+): Promise<void> {
+  const row = await ctx.db.get(requestId);
+  if (!row) return;
+  const claim = await ctx.db
+    .query('activeErasureClaims')
+    .withIndex('by_org_target', (q) =>
+      q
+        .eq('organizationId', row.organizationId)
+        .eq('targetUserId', row.targetUserId),
+    )
+    .first();
+  if (claim && claim.requestId === requestId) {
+    await ctx.db.patch(claim._id, { requestId: undefined });
+  }
+}
 
 /**
  * Public admin entry point. Records a `gdprErasureRequests` row,
@@ -145,34 +186,81 @@ export const requestErasure = mutation({
       });
     }
 
-    // Concurrency guard: parallel admin clicks would otherwise insert two
-    // rows + schedule two processors racing the same subject. Reject the
-    // second click with the existing requestId so the UI can surface the
-    // in-flight row instead of retrying (round-2 v05 B6 part 1).
-    //
-    // `'blocked'` is also reject-on-collide: a hold-blocked row is
-    // terminal and the operator must release the hold + call
-    // `retryErasureRequest` to re-schedule. Re-using a blocked row
-    // (instead of stacking new ones) keeps the receipt history clean
-    // for regulator audits.
-    for (const status of ['pending', 'running', 'blocked'] as const) {
-      const active = await ctx.db
-        .query('gdprErasureRequests')
-        .withIndex('by_org_target_status', (q) =>
-          q
-            .eq('organizationId', args.organizationId)
-            .eq('targetUserId', args.userId)
-            .eq('status', status),
-        )
-        .first();
-      if (active) {
+    // Cross-org IDOR guard: verify the target user is a member of the
+    // requesting org. Without this, an admin of org A passing a userId
+    // belonging only to org B reaches `eraseSubjectTwoFactorAttempts` (global
+    // by userId) and `eraseSubjectLoginAttempts`/`loginBlockCounters` (global
+    // by email) — wiping the victim's auth-throttling state across tenants
+    // and producing a lockout-bypass primitive. Strict `(orgId, userId)`
+    // match: pass an empty email so the helper's email-fallback (intended
+    // for JWT-vs-stored userId drift on the *caller*) is disabled.
+    try {
+      await getOrganizationMember(ctx, args.organizationId, {
+        userId: args.userId,
+        email: '',
+      });
+    } catch (err) {
+      if (err instanceof UnauthorizedError) {
+        await createAuditLog(ctx, {
+          organizationId: args.organizationId,
+          actorId: callerId,
+          actorEmail: authUser.email ?? '',
+          actorType: 'user',
+          action: 'gdpr_erasure_denied',
+          category: 'admin',
+          resourceType: 'user',
+          resourceId: args.userId,
+          status: 'denied',
+          errorMessage: 'cross_org_target',
+        });
         throw new ConvexError({
-          code: 'ALREADY_PENDING',
-          message: `An erasure request for this subject is already ${status}.`,
-          requestId: active._id,
-          status,
+          code: 'forbidden',
+          message: 'Target user is not a member of this organization.',
         });
       }
+      throw err;
+    }
+
+    // Concurrency guard via the per-subject `activeErasureClaims` row.
+    // A bare range query over `gdprErasureRequests.by_org_target_status`
+    // could not detect range-phantom inserts: two concurrent
+    // `requestErasure` calls on the same `(organizationId, targetUserId)`
+    // both observed "no pending row" and both inserted + scheduled a
+    // processor — duplicate receipts plus a duplicate cascade racing the
+    // same subject's data. Mirror the `placeLegalHold` /
+    // `activeLegalHoldClaims` pattern: read + patch a single claim row
+    // in this same transaction; concurrent placers contend on the claim
+    // row and serialize via OCC.
+    //
+    // The claim's `requestId` is cleared on terminal transitions where
+    // the next request should be free to start fresh:
+    //   - `finalizeProcessing` on `done` (subject successfully erased)
+    //   - `recoverStuckErasureRequests` (watchdog) on `running→failed`
+    //   - `requestErasure` blocked-path (operator must release hold;
+    //      they may file again or use the unblocked retry on the row)
+    // Claim STAYS set on `partial` / non-watchdog `failed` so a stray
+    // `requestErasure` cannot insert a parallel receipt while the
+    // operator is in the middle of a retry flow.
+    const existingClaim = await ctx.db
+      .query('activeErasureClaims')
+      .withIndex('by_org_target', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('targetUserId', args.userId),
+      )
+      .first();
+    if (existingClaim?.requestId !== undefined) {
+      const existingRow = await ctx.db.get(existingClaim.requestId);
+      if (existingRow) {
+        throw new ConvexError({
+          code: 'ALREADY_PENDING',
+          message: `An erasure request for this subject is already ${existingRow.status}.`,
+          requestId: existingRow._id,
+          status: existingRow.status,
+        });
+      }
+      // Stale claim (row was deleted out of band) — clear it and proceed.
+      await ctx.db.patch(existingClaim._id, { requestId: undefined });
     }
 
     // Find every thread the subject owns in this org. Includes archived,
@@ -216,6 +304,22 @@ export const requestErasure = mutation({
       threadsTargeted: threadIds,
     });
 
+    // Acquire the per-subject claim. Convex OCC: any concurrent caller
+    // that already read `existingClaim` at the previous version conflicts
+    // on this patch (or the matching insert below) and retries — at
+    // retry it observes the winner's `requestId` and throws
+    // ALREADY_PENDING above.
+    if (existingClaim) {
+      await ctx.db.patch(existingClaim._id, { requestId, claimedAt: now });
+    } else {
+      await ctx.db.insert('activeErasureClaims', {
+        organizationId: args.organizationId,
+        targetUserId: args.userId,
+        requestId,
+        claimedAt: now,
+      });
+    }
+
     // Legal-hold gate. GDPR Art 17(3)(e) preserves data subject to legal
     // claims. After the User+Org pivot, hold scope is fully expressed as
     // org-wide or user-custodian (per-row hold target types were dropped),
@@ -247,6 +351,11 @@ export const requestErasure = mutation({
         errorMessage: holds.orgHeld ? 'org_hold' : 'user_custodian_hold',
         completedAt: now,
       });
+      // Clear the claim so the next `requestErasure` (or `retryErasureRequest`
+      // after the operator releases the hold) can take over. Without this,
+      // `blocked` would coexist with a stuck claim and refuse all retries
+      // and refile attempts even after the hold lifts.
+      await clearErasureClaimByRow(ctx, requestId);
       await createAuditLog(ctx, {
         organizationId: args.organizationId,
         actorId: callerId,
@@ -330,9 +439,11 @@ export const beginProcessing = internalMutation({
     const row = await ctx.db.get(args.requestId);
     if (!row) return null;
     // Idempotent: a re-scheduled processor (after a partial run) flips
-    // back to 'running' from 'partial' but won't re-process a 'done'
-    // or 'failed' row.
-    if (row.status === 'done' || row.status === 'failed') return null;
+    // back to 'running' from 'partial', but does NOT take over from
+    // 'running' (another processor owns it), 'blocked' (terminal until
+    // operator releases hold + Retry), 'done', or 'failed'. Whitelist
+    // — fail-closed for any future status — instead of blacklist.
+    if (row.status !== 'pending' && row.status !== 'partial') return null;
     await ctx.db.patch(args.requestId, {
       status: 'running',
       startedAt: Date.now(),
@@ -355,12 +466,21 @@ export const eraseThreadById = internalMutation({
     threadId: v.string(),
     organizationId: v.string(),
   },
-  returns: v.object({ done: v.boolean(), remaining: v.number() }),
+  returns: v.object({
+    done: v.boolean(),
+    remaining: v.number(),
+    skippedByHold: v.optional(v.boolean()),
+  }),
   handler: async (ctx, args) => {
-    return await cascadeDeleteThreadChildren(ctx, {
+    const result = await cascadeDeleteThreadChildren(ctx, {
       threadId: args.threadId,
       organizationId: args.organizationId,
     });
+    return {
+      done: result.done,
+      remaining: result.remaining,
+      skippedByHold: result.skippedByHold,
+    };
   },
 });
 
@@ -392,12 +512,16 @@ const perCategoryValidator = v.object({
     blockCounters: v.number(),
     skippedByHold: v.number(),
   }),
+  notifications: rowsAndHoldValidator,
+  wfExecutions: rowsAndHoldValidator,
+  promptTemplates: rowsAndHoldValidator,
 });
 
 export const finalizeProcessing = internalMutation({
   args: {
     requestId: v.id('gdprErasureRequests'),
     threadsErased: v.number(),
+    threadsSkippedByHold: v.optional(v.number()),
     ragDocumentsRemoved: v.number(),
     documentsErased: v.optional(v.number()),
     documentsSkippedByHold: v.optional(v.number()),
@@ -417,8 +541,25 @@ export const finalizeProcessing = internalMutation({
     // CRITICAL #22.
     if (
       row.status === 'failed' &&
-      row.errorMessage === 'Erasure timed out (watchdog)'
+      row.errorMessage === ERASURE_WATCHDOG_TIMEOUT_MESSAGE
     ) {
+      // Preserve the watchdog's `'failed'` verdict and `errorMessage`,
+      // but persist the count fields the action actually completed
+      // before timing out. Without this, the receipt row reads as
+      // "0 erased / 0 RAG removed" while the audit row's
+      // `intendedThreadsErased` / `intendedDocumentsErased` paint a
+      // different picture — confusing for regulators and operators
+      // triaging a partial-side-effect timeout.
+      await ctx.db.patch(args.requestId, {
+        threadsErased: args.threadsErased,
+        ragDocumentsRemoved: args.ragDocumentsRemoved,
+        documentsErased: args.documentsErased,
+        documentsSkippedByHold:
+          (args.documentsSkippedByHold ?? 0) > 0
+            ? args.documentsSkippedByHold
+            : undefined,
+        lateFinalizeAt: Date.now(),
+      });
       await createAuditLog(ctx, {
         organizationId: row.organizationId,
         actorId: row.requestedBy,
@@ -441,22 +582,22 @@ export const finalizeProcessing = internalMutation({
     }
     const targetedCount = row.threadsTargeted?.length ?? 0;
     const documentsSkippedByHold = args.documentsSkippedByHold ?? 0;
+    const threadsSkippedByHold = args.threadsSkippedByHold ?? 0;
     // Aggregate skipped-by-hold across every per-category counter so the
     // receipt status flips to `partial` whenever a mid-flight hold blocked
     // ANY category, not just documents (round-2 v05 B6 / v09 H4).
+    // Structural sum: new categories added to `perCategoryValidator`
+    // contribute automatically as long as their shape carries
+    // `skippedByHold: number`.
     const perCategory = args.perCategory;
     const perCategorySkipped = perCategory
-      ? perCategory.userMemories.skippedByHold +
-        perCategory.userPreferences.skippedByHold +
-        perCategory.messageFeedback.skippedByHold +
-        perCategory.fileMetadata.skippedByHold +
-        perCategory.usageLedger.skippedByHold +
-        perCategory.twoFactorAttempts.skippedByHold +
-        perCategory.policyAcknowledgements.skippedByHold +
-        perCategory.onedrive.skippedByHold +
-        perCategory.loginAttempts.skippedByHold
+      ? Object.values(perCategory).reduce(
+          (sum, entry) => sum + (entry.skippedByHold ?? 0),
+          0,
+        )
       : 0;
-    const totalSkippedByHold = documentsSkippedByHold + perCategorySkipped;
+    const totalSkippedByHold =
+      documentsSkippedByHold + perCategorySkipped + threadsSkippedByHold;
     const status: 'done' | 'partial' | 'failed' = args.errorMessage
       ? 'failed'
       : args.threadsErased < targetedCount || totalSkippedByHold > 0
@@ -464,14 +605,43 @@ export const finalizeProcessing = internalMutation({
         : 'done';
     await ctx.db.patch(args.requestId, {
       status,
+      // M2: accumulate per-attempt counters across retry runs. The
+      // action's local counters (passed via args) only count work done
+      // *this* attempt — already-erased rows aren't re-iterated by their
+      // index, so a partial→retry would otherwise overwrite the row's
+      // historical count with the (smaller) retry count, under-reporting
+      // the total work done for the regulator.
+      // Exception: `threadsErased` (and `threadsSkippedByHold`) — the
+      // action re-walks `state.threadsTargeted` (the snapshot fixed at
+      // submission), and `cascadeDeleteThreadChildren` on an already-
+      // erased thread returns `done:true` immediately, so the action's
+      // counter naturally equals the cumulative total per retry.
       threadsErased: args.threadsErased,
-      ragDocumentsRemoved: args.ragDocumentsRemoved,
-      documentsErased: args.documentsErased,
+      threadsSkippedByHold:
+        threadsSkippedByHold > 0 ? threadsSkippedByHold : undefined,
+      ragDocumentsRemoved:
+        (row.ragDocumentsRemoved ?? 0) + args.ragDocumentsRemoved,
+      documentsErased: (row.documentsErased ?? 0) + (args.documentsErased ?? 0),
+      // wfExecutions / promptTemplates totals derived from perCategory.
+      wfExecutionsErased:
+        (row.wfExecutionsErased ?? 0) +
+        (args.perCategory?.wfExecutions.rows ?? 0),
+      promptTemplatesErased:
+        (row.promptTemplatesErased ?? 0) +
+        (args.perCategory?.promptTemplates.rows ?? 0),
       documentsSkippedByHold:
         documentsSkippedByHold > 0 ? documentsSkippedByHold : undefined,
       errorMessage: args.errorMessage,
       completedAt: Date.now(),
     });
+
+    // Release the per-subject claim only on terminal `done`. Partial /
+    // failed are retryable, so the claim stays pointing at this row to
+    // refuse a parallel `requestErasure` while the operator is in the
+    // middle of a retry flow.
+    if (status === 'done') {
+      await clearErasureClaimByRow(ctx, args.requestId);
+    }
 
     await createAuditLog(ctx, {
       organizationId: row.organizationId,
@@ -618,24 +788,28 @@ export const eraseSubjectUserMemories = internalMutation({
   args: { organizationId: v.string(), userId: v.string() },
   returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
   handler: async (ctx, args) => {
+    // Use the existing compound index `by_user_org_status_deleted_created`
+    // as a `(userId, organizationId)` prefix scan so the read is bounded
+    // to the subject's own rows. Pre-fix the eraser walked
+    // `by_organizationId` and JS-filtered by userId — same 16K-cap
+    // spoliation pattern that was fixed for `threadMetadata` (round-2
+    // CRITICAL #13).
     const iter = () =>
       ctx.db
         .query('userMemories')
-        .withIndex('by_organizationId', (q) =>
-          q.eq('organizationId', args.organizationId),
+        .withIndex('by_user_org_status_deleted_created', (q) =>
+          q.eq('userId', args.userId).eq('organizationId', args.organizationId),
         );
-    const guard = await countOrSkip(ctx, args.organizationId, args.userId, () =>
-      (async function* () {
-        for await (const row of iter()) {
-          if (row.userId === args.userId) yield row;
-        }
-      })(),
+    const guard = await countOrSkip(
+      ctx,
+      args.organizationId,
+      args.userId,
+      iter,
     );
     if (guard.heldByOrgOrUser)
       return { rows: 0, skippedByHold: guard.skippedByHold };
     let rows = 0;
     for await (const row of iter()) {
-      if (row.userId !== args.userId) continue;
       await ctx.db.delete(row._id);
       rows++;
     }
@@ -674,24 +848,25 @@ export const eraseSubjectMessageFeedback = internalMutation({
   args: { organizationId: v.string(), userId: v.string() },
   returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
   handler: async (ctx, args) => {
+    // M3: subject-scoped scan via `by_org_user` (added in this PR).
+    // Pre-fix walked `by_organizationId` + JS userId filter, exposing
+    // the 16K-cap spoliation pattern. Bounded to per-user count now.
     const iter = () =>
       ctx.db
         .query('messageFeedback')
-        .withIndex('by_organizationId', (q) =>
-          q.eq('organizationId', args.organizationId),
+        .withIndex('by_org_user', (q) =>
+          q.eq('organizationId', args.organizationId).eq('userId', args.userId),
         );
-    const guard = await countOrSkip(ctx, args.organizationId, args.userId, () =>
-      (async function* () {
-        for await (const row of iter()) {
-          if (row.userId === args.userId) yield row;
-        }
-      })(),
+    const guard = await countOrSkip(
+      ctx,
+      args.organizationId,
+      args.userId,
+      iter,
     );
     if (guard.heldByOrgOrUser)
       return { rows: 0, skippedByHold: guard.skippedByHold };
     let rows = 0;
     for await (const row of iter()) {
-      if (row.userId !== args.userId) continue;
       await ctx.db.delete(row._id);
       rows++;
     }
@@ -919,45 +1094,228 @@ export const eraseSubjectNotifications = internalMutation({
   },
   returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
   handler: async (ctx, args) => {
+    // Two-phase erasure (C2 + C3 fix):
+    //
+    //   1. **userId-indexed pass** via `by_org_subject` — bounded to the
+    //      subject's own notifications. New writers (`writeNotificationForOrgs`
+    //      with `subjectUserId`) populate the column, so this is the
+    //      primary path for any notification written after this PR.
+    //   2. **Legacy email-match pass** — falls back to `params.email`
+    //      matching for rows written before `subjectUserId` existed.
+    //      Best-effort under pepper rotation: rows whose `params.email`
+    //      was hashed under a now-rotated pepper will not match either
+    //      branch and must be cleaned by an out-of-band tool.
+    //
+    // Pre-fix walked `by_org_created` org-wide on every cascade — at
+    // 16K+ org notifications (busy lockout-alert volume + no TTL by
+    // default) the read silently truncated and missed subject rows
+    // (Art-17 incomplete erasure). This split keeps the userId pass
+    // bounded by per-subject row count regardless of org volume, and
+    // the legacy pass is bounded by the same `by_org_created` walk —
+    // tracked as a known limitation rather than a silent failure.
+
+    // Mid-flight hold gate: count what would have been erased so the
+    // receipt's `partial` status flips correctly when the cascade is
+    // blocked between scheduling and processor run.
     const holds = await loadActiveHolds(ctx, args.organizationId);
     if (holds.orgHeld || holds.userMembershipIds.has(args.userId)) {
-      // Notifications under org-wide OR user-custodian hold are preserved
-      // like every other category; the request was already refused at
-      // scheduling time unless a hold landed mid-flight (round-2 v09 H4
-      // + CRITICAL #14).
-      return { rows: 0, skippedByHold: 0 };
+      let skippedByHold = 0;
+      for await (const _row of ctx.db
+        .query('notifications')
+        .withIndex('by_org_subject', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('subjectUserId', args.userId),
+        )) {
+        skippedByHold++;
+      }
+      // Legacy rows can't be efficiently counted under hold without
+      // re-walking the whole org; preserve the row-count discipline by
+      // accepting an under-count here (still > 0 forces partial state
+      // when the userId-pass had any matches).
+      return { rows: 0, skippedByHold };
     }
+
+    let rows = 0;
+    const erasedIds = new Set<string>();
+
+    // Pass 1: userId-indexed (primary, bounded by subject-row count)
+    for await (const row of ctx.db
+      .query('notifications')
+      .withIndex('by_org_subject', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('subjectUserId', args.userId),
+      )) {
+      await ctx.db.delete(row._id);
+      erasedIds.add(String(row._id));
+      rows++;
+    }
+
+    // Pass 2: legacy email-match (only when subjectEmail is resolvable
+    // — pre-fix rows have `subjectUserId === undefined`).
     const subjectEmailLc = args.subjectEmail?.toLowerCase() ?? null;
     const subjectEmailHash = subjectEmailLc
       ? await hashEmailForAudit(subjectEmailLc)
       : null;
+    if (subjectEmailLc !== null) {
+      for await (const row of ctx.db
+        .query('notifications')
+        .withIndex('by_org_created', (q) =>
+          q.eq('organizationId', args.organizationId),
+        )) {
+        if (erasedIds.has(String(row._id))) continue;
+        // Pass-2 only handles legacy rows that pre-date subjectUserId;
+        // skip rows that were already taggable by userId (those hit
+        // pass 1 if they matched, or are someone else's notification).
+        if (row.subjectUserId !== undefined) continue;
+        const params = row.params;
+        if (
+          params === undefined ||
+          params === null ||
+          typeof params !== 'object'
+        ) {
+          continue;
+        }
+        // params is `jsonRecordValidator` (Record<string, unknown>) at the
+        // schema layer but Convex hands it back as a generic JSON value;
+        // narrow via Object.hasOwn + Reflect.get to avoid an unsafe cast.
+        const paramEmail = Object.hasOwn(params, 'email')
+          ? Reflect.get(params, 'email')
+          : undefined;
+        const matches =
+          typeof paramEmail === 'string' &&
+          (paramEmail.toLowerCase() === subjectEmailLc ||
+            (subjectEmailHash !== null && paramEmail === subjectEmailHash));
+        if (!matches) continue;
+        await ctx.db.delete(row._id);
+        rows++;
+      }
+    }
+
+    return { rows, skippedByHold: 0 };
+  },
+});
+
+/**
+ * H7 — `wfExecutions` rows the subject either ran (`userId`) or
+ * triggered (`triggeredBy`). Stores `input`/`output`/`variables`/
+ * `triggerData`/`error`/`metadata` as free-text JSON / strings, all
+ * potentially carrying subject PII. Also references three `_storage`
+ * blobs (`variablesStorageId`, `outputStorageId`, `stepsConfigStorageId`)
+ * that must be cascaded too.
+ *
+ * Strategy:
+ *   1. Walk `by_org_user` (subject as executor).
+ *   2. Walk `by_org_triggeredBy` (subject as trigger author).
+ *   3. Dedupe across both walks via row `_id`.
+ *   4. Best-effort delete each blob (errors logged, not propagated —
+ *      the row delete is the load-bearing step for Art 17).
+ */
+export const eraseSubjectWfExecutions = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
+  handler: async (ctx, args) => {
+    const userIter = () =>
+      ctx.db
+        .query('wfExecutions')
+        .withIndex('by_org_user', (q) =>
+          q.eq('organizationId', args.organizationId).eq('userId', args.userId),
+        );
+    const triggeredByIter = () =>
+      ctx.db
+        .query('wfExecutions')
+        .withIndex('by_org_triggeredBy', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('triggeredBy', args.userId),
+        );
+
+    // Hold guard: count what would be erased (across both index walks)
+    // and return without touching blobs.
+    const holds = await loadActiveHolds(ctx, args.organizationId);
+    if (holds.orgHeld || holds.userMembershipIds.has(args.userId)) {
+      const seen = new Set<string>();
+      let skippedByHold = 0;
+      for await (const row of userIter()) {
+        seen.add(String(row._id));
+        skippedByHold++;
+      }
+      for await (const row of triggeredByIter()) {
+        if (!seen.has(String(row._id))) skippedByHold++;
+      }
+      return { rows: 0, skippedByHold };
+    }
 
     let rows = 0;
-    for await (const row of ctx.db
-      .query('notifications')
-      .withIndex('by_org_created', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      const params = row.params;
-      if (
-        params === undefined ||
-        params === null ||
-        typeof params !== 'object'
-      ) {
-        continue;
+    const seen = new Set<string>();
+    const eraseRow = async (row: {
+      _id: import('../_generated/dataModel').Id<'wfExecutions'>;
+      variablesStorageId?: import('../_generated/dataModel').Id<'_storage'>;
+      outputStorageId?: import('../_generated/dataModel').Id<'_storage'>;
+      stepsConfigStorageId?: import('../_generated/dataModel').Id<'_storage'>;
+    }) => {
+      const idStr = String(row._id);
+      if (seen.has(idStr)) return;
+      seen.add(idStr);
+      for (const storageId of [
+        row.variablesStorageId,
+        row.outputStorageId,
+        row.stepsConfigStorageId,
+      ]) {
+        if (!storageId) continue;
+        try {
+          await ctx.storage.delete(storageId);
+        } catch (error) {
+          console.warn(
+            `[gdprErasure] storage.delete failed for wfExecutions blob ${String(storageId)}:`,
+            error,
+          );
+        }
       }
-      // params is `jsonRecordValidator` (Record<string, unknown>) at the
-      // schema layer but Convex hands it back as a generic JSON value;
-      // narrow via Object.hasOwn + Reflect.get to avoid an unsafe cast.
-      const paramEmail = Object.hasOwn(params, 'email')
-        ? Reflect.get(params, 'email')
-        : undefined;
-      const matches =
-        typeof paramEmail === 'string' &&
-        ((subjectEmailLc !== null &&
-          paramEmail.toLowerCase() === subjectEmailLc) ||
-          (subjectEmailHash !== null && paramEmail === subjectEmailHash));
-      if (!matches) continue;
+      await ctx.db.delete(row._id);
+      rows++;
+    };
+
+    for await (const row of userIter()) {
+      await eraseRow(row);
+    }
+    for await (const row of triggeredByIter()) {
+      await eraseRow(row);
+    }
+    return { rows, skippedByHold: 0 };
+  },
+});
+
+/**
+ * H7 — personal-scope `promptTemplates` authored by the subject. Team
+ * and global templates are organisational artifacts and stay; only
+ * `scope === 'personal'` rows are subject-private content.
+ */
+export const eraseSubjectPromptTemplates = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
+  handler: async (ctx, args) => {
+    const iter = () =>
+      ctx.db
+        .query('promptTemplates')
+        .withIndex('by_org_createdBy', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('createdBy', args.userId),
+        );
+    const guard = await countOrSkip(ctx, args.organizationId, args.userId, () =>
+      (async function* () {
+        for await (const row of iter()) {
+          if (row.scope === 'personal') yield row;
+        }
+      })(),
+    );
+    if (guard.heldByOrgOrUser)
+      return { rows: 0, skippedByHold: guard.skippedByHold };
+    let rows = 0;
+    for await (const row of iter()) {
+      if (row.scope !== 'personal') continue;
       await ctx.db.delete(row._id);
       rows++;
     }
@@ -1035,6 +1393,7 @@ export const processErasureRequest = internalAction({
     if (!state) return null;
 
     let threadsErased = 0;
+    let threadsSkippedByHold = 0;
     let ragDocumentsRemoved = 0;
     let documentsErased = 0;
     let documentsSkippedByHold = 0;
@@ -1055,14 +1414,22 @@ export const processErasureRequest = internalAction({
         blockCounters: 0,
         skippedByHold: 0,
       },
+      notifications: { rows: 0, skippedByHold: 0 },
+      wfExecutions: { rows: 0, skippedByHold: 0 },
+      promptTemplates: { rows: 0, skippedByHold: 0 },
     };
     let errorMessage: string | undefined;
 
     try {
       // Cascade each thread; each cascade itself loops until done or
-      // hits MAX_CASCADE_ATTEMPTS_PER_THREAD pages.
+      // hits MAX_CASCADE_ATTEMPTS_PER_THREAD pages. H5: distinguish
+      // "completed cleanly" (count toward threadsErased) from "skipped
+      // due to mid-flight hold" (count toward threadsSkippedByHold) so
+      // the receipt does not over-report `threadsErased` when a hold
+      // landed between scheduling and the per-thread cascade call.
       for (const threadId of state.threadsTargeted) {
         let cascadeDone = false;
+        let cascadeSkippedByHold = false;
         for (let i = 0; i < MAX_CASCADE_ATTEMPTS_PER_THREAD; i++) {
           const result = await ctx.runMutation(
             internal.governance.erasure.eraseThreadById,
@@ -1071,28 +1438,38 @@ export const processErasureRequest = internalAction({
               organizationId: state.organizationId,
             },
           );
+          if (result.skippedByHold === true) {
+            cascadeSkippedByHold = true;
+            cascadeDone = true;
+            break;
+          }
           if (result.done) {
             cascadeDone = true;
             break;
           }
         }
-        if (cascadeDone) {
+        if (cascadeSkippedByHold) {
+          threadsSkippedByHold += 1;
+        } else if (cascadeDone) {
           threadsErased += 1;
         } else {
           // Hit the page-attempts ceiling without finishing the
           // cascade. Surface a `failure` audit row so the operator
           // dashboard sees the stuck thread instead of a silent
-          // partial result (round-2 / M12).
+          // partial result (round-2 / M12). Resource scope is the
+          // *subject* (not the thread) so the receipt UI's
+          // `getResourceAuditTrail({resourceType:'user', resourceId:targetUserId})`
+          // filter at `erasure_queries.ts` actually surfaces this signal.
           await ctx.runMutation(
             internal.audit_logs.internal_mutations.createAuditLog,
             {
               organizationId: state.organizationId,
               actorId: 'system',
               actorType: 'system',
-              action: 'gdpr_erasure.cascade_attempts_exhausted',
+              action: 'gdpr_erasure_cascade_attempts_exhausted',
               category: 'admin',
-              resourceType: 'thread',
-              resourceId: threadId,
+              resourceType: 'user',
+              resourceId: state.targetUserId,
               status: 'failure',
               errorMessage: `cascade did not complete in ${MAX_CASCADE_ATTEMPTS_PER_THREAD} attempts`,
               metadata: { requestId: args.requestId, threadId },
@@ -1175,10 +1552,10 @@ export const processErasureRequest = internalAction({
       // them). Fan out RAG DELETE for every storageId the fileMetadata
       // erasure touched so vector chunks containing PII are purged
       // alongside the DB row + the `_storage` blob.
-      const fileMetaResult = perCategory.fileMetadata as {
-        ragPurgeStorageIds?: string[];
-      };
-      for (const storageId of fileMetaResult.ragPurgeStorageIds ?? []) {
+      // `perCategory.fileMetadata` already typed as `FileMetadataCounts`
+      // which declares `ragPurgeStorageIds?: string[]` — no cast needed.
+      for (const storageId of perCategory.fileMetadata.ragPurgeStorageIds ??
+        []) {
         try {
           const res = await ragFetch(
             `/api/v1/documents/${encodeURIComponent(storageId)}`,
@@ -1226,6 +1603,21 @@ export const processErasureRequest = internalAction({
           userId: state.targetUserId,
         },
       );
+      // H7: subject's workflow executions and personal prompts.
+      perCategory.wfExecutions = await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectWfExecutions,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
+      perCategory.promptTemplates = await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectPromptTemplates,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
 
       // loginAttempts / loginBlockCounters are email-keyed (not
       // userId-keyed). Look up the email via BetterAuth before the
@@ -1247,7 +1639,9 @@ export const processErasureRequest = internalAction({
           },
         );
       }
-      await ctx.runMutation(
+      // C4: capture notifications counts (previously discarded — receipt
+      // and audit log were blind to notifications work).
+      perCategory.notifications = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectNotifications,
         {
           organizationId: state.organizationId,
@@ -1278,6 +1672,7 @@ export const processErasureRequest = internalAction({
     await ctx.runMutation(internal.governance.erasure.finalizeProcessing, {
       requestId: args.requestId,
       threadsErased,
+      threadsSkippedByHold,
       ragDocumentsRemoved,
       documentsErased,
       documentsSkippedByHold,
@@ -1314,6 +1709,9 @@ interface PerCategoryCounts {
   policyAcknowledgements: RowsAndHold;
   onedrive: RowsAndHold;
   loginAttempts: LoginAttemptsCounts;
+  notifications: RowsAndHold;
+  wfExecutions: RowsAndHold;
+  promptTemplates: RowsAndHold;
 }
 
 // =============================================================================
@@ -1347,9 +1745,13 @@ export const recoverStuckErasureRequests = internalMutation({
       if (startedAt >= cutoff) continue;
       await ctx.db.patch(row._id, {
         status: 'failed',
-        errorMessage: 'Erasure timed out (watchdog)',
+        errorMessage: ERASURE_WATCHDOG_TIMEOUT_MESSAGE,
         completedAt: Date.now(),
       });
+      // Watchdog-failed receipts are not recoverable via `retryErasureRequest`
+      // (the action timed out — the next attempt should be a fresh request).
+      // Release the claim so a new `requestErasure` can take over.
+      await clearErasureClaimByRow(ctx, row._id);
       await createAuditLog(ctx, {
         organizationId: row.organizationId,
         actorId: 'system',
@@ -1361,7 +1763,7 @@ export const recoverStuckErasureRequests = internalMutation({
         resourceId: row.targetUserId,
         resourceName: row.targetUserId,
         status: 'failure',
-        errorMessage: 'Erasure timed out (watchdog)',
+        errorMessage: ERASURE_WATCHDOG_TIMEOUT_MESSAGE,
         newState: { requestId: row._id, startedAt, cutoff },
       });
       recovered++;
@@ -1435,6 +1837,50 @@ export const retryErasureRequest = mutation({
       startedAt: undefined,
       completedAt: undefined,
     });
+
+    // Re-acquire the per-subject claim. It was cleared by:
+    //   - the blocked-path of `requestErasure` (so the operator could
+    //     release the hold + Retry from the UI), or
+    //   - the watchdog when this row timed out (now overridden — the
+    //     operator chose to retry the same row instead of filing fresh)
+    // For `partial` / non-watchdog `failed`, the claim is still set and
+    // points at this row, so re-patching is a no-op-value patch.
+    const now = Date.now();
+    const existingClaim = await ctx.db
+      .query('activeErasureClaims')
+      .withIndex('by_org_target', (q) =>
+        q
+          .eq('organizationId', row.organizationId)
+          .eq('targetUserId', row.targetUserId),
+      )
+      .first();
+    if (existingClaim) {
+      // If another `requestErasure` already grabbed the claim for a
+      // different requestId (claim was cleared, then a new request took
+      // over), refuse the retry — the new request is the canonical one.
+      if (
+        existingClaim.requestId !== undefined &&
+        existingClaim.requestId !== args.requestId
+      ) {
+        throw new ConvexError({
+          code: 'ALREADY_PENDING',
+          message:
+            'A different erasure request is already in flight for this subject.',
+          requestId: existingClaim.requestId,
+        });
+      }
+      await ctx.db.patch(existingClaim._id, {
+        requestId: args.requestId,
+        claimedAt: now,
+      });
+    } else {
+      await ctx.db.insert('activeErasureClaims', {
+        organizationId: row.organizationId,
+        targetUserId: row.targetUserId,
+        requestId: args.requestId,
+        claimedAt: now,
+      });
+    }
 
     await ctx.scheduler.runAfter(
       0,

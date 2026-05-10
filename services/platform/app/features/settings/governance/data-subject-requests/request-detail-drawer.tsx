@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Skeleton } from '@tale/ui/skeleton';
-import { Clock, RefreshCcw } from 'lucide-react';
+import { AlertTriangle, Clock, RefreshCcw } from 'lucide-react';
 import { useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
@@ -13,6 +13,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { ExtendDeadlineDialog } from './extend-deadline-dialog';
 import { useGetErasureRequest } from './hooks/queries';
+import { LegalHoldBlockPanel } from './legal-hold-block-panel';
 import { RetryDialog } from './retry-dialog';
 import { SlaCountdownBadge } from './sla-countdown-badge';
 import { StatusBadge } from './status-badge';
@@ -31,7 +32,10 @@ export function RequestDetailDrawer({
   onClose,
 }: RequestDetailDrawerProps) {
   const { t } = useT('governance');
-  const { data, isLoading } = useGetErasureRequest(requestId);
+  // H8-1: surface query errors. Pre-fix the drawer rendered the
+  // skeleton forever when `useGetErasureRequest` threw (deleted row,
+  // cross-org access, malformed id) — no error state, no recovery.
+  const { data, isLoading, isError, refetch } = useGetErasureRequest(requestId);
   const [extendOpen, setExtendOpen] = useState(false);
   const [retryOpen, setRetryOpen] = useState(false);
 
@@ -41,12 +45,18 @@ export function RequestDetailDrawer({
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
-      title={t('dataSubjectRequests.drawer.title')}
+      // H10-3: align Sheet's sr-only title with the visible drawer
+      // header. Pre-fix Sheet announced "Erasure request" while the
+      // visible h2 read "Erasure receipt" — two contradictory dialog
+      // titles for the same surface.
+      title={t('dataSubjectRequests.drawer.headerTitle')}
       description={t('dataSubjectRequests.drawer.description')}
       side="right"
       size="md"
     >
-      {isLoading || !data ? (
+      {isError ? (
+        <DrawerErrorState onRetry={() => void refetch()} />
+      ) : isLoading || !data ? (
         <DrawerSkeleton />
       ) : (
         <DrawerBody
@@ -74,6 +84,30 @@ export function RequestDetailDrawer({
   );
 }
 
+function DrawerErrorState({ onRetry }: { onRetry: () => void }) {
+  const { t } = useT('governance');
+  return (
+    <div
+      role="alert"
+      aria-live="polite"
+      className="border-border bg-muted/30 flex flex-col items-start gap-3 rounded-md border p-4"
+    >
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="text-destructive size-4" aria-hidden="true" />
+        <Text as="span" className="font-medium">
+          {t('dataSubjectRequests.drawer.errorState.title')}
+        </Text>
+      </div>
+      <Text variant="muted" className="text-sm">
+        {t('dataSubjectRequests.drawer.errorState.description')}
+      </Text>
+      <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
+        {t('dataSubjectRequests.drawer.errorState.retry')}
+      </Button>
+    </div>
+  );
+}
+
 function DrawerSkeleton() {
   return (
     <div className="flex flex-col gap-3" aria-busy="true">
@@ -92,31 +126,53 @@ interface DrawerBodyProps {
   onRetry: () => void;
 }
 
-function DrawerBody({ data, onExtend, onRetry }: DrawerBodyProps) {
+function DrawerBody({
+  data,
+  organizationId,
+  onExtend,
+  onRetry,
+}: DrawerBodyProps) {
   const { t } = useT('governance');
   const { request, auditEntries } = data;
   const isTerminal = request.status === 'done' || request.status === 'failed';
-  const canExtend = !isTerminal && request.extensionGrantedAt === undefined;
+  // H8-5: also gate on the original deadline so a lapsed request hides
+  // the Extend button (server rejects with `DEADLINE_LAPSED` per Art
+  // 12(3) — the UI shouldn't surface an action that can't succeed).
+  const canExtend =
+    !isTerminal &&
+    request.extensionGrantedAt === undefined &&
+    request.slaDeadlineAt > Date.now();
   const canRetry =
     request.status === 'partial' ||
     request.status === 'failed' ||
     request.status === 'blocked';
+  // H8-3: when the request was refused at scheduling time by the legal-hold
+  // gate, render the LegalHoldBlockPanel (which deep-links to the hold UI)
+  // instead of the raw `errorMessage` token (`org_hold` / `user_custodian_hold`).
+  const isBlocked = request.status === 'blocked';
 
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex flex-col gap-2 pr-12">
-        <h2 className="text-foreground text-lg font-semibold">
-          {t('dataSubjectRequests.drawer.headerTitle')}
-        </h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge status={request.status} />
-          <SlaCountdownBadge
-            slaDeadlineAt={request.slaDeadlineAt}
-            extensionDeadlineAt={request.extensionDeadlineAt}
-            status={request.status}
-          />
-        </div>
+      {/* H10-3: the visible <h2> here was previously redundant with
+          Sheet's sr-only DialogPrimitive.Title (different strings for
+          the same dialog). Sheet now carries `headerTitle` as both the
+          visible label and the sr-only Title. The status badges remain
+          in the body since they're sub-header content. */}
+      <header className="flex flex-wrap items-center gap-2 pr-12">
+        <StatusBadge status={request.status} />
+        <SlaCountdownBadge
+          slaDeadlineAt={request.slaDeadlineAt}
+          extensionDeadlineAt={request.extensionDeadlineAt}
+          status={request.status}
+        />
       </header>
+
+      {isBlocked && (
+        <LegalHoldBlockPanel
+          organizationId={organizationId}
+          requestId={request._id}
+        />
+      )}
 
       <Section title={t('dataSubjectRequests.drawer.subjectSection')}>
         <KeyValue
@@ -175,6 +231,12 @@ function DrawerBody({ data, onExtend, onRetry }: DrawerBodyProps) {
             request.threadsTargeted?.length ?? 0
           }`}
         />
+        {(request.threadsSkippedByHold ?? 0) > 0 && (
+          <KeyValue
+            label={t('dataSubjectRequests.drawer.threadsSkippedByHold')}
+            value={String(request.threadsSkippedByHold)}
+          />
+        )}
         <KeyValue
           label={t('dataSubjectRequests.drawer.ragDocumentsRemoved')}
           value={String(request.ragDocumentsRemoved ?? 0)}
@@ -189,7 +251,35 @@ function DrawerBody({ data, onExtend, onRetry }: DrawerBodyProps) {
             value={String(request.documentsSkippedByHold)}
           />
         )}
-        {request.errorMessage && (
+        {(request.threadsBlockedByHold?.length ?? 0) > 0 && (
+          <KeyValue
+            label={t('dataSubjectRequests.drawer.threadsBlockedByHold')}
+            value={String(request.threadsBlockedByHold?.length)}
+          />
+        )}
+        {(request.documentsBlockedByHold?.length ?? 0) > 0 && (
+          <KeyValue
+            label={t('dataSubjectRequests.drawer.documentsBlockedByHold')}
+            value={String(request.documentsBlockedByHold?.length)}
+          />
+        )}
+        {request.startedAt !== undefined && (
+          <KeyValueDate
+            label={t('dataSubjectRequests.drawer.startedAt')}
+            ms={request.startedAt}
+          />
+        )}
+        {request.completedAt !== undefined && (
+          <KeyValueDate
+            label={t('dataSubjectRequests.drawer.completedAt')}
+            ms={request.completedAt}
+          />
+        )}
+        {/* Suppress raw `errorMessage` for blocked rows — the
+            LegalHoldBlockPanel above carries the operator-actionable
+            framing instead of the bare `org_hold` / `user_custodian_hold`
+            sentinel string. */}
+        {request.errorMessage && !isBlocked && (
           <KeyValue
             label={t('dataSubjectRequests.drawer.errorMessage')}
             value={request.errorMessage}
@@ -206,9 +296,15 @@ function DrawerBody({ data, onExtend, onRetry }: DrawerBodyProps) {
         ) : (
           <ol className="border-border flex flex-col gap-2 border-l pl-3">
             {auditEntries.map((entry) => (
-              <li key={String(entry._id)} className="flex flex-col gap-0.5">
+              <li key={entry._id} className="flex flex-col gap-0.5">
                 <Text as="span" className="text-xs font-medium">
-                  {entry.action}
+                  {/* H8-2: translate machine action names. Falls back
+                      to the raw token for any future action that
+                      hasn't been added to the i18n bundle yet. */}
+                  {t(
+                    `dataSubjectRequests.auditActions.${entry.action}`,
+                    entry.action,
+                  )}
                 </Text>
                 <Text as="span" variant="muted" className="text-xs">
                   <TableDateCell date={entry.timestamp} />

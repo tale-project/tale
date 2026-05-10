@@ -39,14 +39,23 @@ export function LegalHoldBlockPanel({
 
   return (
     <div
-      role="alert"
-      aria-live="polite"
-      className="border-destructive/40 bg-destructive/5 text-destructive flex flex-col gap-3 rounded-md border p-3 text-sm"
+      // `role="alert"` already implies `aria-live="assertive"`; an
+      // explicit `aria-live="polite"` here was contradictory and
+      // browser-defined. The panel is informational (not an interrupt),
+      // so prefer `role="status"` (polite by default).
+      role="status"
+      className="border-destructive/40 bg-destructive/5 flex flex-col gap-3 rounded-md border p-3 text-sm"
     >
       <div className="flex items-start gap-2">
-        <AlertOctagon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <AlertOctagon
+          className="text-destructive mt-0.5 size-4 shrink-0"
+          aria-hidden="true"
+        />
         <div className="flex flex-col gap-1">
-          <span className="font-medium">
+          {/* Title uses `text-foreground` so contrast clears AA against
+              the tinted destructive background. The icon above carries
+              the destructive hue for visual emphasis. */}
+          <span className="text-foreground font-medium">
             {t('dataSubjectRequests.legalHoldBlock.title')}
           </span>
           <span className="text-foreground/80">

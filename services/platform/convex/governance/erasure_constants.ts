@@ -33,3 +33,16 @@ export const ERASURE_STATUSES = [
 ] as const;
 
 export type ErasureStatus = (typeof ERASURE_STATUSES)[number];
+
+/**
+ * Sentinel `errorMessage` value written by the watchdog when it flips a
+ * stuck `running` row to `'failed'`. The late-finalize race-guard in
+ * `finalizeProcessing` matches against this value to detect that a
+ * watchdog already won (and preserves the watchdog's verdict instead of
+ * overwriting it with a delayed `done`/`partial`).
+ *
+ * Centralised so a typo in any one of the three call sites cannot
+ * silently break the guard.
+ */
+export const ERASURE_WATCHDOG_TIMEOUT_MESSAGE =
+  'Erasure timed out (watchdog)' as const;

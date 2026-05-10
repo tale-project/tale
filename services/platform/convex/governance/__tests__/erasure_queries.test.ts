@@ -127,8 +127,20 @@ const MEMBER_USER = { _id: 'member_user', email: 'member@example.com' };
 
 const PAGINATION = { numItems: 10, cursor: null };
 
-async function importQueries() {
-  return import('../erasure_queries');
+// Single shared cast: the `query` mock above replaces the Convex
+// builder with an identity function, so the runtime shape is
+// `{ args, returns, handler }`. The module's static type stays the
+// original Convex function-reference, hence the narrowing here.
+// Treated as a "third-party gap" per AGENTS.md.
+//
+// oxlint-disable-next-line typescript/no-explicit-any -- see above
+type QueryHandler = { handler: (...args: unknown[]) => Promise<any> };
+async function importQueries(): Promise<Record<string, QueryHandler>> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see above
+  return (await import('../erasure_queries')) as unknown as Record<
+    string,
+    QueryHandler
+  >;
 }
 
 const baseRow: MockErasureRow = {
@@ -153,9 +165,7 @@ describe('listErasureRequests', () => {
 
   it('throws when not authenticated', async () => {
     mockGetAuthUser.mockResolvedValue(null);
-    const { listErasureRequests } = (await importQueries()) as unknown as {
-      listErasureRequests: { handler: Function };
-    };
+    const { listErasureRequests } = await importQueries();
     const ctx = createMockCtx();
     await expect(
       listErasureRequests.handler(ctx, {
@@ -168,9 +178,7 @@ describe('listErasureRequests', () => {
   it('throws when caller is not an admin', async () => {
     mockGetAuthUser.mockResolvedValue(MEMBER_USER);
     mockGetOrganizationMember.mockResolvedValue({ role: 'member' });
-    const { listErasureRequests } = (await importQueries()) as unknown as {
-      listErasureRequests: { handler: Function };
-    };
+    const { listErasureRequests } = await importQueries();
     const ctx = createMockCtx();
     await expect(
       listErasureRequests.handler(ctx, {
@@ -189,9 +197,7 @@ describe('listErasureRequests', () => {
         ['admin_user', 'Admin One'],
       ]),
     );
-    const { listErasureRequests } = (await importQueries()) as unknown as {
-      listErasureRequests: { handler: Function };
-    };
+    const { listErasureRequests } = await importQueries();
     const ctx = createMockCtx([baseRow]);
     const result = await listErasureRequests.handler(ctx, {
       paginationOpts: PAGINATION,
@@ -217,9 +223,7 @@ describe('listErasureRequests', () => {
       { ...baseRow, _id: 'er_b', status: 'blocked' },
       { ...baseRow, _id: 'er_d', status: 'done' },
     ];
-    const { listErasureRequests } = (await importQueries()) as unknown as {
-      listErasureRequests: { handler: Function };
-    };
+    const { listErasureRequests } = await importQueries();
     const ctx = createMockCtx(rows);
     const result = await listErasureRequests.handler(ctx, {
       paginationOpts: PAGINATION,
@@ -240,9 +244,7 @@ describe('listErasureRequests', () => {
     const rows: MockErasureRow[] = [
       { ...baseRow, _id: 'er_b', status: 'blocked' },
     ];
-    const { listErasureRequests } = (await importQueries()) as unknown as {
-      listErasureRequests: { handler: Function };
-    };
+    const { listErasureRequests } = await importQueries();
     const ctx = createMockCtx(rows);
     const result = await listErasureRequests.handler(ctx, {
       paginationOpts: PAGINATION,
@@ -260,9 +262,7 @@ describe('getErasureRequest', () => {
   });
 
   it('throws when the request does not exist', async () => {
-    const { getErasureRequest } = (await importQueries()) as unknown as {
-      getErasureRequest: { handler: Function };
-    };
+    const { getErasureRequest } = await importQueries();
     const ctx = createMockCtx([]);
     await expect(
       getErasureRequest.handler(ctx, { requestId: 'er_missing' }),
@@ -272,9 +272,7 @@ describe('getErasureRequest', () => {
   it('throws when the caller is not an admin of the request org', async () => {
     mockGetAuthUser.mockResolvedValue(MEMBER_USER);
     mockGetOrganizationMember.mockResolvedValue({ role: 'member' });
-    const { getErasureRequest } = (await importQueries()) as unknown as {
-      getErasureRequest: { handler: Function };
-    };
+    const { getErasureRequest } = await importQueries();
     const ctx = createMockCtx([baseRow]);
     await expect(
       getErasureRequest.handler(ctx, { requestId: 'er_1' }),
@@ -292,9 +290,7 @@ describe('getErasureRequest', () => {
       { action: 'unrelated_event', resourceId: 'user_target' },
       { action: 'gdpr_erasure_executed', resourceId: 'user_target' },
     ]);
-    const { getErasureRequest } = (await importQueries()) as unknown as {
-      getErasureRequest: { handler: Function };
-    };
+    const { getErasureRequest } = await importQueries();
     const ctx = createMockCtx([baseRow]);
     const result = await getErasureRequest.handler(ctx, {
       requestId: 'er_1',

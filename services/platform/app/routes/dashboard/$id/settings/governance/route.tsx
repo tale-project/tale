@@ -150,7 +150,7 @@ function GovernanceLayout() {
           className={trash.className}
           aria-current={trash.isActive ? 'page' : undefined}
         >
-          {t('groups.trash', 'Trash')}
+          {t('groups.trash')}
         </Link>
         <Link
           to="/dashboard/$id/settings/governance/guardrails"

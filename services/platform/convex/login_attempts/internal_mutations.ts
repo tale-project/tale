@@ -218,6 +218,11 @@ export const recordFailure = internalMutation({
           ip: notifyIp,
           consecutiveFailures: newFailures,
         },
+        // Subject identifier for GDPR Art 17 erasure: lets
+        // `eraseSubjectNotifications` match by userId regardless of
+        // audit-pepper rotation or email change. Without this, rows
+        // written under one pepper become unmatchable after rotation.
+        subjectUserId: user.userId,
       });
     }
 

@@ -605,9 +605,28 @@ export const gdprErasureRequestsTable = defineTable({
    *  processor's mid-flight re-read. Non-zero forces `status='partial'`
    *  so operators see the gap. */
   documentsSkippedByHold: v.optional(v.number()),
+  /** Count of threads the cascade encountered but skipped because a
+   *  legal hold landed mid-run (between scheduling and the per-thread
+   *  cascade call). Distinct from `threadsBlockedByHold` (set at
+   *  scheduling time when the whole request is `'blocked'`). Non-zero
+   *  forces `status='partial'` so the receipt does not over-report
+   *  `threadsErased`. */
+  threadsSkippedByHold: v.optional(v.number()),
+  /** Count of `wfExecutions` rows erased for this subject. */
+  wfExecutionsErased: v.optional(v.number()),
+  /** Count of personal-scope `promptTemplates` rows erased for this subject. */
+  promptTemplatesErased: v.optional(v.number()),
   errorMessage: v.optional(v.string()),
   startedAt: v.optional(v.number()),
   completedAt: v.optional(v.number()),
+  /** When set, `finalizeProcessing` arrived AFTER the watchdog had
+   *  already marked this row `'failed'` due to action timeout. The
+   *  watchdog's verdict is preserved (`status='failed'`,
+   *  `errorMessage` unchanged), but the count fields are updated to
+   *  reflect work the action actually completed before timing out so
+   *  the receipt does not under-report. Distinct from `completedAt`
+   *  (which the watchdog already set). */
+  lateFinalizeAt: v.optional(v.number()),
 })
   .index('by_organizationId_status', ['organizationId', 'status'])
   // Concurrency probe: `requestErasure` rejects with `ALREADY_PENDING`
@@ -621,3 +640,32 @@ export const gdprErasureRequestsTable = defineTable({
   // admins can `retryErasureRequest`. Without an indexed scan, the
   // cron pays a full-table read on every tick.
   .index('by_status', ['status']);
+
+/**
+ * Per-subject active-erasure claim row.
+ *
+ * Mirrors `activeLegalHoldClaimsTable` for the same OCC reason: a bare
+ * range query over `gdprErasureRequests.by_org_target_status` cannot
+ * detect range-phantom inserts, so two concurrent `requestErasure`
+ * calls on the same `(organizationId, targetUserId)` both observe "no
+ * pending row" and both insert + schedule a processor — duplicate
+ * receipts plus a duplicate cascade racing the same subject's data.
+ *
+ * This table maintains exactly one row per `(organizationId,
+ * targetUserId)` (lazily created on first request). `requestErasure`
+ * reads + patches `requestId` in the same transaction; concurrent
+ * placers contend on the single claim row and serialize via OCC.
+ * Terminal transitions (`done`, `failed` via watchdog) clear
+ * `requestId` so the next `requestErasure` can take over; the row
+ * itself is preserved so subsequent placements take the patch path
+ * (no insert race).
+ */
+export const activeErasureClaimsTable = defineTable({
+  organizationId: v.string(),
+  targetUserId: v.string(),
+  /** When set, points at the currently-active erasure request for
+   *  this subject. Cleared by terminal-state transitions so the next
+   *  `requestErasure` can take over. */
+  requestId: v.optional(v.id('gdprErasureRequests')),
+  claimedAt: v.number(),
+}).index('by_org_target', ['organizationId', 'targetUserId']);
