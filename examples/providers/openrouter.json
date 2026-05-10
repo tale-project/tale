@@ -344,6 +344,56 @@
         "inputCentsPerMillion": 6,
         "outputCentsPerMillion": 33
       }
+    },
+    {
+      "id": "openai/gpt-oss-120b",
+      "displayName": "GPT-OSS 120B",
+      "description": "OpenAI gpt-oss-120b — open-weight 117B MoE (5.1B active), Apache 2.0, 131K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 4,
+        "outputCentsPerMillion": 18
+      }
+    },
+    {
+      "id": "moonshotai/kimi-k2",
+      "displayName": "Kimi K2",
+      "description": "Moonshot AI Kimi K2 Instruct — 1T-parameter MoE open-weight model, 131K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 57,
+        "outputCentsPerMillion": 230
+      }
+    },
+    {
+      "id": "deepseek/deepseek-v4-pro",
+      "displayName": "DeepSeek V4 Pro",
+      "description": "DeepSeek V4 Pro — flagship open-weight MoE, 1M context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 44,
+        "outputCentsPerMillion": 87
+      }
+    },
+    {
+      "id": "qwen/qwen3-coder",
+      "displayName": "Qwen3 Coder 480B",
+      "description": "Alibaba Qwen3-Coder 480B-A35B — open-weight MoE optimized for agentic coding, 262K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 22,
+        "outputCentsPerMillion": 180
+      }
+    },
+    {
+      "id": "qwen/qwen3-235b-a22b-2507",
+      "displayName": "Qwen3 235B A22B",
+      "description": "Alibaba Qwen3-235B-A22B Instruct — open-weight MoE flagship (22B active), 262K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 7,
+        "outputCentsPerMillion": 10
+      }
     }
   ],
   "i18n": {
