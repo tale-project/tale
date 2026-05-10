@@ -174,8 +174,8 @@
       "description": "High-performance Moonshot general-purpose model",
       "tags": ["chat"],
       "cost": {
-        "inputCentsPerMillion": 38,
-        "outputCentsPerMillion": 172
+        "inputCentsPerMillion": 44,
+        "outputCentsPerMillion": 200
       }
     },
     {
@@ -184,8 +184,8 @@
       "description": "MiniMax flagship MoE for agentic coding and reasoning",
       "tags": ["chat"],
       "cost": {
-        "inputCentsPerMillion": 70,
-        "outputCentsPerMillion": 280
+        "inputCentsPerMillion": 30,
+        "outputCentsPerMillion": 120
       },
       "providerOptions": {
         "provider": { "quantizations": ["fp8", "fp4"] }
@@ -247,8 +247,8 @@
       "description": "Qwen3.5 large open-weight MoE (397B / 17B active)",
       "tags": ["chat"],
       "cost": {
-        "inputCentsPerMillion": 30,
-        "outputCentsPerMillion": 90
+        "inputCentsPerMillion": 39,
+        "outputCentsPerMillion": 234
       },
       "providerOptions": {
         "provider": { "quantizations": ["fp8", "fp4"] }
@@ -314,8 +314,8 @@
       "description": "Fast 202K-context Z.ai GLM 5",
       "tags": ["chat"],
       "cost": {
-        "inputCentsPerMillion": 30,
-        "outputCentsPerMillion": 100
+        "inputCentsPerMillion": 120,
+        "outputCentsPerMillion": 400
       }
     },
     {
@@ -324,8 +324,8 @@
       "description": "Multimodal Z.ai GLM 5 Turbo",
       "tags": ["chat", "vision"],
       "cost": {
-        "inputCentsPerMillion": 30,
-        "outputCentsPerMillion": 100
+        "inputCentsPerMillion": 120,
+        "outputCentsPerMillion": 400
       }
     },
     {
@@ -356,8 +356,8 @@
       "description": "Xiaomi MiMo flagship reasoning model",
       "tags": ["chat"],
       "cost": {
-        "inputCentsPerMillion": 50,
-        "outputCentsPerMillion": 150
+        "inputCentsPerMillion": 100,
+        "outputCentsPerMillion": 300
       },
       "providerOptions": {
         "provider": { "quantizations": ["fp8"] }
