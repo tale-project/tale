@@ -1,4 +1,3 @@
-import { cn } from '@tale/ui/cn';
 import {
   Children,
   isValidElement,
@@ -9,6 +8,8 @@ import {
   useRef,
   useState,
 } from 'react';
+
+import { cn } from '../../lib/cn';
 
 interface TabProps {
   title: string;

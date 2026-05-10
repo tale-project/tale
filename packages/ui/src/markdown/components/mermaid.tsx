@@ -1,6 +1,4 @@
-import { cn } from '@tale/ui/cn';
-import { useTheme } from '@tale/ui/theme';
-import { Maximize2, Minus, Plus, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Maximize2, Minus, Plus, RotateCcw } from 'lucide-react';
 import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
@@ -11,6 +9,10 @@ import {
   useState,
 } from 'react';
 
+import { useResizeObserver } from '../../hooks/use-resize-observer';
+import { cn } from '../../lib/cn';
+import { useTheme } from '../../theme';
+
 interface MermaidProps {
   /** The Mermaid DSL source. */
   chart: string;
@@ -20,6 +22,12 @@ interface MermaidProps {
    * light/dark re-renders the SVG with the matching palette.
    */
   theme?: 'light' | 'dark';
+  /**
+   * Render a placeholder skeleton instead of attempting to render the DSL.
+   * Used by the streaming markdown pipeline so partial mermaid blocks (no
+   * closing fence yet) don't flash a parse-error card every keystroke.
+   */
+  streaming?: boolean;
   className?: string;
 }
 
@@ -82,7 +90,7 @@ const INITIAL_VIEWPORT: ViewportState = { zoom: 1, panX: 0, panY: 0 };
  * so zooming in always anchors at the diagram's top-left and the page
  * itself never reflows under it.
  */
-export function Mermaid({ chart, theme, className }: MermaidProps) {
+export function Mermaid({ chart, theme, streaming, className }: MermaidProps) {
   const { resolvedTheme } = useTheme();
   const effectiveTheme: 'light' | 'dark' = theme ?? resolvedTheme;
   const [svg, setSvg] = useState<string | null>(null);
@@ -99,10 +107,16 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
     originPanX: number;
     originPanY: number;
   } | null>(null);
+  // Tracks whether the user has manually zoomed/panned. While false, the
+  // ResizeObserver below auto-refits the diagram so it stays fully visible
+  // when the stage resizes (fullscreen toggle, window resize). Once the
+  // user interacts, we leave their viewport alone.
+  const hasUserInteractedRef = useRef(false);
   const reactId = useId();
   const id = `mermaid-${reactId.replace(/[:]/g, '-')}`;
 
   useEffect(() => {
+    if (streaming) return undefined;
     let cancelled = false;
     setError(null);
     setSvg(null);
@@ -117,20 +131,48 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
       })
       .then((result) => {
         if (cancelled) return;
-        // Mermaid emits `width="100%"` plus a viewBox. With no height, the
-        // SVG's intrinsic aspect ratio shrinks to fit the parent — wide
-        // flowcharts collapse into a thin strip. Pin the SVG to the viewBox
-        // dimensions so it renders at natural size.
-        const viewBox = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(result.svg);
-        let fixed = result.svg
-          .replace(/\swidth="[^"]*"/, '')
-          .replace(/\sheight="[^"]*"/, '')
-          .replace(/\sstyle="max-width:[^"]*"/, '');
-        if (viewBox) {
-          const w = viewBox[1];
-          const h = viewBox[2];
-          fixed = fixed.replace(/<svg /, `<svg width="${w}" height="${h}" `);
-        }
+        // Mermaid emits the root `<svg>` with `width="100%"` and a viewBox.
+        // With no height attribute the SVG collapses to its intrinsic
+        // aspect ratio inside the parent — wide flowcharts shrink to a
+        // thin strip. Pin the root <svg> to its viewBox dimensions so it
+        // renders at natural size; the stage layer above handles fit-zoom.
+        //
+        // Targeting only the *root* <svg> (not nested elements that may
+        // also carry `width`/`height` attributes) and accepting any
+        // viewBox origin — sequence diagrams emit `viewBox="-N -M W H"`
+        // with negative offsets for participant lines, so the previous
+        // `viewBox="0 0 ..."` regex skipped them and the SVG rendered
+        // with no fixed dimensions.
+        const fixed = result.svg.replace(
+          /<svg([^>]*)>/,
+          (_match, rawAttrs: string) => {
+            const viewBox =
+              /viewBox="(-?[\d.]+)\s+(-?[\d.]+)\s+([\d.]+)\s+([\d.]+)"/.exec(
+                rawAttrs,
+              );
+            let cleaned = rawAttrs
+              .replace(/\swidth="[^"]*"/, '')
+              .replace(/\sheight="[^"]*"/, '')
+              .replace(/\sstyle="([^"]*)"/, (_m: string, styles: string) => {
+                const out = styles
+                  .split(';')
+                  .map((s) => s.trim())
+                  .filter(
+                    (s) =>
+                      s &&
+                      !/^(?:max-width|max-height|width|height)\s*:/i.test(s),
+                  )
+                  .join('; ');
+                return out ? ` style="${out}"` : '';
+              });
+            if (viewBox) {
+              const w = viewBox[3];
+              const h = viewBox[4];
+              cleaned = ` width="${w}" height="${h}"${cleaned}`;
+            }
+            return `<svg${cleaned}>`;
+          },
+        );
         setSvg(fixed);
         if (result.bindFunctions && containerRef.current) {
           result.bindFunctions(containerRef.current);
@@ -156,7 +198,7 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
         }
       }
     };
-  }, [chart, effectiveTheme, id]);
+  }, [chart, effectiveTheme, id, streaming]);
 
   /**
    * Apply a zoom change while keeping `anchor` (a stage-relative point)
@@ -179,6 +221,7 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
           typeof next === 'function' ? next(prev.zoom) : next,
         );
         if (nextZoom === prev.zoom) return prev;
+        hasUserInteractedRef.current = true;
         const stage = stageRef.current;
         const ax = anchor?.x ?? (stage ? stage.clientWidth / 2 : 0);
         const ay = anchor?.y ?? (stage ? stage.clientHeight / 2 : 0);
@@ -195,34 +238,54 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
   );
 
   /**
-   * Recenter the diagram in the stage. The transform is anchored at
-   * `0 0`, so the SVG sits in the top-left corner by default; this offsets
-   * it to the middle. Used on first render and when the user clicks reset.
+   * Recenter the diagram in the stage at a zoom level that fits the
+   * full diagram inside the viewport. The transform is anchored at
+   * `0 0`, so the SVG sits in the top-left corner by default; this also
+   * offsets it to the middle. Capped at zoom 1 so small diagrams aren't
+   * blown up beyond their natural size.
    */
-  const centerInStage = useCallback((zoom: number = 1): ViewportState => {
+  const fitInStage = useCallback((): ViewportState => {
     const stage = stageRef.current;
     const inner = containerRef.current?.querySelector('svg');
-    if (!stage || !inner) return { zoom, panX: 0, panY: 0 };
+    if (!stage || !inner) return INITIAL_VIEWPORT;
     const stageRect = stage.getBoundingClientRect();
     const svgWidth = parseFloat(inner.getAttribute('width') ?? '0') || 0;
     const svgHeight = parseFloat(inner.getAttribute('height') ?? '0') || 0;
+    if (!svgWidth || !svgHeight || !stageRect.width || !stageRect.height) {
+      return INITIAL_VIEWPORT;
+    }
+    const fitZoom = clampZoom(
+      Math.min(1, stageRect.width / svgWidth, stageRect.height / svgHeight),
+    );
     return {
-      zoom,
-      panX: (stageRect.width - svgWidth * zoom) / 2,
-      panY: (stageRect.height - svgHeight * zoom) / 2,
+      zoom: fitZoom,
+      panX: (stageRect.width - svgWidth * fitZoom) / 2,
+      panY: (stageRect.height - svgHeight * fitZoom) / 2,
     };
   }, []);
 
   const reset = useCallback(() => {
-    setViewport(centerInStage(1));
-  }, [centerInStage]);
+    setViewport(fitInStage());
+  }, [fitInStage]);
 
-  // Center the diagram once the SVG has been injected so it starts in the
-  // middle of the stage rather than pinned at the top-left corner.
+  // Reset interaction tracking + run an initial fit each time the SVG
+  // mounts or the stage swaps between inline and fullscreen. Subsequent
+  // refits during the same SVG lifecycle are driven by the resize
+  // observer below.
   useEffect(() => {
     if (!svg) return;
-    setViewport(centerInStage(1));
-  }, [svg, centerInStage]);
+    hasUserInteractedRef.current = false;
+    const raf = requestAnimationFrame(() => setViewport(fitInStage()));
+    return () => cancelAnimationFrame(raf);
+  }, [svg, isFullscreen, fitInStage]);
+
+  // Refit on stage resize (browser resize, sidebar collapse, etc.) — but
+  // only while the user hasn't manually zoomed/panned. Their viewport
+  // sticks once they interact.
+  useResizeObserver(stageRef.current, () => {
+    if (hasUserInteractedRef.current) return;
+    setViewport(fitInStage());
+  });
 
   useEffect(() => {
     if (!isFullscreen) return undefined;
@@ -251,6 +314,7 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
       originPanY: viewport.panY,
     };
     setIsPanning(true);
+    hasUserInteractedRef.current = true;
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -288,18 +352,60 @@ export function Mermaid({ chart, theme, className }: MermaidProps) {
     applyZoom((prev) => prev * (1 - event.deltaY * WHEEL_SENSITIVITY), anchor);
   };
 
+  if (streaming) {
+    return (
+      <div
+        className={cn(
+          'border-border-base bg-bg-elevated/30 my-6 flex h-72 flex-col items-center justify-center rounded-lg border',
+          className,
+        )}
+        role="status"
+        aria-label="Mermaid diagram (preparing)"
+        aria-busy="true"
+      >
+        <div className="text-fg-subtle font-mono text-xs tracking-wide uppercase">
+          Preparing diagram…
+        </div>
+      </div>
+    );
+  }
+
   if (error) {
     return (
-      <pre
+      <div
         className={cn(
-          'border-border-base bg-bg-elevated text-fg-muted my-6 overflow-x-auto rounded-lg border p-4 text-xs',
+          'border-danger/40 bg-danger-bg/40 text-fg-base my-6 overflow-hidden rounded-lg border',
           className,
         )}
         role="img"
         aria-label="Mermaid diagram (failed to render)"
       >
-        {chart}
-      </pre>
+        <div className="border-danger/20 bg-danger/10 flex items-start gap-2.5 border-b px-4 py-3">
+          <AlertTriangle
+            aria-hidden
+            className="text-danger mt-0.5 size-4 shrink-0"
+          />
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <div className="text-fg-base text-sm font-medium">
+              Diagram failed to render
+            </div>
+            <div className="text-fg-muted font-mono text-xs break-words">
+              {error}
+            </div>
+          </div>
+        </div>
+        <details className="group/mermaid-error">
+          <summary className="text-fg-muted hover:text-fg-base cursor-pointer list-none px-4 py-2 text-xs select-none [&::-webkit-details-marker]:hidden">
+            <span className="group-open/mermaid-error:hidden">Show source</span>
+            <span className="hidden group-open/mermaid-error:inline">
+              Hide source
+            </span>
+          </summary>
+          <pre className="text-fg-muted overflow-x-auto px-4 pb-3 font-mono text-[11px] leading-snug">
+            {chart}
+          </pre>
+        </details>
+      </div>
     );
   }
 

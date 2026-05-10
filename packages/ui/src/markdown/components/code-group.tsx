@@ -1,4 +1,3 @@
-import { cn } from '@tale/ui/cn';
 import {
   Children,
   isValidElement,
@@ -10,6 +9,7 @@ import {
   useState,
 } from 'react';
 
+import { cn } from '../../lib/cn';
 import { HighlightedCode } from '../highlighted-code';
 
 interface CodeGroupChildProps {

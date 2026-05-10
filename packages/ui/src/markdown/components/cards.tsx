@@ -1,8 +1,9 @@
-import { cn } from '@tale/ui/cn';
 import { Link } from '@tanstack/react-router';
 import { ArrowUpRight } from 'lucide-react';
 import { DynamicIcon, iconNames, type IconName } from 'lucide-react/dynamic';
 import { type ReactNode, isValidElement } from 'react';
+
+import { cn } from '../../lib/cn';
 
 const KNOWN_ICON_NAMES = new Set<string>(iconNames);
 

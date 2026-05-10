@@ -1,7 +1,7 @@
-import { mintlifyComponents } from '@tale/markdown/components/registry';
-import { extractToc } from '@tale/markdown/extract-toc';
-import { readingTimeMinutes } from '@tale/markdown/reading-time';
-import { RoutedMarkdown } from '@tale/markdown/routed-markdown';
+import { mintlifyComponents } from '@tale/ui/markdown/components/registry';
+import { extractToc } from '@tale/ui/markdown/extract-toc';
+import { readingTimeMinutes } from '@tale/ui/markdown/reading-time';
+import { RoutedMarkdown } from '@tale/ui/markdown/routed-markdown';
 import { PageActions } from '@tale/webui/ai/page-actions';
 import { pageAsMarkdown } from '@tale/webui/llm/page-as-markdown';
 import { useDocumentMeta } from '@tale/webui/seo/document-meta';

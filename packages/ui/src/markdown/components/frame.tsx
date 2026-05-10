@@ -1,5 +1,6 @@
-import { cn } from '@tale/ui/cn';
 import type { ReactNode } from 'react';
+
+import { cn } from '../../lib/cn';
 
 interface FrameProps {
   caption?: string;

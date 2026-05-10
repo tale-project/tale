@@ -28,8 +28,9 @@ import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 
-import { baseComponents } from '../markdown';
+import { baseComponents, makePreComponent } from '../markdown';
 import { remarkCjkAttention } from '../plugins/micromark-cjk-attention';
+import { rehypeNumericColumns } from '../plugins/rehype-numeric-columns';
 import type { MarkdownComponentMap, MarkdownComponentType } from '../types';
 import { findBlockSplitPoint } from './find-block-split';
 import { normalizeHtmlBlocks } from './normalize-html-blocks';
@@ -37,17 +38,28 @@ import { remendMarkdown } from './remend-markdown';
 
 /**
  * Streaming defaults — the *exact same* component map `<Markdown>` uses,
- * so streaming and static prose render with the same code blocks,
- * headings (with hover-anchor links), tables, callouts, accordions,
- * everything. Caller-provided overrides (chat citations, debounced
- * highlighters) merge on top.
+ * with two streaming-specific overrides:
+ *  - `pre`: line numbers always on, so the gutter doesn't appear partway
+ *    through and shift the content rightward when a code block crosses
+ *    the threshold;
+ *  - `pre` for `mermaid`: skeleton placeholder while the block is still
+ *    in-progress (mermaid DSL is only valid once the closing fence
+ *    arrives); the stable map renders mermaid normally.
  *
- * Trade-off: keeping the static `<CodeBlock>` for `pre` means Shiki
- * re-tokenises on every reveal step. Storybook + casual streaming live
- * with that; chat callers stream large code blocks via their own
- * debounced highlighter passed through `components`.
+ * Trade-off: keeping `<CodeBlock>` for `pre` means Shiki re-tokenises on
+ * every reveal step. Storybook + casual streaming live with that; chat
+ * callers stream large code blocks via their own debounced highlighter
+ * passed through `components`.
  */
-const STREAMING_BASE = baseComponents as unknown as MarkdownComponentMap;
+const STABLE_BASE = {
+  ...baseComponents,
+  pre: makePreComponent({ showLineNumbers: true }),
+} as unknown as MarkdownComponentMap;
+
+const STREAMING_BASE = {
+  ...baseComponents,
+  pre: makePreComponent({ showLineNumbers: true, streamingMermaid: true }),
+} as unknown as MarkdownComponentMap;
 
 const chatSanitizeSchema = {
   ...defaultSchema,
@@ -80,6 +92,9 @@ const REMARK_PLUGINS: PluginList = [
 ] as PluginList;
 const REHYPE_PLUGINS: PluginList = [
   rehypeRaw,
+  // Tag numeric columns BEFORE sanitize so the appended `text-right`
+  // class flows through (className survives the default sanitize schema).
+  rehypeNumericColumns,
   [rehypeSanitize, chatSanitizeSchema],
 ];
 
@@ -441,11 +456,15 @@ export function IncrementalMarkdown({
   const streamContent = content.slice(splitIndex);
   const streamRevealLength = revealPosition - splitIndex;
 
-  // Default to the streaming-safe base map so streaming prose looks the
-  // same as static `<Markdown>` (paragraphs, lists, links, tables,
-  // blockquotes, plain headings). Caller-provided overrides — chat's
-  // citation/code-block wrappers — merge on top.
-  const merged = useMemo<MarkdownComponentMap>(
+  // Two distinct base maps so the streaming half can defer mermaid renders
+  // (incomplete DSL) and pin code-block line numbers from the first row,
+  // while the stable half renders mermaid normally as soon as a block has
+  // graduated. Caller-provided overrides merge on top of each.
+  const stableMerged = useMemo<MarkdownComponentMap>(
+    () => ({ ...STABLE_BASE, ...components }),
+    [components],
+  );
+  const streamingMerged = useMemo<MarkdownComponentMap>(
     () => ({ ...STREAMING_BASE, ...components }),
     [components],
   );
@@ -453,13 +472,13 @@ export function IncrementalMarkdown({
   return (
     <div className={className} aria-busy={ariaBusy}>
       {stableContent && (
-        <StableMarkdown content={stableContent} components={merged} />
+        <StableMarkdown content={stableContent} components={stableMerged} />
       )}
       {streamContent && (
         <StreamingMarkdown
           content={streamContent}
           revealedLength={streamRevealLength}
-          components={merged}
+          components={streamingMerged}
           showCursor={showCursor}
         />
       )}

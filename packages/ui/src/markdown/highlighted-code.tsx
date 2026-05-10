@@ -1,8 +1,8 @@
-import { cn } from '@tale/ui/cn';
-import { useTheme } from '@tale/ui/theme';
 import { Check, Copy } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { cn } from '../lib/cn';
+import { useTheme } from '../theme';
 import { highlightCode } from './shiki';
 
 const LINE_NUMBER_THRESHOLD = 3;

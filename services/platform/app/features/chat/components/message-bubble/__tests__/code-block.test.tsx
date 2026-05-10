@@ -14,7 +14,7 @@ vi.mock('@/app/hooks/use-toast', () => ({
 }));
 
 // Mock Shiki — returns the `{ html, language }` shape the shared
-// `@tale/markdown/shiki` exports so callers extracting `.html` work.
+// `@tale/ui/markdown/shiki` exports so callers extracting `.html` work.
 vi.mock('@/lib/utils/shiki', () => ({
   highlightCode: vi.fn((code: string, language: string) =>
     Promise.resolve({

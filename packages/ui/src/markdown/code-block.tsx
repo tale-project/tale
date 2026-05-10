@@ -1,7 +1,7 @@
-import { cn } from '@tale/ui/cn';
 import { Check, Copy } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { cn } from '../lib/cn';
 import { HighlightedCode } from './highlighted-code';
 
 interface CodeBlockProps {
@@ -14,6 +14,10 @@ interface CodeBlockProps {
   /** Hide the header bar (filename + copy) entirely. Useful when an outer
    * wrapper (CodeGroup, custom card) provides its own chrome. */
   hideHeader?: boolean;
+  /** Force-show or hide the line-number gutter. Defaults to auto (lines > 3).
+   * Set to `true` for streaming surfaces so the gutter never appears
+   * mid-stream (which would shift the content rightward). */
+  showLineNumbers?: boolean;
   className?: string;
 }
 
@@ -32,6 +36,7 @@ export function CodeBlock({
   filename,
   hideCopy,
   hideHeader,
+  showLineNumbers,
   className,
 }: CodeBlockProps) {
   const headerLabel = filename ?? language ?? '';
@@ -48,6 +53,7 @@ export function CodeBlock({
       <HighlightedCode
         code={code}
         language={language}
+        showLineNumbers={showLineNumbers}
         showCopyButton={hideHeader && !hideCopy}
       />
     </div>

@@ -1,10 +1,11 @@
-import { cn } from '@tale/ui/cn';
 import {
   Children,
   isValidElement,
   type ReactElement,
   type ReactNode,
 } from 'react';
+
+import { cn } from '../../lib/cn';
 
 interface StepProps {
   title?: string;

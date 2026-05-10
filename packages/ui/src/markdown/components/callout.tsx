@@ -1,4 +1,3 @@
-import { cn } from '@tale/ui/cn';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -9,6 +8,8 @@ import {
   StickyNote,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+
+import { cn } from '../../lib/cn';
 
 type Tone = 'note' | 'tip' | 'info' | 'warning' | 'danger' | 'check';
 

@@ -8,10 +8,12 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 
+import { cn } from '../lib/cn';
 import { AnchoredHeading } from './anchored-heading';
 import { CodeBlock } from './code-block';
 import { Callout } from './components/callout';
 import { Mermaid } from './components/mermaid';
+import { rehypeNumericColumns } from './plugins/rehype-numeric-columns';
 
 type AlertTone = 'note' | 'tip' | 'info' | 'warning' | 'danger';
 
@@ -250,15 +252,7 @@ export const baseComponents: Components = {
       </code>
     );
   },
-  pre: ({ children }) => {
-    // Pull the inner <code> element to extract language + raw text so we can
-    // hand it to <CodeBlock> for Shiki highlighting + the copy button. Code
-    // blocks tagged `mermaid` go through the <Mermaid> renderer instead.
-    const child = extractCodeChild(children);
-    if (!child) return <pre>{children}</pre>;
-    if (child.language === 'mermaid') return <Mermaid chart={child.text} />;
-    return <CodeBlock code={child.text} language={child.language} />;
-  },
+  pre: makePreComponent(),
   hr: () => <hr className="border-border-base my-10" />,
   table: ({ children }) => (
     <div className="border-border-base bg-bg-base relative my-6 max-h-[36rem] overflow-auto rounded-lg border">
@@ -274,16 +268,21 @@ export const baseComponents: Components = {
       {children}
     </tr>
   ),
-  th: ({ children }) => (
+  th: ({ children, className }: ComponentPropsWithoutRef<'th'>) => (
     <th
       scope="col"
-      className="text-fg-base border-border-base border-b px-3 py-2 text-left font-semibold"
+      className={cn(
+        'text-fg-base border-border-base border-b px-3 py-2 text-left font-semibold',
+        className,
+      )}
     >
       {children}
     </th>
   ),
-  td: ({ children }) => (
-    <td className="text-fg-muted px-3 py-2 align-top">{children}</td>
+  td: ({ children, className }: ComponentPropsWithoutRef<'td'>) => (
+    <td className={cn('text-fg-muted px-3 py-2 align-top', className)}>
+      {children}
+    </td>
   ),
   img: ({ src, alt }: ComponentPropsWithoutRef<'img'>) => (
     <img
@@ -299,6 +298,34 @@ export const baseComponents: Components = {
 interface ExtractedCode {
   language: string | undefined;
   text: string;
+}
+
+/**
+ * Build the `pre` Markdown component. Streaming surfaces pass
+ * `{ showLineNumbers: true, streamingMermaid: true }` so code blocks never
+ * shift content as new lines arrive and partial mermaid DSL doesn't try to
+ * render mid-stream.
+ */
+export function makePreComponent({
+  showLineNumbers,
+  streamingMermaid,
+}: { showLineNumbers?: boolean; streamingMermaid?: boolean } = {}): NonNullable<
+  Components['pre']
+> {
+  return function Pre({ children }) {
+    const child = extractCodeChild(children);
+    if (!child) return <pre>{children}</pre>;
+    if (child.language === 'mermaid') {
+      return <Mermaid chart={child.text} streaming={streamingMermaid} />;
+    }
+    return (
+      <CodeBlock
+        code={child.text}
+        language={child.language}
+        showLineNumbers={showLineNumbers}
+      />
+    );
+  };
 }
 
 function extractCodeChild(children: ReactNode): ExtractedCode | null {
@@ -346,7 +373,10 @@ export function Markdown({ children, components, className }: MarkdownProps) {
         // tags like `<CodeGroup>`, `<Note>`, `<Card>` survive as hast nodes
         // and reach the components map below. Without it those tags are
         // dropped silently and only the prose between them renders.
-        rehypePlugins={[rehypeRaw]}
+        // `rehypeNumericColumns` walks each table and tags columns whose
+        // body cells are all numeric-like with `text-right`, so finance /
+        // metric tables read aligned without any author opt-in.
+        rehypePlugins={[rehypeRaw, rehypeNumericColumns]}
         components={{ ...baseComponents, ...components }}
       >
         {children}

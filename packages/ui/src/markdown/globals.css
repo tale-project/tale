@@ -1,6 +1,6 @@
-@import '@tale/ui/globals.css';
+@import '../globals.css';
 
-@source '../src/**/*.{ts,tsx}';
+@source '../**/*.{ts,tsx}';
 
 /* Page-level background + foreground that track the active theme. Loaded
    standalone by Storybook so the iframe canvas inverts when the

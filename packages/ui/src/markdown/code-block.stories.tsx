@@ -12,7 +12,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const TS_SAMPLE = `import { highlightCode } from '@tale/markdown/shiki';
+const TS_SAMPLE = `import { highlightCode } from '@tale/ui/markdown/shiki';
 
 const result = await highlightCode(
   'console.log("hello tale");',

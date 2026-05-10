@@ -73,7 +73,6 @@
     "@sentry/tanstackstart-react": "10.48.0",
     "@tailwindcss/postcss": "4.2.2",
     "@tale/i18n": "workspace:*",
-    "@tale/markdown": "workspace:*",
     "@tale/ui": "workspace:*",
     "@tanstack/react-query": "5.97.0",
     "@tanstack/react-router": "1.168.10",

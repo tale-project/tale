@@ -34,7 +34,7 @@
  * />
  */
 
-import { IncrementalMarkdown } from '@tale/markdown/streaming/incremental-markdown';
+import { IncrementalMarkdown } from '@tale/ui/markdown/streaming/incremental-markdown';
 import { memo, useRef, useEffect } from 'react';
 
 import type { MarkdownComponentMap } from '@/lib/utils/markdown-types';

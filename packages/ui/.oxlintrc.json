@@ -1,4 +1,13 @@
 {
   "$schema": "../../node_modules/oxlint/configuration_schema.json",
-  "extends": ["../../.oxlintrc.json"]
+  "extends": ["../../.oxlintrc.json"],
+  "overrides": [
+    {
+      "files": ["src/markdown/**/*.{ts,tsx}"],
+      "rules": {
+        "typescript/no-unsafe-type-assertion": "off",
+        "typescript/consistent-return": "off"
+      }
+    }
+  ]
 }

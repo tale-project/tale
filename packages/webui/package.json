@@ -2,7 +2,7 @@
   "name": "@tale/webui",
   "version": "0.1.0",
   "private": true,
-  "description": "Shared web/docs layout, search, SEO + LLM helpers (markdown pipeline lives in @tale/markdown)",
+  "description": "Shared web/docs layout, search, SEO + LLM helpers (markdown pipeline lives in @tale/ui/markdown)",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",

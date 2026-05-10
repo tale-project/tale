@@ -67,7 +67,7 @@ const ROUTED_COMPONENTS = { a: RoutedAnchor } satisfies Components;
  * `<Markdown>` wrapper that swaps internal `<a>` for TanStack-Router's
  * `<Link>` so consumers inside a `<RouterProvider>` get SPA navigation
  * for free. Storybook / SSR-without-router contexts should keep using
- * the base `<Markdown>` from `@tale/markdown/markdown`.
+ * the base `<Markdown>` from `@tale/ui/markdown`.
  */
 export function RoutedMarkdown({
   children,

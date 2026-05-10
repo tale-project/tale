@@ -1,4 +1,3 @@
-import { cn } from '@tale/ui/cn';
 import { ChevronDown } from 'lucide-react';
 import type { ReactNode } from 'react';
 import {
@@ -11,6 +10,8 @@ import {
   useRef,
   useState,
 } from 'react';
+
+import { cn } from '../../lib/cn';
 
 interface AccordionGroupContextValue {
   openId: string | null;
