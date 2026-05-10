@@ -1,5 +1,5 @@
 import { cn } from '@tale/ui/cn';
-import type { TocEntry } from '@tale/webui/markdown/extract-toc';
+import type { TocEntry } from '@tale/ui/markdown/extract-toc';
 import { useEffect, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';

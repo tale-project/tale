@@ -5,6 +5,7 @@
     "charliermarsh.ruff",
     "ms-vscode.powershell",
     "ms-python.python",
-    "ms-vscode.vscode-typescript-next"
+    "ms-vscode.vscode-typescript-next",
+    "highagency.pencildev"
   ]
 }

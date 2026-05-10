@@ -1,0 +1,33 @@
+@import '../globals.css';
+
+@source '../**/*.{ts,tsx}';
+
+/* Page-level background + foreground that track the active theme. Loaded
+   standalone by Storybook so the iframe canvas inverts when the
+   addon-themes toggle flips `<html>` to `.dark`. Consumers that own their
+   own app shell typically set their own body bg and override these. */
+html,
+body {
+  background-color: var(--color-bg-base);
+  color: var(--color-fg-base);
+}
+
+/* Shiki line numbering. Driven by a single `code-block-numbered` class on
+   the wrapper instead of Tailwind arbitrary-property utilities so the
+   selector chain (counter-reset on <pre>, counter on each `.line::before`)
+   stays a single coherent block that's easy to debug. */
+.code-block-numbered pre {
+  counter-reset: line;
+}
+
+.code-block-numbered .line::before {
+  content: counter(line);
+  counter-increment: line;
+  display: inline-block;
+  width: 1.75rem;
+  margin-right: 1rem;
+  text-align: right;
+  color: var(--color-fg-subtle);
+  user-select: none;
+  -webkit-user-select: none;
+}

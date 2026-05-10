@@ -34,12 +34,12 @@
  * />
  */
 
+import { IncrementalMarkdown } from '@tale/ui/markdown/streaming/incremental-markdown';
 import { memo, useRef, useEffect } from 'react';
 
 import type { MarkdownComponentMap } from '@/lib/utils/markdown-types';
 
 import { isStreamFrozen, useStreamBuffer } from '../hooks/use-stream-buffer';
-import { IncrementalMarkdown } from './incremental-markdown';
 
 // ============================================================================
 // TYPES

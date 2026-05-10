@@ -43,8 +43,8 @@ export function DocumentPreviewText({
 
     let cancelled = false;
     const lang = resolveLanguage(ext);
-    void highlightCode(content, lang, shikiTheme).then((html) => {
-      if (!cancelled) setHighlightedHtml(html || null);
+    void highlightCode(content, lang, shikiTheme).then((result) => {
+      if (!cancelled) setHighlightedHtml(result?.html ?? null);
     });
     return () => {
       cancelled = true;

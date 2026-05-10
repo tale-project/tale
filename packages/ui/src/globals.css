@@ -91,9 +91,12 @@
   --color-bg-muted: #1a1a1a;
   --color-bg-overlay: rgba(3, 7, 18, 0.8);
 
+  /* Body prose lifts a notch (gray-300 vs gray-400) for legibility on dark
+     backgrounds. fg-subtle slides up to fill the lower-contrast slot for
+     captions / muted metadata. */
   --color-fg-base: #f3f4f6;
-  --color-fg-muted: #9ca3af;
-  --color-fg-subtle: #6b7280;
+  --color-fg-muted: #d1d5db;
+  --color-fg-subtle: #9ca3af;
   --color-fg-inverse: #030712;
 
   --color-border-base: #404040;
