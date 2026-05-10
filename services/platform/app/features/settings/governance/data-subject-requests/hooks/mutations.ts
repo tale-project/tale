@@ -12,3 +12,7 @@ export function useRetryErasureRequest() {
 export function useExtendErasureDeadline() {
   return useConvexMutation(api.governance.erasure.extendErasureDeadline);
 }
+
+export function useCancelErasureRequest() {
+  return useConvexMutation(api.governance.erasure.cancelErasureRequest);
+}

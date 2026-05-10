@@ -81,6 +81,28 @@ vi.mock('../legal_hold', () => ({
   })),
 }));
 
+vi.mock('../../lib/rate_limiter', () => ({
+  rateLimiter: {
+    limit: vi.fn(async () => ({ ok: true })),
+  },
+}));
+
+vi.mock('../dsar_policy', () => ({
+  getDsarPolicy: vi.fn(async () => ({
+    coolingOffHours: 0,
+    requireDualApproval: false,
+    dailyLimitPerAdmin: 5,
+  })),
+}));
+
+vi.mock('../../notifications/helpers', () => ({
+  writeNotificationForOrgs: vi.fn(async () => undefined),
+}));
+
+vi.mock('../../approvals/helpers', () => ({
+  createApproval: vi.fn(async () => 'approval_id'),
+}));
+
 vi.mock('../../_generated/server', async (importOriginal) => {
   const mod = await importOriginal<Record<string, unknown>>();
   return {

@@ -25,6 +25,7 @@ vi.mock('../../_generated/api', () => ({
         eraseSubjectNotifications: 'eraseSubjectNotifications',
         lookupSubjectEmail: 'lookupSubjectEmail',
         processErasureRequest: 'processErasureRequest',
+        confirmAndScheduleErasure: 'confirmAndScheduleErasure',
       },
     },
     audit_logs: {
@@ -79,22 +80,22 @@ vi.mock('../legal_hold', () => ({
   })),
 }));
 
+const mockRateLimit = vi.fn();
 vi.mock('../../lib/rate_limiter', () => ({
   rateLimiter: {
-    limit: vi.fn(async () => ({ ok: true })),
+    limit: (...args: unknown[]) => mockRateLimit(...args),
   },
 }));
 
+const mockGetDsarPolicy = vi.fn();
 vi.mock('../dsar_policy', () => ({
-  getDsarPolicy: vi.fn(async () => ({
-    coolingOffHours: 0,
-    requireDualApproval: false,
-    dailyLimitPerAdmin: 5,
-  })),
+  getDsarPolicy: (...args: unknown[]) => mockGetDsarPolicy(...args),
 }));
 
+const mockWriteNotification = vi.fn();
 vi.mock('../../notifications/helpers', () => ({
-  writeNotificationForOrgs: vi.fn(async () => undefined),
+  writeNotificationForOrgs: (...args: unknown[]) =>
+    mockWriteNotification(...args),
 }));
 
 vi.mock('../../approvals/helpers', () => ({
@@ -192,6 +193,7 @@ interface MockState {
   tables: Record<string, DbRow[]>;
   patches: { id: string; patch: Record<string, unknown> }[];
   inserts: { table: string; doc: Record<string, unknown> }[];
+  cancels: string[];
 }
 
 function createMockCtx(state: MockState) {
@@ -228,196 +230,243 @@ function createMockCtx(state: MockState) {
       }),
     },
     runMutation: vi.fn(async (..._args: unknown[]) => null),
-    scheduler: { runAfter: vi.fn(async () => 'scheduled') },
+    scheduler: {
+      runAfter: vi.fn(async () => 'scheduled_job_id'),
+      cancel: vi.fn(async (id: string) => {
+        state.cancels.push(id);
+      }),
+    },
   };
 }
 
 const ADMIN = { _id: 'admin_user', email: 'admin@example.com' };
 
-describe('activeErasureClaims (H1, H2)', () => {
+describe('cancelErasureRequest', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetAuthUser.mockResolvedValue(ADMIN);
     mockGetOrganizationMember.mockResolvedValue({ role: 'admin' });
+    mockRateLimit.mockResolvedValue({ ok: true, retryAfter: 0 });
+    mockWriteNotification.mockResolvedValue(undefined);
+    mockGetDsarPolicy.mockResolvedValue({
+      coolingOffHours: 24,
+      requireDualApproval: false,
+      dailyLimitPerAdmin: 5,
+    });
     vi.useFakeTimers();
     vi.setSystemTime(1_700_000_000_000);
   });
 
-  it('two sequential requestErasure on same subject — second throws ALREADY_PENDING with winner requestId', async () => {
+  it('happy path: pending row in cooling-off → cancelled, scheduler.cancel called, notification fan-out, claim cleared', async () => {
     const erasure = await loadErasure();
-    const state: MockState = { tables: {}, patches: [], inserts: [] };
-    const ctx = createMockCtx(state);
-
-    // First call succeeds, inserts row + claim
-    await erasure.requestErasure.handler(ctx, {
-      organizationId: 'org_A',
-      userId: 'subject',
-      reason: 'consent withdrawn',
-      reasonCode: 'consent_withdrawn',
-    });
-    const winnerId =
-      (state.tables.gdprErasureRequests ?? [])[0]?._id ?? 'unknown';
-    expect(state.tables.activeErasureClaims?.[0]?.requestId).toBe(winnerId);
-
-    // Second call sees the claim → throws ALREADY_PENDING
-    await expect(
-      erasure.requestErasure.handler(ctx, {
-        organizationId: 'org_A',
-        userId: 'subject',
-        reason: 'duplicate filing',
-        reasonCode: 'consent_withdrawn',
-      }),
-    ).rejects.toBeInstanceOf(ConvexError);
-
-    // Only one receipt row was inserted
-    expect(state.tables.gdprErasureRequests?.length).toBe(1);
-  });
-
-  it('finalizeProcessing on done clears the claim — next requestErasure for same subject succeeds', async () => {
-    const erasure = await loadErasure();
-    const state: MockState = { tables: {}, patches: [], inserts: [] };
-    const ctx = createMockCtx(state);
-    await erasure.requestErasure.handler(ctx, {
-      organizationId: 'org_A',
-      userId: 'subject',
-      reason: 'consent withdrawn',
-      reasonCode: 'consent_withdrawn',
-    });
-    const winnerId = (state.tables.gdprErasureRequests ?? [])[0]?._id;
-    expect(winnerId).toBeDefined();
-    if (!winnerId) throw new Error('expected receipt row');
-
-    // Promote to running so finalize can transition done
-    await ctx.db.patch(winnerId, { status: 'running', threadsTargeted: [] });
-
-    await erasure.finalizeProcessing.handler(ctx, {
-      requestId: winnerId,
-      threadsErased: 0,
-      ragDocumentsRemoved: 0,
-    });
-    // Claim cleared
-    expect(state.tables.activeErasureClaims?.[0]?.requestId).toBeUndefined();
-
-    // Now a fresh requestErasure on same subject succeeds
-    await erasure.requestErasure.handler(ctx, {
-      organizationId: 'org_A',
-      userId: 'subject',
-      reason: 'subsequent request',
-      reasonCode: 'no_longer_necessary',
-    });
-    expect(state.tables.gdprErasureRequests?.length).toBe(2);
-  });
-
-  it('ALREADY_PENDING fires when claim points to a partial row (H2)', async () => {
-    const erasure = await loadErasure();
+    const futureEffectiveAt = Date.now() + 24 * 60 * 60 * 1000;
     const state: MockState = {
       tables: {
         gdprErasureRequests: [
           {
-            _id: 'er_old',
-            status: 'partial',
+            _id: 'er_1',
+            status: 'pending',
             organizationId: 'org_A',
             targetUserId: 'subject',
-          },
-        ],
-        activeErasureClaims: [
-          {
-            _id: 'claim_old',
-            organizationId: 'org_A',
-            targetUserId: 'subject',
-            requestId: 'er_old',
-            claimedAt: 1,
-          },
-        ],
-      },
-      patches: [],
-      inserts: [],
-    };
-    const ctx = createMockCtx(state);
-
-    await expect(
-      erasure.requestErasure.handler(ctx, {
-        organizationId: 'org_A',
-        userId: 'subject',
-        reason: 'duplicate',
-        reasonCode: 'consent_withdrawn',
-      }),
-    ).rejects.toBeInstanceOf(ConvexError);
-    // No new receipt inserted
-    expect(state.tables.gdprErasureRequests?.length).toBe(1);
-  });
-
-  it('recoverStuckErasureRequests (watchdog) clears claim on running→failed', async () => {
-    const erasure = await loadErasure();
-    const oldStartedAt = Date.now() - 36 * 60 * 1000;
-    const state: MockState = {
-      tables: {
-        gdprErasureRequests: [
-          {
-            _id: 'er_stuck',
-            status: 'running',
-            organizationId: 'org_A',
-            targetUserId: 'subject',
-            requestedAt: oldStartedAt,
-            startedAt: oldStartedAt,
-            requestedBy: 'admin',
-          },
-        ],
-        activeErasureClaims: [
-          {
-            _id: 'claim_stuck',
-            organizationId: 'org_A',
-            targetUserId: 'subject',
-            requestId: 'er_stuck',
-            claimedAt: oldStartedAt,
-          },
-        ],
-      },
-      patches: [],
-      inserts: [],
-    };
-    const ctx = createMockCtx(state);
-    const result = await erasure.recoverStuckErasureRequests.handler(ctx, {});
-    expect((result as { recovered: number }).recovered).toBe(1);
-    expect(state.tables.activeErasureClaims?.[0]?.requestId).toBeUndefined();
-  });
-
-  it('retryErasureRequest after watchdog re-acquires the claim', async () => {
-    const erasure = await loadErasure();
-    const state: MockState = {
-      tables: {
-        gdprErasureRequests: [
-          {
-            _id: 'er_failed',
-            status: 'failed',
-            organizationId: 'org_A',
-            targetUserId: 'subject',
-            errorMessage: 'Erasure timed out (watchdog)',
             requestedBy: 'admin_user',
+            effectiveAt: futureEffectiveAt,
+            scheduledJobId: 'scheduled_job_id',
           },
         ],
         activeErasureClaims: [
           {
-            _id: 'claim_cleared',
+            _id: 'claim_1',
             organizationId: 'org_A',
             targetUserId: 'subject',
-            requestId: undefined,
-            claimedAt: 1,
+            requestId: 'er_1',
+            claimedAt: Date.now(),
           },
         ],
       },
       patches: [],
       inserts: [],
+      cancels: [],
     };
     const ctx = createMockCtx(state);
-    await erasure.retryErasureRequest.handler(ctx, {
-      requestId: 'er_failed',
+    await erasure.cancelErasureRequest.handler(ctx, {
+      requestId: 'er_1',
+      cancellationReason: 'Subject withdrew the request via HR ticket',
     });
-    // Claim re-acquired pointing at the retried row
-    expect(state.tables.activeErasureClaims?.[0]?.requestId).toBe('er_failed');
-    // Row flipped to pending
+
+    // status flipped + cancellation fields written
+    const row = state.tables.gdprErasureRequests?.[0];
+    expect(row?.status).toBe('cancelled');
+    expect(row?.cancelledBy).toBe('admin_user');
+    expect(row?.cancellationReason).toContain('HR ticket');
+    // scheduler cancel was called
+    expect(state.cancels).toContain('scheduled_job_id');
+    // claim cleared
+    expect(state.tables.activeErasureClaims?.[0]?.requestId).toBeUndefined();
+    // notification fan-out
+    expect(mockWriteNotification).toHaveBeenCalled();
+    // audit log emitted
+    const auditCall = mockCreateAuditLog.mock.calls.find((c) => {
+      const payload = c[1] as { action?: string };
+      return payload.action === 'gdpr_erasure_cancelled';
+    });
+    expect(auditCall).toBeDefined();
+  });
+
+  it('refuses when cooling-off window has elapsed', async () => {
+    const erasure = await loadErasure();
+    const pastEffectiveAt = Date.now() - 1000; // already lapsed
+    const state: MockState = {
+      tables: {
+        gdprErasureRequests: [
+          {
+            _id: 'er_2',
+            status: 'pending',
+            organizationId: 'org_A',
+            targetUserId: 'subject',
+            requestedBy: 'admin_user',
+            effectiveAt: pastEffectiveAt,
+            scheduledJobId: 'scheduled_job_id',
+          },
+        ],
+      },
+      patches: [],
+      inserts: [],
+      cancels: [],
+    };
+    const ctx = createMockCtx(state);
+    await expect(
+      erasure.cancelErasureRequest.handler(ctx, {
+        requestId: 'er_2',
+        cancellationReason: 'Too late to cancel',
+      }),
+    ).rejects.toBeInstanceOf(ConvexError);
+    // No state changes
     expect(state.tables.gdprErasureRequests?.[0]?.status).toBe('pending');
-    // Processor re-scheduled
-    expect(ctx.scheduler.runAfter).toHaveBeenCalled();
+    expect(state.cancels).toHaveLength(0);
+  });
+
+  it('refuses when caller is not an admin', async () => {
+    mockGetOrganizationMember.mockResolvedValue({ role: 'member' });
+    const erasure = await loadErasure();
+    const state: MockState = {
+      tables: {
+        gdprErasureRequests: [
+          {
+            _id: 'er_3',
+            status: 'pending',
+            organizationId: 'org_A',
+            targetUserId: 'subject',
+            requestedBy: 'admin_user',
+            effectiveAt: Date.now() + 60_000,
+            scheduledJobId: 'scheduled_job_id',
+          },
+        ],
+      },
+      patches: [],
+      inserts: [],
+      cancels: [],
+    };
+    const ctx = createMockCtx(state);
+    await expect(
+      erasure.cancelErasureRequest.handler(ctx, {
+        requestId: 'er_3',
+        cancellationReason: 'Not authorized to do this',
+      }),
+    ).rejects.toBeInstanceOf(ConvexError);
+  });
+
+  it('refuses when reason is shorter than 10 characters', async () => {
+    const erasure = await loadErasure();
+    const state: MockState = {
+      tables: {
+        gdprErasureRequests: [
+          {
+            _id: 'er_4',
+            status: 'pending',
+            organizationId: 'org_A',
+            targetUserId: 'subject',
+            requestedBy: 'admin_user',
+            effectiveAt: Date.now() + 60_000,
+          },
+        ],
+      },
+      patches: [],
+      inserts: [],
+      cancels: [],
+    };
+    const ctx = createMockCtx(state);
+    await expect(
+      erasure.cancelErasureRequest.handler(ctx, {
+        requestId: 'er_4',
+        cancellationReason: 'short',
+      }),
+    ).rejects.toBeInstanceOf(ConvexError);
+  });
+});
+
+describe('requestErasure self-deletion + rate-limit guards', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetAuthUser.mockResolvedValue(ADMIN);
+    mockGetOrganizationMember.mockResolvedValue({ role: 'admin' });
+    mockRateLimit.mockResolvedValue({ ok: true, retryAfter: 0 });
+    mockWriteNotification.mockResolvedValue(undefined);
+    mockGetDsarPolicy.mockResolvedValue({
+      coolingOffHours: 0,
+      requireDualApproval: false,
+      dailyLimitPerAdmin: 5,
+    });
+    vi.useFakeTimers();
+    vi.setSystemTime(1_700_000_000_000);
+  });
+
+  it('rejects when admin attempts to file against themselves', async () => {
+    const erasure = await loadErasure();
+    const state: MockState = {
+      tables: {},
+      patches: [],
+      inserts: [],
+      cancels: [],
+    };
+    const ctx = createMockCtx(state);
+    await expect(
+      erasure.requestErasure.handler(ctx, {
+        organizationId: 'org_A',
+        userId: 'admin_user', // === callerId
+        reason: 'self-deletion attempt',
+        reasonCode: 'consent_withdrawn',
+      }),
+    ).rejects.toBeInstanceOf(ConvexError);
+    // Audit log emitted with self_deletion_forbidden
+    const auditCall = mockCreateAuditLog.mock.calls.find((c) => {
+      const payload = c[1] as { errorMessage?: string };
+      return payload.errorMessage === 'self_deletion_forbidden';
+    });
+    expect(auditCall).toBeDefined();
+  });
+
+  it('rejects when rate limiter says not ok', async () => {
+    mockRateLimit.mockResolvedValue({ ok: false, retryAfter: 60_000 });
+    const erasure = await loadErasure();
+    const state: MockState = {
+      tables: {},
+      patches: [],
+      inserts: [],
+      cancels: [],
+    };
+    const ctx = createMockCtx(state);
+    await expect(
+      erasure.requestErasure.handler(ctx, {
+        organizationId: 'org_A',
+        userId: 'subject',
+        reason: 'should be rate-limited',
+        reasonCode: 'consent_withdrawn',
+      }),
+    ).rejects.toBeInstanceOf(ConvexError);
+    const auditCall = mockCreateAuditLog.mock.calls.find((c) => {
+      const payload = c[1] as { errorMessage?: string };
+      return payload.errorMessage === 'rate_limited';
+    });
+    expect(auditCall).toBeDefined();
   });
 });

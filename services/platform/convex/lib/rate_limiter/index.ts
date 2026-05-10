@@ -5,7 +5,7 @@
  * Rules are organized by category and priority tier.
  */
 
-import { RateLimiter, MINUTE, HOUR } from '@convex-dev/rate-limiter';
+import { RateLimiter, MINUTE, HOUR, DAY } from '@convex-dev/rate-limiter';
 
 import { components } from '../../_generated/api';
 
@@ -216,6 +216,22 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     kind: 'fixed window',
     rate: 1,
     period: HOUR,
+  },
+
+  // ============================================
+  // TIER 7: Governance (Fixed Window)
+  // High-blast-radius admin actions
+  // ============================================
+  // Per-admin daily filing limit for GDPR Art 17 erasure requests.
+  // Caps blast radius from a compromised admin credential / scripted
+  // abuse / runaway approval-bot. Default: 5 requests/admin/day. Daily
+  // limit is overridable per-org via `dsar_governance` policy (the org
+  // policy sets the bucket consumption guard; this limiter is a
+  // platform-level floor).
+  'governance:dsar_request': {
+    kind: 'fixed window',
+    rate: 5,
+    period: DAY,
   },
 });
 

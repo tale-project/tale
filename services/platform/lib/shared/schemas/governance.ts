@@ -21,6 +21,10 @@ export const POLICY_TYPES = [
   'personalization',
   // Phase 12 — admin-customizable confidentiality notice.
   'data_classification_notice',
+  // GDPR DSAR governance — cooling-off window, dual approval, and
+  // per-admin daily filing rate limit. See `dsarGovernanceConfigSchema`
+  // for the config shape and defaults.
+  'dsar_governance',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -520,3 +524,24 @@ export function mergeStrictestPasswordPolicy(
     policies[0],
   );
 }
+
+// GDPR DSAR governance: cooling-off period, dual-admin approval, and
+// per-admin daily filing limit. See `governance/dsar_policy.ts` for
+// reads / writes; `governance/erasure.ts` consumes these on
+// `requestErasure`.
+//
+// Defaults:
+//   coolingOffHours: 24       — Art 12(3) one-month window minus 24h
+//                                 still leaves >29 days for the cascade
+//   requireDualApproval: false — opt-in; small orgs with one admin can
+//                                 not satisfy filer ≠ approver
+//   dailyLimitPerAdmin: 5     — typical legitimate use is far below this;
+//                                 caps blast radius from compromised admin
+export const dsarGovernanceConfigSchema = z.object({
+  coolingOffHours: z.number().int().min(0).max(72).default(24),
+  requireDualApproval: z.boolean().default(false),
+  dailyLimitPerAdmin: z.number().int().min(1).max(50).default(5),
+});
+export type DsarGovernanceConfig = z.infer<typeof dsarGovernanceConfigSchema>;
+export const DEFAULT_DSAR_GOVERNANCE: DsarGovernanceConfig =
+  dsarGovernanceConfigSchema.parse({});

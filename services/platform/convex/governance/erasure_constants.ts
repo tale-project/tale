@@ -30,6 +30,7 @@ export const ERASURE_STATUSES = [
   'partial',
   'failed',
   'blocked',
+  'cancelled',
 ] as const;
 
 export type ErasureStatus = (typeof ERASURE_STATUSES)[number];

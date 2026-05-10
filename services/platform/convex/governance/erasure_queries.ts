@@ -28,6 +28,7 @@ import { authComponent } from '../auth';
 import { getUserNamesBatch } from '../documents/get_user_names_batch';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { jsonRecordValidator } from '../lib/validators/json';
 import { ERASURE_REASON_CODES, ERASURE_STATUSES } from './erasure_constants';
 
 const erasureStatusValidator = v.union(
@@ -89,6 +90,10 @@ async function shapeSummaries(
     errorMessage: row.errorMessage,
     startedAt: row.startedAt,
     completedAt: row.completedAt,
+    effectiveAt: row.effectiveAt,
+    cancelledAt: row.cancelledAt,
+    cancelledBy: row.cancelledBy,
+    cancellationReason: row.cancellationReason,
     extensionGrantedAt: row.extensionGrantedAt,
     extensionGrantedBy: row.extensionGrantedBy,
     extensionGrantedByName: row.extensionGrantedBy
@@ -205,6 +210,12 @@ const erasureRequestDetailValidator = v.object({
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
     lateFinalizeAt: v.optional(v.number()),
+    perCategorySnapshot: v.optional(jsonRecordValidator),
+    effectiveAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    cancelledBy: v.optional(v.string()),
+    cancelledByName: v.optional(v.string()),
+    cancellationReason: v.optional(v.string()),
     extensionGrantedAt: v.optional(v.number()),
     extensionGrantedBy: v.optional(v.string()),
     extensionGrantedByName: v.optional(v.string()),
@@ -228,6 +239,7 @@ export const getErasureRequest = query({
 
     const userIds = new Set<string>([row.targetUserId, row.requestedBy]);
     if (row.extensionGrantedBy) userIds.add(row.extensionGrantedBy);
+    if (row.cancelledBy) userIds.add(row.cancelledBy);
     const nameMap = await getUserNamesBatch(ctx, [...userIds]);
 
     const auditEntries = await getResourceAuditTrail(ctx, {
@@ -266,6 +278,14 @@ export const getErasureRequest = query({
         startedAt: row.startedAt,
         completedAt: row.completedAt,
         lateFinalizeAt: row.lateFinalizeAt,
+        perCategorySnapshot: row.perCategorySnapshot,
+        effectiveAt: row.effectiveAt,
+        cancelledAt: row.cancelledAt,
+        cancelledBy: row.cancelledBy,
+        cancelledByName: row.cancelledBy
+          ? (nameMap.get(row.cancelledBy) ?? row.cancelledBy)
+          : undefined,
+        cancellationReason: row.cancellationReason,
         extensionGrantedAt: row.extensionGrantedAt,
         extensionGrantedBy: row.extensionGrantedBy,
         extensionGrantedByName: row.extensionGrantedBy

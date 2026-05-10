@@ -31,6 +31,9 @@ export const approvalResourceTypeValidator = v.union(
   v.literal('document_write'),
   v.literal('location_request'),
   v.literal('mcp_tool_call'),
+  // GDPR Art 17 erasure request awaiting dual-admin approval. Used when
+  // `dsar_governance.requireDualApproval` is enabled at the org level.
+  v.literal('erasure'),
 );
 
 export const approvalItemValidator = v.object({

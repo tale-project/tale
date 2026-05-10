@@ -127,6 +127,26 @@ export function mapDsrError(err: unknown, t: Translator): DsrErrorMapping {
         title: fallbackTitle,
         description: t('dataSubjectRequests.errors.deadlineLapsed'),
       };
+    case 'NOT_CANCELLABLE':
+      return {
+        title: fallbackTitle,
+        description: t('dataSubjectRequests.errors.notCancellable'),
+      };
+    case 'cannotCancelAfterCooldown':
+      return {
+        title: fallbackTitle,
+        description: t('dataSubjectRequests.errors.cannotCancelAfterCooldown'),
+      };
+    case 'rate_limited':
+      return {
+        title: fallbackTitle,
+        description: t('dataSubjectRequests.errors.rateLimited'),
+      };
+    case 'dualApprovalRequired':
+      return {
+        title: fallbackTitle,
+        description: t('dataSubjectRequests.errors.dualApprovalRequired'),
+      };
     default:
       return {
         title: fallbackTitle,

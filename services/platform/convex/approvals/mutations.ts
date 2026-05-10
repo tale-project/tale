@@ -1,7 +1,8 @@
 import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
-import { components } from '../_generated/api';
+import { components, internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { authComponent } from '../auth';
@@ -60,6 +61,19 @@ export const updateApprovalStatus = mutation({
       previousState: { status: previousStatus },
       newState: { status: args.status, comments: args.comments },
     });
+
+    // GDPR Art 17 erasure-specific dispatch: when the approval flips to
+    // `executing`, hand off to the cooling-off + scheduling path. The
+    // erasure mutation enforces filer ≠ approver as a hard refusal
+    // (defense-in-depth above this UI gate).
+    if (args.status === 'executing' && approval.resourceType === 'erasure') {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approvals.resourceId is `v.string()` for the generic table; for the 'erasure' resourceType it's always an Id<'gdprErasureRequests'>.
+      const requestId = approval.resourceId as Id<'gdprErasureRequests'>;
+      await ctx.runMutation(
+        internal.governance.erasure.confirmAndScheduleErasure,
+        { requestId, approverId: String(authUser._id) },
+      );
+    }
 
     // Write system message to thread on rejection (skip for feedback — the frontend
     // sends the user's feedback as a regular chat message instead)

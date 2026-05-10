@@ -24,6 +24,10 @@ export const GOVERNANCE_POLICY_TYPES = [
   // chat composer + upload dialog footers. Default copy is fetched from
   // i18n; this policy lets per-org admins override per locale.
   'data_classification_notice',
+  // GDPR DSAR governance: cooling-off window, dual-approval requirement,
+  // and per-admin daily filing rate limit. Defaults live in
+  // `governance/dsar_policy.ts`.
+  'dsar_governance',
 ] as const;
 
 const policyTypeValidator = v.union(
@@ -584,6 +588,12 @@ export const gdprErasureRequestsTable = defineTable({
      * call `retryErasureRequest` to re-schedule.
      */
     v.literal('blocked'),
+    /**
+     * Cancelled by an org admin before the cooling-off window elapsed.
+     * Terminal — does NOT execute the cascade. Receipt preserved with
+     * `cancelledBy` / `cancellationReason` for the audit trail.
+     */
+    v.literal('cancelled'),
   ),
   /** Snapshot of the threads list at request time. Processed
    *  iteratively; resume token if status='partial'. */
@@ -627,6 +637,27 @@ export const gdprErasureRequestsTable = defineTable({
    *  the receipt does not under-report. Distinct from `completedAt`
    *  (which the watchdog already set). */
   lateFinalizeAt: v.optional(v.number()),
+  /** Self-contained snapshot of the per-category cascade outcome,
+   *  written at `finalizeProcessing` time. Mirrors what the audit
+   *  log's `gdpr_erasure_executed` newState carries, but persisted
+   *  on the receipt row itself so the regulator-facing receipt is
+   *  self-contained and survives any future audit-log PII scrub. */
+  perCategorySnapshot: v.optional(jsonRecordValidator),
+  /** Cooling-off window: `requestErasure` sets
+   *  `effectiveAt = now + dsarPolicy.coolingOffHours * 3600_000` and
+   *  schedules the processor for that time. `beginProcessing` refuses
+   *  to start before this timestamp. Any admin can `cancelErasureRequest`
+   *  while `status='pending'` AND `effectiveAt > now`. */
+  effectiveAt: v.optional(v.number()),
+  /** ID returned by `ctx.scheduler.runAfter` when scheduling the
+   *  cooling-off processor. Stored so `cancelErasureRequest` can call
+   *  `ctx.scheduler.cancel(jobId)` to abort the pending run. */
+  scheduledJobId: v.optional(v.id('_scheduled_functions')),
+  /** Set by `cancelErasureRequest` when an admin aborts during the
+   *  cooling-off window. Terminal: cascade does NOT run. */
+  cancelledAt: v.optional(v.number()),
+  cancelledBy: v.optional(v.string()),
+  cancellationReason: v.optional(v.string()),
 })
   .index('by_organizationId_status', ['organizationId', 'status'])
   // Concurrency probe: `requestErasure` rejects with `ALREADY_PENDING`

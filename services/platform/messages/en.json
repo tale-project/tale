@@ -4087,11 +4087,14 @@
       },
       "status": {
         "pending": "Pending",
+        "pendingCoolingOff": "Pending · {hours, plural, one {# h} other {# h}} until execution",
+        "pendingAwaitingApproval": "Awaiting approval",
         "running": "Running",
         "done": "Completed",
         "partial": "Partial",
         "failed": "Failed",
-        "blocked": "Blocked"
+        "blocked": "Blocked",
+        "cancelled": "Cancelled"
       },
       "slaBadge": {
         "daysLeft": "{days}d left",
@@ -4126,10 +4129,9 @@
         "fileRequest": "File request",
         "extendDeadline": "Extend deadline",
         "retry": "Retry",
-        "loadMore": "Load more"
+        "cancel": "Cancel request"
       },
       "drawer": {
-        "title": "Erasure receipt",
         "description": "Receipt detail with audit timeline.",
         "headerTitle": "Erasure receipt",
         "subjectSection": "Subject and request",
@@ -4146,6 +4148,8 @@
         "ragDocumentsRemoved": "RAG documents removed",
         "documentsErased": "Documents erased",
         "documentsSkippedByHold": "Documents skipped by hold",
+        "wfExecutionsErased": "Workflow executions erased",
+        "promptTemplatesErased": "Personal prompts erased",
         "startedAt": "Started",
         "completedAt": "Completed",
         "errorMessage": "Error",
@@ -4153,7 +4157,18 @@
           "title": "Could not load this request",
           "description": "The receipt may have been deleted, or you may not have access to it.",
           "retry": "Try again"
-        }
+        },
+        "coolingOffBanner": {
+          "title": "Cooling-off in progress",
+          "description": "This request is held in a cooling-off window before the cascade runs. Any admin can cancel it before the deadline elapses."
+        },
+        "cancelledBlock": {
+          "title": "Cancelled",
+          "attribution": "Cancelled by {name}"
+        },
+        "fullBreakdownTitle": "Full breakdown across all data categories",
+        "fullBreakdownEntry": "{rows, plural, =0 {0 erased} one {# erased} other {# erased}}{skippedByHold, plural, =0 {} other { · # skipped by hold}}",
+        "fullBreakdownNoData": "No data in {count, plural, one {# other category} other {# other categories}}."
       },
       "auditActions": {
         "gdpr_erasure_requested": "Filed",
@@ -4164,7 +4179,22 @@
         "gdpr_erasure_late_finalize_dropped": "Late finalize ignored",
         "gdpr_erasure_cascade_attempts_exhausted": "Cascade attempts exhausted",
         "gdpr_erasure_extended": "Deadline extended",
-        "gdpr_erasure_retried": "Retried"
+        "gdpr_erasure_retried": "Retried",
+        "gdpr_erasure_cancelled": "Cancelled"
+      },
+      "categories": {
+        "userMemories": "Personal memories",
+        "userPreferences": "User preferences",
+        "messageFeedback": "Message feedback",
+        "fileMetadata": "Chat-uploaded files",
+        "usageLedger": "Token usage ledger",
+        "twoFactorAttempts": "Two-factor attempts",
+        "policyAcknowledgements": "Policy acknowledgements",
+        "onedrive": "OneDrive sync configs",
+        "loginAttempts": "Login attempts and lockouts",
+        "notifications": "Security notifications",
+        "wfExecutions": "Workflow executions",
+        "promptTemplates": "Personal prompts"
       },
       "legalHoldBlock": {
         "title": "Erasure blocked by legal hold",
@@ -4205,6 +4235,13 @@
           "title": "Retry erasure",
           "description": "Re-runs the cascade for this request. Use after releasing a blocking legal hold or after fixing whatever caused the previous failure.",
           "confirm": "Retry"
+        },
+        "cancel": {
+          "title": "Cancel erasure request",
+          "description": "Aborts this request before it executes. The receipt row is preserved as a record of the cancellation, but no data is deleted. Cancellation is only possible during the cooling-off window.",
+          "reasonLabel": "Cancellation reason",
+          "reasonPlaceholder": "e.g. Subject withdrew their request — verified via HR ticket #4712",
+          "confirm": "Cancel request"
         }
       },
       "toasts": {
@@ -4213,7 +4250,9 @@
         "extendedTitle": "Deadline extended",
         "extendedDescription": "Added {days, plural, =1 {# day} other {# days}} to the response window.",
         "retryTitle": "Erasure retry started",
-        "retryDescription": "The cascade has been re-scheduled."
+        "retryDescription": "The cascade has been re-scheduled.",
+        "cancelledTitle": "Erasure request cancelled",
+        "cancelledDescription": "The request will not execute. The receipt row is preserved for the audit trail."
       },
       "errors": {
         "generic": {
@@ -4230,8 +4269,32 @@
         "notExtendable": "This request is in a terminal state and cannot be extended.",
         "alreadyExtended": "This request has already been extended once. Art. 12(3) allows a single extension.",
         "deadlineLapsed": "The original Art. 12(3) deadline has already passed; extensions cannot be granted retroactively.",
-        "reasonTooShort": "Provide a reason of at least 10 characters."
+        "reasonTooShort": "Provide a reason of at least 10 characters.",
+        "notCancellable": "Only pending requests in the cooling-off window can be cancelled.",
+        "cannotCancelAfterCooldown": "The cooling-off window has elapsed; the processor has already been dispatched.",
+        "rateLimited": "You have reached the daily erasure-request limit for your account. Try again later.",
+        "dualApprovalRequired": "Dual approval is required: the filer of an erasure request cannot also approve it."
       }
+    },
+    "dsarPolicy": {
+      "title": "Data subject request governance",
+      "description": "Cooling-off window, dual-admin approval, and per-admin daily filing limit for GDPR Art. 17 erasure requests.",
+      "coolingOffHours": {
+        "label": "Cooling-off window (hours)",
+        "description": "Hours between filing a request and the cascade actually running. Any admin can cancel within this window. Set to 0 to execute immediately. Range: 0–72."
+      },
+      "requireDualApproval": {
+        "label": "Require dual approval",
+        "description": "When enabled, every filed request must be approved by a second admin (the filer cannot approve their own request) before the cooling-off window starts. Recommended for high-stakes deployments with two or more admins."
+      },
+      "dailyLimitPerAdmin": {
+        "label": "Daily limit per admin",
+        "description": "Maximum number of erasure requests a single admin may file per day. Caps blast radius from a compromised admin credential. Range: 1–50."
+      },
+      "saved": "Data subject request governance updated.",
+      "saveFailed": "Could not save the governance policy. Please try again.",
+      "invalidCoolingOffHours": "Cooling-off window must be a whole number between 0 and 72.",
+      "invalidDailyLimit": "Daily limit must be a whole number between 1 and 50."
     }
   },
   "prompts": {
@@ -4371,7 +4434,13 @@
     "loadMore": "Load more",
     "loading": "Loading…",
     "accountLocked": "Account temporarily locked: {email}",
-    "lockoutDetails": "{consecutiveFailures} failed sign-in attempts from {ip}."
+    "lockoutDetails": "{consecutiveFailures} failed sign-in attempts from {ip}.",
+    "dsarScheduled": "Erasure request scheduled",
+    "dsarScheduledBody": "An erasure request was filed for a subject in this org. It will execute in {coolingOffHours}h. Open the receipt to review or cancel.",
+    "dsarApprovalNeeded": "Erasure request awaiting your approval",
+    "dsarApprovalNeededBody": "An erasure request was filed and requires a second admin's approval before it can run.",
+    "dsarCancelled": "Erasure request cancelled",
+    "dsarCancelledBody": "A pending erasure request was cancelled before its cooling-off window elapsed."
   },
   "analytics": {
     "usage": {

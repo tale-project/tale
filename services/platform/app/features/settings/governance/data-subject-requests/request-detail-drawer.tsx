@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Skeleton } from '@tale/ui/skeleton';
-import { AlertTriangle, Clock, RefreshCcw } from 'lucide-react';
+import { AlertTriangle, Ban, Clock, RefreshCcw } from 'lucide-react';
 import { useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
@@ -11,6 +11,7 @@ import { Text } from '@/app/components/ui/typography/text';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
+import { CancelDialog } from './cancel-dialog';
 import { ExtendDeadlineDialog } from './extend-deadline-dialog';
 import { useGetErasureRequest } from './hooks/queries';
 import { LegalHoldBlockPanel } from './legal-hold-block-panel';
@@ -38,6 +39,7 @@ export function RequestDetailDrawer({
   const { data, isLoading, isError, refetch } = useGetErasureRequest(requestId);
   const [extendOpen, setExtendOpen] = useState(false);
   const [retryOpen, setRetryOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   return (
     <Sheet
@@ -64,6 +66,7 @@ export function RequestDetailDrawer({
           data={data}
           onExtend={() => setExtendOpen(true)}
           onRetry={() => setRetryOpen(true)}
+          onCancel={() => setCancelOpen(true)}
         />
       )}
       {data && (
@@ -76,6 +79,11 @@ export function RequestDetailDrawer({
           <RetryDialog
             open={retryOpen}
             onOpenChange={setRetryOpen}
+            requestId={data.request._id}
+          />
+          <CancelDialog
+            open={cancelOpen}
+            onOpenChange={setCancelOpen}
             requestId={data.request._id}
           />
         </>
@@ -124,6 +132,7 @@ interface DrawerBodyProps {
   data: NonNullable<ReturnType<typeof useGetErasureRequest>['data']>;
   onExtend: () => void;
   onRetry: () => void;
+  onCancel: () => void;
 }
 
 function DrawerBody({
@@ -131,9 +140,11 @@ function DrawerBody({
   organizationId,
   onExtend,
   onRetry,
+  onCancel,
 }: DrawerBodyProps) {
   const { t } = useT('governance');
   const { request, auditEntries } = data;
+  const now = Date.now();
   const isTerminal = request.status === 'done' || request.status === 'failed';
   // H8-5: also gate on the original deadline so a lapsed request hides
   // the Extend button (server rejects with `DEADLINE_LAPSED` per Art
@@ -141,7 +152,7 @@ function DrawerBody({
   const canExtend =
     !isTerminal &&
     request.extensionGrantedAt === undefined &&
-    request.slaDeadlineAt > Date.now();
+    request.slaDeadlineAt > now;
   const canRetry =
     request.status === 'partial' ||
     request.status === 'failed' ||
@@ -150,22 +161,37 @@ function DrawerBody({
   // gate, render the LegalHoldBlockPanel (which deep-links to the hold UI)
   // instead of the raw `errorMessage` token (`org_hold` / `user_custodian_hold`).
   const isBlocked = request.status === 'blocked';
+  const isCancelled = request.status === 'cancelled';
+  // Cooling-off window: status='pending' AND effectiveAt in the future.
+  // Any admin can cancel during this window. Past cooling-off, the
+  // server flips status to 'running' and refuses the cancel mutation.
+  const isCoolingOff =
+    request.status === 'pending' &&
+    request.effectiveAt !== undefined &&
+    request.effectiveAt > now;
 
   return (
     <div className="flex flex-col gap-5">
-      {/* H10-3: the visible <h2> here was previously redundant with
-          Sheet's sr-only DialogPrimitive.Title (different strings for
-          the same dialog). Sheet now carries `headerTitle` as both the
-          visible label and the sr-only Title. The status badges remain
-          in the body since they're sub-header content. */}
       <header className="flex flex-wrap items-center gap-2 pr-12">
-        <StatusBadge status={request.status} />
+        <StatusBadge
+          status={request.status}
+          effectiveAt={request.effectiveAt}
+        />
         <SlaCountdownBadge
           slaDeadlineAt={request.slaDeadlineAt}
           extensionDeadlineAt={request.extensionDeadlineAt}
           status={request.status}
         />
       </header>
+
+      {isCoolingOff && request.effectiveAt !== undefined && (
+        <CoolingOffBanner
+          effectiveAt={request.effectiveAt}
+          onCancel={onCancel}
+        />
+      )}
+
+      {isCancelled && <CancelledBlock data={data} />}
 
       {isBlocked && (
         <LegalHoldBlockPanel
@@ -251,6 +277,14 @@ function DrawerBody({
             value={String(request.documentsSkippedByHold)}
           />
         )}
+        <KeyValue
+          label={t('dataSubjectRequests.drawer.wfExecutionsErased')}
+          value={String(request.wfExecutionsErased ?? 0)}
+        />
+        <KeyValue
+          label={t('dataSubjectRequests.drawer.promptTemplatesErased')}
+          value={String(request.promptTemplatesErased ?? 0)}
+        />
         {(request.threadsBlockedByHold?.length ?? 0) > 0 && (
           <KeyValue
             label={t('dataSubjectRequests.drawer.threadsBlockedByHold')}
@@ -316,6 +350,10 @@ function DrawerBody({
         )}
       </Section>
 
+      {request.perCategorySnapshot && (
+        <FullBreakdown snapshot={request.perCategorySnapshot} />
+      )}
+
       <footer className="flex flex-wrap gap-2">
         {canExtend && (
           <Button
@@ -341,6 +379,157 @@ function DrawerBody({
         )}
       </footer>
     </div>
+  );
+}
+
+function CoolingOffBanner({
+  effectiveAt,
+  onCancel,
+}: {
+  effectiveAt: number;
+  onCancel: () => void;
+}) {
+  const { t } = useT('governance');
+  return (
+    <div
+      role="status"
+      className="text-foreground flex flex-col gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
+    >
+      <div className="flex items-start gap-2">
+        <Clock
+          className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300"
+          aria-hidden="true"
+        />
+        <div className="flex flex-col gap-1">
+          <Text as="span" className="font-medium">
+            {t('dataSubjectRequests.drawer.coolingOffBanner.title')}
+          </Text>
+          <Text as="span" variant="muted" className="text-xs">
+            {t('dataSubjectRequests.drawer.coolingOffBanner.description')}
+          </Text>
+          <Text as="span" variant="muted" className="text-xs">
+            <TableDateCell date={effectiveAt} />
+          </Text>
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          icon={Ban}
+          onClick={onCancel}
+        >
+          {t('dataSubjectRequests.actions.cancel')}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function CancelledBlock({
+  data,
+}: {
+  data: NonNullable<ReturnType<typeof useGetErasureRequest>['data']>;
+}) {
+  const { t } = useT('governance');
+  const { request } = data;
+  return (
+    <div
+      role="status"
+      className="border-border bg-muted/30 text-foreground flex flex-col gap-2 rounded-md border p-3 text-sm"
+    >
+      <div className="flex items-start gap-2">
+        <Ban
+          className="text-muted-foreground mt-0.5 size-4 shrink-0"
+          aria-hidden="true"
+        />
+        <div className="flex flex-1 flex-col gap-1">
+          <Text as="span" className="font-medium">
+            {t('dataSubjectRequests.drawer.cancelledBlock.title')}
+          </Text>
+          {request.cancellationReason && (
+            <Text as="span" variant="muted" className="text-xs">
+              {request.cancellationReason}
+            </Text>
+          )}
+          <Text as="span" variant="muted" className="text-xs">
+            {t('dataSubjectRequests.drawer.cancelledBlock.attribution', {
+              name: request.cancelledByName ?? request.cancelledBy ?? '',
+            })}
+          </Text>
+          {request.cancelledAt !== undefined && (
+            <Text as="span" variant="muted" className="text-xs">
+              <TableDateCell date={request.cancelledAt} />
+            </Text>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface PerCategoryEntry {
+  rows?: number;
+  skippedByHold?: number;
+  blobs?: number;
+  attempts?: number;
+  blockCounters?: number;
+}
+
+function FullBreakdown({ snapshot }: { snapshot: Record<string, unknown> }) {
+  const { t } = useT('governance');
+  // Sort entries: non-zero first, zero-value categories collapsed to a
+  // count at the bottom. Each known field uses an i18n label; unknown
+  // category names fall back to the raw key.
+  const entries = Object.entries(snapshot);
+  const visible: { key: string; rows: number; skippedByHold: number }[] = [];
+  let zeroCount = 0;
+  for (const [key, value] of entries) {
+    if (typeof value !== 'object' || value === null) continue;
+    const e = value as PerCategoryEntry;
+    // `loginAttempts` uses {attempts, blockCounters} instead of {rows};
+    // sum them as the "rows" view for the breakdown.
+    const rows =
+      typeof e.rows === 'number'
+        ? e.rows
+        : (e.attempts ?? 0) + (e.blockCounters ?? 0);
+    const skippedByHold = e.skippedByHold ?? 0;
+    if (rows === 0 && skippedByHold === 0) {
+      zeroCount++;
+    } else {
+      visible.push({ key, rows, skippedByHold });
+    }
+  }
+
+  return (
+    <details className="border-border bg-muted/20 group rounded-md border p-2 text-sm">
+      <summary className="text-foreground cursor-pointer px-1 py-1 font-medium select-none">
+        {t('dataSubjectRequests.drawer.fullBreakdownTitle')}
+      </summary>
+      <dl className="mt-2 flex flex-col gap-1 px-1">
+        {visible.map(({ key, rows, skippedByHold }) => (
+          <div key={key} className="flex justify-between gap-2 text-xs">
+            <dt className="text-muted-foreground">
+              {t(`dataSubjectRequests.categories.${key}`, key)}
+            </dt>
+            <dd>
+              {t('dataSubjectRequests.drawer.fullBreakdownEntry', {
+                rows,
+                skippedByHold,
+              })}
+            </dd>
+          </div>
+        ))}
+        {zeroCount > 0 && (
+          <Text as="span" variant="muted" className="text-xs italic">
+            {t('dataSubjectRequests.drawer.fullBreakdownNoData', {
+              count: zeroCount,
+            })}
+          </Text>
+        )}
+      </dl>
+    </details>
   );
 }
 

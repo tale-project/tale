@@ -90,7 +90,12 @@ export function RequestsListSection({
       {
         id: 'status',
         header: t('dataSubjectRequests.columns.status'),
-        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+        cell: ({ row }) => (
+          <StatusBadge
+            status={row.original.status}
+            effectiveAt={row.original.effectiveAt}
+          />
+        ),
         size: 110,
       },
       {

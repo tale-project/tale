@@ -8,6 +8,12 @@ const RequestsListSection = lazyComponent(() =>
   ),
 );
 
+const DsarPolicyEditor = lazyComponent(() =>
+  import('@/app/features/settings/governance/components/dsar-policy-editor').then(
+    (m) => ({ default: m.DsarPolicyEditor }),
+  ),
+);
+
 export const Route = createFileRoute(
   '/dashboard/$id/settings/governance/data-subject-requests',
 )({
@@ -18,9 +24,14 @@ function DataSubjectRequestsRoute() {
   const { id: organizationId } = Route.useParams();
 
   return (
-    <>
-      <RequestsListSection organizationId={organizationId} />
+    <div className="divide-border flex flex-col divide-y">
+      <div id="dsar-policy" className="pb-7">
+        <DsarPolicyEditor organizationId={organizationId} />
+      </div>
+      <div id="dsar-requests" className="pt-7">
+        <RequestsListSection organizationId={organizationId} />
+      </div>
       <Outlet />
-    </>
+    </div>
   );
 }

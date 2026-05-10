@@ -15,3 +15,16 @@ metadata
 # the UI (only inherited from the org creator), so the regex scanner can't
 # see it.
 settings.roles.owner
+
+# Notifications written by Convex mutations carry `titleKey` / `bodyKey`
+# strings stored on the row; the client looks them up under the
+# `notifications` namespace at bell-render time. Server-side string
+# literals are not visible to the client-source regex scanner.
+notifications.accountLocked
+notifications.lockoutDetails
+notifications.dsarScheduled
+notifications.dsarScheduledBody
+notifications.dsarApprovalNeeded
+notifications.dsarApprovalNeededBody
+notifications.dsarCancelled
+notifications.dsarCancelledBody

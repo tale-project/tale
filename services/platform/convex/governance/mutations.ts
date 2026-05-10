@@ -5,6 +5,7 @@ import {
   chatFilterConfigSchema,
   dataNoticeConfigSchema,
   defaultModelsConfigSchema,
+  dsarGovernanceConfigSchema,
   featureFlagsConfigSchema,
   loginPolicyConfigSchema,
   modelAccessConfigSchema,
@@ -265,6 +266,15 @@ export const upsertPolicy = mutation({
       if (!parsed.success) {
         throw new Error(
           `Invalid data classification notice configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'dsar_governance') {
+      const parsed = dsarGovernanceConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid DSAR governance configuration: ${parsed.error.message}`,
         );
       }
     }

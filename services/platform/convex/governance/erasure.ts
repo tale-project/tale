@@ -58,20 +58,26 @@ import {
   internalMutation,
   mutation,
 } from '../_generated/server';
+import * as ApprovalsHelpers from '../approvals/helpers';
 import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
 import { hashEmailForAudit } from '../lib/helpers/pii_hash';
 import { ragFetch } from '../lib/helpers/rag_config';
+import { rateLimiter } from '../lib/rate_limiter';
 import { UnauthorizedError } from '../lib/rls/errors';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { writeNotificationForOrgs } from '../notifications/helpers';
 import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
+import { getDsarPolicy } from './dsar_policy';
 import { eraseDocumentBlobs } from './erase_document_blobs';
 import {
   ERASURE_REASON_CODES,
   ERASURE_WATCHDOG_TIMEOUT_MESSAGE,
 } from './erasure_constants';
 import { loadActiveHolds } from './legal_hold';
+
+const HOUR_MS = 60 * 60 * 1000;
 
 const SLA_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -183,6 +189,63 @@ export const requestErasure = mutation({
       throw new ConvexError({
         code: 'validation',
         message: 'reason is required for GDPR erasure requests.',
+      });
+    }
+
+    // Self-deletion guard: an admin must NOT erase themselves. Erasure
+    // includes a PII scrub of the actor's audit trail; if a malicious
+    // (or compromised) admin could file against their own userId, they
+    // could use it to wipe the audit evidence of any action they took.
+    // Force "another admin must do it" — keeps the receipt and the
+    // scrub attributable to a third party.
+    if (args.userId === callerId) {
+      await createAuditLog(ctx, {
+        organizationId: args.organizationId,
+        actorId: callerId,
+        actorEmail: authUser.email ?? '',
+        actorType: 'user',
+        action: 'gdpr_erasure_denied',
+        category: 'admin',
+        resourceType: 'user',
+        resourceId: args.userId,
+        status: 'denied',
+        errorMessage: 'self_deletion_forbidden',
+      });
+      throw new ConvexError({
+        code: 'forbidden',
+        message:
+          'You cannot file an erasure request against yourself. Ask another admin to file it on your behalf.',
+      });
+    }
+
+    // Per-admin daily filing rate limit. Caps blast radius from a
+    // compromised admin credential or scripted abuse. Default 5/day
+    // (platform-level floor); per-org `dsar_governance.dailyLimitPerAdmin`
+    // is a softer cap enforced via the receipt query (TODO: hook it in
+    // here once we have a per-org rate-limit primitive).
+    const rl = await rateLimiter.limit(ctx, 'governance:dsar_request', {
+      key: `${args.organizationId}:${callerId}`,
+      throws: false,
+    });
+    if (!rl.ok) {
+      await createAuditLog(ctx, {
+        organizationId: args.organizationId,
+        actorId: callerId,
+        actorEmail: authUser.email ?? '',
+        actorType: 'user',
+        action: 'gdpr_erasure_denied',
+        category: 'admin',
+        resourceType: 'user',
+        resourceId: args.userId,
+        status: 'denied',
+        errorMessage: 'rate_limited',
+        metadata: { retryAfterMs: rl.retryAfter },
+      });
+      throw new ConvexError({
+        code: 'rate_limited',
+        message:
+          'You have reached the daily erasure-request limit for your account. Try again later.',
+        retryAfterMs: rl.retryAfter,
       });
     }
 
@@ -388,6 +451,74 @@ export const requestErasure = mutation({
       });
     }
 
+    // Read per-org DSAR governance policy. Defaults to 24h cooling-off,
+    // no dual approval. Both knobs gate `requestErasure` here.
+    const dsarPolicy = await getDsarPolicy(ctx, args.organizationId);
+    const coolingOffMs = dsarPolicy.coolingOffHours * HOUR_MS;
+
+    if (dsarPolicy.requireDualApproval) {
+      // Dual-approval path: file the row + create an `approvals` row;
+      // do NOT schedule the processor. A second admin (≠ filer) must
+      // approve the row in the Approvals UI; their approval triggers
+      // `confirmAndScheduleErasure` which sets `effectiveAt` and
+      // schedules the processor for the cooling-off window.
+      await ApprovalsHelpers.createApproval(ctx, {
+        organizationId: args.organizationId,
+        resourceType: 'erasure',
+        resourceId: requestId,
+        priority: 'high',
+        metadata: {
+          subjectUserId: args.userId,
+          requestedBy: callerId,
+          reason: args.reason.trim(),
+          reasonCode: args.reasonCode,
+          threadsTargetedCount: threadIds.length,
+        },
+      });
+      await writeNotificationForOrgs(ctx, {
+        organizationIds: [args.organizationId],
+        category: 'security',
+        severity: 'warning',
+        titleKey: 'dsarApprovalNeeded',
+        bodyKey: 'dsarApprovalNeededBody',
+        params: {
+          subjectUserId: args.userId,
+          requestedBy: callerId,
+          requestId,
+        },
+        subjectUserId: args.userId,
+      });
+    } else {
+      // Default cooling-off path: row stays `pending` until
+      // `effectiveAt`. `beginProcessing` refuses to start before then,
+      // and any admin can `cancelErasureRequest` within the window.
+      const effectiveAt = now + coolingOffMs;
+      const scheduledJobId = await ctx.scheduler.runAfter(
+        coolingOffMs,
+        internal.governance.erasure.processErasureRequest,
+        { requestId },
+      );
+      await ctx.db.patch(requestId, {
+        effectiveAt,
+        scheduledJobId,
+      });
+      await writeNotificationForOrgs(ctx, {
+        organizationIds: [args.organizationId],
+        category: 'security',
+        severity: 'warning',
+        titleKey: 'dsarScheduled',
+        bodyKey: 'dsarScheduledBody',
+        params: {
+          subjectUserId: args.userId,
+          requestedBy: callerId,
+          requestId,
+          coolingOffHours: dsarPolicy.coolingOffHours,
+          effectiveAt,
+        },
+        subjectUserId: args.userId,
+      });
+    }
+
     await createAuditLog(ctx, {
       organizationId: args.organizationId,
       actorId: callerId,
@@ -405,15 +536,10 @@ export const requestErasure = mutation({
         reasonCode: args.reasonCode,
         threadsTargeted: threadIds.length,
         slaDeadlineAt: now + SLA_DAYS * DAY_MS,
+        coolingOffHours: dsarPolicy.coolingOffHours,
+        requireDualApproval: dsarPolicy.requireDualApproval,
       },
     });
-
-    // Hand off to the Node action so it can call the RAG service.
-    await ctx.scheduler.runAfter(
-      0,
-      internal.governance.erasure.processErasureRequest,
-      { requestId },
-    );
 
     return { requestId, threadsTargeted: threadIds.length };
   },
@@ -444,6 +570,14 @@ export const beginProcessing = internalMutation({
     // operator releases hold + Retry), 'done', or 'failed'. Whitelist
     // — fail-closed for any future status — instead of blacklist.
     if (row.status !== 'pending' && row.status !== 'partial') return null;
+    // Cooling-off guard: refuse to start before `effectiveAt`. Defends
+    // against a stray scheduler call (e.g. retry after watchdog reset)
+    // pulling the action up early. Also makes the "during cooling-off
+    // status is `pending`" invariant strict — `running` only ever means
+    // cascade is actively executing.
+    if (row.effectiveAt !== undefined && row.effectiveAt > Date.now()) {
+      return null;
+    }
     await ctx.db.patch(args.requestId, {
       status: 'running',
       startedAt: Date.now(),
@@ -564,6 +698,7 @@ export const finalizeProcessing = internalMutation({
             ? args.documentsSkippedByHold
             : undefined,
         lateFinalizeAt: Date.now(),
+        perCategorySnapshot: args.perCategory ?? undefined,
       });
       await createAuditLog(ctx, {
         organizationId: row.organizationId,
@@ -638,6 +773,12 @@ export const finalizeProcessing = internalMutation({
         documentsSkippedByHold > 0 ? documentsSkippedByHold : undefined,
       errorMessage: args.errorMessage,
       completedAt: Date.now(),
+      // Self-contained snapshot of all 13 categories' rows / skipped
+      // counts, written so the receipt is queryable without joining
+      // the audit log. Audit log still carries the same payload via
+      // `gdpr_erasure_executed.newState.perCategory` (redundant, but
+      // future-proof against a regulator-only audit-log scrub).
+      perCategorySnapshot: perCategory ?? undefined,
     });
 
     // Release the per-subject claim only on terminal `done`. Partial /
@@ -1778,6 +1919,200 @@ export const recoverStuckErasureRequests = internalMutation({
 });
 
 /**
+ * Cancel a `'pending'` erasure request while it is still inside the
+ * cooling-off window. Any org admin (including the original filer)
+ * may call this to abort. Cascade does NOT run — the receipt row
+ * stays as durable evidence with `status='cancelled'`,
+ * `cancellationReason`, and the actor recorded.
+ *
+ * Refusal cases:
+ *   - row not found
+ *   - status is not `pending` (anything past cooling-off has already
+ *     been picked up by the processor or hit a terminal state)
+ *   - `effectiveAt <= now` (cooling-off has elapsed; no longer
+ *     cancellable; would race the processor)
+ *   - reason < 10 chars (matches the original filing-reason floor)
+ */
+export const cancelErasureRequest = mutation({
+  args: {
+    requestId: v.id('gdprErasureRequests'),
+    cancellationReason: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'unauthenticated',
+        message: 'Sign in required.',
+      });
+    }
+    const callerId = String(authUser._id);
+
+    const row = await ctx.db.get(args.requestId);
+    if (!row) {
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'Erasure request does not exist.',
+      });
+    }
+
+    const member = await getOrganizationMember(ctx, row.organizationId, {
+      userId: callerId,
+      email: authUser.email ?? '',
+      name: authUser.name,
+    });
+    if (!isAdmin(member.role)) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only org admins can cancel erasure requests.',
+      });
+    }
+
+    if (row.status !== 'pending') {
+      throw new ConvexError({
+        code: 'NOT_CANCELLABLE',
+        message: `Only pending requests in the cooling-off window can be cancelled (status=${row.status}).`,
+      });
+    }
+    const now = Date.now();
+    if (row.effectiveAt === undefined || row.effectiveAt <= now) {
+      throw new ConvexError({
+        code: 'cannotCancelAfterCooldown',
+        message:
+          'The cooling-off window has elapsed; the processor has already been dispatched. Use Retry on the resulting receipt instead.',
+      });
+    }
+
+    const reason = args.cancellationReason.trim();
+    if (reason.length < 10) {
+      throw new ConvexError({
+        code: 'validation',
+        message: 'cancellationReason must be at least 10 characters.',
+      });
+    }
+
+    // Cancel the deferred processor job (if it was scheduled — dual-
+    // approval path defers scheduling, so `scheduledJobId` may be
+    // undefined). `ctx.scheduler.cancel` is a no-op if the job already
+    // ran or was already cancelled, so it is safe to call.
+    if (row.scheduledJobId) {
+      await ctx.scheduler.cancel(row.scheduledJobId);
+    }
+
+    await ctx.db.patch(args.requestId, {
+      status: 'cancelled',
+      cancelledAt: now,
+      cancelledBy: callerId,
+      cancellationReason: reason,
+      completedAt: now,
+    });
+
+    // Release the per-subject claim so a future `requestErasure` for
+    // this subject can proceed.
+    await clearErasureClaimByRow(ctx, args.requestId);
+
+    await writeNotificationForOrgs(ctx, {
+      organizationIds: [row.organizationId],
+      category: 'security',
+      severity: 'warning',
+      titleKey: 'dsarCancelled',
+      bodyKey: 'dsarCancelledBody',
+      params: {
+        subjectUserId: row.targetUserId,
+        cancelledBy: callerId,
+        cancellationReason: reason,
+        requestId: args.requestId,
+      },
+      subjectUserId: row.targetUserId,
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: row.organizationId,
+      actorId: callerId,
+      actorEmail: authUser.email ?? '',
+      actorType: 'user',
+      action: 'gdpr_erasure_cancelled',
+      category: 'admin',
+      resourceType: 'user',
+      resourceId: row.targetUserId,
+      resourceName: row.targetUserId,
+      status: 'success',
+      previousState: { status: row.status, effectiveAt: row.effectiveAt },
+      newState: {
+        status: 'cancelled',
+        cancellationReason: reason,
+        requestId: args.requestId,
+      },
+    });
+
+    return null;
+  },
+});
+
+/**
+ * Internal mutation invoked by `approvals.updateApprovalStatus` when an
+ * `erasure` approval is approved (`status: 'executing'`). Sets
+ * `effectiveAt` and schedules the processor for the cooling-off
+ * window. Refuses when `approverId === requestedBy` (filer ≠
+ * approver) — defense-in-depth above the approvals UI gate.
+ */
+export const confirmAndScheduleErasure = internalMutation({
+  args: {
+    requestId: v.id('gdprErasureRequests'),
+    approverId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const row = await ctx.db.get(args.requestId);
+    if (!row) return null;
+    if (row.status !== 'pending' || row.effectiveAt !== undefined) {
+      // Already scheduled or no longer pending — no-op.
+      return null;
+    }
+    if (args.approverId === row.requestedBy) {
+      throw new ConvexError({
+        code: 'dualApprovalRequired',
+        message:
+          'The filer of an erasure request cannot also approve it. Ask another admin.',
+      });
+    }
+
+    const dsarPolicy = await getDsarPolicy(ctx, row.organizationId);
+    const coolingOffMs = dsarPolicy.coolingOffHours * HOUR_MS;
+    const effectiveAt = Date.now() + coolingOffMs;
+    const scheduledJobId = await ctx.scheduler.runAfter(
+      coolingOffMs,
+      internal.governance.erasure.processErasureRequest,
+      { requestId: args.requestId },
+    );
+    await ctx.db.patch(args.requestId, {
+      effectiveAt,
+      scheduledJobId,
+    });
+
+    await writeNotificationForOrgs(ctx, {
+      organizationIds: [row.organizationId],
+      category: 'security',
+      severity: 'warning',
+      titleKey: 'dsarScheduled',
+      bodyKey: 'dsarScheduledBody',
+      params: {
+        subjectUserId: row.targetUserId,
+        requestedBy: row.requestedBy,
+        approverId: args.approverId,
+        requestId: args.requestId,
+        coolingOffHours: dsarPolicy.coolingOffHours,
+        effectiveAt,
+      },
+      subjectUserId: row.targetUserId,
+    });
+
+    return null;
+  },
+});
+
+/**
  * Admin-only retry for `'failed'` or `'blocked'` erasure requests. The
  * mutation flips the row back to `'pending'` and re-schedules the
  * processor. The hold gate re-runs at processor start (covers a hold
@@ -1816,6 +2151,18 @@ export const retryErasureRequest = mutation({
       });
     }
 
+    // Self-deletion guard: same rationale as `requestErasure`. Even on
+    // retry, the subject must not be the caller — otherwise an admin
+    // could file (forbidden), wait for someone else to file against
+    // them, then retry-self once that landed in failed/partial, etc.
+    if (row.targetUserId === callerId) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message:
+          'You cannot retry an erasure request against yourself. Ask another admin to retry it.',
+      });
+    }
+
     // `partial` is a re-runnable terminal state (some categories
     // skipped due to mid-flight hold; cascade hit page budget). Without
     // including it here, partial runs were unrecoverable from the UI —
@@ -1834,6 +2181,13 @@ export const retryErasureRequest = mutation({
       });
     }
 
+    // Retry goes through the same cooling-off window as the initial
+    // file, so an admin who clicks Retry by accident has the same
+    // recovery window. Read the per-org policy here too.
+    const dsarPolicy = await getDsarPolicy(ctx, row.organizationId);
+    const coolingOffMs = dsarPolicy.coolingOffHours * HOUR_MS;
+    const effectiveAt = Date.now() + coolingOffMs;
+
     await ctx.db.patch(args.requestId, {
       status: 'pending',
       errorMessage: undefined,
@@ -1841,6 +2195,9 @@ export const retryErasureRequest = mutation({
       documentsBlockedByHold: undefined,
       startedAt: undefined,
       completedAt: undefined,
+      effectiveAt,
+      // scheduledJobId is set below after `ctx.scheduler.runAfter`.
+      scheduledJobId: undefined,
     });
 
     // Re-acquire the per-subject claim. It was cleared by:
@@ -1887,11 +2244,28 @@ export const retryErasureRequest = mutation({
       });
     }
 
-    await ctx.scheduler.runAfter(
-      0,
+    const scheduledJobId = await ctx.scheduler.runAfter(
+      coolingOffMs,
       internal.governance.erasure.processErasureRequest,
       { requestId: args.requestId },
     );
+    await ctx.db.patch(args.requestId, { scheduledJobId });
+
+    await writeNotificationForOrgs(ctx, {
+      organizationIds: [row.organizationId],
+      category: 'security',
+      severity: 'warning',
+      titleKey: 'dsarScheduled',
+      bodyKey: 'dsarScheduledBody',
+      params: {
+        subjectUserId: row.targetUserId,
+        requestedBy: callerId,
+        requestId: args.requestId,
+        coolingOffHours: dsarPolicy.coolingOffHours,
+        effectiveAt,
+      },
+      subjectUserId: row.targetUserId,
+    });
 
     await createAuditLog(ctx, {
       organizationId: row.organizationId,
@@ -1905,7 +2279,12 @@ export const retryErasureRequest = mutation({
       resourceName: row.targetUserId,
       status: 'success',
       previousState: { status: row.status },
-      newState: { status: 'pending', requestId: args.requestId },
+      newState: {
+        status: 'pending',
+        requestId: args.requestId,
+        effectiveAt,
+        coolingOffHours: dsarPolicy.coolingOffHours,
+      },
     });
 
     return null;
