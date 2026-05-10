@@ -12,11 +12,18 @@ on:
     paths:
       - 'services/**'
       - 'packages/**'
+      - 'docs/**'
+      - 'patches/**'
       - '.github/workflows/build.yml'
       - '.github/actions/setup-turbo/**'
       - 'compose.yml'
       - 'compose.test.yml'
       - 'tests/container-*'
+      - '.env.test'
+      - 'bunfig.toml'
+      - 'tsconfig.base.json'
+      - 'turbo.json'
+      - '.dockerignore'
       - 'package.json'
       - 'bun.lock'
   push:
@@ -25,11 +32,18 @@ on:
     paths:
       - 'services/**'
       - 'packages/**'
+      - 'docs/**'
+      - 'patches/**'
       - '.github/workflows/build.yml'
       - '.github/actions/setup-turbo/**'
       - 'compose.yml'
       - 'compose.test.yml'
       - 'tests/container-*'
+      - '.env.test'
+      - 'bunfig.toml'
+      - 'tsconfig.base.json'
+      - 'turbo.json'
+      - '.dockerignore'
       - 'package.json'
       - 'bun.lock'
   merge_group:
@@ -225,6 +239,8 @@ jobs:
           push: ${{ steps.pushmode.outputs.push }}
           load: ${{ steps.pushmode.outputs.load }}
           tags: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
+          build-args: |
+            VERSION=${{ needs.changes.outputs.image_tag }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
           labels: |
