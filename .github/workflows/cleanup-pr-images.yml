@@ -1,0 +1,119 @@
+name: Cleanup PR images
+
+# When a PR closes (merged or otherwise), delete every GHCR container version
+# whose tag begins with `pr-{number}-sha-`. The `build` job in build.yml pushes
+# one such tag per push to a PR, so they accumulate fast without cleanup.
+#
+# Tags from main / merge_group runs use the `sha-…` prefix and are NOT deleted
+# here; manage their lifecycle separately if needed.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  packages: write
+
+concurrency:
+  group: cleanup-pr-images-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  delete:
+    name: Delete ${{ matrix.service }} PR tags
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        # Compose-stack services. Keep in sync with build.yml (build matrix +
+        # smoke/validate pull loops).
+        service: [db, convex, crawler, rag, platform, proxy]
+
+    steps:
+      - name: Delete PR-tagged versions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          SVC: ${{ matrix.service }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          # GHCR package names URL-encode the slash: `tale/tale-{svc}` → `tale%2Ftale-{svc}`.
+          PACKAGE="tale%2Ftale-${SVC}"
+          PREFIX="pr-${PR}-sha-"
+
+          echo "Looking up versions of ${OWNER}/${PACKAGE} tagged ${PREFIX}*"
+
+          # Retry the listing call up to 3 times for transient 5xx / network blips.
+          # Real auth errors (403/404) fail fast on the final attempt and surface
+          # as a step failure rather than being silently swallowed.
+          #
+          # NOTE: build.yml currently sets `platforms: linux/amd64` and
+          # `provenance: false`, so each tag corresponds to exactly one OCI
+          # image manifest with no untagged children. If build.yml ever
+          # switches to multi-arch or re-enables provenance attestations,
+          # this filter will leak untagged child manifest versions; extend
+          # with a second pass over `metadata.container.tags == []`.
+          VERSION_IDS=""
+          for attempt in 1 2 3; do
+            if VERSION_IDS=$(gh api -H "Accept: application/vnd.github+json" \
+              "/orgs/${OWNER}/packages/container/${PACKAGE}/versions" \
+              --paginate \
+              --jq "[.[] | select(any(.metadata.container.tags[]?; startswith(\"${PREFIX}\"))) | .id] | .[]"); then
+              break
+            fi
+            if [ "${attempt}" -lt 3 ]; then
+              echo "List attempt ${attempt} failed, retrying after $((attempt * 2))s..."
+              sleep $((attempt * 2))
+            else
+              echo "::error::Failed to list versions of ${PACKAGE} after 3 attempts"
+              exit 1
+            fi
+          done
+
+          if [ -z "${VERSION_IDS}" ]; then
+            echo "No matching versions found for tale-${SVC}."
+            {
+              echo "## Cleanup tale-${SVC}"
+              echo ""
+              echo "No \`${PREFIX}*\` versions found — nothing to delete."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          deleted=0
+          already_gone=0
+          failures=0
+          err_log=$(mktemp)
+          # Distinguish 404 ("already gone" — expected on close-mid-build races
+          # or duplicate cleanup runs) from 403/5xx (real failures we should
+          # report). gh-api writes "gh: HTTP <code>: ..." to stderr on error.
+          while read -r version_id; do
+            [ -z "${version_id}" ] && continue
+            echo "Deleting version ${version_id}..."
+            if gh api -X DELETE \
+                "/orgs/${OWNER}/packages/container/${PACKAGE}/versions/${version_id}" \
+                --silent 2>"${err_log}"; then
+              deleted=$((deleted + 1))
+            elif grep -q "HTTP 404" "${err_log}"; then
+              already_gone=$((already_gone + 1))
+            else
+              echo "::warning::Delete ${version_id} failed: $(cat "${err_log}")"
+              failures=$((failures + 1))
+            fi
+          done <<< "${VERSION_IDS}"
+          rm -f "${err_log}"
+
+          {
+            echo "## Cleanup tale-${SVC}"
+            echo ""
+            echo "- Deleted: ${deleted}"
+            echo "- Already gone (404): ${already_gone}"
+            echo "- Failures: ${failures}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${failures}" -gt 0 ]; then
+            echo "::error::${failures} deletion(s) failed for tale-${SVC}"
+            exit 1
+          fi

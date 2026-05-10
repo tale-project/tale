@@ -1,5 +1,10 @@
 name: Build
 
+# Jobs use the default actions/checkout (fetch-depth: 1). If a Dockerfile
+# starts to need git history (e.g. `git describe --tags`), bump fetch-depth
+# on that job's checkout AND pass the version/ref via build-args from the
+# workflow rather than reading `.git` from inside the build context.
+
 on:
   pull_request:
     branches:
@@ -7,11 +12,18 @@ on:
     paths:
       - 'services/**'
       - 'packages/**'
+      - 'docs/**'
+      - 'patches/**'
       - '.github/workflows/build.yml'
       - '.github/actions/setup-turbo/**'
       - 'compose.yml'
       - 'compose.test.yml'
       - 'tests/container-*'
+      - '.env.test'
+      - 'bunfig.toml'
+      - 'tsconfig.base.json'
+      - 'turbo.json'
+      - '.dockerignore'
       - 'package.json'
       - 'bun.lock'
   push:
@@ -20,11 +32,18 @@ on:
     paths:
       - 'services/**'
       - 'packages/**'
+      - 'docs/**'
+      - 'patches/**'
       - '.github/workflows/build.yml'
       - '.github/actions/setup-turbo/**'
       - 'compose.yml'
       - 'compose.test.yml'
       - 'tests/container-*'
+      - '.env.test'
+      - 'bunfig.toml'
+      - 'tsconfig.base.json'
+      - 'turbo.json'
+      - '.dockerignore'
       - 'package.json'
       - 'bun.lock'
   merge_group:
@@ -34,9 +53,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  TURBO_API: 'http://127.0.0.1:9080'
-  TURBO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  TURBO_TEAM: 'tale'
+  REGISTRY: ghcr.io
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -51,7 +68,10 @@ jobs:
       pull-requests: read
     outputs:
       services: ${{ steps.services.outputs.list }}
+      scannable_services: ${{ steps.services.outputs.scannable }}
       ci_tests: ${{ steps.filter.outputs.ci_tests }}
+      storybook: ${{ steps.filter.outputs.storybook }}
+      image_tag: ${{ steps.tag.outputs.value }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -82,43 +102,123 @@ jobs:
               - 'docs/**'
               - 'packages/webui/**'
               - 'packages/ui/**'
+            storybook:
+              - 'services/platform/**'
+              - 'packages/ui/**'
+              - 'packages/webui/**'
             ci_tests:
               - 'tests/container-*'
               - 'compose.test.yml'
               - 'compose.yml'
               - '.env.test'
               - '.github/workflows/build.yml'
-              - 'services/**'
+              - 'services/db/**'
+              - 'services/convex/**'
+              - 'services/crawler/**'
+              - 'services/rag/**'
+              - 'services/platform/**'
+              - 'services/proxy/**'
 
       - name: Compute service matrix
         id: services
         run: |
-          SERVICES=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "ci_tests")]')
+          # Strip pseudo-filters that aren't real services from the matrix list.
+          SERVICES=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "ci_tests" and . != "storybook")]')
           echo "list=${SERVICES}" >> "$GITHUB_OUTPUT"
           echo "Services to build: ${SERVICES}"
 
+          # Vulnerability scan only covers the six compose-stack services that
+          # `build` actually pushes to GHCR. Web and docs use their own compose
+          # stacks and are reachable via security.yml's filesystem scan.
+          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "convex" or . == "crawler" or . == "rag" or . == "platform" or . == "proxy")]')
+          echo "scannable=${SCANNABLE}" >> "$GITHUB_OUTPUT"
+          echo "Services to scan: ${SCANNABLE}"
+
+      # CI image tag shared across build/smoke/validate/scan jobs. PR runs use
+      # `pr-{n}-sha-{shortsha}` so each push gets a unique, immutable tag that
+      # cleanup-pr-images.yml can wipe by prefix when the PR closes. Pushes to
+      # main and merge-queue runs lack a PR number and fall back to `sha-…`.
+      - name: Compute image tag
+        id: tag
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            echo "value=pr-${{ github.event.pull_request.number }}-sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+
   # ---------------------------------------------------------------------------
-  # Build each changed service's Docker image. Draft PRs skip to save minutes.
+  # Build each compose-stack service's Docker image and push to GHCR.
+  #
+  # Matrix is intentionally fixed (not driven by `changes.outputs.services`):
+  # smoke-test and image-validate need ALL six services available, so building
+  # only changed ones would force them back into local-build mode. Unchanged
+  # services hit the GHA layer cache and finish in seconds.
+  #
+  # Web/docs are NOT in this matrix — they have their own compose stacks and
+  # are exercised by the separate web-test / docs-test jobs below.
+  #
+  # Fork PRs cannot push to the upstream GHCR (read-only GITHUB_TOKEN), so
+  # this job switches to local build (`push: false`, `load: true`). The
+  # smoke-test-fork / image-validate-fork jobs cover that path with the
+  # OLD-style local-build smoke pipeline.
+  #
+  # Draft PRs skip to save minutes.
   # ---------------------------------------------------------------------------
   build:
     name: Build ${{ matrix.service }}
     needs: changes
-    if: needs.changes.outputs.services != '[]' && github.event.pull_request.draft != true
+    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
-        service: ${{ fromJson(needs.changes.outputs.services) }}
+        # Compose-stack services. Keep in sync with build.yml (smoke/validate
+        # pull loops) and cleanup-pr-images.yml matrix.
+        service: [db, convex, crawler, rag, platform, proxy]
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      - name: Reclaim disk space
+        if: matrix.service == 'platform' || matrix.service == 'rag' || matrix.service == 'crawler' || matrix.service == 'convex'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af
+
+      # Fork PRs get a read-only GITHUB_TOKEN regardless of `permissions:`,
+      # so we can't push to GHCR. Switch to local build (load into runner's
+      # Docker) on forks; the smoke-test-fork / image-validate-fork jobs
+      # then exercise the resulting images via SKIP_BUILD=true on the same
+      # runner. Same-repo PRs and pushes use push: true → GHCR as before.
+      - name: Set push mode
+        id: pushmode
+        run: |
+          if [ "${{ github.event.pull_request.head.repo.fork }}" = "true" ]; then
+            echo "push=false" >> "$GITHUB_OUTPUT"
+            echo "load=true"  >> "$GITHUB_OUTPUT"
+            echo "Fork PR detected — building locally (push=false, load=true)"
+          else
+            echo "push=true"  >> "$GITHUB_OUTPUT"
+            echo "load=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Login to GHCR
+        if: steps.pushmode.outputs.push == 'true'
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Resolve build metadata
         id: meta
@@ -126,31 +226,65 @@ jobs:
           echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
           echo "revision=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
-      - name: Build image
+      # `provenance: false` avoids GHCR's "unknown/unknown" attestation manifest
+      # for single-platform images (docker/build-push-action#820). The cleanup
+      # workflow's tag-prefix filter assumes single-manifest tags — re-enabling
+      # provenance would require widening that filter (see N2 in cleanup file).
+      - name: Build and push
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
           file: services/${{ matrix.service }}/Dockerfile
           platforms: linux/amd64
-          push: false
+          push: ${{ steps.pushmode.outputs.push }}
+          load: ${{ steps.pushmode.outputs.load }}
+          tags: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
+          build-args: |
+            VERSION=${{ needs.changes.outputs.image_tag }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
           labels: |
             org.opencontainers.image.created=${{ steps.meta.outputs.created }}
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          provenance: false
 
       - name: Summary
-        run: echo "## Built tale-${{ matrix.service }}" >> "$GITHUB_STEP_SUMMARY"
+        if: success()
+        run: |
+          {
+            echo "## Built tale-${{ matrix.service }}"
+            echo ""
+            if [ "${{ steps.pushmode.outputs.push }}" = "true" ]; then
+              echo "Pushed: \`${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}\`"
+            else
+              echo "Loaded locally (fork PR): \`${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Failure summary
+        if: failure()
+        run: |
+          {
+            echo "## ❌ Build failed for tale-${{ matrix.service }}"
+            echo ""
+            echo "Attempted tag: \`${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}\`"
+            echo "Push mode: \`${{ steps.pushmode.outputs.push }}\` / Load: \`${{ steps.pushmode.outputs.load }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Run container smoke tests via docker compose. Draft PRs skip.
+  # Run container smoke tests via docker compose. Pulls images built by the
+  # `build` job from GHCR instead of rebuilding locally.
+  # Skipped for fork PRs (smoke-test-fork covers that path). Draft PRs skip.
   # ---------------------------------------------------------------------------
   smoke-test:
     name: Smoke test
-    needs: changes
-    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true
+    needs: [changes, build]
+    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read
     timeout-minutes: 20
 
     steps:
@@ -169,7 +303,95 @@ jobs:
           df -h /
           free -h
 
+      - name: Login to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Pull each service image from GHCR and re-tag locally as `:latest`.
+      # compose.yml resolves `${VERSION:-latest}`; with PULL_POLICY=never the
+      # smoke script will use these local images verbatim and skip its own
+      # `docker compose build` step.
+      - name: Pull images from GHCR
+        run: |
+          # Compose-stack services. Keep in sync with build.yml (build matrix)
+          # and cleanup-pr-images.yml matrix.
+          TAG="${{ needs.changes.outputs.image_tag }}"
+          REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
+          for svc in db convex crawler rag platform proxy; do
+            IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
+            echo "Pulling ${IMAGE}..."
+            docker pull "${IMAGE}"
+            docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
+          done
+
       - name: Run smoke tests
+        run: bash tests/container-smoke-test.sh
+        env:
+          SMOKE_TEST_TIMEOUT: 300
+          SKIP_BUILD: 'true'
+          PULL_POLICY: never
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          cd "${{ github.workspace }}"
+          {
+            echo "## Container Logs (on failure)"
+            echo ""
+            echo "<details><summary>compose logs (last 300 lines per service)</summary>"
+            echo ""
+            echo '```'
+            docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-test logs --tail=300 2>&1 || true
+            echo '```'
+            echo ""
+            echo "</details>"
+            echo ""
+            echo "<details><summary>compose ps -a</summary>"
+            echo ""
+            echo '```'
+            docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-test ps -a 2>&1 || true
+            echo '```'
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summary
+        if: always()
+        run: echo "## Smoke tests complete" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Fork-PR smoke test fallback: builds locally (no GHCR push) since fork
+  # GITHUB_TOKEN is read-only. Mirrors the pre-refactor workflow shape.
+  # ---------------------------------------------------------------------------
+  smoke-test-fork:
+    name: Smoke test (fork PR)
+    needs: changes
+    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Reclaim disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af
+
+      - name: Log Docker environment
+        run: |
+          docker version
+          docker compose version
+          df -h /
+          free -h
+
+      - name: Run smoke tests (local build)
         run: bash tests/container-smoke-test.sh
         env:
           SMOKE_TEST_TIMEOUT: 300
@@ -177,14 +399,30 @@ jobs:
       - name: Dump container logs on failure
         if: failure()
         run: |
-          echo "## Container Logs (on failure)" >> "$GITHUB_STEP_SUMMARY"
           cd "${{ github.workspace }}"
-          docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-test logs --tail=100 2>&1 || true
-          docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-test ps -a 2>&1 || true
+          {
+            echo "## Container Logs (on failure, fork PR)"
+            echo ""
+            echo "<details><summary>compose logs (last 300 lines per service)</summary>"
+            echo ""
+            echo '```'
+            docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-test logs --tail=300 2>&1 || true
+            echo '```'
+            echo ""
+            echo "</details>"
+            echo ""
+            echo "<details><summary>compose ps -a</summary>"
+            echo ""
+            echo '```'
+            docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-test ps -a 2>&1 || true
+            echo '```'
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summary
         if: always()
-        run: echo "## Smoke tests complete" >> "$GITHUB_STEP_SUMMARY"
+        run: echo "## Smoke tests (fork PR) complete" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
   # Standalone container tests for static sites. Each runs in its own compose
@@ -197,7 +435,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 15
+    timeout-minutes: 8
 
     steps:
       - name: Checkout
@@ -222,7 +460,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 15
+    timeout-minutes: 8
 
     steps:
       - name: Checkout
@@ -241,15 +479,18 @@ jobs:
         run: echo "## tale-docs container test complete" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Validate container image metadata, healthchecks, entrypoints. Draft PRs skip.
+  # Validate container image metadata, healthchecks, entrypoints. Pulls images
+  # built by the `build` job from GHCR.
+  # Skipped for fork PRs (image-validate-fork covers that). Draft PRs skip.
   # ---------------------------------------------------------------------------
   image-validate:
     name: Validate images
-    needs: changes
-    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true
+    needs: [changes, build]
+    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read
     timeout-minutes: 15
 
     steps:
@@ -261,83 +502,150 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune -af
 
+      - name: Login to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull images from GHCR
+        run: |
+          # Compose-stack services. Keep in sync with build.yml (build matrix)
+          # and cleanup-pr-images.yml matrix.
+          TAG="${{ needs.changes.outputs.image_tag }}"
+          REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
+          for svc in db convex crawler rag platform proxy; do
+            IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
+            echo "Pulling ${IMAGE}..."
+            docker pull "${IMAGE}"
+            docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
+          done
+
       - name: Run image validation
         run: bash tests/container-image-test.sh
+        env:
+          SKIP_BUILD: 'true'
+          PULL_POLICY: never
 
       - name: Summary
         if: always()
         run: echo "## Image validation complete" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Trivy vulnerability scan per changed service (non-blocking).
-  # Push-to-main only — PRs rely on security.yml scheduled scans.
+  # Fork-PR image-validate fallback: builds locally (no GHCR pull).
   # ---------------------------------------------------------------------------
-  vulnerability-scan:
-    name: Scan ${{ matrix.service }}
+  image-validate-fork:
+    name: Validate images (fork PR)
     needs: changes
-    if: github.event_name == 'push' && needs.changes.outputs.services != '[]'
+    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
-    continue-on-error: true
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        service: ${{ fromJson(needs.changes.outputs.services) }}
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Setup Docker builder
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - name: Reclaim disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af
 
-      - name: Build image for scan
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+      - name: Run image validation (local build)
+        run: bash tests/container-image-test.sh
+
+      - name: Summary
+        if: always()
+        run: echo "## Image validation (fork PR) complete" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Trivy vulnerability scan per changed service (non-blocking).
+  # Push-to-main only — PRs rely on security.yml's filesystem scan only.
+  # NOTE: PRs do NOT run image-level CVE scans; web/docs Dockerfiles are not
+  # image-scanned anywhere on CI today (release.yml builds them but doesn't
+  # scan). Track adding image scans to web/docs as a follow-up.
+  # Reuses the image built and pushed by the `build` job instead of rebuilding.
+  # ---------------------------------------------------------------------------
+  vulnerability-scan:
+    name: Scan ${{ matrix.service }}
+    needs: [changes, build]
+    if: github.event_name == 'push' && needs.changes.outputs.scannable_services != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+    continue-on-error: true
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.changes.outputs.scannable_services) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Login to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
-          context: .
-          file: services/${{ matrix.service }}/Dockerfile
-          platforms: linux/amd64
-          push: false
-          load: true
-          tags: tale-${{ matrix.service }}:scan
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image
+        run: docker pull ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
 
       - name: Run Trivy
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: tale-${{ matrix.service }}:scan
+          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
           format: 'sarif'
           output: '${{ matrix.service }}-trivy.sarif'
           severity: 'HIGH,CRITICAL'
-          exit-code: '0'
 
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4
-        if: always()
+        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
+        if: always() && hashFiles(format('{0}-trivy.sarif', matrix.service)) != ''
         with:
           sarif_file: '${{ matrix.service }}-trivy.sarif'
           category: 'trivy-${{ matrix.service }}'
+
+      - name: Note missing SARIF
+        if: always() && hashFiles(format('{0}-trivy.sarif', matrix.service)) == ''
+        run: |
+          {
+            echo "## ⚠ Trivy did not produce SARIF for ${{ matrix.service }}"
+            echo ""
+            echo "Scan likely failed before writing output. Check earlier step logs."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summary
         if: always()
         run: |
           echo "## ${{ matrix.service }} vulnerability scan complete" >> "$GITHUB_STEP_SUMMARY"
-          echo "Results uploaded to the Security tab." >> "$GITHUB_STEP_SUMMARY"
+          echo "Results uploaded to the Security tab (when SARIF is present)." >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Storybook static build — only when the platform service changed.
-  # Draft PRs skip.
+  # Storybook static build — fires when the platform service or shared UI
+  # packages (which house the bulk of stories) change. Draft PRs skip.
   # ---------------------------------------------------------------------------
   storybook:
     name: Storybook
     needs: changes
-    if: contains(fromJson(needs.changes.outputs.services), 'platform') && github.event.pull_request.draft != true
+    if: needs.changes.outputs.storybook == 'true' && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     permissions:
       contents: read
+    env:
+      # Turbo cache is only used by storybook:build; scope env to this job
+      # so the GITHUB_TOKEN isn't materialized as TURBO_TOKEN in unrelated jobs.
+      TURBO_API: 'http://127.0.0.1:9080'
+      TURBO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TURBO_TEAM: 'tale'
 
     steps:
       - name: Checkout
