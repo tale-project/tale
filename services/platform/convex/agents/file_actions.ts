@@ -188,6 +188,7 @@ export const saveAgent = action({
     );
     const byProvider = new Map<string, Set<string>>();
     const modelTagLookup = new Map<string, string[]>();
+    const modelQuantsLookup = new Map<string, string[] | undefined>();
     for (const m of allModels) {
       let set = byProvider.get(m.providerName);
       if (!set) {
@@ -196,13 +197,14 @@ export const saveAgent = action({
       }
       set.add(m.id);
       modelTagLookup.set(`${m.providerName}:${m.id}`, m.tags);
+      modelQuantsLookup.set(`${m.providerName}:${m.id}`, m.quantizations);
     }
 
     const requireImageGenerationTag =
       config.primaryBehavior === 'image-generation';
     const warnings: string[] = [];
     for (const ref of config.supportedModels) {
-      const { providerName, modelId } = parseModelRef(ref);
+      const { providerName, modelId, quantization } = parseModelRef(ref);
       let resolvedProviderName = providerName;
       if (providerName) {
         const set = byProvider.get(providerName);
@@ -228,6 +230,19 @@ export const saveAgent = action({
           );
         }
         resolvedProviderName = matches[0];
+      }
+
+      if (quantization && resolvedProviderName) {
+        const declared = modelQuantsLookup.get(
+          `${resolvedProviderName}:${modelId}`,
+        );
+        if (!declared || !declared.includes(quantization)) {
+          const available = declared?.length ? declared.join(', ') : '(none)';
+          throw new ConvexError({
+            code: 'UNKNOWN_MODEL_VARIANT',
+            message: `Model "${modelId}" has no quantization "${quantization}". Available: ${available}`,
+          });
+        }
       }
 
       if (requireImageGenerationTag && resolvedProviderName) {

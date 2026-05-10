@@ -1,5 +1,6 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { ChevronDown, Cpu } from 'lucide-react';
 import {
   type ReactNode,
@@ -17,7 +18,14 @@ import { useAccessibleModels } from '@/app/features/settings/governance/hooks/qu
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { useLocale } from '@/app/hooks/use-locale';
 import { useT } from '@/lib/i18n/client';
-import { stripModelRefQualifier } from '@/lib/shared/utils/model-ref';
+import {
+  expandModelVariants,
+  getVariantBadgeLabel,
+} from '@/lib/shared/utils/expand-model-variants';
+import {
+  parseModelRef,
+  stripModelRefQualifier,
+} from '@/lib/shared/utils/model-ref';
 import { resolveModelLocale } from '@/lib/shared/utils/resolve-provider-locale';
 
 import { useChatAgents } from '../../hooks/queries';
@@ -54,7 +62,12 @@ export function ArenaModelSelector({
   const modelInfoMap = useMemo(() => {
     const map = new Map<
       string,
-      { displayName: string; description?: string; tags: string[] }
+      {
+        displayName: string;
+        description?: string;
+        tags: string[];
+        quantizations?: string[];
+      }
     >();
     for (const provider of providers) {
       if (
@@ -69,6 +82,9 @@ export function ArenaModelSelector({
           displayName: resolved.displayName || model.displayName,
           description: resolved.description || undefined,
           tags: model.tags ?? [],
+          quantizations: Array.isArray(model.quantizations)
+            ? model.quantizations
+            : undefined,
         });
       }
     }
@@ -103,20 +119,34 @@ export function ArenaModelSelector({
   );
 
   const filteredModels = useMemo(() => {
-    if (!accessibleModelIds) return supportedModels;
-    const accessible = new Set(accessibleModelIds);
-    return supportedModels.filter((ref) =>
-      accessible.has(stripModelRefQualifier(ref)),
+    const accessible = accessibleModelIds ? new Set(accessibleModelIds) : null;
+    const accessFiltered = accessible
+      ? supportedModels.filter((ref) =>
+          accessible.has(stripModelRefQualifier(ref)),
+        )
+      : supportedModels;
+    return expandModelVariants(
+      accessFiltered,
+      (bareId) => modelInfoMap.get(bareId)?.quantizations,
     );
-  }, [supportedModels, accessibleModelIds]);
+  }, [supportedModels, accessibleModelIds, modelInfoMap]);
 
   const options = useMemo(
     () =>
-      filteredModels.map((ref) => ({
-        value: ref,
-        label: getDisplayName(ref),
-        description: modelInfoMap.get(stripModelRefQualifier(ref))?.description,
-      })),
+      filteredModels.map((ref) => {
+        const { quantization } = parseModelRef(ref);
+        return {
+          value: ref,
+          label: getDisplayName(ref),
+          labelBadge: quantization ? (
+            <Badge variant="outline" className="text-[10px] font-normal">
+              {getVariantBadgeLabel(quantization)}
+            </Badge>
+          ) : undefined,
+          description: modelInfoMap.get(stripModelRefQualifier(ref))
+            ?.description,
+        };
+      }),
     [filteredModels, getDisplayName, modelInfoMap],
   );
 
