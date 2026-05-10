@@ -10,49 +10,9 @@
   },
   "models": [
     {
-      "id": "moonshotai/kimi-k2.5",
-      "displayName": "Kimi K2.5",
-      "description": "High-performance general-purpose model",
-      "tags": ["chat"],
-      "cost": {
-        "inputCentsPerMillion": 38,
-        "outputCentsPerMillion": 172
-      }
-    },
-    {
-      "id": "deepseek/deepseek-v3.2",
-      "displayName": "DeepSeek V3.2",
-      "description": "Strong reasoning and general capabilities",
-      "tags": ["chat"],
-      "cost": {
-        "inputCentsPerMillion": 26,
-        "outputCentsPerMillion": 38
-      }
-    },
-    {
-      "id": "qwen/qwen3-next-80b-a3b-instruct",
-      "displayName": "Qwen3 Next 80B",
-      "description": "Fast and efficient instruction-following model",
-      "tags": ["chat"],
-      "cost": {
-        "inputCentsPerMillion": 9,
-        "outputCentsPerMillion": 110
-      }
-    },
-    {
-      "id": "qwen/qwen3.5-35b-a3b",
-      "displayName": "Qwen3.5 35B",
-      "description": "Compact and fast model",
-      "tags": ["chat"],
-      "cost": {
-        "inputCentsPerMillion": 16,
-        "outputCentsPerMillion": 130
-      }
-    },
-    {
       "id": "anthropic/claude-opus-4.6",
       "displayName": "Claude Opus 4.6",
-      "description": "Most capable model for complex reasoning and coding",
+      "description": "Anthropic's flagship — best for complex reasoning and coding",
       "tags": ["chat", "vision"],
       "cost": {
         "inputCentsPerMillion": 500,
@@ -60,60 +20,9 @@
       }
     },
     {
-      "id": "openai/gpt-5.2",
-      "displayName": "GPT-5.2",
-      "description": "OpenAI's latest flagship model",
-      "tags": ["chat", "vision"],
-      "cost": {
-        "inputCentsPerMillion": 175,
-        "outputCentsPerMillion": 1400
-      }
-    },
-    {
-      "id": "qwen/qwen3-vl-32b-instruct",
-      "displayName": "Qwen3 VL 32B",
-      "description": "Vision-language model for image understanding",
-      "tags": ["chat", "vision"],
-      "cost": {
-        "inputCentsPerMillion": 10,
-        "outputCentsPerMillion": 42
-      }
-    },
-    {
-      "id": "qwen/qwen3-embedding-8b",
-      "displayName": "Qwen3 Embedding 8B",
-      "description": "Text embedding model for semantic search",
-      "tags": ["embedding"],
-      "dimensions": 1536,
-      "cost": {
-        "inputCentsPerMillion": 1,
-        "outputCentsPerMillion": 0
-      }
-    },
-    {
-      "id": "openai/gpt-5.2-chat",
-      "displayName": "GPT-5.2 Instant",
-      "description": "Fast, low-latency variant of GPT-5.2 optimized for chat",
-      "tags": ["chat"],
-      "cost": {
-        "inputCentsPerMillion": 175,
-        "outputCentsPerMillion": 1400
-      }
-    },
-    {
-      "id": "openai/gpt-5.2-pro",
-      "displayName": "GPT-5.2 Pro",
-      "description": "Most advanced GPT-5.2 variant for complex reasoning tasks",
-      "tags": ["chat", "vision"],
-      "cost": {
-        "inputCentsPerMillion": 2100,
-        "outputCentsPerMillion": 16800
-      }
-    },
-    {
       "id": "anthropic/claude-sonnet-4.6",
       "displayName": "Claude Sonnet 4.6",
-      "description": "Balanced performance and speed for everyday tasks",
+      "description": "Balanced Anthropic model for everyday tasks",
       "tags": ["chat", "vision"],
       "cost": {
         "inputCentsPerMillion": 300,
@@ -123,11 +32,51 @@
     {
       "id": "anthropic/claude-haiku-4.5",
       "displayName": "Claude Haiku 4.5",
-      "description": "Fast and compact model for lightweight tasks",
+      "description": "Fast, lightweight Anthropic model",
       "tags": ["chat"],
       "cost": {
         "inputCentsPerMillion": 100,
         "outputCentsPerMillion": 500
+      }
+    },
+    {
+      "id": "openai/gpt-5.2-pro",
+      "displayName": "GPT-5.2 Pro",
+      "description": "OpenAI's most advanced model for the hardest reasoning tasks",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 2100,
+        "outputCentsPerMillion": 16800
+      }
+    },
+    {
+      "id": "openai/gpt-5.2",
+      "displayName": "GPT-5.2",
+      "description": "OpenAI's flagship general-purpose model",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 175,
+        "outputCentsPerMillion": 1400
+      }
+    },
+    {
+      "id": "openai/gpt-5.2-chat",
+      "displayName": "GPT-5.2 Instant",
+      "description": "Low-latency GPT-5.2 variant tuned for chat",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 175,
+        "outputCentsPerMillion": 1400
+      }
+    },
+    {
+      "id": "openai/gpt-oss-120b",
+      "displayName": "GPT-OSS 120B",
+      "description": "OpenAI open-weight MoE (117B / 5.1B active), Apache 2.0, 131K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 4,
+        "outputCentsPerMillion": 18
       }
     },
     {
@@ -143,7 +92,7 @@
     {
       "id": "google/gemini-3-flash-preview",
       "displayName": "Gemini 3 Flash",
-      "description": "Fast and efficient Gemini model",
+      "description": "Fast, efficient Gemini for high-volume use",
       "tags": ["chat", "vision"],
       "cost": {
         "inputCentsPerMillion": 50,
@@ -151,9 +100,238 @@
       }
     },
     {
+      "id": "google/gemma-4-31b-it",
+      "displayName": "Gemma 4 31B IT",
+      "description": "Google open-weight 31B Instruct, multimodal, 262K context",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 13,
+        "outputCentsPerMillion": 38
+      }
+    },
+    {
+      "id": "google/gemma-4-26b-a4b-it",
+      "displayName": "Gemma 4 26B A4B IT",
+      "description": "Smaller Gemma 4 MoE variant, multimodal",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 6,
+        "outputCentsPerMillion": 33
+      }
+    },
+    {
+      "id": "google/gemini-2.5-flash-image",
+      "displayName": "Nano Banana (Gemini 2.5 Flash Image)",
+      "description": "Gemini 2.5 multimodal image generation and editing with reference-image support",
+      "tags": ["image-generation", "image-edit"],
+      "imageGenerationMode": "chat-multimodal",
+      "cost": {
+        "imageCentsPerImage": 4
+      }
+    },
+    {
+      "id": "deepseek/deepseek-v4-pro",
+      "displayName": "DeepSeek V4 Pro",
+      "description": "DeepSeek flagship open-weight MoE, 1M context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 44,
+        "outputCentsPerMillion": 87
+      },
+      "providerOptions": {
+        "provider": { "quantizations": ["fp8", "fp4"] }
+      }
+    },
+    {
+      "id": "deepseek/deepseek-v4-flash",
+      "displayName": "DeepSeek V4 Flash",
+      "description": "Efficiency-optimized DeepSeek V4 MoE",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 14,
+        "outputCentsPerMillion": 28
+      },
+      "providerOptions": {
+        "provider": { "quantizations": ["fp8", "fp4"] }
+      }
+    },
+    {
+      "id": "moonshotai/kimi-k2.6",
+      "displayName": "Kimi K2.6",
+      "description": "Moonshot K2.6 — multimodal, 262K context",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 75,
+        "outputCentsPerMillion": 350
+      },
+      "providerOptions": {
+        "provider": { "quantizations": ["bf16", "fp8", "fp4"] }
+      }
+    },
+    {
+      "id": "moonshotai/kimi-k2.5",
+      "displayName": "Kimi K2.5",
+      "description": "High-performance Moonshot general-purpose model",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 38,
+        "outputCentsPerMillion": 172
+      }
+    },
+    {
+      "id": "minimax/minimax-m2.7",
+      "displayName": "MiniMax M2.7",
+      "description": "MiniMax flagship MoE for agentic coding and reasoning",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 70,
+        "outputCentsPerMillion": 280
+      },
+      "providerOptions": {
+        "provider": { "quantizations": ["fp8", "fp4"] }
+      }
+    },
+    {
+      "id": "nvidia/nemotron-3-super",
+      "displayName": "NVIDIA Nemotron 3 Super",
+      "description": "NVIDIA frontier open-weight reasoning model",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 60,
+        "outputCentsPerMillion": 180
+      }
+    },
+    {
+      "id": "qwen/qwen3.6-max-preview",
+      "displayName": "Qwen3.6 Max Preview",
+      "description": "Alibaba Qwen flagship preview, 262K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 104,
+        "outputCentsPerMillion": 624
+      }
+    },
+    {
+      "id": "qwen/qwen3.6-plus",
+      "displayName": "Qwen3.6 Plus",
+      "description": "Multimodal Qwen with 1M context",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 33,
+        "outputCentsPerMillion": 195
+      }
+    },
+    {
+      "id": "qwen/qwen3.6-flash",
+      "displayName": "Qwen3.6 Flash",
+      "description": "Fastest Qwen 1M-context variant, multimodal",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 25,
+        "outputCentsPerMillion": 150
+      }
+    },
+    {
+      "id": "qwen/qwen3.6-35b-a3b",
+      "displayName": "Qwen3.6 35B A3B",
+      "description": "Compact Qwen3.6 MoE, multimodal",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 15,
+        "outputCentsPerMillion": 100
+      }
+    },
+    {
+      "id": "qwen/qwen3.5-397b-a17b",
+      "displayName": "Qwen3.5 397B A17B",
+      "description": "Qwen3.5 large open-weight MoE (397B / 17B active)",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 30,
+        "outputCentsPerMillion": 90
+      },
+      "providerOptions": {
+        "provider": { "quantizations": ["fp8", "fp4"] }
+      }
+    },
+    {
+      "id": "qwen/qwen3-coder",
+      "displayName": "Qwen3 Coder 480B",
+      "description": "Qwen3-Coder MoE (480B / 35B active) tuned for agentic coding, 262K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 22,
+        "outputCentsPerMillion": 180
+      }
+    },
+    {
+      "id": "qwen/qwen3-235b-a22b-2507",
+      "displayName": "Qwen3 235B A22B",
+      "description": "Qwen3 open-weight MoE (235B / 22B active), 262K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 7,
+        "outputCentsPerMillion": 10
+      }
+    },
+    {
+      "id": "qwen/qwen3-vl-32b-instruct",
+      "displayName": "Qwen3 VL 32B",
+      "description": "Qwen vision-language model for image understanding",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 10,
+        "outputCentsPerMillion": 42
+      }
+    },
+    {
+      "id": "qwen/qwen3-embedding-8b",
+      "displayName": "Qwen3 Embedding 8B",
+      "description": "Qwen text embedding model for semantic search",
+      "tags": ["embedding"],
+      "dimensions": 1536,
+      "cost": {
+        "inputCentsPerMillion": 1,
+        "outputCentsPerMillion": 0
+      }
+    },
+    {
+      "id": "z-ai/glm-5.1",
+      "displayName": "GLM 5.1",
+      "description": "Z.ai GLM 5.1 flagship, 202K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 105,
+        "outputCentsPerMillion": 350
+      },
+      "providerOptions": {
+        "provider": { "quantizations": ["fp8", "fp4"] }
+      }
+    },
+    {
+      "id": "z-ai/glm-5-turbo",
+      "displayName": "GLM 5 Turbo",
+      "description": "Fast 202K-context Z.ai GLM 5",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 30,
+        "outputCentsPerMillion": 100
+      }
+    },
+    {
+      "id": "z-ai/glm-5v-turbo",
+      "displayName": "GLM 5V Turbo",
+      "description": "Multimodal Z.ai GLM 5 Turbo",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 30,
+        "outputCentsPerMillion": 100
+      }
+    },
+    {
       "id": "mistralai/mistral-large-2512",
       "displayName": "Mistral Large 3",
-      "description": "Mistral AI's flagship large language model",
+      "description": "Mistral's flagship large model",
       "tags": ["chat"],
       "maxOutputTokens": 8192,
       "cost": {
@@ -164,7 +342,7 @@
     {
       "id": "mistralai/mistral-medium-3",
       "displayName": "Mistral Medium 3",
-      "description": "Balanced Mistral model for general tasks",
+      "description": "Mid-tier Mistral for general tasks",
       "tags": ["chat"],
       "maxOutputTokens": 8192,
       "cost": {
@@ -173,9 +351,22 @@
       }
     },
     {
+      "id": "xiaomi/mimo-v2.5-pro",
+      "displayName": "MiMo V2.5 Pro",
+      "description": "Xiaomi MiMo flagship reasoning model",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 50,
+        "outputCentsPerMillion": 150
+      },
+      "providerOptions": {
+        "provider": { "quantizations": ["fp8"] }
+      }
+    },
+    {
       "id": "meta-llama/llama-4-maverick",
       "displayName": "LLaMA 4 Maverick",
-      "description": "Meta's powerful open-source large language model",
+      "description": "Meta's powerful open-source LLM",
       "tags": ["chat"],
       "cost": {
         "inputCentsPerMillion": 15,
@@ -185,7 +376,7 @@
     {
       "id": "meta-llama/llama-4-scout",
       "displayName": "LLaMA 4 Scout",
-      "description": "Meta's efficient open-source language model",
+      "description": "Meta's efficient open-source LLM",
       "tags": ["chat"],
       "cost": {
         "inputCentsPerMillion": 8,
@@ -193,19 +384,9 @@
       }
     },
     {
-      "id": "black-forest-labs/flux.2-pro",
-      "displayName": "FLUX.2 [pro]",
-      "description": "Frontier-level image generation and editing from Black Forest Labs. Served via OpenRouter's chat/completions endpoint with multimodal output.",
-      "tags": ["image-generation", "image-edit"],
-      "imageGenerationMode": "chat-multimodal",
-      "cost": {
-        "imageCentsPerImage": 6
-      }
-    },
-    {
       "id": "black-forest-labs/flux.2-max",
       "displayName": "FLUX.2 [max]",
-      "description": "Top-tier FLUX.2 variant; highest quality and editing consistency. Served via OpenRouter's chat/completions endpoint with multimodal output.",
+      "description": "Top-tier FLUX.2 — highest image quality and editing consistency",
       "tags": ["image-generation", "image-edit"],
       "imageGenerationMode": "chat-multimodal",
       "cost": {
@@ -213,186 +394,23 @@
       }
     },
     {
+      "id": "black-forest-labs/flux.2-pro",
+      "displayName": "FLUX.2 [pro]",
+      "description": "Frontier-level image generation and editing",
+      "tags": ["image-generation", "image-edit"],
+      "imageGenerationMode": "chat-multimodal",
+      "cost": {
+        "imageCentsPerImage": 6
+      }
+    },
+    {
       "id": "black-forest-labs/flux.2-flex",
       "displayName": "FLUX.2 [flex]",
-      "description": "FLUX.2 variant tuned for complex text, typography, and multi-reference editing. Served via OpenRouter's chat/completions endpoint with multimodal output.",
+      "description": "FLUX.2 tuned for typography and multi-reference editing",
       "tags": ["image-generation", "image-edit"],
       "imageGenerationMode": "chat-multimodal",
       "cost": {
         "imageCentsPerImage": 4
-      }
-    },
-    {
-      "id": "google/gemini-2.5-flash-image",
-      "displayName": "Nano Banana (Gemini 2.5 Flash Image)",
-      "description": "Gemini 2.5 multimodal image generation + editing. Supports reference images.",
-      "tags": ["image-generation", "image-edit"],
-      "imageGenerationMode": "chat-multimodal",
-      "cost": {
-        "imageCentsPerImage": 4
-      }
-    },
-    {
-      "id": "deepseek/deepseek-v4-flash",
-      "displayName": "DeepSeek V4 Flash",
-      "description": "DeepSeek V4 Flash is an efficiency-optimized Mixture-of-Experts model",
-      "tags": ["chat"],
-      "cost": {
-        "inputCentsPerMillion": 14,
-        "outputCentsPerMillion": 28
-      }
-    },
-    {
-      "id": "z-ai/glm-5.1",
-      "displayName": "GLM 5.1",
-      "description": "Z.ai GLM 5.1 flagship — 202K context. Example below pins fp8 quantization via OpenRouter's `provider.quantizations`; remove the `providerOptions` block to let OpenRouter pick.",
-      "tags": ["chat"],
-      "cost": {
-        "inputCentsPerMillion": 105,
-        "outputCentsPerMillion": 350
-      },
-      "providerOptions": {
-        "provider": { "quantizations": ["fp8"] }
-      }
-    },
-    {
-      "id": "z-ai/glm-5-turbo",
-      "displayName": "GLM 5 Turbo",
-      "description": "Z.ai GLM 5 Turbo — fast 202K-context variant of the GLM 5 family",
-      "tags": ["chat"],
-      "cost": {
-        "inputCentsPerMillion": 30,
-        "outputCentsPerMillion": 100
-      }
-    },
-    {
-      "id": "z-ai/glm-5v-turbo",
-      "displayName": "GLM 5V Turbo",
-      "description": "Z.ai GLM 5V Turbo — multimodal (text + image) variant of GLM 5 Turbo",
-      "tags": ["chat", "vision"],
-      "cost": {
-        "inputCentsPerMillion": 30,
-        "outputCentsPerMillion": 100
-      }
-    },
-    {
-      "id": "moonshotai/kimi-k2.6",
-      "displayName": "Kimi K2.6",
-      "description": "Moonshot AI Kimi K2.6 — 262K context, multimodal (text + image)",
-      "tags": ["chat", "vision"],
-      "cost": {
-        "inputCentsPerMillion": 75,
-        "outputCentsPerMillion": 350
-      }
-    },
-    {
-      "id": "qwen/qwen3.6-max-preview",
-      "displayName": "Qwen3.6 Max Preview",
-      "description": "Alibaba Qwen3.6 Max — flagship preview, 262K context",
-      "tags": ["chat"],
-      "cost": {
-        "inputCentsPerMillion": 104,
-        "outputCentsPerMillion": 624
-      }
-    },
-    {
-      "id": "qwen/qwen3.6-plus",
-      "displayName": "Qwen3.6 Plus",
-      "description": "Alibaba Qwen3.6 Plus — 1M context, multimodal",
-      "tags": ["chat", "vision"],
-      "cost": {
-        "inputCentsPerMillion": 33,
-        "outputCentsPerMillion": 195
-      }
-    },
-    {
-      "id": "qwen/qwen3.6-flash",
-      "displayName": "Qwen3.6 Flash",
-      "description": "Alibaba Qwen3.6 Flash — fastest 1M-context variant, multimodal",
-      "tags": ["chat", "vision"],
-      "cost": {
-        "inputCentsPerMillion": 25,
-        "outputCentsPerMillion": 150
-      }
-    },
-    {
-      "id": "qwen/qwen3.6-35b-a3b",
-      "displayName": "Qwen3.6 35B A3B",
-      "description": "Alibaba Qwen3.6 35B-A3B — refresh of the 3.5 35B-A3B entry; multimodal",
-      "tags": ["chat", "vision"],
-      "cost": {
-        "inputCentsPerMillion": 15,
-        "outputCentsPerMillion": 100
-      }
-    },
-    {
-      "id": "google/gemma-4-31b-it",
-      "displayName": "Gemma 4 31B IT",
-      "description": "Google Gemma 4 31B Instruct — open-weight, multimodal, 262K context",
-      "tags": ["chat", "vision"],
-      "cost": {
-        "inputCentsPerMillion": 13,
-        "outputCentsPerMillion": 38
-      }
-    },
-    {
-      "id": "google/gemma-4-26b-a4b-it",
-      "displayName": "Gemma 4 26B A4B IT",
-      "description": "Google Gemma 4 26B-A4B Instruct — smaller MoE Gemma 4 variant, multimodal",
-      "tags": ["chat", "vision"],
-      "cost": {
-        "inputCentsPerMillion": 6,
-        "outputCentsPerMillion": 33
-      }
-    },
-    {
-      "id": "openai/gpt-oss-120b",
-      "displayName": "GPT-OSS 120B",
-      "description": "OpenAI gpt-oss-120b — open-weight 117B MoE (5.1B active), Apache 2.0, 131K context",
-      "tags": ["chat"],
-      "cost": {
-        "inputCentsPerMillion": 4,
-        "outputCentsPerMillion": 18
-      }
-    },
-    {
-      "id": "moonshotai/kimi-k2",
-      "displayName": "Kimi K2",
-      "description": "Moonshot AI Kimi K2 Instruct — 1T-parameter MoE open-weight model, 131K context",
-      "tags": ["chat"],
-      "cost": {
-        "inputCentsPerMillion": 57,
-        "outputCentsPerMillion": 230
-      }
-    },
-    {
-      "id": "deepseek/deepseek-v4-pro",
-      "displayName": "DeepSeek V4 Pro",
-      "description": "DeepSeek V4 Pro — flagship open-weight MoE, 1M context",
-      "tags": ["chat"],
-      "cost": {
-        "inputCentsPerMillion": 44,
-        "outputCentsPerMillion": 87
-      }
-    },
-    {
-      "id": "qwen/qwen3-coder",
-      "displayName": "Qwen3 Coder 480B",
-      "description": "Alibaba Qwen3-Coder 480B-A35B — open-weight MoE optimized for agentic coding, 262K context",
-      "tags": ["chat"],
-      "cost": {
-        "inputCentsPerMillion": 22,
-        "outputCentsPerMillion": 180
-      }
-    },
-    {
-      "id": "qwen/qwen3-235b-a22b-2507",
-      "displayName": "Qwen3 235B A22B",
-      "description": "Alibaba Qwen3-235B-A22B Instruct — open-weight MoE flagship (22B active), 262K context",
-      "tags": ["chat"],
-      "cost": {
-        "inputCentsPerMillion": 7,
-        "outputCentsPerMillion": 10
       }
     }
   ],
