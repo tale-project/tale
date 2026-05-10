@@ -6,7 +6,14 @@ import { Pencil, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
+import { Textarea } from '@/app/components/ui/forms/textarea';
+
+// Permissive client-side schema: server-side `providerJsonSchema.parse` is the
+// authoritative gate (it carries the deny-list). This schema only catches
+// "is JSON, is an object" so we don't ship obviously malformed input.
+const providerOptionsClientSchema = z.record(z.string(), z.unknown());
 import { Card } from '@/app/components/ui/layout/card';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
@@ -20,10 +27,31 @@ const PROVIDER_OPTIONS_PLACEHOLDER = JSON.stringify(
   2,
 );
 
-// Permissive client-side schema: server-side `providerJsonSchema.parse` is the
-// authoritative gate (it carries the deny-list). This schema only catches
-// "is JSON, is an object" so we don't ship obviously malformed input.
-const providerOptionsClientSchema = z.record(z.string(), z.unknown());
+interface DraftValidation {
+  ok: boolean;
+  error?: string;
+}
+
+function validateDraft(draft: string): DraftValidation {
+  const trimmed = draft.trim();
+  if (trimmed === '') return { ok: true };
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (
+      parsed === null ||
+      typeof parsed !== 'object' ||
+      Array.isArray(parsed)
+    ) {
+      return { ok: false, error: 'Provider options must be a JSON object.' };
+    }
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
 
 /**
  * Convert a server-side `ConvexError({code:'INVALID_PROVIDER_CONFIG',
@@ -78,6 +106,11 @@ interface Props {
     cancelLabel: string;
     saveSuccess: string;
     saveError: string;
+    exampleLabel: string;
+    discardConfirmTitle: string;
+    discardConfirmDescription: string;
+    discardConfirmAction: string;
+    discardConfirmKeep: string;
   };
 }
 
@@ -87,8 +120,10 @@ interface Props {
  * - **Card (read-only, default)**: shows the current JSON tree (or a "not
  *   configured" placeholder) plus an Edit pencil — matches the GeneralSection
  *   pattern so the field discovers itself in glance.
- * - **Sheet (edit)**: opened from the Edit button. Houses the full JsonInput
- *   (visual JSON + Source toggle + Zod validation) with Save/Cancel.
+ * - **Sheet (edit)**: opened from the Edit button. Plain monospace
+ *   textarea so a single Save button (the Sheet's) owns commit; the
+ *   visual-mode JSON viewer is intentionally not rendered here because
+ *   its add/edit/delete affordances are not keyboard reachable.
  *
  * Used at both the provider top level and per-model — the parent decides
  * which slice of the saved config the parsed object lands in.
@@ -102,6 +137,7 @@ export function ProviderOptionsEditor({
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(initialJson);
   const [submitting, setSubmitting] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
 
   // Reset draft only on the open->true transition so a previous half-edit
   // doesn't come back to bite the user. Read `initialJson` via a ref so a
@@ -113,6 +149,24 @@ export function ProviderOptionsEditor({
   useEffect(() => {
     if (open) setDraft(initialJsonRef.current);
   }, [open]);
+
+  const isDirty = draft !== initialJsonRef.current;
+  const validation = validateDraft(draft);
+
+  // Close paths (X, Cancel, Esc, overlay) all funnel through here. Silently
+  // closing on a dirty draft is the prior footgun; gate behind a discard
+  // confirm to surface the loss.
+  const requestClose = () => {
+    if (isDirty) {
+      setDiscardOpen(true);
+      return;
+    }
+    setOpen(false);
+  };
+  const confirmDiscard = () => {
+    setDiscardOpen(false);
+    setOpen(false);
+  };
 
   const handleSave = async () => {
     let parsed: Record<string, unknown> | undefined;
@@ -178,7 +232,7 @@ export function ProviderOptionsEditor({
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="text-muted-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-[13px] font-medium"
+            className="text-muted-foreground hover:text-foreground focus-visible:outline-ring flex shrink-0 items-center gap-1.5 rounded-sm text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
           >
             <Pencil className="size-3.5" />
             {copy.editLabel}
@@ -200,7 +254,13 @@ export function ProviderOptionsEditor({
 
       <Sheet
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={(next) => {
+          if (!next) {
+            requestClose();
+            return;
+          }
+          setOpen(true);
+        }}
         title={copy.title}
         size="md"
         hideClose
@@ -211,15 +271,28 @@ export function ProviderOptionsEditor({
           description={copy.description}
           draft={draft}
           onDraftChange={setDraft}
-          onClose={() => setOpen(false)}
+          onClose={requestClose}
           onSave={handleSave}
           submitting={submitting}
           isSaving={isSaving}
-          unchanged={draft === initialJson}
+          isDirty={isDirty}
+          validation={validation}
           saveLabel={copy.saveLabel}
           cancelLabel={copy.cancelLabel}
+          exampleLabel={copy.exampleLabel}
         />
       </Sheet>
+
+      <ConfirmDialog
+        open={discardOpen}
+        onOpenChange={setDiscardOpen}
+        title={copy.discardConfirmTitle}
+        description={copy.discardConfirmDescription}
+        confirmText={copy.discardConfirmAction}
+        cancelText={copy.discardConfirmKeep}
+        variant="destructive"
+        onConfirm={confirmDiscard}
+      />
     </>
   );
 }
@@ -233,9 +306,11 @@ interface SheetBodyProps {
   onSave: () => void;
   submitting: boolean;
   isSaving: boolean;
-  unchanged: boolean;
+  isDirty: boolean;
+  validation: DraftValidation;
   saveLabel: string;
   cancelLabel: string;
+  exampleLabel: string;
 }
 
 function ProviderOptionsEditorSheet({
@@ -247,11 +322,14 @@ function ProviderOptionsEditorSheet({
   onSave,
   submitting,
   isSaving,
-  unchanged,
+  isDirty,
+  validation,
   saveLabel,
   cancelLabel,
+  exampleLabel,
 }: SheetBodyProps) {
   const { t: tCommon } = useT('common');
+  const inFlight = submitting || isSaving;
   return (
     <>
       <HStack
@@ -267,6 +345,7 @@ function ProviderOptionsEditorSheet({
           aria-label={tCommon('aria.close')}
           variant="ghost"
           onClick={onClose}
+          disabled={inFlight}
         />
       </HStack>
 
@@ -276,15 +355,20 @@ function ProviderOptionsEditorSheet({
             <Text className="text-muted-foreground text-[13px] whitespace-pre-line">
               {description}
             </Text>
-            <JsonInput
+            <Textarea
               value={draft}
-              onChange={onDraftChange}
-              schema={providerOptionsClientSchema}
-              rows={10}
-              fontSize={12}
+              onChange={(e) => onDraftChange(e.target.value)}
+              rows={12}
+              spellCheck={false}
+              disabled={inFlight}
+              placeholder={PROVIDER_OPTIONS_PLACEHOLDER}
+              errorMessage={validation.ok ? undefined : validation.error}
+              className="font-mono text-xs"
             />
             <Text className="text-muted-foreground text-[12px]">
-              {`Example: ${PROVIDER_OPTIONS_PLACEHOLDER.replace(/\s+/g, ' ')}`}
+              {exampleLabel}
+              {': '}
+              {PROVIDER_OPTIONS_PLACEHOLDER.replace(/\s+/g, ' ')}
             </Text>
           </Stack>
         </div>
@@ -296,7 +380,7 @@ function ProviderOptionsEditorSheet({
               variant="ghost"
               size="sm"
               onClick={onClose}
-              disabled={submitting}
+              disabled={inFlight}
             >
               {cancelLabel}
             </Button>
@@ -304,7 +388,7 @@ function ProviderOptionsEditorSheet({
               type="button"
               size="sm"
               onClick={onSave}
-              disabled={submitting || isSaving || unchanged}
+              disabled={inFlight || !isDirty || !validation.ok}
             >
               {saveLabel}
             </Button>

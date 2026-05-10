@@ -40,6 +40,14 @@ export const SDK_RESERVED_KEYS = [
  * provider config, would silently amplify cost (`n`), corrupt usage telemetry
  * (`stream_options`), inflate response size (`logprobs`/`top_logprobs`), or
  * leak PII to the upstream (`metadata`/`store`/`logit_bias`).
+ *
+ * `prompt` and `size` cover the image-gen body shape: the SDK image path
+ * writes them BEFORE the providerOptions spread (`@ai-sdk/openai-compatible`
+ * `index.mjs:1667-1672`), so an unguarded passthrough could swap the user's
+ * prompt. `max_completion_tokens` is the OpenAI reasoning-model token cap
+ * that bypasses `max_tokens`. `reasoning_effort` / `verbosity` are the
+ * snake_case forms of the SDK's camelCase reserved keys; the SDK overwrites
+ * them with `undefined`, silently dropping a misnamed user value.
  */
 export const BODY_OVERWRITE_KEYS = [
   'model',
@@ -49,6 +57,7 @@ export const BODY_OVERWRITE_KEYS = [
   'stream',
   'temperature',
   'max_tokens',
+  'max_completion_tokens',
   'top_p',
   'frequency_penalty',
   'presence_penalty',
@@ -62,10 +71,27 @@ export const BODY_OVERWRITE_KEYS = [
   'stream_options',
   'store',
   'metadata',
+  'prompt',
+  'size',
+  'reasoning_effort',
+  'verbosity',
+] as const;
+
+/**
+ * Object-prototype keys. JSON.parse + bracket assignment can replace an
+ * object's prototype rather than set an own property. Defense-in-depth —
+ * V01 confirmed no global pollution path reaches the wire today, but the
+ * cost is six lines so we close the surface.
+ */
+export const PROTOTYPE_POLLUTION_KEYS = [
+  '__proto__',
+  'constructor',
+  'prototype',
 ] as const;
 
 const SDK_RESERVED_SET = new Set<string>(SDK_RESERVED_KEYS);
 const BODY_OVERWRITE_SET = new Set<string>(BODY_OVERWRITE_KEYS);
+const PROTOTYPE_POLLUTION_SET = new Set<string>(PROTOTYPE_POLLUTION_KEYS);
 
 function denyListRefine(
   value: Record<string, unknown>,
@@ -73,6 +99,14 @@ function denyListRefine(
   pathPrefix: readonly (string | number)[] = [],
 ): void {
   for (const [key, sub] of Object.entries(value)) {
+    if (PROTOTYPE_POLLUTION_SET.has(key)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `'${key}' is a reserved object-prototype key and is not allowed in providerOptions.`,
+        path: [...pathPrefix, key],
+      });
+      continue;
+    }
     if (SDK_RESERVED_SET.has(key)) {
       ctx.addIssue({
         code: 'custom',
@@ -98,12 +132,48 @@ function denyListRefine(
     } else if (
       pathPrefix.length === 0 &&
       sub !== null &&
-      typeof sub === 'object'
+      typeof sub === 'object' &&
+      !Array.isArray(sub)
     ) {
       // Recurse one level so a double-wrap like
       // `providerOptions.openrouter.model` is also caught as an authoring
       // mistake.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- typeof check + non-array narrowing
       denyListRefine(sub as Record<string, unknown>, ctx, [...pathPrefix, key]);
+    }
+    // Prototype-pollution keys are illegal at any depth, even inside
+    // legitimately deep provider-specific objects.
+    if (sub !== null && typeof sub === 'object') {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- typeof check
+      deepCheckPrototypePollution(sub as object, ctx, [...pathPrefix, key]);
+    }
+  }
+}
+
+function deepCheckPrototypePollution(
+  value: object,
+  ctx: z.RefinementCtx,
+  pathPrefix: readonly (string | number)[],
+): void {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const item = value[i];
+      if (item !== null && typeof item === 'object') {
+        deepCheckPrototypePollution(item, ctx, [...pathPrefix, i]);
+      }
+    }
+    return;
+  }
+  for (const [key, sub] of Object.entries(value as Record<string, unknown>)) {
+    if (PROTOTYPE_POLLUTION_SET.has(key)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `'${key}' is a reserved object-prototype key and is not allowed in providerOptions.`,
+        path: [...pathPrefix, key],
+      });
+    }
+    if (sub !== null && typeof sub === 'object') {
+      deepCheckPrototypePollution(sub, ctx, [...pathPrefix, key]);
     }
   }
 }

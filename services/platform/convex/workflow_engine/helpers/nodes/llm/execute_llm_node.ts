@@ -109,6 +109,7 @@ export async function executeLLMNode(
             languageModel,
             resolvedModelId: modelData.modelId,
             providerOptions: buildCallProviderOptions(modelData),
+            modelMaxOutputTokens: modelData.maxOutputTokens,
           },
         );
         return createLLMResult(llmResult, normalizedConfig, {
@@ -164,6 +165,7 @@ export async function executeLLMNode(
       languageModel,
       resolvedModelId: chatModelData.modelId,
       providerOptions: buildCallProviderOptions(chatModelData),
+      modelMaxOutputTokens: chatModelData.maxOutputTokens,
     },
   );
   return createLLMResult(llmResult, normalizedConfig, {

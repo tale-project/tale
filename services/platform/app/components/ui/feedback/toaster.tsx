@@ -75,7 +75,7 @@ export function Toaster() {
                       </ToastPrimitives.Title>
                     )}
                     {description && (
-                      <ToastPrimitives.Description className="text-sm opacity-90">
+                      <ToastPrimitives.Description className="text-sm whitespace-pre-line opacity-90">
                         {description}
                       </ToastPrimitives.Description>
                     )}

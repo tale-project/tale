@@ -154,9 +154,14 @@ export async function executeAgentWithTools(
     resolvedModelId?: string;
     /**
      * Pre-namespaced provider options from `buildCallProviderOptions(modelData)`,
-     * forwarded into the `Agent` constructor for per-model knobs like quantization.
+     * passed per-call into the SDK for per-model knobs like quantization.
      */
     providerOptions?: SharedV3ProviderOptions;
+    /**
+     * Per-model `maxOutputTokens` from the resolved model definition.
+     * Falls through to `createAgentConfig`'s 8192 default when undefined.
+     */
+    modelMaxOutputTokens?: number;
   },
 ): Promise<LLMExecutionResult> {
   if (config.outputFormat === 'json' && !config.outputSchema) {
@@ -271,6 +276,7 @@ export async function executeAgentWithTools(
       _args.organizationId,
       _args.stepSlug,
       _args.providerOptions,
+      _args.modelMaxOutputTokens,
     );
   }
 
@@ -293,6 +299,7 @@ export async function executeAgentWithTools(
     _args.organizationId,
     _args.stepSlug,
     _args.providerOptions,
+    _args.modelMaxOutputTokens,
   );
 }
 
@@ -331,6 +338,7 @@ async function executeJsonOutputWithoutTools(
   organizationId: string | undefined,
   stepSlug: string | undefined,
   providerOptions: SharedV3ProviderOptions | undefined,
+  modelMaxOutputTokens: number | undefined,
 ): Promise<LLMExecutionResult> {
   debugLog('executeJsonOutputWithoutTools START', {
     configName: config.name,
@@ -348,6 +356,7 @@ async function executeJsonOutputWithoutTools(
       name: config.name,
       languageModel,
       instructions: prompts.systemPrompt,
+      modelMaxOutputTokens,
     }),
   );
 
@@ -396,6 +405,7 @@ async function executeTextOutput(
   organizationId: string | undefined,
   stepSlug: string | undefined,
   providerOptions: SharedV3ProviderOptions | undefined,
+  modelMaxOutputTokens: number | undefined,
 ): Promise<LLMExecutionResult> {
   debugLog('executeTextOutput START', {
     configName: config.name,
@@ -416,6 +426,7 @@ async function executeTextOutput(
       instructions: prompts.systemPrompt,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- config.tools contains valid ToolName strings from workflow step configuration
       convexToolNames: (config.tools ?? []) as ToolName[],
+      modelMaxOutputTokens,
     }),
   );
 

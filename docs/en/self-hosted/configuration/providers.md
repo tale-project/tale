@@ -131,14 +131,15 @@ Tale forwards arbitrary provider-specific request body fields via an optional `p
 ```json
 // Vercel AI Gateway — primary routing happens via the model-ID prefix
 // (e.g. "anthropic/claude-3.5") and HTTP headers like `ai-gateway-order`.
-// Body-level passthrough is mostly useful for observability tags Vercel
-// surfaces in its dashboard.
+// Tale's deny-list rejects `metadata` (PII-egress vector at the OpenAI
+// /v1/chat/completions level), so observability tags must be configured
+// in the Vercel dashboard rather than per-request.
 "providerOptions": {
-  "metadata": { "tale_agent": "support" }
+  "order": ["anthropic", "openai"]
 }
 ```
 
-Tale's `providerOptions` only flows into the request body. Header-level routing controls (`ai-gateway-order`, `ai-gateway-only`) are not currently settable from a provider config; pin routing via the model-ID prefix instead.
+Tale's `providerOptions` only flows into the request body. Header-level routing controls (`ai-gateway-order`, `ai-gateway-only`) and observability tags (`metadata`) are not currently settable from a provider config; pin routing via the model-ID prefix and configure tagging in the Vercel dashboard.
 
 **Direct vendors** (OpenAI, Anthropic, Together AI, Groq, DeepSeek, Mistral) host their own models on their own infrastructure. There is **no routing layer** and **no `quantizations` field** — the precision a model is deployed at is fixed by the vendor (Together AI, for example, only exposes Llama 3.3 70B via `meta-llama/Llama-3.3-70B-Instruct-Turbo` at fp8; to pick a different precision you'd change the model ID rather than a request field, and only older Llama 3 70B has a `…-Instruct-Reference` (bf16) variant). Their passthrough fields are _model-behavior knobs_ at the body's top level:
 

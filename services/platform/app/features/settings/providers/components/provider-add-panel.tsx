@@ -28,6 +28,7 @@ import {
   useSaveProvider,
   useSaveProviderSecret,
 } from '../hooks/mutations';
+import { readConvexErrorData } from '../utils/error-dispatch';
 import { modelTagLabel } from '../utils/model-tag-label';
 
 type ModelEntry = {
@@ -52,22 +53,6 @@ interface ProviderAddPanelProps {
 
 function emptyModel(): ModelEntry {
   return { id: '', displayName: '', tags: ['chat'] };
-}
-
-/**
- * Read structured `data` off a Convex action error without `instanceof
- * ConvexError`. See $providerName.tsx for rationale (Vite chunk splitting
- * can produce multiple ConvexError class copies, breaking instanceof).
- */
-function readConvexErrorData(
-  err: unknown,
-): Record<string, unknown> | undefined {
-  if (err == null || typeof err !== 'object') return undefined;
-  if (!('data' in err)) return undefined;
-  const data = (err as { data: unknown }).data;
-  if (data == null || typeof data !== 'object') return undefined;
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- data is a runtime-checked object; downstream reads narrow per-field
-  return data as Record<string, unknown>;
 }
 
 /** Derive a readable display name from a model ID (e.g. "gpt-4o" → "GPT-4o"). */

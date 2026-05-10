@@ -44,18 +44,27 @@ export function useProviderConfig() {
 interface ProviderConfigProviderProps {
   providerName: string;
   initialConfig: ProviderJson;
+  /**
+   * Hash of `initialConfig` as returned by `readProvider` / `saveProvider`.
+   * When present, every `saveConfig` round-trips it as `expectedHash` so
+   * concurrent edits from another operator surface as a
+   * `PROVIDER_VERSION_CONFLICT` toast instead of a silent overwrite.
+   */
+  initialHash?: string;
   children: React.ReactNode;
 }
 
 export function ProviderConfigProvider({
   providerName,
   initialConfig,
+  initialHash,
   children,
 }: ProviderConfigProviderProps) {
   const [config, setConfig] = useState(initialConfig);
   const [isSaving, setIsSaving] = useState(false);
   const initialRef = useRef(initialConfig);
   const configRef = useRef(config);
+  const hashRef = useRef(initialHash);
   configRef.current = config;
 
   useEffect(() => {
@@ -104,12 +113,14 @@ export function ProviderConfigProvider({
       }
       setIsSaving(true);
       try {
-        await saveProvider.mutateAsync({
+        const result = await saveProvider.mutateAsync({
           orgSlug: 'default',
           providerName,
           config: toSave,
+          ...(hashRef.current ? { expectedHash: hashRef.current } : {}),
         });
         initialRef.current = toSave;
+        hashRef.current = result.hash;
       } finally {
         setIsSaving(false);
       }

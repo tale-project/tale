@@ -36,7 +36,7 @@ export class SafeFetchError extends Error {
 export interface SafeFetchOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'HEAD';
   headers?: Record<string, string>;
-  body?: string;
+  body?: string | FormData;
   timeoutMs?: number;
   maxResponseBytes?: number;
   maxRedirects?: number;
@@ -55,21 +55,38 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 1_048_576; // 1 MB
 const DEFAULT_MAX_REDIRECTS = 5;
 
+/**
+ * Hostname-string match against private/loopback IP ranges. NOT an IP-pin:
+ * a hostname controlled by an attacker can still rebind to private space
+ * between this check and the actual `fetch` (which re-resolves DNS). For
+ * tighter mitigation, use an undici Dispatcher with a `lookup` callback.
+ *
+ * Recognized:
+ *  - `localhost`, `*.local`
+ *  - IPv4: 10/8, 172.16/12, 192.168/16, 127/8, 169.254/16, 0/8, 224+
+ *  - IPv6: ::1, fe80::/10, fc00::/7
+ *  - IPv4-mapped IPv6: `::ffff:a.b.c.d` and the 32-bit hex form
+ *    `::ffff:7f00:1` — decoded back to IPv4 before re-checking.
+ */
 export function isPrivateIp(hostname: string): boolean {
   const lower = hostname.toLowerCase();
   if (lower === 'localhost' || lower.endsWith('.local')) return true;
 
-  const ipv4Match = lower.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (ipv4Match) {
-    const a = Number(ipv4Match[1]);
-    const b = Number(ipv4Match[2]);
-    if (a === 10) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 127) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 0) return true;
-    if (a >= 224) return true;
+  if (isPrivateIpv4(lower)) return true;
+
+  // IPv4-mapped IPv6: `::ffff:a.b.c.d` form
+  const mappedDotted = lower.match(
+    /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/,
+  );
+  if (mappedDotted) return isPrivateIpv4(mappedDotted[1]);
+
+  // IPv4-mapped IPv6: `::ffff:hhhh:hhhh` 32-bit hex form
+  const mappedHex = lower.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (mappedHex) {
+    const high = Number.parseInt(mappedHex[1], 16);
+    const low = Number.parseInt(mappedHex[2], 16);
+    const dotted = `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`;
+    return isPrivateIpv4(dotted);
   }
 
   if (lower === '::1' || lower === '[::1]') return true;
@@ -79,6 +96,28 @@ export function isPrivateIp(hostname: string): boolean {
   return false;
 }
 
+function isPrivateIpv4(host: string): boolean {
+  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return false;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  if (a === 10) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 0) return true;
+  if (a >= 224) return true;
+  return false;
+}
+
+/**
+ * Reject the URL by hostname-string match against the IMDS / private ranges
+ * and the optional `allowedHosts` allowlist. Does NOT pin DNS — `fetch` will
+ * re-resolve and a short-TTL rebind from public to private IP between this
+ * check and the request slips through. To pin against rebinding, an undici
+ * Dispatcher with a `lookup` callback is required (not used here today).
+ */
 function validateUrl(rawUrl: string, allowedHosts: string[] | undefined): URL {
   let parsed: URL;
   try {

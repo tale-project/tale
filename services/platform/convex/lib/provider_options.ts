@@ -14,12 +14,14 @@ import type { SharedV3ProviderOptions } from '@ai-sdk/provider';
 
 import {
   BODY_OVERWRITE_KEYS,
+  PROTOTYPE_POLLUTION_KEYS,
   SDK_RESERVED_KEYS,
 } from '../../lib/shared/schemas/providers';
 
 const DENY_LIST = new Set<string>([
   ...SDK_RESERVED_KEYS,
   ...BODY_OVERWRITE_KEYS,
+  ...PROTOTYPE_POLLUTION_KEYS,
 ]);
 
 export function isPlainObject(

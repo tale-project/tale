@@ -17,7 +17,13 @@ import {
   type ResolvedModelData,
 } from './resolve_model';
 
-const MAX_FAILOVER_ATTEMPTS = 3;
+/**
+ * Cap on attempts the loop will execute. Must match the documented
+ * fallback-chain length below (currently 4) — `slice(0, MAX)` would
+ * silently drop the broadest "any-provider tag search" safety net if
+ * this is set lower than the chain length.
+ */
+const MAX_FAILOVER_ATTEMPTS = 4;
 
 interface FailoverParams {
   modelId?: string;

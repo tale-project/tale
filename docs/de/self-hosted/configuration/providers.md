@@ -71,6 +71,100 @@ Preise werden pro Modell deklariert, damit das Usage-Ledger Kostenschätzungen b
 
 Lass `cost` für selbst gehostete Backends weg, bei denen der Aufwand operativ statt pro Call entsteht — die Nutzung wird trotzdem protokolliert, aber die geschätzte Kostenspalte steht auf `0`.
 
+### Provider-Optionen (fortgeschritten)
+
+Tale leitet beliebige anbieterspezifische Request-Body-Felder über einen optionalen `providerOptions`-Block weiter — verfügbar **sowohl** auf Anbieter-Ebene als auch pro Modell. Häufigster Anwendungsfall ist OpenRouters [Provider-Routing](https://openrouter.ai/docs/guides/routing/provider-selection) — Quantisierung anpinnen, erlaubte Anbieter wählen, Fallback-Richtlinie usw.
+
+```json
+{
+  "displayName": "OpenRouter",
+  "baseUrl": "https://openrouter.ai/api/v1",
+  "providerOptions": {
+    "provider": { "allow_fallbacks": false, "data_collection": "deny" }
+  },
+  "models": [
+    {
+      "id": "z-ai/glm-5.1",
+      "displayName": "GLM 5.1",
+      "tags": ["chat"],
+      "providerOptions": {
+        "provider": { "quantizations": ["fp8"] }
+      }
+    }
+  ]
+}
+```
+
+**Schreibregeln:**
+
+- Schreiben Sie die **innere** Request-Body-Struktur — Tale namespaced sie zur Aufrufzeit unter dem tatsächlichen Anbieternamen. **Nicht** in `{ "openrouter": { ... } }` einwickeln.
+- **Merge-Vorrang**: Anbieter-Ebene → Modell-Ebene (Tiefe 2: gemeinsame Top-Level-Schlüssel werden zusammengeführt, Sub-Schlüssel mit Modell-Sieg, Arrays werden vollständig ersetzt).
+- Das Dashboard exponiert dasselbe JSON über die Panels **Erweitert — Provider-Optionen** unter _Einstellungen → Anbieter → \[Anbieter\]_ (Anbieter-Ebene) und im Modell-Bearbeiten-Dialog (pro Modell).
+
+**Abgelehnte Schlüssel** (die Datei wird beim Laden übersprungen, der Grund landet in `skippedReasons`; benachbarte Anbieter-Dateien laden weiter):
+
+| Kategorie           | Schlüssel                                                                                                                                                                                                                                                                                                                                 | Grund                                                                                                                                                                        |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AI-SDK-Reserve      | `user`, `reasoningEffort`, `textVerbosity`, `strictJsonSchema`                                                                                                                                                                                                                                                                            | Der OpenAI-kompatible Adapter entfernt diese stillschweigend — auf Agent-Ebene setzen.                                                                                       |
+| Body-Überschreibung | `model`, `messages`, `tools`, `tool_choice`, `stream`, `temperature`, `max_tokens`, `max_completion_tokens`, `top_p`, `frequency_penalty`, `presence_penalty`, `response_format`, `stop`, `seed`, `n`, `logit_bias`, `logprobs`, `top_logprobs`, `stream_options`, `store`, `metadata`, `prompt`, `size`, `reasoning_effort`, `verbosity` | Würden Tales aufgelösten Body überschreiben, Kosten still amplifizieren (`n`), Telemetrie kaputt machen (`stream_options`) oder Daten upstream leaken (`store`, `metadata`). |
+
+**OpenRouter-Quantisierungswerte:** `int4`, `int8`, `fp4`, `fp6`, `fp8`, `fp16`, `bf16`, `fp32`, `unknown`.
+
+#### Gateways vs. direkte Anbieter
+
+`providerOptions` spiegelt das jeweilige Upstream-API exakt — aber **welche** Knöpfe verfügbar sind, hängt davon ab, ob es sich beim Upstream um ein Routing-Gateway oder einen direkten Inferenz-Anbieter handelt.
+
+**Gateways** (OpenRouter, Vercel AI Gateway) sitzen vor mehreren Backends und aggregieren sie unter einem Endpunkt. Ihre Passthrough-Felder sind _Routing-Steuerungen_ — auswählen, welches Backend die Anfrage bedient, in welcher Präzision, mit welcher Fallback-Richtlinie. Die zwei bekannten Gateways strukturieren das unterschiedlich:
+
+```json
+// OpenRouter — Routing-Optionen unter Top-Level-Schlüssel "provider".
+"providerOptions": {
+  "provider": {
+    "quantizations": ["fp8"],
+    "allow_fallbacks": false,
+    "data_collection": "deny"
+  }
+}
+```
+
+```json
+// Vercel AI Gateway — primäres Routing über das Modell-ID-Präfix
+// (z. B. "anthropic/claude-3.5") und HTTP-Header wie `ai-gateway-order`.
+// Tales Deny-List lehnt `metadata` ab (PII-Egress-Vektor auf
+// /v1/chat/completions-Ebene), Observability-Tags müssen also im
+// Vercel-Dashboard statt pro Request konfiguriert werden.
+"providerOptions": {
+  "order": ["anthropic", "openai"]
+}
+```
+
+Tales `providerOptions` fließen nur in den Request-Body. Header-Routing-Steuerungen (`ai-gateway-order`, `ai-gateway-only`) und Observability-Tags (`metadata`) sind aktuell nicht über die Anbieter-Konfiguration setzbar; Routing über das Modell-ID-Präfix anpinnen und Tagging im Vercel-Dashboard konfigurieren.
+
+**Direkte Anbieter** (OpenAI, Anthropic, Together AI, Groq, DeepSeek, Mistral) hosten ihre eigenen Modelle. Es gibt **keine Routing-Schicht** und **kein `quantizations`-Feld** — die Präzision ist beim Deployment durch den Anbieter festgelegt. Ihre Passthrough-Felder sind _Modellverhaltens-Knöpfe_ auf oberster Body-Ebene:
+
+```json
+// OpenAI — SLA-Stufe, parallele Tools, Prompt-Cache-Routing
+"providerOptions": {
+  "service_tier": "priority",
+  "parallel_tool_calls": false,
+  "prompt_cache_key": "agent-foo-v1"
+}
+```
+
+```json
+// Together AI — Moderationsrouting, Sampling-Steuerungen
+"providerOptions": {
+  "safety_model": "meta-llama/Llama-Guard-4-12B",
+  "repetition_penalty": 1.1
+}
+```
+
+Tale leitet wortgetreu weiter — die exakten Feldnamen und akzeptierten Werte stehen in der API-Dokumentation des jeweiligen Anbieters. Vom Upstream nicht erkannte Felder werden am Gateway stillschweigend ignoriert; ein Tippfehler sieht also wie ein No-Op aus, statt laut zu scheitern.
+
+**Verifikation:** `TALE_DEBUG_LLM_WIRE=1` im Convex-Backend-Process-Env setzen (selbst gehosteter Convex-Container oder lokale `bun run dev` Convex-Shell) und stdout beobachten. Jeder ausgehende Chat-/Embedding-/Bild-LLM-Request, der durch das AI-SDK läuft, gibt URL plus Body-Schlüssel aus (mit `messages`/`input` redigiert), so dass das eingearbeitete `provider:`-Feld (oder andere) verifiziert werden kann. Hinweis: Der Wrapper deckt Transkription, Connection-Test-Probes und den Direct-Fetch-Image-Gen-Pfad nicht ab und redigiert nur `messages`/`input` — andere Body-Felder einschließlich `system`, `tools`, `metadata`, `prompt_cache_key` und `user` werden wortgetreu geloggt.
+
+**Migration:** Bestehende `$TALE_CONFIG_DIR/providers/*.json` ohne `providerOptions`-Block funktionieren unverändert weiter — das Feld ist optional. Neue Modelle in `examples/providers/openrouter.json` (GLM 5.x, Kimi K2.6, Qwen 3.6, Gemma 4) müssen manuell in deployed Configs übernommen werden.
+
 ## Speicherung der Anbieter-Secrets
 
 Tale unterstützt zwei On-Disk-Formate für `providers/<name>.secrets.json`. Die Format-Erkennung ist **inhaltsbasiert** — die Datei spricht für sich, und Tale wählt den richtigen Pfad unabhängig davon, welcher Prozess (Convex, CLI, Python-Services) sie liest.

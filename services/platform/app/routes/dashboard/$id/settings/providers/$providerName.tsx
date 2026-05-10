@@ -36,6 +36,7 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Card } from '@/app/components/ui/layout/card';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Text } from '@/app/components/ui/typography/text';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { ProviderDefaultModelsPanel } from '@/app/features/settings/providers/components/provider-default-models-panel';
@@ -55,6 +56,10 @@ import {
   ProviderConfigProvider,
   useProviderConfig,
 } from '@/app/features/settings/providers/hooks/use-provider-config-context';
+import {
+  dispatchForbiddenDeveloperSettings,
+  readConvexErrorData,
+} from '@/app/features/settings/providers/utils/error-dispatch';
 import { modelTagLabel } from '@/app/features/settings/providers/utils/model-tag-label';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -66,42 +71,6 @@ export const Route = createFileRoute(
 )({
   component: ProviderDetailRoute,
 });
-
-/**
- * Read structured `data` off a Convex action error without `instanceof
- * ConvexError`. Vite HMR / chunk splitting can produce multiple copies of the
- * `ConvexError` class — the prototype-chain check then returns false even
- * though the error IS a ConvexError. The UI only needs the structural shape
- * (`{ data: { code, ... } }`), so check that directly.
- */
-function readConvexErrorData(
-  err: unknown,
-): Record<string, unknown> | undefined {
-  if (err == null || typeof err !== 'object') return undefined;
-  if (!('data' in err)) return undefined;
-  const data = (err as { data: unknown }).data;
-  if (data == null || typeof data !== 'object') return undefined;
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- data is a runtime-checked object; downstream reads narrow per-field
-  return data as Record<string, unknown>;
-}
-
-/**
- * Surface a permission-denied toast when the server rejects with the
- * developerSettings gate's discriminator. Returns `true` if the error was
- * handled (caller should NOT also toast a generic failure).
- */
-function dispatchForbiddenDeveloperSettings(
-  err: unknown,
-  t: (key: string) => string,
-): boolean {
-  const data = readConvexErrorData(err);
-  if (data?.code !== 'FORBIDDEN_DEVELOPER_SETTINGS') return false;
-  toast({
-    title: t('providers.forbiddenDeveloperSettings'),
-    variant: 'destructive',
-  });
-  return true;
-}
 
 function ProviderDetailRoute() {
   const { t } = useT('settings');
@@ -179,6 +148,7 @@ function ProviderDetailRoute() {
     <ProviderConfigProvider
       providerName={providerName}
       initialConfig={data.config}
+      initialHash={data.hash}
     >
       {banner}
       <ProviderDetailContent
@@ -268,7 +238,7 @@ function ProviderDetailContent({
         <Link
           to="/dashboard/$id/settings/providers"
           params={{ id: organizationId }}
-          className="text-muted-foreground hover:text-foreground text-sm"
+          className="text-muted-foreground hover:text-foreground focus-visible:outline-ring rounded-sm text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
         >
           {t('providers.title')}
         </Link>
@@ -357,7 +327,7 @@ function SectionHeader({
       <button
         type="button"
         onClick={onEdit}
-        className="text-muted-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-[13px] font-medium"
+        className="text-muted-foreground hover:text-foreground focus-visible:outline-ring flex shrink-0 items-center gap-1.5 rounded-sm text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
       >
         <Pencil className="size-3.5" />
         {editLabel}
@@ -464,6 +434,15 @@ function ProviderOptionsSection() {
         cancelLabel: tCommon('actions.cancel'),
         saveSuccess: t('providers.providerOptions.saveSuccess'),
         saveError: t('providers.providerOptions.saveError'),
+        exampleLabel: t('providers.providerOptions.exampleLabel'),
+        discardConfirmTitle: t('providers.providerOptions.discardConfirmTitle'),
+        discardConfirmDescription: t(
+          'providers.providerOptions.discardConfirmDescription',
+        ),
+        discardConfirmAction: t(
+          'providers.providerOptions.discardConfirmAction',
+        ),
+        discardConfirmKeep: t('providers.providerOptions.discardConfirmKeep'),
       }}
     />
   );
@@ -570,7 +549,7 @@ function ApiKeySection({
             <button
               type="button"
               onClick={() => setTestDialogOpen(true)}
-              className="text-muted-foreground hover:text-foreground ml-auto flex items-center gap-1.5 text-[13px] font-medium"
+              className="text-muted-foreground hover:text-foreground focus-visible:outline-ring ml-auto flex items-center gap-1.5 rounded-sm text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
             >
               <Zap className="size-3.5" />
               {t('providers.testConnection')}
@@ -984,8 +963,17 @@ function ModelsSection({
                 {filteredModels.map(({ model, index }) => (
                   <TableRow
                     key={index}
-                    className="cursor-pointer"
+                    className="focus-visible:outline-ring cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+                    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a `<tr>` cannot legally be replaced with a `<button>`; role="button" advertises interactivity to AT users while keeping table semantics
+                    role="button"
+                    tabIndex={0}
                     onClick={() => openEditDialog(index)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openEditDialog(index);
+                      }
+                    }}
                   >
                     <TableCell>
                       <HStack gap={2} align="center">
@@ -1004,15 +992,15 @@ function ModelsSection({
                         )}
                         {model.providerOptions &&
                           Object.keys(model.providerOptions).length > 0 && (
-                            <Badge
-                              variant="outline"
-                              className="text-[10px]"
-                              title={Object.keys(model.providerOptions).join(
+                            <Tooltip
+                              content={Object.keys(model.providerOptions).join(
                                 ', ',
                               )}
                             >
-                              {t('providers.providerOptions.indicator')}
-                            </Badge>
+                              <Badge variant="outline" className="text-[10px]">
+                                {t('providers.providerOptions.indicator')}
+                              </Badge>
+                            </Tooltip>
                           )}
                       </HStack>
                     </TableCell>
@@ -1281,7 +1269,7 @@ function ModelsSection({
                     <button
                       type="button"
                       onClick={() => setModelKeyAction('replace')}
-                      className="text-muted-foreground hover:text-foreground text-xs font-medium"
+                      className="text-muted-foreground hover:text-foreground focus-visible:outline-ring rounded-sm text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
                     >
                       {t('providers.editKey')}
                     </button>
@@ -1302,7 +1290,7 @@ function ModelsSection({
                   <button
                     type="button"
                     onClick={() => setModelKeyAction('none')}
-                    className="text-muted-foreground hover:text-foreground text-xs font-medium"
+                    className="text-muted-foreground hover:text-foreground focus-visible:outline-ring rounded-sm text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
                   >
                     {t('providers.undoRemoveKey')}
                   </button>

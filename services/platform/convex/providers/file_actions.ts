@@ -27,7 +27,7 @@ import {
   sha256,
 } from '../lib/file_io';
 import { isPrivateIp, safeFetch, SafeFetchError } from '../lib/http/safe_fetch';
-import { mergeModelLevel } from '../lib/provider_options';
+import { mergeModelLevel, stripDenyListed } from '../lib/provider_options';
 import {
   EncryptedFileWithoutKeyError,
   decryptSecretsFile,
@@ -57,10 +57,16 @@ import {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-/** Mask an API key showing the first 6 and last 3 characters. */
+/**
+ * Mask an API key for "configured?" display in the dashboard. Shows only
+ * the first 6 characters (low-entropy, mostly the well-known provider
+ * prefix like `sk-proj-`) followed by bullets. Never includes the tail —
+ * those are real ciphertext bytes and would help an attacker brute-force
+ * a stolen partial.
+ */
 function maskApiKey(key: string): string {
-  if (key.length <= 9) return '••••••••••';
-  return key.slice(0, 6) + '••••••' + key.slice(-3);
+  if (key.length <= 6) return '••••••••••';
+  return key.slice(0, 6) + '••••••';
 }
 
 /** True iff `err` is a Node ErrnoException with the given code. */
@@ -71,27 +77,40 @@ function isErrnoCode(err: unknown, code: string): boolean {
 /**
  * Cloud metadata service hosts. Always blocked, regardless of
  * `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` — there is no legitimate reason for an
- * LLM provider endpoint to live at AWS/GCP IMDS.
+ * LLM provider endpoint to live at IMDS. Includes the public-IP IMDS
+ * endpoints (Alibaba, Oracle) that slip past the RFC1918 / link-local
+ * `isPrivateIp` check.
  */
 const BLOCKED_METADATA_HOSTS = new Set<string>([
-  '169.254.169.254',
-  'metadata.google.internal',
-  'fd00:ec2::254',
+  '169.254.169.254', // AWS, GCP, Azure, DigitalOcean, Oracle (link-local)
+  'fd00:ec2::254', // AWS IMDSv2 IPv6
+  'metadata.google.internal', // GCP
+  'metadata', // bare hostname; resolves under GKE/GCE search domains
+  '100.100.100.200', // Alibaba ECS — public IP, not caught by isPrivateIp
+  '192.0.0.192', // Oracle Cloud OCI v1 — public IP
+  'metadata.tencentyun.com', // Tencent Cloud
 ]);
 
 /**
  * Reject the URL at the policy layer before issuing any request. Two gates:
  *
- * 1. Cloud metadata services (`169.254.169.254`, `metadata.google.internal`,
- *    GCP/AWS IMDSv2 IPv6) are always blocked.
+ * 1. Cloud metadata services (AWS/GCP/Azure/Alibaba/Oracle/Tencent IMDS,
+ *    both link-local and public-IP variants) are always blocked.
  * 2. Other private/loopback hosts (RFC1918, `127.0.0.0/8`, `localhost`,
  *    link-local, ULA) are blocked by default. To support self-hosted
  *    backends like Ollama on `localhost:11434`, operators set
  *    `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` in the platform process env.
  *
+ * Validates the hostname string only. DNS rebinding via short-TTL toggling
+ * is NOT mitigated; resolution happens again inside `fetch`. Acceptable
+ * because (a) only `developerSettings`-scoped users author URLs, and
+ * (b) policy is one of several layers (IMDS host blocklist, RFC1918 reject,
+ * `redirect: 'manual'` in `safeFetch`). To pin against rebinding, route
+ * through an undici Dispatcher with a `lookup` callback.
+ *
  * Throws `ConvexError` so the UI can dispatch on `data.code`.
  */
-function checkProviderHostPolicy(rawUrl: string): URL {
+export function checkProviderHostPolicy(rawUrl: string): URL {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -101,7 +120,13 @@ function checkProviderHostPolicy(rawUrl: string): URL {
       message: `Invalid URL: ${rawUrl}`,
     });
   }
-  const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  // Normalize: lowercase, strip IPv6 brackets, strip trailing dot.
+  // A trailing-dot hostname like `metadata.google.internal.` resolves the
+  // same DNS-wise but bypasses naive `Set.has` lookups.
+  const host = parsed.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '');
   if (BLOCKED_METADATA_HOSTS.has(host)) {
     throw new ConvexError({
       code: 'BLOCKED_HOST',
@@ -242,7 +267,9 @@ export const readProvider = action({
   ): Promise<
     ProviderReadResult & { maskedModelKeys?: Record<string, string> }
   > => {
-    await requireOrgMembership(ctx, args.orgSlug);
+    // Returns the masked-key preview, so gate on developerSettings to match
+    // the dashboard route that's the only legit consumer.
+    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
     const result = await readProviderFile(args.orgSlug, args.providerName);
     if (!result.ok) return result;
 
@@ -345,7 +372,20 @@ export const listProviders = action({
 });
 
 export const saveProvider = action({
-  args: { orgSlug: v.string(), providerName: v.string(), config: v.any() },
+  args: {
+    orgSlug: v.string(),
+    providerName: v.string(),
+    config: v.any(),
+    /**
+     * Optional optimistic-concurrency token. When provided, the save
+     * fails with `PROVIDER_VERSION_CONFLICT` if the on-disk file's hash
+     * differs (someone else saved between the dashboard's load and this
+     * write). Frontend snapshots the hash returned by `readProvider` /
+     * a previous `saveProvider`. Omit on first-create or when the caller
+     * intentionally wants last-write-wins.
+     */
+    expectedHash: v.optional(v.string()),
+  },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
     await requireDeveloperSettingsAccess(ctx, args.orgSlug);
@@ -366,6 +406,29 @@ export const saveProvider = action({
       });
     }
     const config = parseResult.data;
+    // SSRF: gate persisted base URLs through the same host policy as the
+    // probe-time call. Without this, a developerSettings user could save
+    // baseUrl pointing at IMDS / internal services and have the API key
+    // POSTed there on the next chat/embedding/image/transcription call.
+    checkProviderHostPolicy(config.baseUrl);
+    for (const model of config.models) {
+      if (model.baseUrl !== undefined) checkProviderHostPolicy(model.baseUrl);
+    }
+    // Optimistic concurrency: if the caller passed `expectedHash`, the file
+    // on disk must hash to that value. Reading + writing isn't truly atomic
+    // here, but combined with `atomicWrite`'s same-tmp-then-rename it
+    // narrows the clobber window enough to surface concurrent edits to the
+    // dashboard rather than silently overwriting them.
+    if (args.expectedHash !== undefined) {
+      const existing = await readProviderFile(args.orgSlug, args.providerName);
+      if (existing.ok && existing.hash !== args.expectedHash) {
+        throw new ConvexError({
+          code: 'PROVIDER_VERSION_CONFLICT',
+          message:
+            'Provider was modified by another operator. Reload the page to see the latest version, then re-apply your changes.',
+        });
+      }
+    }
     const content = serializeProviderJson(config);
     const filePath = resolveProviderFilePath(args.orgSlug, args.providerName);
     await atomicWrite(filePath, content);
@@ -997,26 +1060,25 @@ async function runTranscriptionProbe(
       'probe.wav',
     );
     formData.append('model', modelId);
-    const response = await fetch(url, {
+    // safeFetch enforces redirect: 'manual' + per-hop host policy so a 302
+    // to IMDS can't carry the bearer token along.
+    const response = await safeFetch(url, {
       method: 'POST',
-      // Don't set Content-Type — fetch sets it (with boundary) for FormData.
       headers: { Authorization: `Bearer ${apiKey}` },
       body: formData,
-      signal: AbortSignal.timeout(15_000),
+      timeoutMs: 15_000,
     });
     const latencyMs = Date.now() - start;
-    if (response.ok) {
-      await response.text().catch(() => '');
+    if (response.status >= 200 && response.status < 300) {
       return { modelId, tag: 'transcription', ok: true, latencyMs };
     }
-    const errorText = await response.text().catch(() => '');
     return {
       modelId,
       tag: 'transcription',
       ok: false,
       latencyMs,
       status: response.status,
-      error: extractErrorMessage(errorText) || response.statusText,
+      error: extractErrorMessage(response.body) || response.statusText,
     };
   } catch (err) {
     const latencyMs = Date.now() - start;
@@ -1050,23 +1112,27 @@ async function fetchProviderModelIds(
 ): Promise<ListingResult> {
   const url = buildProbeUrl(baseUrl, 'models');
   try {
-    const response = await fetch(url, {
+    const response = await safeFetch(url, {
+      method: 'GET',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         Accept: 'application/json',
       },
-      signal: AbortSignal.timeout(15_000),
+      timeoutMs: 15_000,
     });
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
+    if (response.status < 200 || response.status >= 300) {
       return {
         ok: false,
         status: response.status,
-        error: extractErrorMessage(errorText) || response.statusText,
+        error: extractErrorMessage(response.body) || response.statusText,
       };
     }
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- raw JSON, narrowed below
-    const json = (await response.json().catch(() => null)) as unknown;
+    let json: unknown;
+    try {
+      json = JSON.parse(response.body);
+    } catch {
+      return { ok: false, error: 'Unexpected response from /v1/models' };
+    }
     const data =
       json &&
       typeof json === 'object' &&
@@ -1149,7 +1215,7 @@ async function runProbe(
 ): Promise<ProbeResult> {
   const start = Date.now();
   try {
-    const response = await fetch(url, {
+    const response = await safeFetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -1157,22 +1223,19 @@ async function runProbe(
         Accept: 'application/json',
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(8_000),
+      timeoutMs: 8_000,
     });
     const latencyMs = Date.now() - start;
-    if (response.ok) {
-      // Drain the body so the connection can be reused; we don't need it.
-      await response.text().catch(() => '');
+    if (response.status >= 200 && response.status < 300) {
       return { modelId, tag, ok: true, latencyMs };
     }
-    const errorText = await response.text().catch(() => '');
     return {
       modelId,
       tag,
       ok: false,
       latencyMs,
       status: response.status,
-      error: extractErrorMessage(errorText) || response.statusText,
+      error: extractErrorMessage(response.body) || response.statusText,
     };
   } catch (err) {
     const latencyMs = Date.now() - start;
@@ -1311,12 +1374,23 @@ export const testProviderConnection = action({
       const isTranscription = model.tags.includes('transcription');
       const isImageGeneration = model.tags.includes('image-generation');
 
+      // Merge provider+model providerOptions into the probe body so a typo
+      // in the editor (e.g. `provider.quanitzations`) surfaces as the same
+      // upstream 4xx the user would hit on first real call, instead of a
+      // false-green checkmark. Deny-listed keys (model/messages/...) are
+      // already rejected at parse time and stripped here as defense-in-depth.
+      const mergedProviderOptions =
+        stripDenyListed(
+          mergeModelLevel(config.providerOptions, model.providerOptions),
+        ) ?? {};
+
       if (isChat) {
         probes.push(
           runProbe(
             buildProbeUrl(config.baseUrl, 'chat/completions'),
             apiKey,
             {
+              ...mergedProviderOptions,
               model: model.id,
               messages: [{ role: 'user', content: 'hi' }],
             },
@@ -1329,7 +1403,7 @@ export const testProviderConnection = action({
           runProbe(
             buildProbeUrl(config.baseUrl, 'embeddings'),
             apiKey,
-            { model: model.id, input: 'hi' },
+            { ...mergedProviderOptions, model: model.id, input: 'hi' },
             model.id,
             'embedding',
           ),
@@ -1595,7 +1669,8 @@ export const hasProviderSecret = action({
   },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args): Promise<string | null> => {
-    await requireOrgMembership(ctx, args.orgSlug);
+    // Returns the masked-key preview, gate on developerSettings.
+    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
 
     const secretsPath = resolveProviderSecretsPath(
       args.orgSlug,
