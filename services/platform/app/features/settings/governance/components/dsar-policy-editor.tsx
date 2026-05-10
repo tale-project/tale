@@ -1,6 +1,5 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
 import { Skeleton } from '@tale/ui/skeleton';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
@@ -31,6 +30,16 @@ function parseConfig(raw: unknown): DsarGovernanceConfig {
   return result.success ? result.data : DEFAULT_DSAR_GOVERNANCE;
 }
 
+/**
+ * Auto-save on blur: each input commits its value to the server when it
+ * loses focus (or when the Switch toggles, which has no blur). No "Save"
+ * button — the three fields are infrequent governance knobs and an
+ * explicit save step adds friction without a real upside.
+ *
+ * Validation: on commit we run the same Zod schema the server uses;
+ * invalid values are rejected with a toast and the field reverts to
+ * the last saved value.
+ */
 export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
   const { t } = useT('governance');
   const { toast } = useToast();
@@ -58,63 +67,79 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
-  const isDirty = useMemo(() => {
-    if (Number(coolingOffHours) !== savedConfig.coolingOffHours) return true;
-    if (requireDualApproval !== savedConfig.requireDualApproval) return true;
-    if (Number(dailyLimitPerAdmin) !== savedConfig.dailyLimitPerAdmin)
-      return true;
-    return false;
-  }, [coolingOffHours, requireDualApproval, dailyLimitPerAdmin, savedConfig]);
+  const persist = useCallback(
+    async (next: DsarGovernanceConfig) => {
+      try {
+        await upsertMutation.mutateAsync({
+          organizationId,
+          policyType: 'dsar_governance',
+          config: next,
+        });
+        toast({
+          title: t('toastSavedTitle'),
+          description: t('dsarPolicy.saved'),
+          variant: 'success',
+        });
+      } catch (e) {
+        console.error(e);
+        toast({
+          title: t('toastSaveFailedTitle'),
+          description: t('dsarPolicy.saveFailed'),
+          variant: 'destructive',
+        });
+      }
+    },
+    [organizationId, upsertMutation, toast, t],
+  );
 
-  const handleSave = useCallback(async () => {
+  const commitCoolingOffHours = useCallback(() => {
     const hours = Number(coolingOffHours);
     if (!Number.isInteger(hours) || hours < 0 || hours > 72) {
       toast({
         title: t('dsarPolicy.invalidCoolingOffHours'),
         variant: 'destructive',
       });
+      // Revert visible value to last saved.
+      setCoolingOffHours(String(savedConfig.coolingOffHours));
       return;
     }
+    if (hours === savedConfig.coolingOffHours) return;
+    void persist({
+      coolingOffHours: hours,
+      requireDualApproval,
+      dailyLimitPerAdmin: savedConfig.dailyLimitPerAdmin,
+    });
+  }, [coolingOffHours, requireDualApproval, savedConfig, persist, toast, t]);
+
+  const commitDailyLimit = useCallback(() => {
     const limit = Number(dailyLimitPerAdmin);
     if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
       toast({
         title: t('dsarPolicy.invalidDailyLimit'),
         variant: 'destructive',
       });
+      setDailyLimitPerAdmin(String(savedConfig.dailyLimitPerAdmin));
       return;
     }
-    try {
-      await upsertMutation.mutateAsync({
-        organizationId,
-        policyType: 'dsar_governance',
-        config: {
-          coolingOffHours: hours,
-          requireDualApproval,
-          dailyLimitPerAdmin: limit,
-        } satisfies DsarGovernanceConfig,
+    if (limit === savedConfig.dailyLimitPerAdmin) return;
+    void persist({
+      coolingOffHours: savedConfig.coolingOffHours,
+      requireDualApproval,
+      dailyLimitPerAdmin: limit,
+    });
+  }, [dailyLimitPerAdmin, requireDualApproval, savedConfig, persist, toast, t]);
+
+  const handleDualApprovalToggle = useCallback(
+    (next: boolean) => {
+      setRequireDualApproval(next);
+      void persist({
+        coolingOffHours: savedConfig.coolingOffHours,
+        requireDualApproval: next,
+        dailyLimitPerAdmin: savedConfig.dailyLimitPerAdmin,
       });
-      toast({
-        title: t('toastSavedTitle'),
-        description: t('dsarPolicy.saved'),
-        variant: 'success',
-      });
-    } catch (e) {
-      console.error(e);
-      toast({
-        title: t('toastSaveFailedTitle'),
-        description: t('dsarPolicy.saveFailed'),
-        variant: 'destructive',
-      });
-    }
-  }, [
-    coolingOffHours,
-    requireDualApproval,
-    dailyLimitPerAdmin,
-    organizationId,
-    upsertMutation,
-    toast,
-    t,
-  ]);
+    },
+    [savedConfig, persist],
+  );
 
   if (isLoading) {
     return (
@@ -147,7 +172,8 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
           description={t('dsarPolicy.coolingOffHours.description')}
           value={coolingOffHours}
           onChange={(e) => setCoolingOffHours(e.target.value)}
-          disabled={cannotManage}
+          onBlur={commitCoolingOffHours}
+          disabled={cannotManage || upsertMutation.isPending}
         />
 
         <div className="flex items-start justify-between gap-3">
@@ -161,8 +187,8 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
           </div>
           <Switch
             checked={requireDualApproval}
-            onCheckedChange={setRequireDualApproval}
-            disabled={cannotManage}
+            onCheckedChange={handleDualApprovalToggle}
+            disabled={cannotManage || upsertMutation.isPending}
             aria-label={t('dsarPolicy.requireDualApproval.label')}
           />
         </div>
@@ -177,20 +203,9 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
           description={t('dsarPolicy.dailyLimitPerAdmin.description')}
           value={dailyLimitPerAdmin}
           onChange={(e) => setDailyLimitPerAdmin(e.target.value)}
-          disabled={cannotManage}
+          onBlur={commitDailyLimit}
+          disabled={cannotManage || upsertMutation.isPending}
         />
-
-        <div>
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            onClick={() => void handleSave()}
-            disabled={cannotManage || !isDirty || upsertMutation.isPending}
-          >
-            {t('common.actions.save')}
-          </Button>
-        </div>
       </div>
     </PageSection>
   );
