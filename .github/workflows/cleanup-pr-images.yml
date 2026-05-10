@@ -1,0 +1,63 @@
+name: Cleanup PR images
+
+# When a PR closes (merged or otherwise), delete every GHCR container version
+# whose tag begins with `pr-{number}-sha-`. The `build` job in build.yml pushes
+# one such tag per push to a PR, so they accumulate fast without cleanup.
+#
+# Tags from main / merge_group runs use the `sha-…` prefix and are NOT deleted
+# here; manage their lifecycle separately if needed.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  packages: write
+
+concurrency:
+  group: cleanup-pr-images-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  delete:
+    name: Delete ${{ matrix.service }} PR tags
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [db, convex, crawler, rag, platform, proxy]
+
+    steps:
+      - name: Delete PR-tagged versions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          SVC: ${{ matrix.service }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          # GHCR package names URL-encode the slash: `tale/tale-{svc}` → `tale%2Ftale-{svc}`.
+          PACKAGE="tale%2Ftale-${SVC}"
+          PREFIX="pr-${PR}-sha-"
+
+          echo "Looking up versions of ${OWNER}/${PACKAGE} tagged ${PREFIX}*"
+
+          VERSION_IDS=$(gh api -H "Accept: application/vnd.github+json" \
+            "/orgs/${OWNER}/packages/container/${PACKAGE}/versions" \
+            --paginate \
+            --jq "[.[] | select(any(.metadata.container.tags[]?; startswith(\"${PREFIX}\"))) | .id] | .[]" \
+            || true)
+
+          if [ -z "${VERSION_IDS}" ]; then
+            echo "No matching versions found for tale-${SVC}."
+            exit 0
+          fi
+
+          echo "${VERSION_IDS}" | while read -r version_id; do
+            [ -z "${version_id}" ] && continue
+            echo "Deleting version ${version_id}..."
+            gh api -X DELETE \
+              "/orgs/${OWNER}/packages/container/${PACKAGE}/versions/${version_id}" \
+              || echo "Failed to delete version ${version_id} (may already be gone)"
+          done

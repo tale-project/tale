@@ -37,6 +37,7 @@ env:
   TURBO_API: 'http://127.0.0.1:9080'
   TURBO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   TURBO_TEAM: 'tale'
+  REGISTRY: ghcr.io
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -51,7 +52,9 @@ jobs:
       pull-requests: read
     outputs:
       services: ${{ steps.services.outputs.list }}
+      scannable_services: ${{ steps.services.outputs.scannable }}
       ci_tests: ${{ steps.filter.outputs.ci_tests }}
+      image_tag: ${{ steps.tag.outputs.value }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -97,28 +100,73 @@ jobs:
           echo "list=${SERVICES}" >> "$GITHUB_OUTPUT"
           echo "Services to build: ${SERVICES}"
 
+          # Vulnerability scan only covers the six compose-stack services that
+          # `build` actually pushes to GHCR. Web and docs use their own compose
+          # stacks and are reachable via security.yml's filesystem scan.
+          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "convex" or . == "crawler" or . == "rag" or . == "platform" or . == "proxy")]')
+          echo "scannable=${SCANNABLE}" >> "$GITHUB_OUTPUT"
+          echo "Services to scan: ${SCANNABLE}"
+
+      # CI image tag shared across build/smoke/validate/scan jobs. PR runs use
+      # `pr-{n}-sha-{shortsha}` so each push gets a unique, immutable tag that
+      # cleanup-pr-images.yml can wipe by prefix when the PR closes. Pushes to
+      # main and merge-queue runs lack a PR number and fall back to `sha-…`.
+      - name: Compute image tag
+        id: tag
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            echo "value=pr-${{ github.event.pull_request.number }}-sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+
   # ---------------------------------------------------------------------------
-  # Build each changed service's Docker image. Draft PRs skip to save minutes.
+  # Build each compose-stack service's Docker image and push to GHCR.
+  #
+  # Matrix is intentionally fixed (not driven by `changes.outputs.services`):
+  # smoke-test and image-validate need ALL six services available, so building
+  # only changed ones would force them back into local-build mode. Unchanged
+  # services hit the GHA layer cache and finish in seconds.
+  #
+  # Web/docs are NOT in this matrix — they have their own compose stacks and
+  # are exercised by the separate web-test / docs-test jobs below.
+  #
+  # Draft PRs skip to save minutes.
   # ---------------------------------------------------------------------------
   build:
     name: Build ${{ matrix.service }}
     needs: changes
-    if: needs.changes.outputs.services != '[]' && github.event.pull_request.draft != true
+    if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
-        service: ${{ fromJson(needs.changes.outputs.services) }}
+        service: [db, convex, crawler, rag, platform, proxy]
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      - name: Reclaim disk space
+        if: matrix.service == 'platform' || matrix.service == 'rag' || matrix.service == 'crawler' || matrix.service == 'convex'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af
+
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Login to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Resolve build metadata
         id: meta
@@ -126,31 +174,42 @@ jobs:
           echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
           echo "revision=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
-      - name: Build image
+      - name: Build and push
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
           file: services/${{ matrix.service }}/Dockerfile
           platforms: linux/amd64
-          push: false
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
           labels: |
             org.opencontainers.image.created=${{ steps.meta.outputs.created }}
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          provenance: false
 
       - name: Summary
-        run: echo "## Built tale-${{ matrix.service }}" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          {
+            echo "## Built tale-${{ matrix.service }}"
+            echo ""
+            echo "Pushed: \`${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Run container smoke tests via docker compose. Draft PRs skip.
+  # Run container smoke tests via docker compose. Pulls images built by the
+  # `build` job from GHCR instead of rebuilding locally. Draft PRs skip.
   # ---------------------------------------------------------------------------
   smoke-test:
     name: Smoke test
-    needs: changes
+    needs: [changes, build]
     if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read
     timeout-minutes: 20
 
     steps:
@@ -169,10 +228,34 @@ jobs:
           df -h /
           free -h
 
+      - name: Login to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Pull each service image from GHCR and re-tag locally as `:latest`.
+      # compose.yml resolves `${VERSION:-latest}`; with PULL_POLICY=never the
+      # smoke script will use these local images verbatim and skip its own
+      # `docker compose build` step.
+      - name: Pull images from GHCR
+        run: |
+          TAG="${{ needs.changes.outputs.image_tag }}"
+          REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
+          for svc in db convex crawler rag platform proxy; do
+            IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
+            echo "Pulling ${IMAGE}..."
+            docker pull "${IMAGE}"
+            docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
+          done
+
       - name: Run smoke tests
         run: bash tests/container-smoke-test.sh
         env:
           SMOKE_TEST_TIMEOUT: 300
+          SKIP_BUILD: 'true'
+          PULL_POLICY: never
 
       - name: Dump container logs on failure
         if: failure()
@@ -241,15 +324,17 @@ jobs:
         run: echo "## tale-docs container test complete" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Validate container image metadata, healthchecks, entrypoints. Draft PRs skip.
+  # Validate container image metadata, healthchecks, entrypoints. Pulls images
+  # built by the `build` job from GHCR. Draft PRs skip.
   # ---------------------------------------------------------------------------
   image-validate:
     name: Validate images
-    needs: changes
+    needs: [changes, build]
     if: (needs.changes.outputs.services != '[]' || needs.changes.outputs.ci_tests == 'true') && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read
     timeout-minutes: 15
 
     steps:
@@ -261,8 +346,29 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune -af
 
+      - name: Login to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull images from GHCR
+        run: |
+          TAG="${{ needs.changes.outputs.image_tag }}"
+          REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
+          for svc in db convex crawler rag platform proxy; do
+            IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
+            echo "Pulling ${IMAGE}..."
+            docker pull "${IMAGE}"
+            docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
+          done
+
       - name: Run image validation
         run: bash tests/container-image-test.sh
+        env:
+          SKIP_BUILD: 'true'
+          PULL_POLICY: never
 
       - name: Summary
         if: always()
@@ -271,43 +377,42 @@ jobs:
   # ---------------------------------------------------------------------------
   # Trivy vulnerability scan per changed service (non-blocking).
   # Push-to-main only — PRs rely on security.yml scheduled scans.
+  # Reuses the image built and pushed by the `build` job instead of rebuilding.
   # ---------------------------------------------------------------------------
   vulnerability-scan:
     name: Scan ${{ matrix.service }}
-    needs: changes
-    if: github.event_name == 'push' && needs.changes.outputs.services != '[]'
+    needs: [changes, build]
+    if: github.event_name == 'push' && needs.changes.outputs.scannable_services != '[]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
+      packages: read
     continue-on-error: true
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        service: ${{ fromJson(needs.changes.outputs.services) }}
+        service: ${{ fromJson(needs.changes.outputs.scannable_services) }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Setup Docker builder
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-
-      - name: Build image for scan
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+      - name: Login to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:
-          context: .
-          file: services/${{ matrix.service }}/Dockerfile
-          platforms: linux/amd64
-          push: false
-          load: true
-          tags: tale-${{ matrix.service }}:scan
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image
+        run: docker pull ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
 
       - name: Run Trivy
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
-          image-ref: tale-${{ matrix.service }}:scan
+          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
           format: 'sarif'
           output: '${{ matrix.service }}-trivy.sarif'
           severity: 'HIGH,CRITICAL'
