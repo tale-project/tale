@@ -502,6 +502,11 @@ const perCategoryValidator = v.object({
     rows: v.number(),
     blobs: v.number(),
     skippedByHold: v.number(),
+    // `eraseSubjectFileMetadata` returns the storage ids the processor
+    // already consumed for the RAG-DELETE fan-out; the receipt does
+    // not need them but Convex validators are strict on extra fields,
+    // so accept (and silently retain) the array here.
+    ragPurgeStorageIds: v.optional(v.array(v.string())),
   }),
   usageLedger: rowsAndHoldValidator,
   twoFactorAttempts: rowsAndHoldValidator,
