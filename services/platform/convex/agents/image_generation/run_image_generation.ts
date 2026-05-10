@@ -17,9 +17,15 @@ import { parseModelRef } from '../../../lib/shared/utils/model-ref';
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { internalAction } from '../../_generated/server';
+import { roundCents } from '../../governance/cost_estimation';
 import { onAgentComplete } from '../../lib/agent_completion';
 import { createDebugLog } from '../../lib/debug_log';
 import { buildDownloadUrl } from '../../lib/helpers/public_storage_url';
+import {
+  buildCallProviderOptions,
+  isPlainObject,
+  stripDenyListed,
+} from '../../lib/provider_options';
 import {
   resolveImageModelById,
   resolveImageModelByTag,
@@ -151,10 +157,16 @@ export const runImageGeneration = internalAction({
               }
             : textPrompt;
 
+        const imageProviderOptions = buildCallProviderOptions(
+          resolved.modelData,
+        );
         const result = await generateImage({
           model: resolved.imageModel,
           prompt: promptArg,
           n: 1,
+          ...(imageProviderOptions
+            ? { providerOptions: imageProviderOptions }
+            : {}),
         });
         for (const img of result.images) {
           imageBlobs.push({
@@ -184,6 +196,7 @@ export const runImageGeneration = internalAction({
           modelId: resolved.modelData.modelId,
           textPrompt,
           attachmentImages: attachmentBytes,
+          providerOptions: stripDenyListed(resolved.modelData.providerOptions),
         });
         for (const img of extractedImages) imageBlobs.push(img);
         usage = extractedUsage;
@@ -246,7 +259,7 @@ export const runImageGeneration = internalAction({
       const perImageCost = resolved.modelData.imageCentsPerImage;
       const imageCostCents =
         providerCostUsd != null
-          ? providerCostUsd * 100
+          ? roundCents(providerCostUsd * 100)
           : perImageCost != null
             ? imageBlobs.length * perImageCost
             : undefined;
@@ -361,6 +374,7 @@ async function fetchChatCompletionImages(opts: {
   modelId: string;
   textPrompt: string;
   attachmentImages: Array<{ bytes: Uint8Array; mediaType: string }>;
+  providerOptions?: Record<string, unknown>;
 }): Promise<ChatCompletionsImageResult> {
   const userContent: Array<
     | { type: 'text'; text: string }
@@ -379,11 +393,20 @@ async function fetchChatCompletionImages(opts: {
   // `usage.include` asks OpenRouter to return the actual USD cost in
   // `usage.cost` — megapixel-priced image models don't fit a flat per-image
   // rate, so we prefer the gateway's billed amount over a static estimate.
+  //
+  // Per-model `providerOptions` (already deny-list-stripped) spread first so
+  // the protected keys below win on collision: `model`/`messages`/`modalities`
+  // must never be overridable from config, and `usage` requires a nested
+  // merge so callers can extend without dropping `include: true`.
+  const incomingUsage = isPlainObject(opts.providerOptions?.usage)
+    ? opts.providerOptions.usage
+    : {};
   const body = {
+    ...(opts.providerOptions ? opts.providerOptions : {}),
     model: opts.modelId,
     messages: [{ role: 'user', content: userContent }],
     modalities: ['image'],
-    usage: { include: true },
+    usage: { ...incomingUsage, include: true },
   };
 
   const url = `${opts.baseUrl.replace(/\/+$/, '')}/chat/completions`;

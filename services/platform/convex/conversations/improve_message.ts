@@ -3,6 +3,8 @@ import { Agent } from '@convex-dev/agent';
 
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
+import { buildCallProviderOptions } from '../lib/provider_options';
+import type { ResolvedModelData } from '../providers/resolve_model';
 
 function createImproveMessageAgent(
   languageModel: LanguageModelV3,
@@ -30,6 +32,7 @@ export async function improveMessage(
     originalMessage: string;
     instruction?: string;
     languageModel: LanguageModelV3;
+    modelData?: ResolvedModelData;
   },
 ): Promise<{ improvedMessage: string; error?: string }> {
   try {
@@ -37,12 +40,20 @@ export async function improveMessage(
       args.languageModel,
       args.instruction,
     );
+    const callProviderOptions = args.modelData
+      ? buildCallProviderOptions(args.modelData)
+      : undefined;
     const userId = `improve-msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
     const result = await agent.generateText(
       ctx,
       { userId },
-      { prompt: args.originalMessage },
+      {
+        prompt: args.originalMessage,
+        ...(callProviderOptions
+          ? { providerOptions: callProviderOptions }
+          : {}),
+      },
       { storageOptions: { saveMessages: 'none' } },
     );
 

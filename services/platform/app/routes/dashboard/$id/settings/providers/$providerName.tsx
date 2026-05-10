@@ -36,10 +36,16 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Card } from '@/app/components/ui/layout/card';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Text } from '@/app/components/ui/typography/text';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { ProviderDefaultModelsPanel } from '@/app/features/settings/providers/components/provider-default-models-panel';
 import { ProviderEditPanel } from '@/app/features/settings/providers/components/provider-edit-panel';
+import {
+  ModelProviderOptionsField,
+  ProviderOptionsEditor,
+  providerOptionsToJsonString,
+} from '@/app/features/settings/providers/components/provider-options-editor';
 import { TestConnectionSheet } from '@/app/features/settings/providers/components/test-connection-sheet';
 import { useSaveProviderSecret } from '@/app/features/settings/providers/hooks/mutations';
 import {
@@ -50,9 +56,15 @@ import {
   ProviderConfigProvider,
   useProviderConfig,
 } from '@/app/features/settings/providers/hooks/use-provider-config-context';
+import {
+  dispatchForbiddenDeveloperSettings,
+  dispatchVersionConflict,
+  readConvexErrorData,
+} from '@/app/features/settings/providers/utils/error-dispatch';
 import { modelTagLabel } from '@/app/features/settings/providers/utils/model-tag-label';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { modelTagLiterals } from '@/lib/shared/schemas/providers';
 import { cn } from '@/lib/utils/cn';
 
 export const Route = createFileRoute(
@@ -60,24 +72,6 @@ export const Route = createFileRoute(
 )({
   component: ProviderDetailRoute,
 });
-
-/**
- * Read structured `data` off a Convex action error without `instanceof
- * ConvexError`. Vite HMR / chunk splitting can produce multiple copies of the
- * `ConvexError` class — the prototype-chain check then returns false even
- * though the error IS a ConvexError. The UI only needs the structural shape
- * (`{ data: { code, ... } }`), so check that directly.
- */
-function readConvexErrorData(
-  err: unknown,
-): Record<string, unknown> | undefined {
-  if (err == null || typeof err !== 'object') return undefined;
-  if (!('data' in err)) return undefined;
-  const data = (err as { data: unknown }).data;
-  if (data == null || typeof data !== 'object') return undefined;
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- data is a runtime-checked object; downstream reads narrow per-field
-  return data as Record<string, unknown>;
-}
 
 function ProviderDetailRoute() {
   const { t } = useT('settings');
@@ -153,8 +147,10 @@ function ProviderDetailRoute() {
 
   return (
     <ProviderConfigProvider
+      orgSlug={orgSlug}
       providerName={providerName}
       initialConfig={data.config}
+      initialHash={data.hash}
     >
       {banner}
       <ProviderDetailContent
@@ -244,7 +240,7 @@ function ProviderDetailContent({
         <Link
           to="/dashboard/$id/settings/providers"
           params={{ id: organizationId }}
-          className="text-muted-foreground hover:text-foreground text-sm"
+          className="text-muted-foreground hover:text-foreground focus-visible:outline-ring rounded-sm text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
         >
           {t('providers.title')}
         </Link>
@@ -260,7 +256,11 @@ function ProviderDetailContent({
         providerName={providerName}
         maskedKey={maskedKey}
       />
-      <DefaultModelsSection providerName={providerName} />
+      <DefaultModelsSection
+        organizationId={organizationId}
+        providerName={providerName}
+      />
+      <ProviderOptionsSection />
       <ModelsSection
         orgSlug={orgSlug}
         providerName={providerName}
@@ -332,7 +332,7 @@ function SectionHeader({
       <button
         type="button"
         onClick={onEdit}
-        className="text-muted-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-[13px] font-medium"
+        className="text-muted-foreground hover:text-foreground focus-visible:outline-ring flex shrink-0 items-center gap-1.5 rounded-sm text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
       >
         <Pencil className="size-3.5" />
         {editLabel}
@@ -374,7 +374,13 @@ function GeneralSection({ providerName }: { providerName: string }) {
   );
 }
 
-function DefaultModelsSection({ providerName }: { providerName: string }) {
+function DefaultModelsSection({
+  organizationId,
+  providerName,
+}: {
+  organizationId: string;
+  providerName: string;
+}) {
   const { t } = useT('settings');
   const { config } = useProviderConfig();
   const [panelOpen, setPanelOpen] = useState(false);
@@ -404,17 +410,60 @@ function DefaultModelsSection({ providerName }: { providerName: string }) {
         <InfoRow label={t('providers.tagVision')}>
           {modelDisplayName(config.defaults?.vision)}
         </InfoRow>
-        <InfoRow label={t('providers.tagEmbedding')} isLast>
+        <InfoRow label={t('providers.tagEmbedding')}>
           {modelDisplayName(config.defaults?.embedding)}
+        </InfoRow>
+        <InfoRow label={t('providers.tagImageGeneration')}>
+          {modelDisplayName(config.defaults?.['image-generation'])}
+        </InfoRow>
+        <InfoRow label={t('providers.tagTranscription')} isLast>
+          {modelDisplayName(config.defaults?.transcription)}
         </InfoRow>
       </Card>
 
       <ProviderDefaultModelsPanel
         open={panelOpen}
         onOpenChange={setPanelOpen}
+        organizationId={organizationId}
         providerName={providerName}
       />
     </>
+  );
+}
+
+function ProviderOptionsSection() {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
+  const { config, isSaving, saveConfig } = useProviderConfig();
+
+  return (
+    <ProviderOptionsEditor
+      initialJson={providerOptionsToJsonString(config.providerOptions)}
+      isSaving={isSaving}
+      onSave={async (parsed) => {
+        await saveConfig({ providerOptions: parsed });
+      }}
+      copy={{
+        title: t('providers.providerOptions.providerLevelTitle'),
+        description: t('providers.providerOptions.providerLevelDescription'),
+        notConfigured: t('providers.providerOptions.notConfigured'),
+        editLabel: t('providers.editGeneral'),
+        saveLabel: t('providers.providerOptions.save'),
+        cancelLabel: tCommon('actions.cancel'),
+        saveSuccess: t('providers.providerOptions.saveSuccess'),
+        saveError: t('providers.providerOptions.saveError'),
+        exampleLabel: t('providers.providerOptions.exampleLabel'),
+        discardConfirmTitle: t('providers.providerOptions.discardConfirmTitle'),
+        discardConfirmDescription: t(
+          'providers.providerOptions.discardConfirmDescription',
+        ),
+        discardConfirmAction: t(
+          'providers.providerOptions.discardConfirmAction',
+        ),
+        discardConfirmKeep: t('providers.providerOptions.discardConfirmKeep'),
+        objectRequiredError: t('providers.providerOptions.objectRequiredError'),
+      }}
+    />
   );
 }
 
@@ -474,10 +523,12 @@ function ApiKeySection({
           // toasting so the destructive ConfirmDialog doesn't sit open behind
           // a toast.
           setOverwritePrompt(null);
-          toast({
-            title: t('providers.secretSaveFailed'),
-            variant: 'destructive',
-          });
+          if (!dispatchForbiddenDeveloperSettings(err, t)) {
+            toast({
+              title: t('providers.secretSaveFailed'),
+              variant: 'destructive',
+            });
+          }
         }
       } finally {
         setSaving(false);
@@ -517,7 +568,7 @@ function ApiKeySection({
             <button
               type="button"
               onClick={() => setTestDialogOpen(true)}
-              className="text-muted-foreground hover:text-foreground ml-auto flex items-center gap-1.5 text-[13px] font-medium"
+              className="text-muted-foreground hover:text-foreground focus-visible:outline-ring ml-auto flex items-center gap-1.5 rounded-sm text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
             >
               <Zap className="size-3.5" />
               {t('providers.testConnection')}
@@ -611,6 +662,12 @@ interface ModelFormState {
   imageGenerationMode: '' | 'images-api' | 'chat-multimodal';
   baseUrl: string;
   apiKey: string;
+  /**
+   * Free-form JSON for `providerOptions` — empty string means absent. Stored
+   * as a string here so the JsonInput's textarea state and our form state
+   * stay aligned without a separate parse step until submit.
+   */
+  providerOptionsJson: string;
 }
 
 const EMPTY_MODEL_FORM: ModelFormState = {
@@ -625,6 +682,7 @@ const EMPTY_MODEL_FORM: ModelFormState = {
   imageGenerationMode: '',
   baseUrl: '',
   apiKey: '',
+  providerOptionsJson: '',
 };
 
 function ModelsSection({
@@ -686,6 +744,7 @@ function ModelsSection({
         imageGenerationMode: model.imageGenerationMode ?? '',
         baseUrl: model.baseUrl ?? '',
         apiKey: '',
+        providerOptionsJson: providerOptionsToJsonString(model.providerOptions),
       };
       setForm(formData);
       setInitialForm(formData);
@@ -724,14 +783,38 @@ function ModelsSection({
             }
           : undefined;
       const isImageGen = form.tags.includes('image-generation');
+      let providerOptions: Record<string, unknown> | undefined;
+      const trimmedProviderOptions = form.providerOptionsJson.trim();
+      if (trimmedProviderOptions) {
+        try {
+          const parsed: unknown = JSON.parse(trimmedProviderOptions);
+          if (
+            parsed != null &&
+            typeof parsed === 'object' &&
+            !Array.isArray(parsed)
+          ) {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime checks above narrow `parsed` to a non-null, non-array plain object; TS can't track the narrowing across JSON.parse
+            const obj = parsed as Record<string, unknown>;
+            if (Object.keys(obj).length > 0) {
+              providerOptions = obj;
+            }
+          }
+        } catch (parseErr) {
+          toast({
+            title: t('providers.providerOptions.invalidJson'),
+            description:
+              parseErr instanceof Error ? parseErr.message : String(parseErr),
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
       const model = {
         id: form.id,
         displayName: form.displayName,
         description: form.description || undefined,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- tags are constrained to checkbox values
-        tags: form.tags as Array<
-          'chat' | 'vision' | 'embedding' | 'image-generation' | 'image-edit'
-        >,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- tags are constrained to modelTagLiterals values
+        tags: form.tags as Array<(typeof modelTagLiterals)[number]>,
         dimensions: form.dimensions ? Number(form.dimensions) : undefined,
         imageGenerationMode:
           isImageGen && form.imageGenerationMode
@@ -739,6 +822,7 @@ function ModelsSection({
             : undefined,
         baseUrl: form.baseUrl.trim() || undefined,
         cost,
+        providerOptions,
       };
       const updatedModels =
         editingIndex != null
@@ -762,7 +846,9 @@ function ModelsSection({
           }
         }
         setDialogOpen(false);
-      } catch {
+      } catch (err) {
+        if (dispatchForbiddenDeveloperSettings(err, t)) return;
+        if (dispatchVersionConflict(err, t)) return;
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
     },
@@ -783,8 +869,23 @@ function ModelsSection({
     if (deleteIndex == null) return;
     const deletedModel = config.models[deleteIndex];
     try {
+      // Strip any defaults pointing at the deleted model. Without this,
+      // schema-side `superRefine` rejects the save with `defaults.X
+      // references unknown model` and the user sees a confusing
+      // "saveFailed" toast for an action that was intended to clean up.
+      const cleanedDefaults: Record<string, string> = {};
+      if (config.defaults) {
+        for (const [k, v] of Object.entries(config.defaults)) {
+          if (v !== undefined && v !== deletedModel?.id) {
+            cleanedDefaults[k] = v;
+          }
+        }
+      }
+      const cleanedDefaultsOrUndef =
+        Object.keys(cleanedDefaults).length > 0 ? cleanedDefaults : undefined;
       await saveConfig({
         models: config.models.filter((_, i) => i !== deleteIndex),
+        defaults: cleanedDefaultsOrUndef,
       });
       if (deletedModel && orgSlug) {
         await saveSecret.mutateAsync({
@@ -794,12 +895,15 @@ function ModelsSection({
         });
       }
       setDeleteIndex(null);
-    } catch {
+    } catch (err) {
+      if (dispatchForbiddenDeveloperSettings(err, t)) return;
+      if (dispatchVersionConflict(err, t)) return;
       toast({ title: t('providers.saveFailed'), variant: 'destructive' });
     }
   }, [
     deleteIndex,
     config.models,
+    config.defaults,
     saveConfig,
     saveSecret,
     orgSlug,
@@ -894,8 +998,17 @@ function ModelsSection({
                 {filteredModels.map(({ model, index }) => (
                   <TableRow
                     key={index}
-                    className="cursor-pointer"
+                    className="focus-visible:outline-ring cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+                    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a `<tr>` cannot legally be replaced with a `<button>`; role="button" advertises interactivity to AT users while keeping table semantics
+                    role="button"
+                    tabIndex={0}
                     onClick={() => openEditDialog(index)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openEditDialog(index);
+                      }
+                    }}
                   >
                     <TableCell>
                       <HStack gap={2} align="center">
@@ -912,6 +1025,18 @@ function ModelsSection({
                             {t('providers.modelApiKeyOverrideIndicator')}
                           </Badge>
                         )}
+                        {model.providerOptions &&
+                          Object.keys(model.providerOptions).length > 0 && (
+                            <Tooltip
+                              content={Object.keys(model.providerOptions).join(
+                                ', ',
+                              )}
+                            >
+                              <Badge variant="outline" className="text-[10px]">
+                                {t('providers.providerOptions.indicator')}
+                              </Badge>
+                            </Tooltip>
+                          )}
                       </HStack>
                     </TableCell>
                     <TableCell>
@@ -1052,15 +1177,7 @@ function ModelsSection({
                 rows={2}
               />
               <HStack gap={4} align="center" className="flex-wrap">
-                {(
-                  [
-                    'chat',
-                    'vision',
-                    'embedding',
-                    'image-generation',
-                    'image-edit',
-                  ] as const
-                ).map((tag) => (
+                {modelTagLiterals.map((tag) => (
                   <label
                     key={tag}
                     className="flex items-center gap-1.5 text-sm"
@@ -1187,7 +1304,7 @@ function ModelsSection({
                     <button
                       type="button"
                       onClick={() => setModelKeyAction('replace')}
-                      className="text-muted-foreground hover:text-foreground text-xs font-medium"
+                      className="text-muted-foreground hover:text-foreground focus-visible:outline-ring rounded-sm text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
                     >
                       {t('providers.editKey')}
                     </button>
@@ -1208,7 +1325,7 @@ function ModelsSection({
                   <button
                     type="button"
                     onClick={() => setModelKeyAction('none')}
-                    className="text-muted-foreground hover:text-foreground text-xs font-medium"
+                    className="text-muted-foreground hover:text-foreground focus-visible:outline-ring rounded-sm text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
                   >
                     {t('providers.undoRemoveKey')}
                   </button>
@@ -1239,6 +1356,19 @@ function ModelsSection({
                   </Text>
                 </>
               )}
+              <ModelProviderOptionsField
+                value={form.providerOptionsJson}
+                onChange={(next) =>
+                  setForm((f) => ({ ...f, providerOptionsJson: next }))
+                }
+                copy={{
+                  title: t('providers.providerOptions.modelLevelTitle'),
+                  description: t(
+                    'providers.providerOptions.modelLevelDescription',
+                  ),
+                  helpText: t('providers.providerOptions.modelLevelHelp'),
+                }}
+              />
             </Stack>
           </div>
 

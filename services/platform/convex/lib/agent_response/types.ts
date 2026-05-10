@@ -2,6 +2,7 @@
  * Type definitions for the generic agent response generator.
  */
 
+import type { SharedV3ProviderOptions } from '@ai-sdk/provider';
 import type { Agent } from '@convex-dev/agent';
 import type { ModelMessage } from 'ai';
 
@@ -47,6 +48,14 @@ export interface GenerateResponseConfig {
   maxContextTokens?: number;
   /** Per-agent personalization injection mode: 'on' (default) or 'off' */
   personalizationMode?: 'on' | 'off';
+  /**
+   * Pre-namespaced provider options from `buildCallProviderOptions(modelData)`.
+   * Spread per-call into streamText / generateText / generateObject — NOT
+   * into the Agent constructor (`Agent({providerOptions})` is `@deprecated`
+   * in `@convex-dev/agent` and slated for removal). When undefined, the call
+   * sites omit the field.
+   */
+  providerOptions?: SharedV3ProviderOptions;
 }
 
 /**

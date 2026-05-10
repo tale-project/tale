@@ -19,7 +19,6 @@ import type { ProviderSecrets } from '../../lib/shared/schemas/providers';
 import { providerJsonSchema } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
-import { authComponent } from '../auth';
 import { resolveAgeRecipients } from '../lib/age_keygen';
 import {
   atomicWrite,
@@ -27,13 +26,15 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
+import { isPrivateIp, safeFetch, SafeFetchError } from '../lib/http/safe_fetch';
+import { mergeModelLevel, stripDenyListed } from '../lib/provider_options';
 import {
   EncryptedFileWithoutKeyError,
   decryptSecretsFile,
   hasSopsKey,
   invalidateSecretsCache,
 } from '../lib/sops';
-import { requireOrgMembership } from './auth';
+import { requireDeveloperSettingsAccess, requireOrgMembership } from './auth';
 import { NoProviderAvailableError } from './errors';
 import type { ProviderJson, ProviderReadResult } from './file_utils';
 import {
@@ -56,15 +57,95 @@ import {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-/** Mask an API key showing the first 6 and last 3 characters. */
+/**
+ * Mask an API key for "configured?" display in the dashboard. Shows only
+ * the first 6 characters (low-entropy, mostly the well-known provider
+ * prefix like `sk-proj-`) followed by bullets. Never includes the tail —
+ * those are real ciphertext bytes and would help an attacker brute-force
+ * a stolen partial.
+ */
 function maskApiKey(key: string): string {
-  if (key.length <= 9) return '••••••••••';
-  return key.slice(0, 6) + '••••••' + key.slice(-3);
+  if (key.length <= 6) return '••••••••••';
+  return key.slice(0, 6) + '••••••';
 }
 
 /** True iff `err` is a Node ErrnoException with the given code. */
 function isErrnoCode(err: unknown, code: string): boolean {
   return err instanceof Error && 'code' in err && err.code === code;
+}
+
+/**
+ * Cloud metadata service hosts. Always blocked, regardless of
+ * `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS` — there is no legitimate reason for an
+ * LLM provider endpoint to live at IMDS. Includes the public-IP IMDS
+ * endpoints (Alibaba, Oracle) that slip past the RFC1918 / link-local
+ * `isPrivateIp` check.
+ */
+const BLOCKED_METADATA_HOSTS = new Set<string>([
+  '169.254.169.254', // AWS, GCP, Azure, DigitalOcean, Oracle (link-local)
+  'fd00:ec2::254', // AWS IMDSv2 IPv6
+  'metadata.google.internal', // GCP
+  'metadata', // bare hostname; resolves under GKE/GCE search domains
+  '100.100.100.200', // Alibaba ECS — public IP, not caught by isPrivateIp
+  '192.0.0.192', // Oracle Cloud OCI v1 — public IP
+  'metadata.tencentyun.com', // Tencent Cloud
+]);
+
+/**
+ * Reject the URL at the policy layer before issuing any request. Two gates:
+ *
+ * 1. Cloud metadata services (AWS/GCP/Azure/Alibaba/Oracle/Tencent IMDS,
+ *    both link-local and public-IP variants) are always blocked.
+ * 2. Other private/loopback hosts (RFC1918, `127.0.0.0/8`, `localhost`,
+ *    link-local, ULA) are blocked by default. To support self-hosted
+ *    backends like Ollama on `localhost:11434`, operators set
+ *    `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` in the platform process env.
+ *
+ * Validates the hostname string only. DNS rebinding via short-TTL toggling
+ * is NOT mitigated; resolution happens again inside `fetch`. Acceptable
+ * because (a) only `developerSettings`-scoped users author URLs, and
+ * (b) policy is one of several layers (IMDS host blocklist, RFC1918 reject,
+ * `redirect: 'manual'` in `safeFetch`). To pin against rebinding, route
+ * through an undici Dispatcher with a `lookup` callback.
+ *
+ * Throws `ConvexError` so the UI can dispatch on `data.code`.
+ */
+export function checkProviderHostPolicy(rawUrl: string): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new ConvexError({
+      code: 'INVALID_URL',
+      message: `Invalid URL: ${rawUrl}`,
+    });
+  }
+  // Normalize: lowercase, strip IPv6 brackets, strip trailing dot.
+  // A trailing-dot hostname like `metadata.google.internal.` resolves the
+  // same DNS-wise but bypasses naive `Set.has` lookups.
+  const host = parsed.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '');
+  if (BLOCKED_METADATA_HOSTS.has(host)) {
+    throw new ConvexError({
+      code: 'BLOCKED_HOST',
+      message: `Host "${host}" is blocked (cloud metadata endpoint).`,
+    });
+  }
+  if (
+    isPrivateIp(host) &&
+    process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS !== '1'
+  ) {
+    throw new ConvexError({
+      code: 'PRIVATE_HOST_BLOCKED',
+      message:
+        `Host "${host}" is a private/loopback address and is blocked. ` +
+        'Set TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 in the platform process env to ' +
+        'enable self-hosted backends like Ollama on localhost.',
+    });
+  }
+  return parsed;
 }
 
 async function readProviderFile(
@@ -186,7 +267,9 @@ export const readProvider = action({
   ): Promise<
     ProviderReadResult & { maskedModelKeys?: Record<string, string> }
   > => {
-    await requireOrgMembership(ctx, args.orgSlug);
+    // Returns the masked-key preview, so gate on developerSettings to match
+    // the dashboard route that's the only legit consumer.
+    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
     const result = await readProviderFile(args.orgSlug, args.providerName);
     if (!result.ok) return result;
 
@@ -289,14 +372,64 @@ export const listProviders = action({
 });
 
 export const saveProvider = action({
-  args: { orgSlug: v.string(), providerName: v.string(), config: v.any() },
+  args: {
+    orgSlug: v.string(),
+    providerName: v.string(),
+    config: v.any(),
+    /**
+     * Optional optimistic-concurrency token. When provided, the save
+     * fails with `PROVIDER_VERSION_CONFLICT` if the on-disk file's hash
+     * differs (someone else saved between the dashboard's load and this
+     * write). Frontend snapshots the hash returned by `readProvider` /
+     * a previous `saveProvider`. Omit on first-create or when the caller
+     * intentionally wants last-write-wins.
+     */
+    expectedHash: v.optional(v.string()),
+  },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
-    await requireOrgMembership(ctx, args.orgSlug);
+    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
 
     if (!validateProviderName(args.providerName))
       throw new Error(`Invalid provider name: ${args.providerName}`);
-    const config = providerJsonSchema.parse(args.config);
+    // Wrap ZodError in ConvexError with `issues` so the dashboard can render
+    // a per-field error message. Raw `parse` would surface as a generic
+    // stringified ZodError array in the toast description.
+    const parseResult = providerJsonSchema.safeParse(args.config);
+    if (!parseResult.success) {
+      throw new ConvexError({
+        code: 'INVALID_PROVIDER_CONFIG',
+        issues: parseResult.error.issues.map((i) => ({
+          path: i.path.join('.'),
+          message: i.message,
+        })),
+      });
+    }
+    const config = parseResult.data;
+    // SSRF: gate persisted base URLs through the same host policy as the
+    // probe-time call. Without this, a developerSettings user could save
+    // baseUrl pointing at IMDS / internal services and have the API key
+    // POSTed there on the next chat/embedding/image/transcription call.
+    checkProviderHostPolicy(config.baseUrl);
+    for (const model of config.models) {
+      if (model.baseUrl !== undefined) checkProviderHostPolicy(model.baseUrl);
+    }
+    // Optimistic concurrency: if the caller passed `expectedHash`, the file
+    // on disk must hash to that value. Reading + writing isn't truly atomic
+    // here, but combined with `atomicWrite`'s same-tmp-then-rename it
+    // narrows the clobber window enough to surface concurrent edits to the
+    // dashboard rather than silently overwriting them.
+    if (args.expectedHash !== undefined) {
+      const existing = await readProviderFile(args.orgSlug, args.providerName);
+      const conflict = !existing.ok || existing.hash !== args.expectedHash;
+      if (conflict) {
+        throw new ConvexError({
+          code: 'PROVIDER_VERSION_CONFLICT',
+          message:
+            'Provider may have been deleted or modified by another operator. Reload the page to see the latest state, then re-apply your changes.',
+        });
+      }
+    }
     const content = serializeProviderJson(config);
     const filePath = resolveProviderFilePath(args.orgSlug, args.providerName);
     await atomicWrite(filePath, content);
@@ -308,17 +441,23 @@ export const deleteProvider = action({
   args: { orgSlug: v.string(), providerName: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    await requireOrgMembership(ctx, args.orgSlug);
+    const auth = await requireDeveloperSettingsAccess(ctx, args.orgSlug);
     const filePath = resolveProviderFilePath(args.orgSlug, args.providerName);
     const secretsPath = resolveProviderSecretsPath(
       args.orgSlug,
       args.providerName,
     );
-    await unlink(filePath).catch((err: unknown) => {
+    // Order: secrets first, then public config. If the secrets unlink fails
+    // (rare — EACCES / EIO on a network FS), the public file remains and the
+    // entry stays visible in the provider list so the operator can retry the
+    // delete. The reversed order would leave an orphaned ciphertext that
+    // discovery can't enumerate (loadAllProviders only iterates *.json),
+    // requiring shell access to recover.
+    await unlink(secretsPath).catch((err: unknown) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always have .code
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     });
-    await unlink(secretsPath).catch((err: unknown) => {
+    await unlink(filePath).catch((err: unknown) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always have .code
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     });
@@ -327,6 +466,33 @@ export const deleteProvider = action({
     // restart (next read would ENOENT before reaching the cache, so this is
     // a memory-residency concern, not a stale-serve risk).
     invalidateSecretsCache(secretsPath);
+
+    // Audit log — destructive op should leave a security-category trail.
+    // Best-effort: a successful delete should not be reported as failed
+    // because the audit table was unreachable.
+    try {
+      await ctx.runMutation(
+        internal.audit_logs.internal_mutations.createAuditLog,
+        {
+          organizationId: auth.orgId,
+          actorId: auth.userId,
+          actorEmail: auth.email,
+          actorRole: auth.member.role,
+          actorType: 'user',
+          action: 'provider_deleted',
+          category: 'security',
+          resourceType: 'provider',
+          resourceId: args.providerName,
+          resourceName: args.providerName,
+          status: 'success',
+        },
+      );
+    } catch (err) {
+      console.warn(
+        `[deleteProvider] failed to write audit log for ${args.providerName}`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
     return null;
   },
 });
@@ -361,6 +527,7 @@ export const resolveModelData = internalAction({
     outputCentsPerMillion: v.optional(v.number()),
     imageCentsPerImage: v.optional(v.number()),
     centsPerAudioMinute: v.optional(v.number()),
+    providerOptions: v.optional(v.record(v.string(), v.any())),
   }),
   handler: async (_ctx, args) => {
     const orgSlug = args.orgSlug ?? 'default';
@@ -425,6 +592,10 @@ export const resolveModelData = internalAction({
         outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
         imageCentsPerImage: definition.cost?.imageCentsPerImage,
         centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+        providerOptions: mergeModelLevel(
+          provider.config.providerOptions,
+          definition.providerOptions,
+        ),
       };
     }
 
@@ -463,6 +634,7 @@ export const resolveModelByTag = internalAction({
     outputCentsPerMillion: v.optional(v.number()),
     imageCentsPerImage: v.optional(v.number()),
     centsPerAudioMinute: v.optional(v.number()),
+    providerOptions: v.optional(v.record(v.string(), v.any())),
   }),
   handler: async (_ctx, args) => {
     const orgSlug = args.orgSlug ?? 'default';
@@ -510,6 +682,10 @@ export const resolveModelByTag = internalAction({
             outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
             imageCentsPerImage: definition.cost?.imageCentsPerImage,
             centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+            providerOptions: mergeModelLevel(
+              provider.config.providerOptions,
+              definition.providerOptions,
+            ),
           };
         }
       }
@@ -540,6 +716,10 @@ export const resolveModelByTag = internalAction({
           outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
           imageCentsPerImage: definition.cost?.imageCentsPerImage,
           centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+          providerOptions: mergeModelLevel(
+            provider.config.providerOptions,
+            definition.providerOptions,
+          ),
         };
       }
     }
@@ -710,13 +890,19 @@ export const getAllProviderConfigs = action({
  * Used by the "Add provider" panel to auto-populate models.
  */
 export const fetchProviderModels = action({
-  args: { baseUrl: v.string(), apiKey: v.string() },
+  args: {
+    orgSlug: v.string(),
+    baseUrl: v.string(),
+    apiKey: v.string(),
+  },
   returns: v.array(v.object({ id: v.string() })),
   handler: async (ctx, args): Promise<Array<{ id: string }>> => {
-    // No orgSlug here — this action probes an arbitrary URL with the user's
-    // own pasted apiKey, no filesystem read. Authenticated check only.
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    // Same gate as the rest of the provider mutations — operators with
+    // developerSettings access only. Pre-this-fix, this action accepted any
+    // authenticated user (`authComponent.getAuthUser`) and any baseUrl, which
+    // allowed any logged-in member to issue authenticated GETs from inside
+    // the Convex action runtime to internal services / cloud metadata.
+    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
 
     // Normalize base URL: strip trailing slash, append /models if needed
     let url = args.baseUrl.replace(/\/+$/, '');
@@ -724,22 +910,53 @@ export const fetchProviderModels = action({
       url = url.endsWith('/v1') ? `${url}/models` : `${url}/v1/models`;
     }
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${args.apiKey}`,
-        Accept: 'application/json',
-      },
-      signal: AbortSignal.timeout(15_000),
-    });
+    // Block IMDS + private hosts (unless TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1).
+    checkProviderHostPolicy(url);
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `Failed to fetch models (${response.status}): ${errorText || response.statusText}`,
-      );
+    let response;
+    try {
+      response = await safeFetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${args.apiKey}`,
+          Accept: 'application/json',
+        },
+        timeoutMs: 15_000,
+      });
+    } catch (err) {
+      if (err instanceof SafeFetchError) {
+        throw new ConvexError({
+          code: 'PROVIDER_FETCH_FAILED',
+          message: `Failed to fetch models: ${err.message}`,
+        });
+      }
+      throw err;
     }
 
-    const json: unknown = await response.json();
+    if (response.status < 200 || response.status >= 300) {
+      // Don't echo the upstream body to the caller — that would let an
+      // attacker who somehow got past the policy gate use this as a partial
+      // read primitive against an unresponsive-to-Authorization endpoint.
+      // Log the body server-side for ops visibility.
+      console.warn(
+        `[fetchProviderModels] non-2xx ${response.status} from ${url}: ${response.body.slice(0, 500)}`,
+      );
+      throw new ConvexError({
+        code: 'PROVIDER_FETCH_FAILED',
+        message: `Failed to fetch models (${response.status} ${response.statusText})`,
+      });
+    }
+
+    let json: unknown;
+    try {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- raw JSON narrowed below
+      json = JSON.parse(response.body);
+    } catch {
+      throw new ConvexError({
+        code: 'PROVIDER_FETCH_FAILED',
+        message: 'Provider returned non-JSON response',
+      });
+    }
     const models =
       json != null &&
       typeof json === 'object' &&
@@ -749,9 +966,11 @@ export const fetchProviderModels = action({
         : null;
 
     if (!models) {
-      throw new Error(
-        'Unexpected response format: expected { data: [...] } from /v1/models',
-      );
+      throw new ConvexError({
+        code: 'PROVIDER_FETCH_FAILED',
+        message:
+          'Unexpected response format: expected { data: [...] } from /v1/models',
+      });
     }
 
     return models
@@ -842,26 +1061,25 @@ async function runTranscriptionProbe(
       'probe.wav',
     );
     formData.append('model', modelId);
-    const response = await fetch(url, {
+    // safeFetch enforces redirect: 'manual' + per-hop host policy so a 302
+    // to IMDS can't carry the bearer token along.
+    const response = await safeFetch(url, {
       method: 'POST',
-      // Don't set Content-Type — fetch sets it (with boundary) for FormData.
       headers: { Authorization: `Bearer ${apiKey}` },
       body: formData,
-      signal: AbortSignal.timeout(15_000),
+      timeoutMs: 15_000,
     });
     const latencyMs = Date.now() - start;
-    if (response.ok) {
-      await response.text().catch(() => '');
+    if (response.status >= 200 && response.status < 300) {
       return { modelId, tag: 'transcription', ok: true, latencyMs };
     }
-    const errorText = await response.text().catch(() => '');
     return {
       modelId,
       tag: 'transcription',
       ok: false,
       latencyMs,
       status: response.status,
-      error: extractErrorMessage(errorText) || response.statusText,
+      error: extractErrorMessage(response.body) || response.statusText,
     };
   } catch (err) {
     const latencyMs = Date.now() - start;
@@ -895,23 +1113,27 @@ async function fetchProviderModelIds(
 ): Promise<ListingResult> {
   const url = buildProbeUrl(baseUrl, 'models');
   try {
-    const response = await fetch(url, {
+    const response = await safeFetch(url, {
+      method: 'GET',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         Accept: 'application/json',
       },
-      signal: AbortSignal.timeout(15_000),
+      timeoutMs: 15_000,
     });
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
+    if (response.status < 200 || response.status >= 300) {
       return {
         ok: false,
         status: response.status,
-        error: extractErrorMessage(errorText) || response.statusText,
+        error: extractErrorMessage(response.body) || response.statusText,
       };
     }
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- raw JSON, narrowed below
-    const json = (await response.json().catch(() => null)) as unknown;
+    let json: unknown;
+    try {
+      json = JSON.parse(response.body);
+    } catch {
+      return { ok: false, error: 'Unexpected response from /v1/models' };
+    }
     const data =
       json &&
       typeof json === 'object' &&
@@ -994,7 +1216,7 @@ async function runProbe(
 ): Promise<ProbeResult> {
   const start = Date.now();
   try {
-    const response = await fetch(url, {
+    const response = await safeFetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -1002,22 +1224,19 @@ async function runProbe(
         Accept: 'application/json',
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(8_000),
+      timeoutMs: 8_000,
     });
     const latencyMs = Date.now() - start;
-    if (response.ok) {
-      // Drain the body so the connection can be reused; we don't need it.
-      await response.text().catch(() => '');
+    if (response.status >= 200 && response.status < 300) {
       return { modelId, tag, ok: true, latencyMs };
     }
-    const errorText = await response.text().catch(() => '');
     return {
       modelId,
       tag,
       ok: false,
       latencyMs,
       status: response.status,
-      error: extractErrorMessage(errorText) || response.statusText,
+      error: extractErrorMessage(response.body) || response.statusText,
     };
   } catch (err) {
     const latencyMs = Date.now() - start;
@@ -1111,7 +1330,11 @@ export const testProviderConnection = action({
     skipped: v.array(v.object({ modelId: v.string(), reason: v.string() })),
   }),
   handler: async (ctx, args) => {
-    await requireOrgMembership(ctx, args.orgSlug);
+    // Test connection issues real authenticated requests against the saved
+    // provider with the org's API key; gate on developerSettings to match
+    // the write actions' threat model (a regular member calling this could
+    // burn quota / trigger fraud signals in the org's name).
+    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
 
     if (!validateProviderName(args.providerName))
       throw new Error(`Invalid provider name: ${args.providerName}`);
@@ -1126,6 +1349,13 @@ export const testProviderConnection = action({
       );
     }
     const config = configResult.config;
+
+    // Reject IMDS / private hosts unless explicitly allowed via env. Probes
+    // call the upstream over the network with a real API key; running them
+    // against a metadata service would either expose the key or surface a
+    // partial-read primitive in the error path. The check happens once
+    // here and protects all four downstream probe helpers.
+    checkProviderHostPolicy(config.baseUrl);
 
     const secretsPath = resolveProviderSecretsPath(
       args.orgSlug,
@@ -1145,12 +1375,23 @@ export const testProviderConnection = action({
       const isTranscription = model.tags.includes('transcription');
       const isImageGeneration = model.tags.includes('image-generation');
 
+      // Merge provider+model providerOptions into the probe body so a typo
+      // in the editor (e.g. `provider.quanitzations`) surfaces as the same
+      // upstream 4xx the user would hit on first real call, instead of a
+      // false-green checkmark. Deny-listed keys (model/messages/...) are
+      // already rejected at parse time and stripped here as defense-in-depth.
+      const mergedProviderOptions =
+        stripDenyListed(
+          mergeModelLevel(config.providerOptions, model.providerOptions),
+        ) ?? {};
+
       if (isChat) {
         probes.push(
           runProbe(
             buildProbeUrl(config.baseUrl, 'chat/completions'),
             apiKey,
             {
+              ...mergedProviderOptions,
               model: model.id,
               messages: [{ role: 'user', content: 'hi' }],
             },
@@ -1163,7 +1404,7 @@ export const testProviderConnection = action({
           runProbe(
             buildProbeUrl(config.baseUrl, 'embeddings'),
             apiKey,
-            { model: model.id, input: 'hi' },
+            { ...mergedProviderOptions, model: model.id, input: 'hi' },
             model.id,
             'embedding',
           ),
@@ -1217,12 +1458,18 @@ export const saveProviderSecret = action({
     orgSlug: v.string(),
     providerName: v.string(),
     apiKey: v.optional(v.string()),
-    modelKeys: v.optional(v.any()),
+    // Tightened from `v.any()` so a malformed payload (e.g. nested object
+    // value) is rejected at the action boundary instead of silently
+    // landing on disk and bricking the next read with
+    // `Invalid provider secrets`. The schema is also enforced at write
+    // time via `providerSecretsSchema` in lib/shared, but failing fast
+    // here surfaces the bug at the right call site.
+    modelKeys: v.optional(v.record(v.string(), v.string())),
     force: v.optional(v.boolean()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const auth = await requireOrgMembership(ctx, args.orgSlug);
+    const auth = await requireDeveloperSettingsAccess(ctx, args.orgSlug);
 
     if (!validateProviderName(args.providerName))
       throw new Error(`Invalid provider name: ${args.providerName}`);
@@ -1232,142 +1479,184 @@ export const saveProviderSecret = action({
       args.providerName,
     );
 
-    const encryptMode = hasSopsKey();
+    // Per-(orgSlug, providerName) advisory lock. `prepareMergedSecrets`
+    // is read-modify-write on the secrets file with no transactional
+    // guarantee, so two concurrent saves on the same provider can
+    // clobber one another's `modelKeys` additions. Within a single Node
+    // process the lock serializes them; cross-process safety is a
+    // follow-up that would require a real `expectedHash` round-trip
+    // (also exposed via the read query).
+    const lockKey = `${args.orgSlug}:${args.providerName}`;
+    const previous = secretWriteLocks.get(lockKey);
+    let release!: () => void;
+    const next = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    secretWriteLocks.set(lockKey, previous ? previous.then(() => next) : next);
+    if (previous) await previous;
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- modelKeys validated as Record<string, string> by caller
-    const incomingModelKeys = args.modelKeys as
-      | Record<string, string>
-      | undefined;
-
-    let plaintext: string;
-    let prepared: Awaited<ReturnType<typeof prepareMergedSecrets>>;
     try {
-      prepared = await prepareMergedSecrets(
-        secretsPath,
-        { apiKey: args.apiKey, modelKeys: incomingModelKeys },
-        { force: args.force },
-      );
-      plaintext = prepared.plaintext;
-    } catch (err) {
-      // Convert typed refuse-overwrite errors to ConvexError carrying a
-      // structured discriminator. The UI reads `error.data.kind` to decide
-      // whether to render the "overwrite anyway?" confirm dialog and re-call
-      // with `force: true`. `data.reason` carries the raw inner cause for
-      // the dialog body — the wrapper Error.message is intentionally NOT
-      // forwarded because it already embeds path + meta-instructions that
-      // would duplicate against the i18n template.
-      if (err instanceof EncryptedFileWithoutKeyError) {
-        throw new ConvexError({
-          code: 'PROVIDER_SECRET_REFUSED_OVERWRITE',
-          kind: 'encrypted_no_key',
-          path: secretsPath,
-        });
-      }
-      if (err instanceof UndecryptableExistingSecretError) {
-        throw new ConvexError({
-          code: 'PROVIDER_SECRET_REFUSED_OVERWRITE',
-          kind: 'undecryptable_existing',
-          path: secretsPath,
-          reason: err.reason,
-        });
-      }
-      throw err;
-    }
-
-    if (!encryptMode) {
-      await atomicWriteSecret(secretsPath, plaintext);
-      invalidateSecretsCache(secretsPath);
-      await maybeAuditForceOverwrite(ctx, args, secretsPath, prepared, auth);
-      return null;
-    }
-
-    // Resolve all age recipients from env. With multiple keys in
-    // `SOPS_AGE_KEY_FILE`, sops -e encrypts to all of them — new ciphertext
-    // is decryptable by any key in the file. This is the rotation primitive:
-    // append a new key, re-save each provider via the UI, then remove the
-    // old key. Decrypt path walks all keys naturally, so existing files keep
-    // working through the transition.
-    const recipients = resolveAgeRecipients();
-    if (recipients.length === 0) {
-      throw new Error(
-        'No age secret key available. Set SOPS_AGE_KEY (inline) or SOPS_AGE_KEY_FILE (path) in .env, or unset both to use plaintext mode.',
-      );
-    }
-    const recipientArg = recipients.join(',');
-
-    const { execFileSync } = await import('node:child_process');
-    const { writeFileSync, unlinkSync, mkdtempSync, rmdirSync } =
-      await import('node:fs');
-    const { tmpdir } = await import('node:os');
-
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'sops-'));
-    const tmpFile = path.join(tmpDir, 'plain.json');
-    let encrypted: string;
-    try {
-      // mkdtempSync gives us a 0o700 parent dir, so other users can't
-      // traverse to read this file even at default 0o644 mode. Belt-and-
-      // suspenders 0o600 anyway — matches atomicWriteSecret and means the
-      // mode bit is correct even if a future change to the parent dir mode
-      // regresses.
-      writeFileSync(tmpFile, plaintext, { encoding: 'utf-8', mode: 0o600 });
-      encrypted = execFileSync(
-        'sops',
-        [
-          '-e',
-          '--input-type',
-          'json',
-          '--output-type',
-          'json',
-          '--age',
-          recipientArg,
-          tmpFile,
-        ],
-        {
-          encoding: 'utf-8',
-          timeout: 10_000,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        },
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new Error(
-        `Failed to encrypt secrets for "${args.providerName}": ${message}. ` +
-          'Ensure sops is installed and SOPS_AGE_KEY is set.',
-        { cause: err },
-      );
+      return await runSaveProviderSecret(ctx, args, auth, secretsPath);
     } finally {
-      // Split the cleanup so a failed unlink (which would leak the plaintext
-      // API key into /tmp until the systemd-tmpfiles reaper sweeps in ~10
-      // days) surfaces as a warn rather than getting silently swallowed.
-      try {
-        unlinkSync(tmpFile);
-      } catch (cleanupErr) {
-        if (!isErrnoCode(cleanupErr, 'ENOENT')) {
-          console.warn(
-            `[saveProviderSecret] failed to unlink plaintext tmp file ${tmpFile}`,
-            cleanupErr,
-          );
-        }
-      }
-      try {
-        rmdirSync(tmpDir);
-      } catch (cleanupErr) {
-        if (!isErrnoCode(cleanupErr, 'ENOENT')) {
-          console.warn(
-            `[saveProviderSecret] failed to rmdir tmp dir ${tmpDir}`,
-            cleanupErr,
-          );
-        }
+      release();
+      // Drop the entry once we're the tail; a later writer may have
+      // already chained behind us, in which case we leave their entry.
+      if (secretWriteLocks.get(lockKey) === next) {
+        secretWriteLocks.delete(lockKey);
       }
     }
-
-    await atomicWriteSecret(secretsPath, encrypted);
-    invalidateSecretsCache(secretsPath);
-    await maybeAuditForceOverwrite(ctx, args, secretsPath, prepared, auth);
-
-    return null;
   },
 });
+
+// Module-scoped per-provider advisory locks. Lives for the lifetime of
+// the Convex action runtime (per Node process); one process per host in
+// self-hosted Convex.
+const secretWriteLocks = new Map<string, Promise<unknown>>();
+
+async function runSaveProviderSecret(
+  ctx: ActionCtx,
+  args: {
+    orgSlug: string;
+    providerName: string;
+    apiKey?: string;
+    modelKeys?: Record<string, string>;
+    force?: boolean;
+  },
+  auth: Awaited<ReturnType<typeof requireDeveloperSettingsAccess>>,
+  secretsPath: string,
+): Promise<null> {
+  const encryptMode = hasSopsKey();
+
+  const incomingModelKeys = args.modelKeys;
+
+  let plaintext: string;
+  let prepared: Awaited<ReturnType<typeof prepareMergedSecrets>>;
+  try {
+    prepared = await prepareMergedSecrets(
+      secretsPath,
+      { apiKey: args.apiKey, modelKeys: incomingModelKeys },
+      { force: args.force },
+    );
+    plaintext = prepared.plaintext;
+  } catch (err) {
+    // Convert typed refuse-overwrite errors to ConvexError carrying a
+    // structured discriminator. The UI reads `error.data.kind` to decide
+    // whether to render the "overwrite anyway?" confirm dialog and re-call
+    // with `force: true`. `data.reason` carries the raw inner cause for
+    // the dialog body — the wrapper Error.message is intentionally NOT
+    // forwarded because it already embeds path + meta-instructions that
+    // would duplicate against the i18n template.
+    if (err instanceof EncryptedFileWithoutKeyError) {
+      throw new ConvexError({
+        code: 'PROVIDER_SECRET_REFUSED_OVERWRITE',
+        kind: 'encrypted_no_key',
+        path: secretsPath,
+      });
+    }
+    if (err instanceof UndecryptableExistingSecretError) {
+      throw new ConvexError({
+        code: 'PROVIDER_SECRET_REFUSED_OVERWRITE',
+        kind: 'undecryptable_existing',
+        path: secretsPath,
+        reason: err.reason,
+      });
+    }
+    throw err;
+  }
+
+  if (!encryptMode) {
+    await atomicWriteSecret(secretsPath, plaintext);
+    invalidateSecretsCache(secretsPath);
+    await maybeAuditForceOverwrite(ctx, args, secretsPath, prepared, auth);
+    return null;
+  }
+
+  // Resolve all age recipients from env. With multiple keys in
+  // `SOPS_AGE_KEY_FILE`, sops -e encrypts to all of them — new ciphertext
+  // is decryptable by any key in the file. This is the rotation primitive:
+  // append a new key, re-save each provider via the UI, then remove the
+  // old key. Decrypt path walks all keys naturally, so existing files keep
+  // working through the transition.
+  const recipients = resolveAgeRecipients();
+  if (recipients.length === 0) {
+    throw new Error(
+      'No age secret key available. Set SOPS_AGE_KEY (inline) or SOPS_AGE_KEY_FILE (path) in .env, or unset both to use plaintext mode.',
+    );
+  }
+  const recipientArg = recipients.join(',');
+
+  const { execFileSync } = await import('node:child_process');
+  const { writeFileSync, unlinkSync, mkdtempSync, rmdirSync } =
+    await import('node:fs');
+  const { tmpdir } = await import('node:os');
+
+  const tmpDir = mkdtempSync(path.join(tmpdir(), 'sops-'));
+  const tmpFile = path.join(tmpDir, 'plain.json');
+  let encrypted: string;
+  try {
+    // mkdtempSync gives us a 0o700 parent dir, so other users can't
+    // traverse to read this file even at default 0o644 mode. Belt-and-
+    // suspenders 0o600 anyway — matches atomicWriteSecret and means the
+    // mode bit is correct even if a future change to the parent dir mode
+    // regresses.
+    writeFileSync(tmpFile, plaintext, { encoding: 'utf-8', mode: 0o600 });
+    encrypted = execFileSync(
+      'sops',
+      [
+        '-e',
+        '--input-type',
+        'json',
+        '--output-type',
+        'json',
+        '--age',
+        recipientArg,
+        tmpFile,
+      ],
+      {
+        encoding: 'utf-8',
+        timeout: 10_000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Failed to encrypt secrets for "${args.providerName}": ${message}. ` +
+        'Ensure sops is installed and SOPS_AGE_KEY is set.',
+      { cause: err },
+    );
+  } finally {
+    // Split the cleanup so a failed unlink (which would leak the plaintext
+    // API key into /tmp until the systemd-tmpfiles reaper sweeps in ~10
+    // days) surfaces as a warn rather than getting silently swallowed.
+    try {
+      unlinkSync(tmpFile);
+    } catch (cleanupErr) {
+      if (!isErrnoCode(cleanupErr, 'ENOENT')) {
+        console.warn(
+          `[saveProviderSecret] failed to unlink plaintext tmp file ${tmpFile}`,
+          cleanupErr,
+        );
+      }
+    }
+    try {
+      rmdirSync(tmpDir);
+    } catch (cleanupErr) {
+      if (!isErrnoCode(cleanupErr, 'ENOENT')) {
+        console.warn(
+          `[saveProviderSecret] failed to rmdir tmp dir ${tmpDir}`,
+          cleanupErr,
+        );
+      }
+    }
+  }
+
+  await atomicWriteSecret(secretsPath, encrypted);
+  invalidateSecretsCache(secretsPath);
+  await maybeAuditForceOverwrite(ctx, args, secretsPath, prepared, auth);
+
+  return null;
+}
 
 /**
  * Write a `force_overwrite_provider_secret` audit row when the operator just
@@ -1429,7 +1718,8 @@ export const hasProviderSecret = action({
   },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args): Promise<string | null> => {
-    await requireOrgMembership(ctx, args.orgSlug);
+    // Returns the masked-key preview, gate on developerSettings.
+    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
 
     const secretsPath = resolveProviderSecretsPath(
       args.orgSlug,

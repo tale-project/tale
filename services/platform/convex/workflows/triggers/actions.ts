@@ -7,6 +7,7 @@ import { z } from 'zod/v4';
 
 import { action } from '../../_generated/server';
 import { authComponent } from '../../auth';
+import { buildCallProviderOptions } from '../../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../../providers/failover';
 
 export const generateCronExpression = action({
@@ -32,13 +33,18 @@ export const generateCronExpression = action({
     }
 
     // Resolve chat model from provider files
-    const { languageModel } = await resolveLanguageModelWithFallback(ctx, {
-      tag: 'chat',
-    });
+    const { languageModel, modelData } = await resolveLanguageModelWithFallback(
+      ctx,
+      {
+        tag: 'chat',
+      },
+    );
+    const callProviderOptions = buildCallProviderOptions(modelData);
 
     const result = await generateObject({
       model: languageModel,
       temperature: 0.1,
+      ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
       schema: z.object({
         cronExpression: z
           .string()

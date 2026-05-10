@@ -19,6 +19,7 @@ import {
   loadGuardrailsSnapshot,
   sanitizeMessage,
 } from '../governance/sanitize';
+import { buildCallProviderOptions } from '../lib/provider_options';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 import { convertOpenAITools, generateToolCallId } from './tool_conversion';
@@ -239,10 +240,12 @@ export const chatDirectModel = internalAction({
         (args.conversationMessages as ModelMessage[])
       : [{ role: 'user' as const, content: message }];
 
+    const callProviderOptions = buildCallProviderOptions(resolved.modelData);
     const result = streamText({
       model: resolved.languageModel,
       system: systemPrompt,
       messages,
+      ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
       ...(aiTools && { tools: aiTools }),
       ...(args.toolChoice != null && {
         toolChoice: mapToolChoice(args.toolChoice),

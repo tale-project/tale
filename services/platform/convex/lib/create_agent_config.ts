@@ -14,6 +14,11 @@ const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[AgentConfig]');
  * maxOutputTokens / maxSteps defaults, and passes `instructions` through as-is.
  * Tool behavior rules live on each tool's own `description`; agent system prompts
  * live on the agent config. This factory does not wrap or mutate `instructions`.
+ *
+ * Note: `providerOptions` is NOT part of the agent config. Pass it per-call to
+ * `agent.streamText({ providerOptions })` / `agent.generateText({...})` /
+ * `agent.generateObject({...})`. The agent-level field on `@convex-dev/agent` is
+ * `@deprecated` and will be removed; the per-call form is the supported path.
  */
 export function createAgentConfig(opts: {
   name: string;
@@ -21,7 +26,21 @@ export function createAgentConfig(opts: {
   languageModel: LanguageModelV3;
   /** Pre-resolved text embedding model for vector search */
   textEmbeddingModel?: unknown;
+  /**
+   * Caller-specified output cap. Wins over `modelMaxOutputTokens` and the
+   * default. Use `undefined` (or `0`) to opt out: both omit the cap entirely
+   * so the SDK doesn't send `max_tokens: 0` (which most providers interpret
+   * as "generate zero tokens").
+   */
   maxTokens?: number;
+  /**
+   * Per-model cap from `modelData.maxOutputTokens`. Used when the caller
+   * doesn't provide an explicit `maxTokens`. Lets a provider config raise or
+   * lower the default for a specific model (e.g. mistral entries declare
+   * `maxOutputTokens: 8192` to escape OpenRouter's lower default). `0` is
+   * treated as "omit" for the same reason as `maxTokens`.
+   */
+  modelMaxOutputTokens?: number;
   instructions: string;
   convexToolNames?: ToolName[];
   /** Additional tools to merge (e.g., dynamic json_output tool) */
@@ -72,10 +91,27 @@ export function createAgentConfig(opts: {
     estimatedInstructionTokens,
   });
 
-  // Call settings are intentionally empty
-  // temperature and frequencyPenalty are not supported by reasoning models (e.g., DeepSeek V3.2)
-  // and cause empty responses when set. Let the model use its defaults.
-  const callSettings: Record<string, number> = {};
+  // Call settings: cap output tokens via priority caller > model config >
+  // 8192 default. The default keeps OpenRouter from truncating responses
+  // with its much lower built-in cap. Temperature and frequencyPenalty are
+  // intentionally NOT set — reasoning models (e.g. DeepSeek V3.2) treat
+  // them as `0` and return empty content.
+  //
+  // `0` from caller / model config is treated as "omit" — sending
+  // `max_tokens: 0` to OpenAI/OpenRouter generates zero tokens, not
+  // unlimited. Callers that want no cap pass `undefined`; `0` is the
+  // documented sentinel and routed to the same omit-the-field branch.
+  const resolvedMax =
+    typeof opts.maxTokens === 'number' && opts.maxTokens > 0
+      ? opts.maxTokens
+      : typeof opts.modelMaxOutputTokens === 'number' &&
+          opts.modelMaxOutputTokens > 0
+        ? opts.modelMaxOutputTokens
+        : opts.maxTokens === 0 || opts.modelMaxOutputTokens === 0
+          ? undefined
+          : 8192;
+  const callSettings: Record<string, number> =
+    resolvedMax === undefined ? {} : { maxOutputTokens: resolvedMax };
 
   // Default maxSteps to 40 when tools are configured but maxSteps is not set.
   // Without maxSteps, AI SDK defaults to stepCountIs(1), which prevents tool call loops
@@ -89,14 +125,6 @@ export function createAgentConfig(opts: {
     instructions: opts.instructions,
     languageModel: opts.languageModel,
     callSettings,
-    ...(typeof opts.maxTokens === 'number'
-      ? { maxOutputTokens: opts.maxTokens }
-      : {
-          // Set default maxOutputTokens via providerOptions to prevent OpenRouter
-          // from applying its own low defaults, which causes response truncation.
-          // Mirrors the pattern used in summarize_context.ts and vision_agent.ts.
-          providerOptions: { openai: { maxOutputTokens: 8192 } },
-        }),
     ...(hasAnyTools ? { tools: mergedTools } : {}),
     ...(typeof effectiveMaxSteps === 'number'
       ? { maxSteps: effectiveMaxSteps }

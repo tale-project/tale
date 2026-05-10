@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
+import { buildCallProviderOptions } from '../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 
 const MAX_RETRIES = 3;
@@ -103,11 +104,15 @@ export async function translateFields(
   });
 
   // Resolve chat model from provider files
-  const { languageModel } = await resolveLanguageModelWithFallback(ctx, {
-    tag: 'chat',
-  });
+  const { languageModel, modelData } = await resolveLanguageModelWithFallback(
+    ctx,
+    {
+      tag: 'chat',
+    },
+  );
 
   const agent = createTranslationAgent(args.targetLocale, languageModel);
+  const callProviderOptions = buildCallProviderOptions(modelData);
   const userId = `translate-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const prompt = JSON.stringify(flat);
 
@@ -117,7 +122,13 @@ export async function translateFields(
       const result = await agent.generateObject(
         ctx,
         { userId },
-        { prompt, schema },
+        {
+          prompt,
+          schema,
+          ...(callProviderOptions
+            ? { providerOptions: callProviderOptions }
+            : {}),
+        },
         { storageOptions: { saveMessages: 'none' } },
       );
 

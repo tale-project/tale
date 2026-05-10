@@ -19,6 +19,7 @@ import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Text } from '@/app/components/ui/typography/text';
+import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { modelTagLiterals } from '@/lib/shared/schemas/providers';
@@ -28,6 +29,7 @@ import {
   useSaveProvider,
   useSaveProviderSecret,
 } from '../hooks/mutations';
+import { readConvexErrorData } from '../utils/error-dispatch';
 import { modelTagLabel } from '../utils/model-tag-label';
 
 type ModelEntry = {
@@ -54,22 +56,6 @@ function emptyModel(): ModelEntry {
   return { id: '', displayName: '', tags: ['chat'] };
 }
 
-/**
- * Read structured `data` off a Convex action error without `instanceof
- * ConvexError`. See $providerName.tsx for rationale (Vite chunk splitting
- * can produce multiple ConvexError class copies, breaking instanceof).
- */
-function readConvexErrorData(
-  err: unknown,
-): Record<string, unknown> | undefined {
-  if (err == null || typeof err !== 'object') return undefined;
-  if (!('data' in err)) return undefined;
-  const data = (err as { data: unknown }).data;
-  if (data == null || typeof data !== 'object') return undefined;
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- data is a runtime-checked object; downstream reads narrow per-field
-  return data as Record<string, unknown>;
-}
-
 /** Derive a readable display name from a model ID (e.g. "gpt-4o" → "GPT-4o"). */
 function displayNameFromId(id: string): string {
   return id;
@@ -83,6 +69,8 @@ export function ProviderAddPanel({
   const { t } = useT('settings');
   const navigate = useNavigate();
   const { t: tCommon } = useT('common');
+  const { data: organization } = useOrganization(organizationId);
+  const orgSlug = organization?.slug ?? '';
   const { mutateAsync: saveProvider } = useSaveProvider();
   const { mutateAsync: saveProviderSecret } = useSaveProviderSecret();
   const { mutateAsync: fetchModels, isPending: isFetching } =
@@ -142,17 +130,25 @@ export function ProviderAddPanel({
           )
           .min(1, t('providers.modelsRequired'))
           .superRefine((models, ctx) => {
-            const seen = new Set<string>();
+            // Two-pass duplicate detection: collect every id that
+            // appears more than once, then flag every row carrying
+            // that id (not just the second+ occurrence). The previous
+            // single-pass form left the original row unhighlighted, so
+            // users would delete the wrong entry.
+            const counts = new Map<string, number>();
+            for (const m of models) {
+              if (!m.id) continue;
+              counts.set(m.id, (counts.get(m.id) ?? 0) + 1);
+            }
             for (let i = 0; i < models.length; i++) {
               const id = models[i].id;
-              if (id && seen.has(id)) {
+              if (id && (counts.get(id) ?? 0) > 1) {
                 ctx.addIssue({
                   code: 'custom',
                   message: t('providers.duplicateModelId'),
                   path: [i, 'id'],
                 });
               }
-              seen.add(id);
             }
           }),
       }),
@@ -194,7 +190,7 @@ export function ProviderAddPanel({
 
     setFetchError(null);
     try {
-      const result = await fetchModels({ baseUrl, apiKey });
+      const result = await fetchModels({ orgSlug, baseUrl, apiKey });
       const ids = result.map((m) => m.id);
       setFetchedModels(ids);
       // Auto-select all fetched models, excluding any already added manually
@@ -206,7 +202,7 @@ export function ProviderAddPanel({
       setFetchError(t('providers.fetchModelsError'));
       setHasFetched(false);
     }
-  }, [fetchModels, getValues, watchedModels, t]);
+  }, [fetchModels, getValues, orgSlug, watchedModels, t]);
 
   const handleToggleModel = useCallback((modelId: string, checked: boolean) => {
     setSelectedModelIds((prev) => {
@@ -420,13 +416,13 @@ export function ProviderAddPanel({
         // disk instead of a half-baked config-without-secret entry that
         // would otherwise show in the provider list with no way to flag it.
         await saveProviderSecret({
-          orgSlug: 'default',
+          orgSlug,
           providerName: data.name,
           apiKey: data.apiKey,
           force: force || undefined,
         });
         await saveProvider({
-          orgSlug: 'default',
+          orgSlug,
           providerName: data.name,
           config: {
             displayName: data.displayName,
@@ -454,6 +450,12 @@ export function ProviderAddPanel({
               typeof errData.reason === 'string' ? errData.reason : undefined,
             pendingFormData: data,
           });
+        } else if (errData?.code === 'FORBIDDEN_DEVELOPER_SETTINGS') {
+          setOverwritePrompt(null);
+          toast({
+            title: t('providers.forbiddenDeveloperSettings'),
+            variant: 'destructive',
+          });
         } else {
           // Non-overwrite failure (e.g. saveProvider zod-shape on second
           // step, network error). Clear any open confirm dialog so the toast
@@ -469,7 +471,7 @@ export function ProviderAddPanel({
         setCreating(false);
       }
     },
-    [finalizeProvider, saveProvider, saveProviderSecret, t],
+    [finalizeProvider, orgSlug, saveProvider, saveProviderSecret, t],
   );
 
   const onSubmit = async (data: FormData) => {

@@ -241,6 +241,159 @@
         "inputCentsPerMillion": 14,
         "outputCentsPerMillion": 28
       }
+    },
+    {
+      "id": "z-ai/glm-5.1",
+      "displayName": "GLM 5.1",
+      "description": "Z.ai GLM 5.1 flagship — 202K context. Example below pins fp8 quantization via OpenRouter's `provider.quantizations`; remove the `providerOptions` block to let OpenRouter pick.",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 105,
+        "outputCentsPerMillion": 350
+      },
+      "providerOptions": {
+        "provider": { "quantizations": ["fp8"] }
+      }
+    },
+    {
+      "id": "z-ai/glm-5-turbo",
+      "displayName": "GLM 5 Turbo",
+      "description": "Z.ai GLM 5 Turbo — fast 202K-context variant of the GLM 5 family",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 30,
+        "outputCentsPerMillion": 100
+      }
+    },
+    {
+      "id": "z-ai/glm-5v-turbo",
+      "displayName": "GLM 5V Turbo",
+      "description": "Z.ai GLM 5V Turbo — multimodal (text + image) variant of GLM 5 Turbo",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 30,
+        "outputCentsPerMillion": 100
+      }
+    },
+    {
+      "id": "moonshotai/kimi-k2.6",
+      "displayName": "Kimi K2.6",
+      "description": "Moonshot AI Kimi K2.6 — 262K context, multimodal (text + image)",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 75,
+        "outputCentsPerMillion": 350
+      }
+    },
+    {
+      "id": "qwen/qwen3.6-max-preview",
+      "displayName": "Qwen3.6 Max Preview",
+      "description": "Alibaba Qwen3.6 Max — flagship preview, 262K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 104,
+        "outputCentsPerMillion": 624
+      }
+    },
+    {
+      "id": "qwen/qwen3.6-plus",
+      "displayName": "Qwen3.6 Plus",
+      "description": "Alibaba Qwen3.6 Plus — 1M context, multimodal",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 33,
+        "outputCentsPerMillion": 195
+      }
+    },
+    {
+      "id": "qwen/qwen3.6-flash",
+      "displayName": "Qwen3.6 Flash",
+      "description": "Alibaba Qwen3.6 Flash — fastest 1M-context variant, multimodal",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 25,
+        "outputCentsPerMillion": 150
+      }
+    },
+    {
+      "id": "qwen/qwen3.6-35b-a3b",
+      "displayName": "Qwen3.6 35B A3B",
+      "description": "Alibaba Qwen3.6 35B-A3B — refresh of the 3.5 35B-A3B entry; multimodal",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 15,
+        "outputCentsPerMillion": 100
+      }
+    },
+    {
+      "id": "google/gemma-4-31b-it",
+      "displayName": "Gemma 4 31B IT",
+      "description": "Google Gemma 4 31B Instruct — open-weight, multimodal, 262K context",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 13,
+        "outputCentsPerMillion": 38
+      }
+    },
+    {
+      "id": "google/gemma-4-26b-a4b-it",
+      "displayName": "Gemma 4 26B A4B IT",
+      "description": "Google Gemma 4 26B-A4B Instruct — smaller MoE Gemma 4 variant, multimodal",
+      "tags": ["chat", "vision"],
+      "cost": {
+        "inputCentsPerMillion": 6,
+        "outputCentsPerMillion": 33
+      }
+    },
+    {
+      "id": "openai/gpt-oss-120b",
+      "displayName": "GPT-OSS 120B",
+      "description": "OpenAI gpt-oss-120b — open-weight 117B MoE (5.1B active), Apache 2.0, 131K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 4,
+        "outputCentsPerMillion": 18
+      }
+    },
+    {
+      "id": "moonshotai/kimi-k2",
+      "displayName": "Kimi K2",
+      "description": "Moonshot AI Kimi K2 Instruct — 1T-parameter MoE open-weight model, 131K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 57,
+        "outputCentsPerMillion": 230
+      }
+    },
+    {
+      "id": "deepseek/deepseek-v4-pro",
+      "displayName": "DeepSeek V4 Pro",
+      "description": "DeepSeek V4 Pro — flagship open-weight MoE, 1M context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 44,
+        "outputCentsPerMillion": 87
+      }
+    },
+    {
+      "id": "qwen/qwen3-coder",
+      "displayName": "Qwen3 Coder 480B",
+      "description": "Alibaba Qwen3-Coder 480B-A35B — open-weight MoE optimized for agentic coding, 262K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 22,
+        "outputCentsPerMillion": 180
+      }
+    },
+    {
+      "id": "qwen/qwen3-235b-a22b-2507",
+      "displayName": "Qwen3 235B A22B",
+      "description": "Alibaba Qwen3-235B-A22B Instruct — open-weight MoE flagship (22B active), 262K context",
+      "tags": ["chat"],
+      "cost": {
+        "inputCentsPerMillion": 7,
+        "outputCentsPerMillion": 10
+      }
     }
   ],
   "i18n": {

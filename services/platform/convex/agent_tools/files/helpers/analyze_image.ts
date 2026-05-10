@@ -15,6 +15,7 @@ import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 import { imageAnalysisCache } from '../../../lib/action_cache';
 import { createDebugLog } from '../../../lib/debug_log';
+import { buildCallProviderOptions } from '../../../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../../../providers/failover';
 import { createVisionAgent } from './vision_agent';
 
@@ -100,6 +101,7 @@ export async function analyzeImage(
     });
 
     const visionAgent = createVisionAgent(languageModel);
+    const callProviderOptions = buildCallProviderOptions(modelData);
 
     // Create a temporary thread for this analysis
     const thread = await ctx.runMutation(
@@ -133,6 +135,9 @@ export async function analyzeImage(
               ],
             },
           ],
+          ...(callProviderOptions
+            ? { providerOptions: callProviderOptions }
+            : {}),
         },
       );
     } catch (err) {
@@ -188,9 +193,14 @@ export async function analyzeImageCached(
   ctx: ActionCtx,
   params: AnalyzeImageParams,
 ): Promise<AnalyzeImageResult> {
+  // `orgSlug` is part of the cache key — different orgs may resolve the
+  // vision tag to different models with different providerOptions, so a
+  // shared cache hit across orgs would silently misroute. Omitted args
+  // (system-level callers) hash to the same key as before.
   return await imageAnalysisCache.fetch(ctx, {
     fileId: params.fileId,
     question: params.question,
     fileName: params.fileName,
+    orgSlug: params.orgSlug,
   });
 }

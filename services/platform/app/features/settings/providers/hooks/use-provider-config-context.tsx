@@ -42,20 +42,36 @@ export function useProviderConfig() {
 }
 
 interface ProviderConfigProviderProps {
+  /**
+   * Active organization slug. Required so saveConfig writes to the caller's
+   * org rather than a hardcoded `'default'` (which fails with
+   * `ORG_NOT_FOUND` / `ORG_FORBIDDEN` outside the default-org deployment).
+   */
+  orgSlug: string;
   providerName: string;
   initialConfig: ProviderJson;
+  /**
+   * Hash of `initialConfig` as returned by `readProvider` / `saveProvider`.
+   * When present, every `saveConfig` round-trips it as `expectedHash` so
+   * concurrent edits from another operator surface as a
+   * `PROVIDER_VERSION_CONFLICT` toast instead of a silent overwrite.
+   */
+  initialHash?: string;
   children: React.ReactNode;
 }
 
 export function ProviderConfigProvider({
+  orgSlug,
   providerName,
   initialConfig,
+  initialHash,
   children,
 }: ProviderConfigProviderProps) {
   const [config, setConfig] = useState(initialConfig);
   const [isSaving, setIsSaving] = useState(false);
   const initialRef = useRef(initialConfig);
   const configRef = useRef(config);
+  const hashRef = useRef(initialHash);
   configRef.current = config;
 
   useEffect(() => {
@@ -64,8 +80,14 @@ export function ProviderConfigProvider({
     if (!hasUnsavedEdits) {
       setConfig(initialConfig);
       initialRef.current = initialConfig;
+      // Refresh the optimistic-concurrency token alongside the config.
+      // Without this, a sibling mutation (saveSecret) or SSE-driven refetch
+      // gives us a fresh hash on the read query but `hashRef` keeps the
+      // stale one — the next save then trips a spurious
+      // `PROVIDER_VERSION_CONFLICT` against ourselves.
+      hashRef.current = initialHash;
     }
-  }, [initialConfig]);
+  }, [initialConfig, initialHash]);
 
   const isDirty = useMemo(
     () => JSON.stringify(config) !== JSON.stringify(initialRef.current),
@@ -104,17 +126,19 @@ export function ProviderConfigProvider({
       }
       setIsSaving(true);
       try {
-        await saveProvider.mutateAsync({
-          orgSlug: 'default',
+        const result = await saveProvider.mutateAsync({
+          orgSlug,
           providerName,
           config: toSave,
+          ...(hashRef.current ? { expectedHash: hashRef.current } : {}),
         });
         initialRef.current = toSave;
+        hashRef.current = result.hash;
       } finally {
         setIsSaving(false);
       }
     },
-    [providerName, saveProvider],
+    [orgSlug, providerName, saveProvider],
   );
 
   const value = useMemo<ProviderConfigContextValue>(

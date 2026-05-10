@@ -13,7 +13,9 @@ import { Agent } from '@convex-dev/agent';
 
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
+import type { ResolvedModelData } from '../providers/resolve_model';
 import { createDebugLog } from './debug_log';
+import { buildCallProviderOptions } from './provider_options';
 
 const debugLog = createDebugLog('DEBUG_CONTEXT_SUMMARY', '[ContextSummary]');
 
@@ -69,7 +71,9 @@ Guidelines:
 Output ONLY the updated summary, not commentary about changes.`;
 
 /**
- * Create a lightweight summarizer agent (no tools, just for summarization)
+ * Create a lightweight summarizer agent (no tools, just for summarization).
+ * Caller passes `providerOptions` per-call into `summarizer.generateText({...})`
+ * — Agent-level providerOptions is `@deprecated`.
  */
 function createSummarizerAgent(
   languageModel: LanguageModelV3,
@@ -81,8 +85,9 @@ function createSummarizerAgent(
     instructions: incremental
       ? INCREMENTAL_SUMMARIZATION_INSTRUCTIONS
       : SUMMARIZATION_INSTRUCTIONS,
-    // Set maxOutputTokens to ensure the model has room to respond (OpenRouter may default to low values)
-    providerOptions: { openai: { maxOutputTokens: 8192 } },
+    // Cap output to ensure the model has room to respond without OpenRouter
+    // defaulting to a low limit and truncating mid-summary.
+    callSettings: { maxOutputTokens: 8192 },
   });
 }
 
@@ -187,6 +192,7 @@ export async function summarizeMessages(
   messages: MessageForSummary[],
   currentPrompt: string | undefined,
   languageModel: LanguageModelV3,
+  modelData?: ResolvedModelData,
 ): Promise<string> {
   if (messages.length === 0) {
     debugLog('summarizeMessages No messages to summarize');
@@ -203,6 +209,7 @@ export async function summarizeMessages(
       chunks[0],
       currentPrompt,
       languageModel,
+      modelData,
     );
   }
 
@@ -233,6 +240,7 @@ export async function summarizeMessages(
         chunk,
         currentPrompt,
         languageModel,
+        modelData,
       );
     } else {
       // Subsequent chunks: update existing summary with new messages
@@ -242,6 +250,7 @@ export async function summarizeMessages(
         chunk,
         currentPrompt,
         languageModel,
+        modelData,
       );
     }
 
@@ -266,6 +275,7 @@ async function summarizeSingleChunk(
   messages: MessageForSummary[],
   currentPrompt: string | undefined,
   languageModel: LanguageModelV3,
+  modelData: ResolvedModelData | undefined,
 ): Promise<string> {
   const formattedMessages = formatMessagesForSummary(messages);
   debugLog(
@@ -273,6 +283,9 @@ async function summarizeSingleChunk(
   );
 
   const summarizer = createSummarizerAgent(languageModel, false);
+  const callProviderOptions = modelData
+    ? buildCallProviderOptions(modelData)
+    : undefined;
 
   let prompt = '';
   if (currentPrompt) {
@@ -291,7 +304,10 @@ ${formattedMessages}`;
   const result = await summarizer.generateText(
     ctx,
     { userId },
-    { prompt },
+    {
+      prompt,
+      ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
+    },
     { storageOptions: { saveMessages: 'none' } },
   );
 
@@ -320,6 +336,7 @@ export async function updateSummary(
   newMessages: MessageForSummary[],
   currentPrompt: string | undefined,
   languageModel: LanguageModelV3,
+  modelData?: ResolvedModelData,
 ): Promise<string> {
   if (newMessages.length === 0) {
     return existingSummary;
@@ -327,6 +344,9 @@ export async function updateSummary(
 
   const formattedNewMessages = formatMessagesForSummary(newMessages);
   const summarizer = createSummarizerAgent(languageModel, true);
+  const callProviderOptions = modelData
+    ? buildCallProviderOptions(modelData)
+    : undefined;
 
   let prompt = `## Existing Summary
 
@@ -348,7 +368,10 @@ ${formattedNewMessages}`;
   const result = await summarizer.generateText(
     ctx,
     { userId },
-    { prompt },
+    {
+      prompt,
+      ...(callProviderOptions ? { providerOptions: callProviderOptions } : {}),
+    },
     { storageOptions: { saveMessages: 'none' } },
   );
 

@@ -71,6 +71,101 @@ Les tarifs sont déclarés par modèle pour que le registre d’usage puisse est
 
 Laisse `cost` vide pour les backends auto-hébergés où la dépense est opérationnelle plutôt que par appel — l’usage reste journalisé, mais la colonne coût estimé vaut `0`.
 
+### Options du fournisseur (avancé)
+
+Tale transmet des champs de corps de requête arbitraires spécifiques au fournisseur via un bloc `providerOptions` optionnel — disponible **à la fois** au niveau du fournisseur et par modèle. L’usage le plus courant est le [routage de fournisseur](https://openrouter.ai/docs/guides/routing/provider-selection) d’OpenRouter — épingler la quantisation, les fournisseurs autorisés, la politique de repli, etc.
+
+```json
+{
+  "displayName": "OpenRouter",
+  "baseUrl": "https://openrouter.ai/api/v1",
+  "providerOptions": {
+    "provider": { "allow_fallbacks": false, "data_collection": "deny" }
+  },
+  "models": [
+    {
+      "id": "z-ai/glm-5.1",
+      "displayName": "GLM 5.1",
+      "tags": ["chat"],
+      "providerOptions": {
+        "provider": { "quantizations": ["fp8"] }
+      }
+    }
+  ]
+}
+```
+
+**Règles d’écriture :**
+
+- Écrivez la forme **interne** du corps de requête — Tale la namespace au moment de l’appel sous le nom réel du fournisseur. Ne **pas** envelopper dans `{ "openrouter": { ... } }`.
+- **Précédence de fusion** : niveau fournisseur → niveau modèle (profondeur 2 : les clés top-level partagées fusionnent, sous-clés avec victoire du modèle, les tableaux remplacent intégralement).
+- Le tableau de bord expose le même JSON via les panneaux **Avancé — Options du fournisseur** sous _Paramètres → Fournisseurs → \[fournisseur\]_ (niveau fournisseur) et la boîte de dialogue d’ajout/édition de modèle (par modèle).
+
+**Clés rejetées** (le fichier est ignoré au chargement, la raison est journalisée dans `skippedReasons` ; les fichiers fournisseur voisins continuent à charger) :
+
+| Catégorie          | Clés                                                                                                                                                                                                                                                                                                                                      | Raison                                                                                                                                                                                                   |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Réservées AI SDK   | `user`, `reasoningEffort`, `textVerbosity`, `strictJsonSchema`                                                                                                                                                                                                                                                                            | L’adaptateur OpenAI-compatible les supprime silencieusement — à définir au niveau de l’agent.                                                                                                            |
+| Écrasement du body | `model`, `messages`, `tools`, `tool_choice`, `stream`, `temperature`, `max_tokens`, `max_completion_tokens`, `top_p`, `frequency_penalty`, `presence_penalty`, `response_format`, `stop`, `seed`, `n`, `logit_bias`, `logprobs`, `top_logprobs`, `stream_options`, `store`, `metadata`, `prompt`, `size`, `reasoning_effort`, `verbosity` | Écraseraient le body résolu de Tale, amplifieraient silencieusement le coût (`n`), casseraient la télémétrie d’usage (`stream_options`), ou fuiraient des données vers l’upstream (`store`, `metadata`). |
+
+**Valeurs de quantisation OpenRouter :** `int4`, `int8`, `fp4`, `fp6`, `fp8`, `fp16`, `bf16`, `fp32`, `unknown`.
+
+#### Passerelles vs. fournisseurs directs
+
+`providerOptions` reflète exactement l’API de chaque upstream — mais **les types** d’options disponibles dépendent de la nature de l’upstream : passerelle de routage ou fournisseur d’inférence direct.
+
+**Les passerelles** (OpenRouter, Vercel AI Gateway) se placent devant plusieurs backends et les agrègent sous un seul endpoint. Leurs champs passthrough sont des _contrôles de routage_ — choisir quel backend sert la requête, à quelle précision, avec quelle politique de repli :
+
+```json
+// OpenRouter — options de routage sous une clé "provider" de premier niveau.
+"providerOptions": {
+  "provider": {
+    "quantizations": ["fp8"],
+    "allow_fallbacks": false,
+    "data_collection": "deny"
+  }
+}
+```
+
+```json
+// Vercel AI Gateway — le routage se fait principalement via le préfixe d’ID
+// de modèle (par ex. "anthropic/claude-3.5") et les en-têtes HTTP comme
+// `ai-gateway-order`. La deny-list de Tale rejette `metadata` (vecteur
+// d’egress de PII au niveau /v1/chat/completions), donc les tags
+// d’observabilité doivent être configurés dans le tableau de bord Vercel
+// plutôt que par requête.
+"providerOptions": {
+  "order": ["anthropic", "openai"]
+}
+```
+
+Les `providerOptions` de Tale ne circulent que dans le corps de requête. Les contrôles de routage par en-tête (`ai-gateway-order`, `ai-gateway-only`) et les tags d’observabilité (`metadata`) ne sont actuellement pas paramétrables depuis une configuration de fournisseur ; épinglez le routage via le préfixe d’ID de modèle et configurez le tagging dans le tableau de bord Vercel.
+
+**Les fournisseurs directs** (OpenAI, Anthropic, Together AI, Groq, DeepSeek, Mistral) hébergent leurs propres modèles. Il n’y a **pas de couche de routage** ni de **champ `quantizations`** — la précision est figée par l’éditeur au moment du déploiement. Leurs champs passthrough sont des _paramètres de comportement du modèle_ au niveau supérieur du body :
+
+```json
+// OpenAI — palier SLA, outils parallèles, routage du cache de prompt
+"providerOptions": {
+  "service_tier": "priority",
+  "parallel_tool_calls": false,
+  "prompt_cache_key": "agent-foo-v1"
+}
+```
+
+```json
+// Together AI — routage de modération, contrôles d’échantillonnage
+"providerOptions": {
+  "safety_model": "meta-llama/Llama-Guard-4-12B",
+  "repetition_penalty": 1.1
+}
+```
+
+Tale transmet tel quel — consultez la référence API de chaque fournisseur pour les noms exacts des champs et les valeurs acceptées. Les champs non reconnus par l’upstream sont silencieusement ignorés au gateway, donc une faute de frappe ressemble à un no-op plutôt qu’à un échec bruyant.
+
+**Vérifier que ça arrive :** définissez `TALE_DEBUG_LLM_WIRE=1` dans l’environnement du processus Convex (conteneur Convex auto-hébergé ou shell `bun run dev` Convex local) et observez stdout. Chaque requête LLM sortante (chat / embedding / image) routée via l’AI SDK affiche son URL plus les clés de body (avec `messages`/`input` masqués), permettant de confirmer que le champ `provider:` (ou autre) fusionné est présent. Note : le wrapper ne couvre pas la transcription, les sondes de test de connexion ni le chemin direct-fetch d’image-gen, et masque uniquement `messages`/`input` — les autres champs du body, y compris `system`, `tools`, `metadata`, `prompt_cache_key` et `user`, sont journalisés tels quels.
+
+**Migration :** les `$TALE_CONFIG_DIR/providers/*.json` existants sans bloc `providerOptions` continuent de fonctionner tels quels — le champ est optionnel. Les nouveaux modèles ajoutés dans `examples/providers/openrouter.json` (GLM 5.x, Kimi K2.6, Qwen 3.6, Gemma 4) doivent être fusionnés manuellement dans les configs déployées.
+
 ## Stockage des secrets de fournisseur
 
 Tale prend en charge deux formes sur disque pour `providers/<name>.secrets.json`. La détection du format est **basée sur le contenu** — le fichier parle pour lui-même, et Tale choisit le bon chemin quel que soit le processus (Convex, CLI, services Python) qui le lit.

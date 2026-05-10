@@ -21,14 +21,18 @@ export const autoSummarizeIfNeeded = internalAction({
     const orgSlug = args.organizationId
       ? await resolveOrgSlug(ctx, args.organizationId)
       : undefined;
-    const { languageModel } = await resolveLanguageModelWithFallback(ctx, {
-      tag: 'chat',
-      orgSlug,
-    });
+    const { languageModel, modelData } = await resolveLanguageModelWithFallback(
+      ctx,
+      {
+        tag: 'chat',
+        orgSlug,
+      },
+    );
 
     return await autoSummarizeIfNeededModel(ctx, {
       threadId: args.threadId,
       languageModel,
+      modelData,
     });
   },
 });

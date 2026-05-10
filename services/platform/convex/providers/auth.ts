@@ -22,6 +22,7 @@
 
 import { ConvexError } from 'convex/values';
 
+import { defineAbilityFor } from '../../lib/permissions/ability';
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { authComponent } from '../auth';
@@ -104,4 +105,30 @@ export async function requireOrgMembership(
     email: authUser.email,
     member,
   };
+}
+
+/**
+ * Stricter gate for provider config mutations. The dashboard route is
+ * protected by a `cannot('read', 'developerSettings')` check, but the Convex
+ * actions previously only required org membership — meaning any non-disabled
+ * `member` could call `saveProvider`/`saveProviderSecret`/`deleteProvider`
+ * directly via the Convex client, bypassing the UI gate. This helper
+ * additionally enforces the `developerSettings` capability so action-layer
+ * auth matches route-layer auth (defense in depth).
+ *
+ * Throws `FORBIDDEN_DEVELOPER_SETTINGS` for roles that lack the capability.
+ */
+export async function requireDeveloperSettingsAccess(
+  ctx: ActionCtx,
+  orgSlug: string,
+): Promise<ProviderActionAuth> {
+  const auth = await requireOrgMembership(ctx, orgSlug);
+  const ability = defineAbilityFor(auth.member.role);
+  if (ability.cannot('read', 'developerSettings')) {
+    throw new ConvexError({
+      code: 'FORBIDDEN_DEVELOPER_SETTINGS',
+      message: `Role "${auth.member.role}" lacks developer-settings access required to modify provider configuration.`,
+    });
+  }
+  return auth;
 }

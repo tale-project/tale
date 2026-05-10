@@ -14,6 +14,7 @@ import { v } from 'convex/values';
 
 import { components, internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { buildCallProviderOptions } from '../lib/provider_options';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 
@@ -33,7 +34,7 @@ function createTitleGenerator(languageModel: LanguageModelV3): Agent {
     name: 'thread-title-generator',
     languageModel,
     instructions: TITLE_INSTRUCTIONS,
-    providerOptions: { openai: { maxOutputTokens: 48 } },
+    callSettings: { maxOutputTokens: 48 },
   });
 }
 
@@ -53,12 +54,14 @@ export const generateThreadTitle = internalAction({
         const orgSlug = args.organizationId
           ? await resolveOrgSlug(ctx, args.organizationId)
           : undefined;
-        const { languageModel } = await resolveLanguageModelWithFallback(ctx, {
-          tag: 'chat',
-          orgSlug,
-        });
+        const { languageModel, modelData } =
+          await resolveLanguageModelWithFallback(ctx, {
+            tag: 'chat',
+            orgSlug,
+          });
 
         const generator = createTitleGenerator(languageModel);
+        const callProviderOptions = buildCallProviderOptions(modelData);
         const userId = `thread-title-${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 9)}`;
@@ -66,7 +69,12 @@ export const generateThreadTitle = internalAction({
         const result = await generator.generateText(
           ctx,
           { userId },
-          { prompt: args.firstMessage.slice(0, 4000) },
+          {
+            prompt: args.firstMessage.slice(0, 4000),
+            ...(callProviderOptions
+              ? { providerOptions: callProviderOptions }
+              : {}),
+          },
           { storageOptions: { saveMessages: 'none' } },
         );
 

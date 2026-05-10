@@ -66,6 +66,15 @@ function getModelCost(modelId: string): ModelCost {
 }
 
 /**
+ * Round a cents value to 4 decimal places ($0.000001 precision). Used across
+ * the cost-tracking ledger so float artifacts like `0.012 * 100 =
+ * 1.2000000000000002` don't propagate into stored values.
+ */
+export function roundCents(n: number): number {
+  return Math.round(n * 10000) / 10000;
+}
+
+/**
  * Estimate cost in cents from token counts and model ID.
  */
 export function estimateCostCents(
@@ -77,7 +86,7 @@ export function estimateCostCents(
   const cost = providerCost ?? getModelCost(modelId ?? '');
   const inputCost = (inputTokens / 1_000_000) * cost.inputCentsPerMillion;
   const outputCost = (outputTokens / 1_000_000) * cost.outputCentsPerMillion;
-  return Math.round((inputCost + outputCost) * 10000) / 10000;
+  return roundCents(inputCost + outputCost);
 }
 
 /**
@@ -91,6 +100,5 @@ export function estimateTranscriptionCostCents(
   centsPerAudioMinute: number | undefined,
 ): number {
   if (!centsPerAudioMinute || audioDurationSec <= 0) return 0;
-  const cost = (audioDurationSec / 60) * centsPerAudioMinute;
-  return Math.round(cost * 10000) / 10000;
+  return roundCents((audioDurationSec / 60) * centsPerAudioMinute);
 }

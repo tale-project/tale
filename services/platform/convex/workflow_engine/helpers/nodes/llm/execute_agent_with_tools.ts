@@ -9,7 +9,10 @@
  * - JSON output with tools: NOT ALLOWED — split into two explicit LLM steps
  */
 
-import type { LanguageModelV3 } from '@ai-sdk/provider';
+import type {
+  LanguageModelV3,
+  SharedV3ProviderOptions,
+} from '@ai-sdk/provider';
 import { Agent } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
@@ -149,6 +152,16 @@ export async function executeAgentWithTools(
     knowledgeFileIds?: string[];
     languageModel: LanguageModelV3;
     resolvedModelId?: string;
+    /**
+     * Pre-namespaced provider options from `buildCallProviderOptions(modelData)`,
+     * passed per-call into the SDK for per-model knobs like quantization.
+     */
+    providerOptions?: SharedV3ProviderOptions;
+    /**
+     * Per-model `maxOutputTokens` from the resolved model definition.
+     * Falls through to `createAgentConfig`'s 8192 default when undefined.
+     */
+    modelMaxOutputTokens?: number;
   },
 ): Promise<LLMExecutionResult> {
   if (config.outputFormat === 'json' && !config.outputSchema) {
@@ -262,6 +275,8 @@ export async function executeAgentWithTools(
       _args.languageModel,
       _args.organizationId,
       _args.stepSlug,
+      _args.providerOptions,
+      _args.modelMaxOutputTokens,
     );
   }
 
@@ -283,6 +298,8 @@ export async function executeAgentWithTools(
     _args.languageModel,
     _args.organizationId,
     _args.stepSlug,
+    _args.providerOptions,
+    _args.modelMaxOutputTokens,
   );
 }
 
@@ -320,6 +337,8 @@ async function executeJsonOutputWithoutTools(
   languageModel: LanguageModelV3,
   organizationId: string | undefined,
   stepSlug: string | undefined,
+  providerOptions: SharedV3ProviderOptions | undefined,
+  modelMaxOutputTokens: number | undefined,
 ): Promise<LLMExecutionResult> {
   debugLog('executeJsonOutputWithoutTools START', {
     configName: config.name,
@@ -337,13 +356,18 @@ async function executeJsonOutputWithoutTools(
       name: config.name,
       languageModel,
       instructions: prompts.systemPrompt,
+      modelMaxOutputTokens,
     }),
   );
 
   const result = await agent.generateObject(
     ctx,
     { threadId, userId },
-    { prompt: prompts.userPrompt, schema: zodSchema },
+    {
+      prompt: prompts.userPrompt,
+      schema: zodSchema,
+      ...(providerOptions ? { providerOptions } : {}),
+    },
     { contextOptions: { excludeToolMessages: false } },
   );
 
@@ -380,6 +404,8 @@ async function executeTextOutput(
   languageModel: LanguageModelV3,
   organizationId: string | undefined,
   stepSlug: string | undefined,
+  providerOptions: SharedV3ProviderOptions | undefined,
+  modelMaxOutputTokens: number | undefined,
 ): Promise<LLMExecutionResult> {
   debugLog('executeTextOutput START', {
     configName: config.name,
@@ -400,13 +426,17 @@ async function executeTextOutput(
       instructions: prompts.systemPrompt,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- config.tools contains valid ToolName strings from workflow step configuration
       convexToolNames: (config.tools ?? []) as ToolName[],
+      modelMaxOutputTokens,
     }),
   );
 
   const result = await agent.generateText(
     ctx,
     { threadId, userId },
-    { prompt: prompts.userPrompt },
+    {
+      prompt: prompts.userPrompt,
+      ...(providerOptions ? { providerOptions } : {}),
+    },
     { contextOptions: { excludeToolMessages: false } },
   );
 

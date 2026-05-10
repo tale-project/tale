@@ -16,24 +16,21 @@ function makeFakeModel() {
 }
 
 describe('createAgentConfig', () => {
-  describe('providerOptions default maxOutputTokens', () => {
-    it('sets providerOptions.openai.maxOutputTokens when maxTokens is not provided', () => {
+  describe('callSettings.maxOutputTokens default', () => {
+    it('defaults callSettings.maxOutputTokens to 8192 when maxTokens is not provided', () => {
       const config = createAgentConfig({
         name: 'test-agent',
         languageModel: makeFakeModel(),
         instructions: 'You are a test assistant.',
       });
 
-      expect(config).toHaveProperty('providerOptions');
-      const providerOptions = config.providerOptions as Record<
-        string,
-        Record<string, unknown>
-      >;
-      expect(providerOptions).toHaveProperty('openai');
-      expect(providerOptions.openai).toHaveProperty('maxOutputTokens', 8192);
+      const callSettings = config.callSettings as
+        | Record<string, number>
+        | undefined;
+      expect(callSettings?.maxOutputTokens).toBe(8192);
     });
 
-    it('does not set providerOptions when maxTokens is explicitly provided', () => {
+    it('uses caller-provided maxTokens when explicitly set', () => {
       const config = createAgentConfig({
         name: 'test-agent',
         languageModel: makeFakeModel(),
@@ -41,11 +38,13 @@ describe('createAgentConfig', () => {
         maxTokens: 4096,
       });
 
-      expect(config).not.toHaveProperty('providerOptions');
-      expect(config).toHaveProperty('maxOutputTokens', 4096);
+      const callSettings = config.callSettings as
+        | Record<string, number>
+        | undefined;
+      expect(callSettings?.maxOutputTokens).toBe(4096);
     });
 
-    it('uses maxOutputTokens from maxTokens when maxTokens is 0', () => {
+    it('treats maxTokens: 0 as "omit the cap" (does not send max_tokens: 0)', () => {
       const config = createAgentConfig({
         name: 'test-agent',
         languageModel: makeFakeModel(),
@@ -53,8 +52,85 @@ describe('createAgentConfig', () => {
         maxTokens: 0,
       });
 
-      // maxTokens=0 is typeof number, so it should use maxOutputTokens: 0
-      expect(config).toHaveProperty('maxOutputTokens', 0);
+      const callSettings = config.callSettings as
+        | Record<string, number>
+        | undefined;
+      // maxTokens=0 is the "unlimited" sentinel; the field must not be set
+      // because providers (OpenAI/OpenRouter) interpret max_tokens=0 as
+      // "generate zero tokens", not "unlimited".
+      expect(callSettings?.maxOutputTokens).toBeUndefined();
+    });
+
+    it('treats modelMaxOutputTokens: 0 as "omit the cap"', () => {
+      const config = createAgentConfig({
+        name: 'test-agent',
+        languageModel: makeFakeModel(),
+        instructions: 'You are a test assistant.',
+        modelMaxOutputTokens: 0,
+      });
+
+      const callSettings = config.callSettings as
+        | Record<string, number>
+        | undefined;
+      expect(callSettings?.maxOutputTokens).toBeUndefined();
+    });
+  });
+
+  describe('modelMaxOutputTokens precedence', () => {
+    it('uses modelMaxOutputTokens when caller does not provide maxTokens', () => {
+      const config = createAgentConfig({
+        name: 'test-agent',
+        languageModel: makeFakeModel(),
+        instructions: 'You are a test assistant.',
+        modelMaxOutputTokens: 4096,
+      });
+
+      const callSettings = config.callSettings as
+        | Record<string, number>
+        | undefined;
+      expect(callSettings?.maxOutputTokens).toBe(4096);
+    });
+
+    it('caller maxTokens wins over modelMaxOutputTokens', () => {
+      const config = createAgentConfig({
+        name: 'test-agent',
+        languageModel: makeFakeModel(),
+        instructions: 'You are a test assistant.',
+        maxTokens: 1024,
+        modelMaxOutputTokens: 4096,
+      });
+
+      const callSettings = config.callSettings as
+        | Record<string, number>
+        | undefined;
+      expect(callSettings?.maxOutputTokens).toBe(1024);
+    });
+
+    it('falls back to 8192 default when neither is provided', () => {
+      const config = createAgentConfig({
+        name: 'test-agent',
+        languageModel: makeFakeModel(),
+        instructions: 'You are a test assistant.',
+      });
+
+      const callSettings = config.callSettings as
+        | Record<string, number>
+        | undefined;
+      expect(callSettings?.maxOutputTokens).toBe(8192);
+    });
+  });
+
+  describe('providerOptions is no longer agent-level', () => {
+    it('config does not carry a providerOptions field', () => {
+      const config = createAgentConfig({
+        name: 'test-agent',
+        languageModel: makeFakeModel(),
+        instructions: 'You are a test assistant.',
+      });
+
+      // providerOptions moved out of the Agent constructor and onto per-call
+      // streamText/generateText/generateObject args. The createAgentConfig
+      // shape should never produce it.
       expect(config).not.toHaveProperty('providerOptions');
     });
   });
