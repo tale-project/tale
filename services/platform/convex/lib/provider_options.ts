@@ -79,6 +79,40 @@ function pruneEmpty(
 }
 
 /**
+ * Pin `providerOptions.provider.quantizations` to a single-element array
+ * containing only `quantization`. Used by the resolver when the user selected
+ * a specific variant via the `@<quant>` model-ref suffix — the merged options
+ * may carry the model's full `quantizations: ['fp8', 'fp4']` array, but the
+ * outgoing request must request exactly one weight format.
+ *
+ * Returns a new object — never mutates `options` or its top-level entries.
+ * The top-level wrapper is shallow-cloned and `provider` is shallow-cloned
+ * before its `quantizations` field is set, so non-`provider` siblings (e.g.
+ * `openrouter`) and other `provider` sub-fields (`data_collection`,
+ * `allow_fallbacks`) keep their original references — safe given that this
+ * only runs on JSON-derived data we then hand to the AI SDK without further
+ * mutation. If a caller later relied on deep independence of nested
+ * sub-trees, switch to `structuredClone`.
+ *
+ * If the input has a non-object `provider` value (a config bug), it's
+ * replaced with a fresh `{ quantizations: [quantization] }` object — the
+ * deny-list strip and parse layer already reject those shapes before they
+ * reach here, but staying defensive ensures we always emit a valid pinned
+ * variant rather than propagating a malformed value.
+ */
+export function pinQuantization(
+  options: Record<string, unknown> | undefined,
+  quantization: string,
+): Record<string, unknown> {
+  const base = options ? { ...options } : {};
+  const existing = base.provider;
+  const provider = isPlainObject(existing) ? { ...existing } : {};
+  provider.quantizations = [quantization];
+  base.provider = provider;
+  return base;
+}
+
+/**
  * Defensive belt-and-braces filter that removes any deny-listed key (SDK
  * reserved or body-overwrite) at the top level and one nested level. Logs a
  * `console.error` per stripped key — every entry point that produces a

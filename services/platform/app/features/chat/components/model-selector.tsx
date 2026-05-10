@@ -22,6 +22,10 @@ import { useListProviders } from '@/app/features/settings/providers/hooks/querie
 import { useLocale } from '@/app/hooks/use-locale';
 import { useT } from '@/lib/i18n/client';
 import {
+  expandModelVariants,
+  getVariantBadgeLabel,
+} from '@/lib/shared/utils/expand-model-variants';
+import {
   parseModelRef,
   stripModelRefQualifier,
 } from '@/lib/shared/utils/model-ref';
@@ -75,6 +79,7 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
         description?: string;
         tags: string[];
         providerName: string;
+        quantizations?: string[];
       }
     >();
     for (const provider of providers) {
@@ -91,6 +96,9 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
           description: resolved.description || undefined,
           tags: model.tags ?? [],
           providerName: provider.name,
+          quantizations: Array.isArray(model.quantizations)
+            ? model.quantizations
+            : undefined,
         });
       }
     }
@@ -119,10 +127,17 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   );
 
   const chatModels = useMemo(() => {
-    return supportedModels.filter((ref) => {
+    const filteredByTag = supportedModels.filter((ref) => {
       const info = modelInfoMap.get(stripModelRefQualifier(ref));
       return info?.tags.includes(requiredTag);
     });
+    // Split each base model that declares quantizations into one selectable
+    // entry per variant (e.g. GLM 5.1 → GLM 5.1 fp8 + GLM 5.1 fp4). Models
+    // without a quantizations array are kept as a single entry.
+    return expandModelVariants(
+      filteredByTag,
+      (bareId) => modelInfoMap.get(bareId)?.quantizations,
+    );
   }, [supportedModels, modelInfoMap, requiredTag]);
 
   // Governance policies match on plain model ids; strip qualifiers before asking.
@@ -145,8 +160,14 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
 
   const getDisplayName = useCallback(
     (ref: string) => {
-      const plain = stripModelRefQualifier(ref);
-      return modelInfoMap.get(plain)?.displayName ?? getModelShortName(plain);
+      const { modelId, quantization } = parseModelRef(ref);
+      const base =
+        modelInfoMap.get(modelId)?.displayName ?? getModelShortName(modelId);
+      // Append the variant in the closed trigger and selected-row label so
+      // fp8 vs fp4 selections are distinguishable without opening the menu.
+      return quantization
+        ? `${base} (${getVariantBadgeLabel(quantization)})`
+        : base;
     },
     [modelInfoMap],
   );
@@ -250,14 +271,27 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const modelOptions = filteredModels.map((ref) => {
     const info = modelInfoMap.get(stripModelRefQualifier(ref));
     const providerSlug = getProviderSlug(ref);
+    const { quantization } = parseModelRef(ref);
+    const providerBadge = providerSlug ? (
+      <Badge variant="outline" className="text-[10px] font-normal">
+        {startCase(providerSlug)}
+      </Badge>
+    ) : null;
+    const variantBadge = quantization ? (
+      <Badge variant="outline" className="text-[10px] font-normal">
+        {getVariantBadgeLabel(quantization)}
+      </Badge>
+    ) : null;
     return {
       value: ref,
       label: getDisplayName(ref),
-      labelBadge: providerSlug ? (
-        <Badge variant="outline" className="text-[10px] font-normal">
-          {startCase(providerSlug)}
-        </Badge>
-      ) : undefined,
+      labelBadge:
+        providerBadge || variantBadge ? (
+          <>
+            {providerBadge}
+            {variantBadge}
+          </>
+        ) : undefined,
       description: info?.description,
     };
   });

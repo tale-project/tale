@@ -4,6 +4,7 @@ import {
   buildCallProviderOptions,
   isPlainObject,
   mergeModelLevel,
+  pinQuantization,
   stripDenyListed,
 } from './provider_options';
 
@@ -169,6 +170,64 @@ describe('stripDenyListed', () => {
   });
 });
 
+describe('pinQuantization', () => {
+  it('rewrites a multi-element quantizations array to a single element', () => {
+    expect(
+      pinQuantization(
+        {
+          provider: { quantizations: ['fp8', 'fp4'], data_collection: 'deny' },
+        },
+        'fp4',
+      ),
+    ).toEqual({
+      provider: { quantizations: ['fp4'], data_collection: 'deny' },
+    });
+  });
+
+  it('creates the provider wrapper when input is undefined', () => {
+    expect(pinQuantization(undefined, 'fp4')).toEqual({
+      provider: { quantizations: ['fp4'] },
+    });
+  });
+
+  it('creates the provider wrapper when input has no provider key', () => {
+    expect(pinQuantization({ openrouter: { only: ['T'] } }, 'fp8')).toEqual({
+      openrouter: { only: ['T'] },
+      provider: { quantizations: ['fp8'] },
+    });
+  });
+
+  it('does not mutate its inputs', () => {
+    const input = {
+      provider: { quantizations: ['fp8', 'fp4'], data_collection: 'deny' },
+    };
+    const snapshot = JSON.parse(JSON.stringify(input));
+    pinQuantization(input, 'fp4');
+    expect(input).toEqual(snapshot);
+  });
+
+  it('replaces a non-object provider value with a fresh wrapper', () => {
+    expect(pinQuantization({ provider: 'forbidden' }, 'fp4')).toEqual({
+      provider: { quantizations: ['fp4'] },
+    });
+  });
+
+  it('preserves sibling provider fields and adds quantizations', () => {
+    expect(
+      pinQuantization(
+        { provider: { allow_fallbacks: false, only: ['Hyperbolic'] } },
+        'fp8',
+      ),
+    ).toEqual({
+      provider: {
+        allow_fallbacks: false,
+        only: ['Hyperbolic'],
+        quantizations: ['fp8'],
+      },
+    });
+  });
+});
+
 describe('buildCallProviderOptions', () => {
   it('returns undefined when no providerOptions are configured', () => {
     expect(
@@ -215,5 +274,59 @@ describe('buildCallProviderOptions', () => {
     } finally {
       errorSpy.mockRestore();
     }
+  });
+});
+
+// End-to-end shape contract: the merge → pin → namespace pipeline must
+// produce exactly the body fields OpenRouter expects when a Tale model ref
+// like `openrouter:z-ai/glm-5.1@fp8` is resolved. The `@fp8` suffix lives
+// only inside Tale; on the wire the `model` field is bare and the variant
+// rides in `provider.quantizations` as a single-element array.
+describe('quantization wire-shape pipeline', () => {
+  it('produces the exact namespaced body fields OpenRouter expects', () => {
+    // Stand-in for the merge step in resolveModelData: provider-level
+    // defaults + model-level passthrough, post-merge.
+    const merged = mergeModelLevel(
+      { provider: { allow_fallbacks: false, data_collection: 'deny' } },
+      { provider: { quantizations: ['fp8', 'fp4'] } },
+    );
+
+    // resolveModelData pins the user-selected variant before returning.
+    const pinned = pinQuantization(merged, 'fp4');
+
+    // The call site spreads buildCallProviderOptions into streamText.
+    expect(
+      buildCallProviderOptions({
+        providerName: 'openrouter',
+        providerOptions: pinned,
+      }),
+    ).toEqual({
+      openrouter: {
+        provider: {
+          allow_fallbacks: false,
+          data_collection: 'deny',
+          quantizations: ['fp4'],
+        },
+      },
+    });
+  });
+
+  it('keeps non-`provider` namespaced sub-objects intact alongside the pin', () => {
+    const merged = mergeModelLevel(
+      { openrouter: { only: ['Hyperbolic'] } },
+      { provider: { quantizations: ['fp8'] } },
+    );
+    const pinned = pinQuantization(merged, 'fp8');
+    expect(
+      buildCallProviderOptions({
+        providerName: 'openrouter',
+        providerOptions: pinned,
+      }),
+    ).toEqual({
+      openrouter: {
+        openrouter: { only: ['Hyperbolic'] },
+        provider: { quantizations: ['fp8'] },
+      },
+    });
   });
 });

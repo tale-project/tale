@@ -21,8 +21,10 @@ import { useToast } from '@/app/hooks/use-toast';
 import { SUPPORTED_TEMPLATE_VARIABLES } from '@/convex/lib/agent_response/resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from '@/convex/lib/agent_response/structured_response_instructions';
 import { useT } from '@/lib/i18n/client';
+import { getVariantBadgeLabel } from '@/lib/shared/utils/expand-model-variants';
 import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 import {
+  formatModelRef,
   parseModelRef,
   stripModelRefQualifier,
 } from '@/lib/shared/utils/model-ref';
@@ -173,22 +175,6 @@ function InstructionsTab() {
     return map;
   }, [providers]);
 
-  const modelTagsMap = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const provider of providers) {
-      if (
-        !provider ||
-        !('models' in provider) ||
-        !Array.isArray(provider.models)
-      )
-        continue;
-      for (const model of provider.models) {
-        map.set(model.id, model.tags ?? []);
-      }
-    }
-    return map;
-  }, [providers]);
-
   // For unqualified refs, record every provider that defines each model id so
   // we can resolve (and hint about ambiguity) on display.
   const modelProvidersMap = useMemo(() => {
@@ -210,10 +196,16 @@ function InstructionsTab() {
   }, [providers]);
 
   const availableOptions = useMemo(() => {
-    const allModels: {
-      id: string;
+    // Each entry is a *concrete* selectable ref — for models with a
+    // `quantizations` array, that's one entry per declared variant. The base
+    // (unsplit) entry is intentionally dropped so users always pick a
+    // specific weight format, matching the chat selector's behavior.
+    const candidates: {
+      ref: string;
       displayName: string;
       providerName: string;
+      tags: string[];
+      quantization?: string;
     }[] = [];
     for (const provider of providers) {
       if (
@@ -224,41 +216,89 @@ function InstructionsTab() {
         continue;
       if (config.provider && provider.name !== config.provider) continue;
       for (const model of provider.models) {
-        allModels.push({
-          id: model.id,
-          displayName: model.displayName,
-          providerName: provider.name,
-        });
+        const variants = Array.isArray(model.quantizations)
+          ? model.quantizations
+          : undefined;
+        if (variants && variants.length > 0) {
+          for (const q of variants) {
+            candidates.push({
+              ref: formatModelRef({
+                providerName: provider.name,
+                modelId: model.id,
+                quantization: q,
+              }),
+              displayName: model.displayName,
+              providerName: provider.name,
+              tags: model.tags ?? [],
+              quantization: q,
+            });
+          }
+        } else {
+          candidates.push({
+            ref: formatModelRef({
+              providerName: provider.name,
+              modelId: model.id,
+            }),
+            displayName: model.displayName,
+            providerName: provider.name,
+            tags: model.tags ?? [],
+          });
+        }
       }
     }
-    const selected = new Set(selectedModels.map(stripModelRefQualifier));
-    return allModels
-      .filter((m) => !selected.has(m.id))
-      .map((m) => {
-        const tags = modelTagsMap.get(m.id) ?? [];
+    // Dedup against already-selected refs at the variant level so the user
+    // can add multiple variants of the same base model. Match both qualified
+    // and unqualified saved forms.
+    const selectedRefs = new Set(selectedModels);
+    const selectedBareIds = new Set(selectedModels.map(stripModelRefQualifier));
+    return candidates
+      .filter(
+        (c) =>
+          !selectedRefs.has(c.ref) &&
+          // also rule out a candidate whose unqualified form was saved
+          !selectedRefs.has(
+            c.quantization
+              ? `${stripModelRefQualifier(c.ref)}@${c.quantization}`
+              : stripModelRefQualifier(c.ref),
+          ) &&
+          // and don't suggest a model already saved without provider prefix
+          !(
+            !c.quantization &&
+            selectedBareIds.has(stripModelRefQualifier(c.ref))
+          ),
+      )
+      .map((c) => {
         const isEmbeddingOnly =
-          tags.includes('embedding') && !tags.includes('chat');
+          c.tags.includes('embedding') && !c.tags.includes('chat');
         const viaProvider = t('agents.form.viaProvider', {
-          provider: m.providerName,
-          defaultValue: `via ${m.providerName}`,
+          provider: c.providerName,
+          defaultValue: `via ${c.providerName}`,
         });
+        const variantSuffix = c.quantization
+          ? ` — ${getVariantBadgeLabel(c.quantization)}`
+          : '';
         const description = isEmbeddingOnly
-          ? `${viaProvider} — ${t('agents.form.embeddingModelWarning')}`
-          : viaProvider;
+          ? `${viaProvider}${variantSuffix} — ${t('agents.form.embeddingModelWarning')}`
+          : `${viaProvider}${variantSuffix}`;
         return {
           // Save in qualified form so routing is explicit even if multiple
-          // providers later define the same model id.
-          value: `${m.providerName}:${m.id}`,
-          label: m.displayName,
+          // providers later define the same model id; quantization variant
+          // is encoded as `@<quant>` per parseModelRef.
+          value: c.ref,
+          label: c.displayName,
           description,
         };
       });
-  }, [providers, selectedModels, config.provider, modelTagsMap, t]);
+  }, [providers, selectedModels, config.provider, t]);
 
   const getDisplayName = useCallback(
     (ref: string) => {
-      const plain = stripModelRefQualifier(ref);
-      return modelDisplayNames.get(plain) ?? plain.split('/').pop() ?? plain;
+      const { modelId, quantization } = parseModelRef(ref);
+      const base =
+        modelDisplayNames.get(modelId) ?? modelId.split('/').pop() ?? modelId;
+      return quantization
+        ? `${base} (${getVariantBadgeLabel(quantization)})`
+        : base;
     },
     [modelDisplayNames],
   );

@@ -17,6 +17,7 @@ import { ConvexError, v } from 'convex/values';
 
 import type { ProviderSecrets } from '../../lib/shared/schemas/providers';
 import { providerJsonSchema } from '../../lib/shared/schemas/providers';
+import { parseModelRef } from '../../lib/shared/utils/model-ref';
 import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { resolveAgeRecipients } from '../lib/age_keygen';
@@ -27,7 +28,12 @@ import {
   sha256,
 } from '../lib/file_io';
 import { isPrivateIp, safeFetch, SafeFetchError } from '../lib/http/safe_fetch';
-import { mergeModelLevel, stripDenyListed } from '../lib/provider_options';
+import {
+  isPlainObject,
+  mergeModelLevel,
+  pinQuantization,
+  stripDenyListed,
+} from '../lib/provider_options';
 import {
   EncryptedFileWithoutKeyError,
   decryptSecretsFile,
@@ -67,6 +73,40 @@ import {
 function maskApiKey(key: string): string {
   if (key.length <= 6) return '••••••••••';
   return key.slice(0, 6) + '••••••';
+}
+
+/**
+ * Read a model's declared quantization variants from its `providerOptions`.
+ * Returns the array only when it's a non-empty list of strings; any other
+ * shape (missing, non-array, mixed types) is treated as "no variants" so the
+ * model behaves as a plain non-quantized entry. The schema accepts arbitrary
+ * passthrough under `providerOptions`, so this defensive read is required.
+ */
+function readQuantizations(
+  providerOptions: Record<string, unknown> | undefined,
+): string[] | undefined {
+  if (!providerOptions) return undefined;
+  const provider = providerOptions.provider;
+  if (!isPlainObject(provider)) return undefined;
+  const q = provider.quantizations;
+  if (!Array.isArray(q) || q.length === 0) return undefined;
+  if (!q.every((item) => typeof item === 'string' && item.length > 0))
+    return undefined;
+  return q;
+}
+
+/**
+ * Read the quantization variants that apply to a model after merging
+ * provider-level and model-level `providerOptions` (model wins on conflict),
+ * so the UI's variant expansion matches what `resolveModelData` would pin
+ * at request time. Reading model-level alone would silently ignore
+ * provider-wide defaults declared at the top of a provider JSON.
+ */
+function readEffectiveQuantizations(
+  providerLevel: Record<string, unknown> | undefined,
+  modelLevel: Record<string, unknown> | undefined,
+): string[] | undefined {
+  return readQuantizations(mergeModelLevel(providerLevel, modelLevel));
 }
 
 /** True iff `err` is a Node ErrnoException with the given code. */
@@ -359,6 +399,14 @@ export const listProviders = action({
               tags: m.tags,
               hasBaseUrlOverride: m.baseUrl != null,
               hasApiKeyOverride: modelKeys?.[m.id] != null,
+              // Surface quantization variants so the UI selectors can split
+              // each model into one selectable entry per declared weight
+              // format. Read from merged provider+model providerOptions to
+              // match resolveModelData's runtime view.
+              quantizations: readEffectiveQuantizations(
+                result.config.providerOptions,
+                m.providerOptions,
+              ),
             })),
             i18n: result.config.i18n,
           };
@@ -533,15 +581,28 @@ export const resolveModelData = internalAction({
     const orgSlug = args.orgSlug ?? 'default';
     const providers = await loadAllProviders(orgSlug);
 
-    const candidates = args.providerName
-      ? providers.filter((p) => p.name === args.providerName)
+    // Split off any `@<quant>` suffix so the provider config lookup uses the
+    // bare model id from the JSON. The variant pins the
+    // `providerOptions.provider.quantizations` array further below.
+    // Fall back to the ref's parsed `provider:` qualifier when the caller
+    // didn't pass `args.providerName` separately, so a fully-qualified
+    // modelId pins the lookup without a redundant arg.
+    const {
+      providerName: parsedProviderName,
+      modelId: bareModelId,
+      quantization,
+    } = parseModelRef(args.modelId);
+    const effectiveProviderName = args.providerName ?? parsedProviderName;
+
+    const candidates = effectiveProviderName
+      ? providers.filter((p) => p.name === effectiveProviderName)
       : providers;
 
-    if (args.providerName && candidates.length === 0) {
+    if (effectiveProviderName && candidates.length === 0) {
       const available = providers.map((p) => p.name);
       throw new ConvexError({
         code: 'UNKNOWN_PROVIDER',
-        message: `Provider "${args.providerName}" not found. Available: ${available.join(', ')}`,
+        message: `Provider "${effectiveProviderName}" not found. Available: ${available.join(', ')}`,
       });
     }
 
@@ -554,7 +615,7 @@ export const resolveModelData = internalAction({
     const secondaryMatchProviders: string[] = [];
     for (const provider of candidates) {
       const definition = provider.config.models.find(
-        (m) => m.id === args.modelId,
+        (m) => m.id === bareModelId,
       );
       if (!definition) continue;
       if (!firstMatch) {
@@ -565,21 +626,44 @@ export const resolveModelData = internalAction({
     }
 
     if (firstMatch) {
-      if (!args.providerName && secondaryMatchProviders.length > 0) {
+      if (!effectiveProviderName && secondaryMatchProviders.length > 0) {
         console.warn(
-          `[resolveModelData] Unqualified model "${args.modelId}" matches multiple providers ` +
+          `[resolveModelData] Unqualified model "${bareModelId}" matches multiple providers ` +
             `(pinned: ${firstMatch.provider.name}; also in: ${secondaryMatchProviders.join(', ')}). ` +
-            `Qualify as "${firstMatch.provider.name}:${args.modelId}" to pin explicitly.`,
+            `Qualify as "${firstMatch.provider.name}:${bareModelId}" to pin explicitly.`,
         );
       }
       const { provider, definition } = firstMatch;
+      let providerOptions = mergeModelLevel(
+        provider.config.providerOptions,
+        definition.providerOptions,
+      );
+
+      // The user pinned a specific quantization via the `@<quant>` suffix.
+      // Validate it appears in the model's declared `quantizations` and
+      // narrow the merged passthrough to a single-element array so the
+      // upstream request asks for exactly that weight format.
+      if (quantization) {
+        const declared = readQuantizations(providerOptions);
+        if (!declared || !declared.includes(quantization)) {
+          const available = declared?.length ? declared.join(', ') : '(none)';
+          throw new ConvexError({
+            code: 'UNKNOWN_MODEL_VARIANT',
+            message: `Model "${bareModelId}" has no quantization "${quantization}". Available: ${available}`,
+          });
+        }
+        providerOptions = pinQuantization(providerOptions, quantization);
+      }
+
       return {
         providerName: provider.name,
         baseUrl: definition.baseUrl ?? provider.config.baseUrl,
         apiKey:
           provider.secrets.modelKeys?.[definition.id] ??
           provider.secrets.apiKey,
-        modelId: args.modelId,
+        // The wire-side request uses the bare config id; the variant lives
+        // only in providerOptions.provider.quantizations.
+        modelId: bareModelId,
         tags: [...definition.tags],
         dimensions: definition.dimensions,
         maxOutputTokens: definition.maxOutputTokens,
@@ -592,10 +676,7 @@ export const resolveModelData = internalAction({
         outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
         imageCentsPerImage: definition.cost?.imageCentsPerImage,
         centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
-        providerOptions: mergeModelLevel(
-          provider.config.providerOptions,
-          definition.providerOptions,
-        ),
+        providerOptions,
       };
     }
 
@@ -604,7 +685,7 @@ export const resolveModelData = internalAction({
     );
     throw new ConvexError({
       code: 'UNKNOWN_MODEL',
-      message: `Model "${args.modelId}" not found${args.providerName ? ` in provider "${args.providerName}"` : ' in any provider'}. Available: ${allModelIds.join(', ')}`,
+      message: `Model "${bareModelId}" not found${effectiveProviderName ? ` in provider "${effectiveProviderName}"` : ' in any provider'}. Available: ${allModelIds.join(', ')}`,
     });
   },
 });
@@ -743,6 +824,7 @@ export const getAllModelIds = internalAction({
       tags: v.array(v.string()),
       providerName: v.string(),
       displayName: v.optional(v.string()),
+      quantizations: v.optional(v.array(v.string())),
     }),
   ),
   handler: async (_ctx, args) => {
@@ -758,6 +840,7 @@ export const getAllModelIds = internalAction({
       tags: string[];
       providerName: string;
       displayName?: string;
+      quantizations?: string[];
     }> = [];
     for (const provider of providers) {
       for (const m of provider.config.models) {
@@ -766,6 +849,10 @@ export const getAllModelIds = internalAction({
           tags: [...m.tags],
           providerName: provider.name,
           displayName: m.displayName,
+          quantizations: readEffectiveQuantizations(
+            provider.config.providerOptions,
+            m.providerOptions,
+          ),
         });
       }
     }
@@ -788,6 +875,7 @@ export const getAllConfiguredModelIds = internalAction({
       tags: v.array(v.string()),
       providerName: v.string(),
       displayName: v.optional(v.string()),
+      quantizations: v.optional(v.array(v.string())),
     }),
   ),
   handler: async (_ctx, args) => {
@@ -810,6 +898,7 @@ export const getAllConfiguredModelIds = internalAction({
       tags: string[];
       providerName: string;
       displayName?: string;
+      quantizations?: string[];
     }> = [];
     await Promise.all(
       jsonFiles.map(async (fileName) => {
@@ -823,6 +912,10 @@ export const getAllConfiguredModelIds = internalAction({
             tags: [...m.tags],
             providerName: name,
             displayName: m.displayName,
+            quantizations: readEffectiveQuantizations(
+              result.config.providerOptions,
+              m.providerOptions,
+            ),
           });
         }
       }),

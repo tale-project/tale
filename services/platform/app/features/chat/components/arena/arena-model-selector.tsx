@@ -1,5 +1,6 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { ChevronDown, Cpu } from 'lucide-react';
 import {
   type ReactNode,
@@ -17,7 +18,14 @@ import { useAccessibleModels } from '@/app/features/settings/governance/hooks/qu
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { useLocale } from '@/app/hooks/use-locale';
 import { useT } from '@/lib/i18n/client';
-import { stripModelRefQualifier } from '@/lib/shared/utils/model-ref';
+import {
+  expandModelVariants,
+  getVariantBadgeLabel,
+} from '@/lib/shared/utils/expand-model-variants';
+import {
+  parseModelRef,
+  stripModelRefQualifier,
+} from '@/lib/shared/utils/model-ref';
 import { resolveModelLocale } from '@/lib/shared/utils/resolve-provider-locale';
 
 import { useChatAgents } from '../../hooks/queries';
@@ -54,7 +62,12 @@ export function ArenaModelSelector({
   const modelInfoMap = useMemo(() => {
     const map = new Map<
       string,
-      { displayName: string; description?: string; tags: string[] }
+      {
+        displayName: string;
+        description?: string;
+        tags: string[];
+        quantizations?: string[];
+      }
     >();
     for (const provider of providers) {
       if (
@@ -69,6 +82,9 @@ export function ArenaModelSelector({
           displayName: resolved.displayName || model.displayName,
           description: resolved.description || undefined,
           tags: model.tags ?? [],
+          quantizations: Array.isArray(model.quantizations)
+            ? model.quantizations
+            : undefined,
         });
       }
     }
@@ -86,8 +102,14 @@ export function ArenaModelSelector({
 
   const getDisplayName = useCallback(
     (ref: string) => {
-      const plain = stripModelRefQualifier(ref);
-      return modelInfoMap.get(plain)?.displayName ?? getModelShortName(plain);
+      const { modelId, quantization } = parseModelRef(ref);
+      const base =
+        modelInfoMap.get(modelId)?.displayName ?? getModelShortName(modelId);
+      // Append the variant in the closed trigger so fp8 vs fp4 selections
+      // are distinguishable without opening the menu.
+      return quantization
+        ? `${base} (${getVariantBadgeLabel(quantization)})`
+        : base;
     },
     [modelInfoMap],
   );
@@ -103,36 +125,66 @@ export function ArenaModelSelector({
   );
 
   const filteredModels = useMemo(() => {
-    if (!accessibleModelIds) return supportedModels;
-    const accessible = new Set(accessibleModelIds);
-    return supportedModels.filter((ref) =>
-      accessible.has(stripModelRefQualifier(ref)),
+    const accessible = accessibleModelIds ? new Set(accessibleModelIds) : null;
+    const accessFiltered = accessible
+      ? supportedModels.filter((ref) =>
+          accessible.has(stripModelRefQualifier(ref)),
+        )
+      : supportedModels;
+    return expandModelVariants(
+      accessFiltered,
+      (bareId) => modelInfoMap.get(bareId)?.quantizations,
     );
-  }, [supportedModels, accessibleModelIds]);
+  }, [supportedModels, accessibleModelIds, modelInfoMap]);
 
   const options = useMemo(
     () =>
-      filteredModels.map((ref) => ({
-        value: ref,
-        label: getDisplayName(ref),
-        description: modelInfoMap.get(stripModelRefQualifier(ref))?.description,
-      })),
+      filteredModels.map((ref) => {
+        const { quantization } = parseModelRef(ref);
+        return {
+          value: ref,
+          label: getDisplayName(ref),
+          labelBadge: quantization ? (
+            <Badge variant="outline" className="text-[10px] font-normal">
+              {getVariantBadgeLabel(quantization)}
+            </Badge>
+          ) : undefined,
+          description: modelInfoMap.get(stripModelRefQualifier(ref))
+            ?.description,
+        };
+      }),
     [filteredModels, getDisplayName, modelInfoMap],
   );
 
-  const currentModelA = modelA ?? filteredModels[0] ?? null;
-  const currentModelB =
-    modelB ?? filteredModels[1] ?? filteredModels[0] ?? null;
+  // A previously persisted selection may no longer appear in `filteredModels`
+  // — e.g. governance tightened, or expansion now offers `@fp8`/`@fp4`
+  // variants in place of a bare `glm-5.1` ref. Treat the stale value as
+  // empty when computing the trigger so SearchableSelect's `value` always
+  // matches an option.
+  const isInList = useCallback(
+    (ref: string | null): boolean =>
+      ref != null && filteredModels.includes(ref),
+    [filteredModels],
+  );
+  const currentModelA = isInList(modelA) ? modelA : (filteredModels[0] ?? null);
+  const currentModelB = isInList(modelB)
+    ? modelB
+    : (filteredModels[1] ?? filteredModels[0] ?? null);
 
-  // Sync default selections back to context so sendMessage can read them
+  // Sync default selections back to context so sendMessage can read them.
+  // Also clear stale values that no longer appear in `filteredModels` so the
+  // backend doesn't dispatch to a model the user can't see in the picker.
   useEffect(() => {
-    if (filteredModels.length >= 2) {
-      if (!modelA && filteredModels[0]) {
-        setModelA(filteredModels[0]);
-      }
-      if (!modelB && filteredModels[1]) {
-        setModelB(filteredModels[1]);
-      }
+    if (filteredModels.length < 2) return;
+    if (modelA && !filteredModels.includes(modelA)) {
+      setModelA(filteredModels[0]);
+    } else if (!modelA && filteredModels[0]) {
+      setModelA(filteredModels[0]);
+    }
+    if (modelB && !filteredModels.includes(modelB)) {
+      setModelB(filteredModels[1] ?? filteredModels[0]);
+    } else if (!modelB && filteredModels[1]) {
+      setModelB(filteredModels[1]);
     }
   }, [filteredModels, modelA, modelB, setModelA, setModelB]);
 
