@@ -261,8 +261,8 @@
       "description": "Z.ai GLM 5 Turbo — fast 202K-context variant of the GLM 5 family",
       "tags": ["chat"],
       "cost": {
-        "inputCentsPerMillion": 120,
-        "outputCentsPerMillion": 400
+        "inputCentsPerMillion": 30,
+        "outputCentsPerMillion": 100
       }
     },
     {
@@ -271,8 +271,8 @@
       "description": "Z.ai GLM 5V Turbo — multimodal (text + image) variant of GLM 5 Turbo",
       "tags": ["chat", "vision"],
       "cost": {
-        "inputCentsPerMillion": 120,
-        "outputCentsPerMillion": 400
+        "inputCentsPerMillion": 30,
+        "outputCentsPerMillion": 100
       }
     },
     {

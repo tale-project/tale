@@ -1053,8 +1053,11 @@
         "discardConfirmTitle": "Nicht gespeicherte Änderungen verwerfen?",
         "discardConfirmDescription": "Ihre Bearbeitungen der Provider-Optionen gehen verloren.",
         "discardConfirmAction": "Verwerfen",
-        "discardConfirmKeep": "Weiter bearbeiten"
+        "discardConfirmKeep": "Weiter bearbeiten",
+        "objectRequiredError": "Provider-Optionen müssen ein JSON-Objekt sein."
       },
+      "versionConflictTitle": "Provider wurde geändert",
+      "versionConflictDescription": "Lade die Seite neu, um die aktuelle Version zu sehen, und wende deine Änderungen erneut an.",
       "createFailed": "Anbieter konnte nicht erstellt werden",
       "overwriteUnreadableTitle": "Bestehende Schlüsseldatei ist nicht lesbar",
       "overwriteEncryptedNoKeyDescription": "Die Secrets-Datei des Anbieters unter {path} ist SOPS-verschlüsselt, aber es ist kein Entschlüsselungsschlüssel konfiguriert. Beim Speichern wird der bestehende Geheimtext verworfen — der vorherige Schlüssel kann daraus nicht wiederhergestellt werden. Fortfahren?",

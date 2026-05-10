@@ -42,6 +42,12 @@ export function useProviderConfig() {
 }
 
 interface ProviderConfigProviderProps {
+  /**
+   * Active organization slug. Required so saveConfig writes to the caller's
+   * org rather than a hardcoded `'default'` (which fails with
+   * `ORG_NOT_FOUND` / `ORG_FORBIDDEN` outside the default-org deployment).
+   */
+  orgSlug: string;
   providerName: string;
   initialConfig: ProviderJson;
   /**
@@ -55,6 +61,7 @@ interface ProviderConfigProviderProps {
 }
 
 export function ProviderConfigProvider({
+  orgSlug,
   providerName,
   initialConfig,
   initialHash,
@@ -73,8 +80,14 @@ export function ProviderConfigProvider({
     if (!hasUnsavedEdits) {
       setConfig(initialConfig);
       initialRef.current = initialConfig;
+      // Refresh the optimistic-concurrency token alongside the config.
+      // Without this, a sibling mutation (saveSecret) or SSE-driven refetch
+      // gives us a fresh hash on the read query but `hashRef` keeps the
+      // stale one — the next save then trips a spurious
+      // `PROVIDER_VERSION_CONFLICT` against ourselves.
+      hashRef.current = initialHash;
     }
-  }, [initialConfig]);
+  }, [initialConfig, initialHash]);
 
   const isDirty = useMemo(
     () => JSON.stringify(config) !== JSON.stringify(initialRef.current),
@@ -114,7 +127,7 @@ export function ProviderConfigProvider({
       setIsSaving(true);
       try {
         const result = await saveProvider.mutateAsync({
-          orgSlug: 'default',
+          orgSlug,
           providerName,
           config: toSave,
           ...(hashRef.current ? { expectedHash: hashRef.current } : {}),
@@ -125,7 +138,7 @@ export function ProviderConfigProvider({
         setIsSaving(false);
       }
     },
-    [providerName, saveProvider],
+    [orgSlug, providerName, saveProvider],
   );
 
   const value = useMemo<ProviderConfigContextValue>(

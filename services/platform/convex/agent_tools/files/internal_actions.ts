@@ -22,6 +22,13 @@ export const analyzeImageUncached = internalAction({
     fileId: v.id('_storage'),
     question: v.optional(v.string()),
     fileName: v.optional(v.string()),
+    /**
+     * Active org slug. Forwarded to the resolver so per-org provider
+     * config (including providerOptions for the vision model) is honored.
+     * Optional only because the cache may legitimately be queried for
+     * the global default org (`undefined` falls back to it).
+     */
+    orgSlug: v.optional(v.string()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -35,6 +42,7 @@ export const analyzeImageUncached = internalAction({
       fileId: args.fileId,
       question: args.question,
       fileName: args.fileName,
+      orgSlug: args.orgSlug,
     });
   },
 });

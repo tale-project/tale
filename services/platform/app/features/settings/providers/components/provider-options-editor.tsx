@@ -32,7 +32,10 @@ interface DraftValidation {
   error?: string;
 }
 
-function validateDraft(draft: string): DraftValidation {
+function validateDraft(
+  draft: string,
+  objectRequiredError: string,
+): DraftValidation {
   const trimmed = draft.trim();
   if (trimmed === '') return { ok: true };
   try {
@@ -42,10 +45,13 @@ function validateDraft(draft: string): DraftValidation {
       typeof parsed !== 'object' ||
       Array.isArray(parsed)
     ) {
-      return { ok: false, error: 'Provider options must be a JSON object.' };
+      return { ok: false, error: objectRequiredError };
     }
     return { ok: true };
   } catch (err) {
+    // JSON.parse error message stays in English (it's the JS engine's text);
+    // we keep it because it includes the position hint, which a translated
+    // generic message would lose. Inline-only.
     return {
       ok: false,
       error: err instanceof Error ? err.message : String(err),
@@ -111,6 +117,8 @@ interface Props {
     discardConfirmDescription: string;
     discardConfirmAction: string;
     discardConfirmKeep: string;
+    /** Inline validation: shown when JSON parses to a non-object (array/primitive). */
+    objectRequiredError: string;
   };
 }
 
@@ -139,19 +147,22 @@ export function ProviderOptionsEditor({
   const [submitting, setSubmitting] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
 
-  // Reset draft only on the open->true transition so a previous half-edit
-  // doesn't come back to bite the user. Read `initialJson` via a ref so a
-  // parent refresh during the edit doesn't clobber unsaved changes — the
-  // effect only fires when `open` toggles, picking up the latest snapshot
-  // at that moment.
+  // Reset draft and capture the dirty-check baseline only on the
+  // open->true transition. A parent refresh while the sheet is open
+  // (sibling save / SSE invalidation / refetch) must NOT overwrite the
+  // baseline, otherwise `isDirty` flips against a value the user never
+  // saw and discard-confirm gates fire wrong. The ref is intentionally
+  // written only inside the `open` branch.
   const initialJsonRef = useRef(initialJson);
-  initialJsonRef.current = initialJson;
   useEffect(() => {
-    if (open) setDraft(initialJsonRef.current);
-  }, [open]);
+    if (open) {
+      initialJsonRef.current = initialJson;
+      setDraft(initialJson);
+    }
+  }, [open, initialJson]);
 
   const isDirty = draft !== initialJsonRef.current;
-  const validation = validateDraft(draft);
+  const validation = validateDraft(draft, copy.objectRequiredError);
 
   // Close paths (X, Cancel, Esc, overlay) all funnel through here. Silently
   // closing on a dirty draft is the prior footgun; gate behind a discard
@@ -245,7 +256,17 @@ export function ProviderOptionsEditor({
               {copy.notConfigured}
             </Text>
           ) : (
-            <pre className="bg-muted/40 overflow-x-auto rounded-md p-3 font-mono text-xs leading-relaxed">
+            // role+aria-label announces the read-only block as a labeled
+            // region. Keyboard scrolling of the `overflow-x-auto` content
+            // is left to the platform's built-in scroll affordance — we
+            // can't add tabIndex to a non-interactive <pre> per a11y
+            // lint rules, and elevating it to interactive would break
+            // expectations for screen reader / button users.
+            <pre
+              role="region"
+              aria-label={copy.title}
+              className="bg-muted/40 overflow-x-auto rounded-md p-3 font-mono text-xs leading-relaxed"
+            >
               {initialJson}
             </pre>
           )}
@@ -356,6 +377,10 @@ function ProviderOptionsEditorSheet({
               {description}
             </Text>
             <Textarea
+              // `aria-label` (instead of a visible `label`) so screen
+              // readers announce the textarea's purpose without
+              // duplicating the Sheet's visible heading at line 359.
+              aria-label={title}
               value={draft}
               onChange={(e) => onDraftChange(e.target.value)}
               rows={12}

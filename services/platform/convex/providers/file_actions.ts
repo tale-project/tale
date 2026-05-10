@@ -421,11 +421,12 @@ export const saveProvider = action({
     // dashboard rather than silently overwriting them.
     if (args.expectedHash !== undefined) {
       const existing = await readProviderFile(args.orgSlug, args.providerName);
-      if (existing.ok && existing.hash !== args.expectedHash) {
+      const conflict = !existing.ok || existing.hash !== args.expectedHash;
+      if (conflict) {
         throw new ConvexError({
           code: 'PROVIDER_VERSION_CONFLICT',
           message:
-            'Provider was modified by another operator. Reload the page to see the latest version, then re-apply your changes.',
+            'Provider may have been deleted or modified by another operator. Reload the page to see the latest state, then re-apply your changes.',
         });
       }
     }
@@ -1457,7 +1458,13 @@ export const saveProviderSecret = action({
     orgSlug: v.string(),
     providerName: v.string(),
     apiKey: v.optional(v.string()),
-    modelKeys: v.optional(v.any()),
+    // Tightened from `v.any()` so a malformed payload (e.g. nested object
+    // value) is rejected at the action boundary instead of silently
+    // landing on disk and bricking the next read with
+    // `Invalid provider secrets`. The schema is also enforced at write
+    // time via `providerSecretsSchema` in lib/shared, but failing fast
+    // here surfaces the bug at the right call site.
+    modelKeys: v.optional(v.record(v.string(), v.string())),
     force: v.optional(v.boolean()),
   },
   returns: v.null(),
@@ -1472,142 +1479,184 @@ export const saveProviderSecret = action({
       args.providerName,
     );
 
-    const encryptMode = hasSopsKey();
+    // Per-(orgSlug, providerName) advisory lock. `prepareMergedSecrets`
+    // is read-modify-write on the secrets file with no transactional
+    // guarantee, so two concurrent saves on the same provider can
+    // clobber one another's `modelKeys` additions. Within a single Node
+    // process the lock serializes them; cross-process safety is a
+    // follow-up that would require a real `expectedHash` round-trip
+    // (also exposed via the read query).
+    const lockKey = `${args.orgSlug}:${args.providerName}`;
+    const previous = secretWriteLocks.get(lockKey);
+    let release!: () => void;
+    const next = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    secretWriteLocks.set(lockKey, previous ? previous.then(() => next) : next);
+    if (previous) await previous;
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- modelKeys validated as Record<string, string> by caller
-    const incomingModelKeys = args.modelKeys as
-      | Record<string, string>
-      | undefined;
-
-    let plaintext: string;
-    let prepared: Awaited<ReturnType<typeof prepareMergedSecrets>>;
     try {
-      prepared = await prepareMergedSecrets(
-        secretsPath,
-        { apiKey: args.apiKey, modelKeys: incomingModelKeys },
-        { force: args.force },
-      );
-      plaintext = prepared.plaintext;
-    } catch (err) {
-      // Convert typed refuse-overwrite errors to ConvexError carrying a
-      // structured discriminator. The UI reads `error.data.kind` to decide
-      // whether to render the "overwrite anyway?" confirm dialog and re-call
-      // with `force: true`. `data.reason` carries the raw inner cause for
-      // the dialog body — the wrapper Error.message is intentionally NOT
-      // forwarded because it already embeds path + meta-instructions that
-      // would duplicate against the i18n template.
-      if (err instanceof EncryptedFileWithoutKeyError) {
-        throw new ConvexError({
-          code: 'PROVIDER_SECRET_REFUSED_OVERWRITE',
-          kind: 'encrypted_no_key',
-          path: secretsPath,
-        });
-      }
-      if (err instanceof UndecryptableExistingSecretError) {
-        throw new ConvexError({
-          code: 'PROVIDER_SECRET_REFUSED_OVERWRITE',
-          kind: 'undecryptable_existing',
-          path: secretsPath,
-          reason: err.reason,
-        });
-      }
-      throw err;
-    }
-
-    if (!encryptMode) {
-      await atomicWriteSecret(secretsPath, plaintext);
-      invalidateSecretsCache(secretsPath);
-      await maybeAuditForceOverwrite(ctx, args, secretsPath, prepared, auth);
-      return null;
-    }
-
-    // Resolve all age recipients from env. With multiple keys in
-    // `SOPS_AGE_KEY_FILE`, sops -e encrypts to all of them — new ciphertext
-    // is decryptable by any key in the file. This is the rotation primitive:
-    // append a new key, re-save each provider via the UI, then remove the
-    // old key. Decrypt path walks all keys naturally, so existing files keep
-    // working through the transition.
-    const recipients = resolveAgeRecipients();
-    if (recipients.length === 0) {
-      throw new Error(
-        'No age secret key available. Set SOPS_AGE_KEY (inline) or SOPS_AGE_KEY_FILE (path) in .env, or unset both to use plaintext mode.',
-      );
-    }
-    const recipientArg = recipients.join(',');
-
-    const { execFileSync } = await import('node:child_process');
-    const { writeFileSync, unlinkSync, mkdtempSync, rmdirSync } =
-      await import('node:fs');
-    const { tmpdir } = await import('node:os');
-
-    const tmpDir = mkdtempSync(path.join(tmpdir(), 'sops-'));
-    const tmpFile = path.join(tmpDir, 'plain.json');
-    let encrypted: string;
-    try {
-      // mkdtempSync gives us a 0o700 parent dir, so other users can't
-      // traverse to read this file even at default 0o644 mode. Belt-and-
-      // suspenders 0o600 anyway — matches atomicWriteSecret and means the
-      // mode bit is correct even if a future change to the parent dir mode
-      // regresses.
-      writeFileSync(tmpFile, plaintext, { encoding: 'utf-8', mode: 0o600 });
-      encrypted = execFileSync(
-        'sops',
-        [
-          '-e',
-          '--input-type',
-          'json',
-          '--output-type',
-          'json',
-          '--age',
-          recipientArg,
-          tmpFile,
-        ],
-        {
-          encoding: 'utf-8',
-          timeout: 10_000,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        },
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new Error(
-        `Failed to encrypt secrets for "${args.providerName}": ${message}. ` +
-          'Ensure sops is installed and SOPS_AGE_KEY is set.',
-        { cause: err },
-      );
+      return await runSaveProviderSecret(ctx, args, auth, secretsPath);
     } finally {
-      // Split the cleanup so a failed unlink (which would leak the plaintext
-      // API key into /tmp until the systemd-tmpfiles reaper sweeps in ~10
-      // days) surfaces as a warn rather than getting silently swallowed.
-      try {
-        unlinkSync(tmpFile);
-      } catch (cleanupErr) {
-        if (!isErrnoCode(cleanupErr, 'ENOENT')) {
-          console.warn(
-            `[saveProviderSecret] failed to unlink plaintext tmp file ${tmpFile}`,
-            cleanupErr,
-          );
-        }
-      }
-      try {
-        rmdirSync(tmpDir);
-      } catch (cleanupErr) {
-        if (!isErrnoCode(cleanupErr, 'ENOENT')) {
-          console.warn(
-            `[saveProviderSecret] failed to rmdir tmp dir ${tmpDir}`,
-            cleanupErr,
-          );
-        }
+      release();
+      // Drop the entry once we're the tail; a later writer may have
+      // already chained behind us, in which case we leave their entry.
+      if (secretWriteLocks.get(lockKey) === next) {
+        secretWriteLocks.delete(lockKey);
       }
     }
-
-    await atomicWriteSecret(secretsPath, encrypted);
-    invalidateSecretsCache(secretsPath);
-    await maybeAuditForceOverwrite(ctx, args, secretsPath, prepared, auth);
-
-    return null;
   },
 });
+
+// Module-scoped per-provider advisory locks. Lives for the lifetime of
+// the Convex action runtime (per Node process); one process per host in
+// self-hosted Convex.
+const secretWriteLocks = new Map<string, Promise<unknown>>();
+
+async function runSaveProviderSecret(
+  ctx: ActionCtx,
+  args: {
+    orgSlug: string;
+    providerName: string;
+    apiKey?: string;
+    modelKeys?: Record<string, string>;
+    force?: boolean;
+  },
+  auth: Awaited<ReturnType<typeof requireDeveloperSettingsAccess>>,
+  secretsPath: string,
+): Promise<null> {
+  const encryptMode = hasSopsKey();
+
+  const incomingModelKeys = args.modelKeys;
+
+  let plaintext: string;
+  let prepared: Awaited<ReturnType<typeof prepareMergedSecrets>>;
+  try {
+    prepared = await prepareMergedSecrets(
+      secretsPath,
+      { apiKey: args.apiKey, modelKeys: incomingModelKeys },
+      { force: args.force },
+    );
+    plaintext = prepared.plaintext;
+  } catch (err) {
+    // Convert typed refuse-overwrite errors to ConvexError carrying a
+    // structured discriminator. The UI reads `error.data.kind` to decide
+    // whether to render the "overwrite anyway?" confirm dialog and re-call
+    // with `force: true`. `data.reason` carries the raw inner cause for
+    // the dialog body — the wrapper Error.message is intentionally NOT
+    // forwarded because it already embeds path + meta-instructions that
+    // would duplicate against the i18n template.
+    if (err instanceof EncryptedFileWithoutKeyError) {
+      throw new ConvexError({
+        code: 'PROVIDER_SECRET_REFUSED_OVERWRITE',
+        kind: 'encrypted_no_key',
+        path: secretsPath,
+      });
+    }
+    if (err instanceof UndecryptableExistingSecretError) {
+      throw new ConvexError({
+        code: 'PROVIDER_SECRET_REFUSED_OVERWRITE',
+        kind: 'undecryptable_existing',
+        path: secretsPath,
+        reason: err.reason,
+      });
+    }
+    throw err;
+  }
+
+  if (!encryptMode) {
+    await atomicWriteSecret(secretsPath, plaintext);
+    invalidateSecretsCache(secretsPath);
+    await maybeAuditForceOverwrite(ctx, args, secretsPath, prepared, auth);
+    return null;
+  }
+
+  // Resolve all age recipients from env. With multiple keys in
+  // `SOPS_AGE_KEY_FILE`, sops -e encrypts to all of them — new ciphertext
+  // is decryptable by any key in the file. This is the rotation primitive:
+  // append a new key, re-save each provider via the UI, then remove the
+  // old key. Decrypt path walks all keys naturally, so existing files keep
+  // working through the transition.
+  const recipients = resolveAgeRecipients();
+  if (recipients.length === 0) {
+    throw new Error(
+      'No age secret key available. Set SOPS_AGE_KEY (inline) or SOPS_AGE_KEY_FILE (path) in .env, or unset both to use plaintext mode.',
+    );
+  }
+  const recipientArg = recipients.join(',');
+
+  const { execFileSync } = await import('node:child_process');
+  const { writeFileSync, unlinkSync, mkdtempSync, rmdirSync } =
+    await import('node:fs');
+  const { tmpdir } = await import('node:os');
+
+  const tmpDir = mkdtempSync(path.join(tmpdir(), 'sops-'));
+  const tmpFile = path.join(tmpDir, 'plain.json');
+  let encrypted: string;
+  try {
+    // mkdtempSync gives us a 0o700 parent dir, so other users can't
+    // traverse to read this file even at default 0o644 mode. Belt-and-
+    // suspenders 0o600 anyway — matches atomicWriteSecret and means the
+    // mode bit is correct even if a future change to the parent dir mode
+    // regresses.
+    writeFileSync(tmpFile, plaintext, { encoding: 'utf-8', mode: 0o600 });
+    encrypted = execFileSync(
+      'sops',
+      [
+        '-e',
+        '--input-type',
+        'json',
+        '--output-type',
+        'json',
+        '--age',
+        recipientArg,
+        tmpFile,
+      ],
+      {
+        encoding: 'utf-8',
+        timeout: 10_000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Failed to encrypt secrets for "${args.providerName}": ${message}. ` +
+        'Ensure sops is installed and SOPS_AGE_KEY is set.',
+      { cause: err },
+    );
+  } finally {
+    // Split the cleanup so a failed unlink (which would leak the plaintext
+    // API key into /tmp until the systemd-tmpfiles reaper sweeps in ~10
+    // days) surfaces as a warn rather than getting silently swallowed.
+    try {
+      unlinkSync(tmpFile);
+    } catch (cleanupErr) {
+      if (!isErrnoCode(cleanupErr, 'ENOENT')) {
+        console.warn(
+          `[saveProviderSecret] failed to unlink plaintext tmp file ${tmpFile}`,
+          cleanupErr,
+        );
+      }
+    }
+    try {
+      rmdirSync(tmpDir);
+    } catch (cleanupErr) {
+      if (!isErrnoCode(cleanupErr, 'ENOENT')) {
+        console.warn(
+          `[saveProviderSecret] failed to rmdir tmp dir ${tmpDir}`,
+          cleanupErr,
+        );
+      }
+    }
+  }
+
+  await atomicWriteSecret(secretsPath, encrypted);
+  invalidateSecretsCache(secretsPath);
+  await maybeAuditForceOverwrite(ctx, args, secretsPath, prepared, auth);
+
+  return null;
+}
 
 /**
  * Write a `force_overwrite_provider_secret` audit row when the operator just

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Select } from '@/app/components/ui/forms/select';
 import { Text } from '@/app/components/ui/typography/text';
+import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -14,19 +15,35 @@ import { modelTagLabel } from '../utils/model-tag-label';
 
 const NONE_VALUE = '__none__';
 
+// Tags that can be set as a per-provider default. Mirrors
+// `providerDefaultsSchema` keys in `lib/shared/schemas/providers.ts`.
+const DEFAULT_TAGS = [
+  'chat',
+  'vision',
+  'embedding',
+  'image-generation',
+  'transcription',
+] as const;
+
 interface ProviderDefaultModelsPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  organizationId: string;
   providerName: string;
 }
 
 export function ProviderDefaultModelsPanel({
   open,
   onOpenChange,
+  organizationId,
   providerName,
 }: ProviderDefaultModelsPanelProps) {
   const { t } = useT('settings');
-  const { data } = useReadProvider('default', providerName);
+  const { data: organization } = useOrganization(organizationId);
+  const orgSlug = organization?.slug ?? '';
+  const { data } = useReadProvider(orgSlug, providerName, {
+    enabled: !!orgSlug,
+  });
   const { mutateAsync: saveProvider, isPending } = useSaveProvider();
 
   const [defaults, setDefaults] = useState<Record<string, string>>({});
@@ -46,7 +63,7 @@ export function ProviderDefaultModelsPanel({
       );
       try {
         await saveProvider({
-          orgSlug: 'default',
+          orgSlug,
           providerName,
           config: {
             ...data.config,
@@ -58,23 +75,21 @@ export function ProviderDefaultModelsPanel({
         });
         toast({ title: t('providers.saved'), variant: 'success' });
         onOpenChange(false);
-      } catch {
+      } catch (err) {
+        console.error('[ProviderDefaultModelsPanel] save failed', err);
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
     },
-    [data, defaults, providerName, saveProvider, t, onOpenChange],
+    [data, defaults, orgSlug, providerName, saveProvider, t, onOpenChange],
   );
 
   const isDirty =
     !!data?.ok &&
-    ((defaults.chat ?? NONE_VALUE) !==
-      (data.config.defaults?.chat ?? NONE_VALUE) ||
-      (defaults.vision ?? NONE_VALUE) !==
-        (data.config.defaults?.vision ?? NONE_VALUE) ||
-      (defaults.embedding ?? NONE_VALUE) !==
-        (data.config.defaults?.embedding ?? NONE_VALUE) ||
-      (defaults.transcription ?? NONE_VALUE) !==
-        (data.config.defaults?.transcription ?? NONE_VALUE));
+    DEFAULT_TAGS.some(
+      (tag) =>
+        (defaults[tag] ?? NONE_VALUE) !==
+        (data.config.defaults?.[tag] ?? NONE_VALUE),
+    );
 
   const models = data?.ok ? data.config.models : [];
 
@@ -92,33 +107,31 @@ export function ProviderDefaultModelsPanel({
       <Text className="text-muted-foreground text-sm">
         {t('providers.defaultModelsDescription')}
       </Text>
-      {(['chat', 'vision', 'embedding', 'transcription'] as const).map(
-        (tag) => {
-          const modelsWithTag = models.filter((m) =>
-            (m.tags as readonly string[]).includes(tag),
-          );
-          return (
-            <Select
-              key={tag}
-              label={modelTagLabel(tag, t)}
-              options={[
-                {
-                  value: NONE_VALUE,
-                  label: t('providers.defaultNone'),
-                },
-                ...modelsWithTag.map((m) => ({
-                  value: m.id,
-                  label: m.displayName,
-                })),
-              ]}
-              value={defaults[tag] ?? NONE_VALUE}
-              onValueChange={(value) =>
-                setDefaults((d) => ({ ...d, [tag]: value }))
-              }
-            />
-          );
-        },
-      )}
+      {DEFAULT_TAGS.map((tag) => {
+        const modelsWithTag = models.filter((m) =>
+          (m.tags as readonly string[]).includes(tag),
+        );
+        return (
+          <Select
+            key={tag}
+            label={modelTagLabel(tag, t)}
+            options={[
+              {
+                value: NONE_VALUE,
+                label: t('providers.defaultNone'),
+              },
+              ...modelsWithTag.map((m) => ({
+                value: m.id,
+                label: m.displayName,
+              })),
+            ]}
+            value={defaults[tag] ?? NONE_VALUE}
+            onValueChange={(value) =>
+              setDefaults((d) => ({ ...d, [tag]: value }))
+            }
+          />
+        );
+      })}
     </FormDialog>
   );
 }

@@ -35,3 +35,23 @@ export function dispatchForbiddenDeveloperSettings(
   });
   return true;
 }
+
+/**
+ * Surface a "reload to see latest" toast when the server rejects with
+ * `PROVIDER_VERSION_CONFLICT`. Triggered when another tab/operator changed
+ * the provider config between our load and our save (or deleted it).
+ * Returns `true` if the error was handled.
+ */
+export function dispatchVersionConflict(
+  err: unknown,
+  t: (key: string) => string,
+): boolean {
+  const data = readConvexErrorData(err);
+  if (data?.code !== 'PROVIDER_VERSION_CONFLICT') return false;
+  toast({
+    title: t('providers.versionConflictTitle'),
+    description: t('providers.versionConflictDescription'),
+    variant: 'destructive',
+  });
+  return true;
+}

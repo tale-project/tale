@@ -58,6 +58,7 @@ import {
 } from '@/app/features/settings/providers/hooks/use-provider-config-context';
 import {
   dispatchForbiddenDeveloperSettings,
+  dispatchVersionConflict,
   readConvexErrorData,
 } from '@/app/features/settings/providers/utils/error-dispatch';
 import { modelTagLabel } from '@/app/features/settings/providers/utils/model-tag-label';
@@ -146,6 +147,7 @@ function ProviderDetailRoute() {
 
   return (
     <ProviderConfigProvider
+      orgSlug={orgSlug}
       providerName={providerName}
       initialConfig={data.config}
       initialHash={data.hash}
@@ -254,7 +256,10 @@ function ProviderDetailContent({
         providerName={providerName}
         maskedKey={maskedKey}
       />
-      <DefaultModelsSection providerName={providerName} />
+      <DefaultModelsSection
+        organizationId={organizationId}
+        providerName={providerName}
+      />
       <ProviderOptionsSection />
       <ModelsSection
         orgSlug={orgSlug}
@@ -369,7 +374,13 @@ function GeneralSection({ providerName }: { providerName: string }) {
   );
 }
 
-function DefaultModelsSection({ providerName }: { providerName: string }) {
+function DefaultModelsSection({
+  organizationId,
+  providerName,
+}: {
+  organizationId: string;
+  providerName: string;
+}) {
   const { t } = useT('settings');
   const { config } = useProviderConfig();
   const [panelOpen, setPanelOpen] = useState(false);
@@ -399,14 +410,21 @@ function DefaultModelsSection({ providerName }: { providerName: string }) {
         <InfoRow label={t('providers.tagVision')}>
           {modelDisplayName(config.defaults?.vision)}
         </InfoRow>
-        <InfoRow label={t('providers.tagEmbedding')} isLast>
+        <InfoRow label={t('providers.tagEmbedding')}>
           {modelDisplayName(config.defaults?.embedding)}
+        </InfoRow>
+        <InfoRow label={t('providers.tagImageGeneration')}>
+          {modelDisplayName(config.defaults?.['image-generation'])}
+        </InfoRow>
+        <InfoRow label={t('providers.tagTranscription')} isLast>
+          {modelDisplayName(config.defaults?.transcription)}
         </InfoRow>
       </Card>
 
       <ProviderDefaultModelsPanel
         open={panelOpen}
         onOpenChange={setPanelOpen}
+        organizationId={organizationId}
         providerName={providerName}
       />
     </>
@@ -443,6 +461,7 @@ function ProviderOptionsSection() {
           'providers.providerOptions.discardConfirmAction',
         ),
         discardConfirmKeep: t('providers.providerOptions.discardConfirmKeep'),
+        objectRequiredError: t('providers.providerOptions.objectRequiredError'),
       }}
     />
   );
@@ -828,9 +847,9 @@ function ModelsSection({
         }
         setDialogOpen(false);
       } catch (err) {
-        if (!dispatchForbiddenDeveloperSettings(err, t)) {
-          toast({ title: t('providers.saveFailed'), variant: 'destructive' });
-        }
+        if (dispatchForbiddenDeveloperSettings(err, t)) return;
+        if (dispatchVersionConflict(err, t)) return;
+        toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
     },
     [
@@ -850,8 +869,23 @@ function ModelsSection({
     if (deleteIndex == null) return;
     const deletedModel = config.models[deleteIndex];
     try {
+      // Strip any defaults pointing at the deleted model. Without this,
+      // schema-side `superRefine` rejects the save with `defaults.X
+      // references unknown model` and the user sees a confusing
+      // "saveFailed" toast for an action that was intended to clean up.
+      const cleanedDefaults: Record<string, string> = {};
+      if (config.defaults) {
+        for (const [k, v] of Object.entries(config.defaults)) {
+          if (v !== undefined && v !== deletedModel?.id) {
+            cleanedDefaults[k] = v;
+          }
+        }
+      }
+      const cleanedDefaultsOrUndef =
+        Object.keys(cleanedDefaults).length > 0 ? cleanedDefaults : undefined;
       await saveConfig({
         models: config.models.filter((_, i) => i !== deleteIndex),
+        defaults: cleanedDefaultsOrUndef,
       });
       if (deletedModel && orgSlug) {
         await saveSecret.mutateAsync({
@@ -862,13 +896,14 @@ function ModelsSection({
       }
       setDeleteIndex(null);
     } catch (err) {
-      if (!dispatchForbiddenDeveloperSettings(err, t)) {
-        toast({ title: t('providers.saveFailed'), variant: 'destructive' });
-      }
+      if (dispatchForbiddenDeveloperSettings(err, t)) return;
+      if (dispatchVersionConflict(err, t)) return;
+      toast({ title: t('providers.saveFailed'), variant: 'destructive' });
     }
   }, [
     deleteIndex,
     config.models,
+    config.defaults,
     saveConfig,
     saveSecret,
     orgSlug,

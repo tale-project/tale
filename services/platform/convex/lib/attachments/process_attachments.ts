@@ -66,6 +66,13 @@ export interface ProcessAttachmentsConfig {
   debugLog?: (message: string, data?: Record<string, unknown>) => void;
   toolName?: string;
   model?: string;
+  /**
+   * Active org slug. Threaded through to `analyzeImageCached` so per-org
+   * provider config (and providerOptions) for the vision model is honored
+   * and the cache key is keyed per-org. Omit for system-level callers
+   * that should hit the global default org.
+   */
+  orgSlug?: string;
 }
 
 /**
@@ -240,6 +247,7 @@ export async function processAttachments(
           fileId: attachment.fileId,
           fileName: attachment.fileName,
           question: userText,
+          orgSlug: config.orgSlug,
         });
 
         if (result.success) {

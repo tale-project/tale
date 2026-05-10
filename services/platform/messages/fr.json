@@ -1053,8 +1053,11 @@
         "discardConfirmTitle": "Abandonner les modifications non enregistrées ?",
         "discardConfirmDescription": "Vos modifications des options du fournisseur seront perdues.",
         "discardConfirmAction": "Abandonner",
-        "discardConfirmKeep": "Continuer l'édition"
+        "discardConfirmKeep": "Continuer l'édition",
+        "objectRequiredError": "Les options du fournisseur doivent être un objet JSON."
       },
+      "versionConflictTitle": "Le fournisseur a été modifié",
+      "versionConflictDescription": "Recharge la page pour voir la dernière version, puis réapplique tes modifications.",
       "createFailed": "Échec de la création du fournisseur",
       "overwriteUnreadableTitle": "Le fichier de clé existant est illisible",
       "overwriteEncryptedNoKeyDescription": "Le fichier de secrets du fournisseur situé à {path} est chiffré avec SOPS, mais aucune clé de déchiffrement n'est configurée. Enregistrer écrasera le texte chiffré existant — la clé précédente ne pourra pas être récupérée. Continuer ?",

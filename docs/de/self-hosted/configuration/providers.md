@@ -71,9 +71,9 @@ Preise werden pro Modell deklariert, damit das Usage-Ledger Kostenschätzungen b
 
 Lass `cost` für selbst gehostete Backends weg, bei denen der Aufwand operativ statt pro Call entsteht — die Nutzung wird trotzdem protokolliert, aber die geschätzte Kostenspalte steht auf `0`.
 
-### Provider-Optionen (fortgeschritten)
+### Anbieter-Optionen (fortgeschritten)
 
-Tale leitet beliebige anbieterspezifische Request-Body-Felder über einen optionalen `providerOptions`-Block weiter — verfügbar **sowohl** auf Anbieter-Ebene als auch pro Modell. Häufigster Anwendungsfall ist OpenRouters [Provider-Routing](https://openrouter.ai/docs/guides/routing/provider-selection) — Quantisierung anpinnen, erlaubte Anbieter wählen, Fallback-Richtlinie usw.
+Tale leitet beliebige anbieterspezifische Request-Body-Felder über einen optionalen `providerOptions`-Block weiter — verfügbar **sowohl** auf Anbieter-Ebene als auch pro Modell. Häufigster Anwendungsfall ist OpenRouters [Anbieter-Routing](https://openrouter.ai/docs/guides/routing/provider-selection) — Quantisierung anpinnen, erlaubte Anbieter wählen, Fallback-Richtlinie usw.
 
 ```json
 {
@@ -97,9 +97,9 @@ Tale leitet beliebige anbieterspezifische Request-Body-Felder über einen option
 
 **Schreibregeln:**
 
-- Schreiben Sie die **innere** Request-Body-Struktur — Tale namespaced sie zur Aufrufzeit unter dem tatsächlichen Anbieternamen. **Nicht** in `{ "openrouter": { ... } }` einwickeln.
+- Schreib die **innere** Request-Body-Struktur — Tale namespaced sie zur Aufrufzeit unter dem tatsächlichen Anbieternamen. **Nicht** in `{ "openrouter": { ... } }` einwickeln.
 - **Merge-Vorrang**: Anbieter-Ebene → Modell-Ebene (Tiefe 2: gemeinsame Top-Level-Schlüssel werden zusammengeführt, Sub-Schlüssel mit Modell-Sieg, Arrays werden vollständig ersetzt).
-- Das Dashboard exponiert dasselbe JSON über die Panels **Erweitert — Provider-Optionen** unter _Einstellungen → Anbieter → \[Anbieter\]_ (Anbieter-Ebene) und im Modell-Bearbeiten-Dialog (pro Modell).
+- Das Dashboard exponiert dasselbe JSON über die Panels **Erweitert — Anbieter-Optionen** unter _Einstellungen → Anbieter → \[Anbieter\]_ (Anbieter-Ebene) und im Modell-Bearbeiten-Dialog (pro Modell).
 
 **Abgelehnte Schlüssel** (die Datei wird beim Laden übersprungen, der Grund landet in `skippedReasons`; benachbarte Anbieter-Dateien laden weiter):
 

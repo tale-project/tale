@@ -9,8 +9,11 @@ import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useSaveProvider } from '../hooks/mutations';
-import { useReadProvider } from '../hooks/queries';
+import { useProviderConfig } from '../hooks/use-provider-config-context';
+import {
+  dispatchForbiddenDeveloperSettings,
+  dispatchVersionConflict,
+} from '../utils/error-dispatch';
 
 interface ProviderEditPanelProps {
   open: boolean;
@@ -24,49 +27,57 @@ export function ProviderEditPanel({
   providerName,
 }: ProviderEditPanelProps) {
   const { t } = useT('settings');
-  const { data } = useReadProvider('default', providerName);
-  const { mutateAsync: saveProvider, isPending } = useSaveProvider();
+  // Route through ProviderConfigContext rather than reading/writing the
+  // provider directly. This way `expectedHash` round-trips and our save
+  // doesn't silently revert sibling edits to providerOptions/models/defaults
+  // captured in the context but not yet refetched.
+  const { config, isSaving, saveConfig } = useProviderConfig();
 
   const [form, setForm] = useState({
-    name: '',
-    displayName: '',
-    description: '',
-    baseUrl: '',
+    name: providerName,
+    displayName: config.displayName,
+    description: config.description ?? '',
+    baseUrl: config.baseUrl,
   });
 
+  // Re-sync form state from the context only when the dialog isn't open.
+  // While the user is typing we deliberately keep their unsaved edits even
+  // if a sibling save invalidates the read query.
   useEffect(() => {
-    if (data?.ok) {
-      setForm({
-        name: providerName,
-        displayName: data.config.displayName,
-        description: data.config.description ?? '',
-        baseUrl: data.config.baseUrl,
-      });
-    }
-  }, [data, providerName]);
+    if (open) return;
+    setForm({
+      name: providerName,
+      displayName: config.displayName,
+      description: config.description ?? '',
+      baseUrl: config.baseUrl,
+    });
+  }, [
+    open,
+    providerName,
+    config.displayName,
+    config.description,
+    config.baseUrl,
+  ]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!data?.ok) return;
       try {
-        await saveProvider({
-          orgSlug: 'default',
-          providerName,
-          config: {
-            ...data.config,
-            displayName: form.displayName,
-            description: form.description || undefined,
-            baseUrl: form.baseUrl,
-          },
+        await saveConfig({
+          displayName: form.displayName,
+          description: form.description || undefined,
+          baseUrl: form.baseUrl,
         });
         toast({ title: t('providers.saved'), variant: 'success' });
         onOpenChange(false);
-      } catch {
+      } catch (err) {
+        if (dispatchForbiddenDeveloperSettings(err, t)) return;
+        if (dispatchVersionConflict(err, t)) return;
+        console.error('[ProviderEditPanel] save failed', err);
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
     },
-    [data, form, providerName, saveProvider, t, onOpenChange],
+    [form, saveConfig, t, onOpenChange],
   );
 
   const isValid =
@@ -75,10 +86,9 @@ export function ProviderEditPanel({
     URL.canParse(form.baseUrl.trim());
 
   const isDirty =
-    !!data?.ok &&
-    (form.displayName !== data.config.displayName ||
-      form.description !== (data.config.description ?? '') ||
-      form.baseUrl !== data.config.baseUrl);
+    form.displayName !== config.displayName ||
+    form.description !== (config.description ?? '') ||
+    form.baseUrl !== config.baseUrl;
 
   return (
     <FormDialog
@@ -86,7 +96,7 @@ export function ProviderEditPanel({
       onOpenChange={onOpenChange}
       title={t('providers.editGeneralTitle')}
       onSubmit={handleSubmit}
-      isSubmitting={isPending}
+      isSubmitting={isSaving}
       isDirty={isDirty}
       isValid={isValid}
       submitText={t('providers.saveChanges')}

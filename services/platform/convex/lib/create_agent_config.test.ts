@@ -44,7 +44,7 @@ describe('createAgentConfig', () => {
       expect(callSettings?.maxOutputTokens).toBe(4096);
     });
 
-    it('respects maxTokens: 0 (uses 0 rather than the default)', () => {
+    it('treats maxTokens: 0 as "omit the cap" (does not send max_tokens: 0)', () => {
       const config = createAgentConfig({
         name: 'test-agent',
         languageModel: makeFakeModel(),
@@ -55,7 +55,24 @@ describe('createAgentConfig', () => {
       const callSettings = config.callSettings as
         | Record<string, number>
         | undefined;
-      expect(callSettings?.maxOutputTokens).toBe(0);
+      // maxTokens=0 is the "unlimited" sentinel; the field must not be set
+      // because providers (OpenAI/OpenRouter) interpret max_tokens=0 as
+      // "generate zero tokens", not "unlimited".
+      expect(callSettings?.maxOutputTokens).toBeUndefined();
+    });
+
+    it('treats modelMaxOutputTokens: 0 as "omit the cap"', () => {
+      const config = createAgentConfig({
+        name: 'test-agent',
+        languageModel: makeFakeModel(),
+        instructions: 'You are a test assistant.',
+        modelMaxOutputTokens: 0,
+      });
+
+      const callSettings = config.callSettings as
+        | Record<string, number>
+        | undefined;
+      expect(callSettings?.maxOutputTokens).toBeUndefined();
     });
   });
 

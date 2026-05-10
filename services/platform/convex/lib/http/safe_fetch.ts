@@ -69,7 +69,10 @@ const DEFAULT_MAX_REDIRECTS = 5;
  *    `::ffff:7f00:1` — decoded back to IPv4 before re-checking.
  */
 export function isPrivateIp(hostname: string): boolean {
-  const lower = hostname.toLowerCase();
+  // `URL.hostname` keeps surrounding brackets for IPv6 literals; strip them
+  // so the prefix checks below match `[fc00::1]`, `[fd00:ec2::254]`, and
+  // `[::ffff:7f00:1]` (mirrors checkProviderHostPolicy's normalization).
+  const lower = hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (lower === 'localhost' || lower.endsWith('.local')) return true;
 
   if (isPrivateIpv4(lower)) return true;
@@ -89,8 +92,8 @@ export function isPrivateIp(hostname: string): boolean {
     return isPrivateIpv4(dotted);
   }
 
-  if (lower === '::1' || lower === '[::1]') return true;
-  if (lower.startsWith('fe80:') || lower.startsWith('[fe80:')) return true;
+  if (lower === '::1') return true;
+  if (lower.startsWith('fe80:')) return true;
   if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
 
   return false;

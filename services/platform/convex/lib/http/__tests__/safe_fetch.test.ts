@@ -20,6 +20,13 @@ describe('lib/http/safe_fetch.isPrivateIp', () => {
     'fe80::abcd',
     'fc00::1',
     'fd12::5',
+    // Bracketed IPv6 forms (URL.hostname keeps brackets for literals)
+    '[fc00::1]',
+    '[fd00:ec2::254]', // AWS IMDS IPv6
+    '[fe80::1]',
+    '[::ffff:7f00:1]', // IPv4-mapped 127.0.0.1 (hex)
+    '[::ffff:127.0.0.1]', // IPv4-mapped 127.0.0.1 (dotted)
+    '[::ffff:a9fe:a9fe]', // IPv4-mapped 169.254.169.254 (AWS IMDS)
   ])('rejects private / loopback / link-local: %s', (host) => {
     expect(isPrivateIp(host)).toBe(true);
   });
