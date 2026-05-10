@@ -160,8 +160,14 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
 
   const getDisplayName = useCallback(
     (ref: string) => {
-      const plain = stripModelRefQualifier(ref);
-      return modelInfoMap.get(plain)?.displayName ?? getModelShortName(plain);
+      const { modelId, quantization } = parseModelRef(ref);
+      const base =
+        modelInfoMap.get(modelId)?.displayName ?? getModelShortName(modelId);
+      // Append the variant in the closed trigger and selected-row label so
+      // fp8 vs fp4 selections are distinguishable without opening the menu.
+      return quantization
+        ? `${base} (${getVariantBadgeLabel(quantization)})`
+        : base;
     },
     [modelInfoMap],
   );

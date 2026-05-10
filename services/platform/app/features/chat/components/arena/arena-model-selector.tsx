@@ -102,8 +102,14 @@ export function ArenaModelSelector({
 
   const getDisplayName = useCallback(
     (ref: string) => {
-      const plain = stripModelRefQualifier(ref);
-      return modelInfoMap.get(plain)?.displayName ?? getModelShortName(plain);
+      const { modelId, quantization } = parseModelRef(ref);
+      const base =
+        modelInfoMap.get(modelId)?.displayName ?? getModelShortName(modelId);
+      // Append the variant in the closed trigger so fp8 vs fp4 selections
+      // are distinguishable without opening the menu.
+      return quantization
+        ? `${base} (${getVariantBadgeLabel(quantization)})`
+        : base;
     },
     [modelInfoMap],
   );
@@ -150,19 +156,35 @@ export function ArenaModelSelector({
     [filteredModels, getDisplayName, modelInfoMap],
   );
 
-  const currentModelA = modelA ?? filteredModels[0] ?? null;
-  const currentModelB =
-    modelB ?? filteredModels[1] ?? filteredModels[0] ?? null;
+  // A previously persisted selection may no longer appear in `filteredModels`
+  // — e.g. governance tightened, or expansion now offers `@fp8`/`@fp4`
+  // variants in place of a bare `glm-5.1` ref. Treat the stale value as
+  // empty when computing the trigger so SearchableSelect's `value` always
+  // matches an option.
+  const isInList = useCallback(
+    (ref: string | null): boolean =>
+      ref != null && filteredModels.includes(ref),
+    [filteredModels],
+  );
+  const currentModelA = isInList(modelA) ? modelA : (filteredModels[0] ?? null);
+  const currentModelB = isInList(modelB)
+    ? modelB
+    : (filteredModels[1] ?? filteredModels[0] ?? null);
 
-  // Sync default selections back to context so sendMessage can read them
+  // Sync default selections back to context so sendMessage can read them.
+  // Also clear stale values that no longer appear in `filteredModels` so the
+  // backend doesn't dispatch to a model the user can't see in the picker.
   useEffect(() => {
-    if (filteredModels.length >= 2) {
-      if (!modelA && filteredModels[0]) {
-        setModelA(filteredModels[0]);
-      }
-      if (!modelB && filteredModels[1]) {
-        setModelB(filteredModels[1]);
-      }
+    if (filteredModels.length < 2) return;
+    if (modelA && !filteredModels.includes(modelA)) {
+      setModelA(filteredModels[0]);
+    } else if (!modelA && filteredModels[0]) {
+      setModelA(filteredModels[0]);
+    }
+    if (modelB && !filteredModels.includes(modelB)) {
+      setModelB(filteredModels[1] ?? filteredModels[0]);
+    } else if (!modelB && filteredModels[1]) {
+      setModelB(filteredModels[1]);
     }
   }, [filteredModels, modelA, modelB, setModelA, setModelB]);
 

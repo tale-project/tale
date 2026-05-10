@@ -95,6 +95,20 @@ function readQuantizations(
   return q;
 }
 
+/**
+ * Read the quantization variants that apply to a model after merging
+ * provider-level and model-level `providerOptions` (model wins on conflict),
+ * so the UI's variant expansion matches what `resolveModelData` would pin
+ * at request time. Reading model-level alone would silently ignore
+ * provider-wide defaults declared at the top of a provider JSON.
+ */
+function readEffectiveQuantizations(
+  providerLevel: Record<string, unknown> | undefined,
+  modelLevel: Record<string, unknown> | undefined,
+): string[] | undefined {
+  return readQuantizations(mergeModelLevel(providerLevel, modelLevel));
+}
+
 /** True iff `err` is a Node ErrnoException with the given code. */
 function isErrnoCode(err: unknown, code: string): boolean {
   return err instanceof Error && 'code' in err && err.code === code;
@@ -387,8 +401,12 @@ export const listProviders = action({
               hasApiKeyOverride: modelKeys?.[m.id] != null,
               // Surface quantization variants so the UI selectors can split
               // each model into one selectable entry per declared weight
-              // format. Models without a quantizations array stay single.
-              quantizations: readQuantizations(m.providerOptions),
+              // format. Read from merged provider+model providerOptions to
+              // match resolveModelData's runtime view.
+              quantizations: readEffectiveQuantizations(
+                result.config.providerOptions,
+                m.providerOptions,
+              ),
             })),
             i18n: result.config.i18n,
           };
@@ -563,22 +581,30 @@ export const resolveModelData = internalAction({
     const orgSlug = args.orgSlug ?? 'default';
     const providers = await loadAllProviders(orgSlug);
 
-    const candidates = args.providerName
-      ? providers.filter((p) => p.name === args.providerName)
-      : providers;
-
-    if (args.providerName && candidates.length === 0) {
-      const available = providers.map((p) => p.name);
-      throw new ConvexError({
-        code: 'UNKNOWN_PROVIDER',
-        message: `Provider "${args.providerName}" not found. Available: ${available.join(', ')}`,
-      });
-    }
-
     // Split off any `@<quant>` suffix so the provider config lookup uses the
     // bare model id from the JSON. The variant pins the
     // `providerOptions.provider.quantizations` array further below.
-    const { modelId: bareModelId, quantization } = parseModelRef(args.modelId);
+    // Fall back to the ref's parsed `provider:` qualifier when the caller
+    // didn't pass `args.providerName` separately, so a fully-qualified
+    // modelId pins the lookup without a redundant arg.
+    const {
+      providerName: parsedProviderName,
+      modelId: bareModelId,
+      quantization,
+    } = parseModelRef(args.modelId);
+    const effectiveProviderName = args.providerName ?? parsedProviderName;
+
+    const candidates = effectiveProviderName
+      ? providers.filter((p) => p.name === effectiveProviderName)
+      : providers;
+
+    if (effectiveProviderName && candidates.length === 0) {
+      const available = providers.map((p) => p.name);
+      throw new ConvexError({
+        code: 'UNKNOWN_PROVIDER',
+        message: `Provider "${effectiveProviderName}" not found. Available: ${available.join(', ')}`,
+      });
+    }
 
     let firstMatch:
       | {
@@ -600,7 +626,7 @@ export const resolveModelData = internalAction({
     }
 
     if (firstMatch) {
-      if (!args.providerName && secondaryMatchProviders.length > 0) {
+      if (!effectiveProviderName && secondaryMatchProviders.length > 0) {
         console.warn(
           `[resolveModelData] Unqualified model "${bareModelId}" matches multiple providers ` +
             `(pinned: ${firstMatch.provider.name}; also in: ${secondaryMatchProviders.join(', ')}). ` +
@@ -659,7 +685,7 @@ export const resolveModelData = internalAction({
     );
     throw new ConvexError({
       code: 'UNKNOWN_MODEL',
-      message: `Model "${bareModelId}" not found${args.providerName ? ` in provider "${args.providerName}"` : ' in any provider'}. Available: ${allModelIds.join(', ')}`,
+      message: `Model "${bareModelId}" not found${effectiveProviderName ? ` in provider "${effectiveProviderName}"` : ' in any provider'}. Available: ${allModelIds.join(', ')}`,
     });
   },
 });
@@ -823,7 +849,10 @@ export const getAllModelIds = internalAction({
           tags: [...m.tags],
           providerName: provider.name,
           displayName: m.displayName,
-          quantizations: readQuantizations(m.providerOptions),
+          quantizations: readEffectiveQuantizations(
+            provider.config.providerOptions,
+            m.providerOptions,
+          ),
         });
       }
     }
@@ -883,7 +912,10 @@ export const getAllConfiguredModelIds = internalAction({
             tags: [...m.tags],
             providerName: name,
             displayName: m.displayName,
-            quantizations: readQuantizations(m.providerOptions),
+            quantizations: readEffectiveQuantizations(
+              result.config.providerOptions,
+              m.providerOptions,
+            ),
           });
         }
       }),
