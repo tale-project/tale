@@ -250,7 +250,10 @@ function ProviderDetailContent({
         </Text>
       </HStack>
 
-      <GeneralSection providerName={providerName} />
+      <GeneralSection
+        providerName={providerName}
+        organizationId={organizationId}
+      />
       <ApiKeySection
         orgSlug={orgSlug}
         providerName={providerName}
@@ -341,7 +344,13 @@ function SectionHeader({
   );
 }
 
-function GeneralSection({ providerName }: { providerName: string }) {
+function GeneralSection({
+  providerName,
+  organizationId,
+}: {
+  providerName: string;
+  organizationId: string;
+}) {
   const { t } = useT('settings');
   const { config } = useProviderConfig();
   const [panelOpen, setPanelOpen] = useState(false);
@@ -369,6 +378,7 @@ function GeneralSection({ providerName }: { providerName: string }) {
         open={panelOpen}
         onOpenChange={setPanelOpen}
         providerName={providerName}
+        organizationId={organizationId}
       />
     </>
   );

@@ -16,8 +16,10 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { useListPage } from '@/app/hooks/use-list-page';
+import { useLocale } from '@/app/hooks/use-locale';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { resolveProviderLocale } from '@/lib/shared/utils/resolve-provider-locale';
 
 import { useDeleteProvider } from '../hooks/mutations';
 import { useListProviders } from '../hooks/queries';
@@ -46,6 +48,7 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
   const queryClient = useQueryClient();
   const { data: organization } = useOrganization(organizationId);
   const orgSlug = organization?.slug ?? '';
+  const { locale } = useLocale();
   const { providers: rawProviders, isLoading } = useListProviders(orgSlug);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editProvider, setEditProvider] = useState<ProviderRow | null>(null);
@@ -60,17 +63,25 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
     const valid: ProviderRow[] = [];
     for (const p of rawProviders) {
       if (p && 'displayName' in p && typeof p.displayName === 'string') {
+        const resolved = resolveProviderLocale(
+          {
+            displayName: p.displayName,
+            description: p.description,
+            i18n: p.i18n,
+          },
+          locale,
+        );
         valid.push({
           name: p.name,
-          displayName: p.displayName,
-          description: p.description,
+          displayName: resolved.displayName || p.displayName,
+          description: resolved.description,
           baseUrl: p.baseUrl,
           modelCount: p.modelCount,
         });
       }
     }
     return valid;
-  }, [rawProviders]);
+  }, [rawProviders, locale]);
 
   const invalidateProviders = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['config', 'providers'] });
@@ -163,6 +174,7 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
             if (!open) setEditProvider(null);
           }}
           providerName={editProvider.name}
+          organizationId={organizationId}
         />
       )}
 

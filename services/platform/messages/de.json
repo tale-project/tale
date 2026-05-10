@@ -188,6 +188,11 @@
     "unsavedChanges": "Ungespeicherte Änderungen",
     "notFound": {
       "title": "Seite nicht gefunden"
+    },
+    "localeTabs": {
+      "default": "Standard",
+      "untranslated": "nicht übersetzt",
+      "autoTranslate": "Automatisch übersetzen"
     }
   },
   "navigation": {

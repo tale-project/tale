@@ -188,6 +188,11 @@
     "unsavedChanges": "Unsaved changes",
     "notFound": {
       "title": "Page not found"
+    },
+    "localeTabs": {
+      "default": "default",
+      "untranslated": "untranslated",
+      "autoTranslate": "Auto-translate"
     }
   },
   "navigation": {

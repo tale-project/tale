@@ -13,8 +13,10 @@ import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Text } from '@/app/components/ui/typography/text';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
+import { useLocale } from '@/app/hooks/use-locale';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { resolveModelLocale } from '@/lib/shared/utils/resolve-provider-locale';
 
 import { useSaveAgent } from '../hooks/mutations';
 
@@ -40,6 +42,7 @@ export function CreateAgentDialog({
   const navigate = useNavigate();
   const { mutateAsync: saveAgent } = useSaveAgent();
   const { providers } = useListProviders('default');
+  const { locale } = useLocale();
 
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [modelSelectOpen, setModelSelectOpen] = useState(false);
@@ -58,9 +61,10 @@ export function CreateAgentDialog({
       )
         continue;
       for (const model of provider.models) {
+        const resolved = resolveModelLocale(model, provider.i18n, locale);
         allModels.push({
           id: model.id,
-          displayName: model.displayName,
+          displayName: resolved.displayName || model.displayName,
           providerName: provider.name,
         });
       }
@@ -74,7 +78,7 @@ export function CreateAgentDialog({
         defaultValue: `via ${m.providerName}`,
       }),
     }));
-  }, [providers, t]);
+  }, [providers, t, locale]);
 
   // Auto-select first model when providers load and no selection exists
   useEffect(() => {

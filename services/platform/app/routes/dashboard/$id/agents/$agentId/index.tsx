@@ -8,9 +8,9 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { LocaleTabs } from '@/app/components/ui/i18n/locale-tabs';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
-import { LocaleTabs } from '@/app/features/agents/components/locale-tabs';
 import {
   useUpdateAgentBindings,
   useUpdateAgentSharing,

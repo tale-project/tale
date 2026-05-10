@@ -188,6 +188,11 @@
     "unsavedChanges": "Modifications non enregistrées",
     "notFound": {
       "title": "Page introuvable"
+    },
+    "localeTabs": {
+      "default": "défaut",
+      "untranslated": "non traduit",
+      "autoTranslate": "Traduire automatiquement"
     }
   },
   "navigation": {

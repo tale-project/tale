@@ -19,11 +19,13 @@ import {
 } from '@/app/components/ui/forms/searchable-select';
 import { useAccessibleModels } from '@/app/features/settings/governance/hooks/queries';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
+import { useLocale } from '@/app/hooks/use-locale';
 import { useT } from '@/lib/i18n/client';
 import {
   parseModelRef,
   stripModelRefQualifier,
 } from '@/lib/shared/utils/model-ref';
+import { resolveModelLocale } from '@/lib/shared/utils/resolve-provider-locale';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
@@ -47,6 +49,7 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const { agents, isLoading: agentsLoading } = useChatAgents(organizationId);
   const { providers, isLoading: providersLoading } =
     useListProviders('default');
+  const { locale } = useLocale();
   const { selectedModelOverrides, setSelectedModelOverride } = useChatLayout();
   const [open, setOpen] = useState(false);
 
@@ -82,16 +85,17 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
       )
         continue;
       for (const model of provider.models) {
+        const resolved = resolveModelLocale(model, provider.i18n, locale);
         map.set(model.id, {
-          displayName: model.displayName,
-          description: model.description || undefined,
+          displayName: resolved.displayName || model.displayName,
+          description: resolved.description || undefined,
           tags: model.tags ?? [],
           providerName: provider.name,
         });
       }
     }
     return map;
-  }, [providers]);
+  }, [providers, locale]);
 
   // Return the provider's slug (its JSON filename without extension) — this
   // is the stable, machine-readable identifier users write in model refs,

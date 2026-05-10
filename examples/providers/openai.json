@@ -11,5 +11,23 @@
       "tags": ["transcription"],
       "cost": { "centsPerAudioMinute": 0.6 }
     }
-  ]
+  ],
+  "i18n": {
+    "de": {
+      "description": "OpenAI-API (Whisper für Speech-to-Text; füge hier Chat-/Vision-Modelle hinzu, wenn du sie direkt statt über OpenRouter aufrufen willst).",
+      "models": {
+        "whisper-1": {
+          "description": "Speech-to-Text-Transkription. Abrechnung pro Audiominute; 25 MB Datei-Obergrenze."
+        }
+      }
+    },
+    "fr": {
+      "description": "API OpenAI (Whisper pour la reconnaissance vocale ; ajoute ici les modèles chat/vision si tu souhaites les appeler directement plutôt que via OpenRouter).",
+      "models": {
+        "whisper-1": {
+          "description": "Transcription audio en texte. Facturation à la minute d'audio ; limite de 25 Mo par fichier."
+        }
+      }
+    }
+  }
 }

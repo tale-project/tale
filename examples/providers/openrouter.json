@@ -420,6 +420,236 @@
       "models": {
         "anthropic/claude-opus-4.6": {
           "description": "Leistungsstärkstes Modell für komplexe Aufgaben und Programmierung"
+        },
+        "anthropic/claude-sonnet-4.6": {
+          "description": "Ausgewogenes Anthropic-Modell für alltägliche Aufgaben"
+        },
+        "anthropic/claude-haiku-4.5": {
+          "description": "Schnelles, schlankes Anthropic-Modell"
+        },
+        "openai/gpt-5.2-pro": {
+          "description": "OpenAIs fortschrittlichstes Modell für anspruchsvollste Denkaufgaben"
+        },
+        "openai/gpt-5.2": {
+          "description": "OpenAIs Flaggschiff-Allzweckmodell"
+        },
+        "openai/gpt-5.2-chat": {
+          "description": "GPT-5.2-Variante mit niedriger Latenz, optimiert für Chat"
+        },
+        "openai/gpt-oss-120b": {
+          "description": "OpenAI open-weight MoE (117B / 5,1B aktiv), Apache 2.0, 131K Kontext"
+        },
+        "google/gemini-3.1-pro-preview": {
+          "description": "Googles leistungsfähigstes Gemini-Modell"
+        },
+        "google/gemini-3-flash-preview": {
+          "description": "Schnelles, effizientes Gemini für Massenanwendungen"
+        },
+        "google/gemma-4-31b-it": {
+          "description": "Google open-weight 31B Instruct, multimodal, 262K Kontext"
+        },
+        "google/gemma-4-26b-a4b-it": {
+          "description": "Kleinere Gemma-4-MoE-Variante, multimodal"
+        },
+        "google/gemini-2.5-flash-image": {
+          "description": "Multimodale Gemini-2.5-Bilderzeugung und -bearbeitung mit Referenzbild-Unterstützung"
+        },
+        "deepseek/deepseek-v4-pro": {
+          "description": "DeepSeeks Flaggschiff open-weight MoE, 1M Kontext"
+        },
+        "deepseek/deepseek-v4-flash": {
+          "description": "Effizienzoptimiertes DeepSeek-V4-MoE"
+        },
+        "moonshotai/kimi-k2.6": {
+          "description": "Moonshot K2.6 — multimodal, 262K Kontext"
+        },
+        "moonshotai/kimi-k2.5": {
+          "description": "Hochleistungs-Allzweckmodell von Moonshot"
+        },
+        "minimax/minimax-m2.7": {
+          "description": "MiniMax-Flaggschiff-MoE für agentische Programmierung und Reasoning"
+        },
+        "nvidia/nemotron-3-super-120b-a12b": {
+          "description": "NVIDIAs open-weight-Reasoning-Modell der Spitzenklasse"
+        },
+        "qwen/qwen3.6-max-preview": {
+          "description": "Alibaba-Qwen-Flaggschiff-Vorschau, 262K Kontext"
+        },
+        "qwen/qwen3.6-plus": {
+          "description": "Multimodales Qwen mit 1M Kontext"
+        },
+        "qwen/qwen3.6-flash": {
+          "description": "Schnellste Qwen-Variante mit 1M Kontext, multimodal"
+        },
+        "qwen/qwen3.6-35b-a3b": {
+          "description": "Kompaktes Qwen3.6-MoE, multimodal"
+        },
+        "qwen/qwen3.5-397b-a17b": {
+          "description": "Großes open-weight Qwen3.5-MoE (397B / 17B aktiv)"
+        },
+        "qwen/qwen3-coder": {
+          "description": "Qwen3-Coder-MoE (480B / 35B aktiv), abgestimmt auf agentische Programmierung, 262K Kontext"
+        },
+        "qwen/qwen3-235b-a22b-2507": {
+          "description": "Qwen3 open-weight MoE (235B / 22B aktiv), 262K Kontext"
+        },
+        "qwen/qwen3-vl-32b-instruct": {
+          "description": "Qwen-Vision-Language-Modell zum Bildverständnis"
+        },
+        "qwen/qwen3-embedding-8b": {
+          "description": "Qwen-Text-Embedding-Modell für semantische Suche"
+        },
+        "z-ai/glm-5.1": {
+          "description": "Z.ai-GLM-5.1-Flaggschiff, 202K Kontext"
+        },
+        "z-ai/glm-5-turbo": {
+          "description": "Schnelles Z.ai-GLM-5 mit 202K Kontext"
+        },
+        "z-ai/glm-5v-turbo": {
+          "description": "Multimodales Z.ai-GLM-5-Turbo"
+        },
+        "mistralai/mistral-large-2512": {
+          "description": "Mistrals Flaggschiff-Großmodell"
+        },
+        "mistralai/mistral-medium-3": {
+          "description": "Mittelklasse-Mistral für allgemeine Aufgaben"
+        },
+        "xiaomi/mimo-v2.5-pro": {
+          "description": "Xiaomis Flaggschiff-Reasoning-Modell MiMo"
+        },
+        "meta-llama/llama-4-maverick": {
+          "description": "Metas leistungsstarkes Open-Source-LLM"
+        },
+        "meta-llama/llama-4-scout": {
+          "description": "Metas effizientes Open-Source-LLM"
+        },
+        "black-forest-labs/flux.2-max": {
+          "description": "FLUX.2 der Spitzenklasse — höchste Bildqualität und Bearbeitungskonsistenz"
+        },
+        "black-forest-labs/flux.2-pro": {
+          "description": "Bilderzeugung und -bearbeitung auf Spitzenniveau"
+        },
+        "black-forest-labs/flux.2-flex": {
+          "description": "FLUX.2 optimiert für Typografie und Mehrfach-Referenzbearbeitung"
+        }
+      }
+    },
+    "fr": {
+      "description": "Passerelle IA multi-modèles avec accès aux principaux fournisseurs de LLM",
+      "models": {
+        "anthropic/claude-opus-4.6": {
+          "description": "Le modèle phare d'Anthropic — idéal pour le raisonnement complexe et le code"
+        },
+        "anthropic/claude-sonnet-4.6": {
+          "description": "Modèle Anthropic équilibré pour les tâches courantes"
+        },
+        "anthropic/claude-haiku-4.5": {
+          "description": "Modèle Anthropic rapide et léger"
+        },
+        "openai/gpt-5.2-pro": {
+          "description": "Le modèle le plus avancé d'OpenAI pour les tâches de raisonnement les plus exigeantes"
+        },
+        "openai/gpt-5.2": {
+          "description": "Modèle généraliste phare d'OpenAI"
+        },
+        "openai/gpt-5.2-chat": {
+          "description": "Variante GPT-5.2 à faible latence optimisée pour le chat"
+        },
+        "openai/gpt-oss-120b": {
+          "description": "MoE open-weight d'OpenAI (117B / 5,1B actifs), Apache 2.0, contexte 131K"
+        },
+        "google/gemini-3.1-pro-preview": {
+          "description": "Le modèle Gemini le plus performant de Google"
+        },
+        "google/gemini-3-flash-preview": {
+          "description": "Gemini rapide et efficace pour les usages à fort volume"
+        },
+        "google/gemma-4-31b-it": {
+          "description": "Google 31B Instruct open-weight, multimodal, contexte 262K"
+        },
+        "google/gemma-4-26b-a4b-it": {
+          "description": "Variante MoE plus petite de Gemma 4, multimodale"
+        },
+        "google/gemini-2.5-flash-image": {
+          "description": "Génération et édition d'images multimodales Gemini 2.5 avec prise en charge des images de référence"
+        },
+        "deepseek/deepseek-v4-pro": {
+          "description": "MoE open-weight phare de DeepSeek, contexte 1M"
+        },
+        "deepseek/deepseek-v4-flash": {
+          "description": "MoE DeepSeek V4 optimisé pour l'efficacité"
+        },
+        "moonshotai/kimi-k2.6": {
+          "description": "Moonshot K2.6 — multimodal, contexte 262K"
+        },
+        "moonshotai/kimi-k2.5": {
+          "description": "Modèle généraliste haute performance de Moonshot"
+        },
+        "minimax/minimax-m2.7": {
+          "description": "MoE phare de MiniMax pour le code agentique et le raisonnement"
+        },
+        "nvidia/nemotron-3-super-120b-a12b": {
+          "description": "Modèle de raisonnement open-weight de pointe de NVIDIA"
+        },
+        "qwen/qwen3.6-max-preview": {
+          "description": "Aperçu phare d'Alibaba Qwen, contexte 262K"
+        },
+        "qwen/qwen3.6-plus": {
+          "description": "Qwen multimodal avec contexte 1M"
+        },
+        "qwen/qwen3.6-flash": {
+          "description": "La variante Qwen la plus rapide à contexte 1M, multimodale"
+        },
+        "qwen/qwen3.6-35b-a3b": {
+          "description": "MoE Qwen3.6 compact, multimodal"
+        },
+        "qwen/qwen3.5-397b-a17b": {
+          "description": "Grand MoE open-weight Qwen3.5 (397B / 17B actifs)"
+        },
+        "qwen/qwen3-coder": {
+          "description": "MoE Qwen3-Coder (480B / 35B actifs) optimisé pour le code agentique, contexte 262K"
+        },
+        "qwen/qwen3-235b-a22b-2507": {
+          "description": "MoE Qwen3 open-weight (235B / 22B actifs), contexte 262K"
+        },
+        "qwen/qwen3-vl-32b-instruct": {
+          "description": "Modèle vision-langage Qwen pour la compréhension d'images"
+        },
+        "qwen/qwen3-embedding-8b": {
+          "description": "Modèle d'embedding texte Qwen pour la recherche sémantique"
+        },
+        "z-ai/glm-5.1": {
+          "description": "Modèle phare Z.ai GLM 5.1, contexte 202K"
+        },
+        "z-ai/glm-5-turbo": {
+          "description": "Z.ai GLM 5 rapide à contexte 202K"
+        },
+        "z-ai/glm-5v-turbo": {
+          "description": "Z.ai GLM 5 Turbo multimodal"
+        },
+        "mistralai/mistral-large-2512": {
+          "description": "Grand modèle phare de Mistral"
+        },
+        "mistralai/mistral-medium-3": {
+          "description": "Mistral milieu de gamme pour les tâches générales"
+        },
+        "xiaomi/mimo-v2.5-pro": {
+          "description": "Modèle de raisonnement phare MiMo de Xiaomi"
+        },
+        "meta-llama/llama-4-maverick": {
+          "description": "LLM open-source puissant de Meta"
+        },
+        "meta-llama/llama-4-scout": {
+          "description": "LLM open-source efficace de Meta"
+        },
+        "black-forest-labs/flux.2-max": {
+          "description": "FLUX.2 haut de gamme — qualité d'image et cohérence d'édition maximales"
+        },
+        "black-forest-labs/flux.2-pro": {
+          "description": "Génération et édition d'images au niveau de pointe"
+        },
+        "black-forest-labs/flux.2-flex": {
+          "description": "FLUX.2 optimisé pour la typographie et l'édition multi-références"
         }
       }
     }

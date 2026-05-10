@@ -1,7 +1,7 @@
 import type { AgentI18nOverrides } from '../../../convex/agents/file_utils';
 import { defaultLocale as appDefaultLocale } from '../../i18n/config';
-import { isEffectivelyEmpty } from './is-effectively-empty';
 import { narrowBcp47 } from './narrow-bcp47';
+import { pickField } from './pick-field';
 
 interface LocalizableAgent {
   displayName?: string;
@@ -16,19 +16,6 @@ interface ResolvedFields {
   description?: string;
   conversationStarters?: string[];
   systemInstructions?: string;
-}
-
-/**
- * Walks candidate layers in order and returns the first value that is not
- * effectively empty (see `isEffectivelyEmpty` — treats `""`, whitespace-only
- * strings, `[]`, and all-blank arrays as absent). Shared with the
- * normalization pipeline so disk-state and runtime-fallback agree on "empty".
- */
-function pickField<T>(layers: (T | undefined)[]): T | undefined {
-  for (const layer of layers) {
-    if (!isEffectivelyEmpty(layer)) return layer;
-  }
-  return undefined;
 }
 
 /**

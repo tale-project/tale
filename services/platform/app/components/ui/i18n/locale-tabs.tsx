@@ -3,30 +3,31 @@ import { useMemo } from 'react';
 
 import { Tabs, type TabItem } from '@/app/components/ui/navigation/tabs';
 import { useT } from '@/lib/i18n/client';
-import { SUPPORTED_AGENT_LOCALES } from '@/lib/shared/constants/agents';
+import { SUPPORTED_LOCALES } from '@/lib/shared/constants/locales';
 
 /**
- * Shared "source + translation tabs" scaffold for per-locale agent fields.
+ * Shared "source + translation tabs" scaffold for per-locale fields.
  *
  * Renders a horizontal tab list (one tab per supported locale) plus an
  * optional auto-translate action. The caller owns the content area inside
- * each tab via `renderContent` — this keeps the component neutral to input
- * primitives (Textarea, Input, ReorderList, etc.).
+ * each tab via its own render path — this keeps the component neutral to
+ * the input primitives used (Textarea, Input, ReorderList, etc.) and to
+ * the domain (agents, providers, …).
  *
- * Tab values are locale codes. The default tab (org's `defaultLocale`) is
- * labeled with a "default" pill; non-default tabs with no override show an
- * "untranslated" pill.
+ * Tab values are locale codes. The default tab (caller-supplied
+ * `defaultLocale`) is labeled with a "default" pill; non-default tabs with
+ * no override show an "untranslated" pill.
  */
 interface LocaleTabsProps {
-  /** Supported locales; the org's `defaultLocale` is labeled as "default". */
+  /** Supported locales; the caller-supplied `defaultLocale` is labeled as "default". */
   defaultLocale: string;
   /** Currently-active locale (the tab being edited). */
   editingLocale: string;
   onEditingLocaleChange: (locale: string) => void;
   /**
-   * `(locale) => boolean` — when true, the tab for that locale shows the
-   * "untranslated" pill (no override present yet). Never called for the
-   * default locale.
+   * `(locale) => boolean` — returns true when a translation exists for the
+   * given locale. When false, the tab shows an "untranslated" pill. Never
+   * called for the default locale.
    */
   hasTranslation: (locale: string) => boolean;
   /**
@@ -49,7 +50,7 @@ export function LocaleTabs({
   isTranslating,
   subtitle,
 }: LocaleTabsProps) {
-  const { t } = useT('settings');
+  const { t } = useT('common');
   const { t: tGlobal } = useT('global');
 
   const localeTabItems = useMemo((): TabItem[] => {
@@ -60,12 +61,12 @@ export function LocaleTabs({
         <span className="flex items-center gap-1.5">
           {tGlobal(`languages.${defaultLocale}`)}
           <span className="text-muted-foreground text-xs">
-            ({t('agents.conversationStarters.default')})
+            ({t('localeTabs.default')})
           </span>
         </span>
       ),
     });
-    for (const locale of SUPPORTED_AGENT_LOCALES) {
+    for (const locale of SUPPORTED_LOCALES) {
       if (locale === defaultLocale) continue;
       tabs.push({
         value: locale,
@@ -74,7 +75,7 @@ export function LocaleTabs({
             {tGlobal(`languages.${locale}`)}
             {!hasTranslation(locale) && (
               <span className="bg-muted text-muted-foreground rounded px-1 py-0.5 text-[10px] leading-none">
-                {t('agents.conversationStarters.untranslated')}
+                {t('localeTabs.untranslated')}
               </span>
             )}
           </span>
@@ -107,7 +108,7 @@ export function LocaleTabs({
               ) : (
                 <Languages className="size-3.5" />
               )}
-              {t('agents.conversationStarters.autoTranslate')}
+              {t('localeTabs.autoTranslate')}
             </button>
           ) : undefined
         }

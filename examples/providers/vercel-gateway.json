@@ -63,5 +63,65 @@
       "imageGenerationMode": "chat-multimodal",
       "cost": { "imageCentsPerImage": 4 }
     }
-  ]
+  ],
+  "i18n": {
+    "de": {
+      "description": "OpenAI-kompatibles Gateway für Bilderzeugung (FLUX, Imagen, Nano Banana).",
+      "models": {
+        "bfl/flux-2-pro": {
+          "description": "Neuestes Allzweck-Text-zu-Bild-Modell von Black Forest Labs."
+        },
+        "bfl/flux-pro-1.1-ultra": {
+          "description": "Ultrahochauflösendes Text-zu-Bild (4 MP) mit verschiedenen Seitenverhältnissen."
+        },
+        "bfl/flux-kontext-pro": {
+          "description": "Text-zu-Bild mit Bearbeitungsfähigkeit. Hinweis: Vercel AI Gateway stellt /v1/images/edits nicht bereit, daher ist Referenzbild-Bearbeitung hier nicht verfügbar — nutze ein Gateway mit /v1/images/edits-Unterstützung (LocalAI / LiteLLM / direkt BFL) oder wechsle für Bearbeitungen auf Vercel zu Nano Banana."
+        },
+        "bfl/flux-kontext-max": {
+          "description": "Text-zu-Bild mit Bearbeitungsfähigkeit, höchste Detailtreue. Gleiche Bearbeitungs-Einschränkung wie bei Kontext Pro — Vercel Gateway kann hier nur Text-zu-Bild."
+        },
+        "google/imagen-4.0-generate-001": {
+          "description": "Google Imagen 4 Text-zu-Bild; starke Typografie und saubere Illustration."
+        },
+        "google/imagen-4.0-fast-generate-001": {
+          "description": "Schnellere, günstigere Imagen-4-Variante für schnelle Iteration."
+        },
+        "google/imagen-4.0-ultra-generate-001": {
+          "description": "Detailreichste Imagen-4-Variante (bis 2K). Langsamer; einsetzen, wenn Qualität vor Geschwindigkeit geht."
+        },
+        "google/gemini-2.5-flash-image": {
+          "description": "Multimodale Gemini-2.5-Bilderzeugung und -bearbeitung über chat/completions. Unterstützt Referenzbilder."
+        }
+      }
+    },
+    "fr": {
+      "description": "Passerelle compatible OpenAI pour la génération d'images (FLUX, Imagen, Nano Banana).",
+      "models": {
+        "bfl/flux-2-pro": {
+          "description": "Dernier modèle texte-vers-image généraliste de Black Forest Labs."
+        },
+        "bfl/flux-pro-1.1-ultra": {
+          "description": "Texte-vers-image très haute résolution (4 Mpx), formats variés."
+        },
+        "bfl/flux-kontext-pro": {
+          "description": "Texte-vers-image avec capacité d'édition. Note : Vercel AI Gateway n'expose pas /v1/images/edits, donc l'édition par image de référence n'est pas disponible ici — utilise une passerelle compatible /v1/images/edits (LocalAI / LiteLLM / BFL en direct) ou bascule sur Nano Banana pour éditer sur Vercel."
+        },
+        "bfl/flux-kontext-max": {
+          "description": "Texte-vers-image avec capacité d'édition, variante la plus fidèle. Même limitation d'édition que Kontext Pro — Vercel Gateway ne fait que du texte-vers-image ici."
+        },
+        "google/imagen-4.0-generate-001": {
+          "description": "Google Imagen 4 texte-vers-image ; typographie soignée et illustration nette."
+        },
+        "google/imagen-4.0-fast-generate-001": {
+          "description": "Variante Imagen 4 plus rapide et économique pour l'itération."
+        },
+        "google/imagen-4.0-ultra-generate-001": {
+          "description": "Variante Imagen 4 la plus détaillée (jusqu'à 2K). Plus lente ; à utiliser quand la qualité prime sur la vitesse."
+        },
+        "google/gemini-2.5-flash-image": {
+          "description": "Génération et édition d'images multimodales Gemini 2.5 via chat/completions. Prend en charge les images de référence."
+        }
+      }
+    }
+  }
 }

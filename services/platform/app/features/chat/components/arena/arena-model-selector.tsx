@@ -15,8 +15,10 @@ import {
 } from '@/app/components/ui/forms/searchable-select';
 import { useAccessibleModels } from '@/app/features/settings/governance/hooks/queries';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
+import { useLocale } from '@/app/hooks/use-locale';
 import { useT } from '@/lib/i18n/client';
 import { stripModelRefQualifier } from '@/lib/shared/utils/model-ref';
+import { resolveModelLocale } from '@/lib/shared/utils/resolve-provider-locale';
 
 import { useChatAgents } from '../../hooks/queries';
 import { useEffectiveAgent } from '../../hooks/use-effective-agent';
@@ -39,6 +41,7 @@ export function ArenaModelSelector({
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
   const { agents } = useChatAgents(organizationId);
   const { providers } = useListProviders('default');
+  const { locale } = useLocale();
   const { modelA, modelB, setModelA, setModelB } = useArenaMode();
   const [openA, setOpenA] = useState(false);
   const [openB, setOpenB] = useState(false);
@@ -61,15 +64,16 @@ export function ArenaModelSelector({
       )
         continue;
       for (const model of provider.models) {
+        const resolved = resolveModelLocale(model, provider.i18n, locale);
         map.set(model.id, {
-          displayName: model.displayName,
-          description: model.description || undefined,
+          displayName: resolved.displayName || model.displayName,
+          description: resolved.description || undefined,
           tags: model.tags ?? [],
         });
       }
     }
     return map;
-  }, [providers]);
+  }, [providers, locale]);
 
   const renderTagIcons = useCallback(
     (option: SearchableSelectOption): ReactNode => {

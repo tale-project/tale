@@ -292,4 +292,72 @@ describe('providerJsonSchema', () => {
       });
     });
   });
+
+  describe('i18n', () => {
+    it('accepts a well-formed i18n block', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        i18n: {
+          en: { displayName: 'EN', description: 'English' },
+          de: { displayName: 'DE', description: 'Deutsch' },
+          'de-CH': { displayName: 'CH-DE' },
+        },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts per-model overrides nested under i18n[locale].models', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        i18n: {
+          de: {
+            models: {
+              'test/model-1': { description: 'Modellbeschreibung' },
+            },
+          },
+        },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts an empty models object inside an i18n entry', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        i18n: { de: { description: 'D', models: {} } },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects uppercase locale codes', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        i18n: { EN: { description: 'nope' } },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects spelled-out language names', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        i18n: { english: { description: 'nope' } },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects underscore-style locale codes', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        i18n: { de_CH: { description: 'nope' } },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects translatable displayName longer than 200 chars', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        i18n: { de: { displayName: 'x'.repeat(201) } },
+      });
+      expect(result.success).toBe(false);
+    });
+  });
 });
