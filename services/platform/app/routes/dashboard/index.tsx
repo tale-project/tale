@@ -2,7 +2,7 @@ import { convexQuery } from '@convex-dev/react-query';
 import { Spinner } from '@tale/ui/spinner';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { useAction, useMutation } from 'convex/react';
+import { useMutation } from 'convex/react';
 import { useEffect, useRef } from 'react';
 
 import { FullPageCenter } from '@/app/components/ui/layout/full-page-center';
@@ -29,9 +29,6 @@ export const Route = createFileRoute('/dashboard/')({
 function DashboardIndex() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const initializeWorkflows = useAction(
-    api.organizations.actions.initializeDefaultWorkflows,
-  );
   const recordOrgSwitch = useMutation(
     api.organizations.record_org_switch.recordOrgSwitch,
   );
@@ -53,7 +50,7 @@ function DashboardIndex() {
 
     if (organizations.length === 0) {
       resolvedRef.current = true;
-      void createDefaultOrganization();
+      void navigate({ to: '/dashboard/create-organization' });
       return;
     }
 
@@ -107,39 +104,12 @@ function DashboardIndex() {
         resolvedRef.current = false;
       }
     })();
-
-    async function createDefaultOrganization() {
-      try {
-        const result = await authClient.organization.create({
-          name: 'Default',
-          slug: 'default',
-        });
-        const orgId = result.data?.id;
-        if (!orgId) throw new Error('Failed to create organization');
-
-        await authClient.organization.setActive({ organizationId: orgId });
-        await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
-        await initializeWorkflows({ organizationId: orgId });
-
-        try {
-          await recordOrgSwitch({ organizationId: orgId });
-        } catch (err) {
-          console.warn('Failed to record org switch audit entry:', err);
-        }
-
-        void navigate({ to: '/dashboard/$id', params: { id: orgId } });
-      } catch (error) {
-        console.error('Failed to create default organization:', error);
-        void navigate({ to: '/dashboard/create-organization' });
-      }
-    }
   }, [
     isOrgsLoading,
     isLastActiveLoading,
     organizations,
     lastActiveOrgId,
     navigate,
-    initializeWorkflows,
     queryClient,
     recordOrgSwitch,
   ]);
