@@ -1353,8 +1353,7 @@
       },
       "empty": {
         "title": "No workflow runs",
-        "description": "No workflows have run in the selected period.",
-        "noRuns": "No runs in this period"
+        "description": "No workflows have run in the selected period."
       }
     },
     "createButton": "Create automation",

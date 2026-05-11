@@ -1353,8 +1353,7 @@
       },
       "empty": {
         "title": "Keine Workflow-Ausführungen",
-        "description": "Im gewählten Zeitraum wurden keine Workflows ausgeführt.",
-        "noRuns": "Keine Ausführungen in diesem Zeitraum"
+        "description": "Im gewählten Zeitraum wurden keine Workflows ausgeführt."
       }
     },
     "createButton": "Automatisierung erstellen",

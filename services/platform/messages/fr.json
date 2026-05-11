@@ -1353,8 +1353,7 @@
       },
       "empty": {
         "title": "Aucune exécution",
-        "description": "Aucun workflow n'a été exécuté sur la période sélectionnée.",
-        "noRuns": "Aucune exécution sur cette période"
+        "description": "Aucun workflow n'a été exécuté sur la période sélectionnée."
       }
     },
     "createButton": "Créer une automatisation",
