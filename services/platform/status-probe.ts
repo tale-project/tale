@@ -27,6 +27,11 @@ const CRAWLER_URL = process.env.CRAWLER_URL || 'http://localhost:8002';
 export type OverallStatus = 'operational' | 'degraded' | 'outage';
 export type ComponentId = 'convex' | 'rag' | 'crawler';
 
+// Binary today because each probe is just `fetch.ok`. The wider
+// `OverallStatus` vocabulary leaves room for a future `'degraded'`
+// per-component value (e.g. latency-based) without breaking consumers.
+export type ComponentStatus = 'operational' | 'outage';
+
 export interface ComponentResult {
   id: ComponentId;
   up: boolean;
@@ -36,6 +41,17 @@ export interface StatusResult {
   overall: OverallStatus;
   components: ComponentResult[];
   checkedAt: string;
+}
+
+export interface StatusFeedComponent {
+  id: ComponentId;
+  status: ComponentStatus;
+}
+
+export interface StatusFeed {
+  status: OverallStatus;
+  checkedAt: string;
+  components: StatusFeedComponent[];
 }
 
 interface Probe {
@@ -124,6 +140,30 @@ export async function probeServices(
 export function _resetStatusProbeCache(): void {
   cache = null;
   inflight = null;
+}
+
+// ---------------------------------------------------------------------------
+// Canonical public-facing model
+//
+// `StatusFeed` is the single shape every consumer (HTML page, JSON feed,
+// future RSS / webhook) reads. `buildStatusFeed` is the only place that
+// interprets raw probe output (`up: boolean`) as a public status string,
+// so the human view and the machine view cannot drift.
+// ---------------------------------------------------------------------------
+
+export function buildStatusFeed(result: StatusResult): StatusFeed {
+  return {
+    status: result.overall,
+    checkedAt: result.checkedAt,
+    components: result.components.map((c) => ({
+      id: c.id,
+      status: c.up ? 'operational' : 'outage',
+    })),
+  };
+}
+
+export function renderStatusJson(feed: StatusFeed): string {
+  return JSON.stringify(feed);
 }
 
 // ---------------------------------------------------------------------------
@@ -227,22 +267,23 @@ function escapeHtml(s: string): string {
 }
 
 export function renderStatusPage(
-  result: StatusResult,
+  feed: StatusFeed,
   acceptLanguage: string,
 ): string {
   const t = STRINGS[pickLocale(acceptLanguage)];
-  const banner = COLORS[result.overall];
-  const headline = t[result.overall];
+  const banner = COLORS[feed.status];
+  const headline = t[feed.status];
 
-  const rows = result.components
+  const rows = feed.components
     .map((c) => {
+      const up = c.status === 'operational';
       const label = escapeHtml(t.components[c.id]);
-      const statusWord = escapeHtml(c.up ? t.statusUp : t.statusDown);
-      const dotColor = c.up ? DOT.up : DOT.down;
+      const statusWord = escapeHtml(up ? t.statusUp : t.statusDown);
+      const dotColor = up ? DOT.up : DOT.down;
       return `    <li>
       <span class="dot" style="background:${dotColor}" aria-hidden="true"></span>
       <span class="label">${label}</span>
-      <span class="state state-${c.up ? 'up' : 'down'}">${statusWord}</span>
+      <span class="state state-${up ? 'up' : 'down'}">${statusWord}</span>
     </li>`;
     })
     .join('\n');
@@ -331,7 +372,7 @@ export function renderStatusPage(
   <ul>
 ${rows}
   </ul>
-  <p class="checked">${escapeHtml(t.checkedAt)}: <time datetime="${result.checkedAt}">${formatChecked(result.checkedAt)}</time></p>
+  <p class="checked">${escapeHtml(t.checkedAt)}: <time datetime="${feed.checkedAt}">${formatChecked(feed.checkedAt)}</time></p>
 </main>
 </body>
 </html>

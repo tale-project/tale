@@ -293,3 +293,37 @@ List available agents (models).
   ]
 }
 ```
+
+## Status endpoints
+
+Two public, unauthenticated endpoints expose the platform's overall up/down state. They share the same probe (5-second in-memory cache) and only differ in representation:
+
+| Endpoint       | Use                                                                                                                    |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `/status`      | Human-readable HTML status page. Picks English, German, or French from `Accept-Language`.                              |
+| `/status.json` | Machine-readable feed for external monitors (BetterStack, UptimeRobot, Atlassian Statuspage, Datadog Synthetics, etc.) |
+
+Both endpoints always respond with `200 OK` and `Cache-Control: public, max-age=5`. The platform itself is the source of truth — if your monitor cannot reach `/status.json` at all, the platform process is unreachable, and the monitor's own timeout is the signal.
+
+### Wire shape (`/status.json`)
+
+```json
+{
+  "status": "operational",
+  "checkedAt": "2026-05-11T13:45:07.123Z",
+  "components": [
+    { "id": "convex", "status": "operational" },
+    { "id": "rag", "status": "operational" },
+    { "id": "crawler", "status": "outage" }
+  ]
+}
+```
+
+| Field                 | Type   | Values                                                                    |
+| --------------------- | ------ | ------------------------------------------------------------------------- |
+| `status`              | string | `operational`, `degraded` (some components down), or `outage` (all down). |
+| `checkedAt`           | string | ISO 8601 timestamp of the most recent probe round.                        |
+| `components[].id`     | string | Stable component identifier: `convex`, `rag`, or `crawler`.               |
+| `components[].status` | string | `operational` or `outage` per component.                                  |
+
+Keyword-based uptime monitors can alert on the case-sensitive substring `"status":"outage"`.

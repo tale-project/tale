@@ -293,3 +293,37 @@ Liste les agents disponibles (modèles).
   ]
 }
 ```
+
+## Endpoints d'état
+
+Deux endpoints publics et non authentifiés exposent l'état global up/down de la plateforme. Ils partagent la même sonde (cache en mémoire de 5 secondes) et ne diffèrent que par la représentation :
+
+| Endpoint       | Utilisation                                                                                                                       |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `/status`      | Page d'état HTML lisible. Choisit l'anglais, l'allemand ou le français selon `Accept-Language`.                                   |
+| `/status.json` | Flux lisible par machine pour les services de surveillance externes (BetterStack, UptimeRobot, Atlassian Statuspage, Datadog, …). |
+
+Les deux endpoints répondent toujours avec `200 OK` et `Cache-Control: public, max-age=5`. La plateforme elle-même est la source de vérité — si ton service de surveillance n'atteint pas du tout `/status.json`, c'est que le processus de la plateforme est injoignable, et le timeout du service de surveillance est alors le signal.
+
+### Format de la réponse (`/status.json`)
+
+```json
+{
+  "status": "operational",
+  "checkedAt": "2026-05-11T13:45:07.123Z",
+  "components": [
+    { "id": "convex", "status": "operational" },
+    { "id": "rag", "status": "operational" },
+    { "id": "crawler", "status": "outage" }
+  ]
+}
+```
+
+| Champ                 | Type   | Valeurs                                                                               |
+| --------------------- | ------ | ------------------------------------------------------------------------------------- |
+| `status`              | string | `operational`, `degraded` (certains composants en panne) ou `outage` (tous en panne). |
+| `checkedAt`           | string | Horodatage ISO 8601 de la dernière sonde.                                             |
+| `components[].id`     | string | Identifiant stable du composant : `convex`, `rag` ou `crawler`.                       |
+| `components[].status` | string | `operational` ou `outage` par composant.                                              |
+
+Les services de surveillance par mots-clés peuvent déclencher une alerte sur la sous-chaîne sensible à la casse `"status":"outage"`.

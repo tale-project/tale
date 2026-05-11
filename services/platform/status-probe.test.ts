@@ -2,9 +2,13 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import {
   _resetStatusProbeCache,
+  buildStatusFeed,
   type ComponentResult,
   probeServices,
+  renderStatusJson,
   renderStatusPage,
+  type StatusFeed,
+  type StatusFeedComponent,
   type StatusResult,
 } from './status-probe';
 
@@ -21,6 +25,14 @@ function allUpComponents(): ComponentResult[] {
     { id: 'convex', up: true },
     { id: 'rag', up: true },
     { id: 'crawler', up: true },
+  ];
+}
+
+function allOperationalFeedComponents(): StatusFeedComponent[] {
+  return [
+    { id: 'convex', status: 'operational' },
+    { id: 'rag', status: 'operational' },
+    { id: 'crawler', status: 'operational' },
   ];
 }
 
@@ -155,36 +167,136 @@ describe('probeServices', () => {
   });
 });
 
+describe('buildStatusFeed', () => {
+  const checkedAt = '2026-05-11T13:45:07.123Z';
+
+  test('all up → operational, each component operational', () => {
+    const raw: StatusResult = {
+      overall: 'operational',
+      components: allUpComponents(),
+      checkedAt,
+    };
+    expect(buildStatusFeed(raw)).toEqual({
+      status: 'operational',
+      checkedAt,
+      components: allOperationalFeedComponents(),
+    });
+  });
+
+  test('one down → degraded overall, that component outage', () => {
+    const raw: StatusResult = {
+      overall: 'degraded',
+      components: [
+        { id: 'convex', up: true },
+        { id: 'rag', up: false },
+        { id: 'crawler', up: true },
+      ],
+      checkedAt,
+    };
+    const feed = buildStatusFeed(raw);
+    expect(feed.status).toBe('degraded');
+    expect(feed.components.find((c) => c.id === 'rag')?.status).toBe('outage');
+    expect(feed.components.find((c) => c.id === 'convex')?.status).toBe(
+      'operational',
+    );
+  });
+
+  test('all down → outage overall, every component outage', () => {
+    const raw: StatusResult = {
+      overall: 'outage',
+      components: [
+        { id: 'convex', up: false },
+        { id: 'rag', up: false },
+        { id: 'crawler', up: false },
+      ],
+      checkedAt,
+    };
+    const feed = buildStatusFeed(raw);
+    expect(feed.status).toBe('outage');
+    expect(feed.components.every((c) => c.status === 'outage')).toBe(true);
+  });
+});
+
+describe('renderStatusJson', () => {
+  const checkedAt = '2026-05-11T13:45:07.123Z';
+
+  test('serialises an operational feed', () => {
+    const feed: StatusFeed = {
+      status: 'operational',
+      checkedAt,
+      components: allOperationalFeedComponents(),
+    };
+    const raw = renderStatusJson(feed);
+    expect(JSON.parse(raw)).toEqual(feed);
+    // Stable substring keyword-monitor contract — BetterStack / UptimeRobot
+    // and friends match on this literal. Don't quietly change the casing or
+    // shape without updating this test.
+    expect(raw).toContain('"status":"operational"');
+  });
+
+  test('serialises a degraded feed with mixed component statuses', () => {
+    const feed: StatusFeed = {
+      status: 'degraded',
+      checkedAt,
+      components: [
+        { id: 'convex', status: 'operational' },
+        { id: 'rag', status: 'outage' },
+        { id: 'crawler', status: 'operational' },
+      ],
+    };
+    const raw = renderStatusJson(feed);
+    expect(JSON.parse(raw)).toEqual(feed);
+    expect(raw).toContain('"status":"degraded"');
+    expect(raw).toContain('"status":"outage"');
+  });
+
+  test('serialises a full outage feed', () => {
+    const feed: StatusFeed = {
+      status: 'outage',
+      checkedAt,
+      components: [
+        { id: 'convex', status: 'outage' },
+        { id: 'rag', status: 'outage' },
+        { id: 'crawler', status: 'outage' },
+      ],
+    };
+    const raw = renderStatusJson(feed);
+    expect(JSON.parse(raw)).toEqual(feed);
+    expect(raw).toContain('"status":"outage"');
+    expect(raw).not.toContain('"status":"operational"');
+  });
+});
+
 describe('renderStatusPage', () => {
-  const baseResult: StatusResult = {
-    overall: 'operational',
-    components: allUpComponents(),
+  const baseFeed: StatusFeed = {
+    status: 'operational',
+    components: allOperationalFeedComponents(),
     checkedAt: '2026-05-11T13:45:07.123Z',
   };
 
   test('renders English by default', () => {
-    const html = renderStatusPage(baseResult, '');
+    const html = renderStatusPage(baseFeed, '');
     expect(html).toContain('<html lang="en">');
     expect(html).toContain('All systems operational');
     expect(html).toContain('Last checked');
   });
 
   test('renders German when Accept-Language starts with de', () => {
-    const html = renderStatusPage(baseResult, 'de-DE,en;q=0.5');
+    const html = renderStatusPage(baseFeed, 'de-DE,en;q=0.5');
     expect(html).toContain('<html lang="de">');
     expect(html).toContain('Alle Systeme verfügbar');
     expect(html).toContain('Zuletzt geprüft');
   });
 
   test('renders French when Accept-Language starts with fr', () => {
-    const html = renderStatusPage(baseResult, 'fr-FR,en;q=0.5');
+    const html = renderStatusPage(baseFeed, 'fr-FR,en;q=0.5');
     expect(html).toContain('<html lang="fr">');
     expect(html).toContain('Tous les systèmes opérationnels');
     expect(html).toContain('Dernière vérification');
   });
 
   test('respects first listed language, not later ones', () => {
-    const html = renderStatusPage(baseResult, 'en-US,de;q=0.9');
+    const html = renderStatusPage(baseFeed, 'en-US,de;q=0.9');
     expect(html).toContain('<html lang="en">');
     expect(html).not.toContain('Alle Systeme');
   });
@@ -192,13 +304,13 @@ describe('renderStatusPage', () => {
   test('renders degraded copy + amber banner', () => {
     const html = renderStatusPage(
       {
-        overall: 'degraded',
+        status: 'degraded',
         components: [
-          { id: 'convex', up: true },
-          { id: 'rag', up: false },
-          { id: 'crawler', up: true },
+          { id: 'convex', status: 'operational' },
+          { id: 'rag', status: 'outage' },
+          { id: 'crawler', status: 'operational' },
         ],
-        checkedAt: baseResult.checkedAt,
+        checkedAt: baseFeed.checkedAt,
       },
       '',
     );
@@ -209,13 +321,13 @@ describe('renderStatusPage', () => {
   test('renders outage copy + red banner', () => {
     const html = renderStatusPage(
       {
-        overall: 'outage',
+        status: 'outage',
         components: [
-          { id: 'convex', up: false },
-          { id: 'rag', up: false },
-          { id: 'crawler', up: false },
+          { id: 'convex', status: 'outage' },
+          { id: 'rag', status: 'outage' },
+          { id: 'crawler', status: 'outage' },
         ],
-        checkedAt: baseResult.checkedAt,
+        checkedAt: baseFeed.checkedAt,
       },
       '',
     );
@@ -224,23 +336,23 @@ describe('renderStatusPage', () => {
   });
 
   test('formats checked timestamp as HH:MM:SS UTC', () => {
-    const html = renderStatusPage(baseResult, '');
+    const html = renderStatusPage(baseFeed, '');
     expect(html).toContain('13:45:07 UTC');
     expect(html).toContain('datetime="2026-05-11T13:45:07.123Z"');
   });
 
   test('marks the banner with role=status for screen readers', () => {
-    const html = renderStatusPage(baseResult, '');
+    const html = renderStatusPage(baseFeed, '');
     expect(html).toMatch(/<h1 role="status">/);
   });
 
   test('opts out of search-engine indexing', () => {
-    const html = renderStatusPage(baseResult, '');
+    const html = renderStatusPage(baseFeed, '');
     expect(html).toContain('<meta name="robots" content="noindex">');
   });
 
   test('renders neutral English component labels — no stack names leaked', () => {
-    const html = renderStatusPage(baseResult, '');
+    const html = renderStatusPage(baseFeed, '');
     expect(html).toContain('Application');
     expect(html).toContain('Knowledge base');
     expect(html).toContain('Web &amp; document services');
@@ -250,14 +362,14 @@ describe('renderStatusPage', () => {
   });
 
   test('renders German component labels for de locale', () => {
-    const html = renderStatusPage(baseResult, 'de');
+    const html = renderStatusPage(baseFeed, 'de');
     expect(html).toContain('Anwendung');
     expect(html).toContain('Wissensdatenbank');
     expect(html).toContain('Web- &amp; Dokumentendienste');
   });
 
   test('renders French component labels for fr locale', () => {
-    const html = renderStatusPage(baseResult, 'fr');
+    const html = renderStatusPage(baseFeed, 'fr');
     expect(html).toContain('Base de connaissances');
     expect(html).toContain('Services web et documents');
   });
@@ -265,13 +377,13 @@ describe('renderStatusPage', () => {
   test('shows status word per component (not color alone)', () => {
     const html = renderStatusPage(
       {
-        overall: 'degraded',
+        status: 'degraded',
         components: [
-          { id: 'convex', up: true },
-          { id: 'rag', up: false },
-          { id: 'crawler', up: true },
+          { id: 'convex', status: 'operational' },
+          { id: 'rag', status: 'outage' },
+          { id: 'crawler', status: 'operational' },
         ],
-        checkedAt: baseResult.checkedAt,
+        checkedAt: baseFeed.checkedAt,
       },
       '',
     );
@@ -284,13 +396,13 @@ describe('renderStatusPage', () => {
   test('uses German status words for de locale', () => {
     const html = renderStatusPage(
       {
-        overall: 'degraded',
+        status: 'degraded',
         components: [
-          { id: 'convex', up: true },
-          { id: 'rag', up: false },
-          { id: 'crawler', up: true },
+          { id: 'convex', status: 'operational' },
+          { id: 'rag', status: 'outage' },
+          { id: 'crawler', status: 'operational' },
         ],
-        checkedAt: baseResult.checkedAt,
+        checkedAt: baseFeed.checkedAt,
       },
       'de-DE',
     );
@@ -301,13 +413,13 @@ describe('renderStatusPage', () => {
   test('uses French status words for fr locale', () => {
     const html = renderStatusPage(
       {
-        overall: 'degraded',
+        status: 'degraded',
         components: [
-          { id: 'convex', up: true },
-          { id: 'rag', up: false },
-          { id: 'crawler', up: true },
+          { id: 'convex', status: 'operational' },
+          { id: 'rag', status: 'outage' },
+          { id: 'crawler', status: 'operational' },
         ],
-        checkedAt: baseResult.checkedAt,
+        checkedAt: baseFeed.checkedAt,
       },
       'fr-FR',
     );
@@ -316,7 +428,7 @@ describe('renderStatusPage', () => {
   });
 
   test('marks status dots aria-hidden so screen readers rely on the text label', () => {
-    const html = renderStatusPage(baseResult, '');
+    const html = renderStatusPage(baseFeed, '');
     // Every dot element carries aria-hidden so the visible status text is
     // the canonical signal for assistive tech.
     const dots = html.match(/<span class="dot"[^>]*>/g) ?? [];
