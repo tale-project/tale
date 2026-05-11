@@ -2,7 +2,7 @@ import { convexQuery } from '@convex-dev/react-query';
 import { Spinner } from '@tale/ui/spinner';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { useMutation } from 'convex/react';
+import { useAction, useMutation } from 'convex/react';
 import { useEffect, useRef } from 'react';
 
 import { FullPageCenter } from '@/app/components/ui/layout/full-page-center';
@@ -32,23 +32,80 @@ function DashboardIndex() {
   const recordOrgSwitch = useMutation(
     api.organizations.record_org_switch.recordOrgSwitch,
   );
+  const initializeWorkflows = useAction(
+    api.organizations.actions.initializeDefaultWorkflows,
+  );
   const resolvedRef = useRef(false);
   const { data: organizations, isLoading: isOrgsLoading } = useConvexQuery(
     api.members.queries.getUserOrganizationsWithDetails,
   );
   const { data: lastActiveOrgId, isLoading: isLastActiveLoading } =
     useConvexQuery(api.users.get_last_active_org.getLastActiveOrganizationId);
+  const { data: instanceHasAnyOrg, isLoading: isInstanceCheckLoading } =
+    useConvexQuery(api.organizations.queries.instanceHasAnyOrganization);
 
   useEffect(() => {
     if (
       isOrgsLoading ||
       isLastActiveLoading ||
+      isInstanceCheckLoading ||
       !organizations ||
+      instanceHasAnyOrg === undefined ||
       resolvedRef.current
     )
       return;
 
     if (organizations.length === 0) {
+      // Fresh instance (no orgs anywhere): seed the `default` org so the
+      // many hardcoded `orgSlug: 'default'` callsites have something to
+      // resolve against. If the instance already has orgs and this user
+      // simply isn't a member, route to the create-organization form so
+      // they pick their own non-`default` slug (multi-org deployment).
+      if (!instanceHasAnyOrg) {
+        resolvedRef.current = true;
+        void (async () => {
+          try {
+            const result = await authClient.organization.create({
+              name: 'Default',
+              slug: 'default',
+            });
+            const orgId = result.data?.id;
+            if (!orgId) throw new Error('Failed to create organization');
+
+            await authClient.organization.setActive({ organizationId: orgId });
+            await queryClient.invalidateQueries({
+              queryKey: ['auth', 'session'],
+            });
+            await initializeWorkflows({ organizationId: orgId });
+
+            try {
+              await recordOrgSwitch({ organizationId: orgId });
+            } catch (err) {
+              console.warn('Failed to record org switch audit entry:', err);
+            }
+
+            void navigate({ to: '/dashboard/$id', params: { id: orgId } });
+          } catch (error) {
+            // Likely a slug-conflict race (another tab/user beat us to
+            // creating `default`). Drop the resolved guard and invalidate
+            // the cached instance-org existence so the effect re-runs and
+            // routes us through the form branch below.
+            console.warn(
+              'Auto-create of default organization failed; falling back to create-organization form:',
+              error,
+            );
+            await queryClient.invalidateQueries(
+              convexQuery(
+                api.organizations.queries.instanceHasAnyOrganization,
+                {},
+              ),
+            );
+            resolvedRef.current = false;
+          }
+        })();
+        return;
+      }
+
       resolvedRef.current = true;
       void navigate({ to: '/dashboard/create-organization' });
       return;
@@ -107,11 +164,14 @@ function DashboardIndex() {
   }, [
     isOrgsLoading,
     isLastActiveLoading,
+    isInstanceCheckLoading,
     organizations,
     lastActiveOrgId,
+    instanceHasAnyOrg,
     navigate,
     queryClient,
     recordOrgSwitch,
+    initializeWorkflows,
   ]);
 
   return (
