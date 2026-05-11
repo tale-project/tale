@@ -4726,7 +4726,7 @@
     }
   },
   "dataNotice": {
-    "default": "Behandeln Sie diesen Chat wie eine E-Mail — vermeiden Sie Kundendaten, Zugangsdaten und unveröffentlichte Informationen.",
+    "default": "KI kann Fehler machen – prüfe Antworten und teile keine sensiblen Daten.",
     "footer": {
       "ariaLabel": "Vertraulichkeitshinweis"
     }

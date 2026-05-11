@@ -43,12 +43,12 @@ export function DataNoticeFooter({
       role="note"
       aria-label={t('footer.ariaLabel', 'Confidentiality notice')}
       className={cn(
-        'flex items-start gap-1.5 px-3 py-1.5',
+        'flex items-center justify-center gap-1.5 px-3 py-1.5',
         'text-muted-foreground',
         className,
       )}
     >
-      <ShieldAlert aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+      <ShieldAlert aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
       <Text className="text-xs leading-tight">{notice.message}</Text>
     </div>
   );

@@ -4726,7 +4726,7 @@
     }
   },
   "dataNotice": {
-    "default": "Treat this chat as you would email — avoid customer data, credentials, and unreleased information.",
+    "default": "AI can make mistakes—verify responses and do not share sensitive data.",
     "footer": {
       "ariaLabel": "Confidentiality notice"
     }

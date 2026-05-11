@@ -4726,7 +4726,7 @@
     }
   },
   "dataNotice": {
-    "default": "Traitez cette conversation comme un e-mail — évitez les données clients, les identifiants et les informations non publiées.",
+    "default": "L'IA peut faire des erreurs – vérifiez les réponses et ne partagez pas de données sensibles.",
     "footer": {
       "ariaLabel": "Avis de confidentialité"
     }
