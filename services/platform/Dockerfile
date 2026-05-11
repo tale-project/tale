@@ -69,6 +69,7 @@ COPY services/platform/vite.config.ts \
 
 COPY packages/i18n ./packages/i18n
 COPY packages/ui ./packages/ui
+COPY packages/webui ./packages/webui
 
 COPY services/platform/app ./services/platform/app
 COPY services/platform/lib ./services/platform/lib

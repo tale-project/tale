@@ -42,8 +42,9 @@
     "lint": "bunx oxlint --type-aware",
     "lint:fix": "bunx oxlint --type-aware --fix",
     "typecheck": "bunx tsc --noEmit",
-    "test": "bunx vitest --run --passWithNoTests",
+    "test": "bunx vitest --run --project unit --passWithNoTests",
     "test:watch": "bunx vitest",
+    "test:storybook": "bunx vitest --run --project storybook",
     "storybook": "bunx --bun storybook dev -p 6007",
     "storybook:build": "bunx --bun storybook build -o storybook-static"
   },
