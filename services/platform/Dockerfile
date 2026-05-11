@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.22
 # Tale Platform Dockerfile
 # Builds the Vite SPA + Convex Backend with multi-stage optimization
 
