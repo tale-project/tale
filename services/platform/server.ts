@@ -11,6 +11,7 @@ import {
   wrapCanvasPreviewHtml,
 } from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
+import { probeServices, renderStatusPage } from './status-probe';
 import { initTelemetry, metricsResponse } from './telemetry';
 
 // Platform graceful shutdown marker (written by docker-entrypoint.sh trap).
@@ -264,6 +265,24 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
       return c.json({ status: 'shutting_down' }, 503);
     }
     return c.json({ status: 'ok' });
+  });
+
+  // Public, unauthenticated overall up/down. Hono catches this before the
+  // SPA `*` fallback below, so it bypasses the TanStack Router shell. Caddy
+  // forwards `/status` to this handler via the default `reverse_proxy
+  // platform:3000` (no `/api/*` collision with the Convex-bound block).
+  app.get('/status', async (c) => {
+    const result = await probeServices();
+    const html = renderStatusPage(
+      result,
+      c.req.header('accept-language') ?? '',
+    );
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=5',
+      },
+    });
   });
 
   app.get('/events/file', (c) => {
