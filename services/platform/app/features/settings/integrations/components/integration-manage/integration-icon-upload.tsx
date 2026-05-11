@@ -13,6 +13,7 @@ interface IntegrationIconUploadProps {
   title: string;
   isUploadingIcon: boolean;
   isActive: boolean;
+  status?: string;
   isSql: boolean;
   authMethod: string;
   operationCount: number;
@@ -25,6 +26,7 @@ export function IntegrationIconUpload({
   title,
   isUploadingIcon,
   isActive,
+  status,
   isSql,
   authMethod,
   operationCount,
@@ -67,10 +69,16 @@ export function IntegrationIconUpload({
         onChange={onIconUpload}
         aria-label={t('integrations.upload.changeIcon')}
       />
-      <StatusIndicator variant={isActive ? 'success' : 'warning'}>
-        {isActive
-          ? t('integrations.upload.active')
-          : t('integrations.upload.inactive')}
+      <StatusIndicator
+        variant={
+          status === 'error' ? 'error' : isActive ? 'success' : 'warning'
+        }
+      >
+        {status === 'error'
+          ? t('integrations.upload.reconnectNeeded')
+          : isActive
+            ? t('integrations.upload.active')
+            : t('integrations.upload.inactive')}
       </StatusIndicator>
       {operationCount > 0 && (
         <HStack gap={2} className="ml-auto flex-wrap">

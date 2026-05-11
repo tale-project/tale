@@ -134,6 +134,11 @@ export function IntegrationPanel({
               title={integration.title}
               isUploadingIcon={manage.isUploadingIcon}
               isActive={isDetailsMode}
+              status={
+                typeof integration.status === 'string'
+                  ? integration.status
+                  : undefined
+              }
               isSql={manage.isSql}
               authMethod={integration.authMethod ?? ''}
               operationCount={manage.operationCount}

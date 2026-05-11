@@ -872,6 +872,7 @@
         "configureCredentialsHint": "Configure credentials in the integration settings to activate it.",
         "active": "Active",
         "inactive": "Inactive",
+        "reconnectNeeded": "Reconnect needed",
         "changeIcon": "Change icon",
         "iconTooLarge": "Icon must be under 256KB",
         "invalidIconFormat": "Icon must be PNG, SVG, JPG, or WebP"
