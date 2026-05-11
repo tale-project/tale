@@ -6,6 +6,7 @@
  */
 
 import { fetchJson } from '../../lib/utils/type-cast-helpers';
+import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
@@ -21,6 +22,33 @@ interface TokenRefreshResponse {
   token_type: string;
   expires_in?: number;
   scope?: string;
+}
+
+// Parses a token-endpoint OAuth2 error body into its standard `error` /
+// `error_description` fields (RFC 6749 §5.2). Returns null for non-JSON or
+// non-conforming bodies so callers fall back to a generic message.
+function parseOAuthError(
+  errorText: string,
+): { code: string; description?: string } | null {
+  try {
+    const parsed: unknown = JSON.parse(errorText);
+    if (isRecord(parsed) && typeof parsed.error === 'string') {
+      return {
+        code: parsed.error,
+        description:
+          typeof parsed.error_description === 'string'
+            ? parsed.error_description
+            : undefined,
+      };
+    }
+    return null;
+  } catch (err) {
+    console.warn(
+      '[Integration OAuth2] Token endpoint returned non-JSON error body:',
+      err,
+    );
+    return null;
+  }
 }
 
 export async function decryptAndRefreshIntegrationOAuth2(
@@ -74,6 +102,17 @@ export async function decryptAndRefreshIntegrationOAuth2(
       `[Integration OAuth2] Token expired for ${integration._id} but cannot refresh: ` +
         `missing ${missingPrerequisites.join(', ')}`,
     );
+    if (credentialId) {
+      await ctx.runMutation(
+        internal.integrations.credential_mutations.updateCredentialsInternal,
+        {
+          credentialId,
+          status: 'error',
+          errorMessage: `OAuth2 refresh prerequisites missing: ${missingPrerequisites.join(', ')}`,
+          lastErrorAt: Date.now(),
+        },
+      );
+    }
     throw new Error(
       `OAuth2 access token has expired but cannot refresh: missing ${missingPrerequisites.join(', ')}. ` +
         'Please re-authorize the integration.',
@@ -113,13 +152,28 @@ export async function decryptAndRefreshIntegrationOAuth2(
 
   if (!response.ok) {
     const errorText = await response.text();
+    const parsed = parseOAuthError(errorText);
+    const detail = parsed
+      ? ` (${parsed.code}${parsed.description ? `: ${parsed.description}` : ''})`
+      : '';
     console.error(
       `[Integration OAuth2] Token refresh failed for ${integration._id} ` +
         `(status ${response.status}):`,
       errorText,
     );
+    if (credentialId) {
+      await ctx.runMutation(
+        internal.integrations.credential_mutations.updateCredentialsInternal,
+        {
+          credentialId,
+          status: 'error',
+          errorMessage: `OAuth2 refresh failed${detail}`,
+          lastErrorAt: Date.now(),
+        },
+      );
+    }
     throw new Error(
-      'Failed to refresh OAuth2 token. Please re-authorize the integration.',
+      `Failed to refresh OAuth2 token${detail}. Please re-authorize the integration.`,
     );
   }
 
@@ -129,6 +183,18 @@ export async function decryptAndRefreshIntegrationOAuth2(
     console.error(
       `[Integration OAuth2] Token refresh response missing access_token for ${integration._id}`,
     );
+    if (credentialId) {
+      await ctx.runMutation(
+        internal.integrations.credential_mutations.updateCredentialsInternal,
+        {
+          credentialId,
+          status: 'error',
+          errorMessage:
+            'OAuth2 token refresh returned an invalid response (no access_token)',
+          lastErrorAt: Date.now(),
+        },
+      );
+    }
     throw new Error(
       'OAuth2 token refresh returned an invalid response. Please re-authorize the integration.',
     );
@@ -153,7 +219,12 @@ export async function decryptAndRefreshIntegrationOAuth2(
   if (credentialId) {
     await ctx.runMutation(
       internal.integrations.credential_mutations.updateCredentialsInternal,
-      { credentialId, oauth2Auth: updatedOAuth2Auth },
+      {
+        credentialId,
+        oauth2Auth: updatedOAuth2Auth,
+        status: 'active',
+        lastSuccessAt: Date.now(),
+      },
     );
   }
 

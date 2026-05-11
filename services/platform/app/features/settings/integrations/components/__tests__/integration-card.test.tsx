@@ -46,6 +46,26 @@ describe('IntegrationCard', () => {
     expect(screen.getByText('integrations.badge.connect')).toBeInTheDocument();
   });
 
+  it('shows "Reconnect needed" badge when status is "error", overriding isActive', () => {
+    render(
+      <IntegrationCard
+        title="Google Drive"
+        description="Access Google Drive."
+        isActive
+        status="error"
+      />,
+    );
+    expect(
+      screen.getByText('integrations.badge.reconnectNeeded'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('integrations.badge.connected'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('integrations.badge.connect'),
+    ).not.toBeInTheDocument();
+  });
+
   it('calls onClick when clicked', async () => {
     const user = userEvent.setup();
     const handleClick = vi.fn();

@@ -817,7 +817,8 @@
       "searchPlaceholder": "Integrationen suchen...",
       "badge": {
         "connected": "Verbunden",
-        "connect": "Verbinden"
+        "connect": "Verbinden",
+        "reconnectNeeded": "Erneut verbinden"
       },
       "empty": {
         "connectedTitle": "Keine verbundenen Integrationen",
