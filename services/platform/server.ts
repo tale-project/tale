@@ -11,6 +11,12 @@ import {
   wrapCanvasPreviewHtml,
 } from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
+import {
+  buildStatusFeed,
+  probeServices,
+  renderStatusJson,
+  renderStatusPage,
+} from './status-probe';
 import { initTelemetry, metricsResponse } from './telemetry';
 
 // Platform graceful shutdown marker (written by docker-entrypoint.sh trap).
@@ -266,6 +272,33 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     return c.json({
       status: 'ok',
       version: process.env.TALE_VERSION ?? 'dev',
+    });
+  });
+
+  // Public, unauthenticated overall up/down. Hono catches this before the
+  // SPA `*` fallback below, so it bypasses the TanStack Router shell. Caddy
+  // forwards `/status` and `/status.json` to this handler via the default
+  // `reverse_proxy platform:3000` (no `/api/*` collision with the
+  // Convex-bound block). Both routes project from the same `StatusFeed`
+  // so the human and machine views cannot drift.
+  app.get('/status', async (c) => {
+    const feed = buildStatusFeed(await probeServices());
+    const html = renderStatusPage(feed, c.req.header('accept-language') ?? '');
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=5',
+      },
+    });
+  });
+
+  app.get('/status.json', async () => {
+    const feed = buildStatusFeed(await probeServices());
+    return new Response(renderStatusJson(feed), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=5',
+      },
     });
   });
 

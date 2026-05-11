@@ -293,3 +293,37 @@ Liste der verfügbaren Agents (Modelle).
   ]
 }
 ```
+
+## Status-Endpoints
+
+Zwei öffentliche, nicht authentifizierte Endpoints geben den Gesamt-Up/Down-Status der Plattform aus. Sie teilen sich denselben Probe (5-Sekunden-In-Memory-Cache) und unterscheiden sich nur in der Darstellung:
+
+| Endpoint       | Verwendung                                                                                                                  |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `/status`      | Lesbare HTML-Statusseite. Wählt Englisch, Deutsch oder Französisch anhand von `Accept-Language`.                            |
+| `/status.json` | Maschinenlesbarer Feed für externe Monitore (BetterStack, UptimeRobot, Atlassian Statuspage, Datadog Synthetics und andere) |
+
+Beide Endpoints antworten immer mit `200 OK` und `Cache-Control: public, max-age=5`. Die Plattform selbst ist die Quelle der Wahrheit — wenn dein Monitor `/status.json` überhaupt nicht erreicht, ist der Plattformprozess nicht erreichbar, und das Timeout des Monitors ist das Signal.
+
+### Wire-Format (`/status.json`)
+
+```json
+{
+  "status": "operational",
+  "checkedAt": "2026-05-11T13:45:07.123Z",
+  "components": [
+    { "id": "convex", "status": "operational" },
+    { "id": "rag", "status": "operational" },
+    { "id": "crawler", "status": "outage" }
+  ]
+}
+```
+
+| Feld                  | Typ    | Werte                                                                                |
+| --------------------- | ------ | ------------------------------------------------------------------------------------ |
+| `status`              | string | `operational`, `degraded` (einige Komponenten ausgefallen) oder `outage` (alle aus). |
+| `checkedAt`           | string | ISO-8601-Zeitstempel der letzten Probe-Runde.                                        |
+| `components[].id`     | string | Stabile Komponenten-Kennung: `convex`, `rag` oder `crawler`.                         |
+| `components[].status` | string | `operational` oder `outage` pro Komponente.                                          |
+
+Keyword-basierte Uptime-Monitore können auf den gross-/kleinschreibungssensitiven Substring `"status":"outage"` reagieren.

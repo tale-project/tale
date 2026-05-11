@@ -86,6 +86,12 @@ COPY services/platform/docker-entrypoint.sh \
      services/platform/env.sh \
      ./services/platform/
 
+# status-probe.ts is imported by vite-plugins/serve-status.ts (loaded via
+# vite.config.ts) so it must be present before `vite build` for rolldown
+# to resolve the static import, even though the plugin itself is dev-only.
+# server.ts also imports it for the production /status handler.
+COPY services/platform/status-probe.ts ./services/platform/
+
 ENV NODE_ENV=production
 
 RUN cd services/platform && bun --bun vite build
@@ -215,6 +221,7 @@ COPY --from=pruner --chown=app:app \
      /app/services/platform/server.ts \
      /app/services/platform/telemetry.ts \
      /app/services/platform/convex-metrics.ts \
+     /app/services/platform/status-probe.ts \
      ./
 COPY --from=pruner --chown=app:app /app/services/platform/convex ./convex
 COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib

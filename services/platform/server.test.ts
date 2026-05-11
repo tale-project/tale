@@ -332,6 +332,33 @@ describe('canvas-preview storage shim', () => {
   });
 });
 
+describe('GET /status.json', () => {
+  test('responds with the canonical StatusFeed shape as JSON', async () => {
+    const app = createApp(baseEnv);
+    const res = await app.fetch(new Request('http://localhost/status.json'));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/json');
+    expect(res.headers.get('cache-control')).toBe('public, max-age=5');
+
+    // No upstreams are running in test; probes fail (ECONNREFUSED) and the
+    // feed reports `outage`. The point of this test is the wire shape and
+    // headers — not the upstream verdict — so assertions stay on structure.
+    const body = JSON.parse(await res.text());
+    expect(body).toMatchObject({
+      status: expect.stringMatching(/^(operational|degraded|outage)$/),
+      checkedAt: expect.any(String),
+      components: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'convex',
+          status: expect.stringMatching(/^(operational|outage)$/),
+        }),
+        expect.objectContaining({ id: 'rag' }),
+        expect.objectContaining({ id: 'crawler' }),
+      ]),
+    });
+  });
+});
+
 describe('SSE /events/file', () => {
   test('preserves text/event-stream content type and no-cache', async () => {
     const app = createApp(baseEnv);
