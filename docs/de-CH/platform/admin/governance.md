@@ -25,7 +25,7 @@ Steuere, welche Modelle bestimmten Teams oder Nutzern verfügbar sind. Beschrän
 
 Setze Ausgabelimits pro Nutzer, pro Team oder für die ganze Organisation. Konfiguriere Zeitraum (täglich, wöchentlich, monatlich) und die Aktion bei Limit-Überschreitung — warnen, neue Requests blockieren oder Chat ganz deaktivieren.
 
-### Upload-Policy {#upload-policy}
+### Upload-Richtlinie {#upload-policy}
 
 Beschränke Datei-Uploads nach Typ, Grösse oder Anzahl. Nützlich, wenn du grosse Binär-Uploads oder ausführbare Dateitypen verhindern willst. Pro MIME-Typ kannst du eine strengere Grenze setzen — z. B. `audio/*` auf 25 MB begrenzen, während das globale Limit bei 100 MB bleibt.
 

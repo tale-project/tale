@@ -1,0 +1,12 @@
+@import 'react-day-picker/style.css';
+@import 'react-datepicker/dist/react-datepicker.css';
+
+/* Fullscreen SPA layout: lock viewport scroll so the app shell controls its
+   own scrollable regions. */
+html,
+body,
+#root {
+  width: 100%;
+  margin: 0;
+  overflow: clip;
+}

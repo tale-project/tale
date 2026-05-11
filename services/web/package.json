@@ -21,7 +21,6 @@
     "test:coverage": "bunx vitest --coverage --passWithNoTests"
   },
   "dependencies": {
-    "@tale/i18n": "workspace:*",
     "@tale/ui": "workspace:*",
     "@tale/webui": "workspace:*",
     "react-markdown": "10.1.0",

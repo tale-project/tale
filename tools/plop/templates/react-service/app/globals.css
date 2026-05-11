@@ -1,18 +1,1 @@
-@import '@tale/ui/globals.css';
-@import '@fontsource/inter/400.css';
-@import '@fontsource/inter/500.css';
-@import '@fontsource/inter/600.css';
-@import '@fontsource/inter/700.css';
-
-html,
-body,
-#root {
-  height: 100%;
-}
-
-body {
-  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+@import '@tale/webui/globals.css';

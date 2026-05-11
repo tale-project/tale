@@ -8,9 +8,21 @@ interface DocsTocProps {
   entries: TocEntry[];
 }
 
+// Distance from the top of the viewport at which a heading is considered
+// "passed" and becomes the active TOC entry. Sits just below the headings'
+// `scroll-margin-top` (`scroll-mt-24` = 96px) so that anchor navigation —
+// which parks the target heading exactly at the scroll-margin line — also
+// marks it active. Adjacent headings on the page are spaced much further
+// than the 24px gap, so the extra tolerance can't cause oscillation.
+const ACTIVATION_OFFSET = 120;
+
 /**
- * Right-rail "On this page" outline with scroll-spy. Highlights the
- * heading currently nearest to the top of the viewport.
+ * Right-rail "On this page" outline with scroll-spy. The active heading is
+ * the last one whose top has scrolled past `ACTIVATION_OFFSET`. The rule is
+ * monotonic in scroll direction, so adjacent headings can't oscillate the
+ * way an IntersectionObserver does when its callback only delivers entries
+ * that just crossed a threshold (which makes `visible[0]` flip between two
+ * close-together headings).
  */
 export function DocsToc({ entries }: DocsTocProps) {
   const { t } = useT('docs');
@@ -18,35 +30,46 @@ export function DocsToc({ entries }: DocsTocProps) {
 
   useEffect(() => {
     if (entries.length === 0) return undefined;
-    const observer = new IntersectionObserver(
-      (observed) => {
-        const visible = observed
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActiveId(visible[0].target.id);
-      },
-      { rootMargin: '0px 0px -70% 0px', threshold: [0, 1] },
-    );
-    for (const entry of entries) {
-      const el = document.getElementById(entry.id);
-      if (el) observer.observe(el);
-    }
-    // Force-activate the last heading once we hit the bottom of the page,
-    // because the IntersectionObserver's bottom-30% trigger zone misses
-    // headings that have already scrolled past it.
-    const onScroll = () => {
+
+    let rafId: number | null = null;
+    let lastActive: string | null = null;
+
+    const computeActive = () => {
+      rafId = null;
       const scrolledToBottom =
         window.innerHeight + window.scrollY >=
         document.documentElement.scrollHeight - 2;
+      let next: string | null = null;
       if (scrolledToBottom) {
-        const last = entries[entries.length - 1];
-        if (last) setActiveId(last.id);
+        next = entries[entries.length - 1]?.id ?? null;
+      } else {
+        for (const entry of entries) {
+          const el = document.getElementById(entry.id);
+          if (!el) continue;
+          const top = el.getBoundingClientRect().top;
+          if (top - ACTIVATION_OFFSET <= 0) next = entry.id;
+          else break;
+        }
+        if (next === null) next = entries[0]?.id ?? null;
+      }
+      if (next !== lastActive) {
+        lastActive = next;
+        setActiveId(next);
       }
     };
-    window.addEventListener('scroll', onScroll, { passive: true });
+
+    const schedule = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(computeActive);
+    };
+
+    computeActive();
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
     return () => {
-      observer.disconnect();
-      window.removeEventListener('scroll', onScroll);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
     };
   }, [entries]);
 

@@ -1,9 +1,1 @@
-@import 'tailwindcss';
-
-@theme {
-  --color-bg-base: #ffffff;
-  --color-bg-elevated: #f9fafb;
-  --color-fg-base: #111827;
-  --color-fg-muted: #6b7280;
-  --color-border-base: #e5e7eb;
-}
+@import '@tale/ui/globals.css';

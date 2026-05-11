@@ -1,16 +1,15 @@
+import uiPreset from '@tale/ui/tailwind-preset';
 import type { Config } from 'tailwindcss';
 
-/**
- * Tailwind CSS v4 Configuration
- *
- * Theme customizations are now in globals.css using @theme directive.
- * This config file is kept for content scanning and dark mode configuration.
- */
-export default {
-  darkMode: ['class', '.dark'],
+const config: Config = {
+  presets: [uiPreset],
   content: [
-    './pages/**/*.{ts,tsx}',
-    './components/**/*.{ts,tsx}',
     './app/**/*.{ts,tsx}',
+    './lib/**/*.{ts,tsx}',
+    './node_modules/@tale/ui/src/**/*.{ts,tsx}',
+    './node_modules/@tale/webui/src/**/*.{ts,tsx}',
   ],
-} satisfies Config;
+  darkMode: 'class',
+};
+
+export default config;

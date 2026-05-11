@@ -182,8 +182,11 @@ export async function highlightCode(
   if (!loaded.includes(resolvedLang)) {
     try {
       await highlighter.loadLanguage(
-        /* @vite-ignore */ import(
-          `shiki/langs/${resolvedLang}.mjs`
+        // Vite analyses dynamic imports statically; the `@vite-ignore`
+        // comment must sit *inside* the `import()` call (not in front of
+        // it) for Vite to honour it, hence the awkward placement.
+        import(
+          /* @vite-ignore */ `shiki/langs/${resolvedLang}.mjs`
         ) as Parameters<HighlighterCore['loadLanguage']>[0],
       );
     } catch (err) {

@@ -64,12 +64,12 @@ COPY services/platform/vite.config.ts \
      services/platform/index.html \
      services/platform/vite-env.d.ts \
      services/platform/tsr.config.json \
-     services/platform/components.json \
      services/platform/package.json \
      ./services/platform/
 
 COPY packages/i18n ./packages/i18n
 COPY packages/ui ./packages/ui
+COPY packages/webui ./packages/webui
 
 COPY services/platform/app ./services/platform/app
 COPY services/platform/lib ./services/platform/lib

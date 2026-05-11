@@ -1,18 +1,17 @@
-import '@fontsource-variable/inter';
-import { ThemeProvider } from '@tale/webui/theme';
+import { ThemeProvider } from '@tale/ui/theme';
 import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import '@/lib/i18n/i18n';
 import { I18nProvider } from '@/lib/i18n/i18n-provider';
-
+import '@/lib/i18n/i18n';
 import { router } from './router';
 
 import './globals.css';
+import './locals.css';
 
 const root = document.getElementById('root');
-if (!root) throw new Error('[docs] missing #root element');
+if (!root) throw new Error('Missing #root element');
 
 createRoot(root).render(
   <StrictMode>

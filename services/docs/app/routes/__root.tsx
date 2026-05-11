@@ -1,4 +1,5 @@
 import { LocaleSync } from '@tale/ui/i18n/sync';
+import { ThemeAssetSync, useTheme } from '@tale/ui/theme';
 import { SkipLink } from '@tale/webui/layout/skip-link';
 import { SearchDialog } from '@tale/webui/search/dialog';
 import {
@@ -54,6 +55,7 @@ function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [searchOpen, setSearchOpen] = useState(false);
   const locale = localeFromPathname(pathname);
+  const { resolvedTheme } = useTheme();
   const { t: tNav } = useT('nav');
   const { t: tSearch } = useT('search');
 
@@ -91,6 +93,7 @@ function RootLayout() {
       placeholder: tSearch('placeholder'),
       empty: tSearch('empty'),
       emptyHint: tSearch('emptyHint'),
+      keepTyping: tSearch('keepTyping'),
       noResultsTitle: tSearch('noResultsTitle'),
       noResultsHint: tSearch('noResultsHint'),
       loading: tSearch('loading'),
@@ -118,6 +121,7 @@ function RootLayout() {
   return (
     <div className="bg-bg-base text-fg-base flex min-h-screen flex-col">
       <LocaleSync locale={resolveRegionalLocale(locale)} htmlLang={locale} />
+      <ThemeAssetSync resolvedTheme={resolvedTheme} />
       <SkipLink>Skip to main content</SkipLink>
       <DocsHeader
         locale={locale}

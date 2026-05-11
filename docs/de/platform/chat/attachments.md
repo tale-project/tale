@@ -14,13 +14,13 @@ Du kannst mehrere Dateien gleichzeitig anhängen. Jede Datei zeigt während des 
 
 ## Unterstützte Dateitypen
 
-| Kategorie     | Endungen                                                  | Was die KI tut                                                                                                            |
-| ------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| **Bilder**    | PNG, JPEG, GIF, WebP                                      | betrachtet den visuellen Inhalt — Layout, Diagramme, Fotos, Text im Bild.                                                 |
-| **Dokumente** | PDF, DOCX, XLSX, PPTX, TXT, Markdown                      | liest den Textinhalt einschließlich Tabellen und Überschriften.                                                           |
-| **Code**      | JS, TS, Python und die meisten gängigen Quellcode-Formate | liest den Quellcode als Text mit Syntax-Bewusstsein.                                                                      |
-| **Audio**     | MP3, M4A, WAV, OGG, WebM-Audio                            | transkribiert die Audiospur und übergibt den Text an den Agent. Die Rohdaten erreichen das Chat-Modell nie.               |
-| **Video**     | MP4, MOV, MKV, WebM, AVI, MPEG, 3GP, M4V                  | extrahiert die Audiospur, transkribiert sie und übergibt den Text an den Agent. Visueller Inhalt wird **nicht** gesendet. |
+| Kategorie     | Endungen                                                        | Was die KI tut                                                                                                            |
+| ------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Bilder**    | `PNG`, `JPEG`, `GIF`, `WebP`                                    | betrachtet den visuellen Inhalt — Layout, Diagramme, Fotos, Text im Bild.                                                 |
+| **Dokumente** | `PDF`, `DOCX`, `XLSX`, `PPTX`, `TXT`, `Markdown`                | liest den Textinhalt einschließlich Tabellen und Überschriften.                                                           |
+| **Code**      | `JS`, `TS`, `Python` und die meisten gängigen Quellcode-Formate | liest den Quellcode als Text mit Syntax-Bewusstsein.                                                                      |
+| **Audio**     | `MP3`, `M4A`, `WAV`, `OGG`, `WebM`-Audio                        | transkribiert die Audiospur und übergibt den Text an den Agent. Die Rohdaten erreichen das Chat-Modell nie.               |
+| **Video**     | `MP4`, `MOV`, `MKV`, `WebM`, `AVI`, `MPEG`, `3GP`, `M4V`        | extrahiert die Audiospur, transkribiert sie und übergibt den Text an den Agent. Visueller Inhalt wird **nicht** gesendet. |
 
 ### Audio- und Video-Transkription
 

@@ -121,7 +121,7 @@ export function CodeGroup({ children, className }: CodeGroupProps) {
         const tabId = `${groupId}-tab-${i}`;
         const panelId = `${groupId}-panel-${i}`;
         const code = extractCode(child);
-        const language = child.props.language ?? extractLanguage(child);
+        const language = extractLanguage(child);
         return (
           <div
             key={panelId}
@@ -139,23 +139,92 @@ export function CodeGroup({ children, className }: CodeGroupProps) {
 }
 
 function labelOf(child: ReactElement<CodeGroupChildProps>, i: number): string {
-  const filename = child.props.filename;
-  if (filename) return filename;
-  const language = child.props.language ?? extractLanguage(child);
-  if (language) return language;
-  return `Tab ${i + 1}`;
+  return extractFilename(child) ?? extractLanguage(child) ?? `Tab ${i + 1}`;
 }
 
 function extractCode(child: ReactElement<CodeGroupChildProps>): string {
   if (typeof child.props.code === 'string') return child.props.code;
   if (typeof child.props.children === 'string') return child.props.children;
-  return '';
+  // Markdown path: child is a <pre> (rendered by react-markdown's pre map)
+  // whose subtree contains <code class="language-X">…</code>. Stringify the
+  // nested code element's children to recover the source text.
+  const codeEl = findCodeElement(child.props.children);
+  if (!codeEl) return '';
+  const codeProps = codeEl.props as { children?: ReactNode };
+  return stringifyChildren(codeProps.children);
 }
 
 function extractLanguage(
   child: ReactElement<CodeGroupChildProps>,
 ): string | undefined {
-  const className = child.props.className ?? '';
+  if (typeof child.props.language === 'string') return child.props.language;
+  const className =
+    child.props.className ??
+    (
+      findCodeElement(child.props.children)?.props as
+        | { className?: string }
+        | undefined
+    )?.className ??
+    '';
   const langMatch = /language-([a-z0-9+-]+)/i.exec(className);
   return langMatch?.[1];
+}
+
+/**
+ * Pull a filename label off the child. Honours direct `filename` props
+ * (used by `<CodeBlock>` children in Storybook) and the fence metastring
+ * (e.g. `` ```python Python `` → "Python") which the
+ * `rehype-preserve-code-meta` plugin surfaces as a `data-meta` HTML
+ * attribute on the nested `<code>` element.
+ */
+function extractFilename(
+  child: ReactElement<CodeGroupChildProps>,
+): string | undefined {
+  if (
+    typeof child.props.filename === 'string' &&
+    child.props.filename.length > 0
+  ) {
+    return child.props.filename;
+  }
+  const codeEl = findCodeElement(child.props.children);
+  const dataMeta = (codeEl?.props as { 'data-meta'?: string } | undefined)?.[
+    'data-meta'
+  ];
+  if (typeof dataMeta === 'string' && dataMeta.trim().length > 0) {
+    return dataMeta.trim();
+  }
+  return undefined;
+}
+
+function findCodeElement(node: ReactNode): ReactElement | null {
+  if (node === null || node === undefined || typeof node === 'boolean')
+    return null;
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const found = findCodeElement(n);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (!isValidElement(node)) return null;
+  const props = node.props as { className?: string; children?: ReactNode };
+  if (
+    typeof props.className === 'string' &&
+    props.className.includes('language-')
+  ) {
+    return node;
+  }
+  return findCodeElement(props.children);
+}
+
+function stringifyChildren(node: ReactNode): string {
+  if (node === null || node === undefined || typeof node === 'boolean')
+    return '';
+  if (typeof node === 'string') return node;
+  if (typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(stringifyChildren).join('');
+  if (isValidElement(node)) {
+    return stringifyChildren((node.props as { children?: ReactNode }).children);
+  }
+  return '';
 }

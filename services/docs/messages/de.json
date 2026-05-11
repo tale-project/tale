@@ -36,6 +36,7 @@
     "placeholder": "Dokumentation durchsuchen…",
     "empty": "Tippe los, um die Doku zu durchsuchen.",
     "emptyHint": "Finde Anleitungen, Referenzen und Konzepte über alle Bereiche hinweg.",
+    "keepTyping": "Tippe weiter, um zu suchen…",
     "noResultsTitle": "Keine Ergebnisse",
     "noResultsHint": "Probiere andere Begriffe oder nutze die Navigation.",
     "loading": "Suche läuft…",

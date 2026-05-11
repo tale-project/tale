@@ -4,3 +4,4 @@ export type {
   Theme,
   ThemeProviderProps,
 } from './theme-provider';
+export { ThemeAssetSync } from './theme-asset-sync';

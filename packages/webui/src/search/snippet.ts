@@ -1,6 +1,7 @@
-/** Extract a short window of text from `body` centred on the first match
- *  for any of the supplied `terms`. Falls back to the head of the body when
- *  no term matches.
+/** Extract a short window of text from `body` centred on the most meaningful
+ *  match across `terms`. "Most meaningful" = longest matched term — longer
+ *  tokens carry more signal than common short ones. Falls back to the head
+ *  of the body when no term matches.
  *
  *  Pure function — easy to unit-test. */
 export function extractSnippet(
@@ -11,12 +12,21 @@ export function extractSnippet(
   if (!body) return '';
 
   const lower = body.toLowerCase();
+  // Search longest term first so a hit on "configuration" is preferred over
+  // a hit on the user's literal "config" (which would always come first by
+  // virtue of being a prefix of the longer term).
+  const sortedTerms = [...terms]
+    .filter((t) => t.length > 0)
+    .sort((a, b) => b.length - a.length);
+
   let firstIdx = -1;
-  for (const term of terms) {
+  for (const term of sortedTerms) {
     const t = term.toLowerCase();
-    if (!t) continue;
     const idx = lower.indexOf(t);
-    if (idx !== -1 && (firstIdx === -1 || idx < firstIdx)) firstIdx = idx;
+    if (idx !== -1) {
+      firstIdx = idx;
+      break;
+    }
   }
 
   if (firstIdx === -1) {
@@ -42,14 +52,16 @@ export function extractSnippet(
   return prefix + body.slice(start, end).trim() + suffix;
 }
 
-/** Lowercased, deduplicated, length-filtered tokens from a search query —
- *  used both as MiniSearch input and as highlight/snippet pivots. */
+/** Lowercased, deduplicated tokens from a search query. Single-character
+ *  tokens are kept so multi-token queries like "a/b config" still highlight
+ *  the lone `a` and `b`. The decision of when to *run* a search is made by
+ *  the caller — this helper is just normalisation. */
 export function extractTerms(query: string): string[] {
   const tokens = query
     .toLowerCase()
     .split(/\s+/)
     .map((t) => t.replace(/[^\p{L}\p{N}\-_]/gu, ''))
-    .filter((t) => t.length >= 2);
+    .filter((t) => t.length >= 1);
   return Array.from(new Set(tokens));
 }
 

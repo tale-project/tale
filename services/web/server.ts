@@ -1,40 +1,22 @@
 // Bun server: serves the prebuilt SPA from ./dist + a /api/forms/submit route
-// that proxies validated form payloads to a Discord incoming webhook.
+// that proxies validated form payloads to a Discord incoming webhook. The
+// boilerplate (locale negotiation, static serving, health endpoint) lives in
+// @tale/webui/server — only the form-submit handler is web-specific.
 
-import { join, resolve, sep } from 'node:path';
+import { resolve } from 'node:path';
 
-import { serializeLocaleCookie } from '@tale/i18n/cookie';
 import {
-  negotiatePathLocale,
-  type NegotiatePathLocaleResult,
-} from '@tale/i18n/negotiate';
-import { file } from 'bun';
+  defaultSimpleSecurityHeaders,
+  startSimpleServer,
+} from '@tale/webui/server';
 
 import { buildDiscordPayload } from './lib/forms/discord-embeds';
 import { checkRateLimit } from './lib/forms/rate-limit';
 import { MIN_SUBMIT_DELAY_MS, submitRequest } from './lib/forms/schemas';
 
-const PORT = Number(process.env.PORT ?? 3001);
-const HOSTNAME = process.env.HOSTNAME ?? '0.0.0.0';
-const DIST = resolve(import.meta.dir, 'dist');
-const DIST_PREFIX = DIST + sep;
 const DISCORD_WEBHOOK_URL = process.env.WEB_DISCORD_WEBHOOK_URL ?? '';
 const MAX_BODY_BYTES = 4 * 1024;
 const DISCORD_WEBHOOK_TIMEOUT_MS = 10_000;
-// Set in production deploys to share the cookie across subdomains
-// (e.g. `.tale.dev` so docs.tale.dev sees the same value). Leave unset in
-// local dev — port-on-localhost is its own cookie scope.
-const LOCALE_COOKIE_DOMAIN = process.env.LOCALE_COOKIE_DOMAIN || undefined;
-
-function contentTypeFor(path: string): string | null {
-  if (path.endsWith('.md')) return 'text/markdown; charset=utf-8';
-  if (path === '/llms.txt' || path === '/llms-full.txt') {
-    return 'text/plain; charset=utf-8';
-  }
-  if (path === '/robots.txt') return 'text/plain; charset=utf-8';
-  if (path === '/sitemap.xml') return 'application/xml; charset=utf-8';
-  return null;
-}
 
 function clientIp(request: Request): string {
   const fwd = request.headers.get('x-forwarded-for');
@@ -43,31 +25,6 @@ function clientIp(request: Request): string {
     if (first) return first.trim();
   }
   return request.headers.get('x-real-ip') ?? 'unknown';
-}
-
-function isSecureRequest(request: Request): boolean {
-  if (request.url.startsWith('https://')) return true;
-  return request.headers.get('x-forwarded-proto') === 'https';
-}
-
-function applyLocaleResponseHeaders(
-  response: Response,
-  negotiation: NegotiatePathLocaleResult,
-  request: Request,
-): Response {
-  if (negotiation.skip) return response;
-  if (negotiation.setCookieValue) {
-    response.headers.append(
-      'Set-Cookie',
-      serializeLocaleCookie({
-        value: negotiation.setCookieValue,
-        domain: LOCALE_COOKIE_DOMAIN,
-        secure: isSecureRequest(request),
-      }),
-    );
-  }
-  response.headers.append('Vary', 'Accept-Language, Cookie');
-  return response;
 }
 
 async function handleFormSubmit(request: Request): Promise<Response> {
@@ -164,78 +121,16 @@ async function handleFormSubmit(request: Request): Promise<Response> {
   return Response.json({ ok: true });
 }
 
-async function serveStatic(pathname: string): Promise<Response> {
-  // Malformed percent-encodings (e.g. `/%E0%A4%A`) make decodeURIComponent
-  // throw — fall back to the SPA shell instead of crashing the request.
-  let rel: string;
-  try {
-    rel = decodeURIComponent(pathname).replace(/^\/+/, '');
-  } catch (err) {
-    console.warn('[web] decodeURIComponent failed', { pathname, err });
-    return new Response(file(join(DIST, 'index.html')));
-  }
-  const resolved = resolve(DIST, rel);
-  if (resolved === DIST || resolved.startsWith(DIST_PREFIX)) {
-    // Serve the static asset if it exists.
-    const candidate = file(resolved);
-    if (await candidate.exists()) {
-      const ct = contentTypeFor(pathname);
-      return new Response(candidate, {
-        headers: ct ? { 'content-type': ct } : undefined,
-      });
-    }
-    // Try the prerendered route HTML (e.g. /pricing → dist/pricing/index.html).
-    const routeHtml = file(join(resolved, 'index.html'));
-    if (await routeHtml.exists()) {
-      return new Response(routeHtml);
-    }
-  }
-  return new Response(file(join(DIST, 'index.html')));
-}
-
-Bun.serve({
-  port: PORT,
-  hostname: HOSTNAME,
-  async fetch(request) {
-    const url = new URL(request.url);
-
-    if (url.pathname === '/api/health') {
-      return Response.json({
-        ok: true,
-        version: process.env.TALE_VERSION ?? 'dev',
-      });
-    }
+startSimpleServer({
+  port: Number(process.env.PORT ?? 3001),
+  distDir: resolve(import.meta.dir, 'dist'),
+  logPrefix: 'web',
+  shutdownMarkerPath: process.env.SHUTDOWN_MARKER_PATH,
+  securityHeaders: defaultSimpleSecurityHeaders,
+  extraRoutes: (request, url) => {
     if (url.pathname === '/api/forms/submit') {
       return handleFormSubmit(request);
     }
-
-    const negotiation = negotiatePathLocale({
-      pathname: url.pathname,
-      cookieHeader: request.headers.get('cookie'),
-      acceptLanguageHeader: request.headers.get('accept-language'),
-    });
-
-    if (negotiation.redirectTo) {
-      const headers = new Headers({
-        Location: negotiation.redirectTo,
-        Vary: 'Accept-Language, Cookie',
-      });
-      if (negotiation.setCookieValue) {
-        headers.append(
-          'Set-Cookie',
-          serializeLocaleCookie({
-            value: negotiation.setCookieValue,
-            domain: LOCALE_COOKIE_DOMAIN,
-            secure: isSecureRequest(request),
-          }),
-        );
-      }
-      return new Response(null, { status: 302, headers });
-    }
-
-    const response = await serveStatic(url.pathname);
-    return applyLocaleResponseHeaders(response, negotiation, request);
+    return null;
   },
 });
-
-console.log(`[web] listening on :${PORT}`);

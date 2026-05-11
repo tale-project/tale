@@ -7,6 +7,7 @@ const config: Config = {
     './app/**/*.{ts,tsx}',
     './lib/**/*.{ts,tsx}',
     './node_modules/@tale/ui/src/**/*.{ts,tsx}',
+    './node_modules/@tale/webui/src/**/*.{ts,tsx}',
   ],
   darkMode: 'class',
 };

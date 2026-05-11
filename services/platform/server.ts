@@ -263,7 +263,10 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     if (existsSync(SHUTDOWN_MARKER)) {
       return c.json({ status: 'shutting_down' }, 503);
     }
-    return c.json({ status: 'ok' });
+    return c.json({
+      status: 'ok',
+      version: process.env.TALE_VERSION ?? 'dev',
+    });
   });
 
   app.get('/events/file', (c) => {

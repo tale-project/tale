@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./server": "./src/server.ts",
     "./layout/site-container": "./src/layout/site-container.tsx",
     "./layout/site-header": "./src/layout/site-header.tsx",
     "./layout/site-footer": "./src/layout/site-footer.tsx",
@@ -41,13 +42,15 @@
     "lint": "bunx oxlint --type-aware",
     "lint:fix": "bunx oxlint --type-aware --fix",
     "typecheck": "bunx tsc --noEmit",
-    "test": "bunx vitest --run --passWithNoTests",
+    "test": "bunx vitest --run --project unit --passWithNoTests",
     "test:watch": "bunx vitest",
+    "test:storybook": "bunx vitest --run --project storybook",
     "storybook": "bunx --bun storybook dev -p 6007",
     "storybook:build": "bunx --bun storybook build -o storybook-static"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "1.1.15",
+    "@tale/i18n": "workspace:*",
     "@tale/ui": "workspace:*",
     "@tanstack/react-router": "1.168.10",
     "framer-motion": "12.38.0",

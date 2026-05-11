@@ -13,62 +13,59 @@ export interface RouterContext {
   convexQueryClient: ConvexQueryClient;
 }
 
-export function createRouter() {
-  const siteUrl = getEnv('SITE_URL');
-  const basePath = getEnv('BASE_PATH');
-  const convexQueryClient = new ConvexQueryClient(
-    `${siteUrl}${basePath}/ws_api`,
-  );
+const siteUrl = getEnv('SITE_URL');
+const basePath = getEnv('BASE_PATH');
 
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        queryKeyHashFn: convexQueryClient.hashFn(),
-        queryFn: convexQueryClient.queryFn(),
-        // 15min: bounds stale Convex subscription leak when components unmount
-        // (the @convex-dev/react-query integration ties WS subscription teardown
-        // to React Query's cache 'removed' event, which fires only after gcTime
-        // expires with zero observers). Aligned with the codebase's 5min staleTime
-        // and TanStack defaults.
-        gcTime: 15 * 60 * 1000,
-      },
+export const convexQueryClient = new ConvexQueryClient(
+  `${siteUrl}${basePath}/ws_api`,
+);
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      queryKeyHashFn: convexQueryClient.hashFn(),
+      queryFn: convexQueryClient.queryFn(),
+      // 15min: bounds stale Convex subscription leak when components unmount
+      // (the @convex-dev/react-query integration ties WS subscription teardown
+      // to React Query's cache 'removed' event, which fires only after gcTime
+      // expires with zero observers). Aligned with the codebase's 5min staleTime
+      // and TanStack defaults.
+      gcTime: 15 * 60 * 1000,
     },
+  },
+});
+
+convexQueryClient.connect(queryClient);
+
+export const router = createTanStackRouter({
+  routeTree,
+  basepath: basePath || '/',
+  context: {
+    queryClient,
+    convexQueryClient,
+  },
+  defaultPreload: 'intent',
+  defaultPreloadDelay: 10,
+  defaultPreloadGcTime: 3 * 60 * 1000,
+  defaultPreloadStaleTime: 10 * 1000,
+  scrollRestoration: true,
+  defaultErrorComponent: ({ error, reset }) => (
+    <GlobalErrorDisplay error={error} reset={reset} />
+  ),
+});
+
+const sentryDsn = getEnv('SENTRY_DSN');
+if (sentryDsn) {
+  Sentry.init({
+    dsn: sentryDsn,
+    release: getEnv('TALE_VERSION'),
+    integrations: [Sentry.tanstackRouterBrowserTracingIntegration(router)],
+    tracesSampleRate: getEnv('SENTRY_TRACES_SAMPLE_RATE'),
   });
-
-  convexQueryClient.connect(queryClient);
-
-  const router = createTanStackRouter({
-    routeTree,
-    basepath: basePath || '/',
-    context: {
-      queryClient,
-      convexQueryClient,
-    },
-    defaultPreload: 'intent',
-    defaultPreloadDelay: 10,
-    defaultPreloadGcTime: 3 * 60 * 1000,
-    defaultPreloadStaleTime: 10 * 1000,
-    scrollRestoration: true,
-    defaultErrorComponent: ({ error, reset }) => (
-      <GlobalErrorDisplay error={error} reset={reset} />
-    ),
-  });
-
-  const sentryDsn = getEnv('SENTRY_DSN');
-  if (sentryDsn) {
-    Sentry.init({
-      dsn: sentryDsn,
-      release: getEnv('TALE_VERSION'),
-      integrations: [Sentry.tanstackRouterBrowserTracingIntegration(router)],
-      tracesSampleRate: getEnv('SENTRY_TRACES_SAMPLE_RATE'),
-    });
-  }
-
-  return router;
 }
 
 declare module '@tanstack/react-router' {
   interface Register {
-    router: ReturnType<typeof createRouter>;
+    router: typeof router;
   }
 }

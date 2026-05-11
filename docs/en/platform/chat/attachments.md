@@ -14,13 +14,13 @@ You can attach multiple files at once. Each file shows a progress spinner while 
 
 ## Supported file types
 
-| Category      | Extensions                                     | What the AI does                                                                                           |
-| ------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Images**    | PNG, JPEG, GIF, WebP                           | Looks at visual content — layout, charts, photos, text inside the image.                                   |
-| **Documents** | PDF, DOCX, XLSX, PPTX, TXT, Markdown           | Reads the text content, including tables and headings.                                                     |
-| **Code**      | JS, TS, Python, and most common source formats | Reads the source as plain text with syntax awareness.                                                      |
-| **Audio**     | MP3, M4A, WAV, OGG, WebM audio                 | Transcribes the audio track and hands the text to the agent. The raw bytes never reach the chat model.     |
-| **Video**     | MP4, MOV, MKV, WebM, AVI, MPEG, 3GP, M4V       | Extracts the audio track, transcribes it, and hands the text to the agent. Visual content is **not** sent. |
+| Category      | Extensions                                               | What the AI does                                                                                           |
+| ------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Images**    | `PNG`, `JPEG`, `GIF`, `WebP`                             | Looks at visual content — layout, charts, photos, text inside the image.                                   |
+| **Documents** | `PDF`, `DOCX`, `XLSX`, `PPTX`, `TXT`, `Markdown`         | Reads the text content, including tables and headings.                                                     |
+| **Code**      | `JS`, `TS`, `Python`, and most common source formats     | Reads the source as plain text with syntax awareness.                                                      |
+| **Audio**     | `MP3`, `M4A`, `WAV`, `OGG`, `WebM` audio                 | Transcribes the audio track and hands the text to the agent. The raw bytes never reach the chat model.     |
+| **Video**     | `MP4`, `MOV`, `MKV`, `WebM`, `AVI`, `MPEG`, `3GP`, `M4V` | Extracts the audio track, transcribes it, and hands the text to the agent. Visual content is **not** sent. |
 
 ### Audio and video transcription
 

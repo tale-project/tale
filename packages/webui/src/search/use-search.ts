@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { useDebounce } from '../hooks/use-debounce';
-import { search } from './client';
+import { loadIndex, search } from './client';
 import { extractTerms } from './snippet';
 import type { SearchResult, SearchStatus } from './types';
 
@@ -12,13 +12,21 @@ interface UseSearchOptions {
   limit?: number;
   /** Debounce window in milliseconds. */
   debounceMs?: number;
+  /** Don't run a search until the trimmed query reaches this length. Single
+   *  characters surface noise; the threshold also avoids prefix-scanning a
+   *  large index for nearly every letter typed. */
+  minQueryLength?: number;
+  /** Pre-fetch the index as soon as the hook mounts so the first keystroke
+   *  hits a hot cache. */
+  prefetch?: boolean;
 }
 
 interface UseSearchReturn {
   query: string;
   setQuery: (next: string) => void;
   results: SearchResult[];
-  /** Lower-cased, deduped query tokens — for highlight + snippet centring. */
+  /** Lower-cased, deduped query tokens — for highlight + snippet centring
+   *  fallback when a result has no `matchedTerms`. */
   terms: string[];
   status: SearchStatus;
   error: Error | null;
@@ -31,7 +39,9 @@ export function useDocSearch({
   locale,
   baseUrl = '',
   limit = 25,
-  debounceMs = 180,
+  debounceMs = 120,
+  minQueryLength = 2,
+  prefetch = true,
 }: UseSearchOptions): UseSearchReturn {
   const [query, setQuery] = useState('');
   const debounced = useDebounce(query, debounceMs);
@@ -39,9 +49,18 @@ export function useDocSearch({
   const [status, setStatus] = useState<SearchStatus>('idle');
   const [error, setError] = useState<Error | null>(null);
 
+  // Pre-warm the index so the first real query doesn't pay the fetch cost.
+  useEffect(() => {
+    if (!prefetch) return;
+    void loadIndex(locale, baseUrl).catch((err: unknown) => {
+      // Non-fatal — the search effect will retry and surface the error there.
+      console.warn('[search] index prefetch failed', err);
+    });
+  }, [locale, baseUrl, prefetch]);
+
   useEffect(() => {
     const trimmed = debounced.trim();
-    if (!trimmed) {
+    if (trimmed.length < minQueryLength) {
       setResults([]);
       setStatus('idle');
       setError(null);
@@ -71,7 +90,7 @@ export function useDocSearch({
     return () => {
       cancelled = true;
     };
-  }, [debounced, locale, baseUrl, limit]);
+  }, [debounced, locale, baseUrl, limit, minQueryLength]);
 
   return {
     query,

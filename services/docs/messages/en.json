@@ -36,6 +36,7 @@
     "placeholder": "Search documentation…",
     "empty": "Start typing to search the docs.",
     "emptyHint": "Find guides, references, and concepts across every section.",
+    "keepTyping": "Keep typing to search…",
     "noResultsTitle": "No results found",
     "noResultsHint": "Try different keywords or browse the navigation.",
     "loading": "Searching…",

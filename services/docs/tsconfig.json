@@ -13,5 +13,11 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "dist", "dist-ssr", "vitest.*.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-ssr",
+    "storybook-static",
+    "vitest.*.ts"
+  ]
 }
