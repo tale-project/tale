@@ -8,700 +8,700 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as DocsRouteImport } from './routes/docs'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as ConvexDashboardRouteImport } from './routes/convex-dashboard'
-import { Route as AuthRouteImport } from './routes/_auth'
-import { Route as R2faEnrollRouteImport } from './routes/2fa-enroll'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
-import { Route as ForcedChangePasswordIdRouteImport } from './routes/forced-change-password.$id'
-import { Route as DashboardSwitchingRouteImport } from './routes/dashboard/switching'
-import { Route as DashboardCreateOrganizationRouteImport } from './routes/dashboard/create-organization'
-import { Route as DashboardIdRouteImport } from './routes/dashboard/$id'
-import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up'
-import { Route as AuthLogInRouteImport } from './routes/_auth/log-in'
-import { Route as Auth2faRouteImport } from './routes/_auth/2fa'
-import { Route as DashboardIdIndexRouteImport } from './routes/dashboard/$id/index'
-import { Route as DashboardIdSettingsRouteImport } from './routes/dashboard/$id/settings'
-import { Route as DashboardIdCustomAgentsRouteImport } from './routes/dashboard/$id/custom-agents'
-import { Route as DashboardIdConversationsRouteImport } from './routes/dashboard/$id/conversations'
-import { Route as DashboardIdChatRouteImport } from './routes/dashboard/$id/chat'
-import { Route as DashboardIdAutomationsRouteImport } from './routes/dashboard/$id/automations'
-import { Route as DashboardIdAgentsRouteImport } from './routes/dashboard/$id/agents'
-import { Route as DashboardIdKnowledgeRouteImport } from './routes/dashboard/$id/_knowledge'
-import { Route as DashboardIdSettingsIndexRouteImport } from './routes/dashboard/$id/settings/index'
-import { Route as DashboardIdChatIndexRouteImport } from './routes/dashboard/$id/chat/index'
-import { Route as DashboardIdAutomationsIndexRouteImport } from './routes/dashboard/$id/automations/index'
-import { Route as DashboardIdAgentsIndexRouteImport } from './routes/dashboard/$id/agents/index'
-import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard/$id/settings/teams'
-import { Route as DashboardIdSettingsProvidersRouteImport } from './routes/dashboard/$id/settings/providers'
-import { Route as DashboardIdSettingsPersonalizationRouteImport } from './routes/dashboard/$id/settings/personalization'
-import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/dashboard/$id/settings/organization'
-import { Route as DashboardIdSettingsMcpServersRouteImport } from './routes/dashboard/$id/settings/mcp-servers'
-import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs'
-import { Route as DashboardIdSettingsIntegrationsRouteImport } from './routes/dashboard/$id/settings/integrations'
-import { Route as DashboardIdSettingsBrandingRouteImport } from './routes/dashboard/$id/settings/branding'
-import { Route as DashboardIdSettingsApiKeysRouteImport } from './routes/dashboard/$id/settings/api-keys'
-import { Route as DashboardIdSettingsAgentsRouteImport } from './routes/dashboard/$id/settings/agents'
-import { Route as DashboardIdSettingsAccountRouteImport } from './routes/dashboard/$id/settings/account'
-import { Route as DashboardIdConversationsStatusRouteImport } from './routes/dashboard/$id/conversations/$status'
-import { Route as DashboardIdChatThreadIdRouteImport } from './routes/dashboard/$id/chat/$threadId'
-import { Route as DashboardIdAutomationsMetricsRouteImport } from './routes/dashboard/$id/automations/metrics'
-import { Route as DashboardIdAutomationsAmIdRouteImport } from './routes/dashboard/$id/automations/$amId'
-import { Route as DashboardIdAgentsAgentIdRouteImport } from './routes/dashboard/$id/agents/$agentId'
-import { Route as DashboardIdKnowledgeWebsitesRouteImport } from './routes/dashboard/$id/_knowledge/websites'
-import { Route as DashboardIdKnowledgeVendorsRouteImport } from './routes/dashboard/$id/_knowledge/vendors'
-import { Route as DashboardIdKnowledgeProductsRouteImport } from './routes/dashboard/$id/_knowledge/products'
-import { Route as DashboardIdKnowledgeDocumentsRouteImport } from './routes/dashboard/$id/_knowledge/documents'
-import { Route as DashboardIdKnowledgeCustomersRouteImport } from './routes/dashboard/$id/_knowledge/customers'
-import { Route as DashboardIdSettingsGovernanceRouteRouteImport } from './routes/dashboard/$id/settings/governance/route'
-import { Route as DashboardIdSettingsProvidersIndexRouteImport } from './routes/dashboard/$id/settings/providers/index'
-import { Route as DashboardIdSettingsGovernanceIndexRouteImport } from './routes/dashboard/$id/settings/governance/index'
-import { Route as DashboardIdAgentsAgentIdIndexRouteImport } from './routes/dashboard/$id/agents/$agentId/index'
-import { Route as DashboardIdSettingsProvidersProviderNameRouteImport } from './routes/dashboard/$id/settings/providers/$providerName'
-import { Route as DashboardIdSettingsGovernanceUsageRouteImport } from './routes/dashboard/$id/settings/governance/usage'
-import { Route as DashboardIdSettingsGovernanceTrashRouteImport } from './routes/dashboard/$id/settings/governance/trash'
-import { Route as DashboardIdSettingsGovernanceSecurityMonitoringRouteImport } from './routes/dashboard/$id/settings/governance/security-monitoring'
-import { Route as DashboardIdSettingsGovernancePoliciesLimitsRouteImport } from './routes/dashboard/$id/settings/governance/policies-limits'
-import { Route as DashboardIdSettingsGovernanceLegalHoldRouteImport } from './routes/dashboard/$id/settings/governance/legal-hold'
-import { Route as DashboardIdSettingsGovernanceGuardrailsRouteImport } from './routes/dashboard/$id/settings/governance/guardrails'
-import { Route as DashboardIdSettingsGovernanceFeedbackRouteImport } from './routes/dashboard/$id/settings/governance/feedback'
-import { Route as DashboardIdSettingsGovernanceContentModelsRouteImport } from './routes/dashboard/$id/settings/governance/content-models'
-import { Route as DashboardIdChatSharedShareTokenRouteImport } from './routes/dashboard/$id/chat/shared/$shareToken'
-import { Route as DashboardIdAutomationsAmIdTriggersRouteImport } from './routes/dashboard/$id/automations/$amId/triggers'
-import { Route as DashboardIdAutomationsAmIdExecutionsRouteImport } from './routes/dashboard/$id/automations/$amId/executions'
-import { Route as DashboardIdAutomationsAmIdConfigurationRouteImport } from './routes/dashboard/$id/automations/$amId/configuration'
-import { Route as DashboardIdAgentsAgentIdWebhookRouteImport } from './routes/dashboard/$id/agents/$agentId/webhook'
-import { Route as DashboardIdAgentsAgentIdToolsRouteImport } from './routes/dashboard/$id/agents/$agentId/tools'
-import { Route as DashboardIdAgentsAgentIdKnowledgeRouteImport } from './routes/dashboard/$id/agents/$agentId/knowledge'
-import { Route as DashboardIdAgentsAgentIdInstructionsRouteImport } from './routes/dashboard/$id/agents/$agentId/instructions'
-import { Route as DashboardIdAgentsAgentIdDelegationRouteImport } from './routes/dashboard/$id/agents/$agentId/delegation'
-import { Route as DashboardIdAgentsAgentIdConversationStartersRouteImport } from './routes/dashboard/$id/agents/$agentId/conversation-starters'
-import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/route'
-import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/$requestId'
+import { Route as rootRouteImport } from './routes/__root';
+import { Route as DocsRouteImport } from './routes/docs';
+import { Route as DashboardRouteImport } from './routes/dashboard';
+import { Route as ConvexDashboardRouteImport } from './routes/convex-dashboard';
+import { Route as AuthRouteImport } from './routes/_auth';
+import { Route as R2faEnrollRouteImport } from './routes/2fa-enroll';
+import { Route as IndexRouteImport } from './routes/index';
+import { Route as DashboardIndexRouteImport } from './routes/dashboard/index';
+import { Route as ForcedChangePasswordIdRouteImport } from './routes/forced-change-password.$id';
+import { Route as DashboardSwitchingRouteImport } from './routes/dashboard/switching';
+import { Route as DashboardCreateOrganizationRouteImport } from './routes/dashboard/create-organization';
+import { Route as DashboardIdRouteImport } from './routes/dashboard/$id';
+import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up';
+import { Route as AuthLogInRouteImport } from './routes/_auth/log-in';
+import { Route as Auth2faRouteImport } from './routes/_auth/2fa';
+import { Route as DashboardIdIndexRouteImport } from './routes/dashboard/$id/index';
+import { Route as DashboardIdSettingsRouteImport } from './routes/dashboard/$id/settings';
+import { Route as DashboardIdCustomAgentsRouteImport } from './routes/dashboard/$id/custom-agents';
+import { Route as DashboardIdConversationsRouteImport } from './routes/dashboard/$id/conversations';
+import { Route as DashboardIdChatRouteImport } from './routes/dashboard/$id/chat';
+import { Route as DashboardIdAutomationsRouteImport } from './routes/dashboard/$id/automations';
+import { Route as DashboardIdAgentsRouteImport } from './routes/dashboard/$id/agents';
+import { Route as DashboardIdKnowledgeRouteImport } from './routes/dashboard/$id/_knowledge';
+import { Route as DashboardIdSettingsIndexRouteImport } from './routes/dashboard/$id/settings/index';
+import { Route as DashboardIdChatIndexRouteImport } from './routes/dashboard/$id/chat/index';
+import { Route as DashboardIdAutomationsIndexRouteImport } from './routes/dashboard/$id/automations/index';
+import { Route as DashboardIdAgentsIndexRouteImport } from './routes/dashboard/$id/agents/index';
+import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard/$id/settings/teams';
+import { Route as DashboardIdSettingsProvidersRouteImport } from './routes/dashboard/$id/settings/providers';
+import { Route as DashboardIdSettingsPersonalizationRouteImport } from './routes/dashboard/$id/settings/personalization';
+import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/dashboard/$id/settings/organization';
+import { Route as DashboardIdSettingsMcpServersRouteImport } from './routes/dashboard/$id/settings/mcp-servers';
+import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs';
+import { Route as DashboardIdSettingsIntegrationsRouteImport } from './routes/dashboard/$id/settings/integrations';
+import { Route as DashboardIdSettingsBrandingRouteImport } from './routes/dashboard/$id/settings/branding';
+import { Route as DashboardIdSettingsApiKeysRouteImport } from './routes/dashboard/$id/settings/api-keys';
+import { Route as DashboardIdSettingsAgentsRouteImport } from './routes/dashboard/$id/settings/agents';
+import { Route as DashboardIdSettingsAccountRouteImport } from './routes/dashboard/$id/settings/account';
+import { Route as DashboardIdConversationsStatusRouteImport } from './routes/dashboard/$id/conversations/$status';
+import { Route as DashboardIdChatThreadIdRouteImport } from './routes/dashboard/$id/chat/$threadId';
+import { Route as DashboardIdAutomationsMetricsRouteImport } from './routes/dashboard/$id/automations/metrics';
+import { Route as DashboardIdAutomationsAmIdRouteImport } from './routes/dashboard/$id/automations/$amId';
+import { Route as DashboardIdAgentsAgentIdRouteImport } from './routes/dashboard/$id/agents/$agentId';
+import { Route as DashboardIdKnowledgeWebsitesRouteImport } from './routes/dashboard/$id/_knowledge/websites';
+import { Route as DashboardIdKnowledgeVendorsRouteImport } from './routes/dashboard/$id/_knowledge/vendors';
+import { Route as DashboardIdKnowledgeProductsRouteImport } from './routes/dashboard/$id/_knowledge/products';
+import { Route as DashboardIdKnowledgeDocumentsRouteImport } from './routes/dashboard/$id/_knowledge/documents';
+import { Route as DashboardIdKnowledgeCustomersRouteImport } from './routes/dashboard/$id/_knowledge/customers';
+import { Route as DashboardIdSettingsGovernanceRouteRouteImport } from './routes/dashboard/$id/settings/governance/route';
+import { Route as DashboardIdSettingsProvidersIndexRouteImport } from './routes/dashboard/$id/settings/providers/index';
+import { Route as DashboardIdSettingsGovernanceIndexRouteImport } from './routes/dashboard/$id/settings/governance/index';
+import { Route as DashboardIdAgentsAgentIdIndexRouteImport } from './routes/dashboard/$id/agents/$agentId/index';
+import { Route as DashboardIdSettingsProvidersProviderNameRouteImport } from './routes/dashboard/$id/settings/providers/$providerName';
+import { Route as DashboardIdSettingsGovernanceUsageRouteImport } from './routes/dashboard/$id/settings/governance/usage';
+import { Route as DashboardIdSettingsGovernanceTrashRouteImport } from './routes/dashboard/$id/settings/governance/trash';
+import { Route as DashboardIdSettingsGovernanceSecurityMonitoringRouteImport } from './routes/dashboard/$id/settings/governance/security-monitoring';
+import { Route as DashboardIdSettingsGovernancePoliciesLimitsRouteImport } from './routes/dashboard/$id/settings/governance/policies-limits';
+import { Route as DashboardIdSettingsGovernanceLegalHoldRouteImport } from './routes/dashboard/$id/settings/governance/legal-hold';
+import { Route as DashboardIdSettingsGovernanceGuardrailsRouteImport } from './routes/dashboard/$id/settings/governance/guardrails';
+import { Route as DashboardIdSettingsGovernanceFeedbackRouteImport } from './routes/dashboard/$id/settings/governance/feedback';
+import { Route as DashboardIdSettingsGovernanceContentModelsRouteImport } from './routes/dashboard/$id/settings/governance/content-models';
+import { Route as DashboardIdChatSharedShareTokenRouteImport } from './routes/dashboard/$id/chat/shared/$shareToken';
+import { Route as DashboardIdAutomationsAmIdTriggersRouteImport } from './routes/dashboard/$id/automations/$amId/triggers';
+import { Route as DashboardIdAutomationsAmIdExecutionsRouteImport } from './routes/dashboard/$id/automations/$amId/executions';
+import { Route as DashboardIdAutomationsAmIdConfigurationRouteImport } from './routes/dashboard/$id/automations/$amId/configuration';
+import { Route as DashboardIdAgentsAgentIdWebhookRouteImport } from './routes/dashboard/$id/agents/$agentId/webhook';
+import { Route as DashboardIdAgentsAgentIdToolsRouteImport } from './routes/dashboard/$id/agents/$agentId/tools';
+import { Route as DashboardIdAgentsAgentIdKnowledgeRouteImport } from './routes/dashboard/$id/agents/$agentId/knowledge';
+import { Route as DashboardIdAgentsAgentIdInstructionsRouteImport } from './routes/dashboard/$id/agents/$agentId/instructions';
+import { Route as DashboardIdAgentsAgentIdDelegationRouteImport } from './routes/dashboard/$id/agents/$agentId/delegation';
+import { Route as DashboardIdAgentsAgentIdConversationStartersRouteImport } from './routes/dashboard/$id/agents/$agentId/conversation-starters';
+import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/route';
+import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/$requestId';
 
 const DocsRoute = DocsRouteImport.update({
   id: '/docs',
   path: '/docs',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const ConvexDashboardRoute = ConvexDashboardRouteImport.update({
   id: '/convex-dashboard',
   path: '/convex-dashboard',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const R2faEnrollRoute = R2faEnrollRouteImport.update({
   id: '/2fa-enroll',
   path: '/2fa-enroll',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const ForcedChangePasswordIdRoute = ForcedChangePasswordIdRouteImport.update({
   id: '/forced-change-password/$id',
   path: '/forced-change-password/$id',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const DashboardSwitchingRoute = DashboardSwitchingRouteImport.update({
   id: '/switching',
   path: '/switching',
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const DashboardCreateOrganizationRoute =
   DashboardCreateOrganizationRouteImport.update({
     id: '/create-organization',
     path: '/create-organization',
     getParentRoute: () => DashboardRoute,
-  } as any)
+  } as any);
 const DashboardIdRoute = DashboardIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const AuthSignUpRoute = AuthSignUpRouteImport.update({
   id: '/sign-up',
   path: '/sign-up',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any);
 const AuthLogInRoute = AuthLogInRouteImport.update({
   id: '/log-in',
   path: '/log-in',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any);
 const Auth2faRoute = Auth2faRouteImport.update({
   id: '/2fa',
   path: '/2fa',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any);
 const DashboardIdIndexRoute = DashboardIdIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardIdRoute,
-} as any)
+} as any);
 const DashboardIdSettingsRoute = DashboardIdSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => DashboardIdRoute,
-} as any)
+} as any);
 const DashboardIdCustomAgentsRoute = DashboardIdCustomAgentsRouteImport.update({
   id: '/custom-agents',
   path: '/custom-agents',
   getParentRoute: () => DashboardIdRoute,
-} as any)
+} as any);
 const DashboardIdConversationsRoute =
   DashboardIdConversationsRouteImport.update({
     id: '/conversations',
     path: '/conversations',
     getParentRoute: () => DashboardIdRoute,
-  } as any)
+  } as any);
 const DashboardIdChatRoute = DashboardIdChatRouteImport.update({
   id: '/chat',
   path: '/chat',
   getParentRoute: () => DashboardIdRoute,
-} as any)
+} as any);
 const DashboardIdAutomationsRoute = DashboardIdAutomationsRouteImport.update({
   id: '/automations',
   path: '/automations',
   getParentRoute: () => DashboardIdRoute,
-} as any)
+} as any);
 const DashboardIdAgentsRoute = DashboardIdAgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
   getParentRoute: () => DashboardIdRoute,
-} as any)
+} as any);
 const DashboardIdKnowledgeRoute = DashboardIdKnowledgeRouteImport.update({
   id: '/_knowledge',
   getParentRoute: () => DashboardIdRoute,
-} as any)
+} as any);
 const DashboardIdSettingsIndexRoute =
   DashboardIdSettingsIndexRouteImport.update({
     id: '/',
     path: '/',
     getParentRoute: () => DashboardIdSettingsRoute,
-  } as any)
+  } as any);
 const DashboardIdChatIndexRoute = DashboardIdChatIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardIdChatRoute,
-} as any)
+} as any);
 const DashboardIdAutomationsIndexRoute =
   DashboardIdAutomationsIndexRouteImport.update({
     id: '/',
     path: '/',
     getParentRoute: () => DashboardIdAutomationsRoute,
-  } as any)
+  } as any);
 const DashboardIdAgentsIndexRoute = DashboardIdAgentsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardIdAgentsRoute,
-} as any)
+} as any);
 const DashboardIdSettingsTeamsRoute =
   DashboardIdSettingsTeamsRouteImport.update({
     id: '/teams',
     path: '/teams',
     getParentRoute: () => DashboardIdSettingsRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsProvidersRoute =
   DashboardIdSettingsProvidersRouteImport.update({
     id: '/providers',
     path: '/providers',
     getParentRoute: () => DashboardIdSettingsRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsPersonalizationRoute =
   DashboardIdSettingsPersonalizationRouteImport.update({
     id: '/personalization',
     path: '/personalization',
     getParentRoute: () => DashboardIdSettingsRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsOrganizationRoute =
   DashboardIdSettingsOrganizationRouteImport.update({
     id: '/organization',
     path: '/organization',
     getParentRoute: () => DashboardIdSettingsRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsMcpServersRoute =
   DashboardIdSettingsMcpServersRouteImport.update({
     id: '/mcp-servers',
     path: '/mcp-servers',
     getParentRoute: () => DashboardIdSettingsRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsLogsRoute = DashboardIdSettingsLogsRouteImport.update({
   id: '/logs',
   path: '/logs',
   getParentRoute: () => DashboardIdSettingsRoute,
-} as any)
+} as any);
 const DashboardIdSettingsIntegrationsRoute =
   DashboardIdSettingsIntegrationsRouteImport.update({
     id: '/integrations',
     path: '/integrations',
     getParentRoute: () => DashboardIdSettingsRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsBrandingRoute =
   DashboardIdSettingsBrandingRouteImport.update({
     id: '/branding',
     path: '/branding',
     getParentRoute: () => DashboardIdSettingsRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsApiKeysRoute =
   DashboardIdSettingsApiKeysRouteImport.update({
     id: '/api-keys',
     path: '/api-keys',
     getParentRoute: () => DashboardIdSettingsRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsAgentsRoute =
   DashboardIdSettingsAgentsRouteImport.update({
     id: '/agents',
     path: '/agents',
     getParentRoute: () => DashboardIdSettingsRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsAccountRoute =
   DashboardIdSettingsAccountRouteImport.update({
     id: '/account',
     path: '/account',
     getParentRoute: () => DashboardIdSettingsRoute,
-  } as any)
+  } as any);
 const DashboardIdConversationsStatusRoute =
   DashboardIdConversationsStatusRouteImport.update({
     id: '/$status',
     path: '/$status',
     getParentRoute: () => DashboardIdConversationsRoute,
-  } as any)
+  } as any);
 const DashboardIdChatThreadIdRoute = DashboardIdChatThreadIdRouteImport.update({
   id: '/$threadId',
   path: '/$threadId',
   getParentRoute: () => DashboardIdChatRoute,
-} as any)
+} as any);
 const DashboardIdAutomationsMetricsRoute =
   DashboardIdAutomationsMetricsRouteImport.update({
     id: '/metrics',
     path: '/metrics',
     getParentRoute: () => DashboardIdAutomationsRoute,
-  } as any)
+  } as any);
 const DashboardIdAutomationsAmIdRoute =
   DashboardIdAutomationsAmIdRouteImport.update({
     id: '/$amId',
     path: '/$amId',
     getParentRoute: () => DashboardIdAutomationsRoute,
-  } as any)
+  } as any);
 const DashboardIdAgentsAgentIdRoute =
   DashboardIdAgentsAgentIdRouteImport.update({
     id: '/$agentId',
     path: '/$agentId',
     getParentRoute: () => DashboardIdAgentsRoute,
-  } as any)
+  } as any);
 const DashboardIdKnowledgeWebsitesRoute =
   DashboardIdKnowledgeWebsitesRouteImport.update({
     id: '/websites',
     path: '/websites',
     getParentRoute: () => DashboardIdKnowledgeRoute,
-  } as any)
+  } as any);
 const DashboardIdKnowledgeVendorsRoute =
   DashboardIdKnowledgeVendorsRouteImport.update({
     id: '/vendors',
     path: '/vendors',
     getParentRoute: () => DashboardIdKnowledgeRoute,
-  } as any)
+  } as any);
 const DashboardIdKnowledgeProductsRoute =
   DashboardIdKnowledgeProductsRouteImport.update({
     id: '/products',
     path: '/products',
     getParentRoute: () => DashboardIdKnowledgeRoute,
-  } as any)
+  } as any);
 const DashboardIdKnowledgeDocumentsRoute =
   DashboardIdKnowledgeDocumentsRouteImport.update({
     id: '/documents',
     path: '/documents',
     getParentRoute: () => DashboardIdKnowledgeRoute,
-  } as any)
+  } as any);
 const DashboardIdKnowledgeCustomersRoute =
   DashboardIdKnowledgeCustomersRouteImport.update({
     id: '/customers',
     path: '/customers',
     getParentRoute: () => DashboardIdKnowledgeRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsGovernanceRouteRoute =
   DashboardIdSettingsGovernanceRouteRouteImport.update({
     id: '/governance',
     path: '/governance',
     getParentRoute: () => DashboardIdSettingsRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsProvidersIndexRoute =
   DashboardIdSettingsProvidersIndexRouteImport.update({
     id: '/',
     path: '/',
     getParentRoute: () => DashboardIdSettingsProvidersRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsGovernanceIndexRoute =
   DashboardIdSettingsGovernanceIndexRouteImport.update({
     id: '/',
     path: '/',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
-  } as any)
+  } as any);
 const DashboardIdAgentsAgentIdIndexRoute =
   DashboardIdAgentsAgentIdIndexRouteImport.update({
     id: '/',
     path: '/',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsProvidersProviderNameRoute =
   DashboardIdSettingsProvidersProviderNameRouteImport.update({
     id: '/$providerName',
     path: '/$providerName',
     getParentRoute: () => DashboardIdSettingsProvidersRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsGovernanceUsageRoute =
   DashboardIdSettingsGovernanceUsageRouteImport.update({
     id: '/usage',
     path: '/usage',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsGovernanceTrashRoute =
   DashboardIdSettingsGovernanceTrashRouteImport.update({
     id: '/trash',
     path: '/trash',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsGovernanceSecurityMonitoringRoute =
   DashboardIdSettingsGovernanceSecurityMonitoringRouteImport.update({
     id: '/security-monitoring',
     path: '/security-monitoring',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsGovernancePoliciesLimitsRoute =
   DashboardIdSettingsGovernancePoliciesLimitsRouteImport.update({
     id: '/policies-limits',
     path: '/policies-limits',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsGovernanceLegalHoldRoute =
   DashboardIdSettingsGovernanceLegalHoldRouteImport.update({
     id: '/legal-hold',
     path: '/legal-hold',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsGovernanceGuardrailsRoute =
   DashboardIdSettingsGovernanceGuardrailsRouteImport.update({
     id: '/guardrails',
     path: '/guardrails',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsGovernanceFeedbackRoute =
   DashboardIdSettingsGovernanceFeedbackRouteImport.update({
     id: '/feedback',
     path: '/feedback',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsGovernanceContentModelsRoute =
   DashboardIdSettingsGovernanceContentModelsRouteImport.update({
     id: '/content-models',
     path: '/content-models',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
-  } as any)
+  } as any);
 const DashboardIdChatSharedShareTokenRoute =
   DashboardIdChatSharedShareTokenRouteImport.update({
     id: '/shared/$shareToken',
     path: '/shared/$shareToken',
     getParentRoute: () => DashboardIdChatRoute,
-  } as any)
+  } as any);
 const DashboardIdAutomationsAmIdTriggersRoute =
   DashboardIdAutomationsAmIdTriggersRouteImport.update({
     id: '/triggers',
     path: '/triggers',
     getParentRoute: () => DashboardIdAutomationsAmIdRoute,
-  } as any)
+  } as any);
 const DashboardIdAutomationsAmIdExecutionsRoute =
   DashboardIdAutomationsAmIdExecutionsRouteImport.update({
     id: '/executions',
     path: '/executions',
     getParentRoute: () => DashboardIdAutomationsAmIdRoute,
-  } as any)
+  } as any);
 const DashboardIdAutomationsAmIdConfigurationRoute =
   DashboardIdAutomationsAmIdConfigurationRouteImport.update({
     id: '/configuration',
     path: '/configuration',
     getParentRoute: () => DashboardIdAutomationsAmIdRoute,
-  } as any)
+  } as any);
 const DashboardIdAgentsAgentIdWebhookRoute =
   DashboardIdAgentsAgentIdWebhookRouteImport.update({
     id: '/webhook',
     path: '/webhook',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
-  } as any)
+  } as any);
 const DashboardIdAgentsAgentIdToolsRoute =
   DashboardIdAgentsAgentIdToolsRouteImport.update({
     id: '/tools',
     path: '/tools',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
-  } as any)
+  } as any);
 const DashboardIdAgentsAgentIdKnowledgeRoute =
   DashboardIdAgentsAgentIdKnowledgeRouteImport.update({
     id: '/knowledge',
     path: '/knowledge',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
-  } as any)
+  } as any);
 const DashboardIdAgentsAgentIdInstructionsRoute =
   DashboardIdAgentsAgentIdInstructionsRouteImport.update({
     id: '/instructions',
     path: '/instructions',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
-  } as any)
+  } as any);
 const DashboardIdAgentsAgentIdDelegationRoute =
   DashboardIdAgentsAgentIdDelegationRouteImport.update({
     id: '/delegation',
     path: '/delegation',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
-  } as any)
+  } as any);
 const DashboardIdAgentsAgentIdConversationStartersRoute =
   DashboardIdAgentsAgentIdConversationStartersRouteImport.update({
     id: '/conversation-starters',
     path: '/conversation-starters',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute =
   DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteImport.update({
     id: '/data-subject-requests',
     path: '/data-subject-requests',
     getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
-  } as any)
+  } as any);
 const DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute =
   DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRouteImport.update({
     id: '/$requestId',
     path: '/$requestId',
     getParentRoute: () =>
       DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute,
-  } as any)
+  } as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/2fa-enroll': typeof R2faEnrollRoute
-  '/convex-dashboard': typeof ConvexDashboardRoute
-  '/dashboard': typeof DashboardRouteWithChildren
-  '/docs': typeof DocsRoute
-  '/2fa': typeof Auth2faRoute
-  '/log-in': typeof AuthLogInRoute
-  '/sign-up': typeof AuthSignUpRoute
-  '/dashboard/$id': typeof DashboardIdKnowledgeRouteWithChildren
-  '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
-  '/dashboard/switching': typeof DashboardSwitchingRoute
-  '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute
-  '/dashboard/': typeof DashboardIndexRoute
-  '/dashboard/$id/agents': typeof DashboardIdAgentsRouteWithChildren
-  '/dashboard/$id/automations': typeof DashboardIdAutomationsRouteWithChildren
-  '/dashboard/$id/chat': typeof DashboardIdChatRouteWithChildren
-  '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
-  '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute
-  '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren
-  '/dashboard/$id/': typeof DashboardIdIndexRoute
-  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren
-  '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute
-  '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute
-  '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute
-  '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute
-  '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute
-  '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdRouteWithChildren
-  '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren
-  '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute
-  '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
-  '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute
-  '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute
-  '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute
-  '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
-  '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute
-  '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
-  '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
-  '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute
-  '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
-  '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute
-  '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren
-  '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute
-  '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute
-  '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute
-  '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute
-  '/dashboard/$id/settings/': typeof DashboardIdSettingsIndexRoute
-  '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren
-  '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute
-  '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute
-  '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute
-  '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute
-  '/dashboard/$id/agents/$agentId/tools': typeof DashboardIdAgentsAgentIdToolsRoute
-  '/dashboard/$id/agents/$agentId/webhook': typeof DashboardIdAgentsAgentIdWebhookRoute
-  '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
-  '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
-  '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
-  '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute
-  '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute
-  '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute
-  '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute
-  '/dashboard/$id/settings/governance/legal-hold': typeof DashboardIdSettingsGovernanceLegalHoldRoute
-  '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute
-  '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute
-  '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute
-  '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute
-  '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute
-  '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute
-  '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute
-  '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute
-  '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute
+  '/': typeof IndexRoute;
+  '/2fa-enroll': typeof R2faEnrollRoute;
+  '/convex-dashboard': typeof ConvexDashboardRoute;
+  '/dashboard': typeof DashboardRouteWithChildren;
+  '/docs': typeof DocsRoute;
+  '/2fa': typeof Auth2faRoute;
+  '/log-in': typeof AuthLogInRoute;
+  '/sign-up': typeof AuthSignUpRoute;
+  '/dashboard/$id': typeof DashboardIdKnowledgeRouteWithChildren;
+  '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute;
+  '/dashboard/switching': typeof DashboardSwitchingRoute;
+  '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute;
+  '/dashboard/': typeof DashboardIndexRoute;
+  '/dashboard/$id/agents': typeof DashboardIdAgentsRouteWithChildren;
+  '/dashboard/$id/automations': typeof DashboardIdAutomationsRouteWithChildren;
+  '/dashboard/$id/chat': typeof DashboardIdChatRouteWithChildren;
+  '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren;
+  '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute;
+  '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren;
+  '/dashboard/$id/': typeof DashboardIdIndexRoute;
+  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
+  '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute;
+  '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute;
+  '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute;
+  '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute;
+  '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute;
+  '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdRouteWithChildren;
+  '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren;
+  '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute;
+  '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute;
+  '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute;
+  '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute;
+  '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute;
+  '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute;
+  '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute;
+  '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute;
+  '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
+  '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
+  '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
+  '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute;
+  '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren;
+  '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
+  '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute;
+  '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute;
+  '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute;
+  '/dashboard/$id/settings/': typeof DashboardIdSettingsIndexRoute;
+  '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
+  '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute;
+  '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
+  '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute;
+  '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute;
+  '/dashboard/$id/agents/$agentId/tools': typeof DashboardIdAgentsAgentIdToolsRoute;
+  '/dashboard/$id/agents/$agentId/webhook': typeof DashboardIdAgentsAgentIdWebhookRoute;
+  '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute;
+  '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute;
+  '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute;
+  '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
+  '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute;
+  '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute;
+  '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
+  '/dashboard/$id/settings/governance/legal-hold': typeof DashboardIdSettingsGovernanceLegalHoldRoute;
+  '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute;
+  '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
+  '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
+  '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
+  '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
+  '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute;
+  '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute;
+  '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute;
+  '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/2fa-enroll': typeof R2faEnrollRoute
-  '/convex-dashboard': typeof ConvexDashboardRoute
-  '/docs': typeof DocsRoute
-  '/2fa': typeof Auth2faRoute
-  '/log-in': typeof AuthLogInRoute
-  '/sign-up': typeof AuthSignUpRoute
-  '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
-  '/dashboard/switching': typeof DashboardSwitchingRoute
-  '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute
-  '/dashboard': typeof DashboardIndexRoute
-  '/dashboard/$id': typeof DashboardIdIndexRoute
-  '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
-  '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute
-  '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute
-  '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute
-  '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute
-  '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute
-  '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute
-  '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren
-  '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute
-  '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
-  '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute
-  '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute
-  '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute
-  '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
-  '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute
-  '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
-  '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
-  '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute
-  '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
-  '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute
-  '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute
-  '/dashboard/$id/agents': typeof DashboardIdAgentsIndexRoute
-  '/dashboard/$id/automations': typeof DashboardIdAutomationsIndexRoute
-  '/dashboard/$id/chat': typeof DashboardIdChatIndexRoute
-  '/dashboard/$id/settings': typeof DashboardIdSettingsIndexRoute
-  '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren
-  '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute
-  '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute
-  '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute
-  '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute
-  '/dashboard/$id/agents/$agentId/tools': typeof DashboardIdAgentsAgentIdToolsRoute
-  '/dashboard/$id/agents/$agentId/webhook': typeof DashboardIdAgentsAgentIdWebhookRoute
-  '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
-  '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
-  '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
-  '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute
-  '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute
-  '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute
-  '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute
-  '/dashboard/$id/settings/governance/legal-hold': typeof DashboardIdSettingsGovernanceLegalHoldRoute
-  '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute
-  '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute
-  '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute
-  '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute
-  '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute
-  '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdIndexRoute
-  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceIndexRoute
-  '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersIndexRoute
-  '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute
+  '/': typeof IndexRoute;
+  '/2fa-enroll': typeof R2faEnrollRoute;
+  '/convex-dashboard': typeof ConvexDashboardRoute;
+  '/docs': typeof DocsRoute;
+  '/2fa': typeof Auth2faRoute;
+  '/log-in': typeof AuthLogInRoute;
+  '/sign-up': typeof AuthSignUpRoute;
+  '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute;
+  '/dashboard/switching': typeof DashboardSwitchingRoute;
+  '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute;
+  '/dashboard': typeof DashboardIndexRoute;
+  '/dashboard/$id': typeof DashboardIdIndexRoute;
+  '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren;
+  '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute;
+  '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute;
+  '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute;
+  '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute;
+  '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute;
+  '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute;
+  '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren;
+  '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute;
+  '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute;
+  '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute;
+  '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute;
+  '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute;
+  '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute;
+  '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute;
+  '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute;
+  '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
+  '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
+  '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
+  '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute;
+  '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
+  '/dashboard/$id/agents': typeof DashboardIdAgentsIndexRoute;
+  '/dashboard/$id/automations': typeof DashboardIdAutomationsIndexRoute;
+  '/dashboard/$id/chat': typeof DashboardIdChatIndexRoute;
+  '/dashboard/$id/settings': typeof DashboardIdSettingsIndexRoute;
+  '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
+  '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute;
+  '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
+  '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute;
+  '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute;
+  '/dashboard/$id/agents/$agentId/tools': typeof DashboardIdAgentsAgentIdToolsRoute;
+  '/dashboard/$id/agents/$agentId/webhook': typeof DashboardIdAgentsAgentIdWebhookRoute;
+  '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute;
+  '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute;
+  '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute;
+  '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
+  '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute;
+  '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute;
+  '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
+  '/dashboard/$id/settings/governance/legal-hold': typeof DashboardIdSettingsGovernanceLegalHoldRoute;
+  '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute;
+  '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
+  '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
+  '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
+  '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
+  '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdIndexRoute;
+  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceIndexRoute;
+  '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersIndexRoute;
+  '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/2fa-enroll': typeof R2faEnrollRoute
-  '/_auth': typeof AuthRouteWithChildren
-  '/convex-dashboard': typeof ConvexDashboardRoute
-  '/dashboard': typeof DashboardRouteWithChildren
-  '/docs': typeof DocsRoute
-  '/_auth/2fa': typeof Auth2faRoute
-  '/_auth/log-in': typeof AuthLogInRoute
-  '/_auth/sign-up': typeof AuthSignUpRoute
-  '/dashboard/$id': typeof DashboardIdRouteWithChildren
-  '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
-  '/dashboard/switching': typeof DashboardSwitchingRoute
-  '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute
-  '/dashboard/': typeof DashboardIndexRoute
-  '/dashboard/$id/_knowledge': typeof DashboardIdKnowledgeRouteWithChildren
-  '/dashboard/$id/agents': typeof DashboardIdAgentsRouteWithChildren
-  '/dashboard/$id/automations': typeof DashboardIdAutomationsRouteWithChildren
-  '/dashboard/$id/chat': typeof DashboardIdChatRouteWithChildren
-  '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
-  '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute
-  '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren
-  '/dashboard/$id/': typeof DashboardIdIndexRoute
-  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren
-  '/dashboard/$id/_knowledge/customers': typeof DashboardIdKnowledgeCustomersRoute
-  '/dashboard/$id/_knowledge/documents': typeof DashboardIdKnowledgeDocumentsRoute
-  '/dashboard/$id/_knowledge/products': typeof DashboardIdKnowledgeProductsRoute
-  '/dashboard/$id/_knowledge/vendors': typeof DashboardIdKnowledgeVendorsRoute
-  '/dashboard/$id/_knowledge/websites': typeof DashboardIdKnowledgeWebsitesRoute
-  '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdRouteWithChildren
-  '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren
-  '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute
-  '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
-  '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute
-  '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute
-  '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute
-  '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
-  '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute
-  '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
-  '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
-  '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute
-  '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
-  '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute
-  '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren
-  '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute
-  '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute
-  '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute
-  '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute
-  '/dashboard/$id/settings/': typeof DashboardIdSettingsIndexRoute
-  '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren
-  '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute
-  '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute
-  '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute
-  '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute
-  '/dashboard/$id/agents/$agentId/tools': typeof DashboardIdAgentsAgentIdToolsRoute
-  '/dashboard/$id/agents/$agentId/webhook': typeof DashboardIdAgentsAgentIdWebhookRoute
-  '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
-  '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
-  '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
-  '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute
-  '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute
-  '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute
-  '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute
-  '/dashboard/$id/settings/governance/legal-hold': typeof DashboardIdSettingsGovernanceLegalHoldRoute
-  '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute
-  '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute
-  '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute
-  '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute
-  '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute
-  '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute
-  '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute
-  '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute
-  '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute
+  __root__: typeof rootRouteImport;
+  '/': typeof IndexRoute;
+  '/2fa-enroll': typeof R2faEnrollRoute;
+  '/_auth': typeof AuthRouteWithChildren;
+  '/convex-dashboard': typeof ConvexDashboardRoute;
+  '/dashboard': typeof DashboardRouteWithChildren;
+  '/docs': typeof DocsRoute;
+  '/_auth/2fa': typeof Auth2faRoute;
+  '/_auth/log-in': typeof AuthLogInRoute;
+  '/_auth/sign-up': typeof AuthSignUpRoute;
+  '/dashboard/$id': typeof DashboardIdRouteWithChildren;
+  '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute;
+  '/dashboard/switching': typeof DashboardSwitchingRoute;
+  '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute;
+  '/dashboard/': typeof DashboardIndexRoute;
+  '/dashboard/$id/_knowledge': typeof DashboardIdKnowledgeRouteWithChildren;
+  '/dashboard/$id/agents': typeof DashboardIdAgentsRouteWithChildren;
+  '/dashboard/$id/automations': typeof DashboardIdAutomationsRouteWithChildren;
+  '/dashboard/$id/chat': typeof DashboardIdChatRouteWithChildren;
+  '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren;
+  '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute;
+  '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren;
+  '/dashboard/$id/': typeof DashboardIdIndexRoute;
+  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
+  '/dashboard/$id/_knowledge/customers': typeof DashboardIdKnowledgeCustomersRoute;
+  '/dashboard/$id/_knowledge/documents': typeof DashboardIdKnowledgeDocumentsRoute;
+  '/dashboard/$id/_knowledge/products': typeof DashboardIdKnowledgeProductsRoute;
+  '/dashboard/$id/_knowledge/vendors': typeof DashboardIdKnowledgeVendorsRoute;
+  '/dashboard/$id/_knowledge/websites': typeof DashboardIdKnowledgeWebsitesRoute;
+  '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdRouteWithChildren;
+  '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren;
+  '/dashboard/$id/automations/metrics': typeof DashboardIdAutomationsMetricsRoute;
+  '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute;
+  '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute;
+  '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute;
+  '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute;
+  '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute;
+  '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute;
+  '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute;
+  '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
+  '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
+  '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
+  '/dashboard/$id/settings/personalization': typeof DashboardIdSettingsPersonalizationRoute;
+  '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren;
+  '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute;
+  '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute;
+  '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute;
+  '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute;
+  '/dashboard/$id/settings/': typeof DashboardIdSettingsIndexRoute;
+  '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
+  '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute;
+  '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute;
+  '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute;
+  '/dashboard/$id/agents/$agentId/knowledge': typeof DashboardIdAgentsAgentIdKnowledgeRoute;
+  '/dashboard/$id/agents/$agentId/tools': typeof DashboardIdAgentsAgentIdToolsRoute;
+  '/dashboard/$id/agents/$agentId/webhook': typeof DashboardIdAgentsAgentIdWebhookRoute;
+  '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute;
+  '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute;
+  '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute;
+  '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
+  '/dashboard/$id/settings/governance/content-models': typeof DashboardIdSettingsGovernanceContentModelsRoute;
+  '/dashboard/$id/settings/governance/feedback': typeof DashboardIdSettingsGovernanceFeedbackRoute;
+  '/dashboard/$id/settings/governance/guardrails': typeof DashboardIdSettingsGovernanceGuardrailsRoute;
+  '/dashboard/$id/settings/governance/legal-hold': typeof DashboardIdSettingsGovernanceLegalHoldRoute;
+  '/dashboard/$id/settings/governance/policies-limits': typeof DashboardIdSettingsGovernancePoliciesLimitsRoute;
+  '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
+  '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
+  '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
+  '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
+  '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute;
+  '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute;
+  '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute;
+  '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
+  fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | '/'
     | '/2fa-enroll'
@@ -772,8 +772,8 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/$agentId/'
     | '/dashboard/$id/settings/governance/'
     | '/dashboard/$id/settings/providers/'
-    | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
-  fileRoutesByTo: FileRoutesByTo
+    | '/dashboard/$id/settings/governance/data-subject-requests/$requestId';
+  fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
     | '/2fa-enroll'
@@ -835,7 +835,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/$agentId'
     | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/settings/providers'
-    | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
+    | '/dashboard/$id/settings/governance/data-subject-requests/$requestId';
   id:
     | '__root__'
     | '/'
@@ -909,548 +909,548 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/$agentId/'
     | '/dashboard/$id/settings/governance/'
     | '/dashboard/$id/settings/providers/'
-    | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
-  fileRoutesById: FileRoutesById
+    | '/dashboard/$id/settings/governance/data-subject-requests/$requestId';
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  R2faEnrollRoute: typeof R2faEnrollRoute
-  AuthRoute: typeof AuthRouteWithChildren
-  ConvexDashboardRoute: typeof ConvexDashboardRoute
-  DashboardRoute: typeof DashboardRouteWithChildren
-  DocsRoute: typeof DocsRoute
-  ForcedChangePasswordIdRoute: typeof ForcedChangePasswordIdRoute
+  IndexRoute: typeof IndexRoute;
+  R2faEnrollRoute: typeof R2faEnrollRoute;
+  AuthRoute: typeof AuthRouteWithChildren;
+  ConvexDashboardRoute: typeof ConvexDashboardRoute;
+  DashboardRoute: typeof DashboardRouteWithChildren;
+  DocsRoute: typeof DocsRoute;
+  ForcedChangePasswordIdRoute: typeof ForcedChangePasswordIdRoute;
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
     '/docs': {
-      id: '/docs'
-      path: '/docs'
-      fullPath: '/docs'
-      preLoaderRoute: typeof DocsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/docs';
+      path: '/docs';
+      fullPath: '/docs';
+      preLoaderRoute: typeof DocsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/dashboard';
+      path: '/dashboard';
+      fullPath: '/dashboard';
+      preLoaderRoute: typeof DashboardRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/convex-dashboard': {
-      id: '/convex-dashboard'
-      path: '/convex-dashboard'
-      fullPath: '/convex-dashboard'
-      preLoaderRoute: typeof ConvexDashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/convex-dashboard';
+      path: '/convex-dashboard';
+      fullPath: '/convex-dashboard';
+      preLoaderRoute: typeof ConvexDashboardRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/_auth': {
-      id: '/_auth'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/_auth';
+      path: '';
+      fullPath: '/';
+      preLoaderRoute: typeof AuthRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/2fa-enroll': {
-      id: '/2fa-enroll'
-      path: '/2fa-enroll'
-      fullPath: '/2fa-enroll'
-      preLoaderRoute: typeof R2faEnrollRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/2fa-enroll';
+      path: '/2fa-enroll';
+      fullPath: '/2fa-enroll';
+      preLoaderRoute: typeof R2faEnrollRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/';
+      path: '/';
+      fullPath: '/';
+      preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/dashboard/': {
-      id: '/dashboard/'
-      path: '/'
-      fullPath: '/dashboard/'
-      preLoaderRoute: typeof DashboardIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
+      id: '/dashboard/';
+      path: '/';
+      fullPath: '/dashboard/';
+      preLoaderRoute: typeof DashboardIndexRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
     '/forced-change-password/$id': {
-      id: '/forced-change-password/$id'
-      path: '/forced-change-password/$id'
-      fullPath: '/forced-change-password/$id'
-      preLoaderRoute: typeof ForcedChangePasswordIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/forced-change-password/$id';
+      path: '/forced-change-password/$id';
+      fullPath: '/forced-change-password/$id';
+      preLoaderRoute: typeof ForcedChangePasswordIdRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/dashboard/switching': {
-      id: '/dashboard/switching'
-      path: '/switching'
-      fullPath: '/dashboard/switching'
-      preLoaderRoute: typeof DashboardSwitchingRouteImport
-      parentRoute: typeof DashboardRoute
-    }
+      id: '/dashboard/switching';
+      path: '/switching';
+      fullPath: '/dashboard/switching';
+      preLoaderRoute: typeof DashboardSwitchingRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
     '/dashboard/create-organization': {
-      id: '/dashboard/create-organization'
-      path: '/create-organization'
-      fullPath: '/dashboard/create-organization'
-      preLoaderRoute: typeof DashboardCreateOrganizationRouteImport
-      parentRoute: typeof DashboardRoute
-    }
+      id: '/dashboard/create-organization';
+      path: '/create-organization';
+      fullPath: '/dashboard/create-organization';
+      preLoaderRoute: typeof DashboardCreateOrganizationRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
     '/dashboard/$id': {
-      id: '/dashboard/$id'
-      path: '/$id'
-      fullPath: '/dashboard/$id'
-      preLoaderRoute: typeof DashboardIdRouteImport
-      parentRoute: typeof DashboardRoute
-    }
+      id: '/dashboard/$id';
+      path: '/$id';
+      fullPath: '/dashboard/$id';
+      preLoaderRoute: typeof DashboardIdRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
     '/_auth/sign-up': {
-      id: '/_auth/sign-up'
-      path: '/sign-up'
-      fullPath: '/sign-up'
-      preLoaderRoute: typeof AuthSignUpRouteImport
-      parentRoute: typeof AuthRoute
-    }
+      id: '/_auth/sign-up';
+      path: '/sign-up';
+      fullPath: '/sign-up';
+      preLoaderRoute: typeof AuthSignUpRouteImport;
+      parentRoute: typeof AuthRoute;
+    };
     '/_auth/log-in': {
-      id: '/_auth/log-in'
-      path: '/log-in'
-      fullPath: '/log-in'
-      preLoaderRoute: typeof AuthLogInRouteImport
-      parentRoute: typeof AuthRoute
-    }
+      id: '/_auth/log-in';
+      path: '/log-in';
+      fullPath: '/log-in';
+      preLoaderRoute: typeof AuthLogInRouteImport;
+      parentRoute: typeof AuthRoute;
+    };
     '/_auth/2fa': {
-      id: '/_auth/2fa'
-      path: '/2fa'
-      fullPath: '/2fa'
-      preLoaderRoute: typeof Auth2faRouteImport
-      parentRoute: typeof AuthRoute
-    }
+      id: '/_auth/2fa';
+      path: '/2fa';
+      fullPath: '/2fa';
+      preLoaderRoute: typeof Auth2faRouteImport;
+      parentRoute: typeof AuthRoute;
+    };
     '/dashboard/$id/': {
-      id: '/dashboard/$id/'
-      path: '/'
-      fullPath: '/dashboard/$id/'
-      preLoaderRoute: typeof DashboardIdIndexRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
+      id: '/dashboard/$id/';
+      path: '/';
+      fullPath: '/dashboard/$id/';
+      preLoaderRoute: typeof DashboardIdIndexRouteImport;
+      parentRoute: typeof DashboardIdRoute;
+    };
     '/dashboard/$id/settings': {
-      id: '/dashboard/$id/settings'
-      path: '/settings'
-      fullPath: '/dashboard/$id/settings'
-      preLoaderRoute: typeof DashboardIdSettingsRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
+      id: '/dashboard/$id/settings';
+      path: '/settings';
+      fullPath: '/dashboard/$id/settings';
+      preLoaderRoute: typeof DashboardIdSettingsRouteImport;
+      parentRoute: typeof DashboardIdRoute;
+    };
     '/dashboard/$id/custom-agents': {
-      id: '/dashboard/$id/custom-agents'
-      path: '/custom-agents'
-      fullPath: '/dashboard/$id/custom-agents'
-      preLoaderRoute: typeof DashboardIdCustomAgentsRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
+      id: '/dashboard/$id/custom-agents';
+      path: '/custom-agents';
+      fullPath: '/dashboard/$id/custom-agents';
+      preLoaderRoute: typeof DashboardIdCustomAgentsRouteImport;
+      parentRoute: typeof DashboardIdRoute;
+    };
     '/dashboard/$id/conversations': {
-      id: '/dashboard/$id/conversations'
-      path: '/conversations'
-      fullPath: '/dashboard/$id/conversations'
-      preLoaderRoute: typeof DashboardIdConversationsRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
+      id: '/dashboard/$id/conversations';
+      path: '/conversations';
+      fullPath: '/dashboard/$id/conversations';
+      preLoaderRoute: typeof DashboardIdConversationsRouteImport;
+      parentRoute: typeof DashboardIdRoute;
+    };
     '/dashboard/$id/chat': {
-      id: '/dashboard/$id/chat'
-      path: '/chat'
-      fullPath: '/dashboard/$id/chat'
-      preLoaderRoute: typeof DashboardIdChatRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
+      id: '/dashboard/$id/chat';
+      path: '/chat';
+      fullPath: '/dashboard/$id/chat';
+      preLoaderRoute: typeof DashboardIdChatRouteImport;
+      parentRoute: typeof DashboardIdRoute;
+    };
     '/dashboard/$id/automations': {
-      id: '/dashboard/$id/automations'
-      path: '/automations'
-      fullPath: '/dashboard/$id/automations'
-      preLoaderRoute: typeof DashboardIdAutomationsRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
+      id: '/dashboard/$id/automations';
+      path: '/automations';
+      fullPath: '/dashboard/$id/automations';
+      preLoaderRoute: typeof DashboardIdAutomationsRouteImport;
+      parentRoute: typeof DashboardIdRoute;
+    };
     '/dashboard/$id/agents': {
-      id: '/dashboard/$id/agents'
-      path: '/agents'
-      fullPath: '/dashboard/$id/agents'
-      preLoaderRoute: typeof DashboardIdAgentsRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
+      id: '/dashboard/$id/agents';
+      path: '/agents';
+      fullPath: '/dashboard/$id/agents';
+      preLoaderRoute: typeof DashboardIdAgentsRouteImport;
+      parentRoute: typeof DashboardIdRoute;
+    };
     '/dashboard/$id/_knowledge': {
-      id: '/dashboard/$id/_knowledge'
-      path: ''
-      fullPath: '/dashboard/$id'
-      preLoaderRoute: typeof DashboardIdKnowledgeRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
+      id: '/dashboard/$id/_knowledge';
+      path: '';
+      fullPath: '/dashboard/$id';
+      preLoaderRoute: typeof DashboardIdKnowledgeRouteImport;
+      parentRoute: typeof DashboardIdRoute;
+    };
     '/dashboard/$id/settings/': {
-      id: '/dashboard/$id/settings/'
-      path: '/'
-      fullPath: '/dashboard/$id/settings/'
-      preLoaderRoute: typeof DashboardIdSettingsIndexRouteImport
-      parentRoute: typeof DashboardIdSettingsRoute
-    }
+      id: '/dashboard/$id/settings/';
+      path: '/';
+      fullPath: '/dashboard/$id/settings/';
+      preLoaderRoute: typeof DashboardIdSettingsIndexRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/chat/': {
-      id: '/dashboard/$id/chat/'
-      path: '/'
-      fullPath: '/dashboard/$id/chat/'
-      preLoaderRoute: typeof DashboardIdChatIndexRouteImport
-      parentRoute: typeof DashboardIdChatRoute
-    }
+      id: '/dashboard/$id/chat/';
+      path: '/';
+      fullPath: '/dashboard/$id/chat/';
+      preLoaderRoute: typeof DashboardIdChatIndexRouteImport;
+      parentRoute: typeof DashboardIdChatRoute;
+    };
     '/dashboard/$id/automations/': {
-      id: '/dashboard/$id/automations/'
-      path: '/'
-      fullPath: '/dashboard/$id/automations/'
-      preLoaderRoute: typeof DashboardIdAutomationsIndexRouteImport
-      parentRoute: typeof DashboardIdAutomationsRoute
-    }
+      id: '/dashboard/$id/automations/';
+      path: '/';
+      fullPath: '/dashboard/$id/automations/';
+      preLoaderRoute: typeof DashboardIdAutomationsIndexRouteImport;
+      parentRoute: typeof DashboardIdAutomationsRoute;
+    };
     '/dashboard/$id/agents/': {
-      id: '/dashboard/$id/agents/'
-      path: '/'
-      fullPath: '/dashboard/$id/agents/'
-      preLoaderRoute: typeof DashboardIdAgentsIndexRouteImport
-      parentRoute: typeof DashboardIdAgentsRoute
-    }
+      id: '/dashboard/$id/agents/';
+      path: '/';
+      fullPath: '/dashboard/$id/agents/';
+      preLoaderRoute: typeof DashboardIdAgentsIndexRouteImport;
+      parentRoute: typeof DashboardIdAgentsRoute;
+    };
     '/dashboard/$id/settings/teams': {
-      id: '/dashboard/$id/settings/teams'
-      path: '/teams'
-      fullPath: '/dashboard/$id/settings/teams'
-      preLoaderRoute: typeof DashboardIdSettingsTeamsRouteImport
-      parentRoute: typeof DashboardIdSettingsRoute
-    }
+      id: '/dashboard/$id/settings/teams';
+      path: '/teams';
+      fullPath: '/dashboard/$id/settings/teams';
+      preLoaderRoute: typeof DashboardIdSettingsTeamsRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/settings/providers': {
-      id: '/dashboard/$id/settings/providers'
-      path: '/providers'
-      fullPath: '/dashboard/$id/settings/providers'
-      preLoaderRoute: typeof DashboardIdSettingsProvidersRouteImport
-      parentRoute: typeof DashboardIdSettingsRoute
-    }
+      id: '/dashboard/$id/settings/providers';
+      path: '/providers';
+      fullPath: '/dashboard/$id/settings/providers';
+      preLoaderRoute: typeof DashboardIdSettingsProvidersRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/settings/personalization': {
-      id: '/dashboard/$id/settings/personalization'
-      path: '/personalization'
-      fullPath: '/dashboard/$id/settings/personalization'
-      preLoaderRoute: typeof DashboardIdSettingsPersonalizationRouteImport
-      parentRoute: typeof DashboardIdSettingsRoute
-    }
+      id: '/dashboard/$id/settings/personalization';
+      path: '/personalization';
+      fullPath: '/dashboard/$id/settings/personalization';
+      preLoaderRoute: typeof DashboardIdSettingsPersonalizationRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/settings/organization': {
-      id: '/dashboard/$id/settings/organization'
-      path: '/organization'
-      fullPath: '/dashboard/$id/settings/organization'
-      preLoaderRoute: typeof DashboardIdSettingsOrganizationRouteImport
-      parentRoute: typeof DashboardIdSettingsRoute
-    }
+      id: '/dashboard/$id/settings/organization';
+      path: '/organization';
+      fullPath: '/dashboard/$id/settings/organization';
+      preLoaderRoute: typeof DashboardIdSettingsOrganizationRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/settings/mcp-servers': {
-      id: '/dashboard/$id/settings/mcp-servers'
-      path: '/mcp-servers'
-      fullPath: '/dashboard/$id/settings/mcp-servers'
-      preLoaderRoute: typeof DashboardIdSettingsMcpServersRouteImport
-      parentRoute: typeof DashboardIdSettingsRoute
-    }
+      id: '/dashboard/$id/settings/mcp-servers';
+      path: '/mcp-servers';
+      fullPath: '/dashboard/$id/settings/mcp-servers';
+      preLoaderRoute: typeof DashboardIdSettingsMcpServersRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/settings/logs': {
-      id: '/dashboard/$id/settings/logs'
-      path: '/logs'
-      fullPath: '/dashboard/$id/settings/logs'
-      preLoaderRoute: typeof DashboardIdSettingsLogsRouteImport
-      parentRoute: typeof DashboardIdSettingsRoute
-    }
+      id: '/dashboard/$id/settings/logs';
+      path: '/logs';
+      fullPath: '/dashboard/$id/settings/logs';
+      preLoaderRoute: typeof DashboardIdSettingsLogsRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/settings/integrations': {
-      id: '/dashboard/$id/settings/integrations'
-      path: '/integrations'
-      fullPath: '/dashboard/$id/settings/integrations'
-      preLoaderRoute: typeof DashboardIdSettingsIntegrationsRouteImport
-      parentRoute: typeof DashboardIdSettingsRoute
-    }
+      id: '/dashboard/$id/settings/integrations';
+      path: '/integrations';
+      fullPath: '/dashboard/$id/settings/integrations';
+      preLoaderRoute: typeof DashboardIdSettingsIntegrationsRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/settings/branding': {
-      id: '/dashboard/$id/settings/branding'
-      path: '/branding'
-      fullPath: '/dashboard/$id/settings/branding'
-      preLoaderRoute: typeof DashboardIdSettingsBrandingRouteImport
-      parentRoute: typeof DashboardIdSettingsRoute
-    }
+      id: '/dashboard/$id/settings/branding';
+      path: '/branding';
+      fullPath: '/dashboard/$id/settings/branding';
+      preLoaderRoute: typeof DashboardIdSettingsBrandingRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/settings/api-keys': {
-      id: '/dashboard/$id/settings/api-keys'
-      path: '/api-keys'
-      fullPath: '/dashboard/$id/settings/api-keys'
-      preLoaderRoute: typeof DashboardIdSettingsApiKeysRouteImport
-      parentRoute: typeof DashboardIdSettingsRoute
-    }
+      id: '/dashboard/$id/settings/api-keys';
+      path: '/api-keys';
+      fullPath: '/dashboard/$id/settings/api-keys';
+      preLoaderRoute: typeof DashboardIdSettingsApiKeysRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/settings/agents': {
-      id: '/dashboard/$id/settings/agents'
-      path: '/agents'
-      fullPath: '/dashboard/$id/settings/agents'
-      preLoaderRoute: typeof DashboardIdSettingsAgentsRouteImport
-      parentRoute: typeof DashboardIdSettingsRoute
-    }
+      id: '/dashboard/$id/settings/agents';
+      path: '/agents';
+      fullPath: '/dashboard/$id/settings/agents';
+      preLoaderRoute: typeof DashboardIdSettingsAgentsRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/settings/account': {
-      id: '/dashboard/$id/settings/account'
-      path: '/account'
-      fullPath: '/dashboard/$id/settings/account'
-      preLoaderRoute: typeof DashboardIdSettingsAccountRouteImport
-      parentRoute: typeof DashboardIdSettingsRoute
-    }
+      id: '/dashboard/$id/settings/account';
+      path: '/account';
+      fullPath: '/dashboard/$id/settings/account';
+      preLoaderRoute: typeof DashboardIdSettingsAccountRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/conversations/$status': {
-      id: '/dashboard/$id/conversations/$status'
-      path: '/$status'
-      fullPath: '/dashboard/$id/conversations/$status'
-      preLoaderRoute: typeof DashboardIdConversationsStatusRouteImport
-      parentRoute: typeof DashboardIdConversationsRoute
-    }
+      id: '/dashboard/$id/conversations/$status';
+      path: '/$status';
+      fullPath: '/dashboard/$id/conversations/$status';
+      preLoaderRoute: typeof DashboardIdConversationsStatusRouteImport;
+      parentRoute: typeof DashboardIdConversationsRoute;
+    };
     '/dashboard/$id/chat/$threadId': {
-      id: '/dashboard/$id/chat/$threadId'
-      path: '/$threadId'
-      fullPath: '/dashboard/$id/chat/$threadId'
-      preLoaderRoute: typeof DashboardIdChatThreadIdRouteImport
-      parentRoute: typeof DashboardIdChatRoute
-    }
+      id: '/dashboard/$id/chat/$threadId';
+      path: '/$threadId';
+      fullPath: '/dashboard/$id/chat/$threadId';
+      preLoaderRoute: typeof DashboardIdChatThreadIdRouteImport;
+      parentRoute: typeof DashboardIdChatRoute;
+    };
     '/dashboard/$id/automations/metrics': {
-      id: '/dashboard/$id/automations/metrics'
-      path: '/metrics'
-      fullPath: '/dashboard/$id/automations/metrics'
-      preLoaderRoute: typeof DashboardIdAutomationsMetricsRouteImport
-      parentRoute: typeof DashboardIdAutomationsRoute
-    }
+      id: '/dashboard/$id/automations/metrics';
+      path: '/metrics';
+      fullPath: '/dashboard/$id/automations/metrics';
+      preLoaderRoute: typeof DashboardIdAutomationsMetricsRouteImport;
+      parentRoute: typeof DashboardIdAutomationsRoute;
+    };
     '/dashboard/$id/automations/$amId': {
-      id: '/dashboard/$id/automations/$amId'
-      path: '/$amId'
-      fullPath: '/dashboard/$id/automations/$amId'
-      preLoaderRoute: typeof DashboardIdAutomationsAmIdRouteImport
-      parentRoute: typeof DashboardIdAutomationsRoute
-    }
+      id: '/dashboard/$id/automations/$amId';
+      path: '/$amId';
+      fullPath: '/dashboard/$id/automations/$amId';
+      preLoaderRoute: typeof DashboardIdAutomationsAmIdRouteImport;
+      parentRoute: typeof DashboardIdAutomationsRoute;
+    };
     '/dashboard/$id/agents/$agentId': {
-      id: '/dashboard/$id/agents/$agentId'
-      path: '/$agentId'
-      fullPath: '/dashboard/$id/agents/$agentId'
-      preLoaderRoute: typeof DashboardIdAgentsAgentIdRouteImport
-      parentRoute: typeof DashboardIdAgentsRoute
-    }
+      id: '/dashboard/$id/agents/$agentId';
+      path: '/$agentId';
+      fullPath: '/dashboard/$id/agents/$agentId';
+      preLoaderRoute: typeof DashboardIdAgentsAgentIdRouteImport;
+      parentRoute: typeof DashboardIdAgentsRoute;
+    };
     '/dashboard/$id/_knowledge/websites': {
-      id: '/dashboard/$id/_knowledge/websites'
-      path: '/websites'
-      fullPath: '/dashboard/$id/websites'
-      preLoaderRoute: typeof DashboardIdKnowledgeWebsitesRouteImport
-      parentRoute: typeof DashboardIdKnowledgeRoute
-    }
+      id: '/dashboard/$id/_knowledge/websites';
+      path: '/websites';
+      fullPath: '/dashboard/$id/websites';
+      preLoaderRoute: typeof DashboardIdKnowledgeWebsitesRouteImport;
+      parentRoute: typeof DashboardIdKnowledgeRoute;
+    };
     '/dashboard/$id/_knowledge/vendors': {
-      id: '/dashboard/$id/_knowledge/vendors'
-      path: '/vendors'
-      fullPath: '/dashboard/$id/vendors'
-      preLoaderRoute: typeof DashboardIdKnowledgeVendorsRouteImport
-      parentRoute: typeof DashboardIdKnowledgeRoute
-    }
+      id: '/dashboard/$id/_knowledge/vendors';
+      path: '/vendors';
+      fullPath: '/dashboard/$id/vendors';
+      preLoaderRoute: typeof DashboardIdKnowledgeVendorsRouteImport;
+      parentRoute: typeof DashboardIdKnowledgeRoute;
+    };
     '/dashboard/$id/_knowledge/products': {
-      id: '/dashboard/$id/_knowledge/products'
-      path: '/products'
-      fullPath: '/dashboard/$id/products'
-      preLoaderRoute: typeof DashboardIdKnowledgeProductsRouteImport
-      parentRoute: typeof DashboardIdKnowledgeRoute
-    }
+      id: '/dashboard/$id/_knowledge/products';
+      path: '/products';
+      fullPath: '/dashboard/$id/products';
+      preLoaderRoute: typeof DashboardIdKnowledgeProductsRouteImport;
+      parentRoute: typeof DashboardIdKnowledgeRoute;
+    };
     '/dashboard/$id/_knowledge/documents': {
-      id: '/dashboard/$id/_knowledge/documents'
-      path: '/documents'
-      fullPath: '/dashboard/$id/documents'
-      preLoaderRoute: typeof DashboardIdKnowledgeDocumentsRouteImport
-      parentRoute: typeof DashboardIdKnowledgeRoute
-    }
+      id: '/dashboard/$id/_knowledge/documents';
+      path: '/documents';
+      fullPath: '/dashboard/$id/documents';
+      preLoaderRoute: typeof DashboardIdKnowledgeDocumentsRouteImport;
+      parentRoute: typeof DashboardIdKnowledgeRoute;
+    };
     '/dashboard/$id/_knowledge/customers': {
-      id: '/dashboard/$id/_knowledge/customers'
-      path: '/customers'
-      fullPath: '/dashboard/$id/customers'
-      preLoaderRoute: typeof DashboardIdKnowledgeCustomersRouteImport
-      parentRoute: typeof DashboardIdKnowledgeRoute
-    }
+      id: '/dashboard/$id/_knowledge/customers';
+      path: '/customers';
+      fullPath: '/dashboard/$id/customers';
+      preLoaderRoute: typeof DashboardIdKnowledgeCustomersRouteImport;
+      parentRoute: typeof DashboardIdKnowledgeRoute;
+    };
     '/dashboard/$id/settings/governance': {
-      id: '/dashboard/$id/settings/governance'
-      path: '/governance'
-      fullPath: '/dashboard/$id/settings/governance'
-      preLoaderRoute: typeof DashboardIdSettingsGovernanceRouteRouteImport
-      parentRoute: typeof DashboardIdSettingsRoute
-    }
+      id: '/dashboard/$id/settings/governance';
+      path: '/governance';
+      fullPath: '/dashboard/$id/settings/governance';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceRouteRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/settings/providers/': {
-      id: '/dashboard/$id/settings/providers/'
-      path: '/'
-      fullPath: '/dashboard/$id/settings/providers/'
-      preLoaderRoute: typeof DashboardIdSettingsProvidersIndexRouteImport
-      parentRoute: typeof DashboardIdSettingsProvidersRoute
-    }
+      id: '/dashboard/$id/settings/providers/';
+      path: '/';
+      fullPath: '/dashboard/$id/settings/providers/';
+      preLoaderRoute: typeof DashboardIdSettingsProvidersIndexRouteImport;
+      parentRoute: typeof DashboardIdSettingsProvidersRoute;
+    };
     '/dashboard/$id/settings/governance/': {
-      id: '/dashboard/$id/settings/governance/'
-      path: '/'
-      fullPath: '/dashboard/$id/settings/governance/'
-      preLoaderRoute: typeof DashboardIdSettingsGovernanceIndexRouteImport
-      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
-    }
+      id: '/dashboard/$id/settings/governance/';
+      path: '/';
+      fullPath: '/dashboard/$id/settings/governance/';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceIndexRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
+    };
     '/dashboard/$id/agents/$agentId/': {
-      id: '/dashboard/$id/agents/$agentId/'
-      path: '/'
-      fullPath: '/dashboard/$id/agents/$agentId/'
-      preLoaderRoute: typeof DashboardIdAgentsAgentIdIndexRouteImport
-      parentRoute: typeof DashboardIdAgentsAgentIdRoute
-    }
+      id: '/dashboard/$id/agents/$agentId/';
+      path: '/';
+      fullPath: '/dashboard/$id/agents/$agentId/';
+      preLoaderRoute: typeof DashboardIdAgentsAgentIdIndexRouteImport;
+      parentRoute: typeof DashboardIdAgentsAgentIdRoute;
+    };
     '/dashboard/$id/settings/providers/$providerName': {
-      id: '/dashboard/$id/settings/providers/$providerName'
-      path: '/$providerName'
-      fullPath: '/dashboard/$id/settings/providers/$providerName'
-      preLoaderRoute: typeof DashboardIdSettingsProvidersProviderNameRouteImport
-      parentRoute: typeof DashboardIdSettingsProvidersRoute
-    }
+      id: '/dashboard/$id/settings/providers/$providerName';
+      path: '/$providerName';
+      fullPath: '/dashboard/$id/settings/providers/$providerName';
+      preLoaderRoute: typeof DashboardIdSettingsProvidersProviderNameRouteImport;
+      parentRoute: typeof DashboardIdSettingsProvidersRoute;
+    };
     '/dashboard/$id/settings/governance/usage': {
-      id: '/dashboard/$id/settings/governance/usage'
-      path: '/usage'
-      fullPath: '/dashboard/$id/settings/governance/usage'
-      preLoaderRoute: typeof DashboardIdSettingsGovernanceUsageRouteImport
-      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
-    }
+      id: '/dashboard/$id/settings/governance/usage';
+      path: '/usage';
+      fullPath: '/dashboard/$id/settings/governance/usage';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceUsageRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
+    };
     '/dashboard/$id/settings/governance/trash': {
-      id: '/dashboard/$id/settings/governance/trash'
-      path: '/trash'
-      fullPath: '/dashboard/$id/settings/governance/trash'
-      preLoaderRoute: typeof DashboardIdSettingsGovernanceTrashRouteImport
-      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
-    }
+      id: '/dashboard/$id/settings/governance/trash';
+      path: '/trash';
+      fullPath: '/dashboard/$id/settings/governance/trash';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceTrashRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
+    };
     '/dashboard/$id/settings/governance/security-monitoring': {
-      id: '/dashboard/$id/settings/governance/security-monitoring'
-      path: '/security-monitoring'
-      fullPath: '/dashboard/$id/settings/governance/security-monitoring'
-      preLoaderRoute: typeof DashboardIdSettingsGovernanceSecurityMonitoringRouteImport
-      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
-    }
+      id: '/dashboard/$id/settings/governance/security-monitoring';
+      path: '/security-monitoring';
+      fullPath: '/dashboard/$id/settings/governance/security-monitoring';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceSecurityMonitoringRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
+    };
     '/dashboard/$id/settings/governance/policies-limits': {
-      id: '/dashboard/$id/settings/governance/policies-limits'
-      path: '/policies-limits'
-      fullPath: '/dashboard/$id/settings/governance/policies-limits'
-      preLoaderRoute: typeof DashboardIdSettingsGovernancePoliciesLimitsRouteImport
-      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
-    }
+      id: '/dashboard/$id/settings/governance/policies-limits';
+      path: '/policies-limits';
+      fullPath: '/dashboard/$id/settings/governance/policies-limits';
+      preLoaderRoute: typeof DashboardIdSettingsGovernancePoliciesLimitsRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
+    };
     '/dashboard/$id/settings/governance/legal-hold': {
-      id: '/dashboard/$id/settings/governance/legal-hold'
-      path: '/legal-hold'
-      fullPath: '/dashboard/$id/settings/governance/legal-hold'
-      preLoaderRoute: typeof DashboardIdSettingsGovernanceLegalHoldRouteImport
-      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
-    }
+      id: '/dashboard/$id/settings/governance/legal-hold';
+      path: '/legal-hold';
+      fullPath: '/dashboard/$id/settings/governance/legal-hold';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceLegalHoldRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
+    };
     '/dashboard/$id/settings/governance/guardrails': {
-      id: '/dashboard/$id/settings/governance/guardrails'
-      path: '/guardrails'
-      fullPath: '/dashboard/$id/settings/governance/guardrails'
-      preLoaderRoute: typeof DashboardIdSettingsGovernanceGuardrailsRouteImport
-      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
-    }
+      id: '/dashboard/$id/settings/governance/guardrails';
+      path: '/guardrails';
+      fullPath: '/dashboard/$id/settings/governance/guardrails';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceGuardrailsRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
+    };
     '/dashboard/$id/settings/governance/feedback': {
-      id: '/dashboard/$id/settings/governance/feedback'
-      path: '/feedback'
-      fullPath: '/dashboard/$id/settings/governance/feedback'
-      preLoaderRoute: typeof DashboardIdSettingsGovernanceFeedbackRouteImport
-      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
-    }
+      id: '/dashboard/$id/settings/governance/feedback';
+      path: '/feedback';
+      fullPath: '/dashboard/$id/settings/governance/feedback';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceFeedbackRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
+    };
     '/dashboard/$id/settings/governance/content-models': {
-      id: '/dashboard/$id/settings/governance/content-models'
-      path: '/content-models'
-      fullPath: '/dashboard/$id/settings/governance/content-models'
-      preLoaderRoute: typeof DashboardIdSettingsGovernanceContentModelsRouteImport
-      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
-    }
+      id: '/dashboard/$id/settings/governance/content-models';
+      path: '/content-models';
+      fullPath: '/dashboard/$id/settings/governance/content-models';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceContentModelsRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
+    };
     '/dashboard/$id/chat/shared/$shareToken': {
-      id: '/dashboard/$id/chat/shared/$shareToken'
-      path: '/shared/$shareToken'
-      fullPath: '/dashboard/$id/chat/shared/$shareToken'
-      preLoaderRoute: typeof DashboardIdChatSharedShareTokenRouteImport
-      parentRoute: typeof DashboardIdChatRoute
-    }
+      id: '/dashboard/$id/chat/shared/$shareToken';
+      path: '/shared/$shareToken';
+      fullPath: '/dashboard/$id/chat/shared/$shareToken';
+      preLoaderRoute: typeof DashboardIdChatSharedShareTokenRouteImport;
+      parentRoute: typeof DashboardIdChatRoute;
+    };
     '/dashboard/$id/automations/$amId/triggers': {
-      id: '/dashboard/$id/automations/$amId/triggers'
-      path: '/triggers'
-      fullPath: '/dashboard/$id/automations/$amId/triggers'
-      preLoaderRoute: typeof DashboardIdAutomationsAmIdTriggersRouteImport
-      parentRoute: typeof DashboardIdAutomationsAmIdRoute
-    }
+      id: '/dashboard/$id/automations/$amId/triggers';
+      path: '/triggers';
+      fullPath: '/dashboard/$id/automations/$amId/triggers';
+      preLoaderRoute: typeof DashboardIdAutomationsAmIdTriggersRouteImport;
+      parentRoute: typeof DashboardIdAutomationsAmIdRoute;
+    };
     '/dashboard/$id/automations/$amId/executions': {
-      id: '/dashboard/$id/automations/$amId/executions'
-      path: '/executions'
-      fullPath: '/dashboard/$id/automations/$amId/executions'
-      preLoaderRoute: typeof DashboardIdAutomationsAmIdExecutionsRouteImport
-      parentRoute: typeof DashboardIdAutomationsAmIdRoute
-    }
+      id: '/dashboard/$id/automations/$amId/executions';
+      path: '/executions';
+      fullPath: '/dashboard/$id/automations/$amId/executions';
+      preLoaderRoute: typeof DashboardIdAutomationsAmIdExecutionsRouteImport;
+      parentRoute: typeof DashboardIdAutomationsAmIdRoute;
+    };
     '/dashboard/$id/automations/$amId/configuration': {
-      id: '/dashboard/$id/automations/$amId/configuration'
-      path: '/configuration'
-      fullPath: '/dashboard/$id/automations/$amId/configuration'
-      preLoaderRoute: typeof DashboardIdAutomationsAmIdConfigurationRouteImport
-      parentRoute: typeof DashboardIdAutomationsAmIdRoute
-    }
+      id: '/dashboard/$id/automations/$amId/configuration';
+      path: '/configuration';
+      fullPath: '/dashboard/$id/automations/$amId/configuration';
+      preLoaderRoute: typeof DashboardIdAutomationsAmIdConfigurationRouteImport;
+      parentRoute: typeof DashboardIdAutomationsAmIdRoute;
+    };
     '/dashboard/$id/agents/$agentId/webhook': {
-      id: '/dashboard/$id/agents/$agentId/webhook'
-      path: '/webhook'
-      fullPath: '/dashboard/$id/agents/$agentId/webhook'
-      preLoaderRoute: typeof DashboardIdAgentsAgentIdWebhookRouteImport
-      parentRoute: typeof DashboardIdAgentsAgentIdRoute
-    }
+      id: '/dashboard/$id/agents/$agentId/webhook';
+      path: '/webhook';
+      fullPath: '/dashboard/$id/agents/$agentId/webhook';
+      preLoaderRoute: typeof DashboardIdAgentsAgentIdWebhookRouteImport;
+      parentRoute: typeof DashboardIdAgentsAgentIdRoute;
+    };
     '/dashboard/$id/agents/$agentId/tools': {
-      id: '/dashboard/$id/agents/$agentId/tools'
-      path: '/tools'
-      fullPath: '/dashboard/$id/agents/$agentId/tools'
-      preLoaderRoute: typeof DashboardIdAgentsAgentIdToolsRouteImport
-      parentRoute: typeof DashboardIdAgentsAgentIdRoute
-    }
+      id: '/dashboard/$id/agents/$agentId/tools';
+      path: '/tools';
+      fullPath: '/dashboard/$id/agents/$agentId/tools';
+      preLoaderRoute: typeof DashboardIdAgentsAgentIdToolsRouteImport;
+      parentRoute: typeof DashboardIdAgentsAgentIdRoute;
+    };
     '/dashboard/$id/agents/$agentId/knowledge': {
-      id: '/dashboard/$id/agents/$agentId/knowledge'
-      path: '/knowledge'
-      fullPath: '/dashboard/$id/agents/$agentId/knowledge'
-      preLoaderRoute: typeof DashboardIdAgentsAgentIdKnowledgeRouteImport
-      parentRoute: typeof DashboardIdAgentsAgentIdRoute
-    }
+      id: '/dashboard/$id/agents/$agentId/knowledge';
+      path: '/knowledge';
+      fullPath: '/dashboard/$id/agents/$agentId/knowledge';
+      preLoaderRoute: typeof DashboardIdAgentsAgentIdKnowledgeRouteImport;
+      parentRoute: typeof DashboardIdAgentsAgentIdRoute;
+    };
     '/dashboard/$id/agents/$agentId/instructions': {
-      id: '/dashboard/$id/agents/$agentId/instructions'
-      path: '/instructions'
-      fullPath: '/dashboard/$id/agents/$agentId/instructions'
-      preLoaderRoute: typeof DashboardIdAgentsAgentIdInstructionsRouteImport
-      parentRoute: typeof DashboardIdAgentsAgentIdRoute
-    }
+      id: '/dashboard/$id/agents/$agentId/instructions';
+      path: '/instructions';
+      fullPath: '/dashboard/$id/agents/$agentId/instructions';
+      preLoaderRoute: typeof DashboardIdAgentsAgentIdInstructionsRouteImport;
+      parentRoute: typeof DashboardIdAgentsAgentIdRoute;
+    };
     '/dashboard/$id/agents/$agentId/delegation': {
-      id: '/dashboard/$id/agents/$agentId/delegation'
-      path: '/delegation'
-      fullPath: '/dashboard/$id/agents/$agentId/delegation'
-      preLoaderRoute: typeof DashboardIdAgentsAgentIdDelegationRouteImport
-      parentRoute: typeof DashboardIdAgentsAgentIdRoute
-    }
+      id: '/dashboard/$id/agents/$agentId/delegation';
+      path: '/delegation';
+      fullPath: '/dashboard/$id/agents/$agentId/delegation';
+      preLoaderRoute: typeof DashboardIdAgentsAgentIdDelegationRouteImport;
+      parentRoute: typeof DashboardIdAgentsAgentIdRoute;
+    };
     '/dashboard/$id/agents/$agentId/conversation-starters': {
-      id: '/dashboard/$id/agents/$agentId/conversation-starters'
-      path: '/conversation-starters'
-      fullPath: '/dashboard/$id/agents/$agentId/conversation-starters'
-      preLoaderRoute: typeof DashboardIdAgentsAgentIdConversationStartersRouteImport
-      parentRoute: typeof DashboardIdAgentsAgentIdRoute
-    }
+      id: '/dashboard/$id/agents/$agentId/conversation-starters';
+      path: '/conversation-starters';
+      fullPath: '/dashboard/$id/agents/$agentId/conversation-starters';
+      preLoaderRoute: typeof DashboardIdAgentsAgentIdConversationStartersRouteImport;
+      parentRoute: typeof DashboardIdAgentsAgentIdRoute;
+    };
     '/dashboard/$id/settings/governance/data-subject-requests': {
-      id: '/dashboard/$id/settings/governance/data-subject-requests'
-      path: '/data-subject-requests'
-      fullPath: '/dashboard/$id/settings/governance/data-subject-requests'
-      preLoaderRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteImport
-      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
-    }
+      id: '/dashboard/$id/settings/governance/data-subject-requests';
+      path: '/data-subject-requests';
+      fullPath: '/dashboard/$id/settings/governance/data-subject-requests';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute;
+    };
     '/dashboard/$id/settings/governance/data-subject-requests/$requestId': {
-      id: '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
-      path: '/$requestId'
-      fullPath: '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
-      preLoaderRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRouteImport
-      parentRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute
-    }
+      id: '/dashboard/$id/settings/governance/data-subject-requests/$requestId';
+      path: '/$requestId';
+      fullPath: '/dashboard/$id/settings/governance/data-subject-requests/$requestId';
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRouteImport;
+      parentRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute;
+    };
   }
 }
 
 interface AuthRouteChildren {
-  Auth2faRoute: typeof Auth2faRoute
-  AuthLogInRoute: typeof AuthLogInRoute
-  AuthSignUpRoute: typeof AuthSignUpRoute
+  Auth2faRoute: typeof Auth2faRoute;
+  AuthLogInRoute: typeof AuthLogInRoute;
+  AuthSignUpRoute: typeof AuthSignUpRoute;
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
   Auth2faRoute: Auth2faRoute,
   AuthLogInRoute: AuthLogInRoute,
   AuthSignUpRoute: AuthSignUpRoute,
-}
+};
 
-const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren);
 
 interface DashboardIdKnowledgeRouteChildren {
-  DashboardIdKnowledgeCustomersRoute: typeof DashboardIdKnowledgeCustomersRoute
-  DashboardIdKnowledgeDocumentsRoute: typeof DashboardIdKnowledgeDocumentsRoute
-  DashboardIdKnowledgeProductsRoute: typeof DashboardIdKnowledgeProductsRoute
-  DashboardIdKnowledgeVendorsRoute: typeof DashboardIdKnowledgeVendorsRoute
-  DashboardIdKnowledgeWebsitesRoute: typeof DashboardIdKnowledgeWebsitesRoute
+  DashboardIdKnowledgeCustomersRoute: typeof DashboardIdKnowledgeCustomersRoute;
+  DashboardIdKnowledgeDocumentsRoute: typeof DashboardIdKnowledgeDocumentsRoute;
+  DashboardIdKnowledgeProductsRoute: typeof DashboardIdKnowledgeProductsRoute;
+  DashboardIdKnowledgeVendorsRoute: typeof DashboardIdKnowledgeVendorsRoute;
+  DashboardIdKnowledgeWebsitesRoute: typeof DashboardIdKnowledgeWebsitesRoute;
 }
 
 const DashboardIdKnowledgeRouteChildren: DashboardIdKnowledgeRouteChildren = {
@@ -1459,19 +1459,19 @@ const DashboardIdKnowledgeRouteChildren: DashboardIdKnowledgeRouteChildren = {
   DashboardIdKnowledgeProductsRoute: DashboardIdKnowledgeProductsRoute,
   DashboardIdKnowledgeVendorsRoute: DashboardIdKnowledgeVendorsRoute,
   DashboardIdKnowledgeWebsitesRoute: DashboardIdKnowledgeWebsitesRoute,
-}
+};
 
 const DashboardIdKnowledgeRouteWithChildren =
-  DashboardIdKnowledgeRoute._addFileChildren(DashboardIdKnowledgeRouteChildren)
+  DashboardIdKnowledgeRoute._addFileChildren(DashboardIdKnowledgeRouteChildren);
 
 interface DashboardIdAgentsAgentIdRouteChildren {
-  DashboardIdAgentsAgentIdConversationStartersRoute: typeof DashboardIdAgentsAgentIdConversationStartersRoute
-  DashboardIdAgentsAgentIdDelegationRoute: typeof DashboardIdAgentsAgentIdDelegationRoute
-  DashboardIdAgentsAgentIdInstructionsRoute: typeof DashboardIdAgentsAgentIdInstructionsRoute
-  DashboardIdAgentsAgentIdKnowledgeRoute: typeof DashboardIdAgentsAgentIdKnowledgeRoute
-  DashboardIdAgentsAgentIdToolsRoute: typeof DashboardIdAgentsAgentIdToolsRoute
-  DashboardIdAgentsAgentIdWebhookRoute: typeof DashboardIdAgentsAgentIdWebhookRoute
-  DashboardIdAgentsAgentIdIndexRoute: typeof DashboardIdAgentsAgentIdIndexRoute
+  DashboardIdAgentsAgentIdConversationStartersRoute: typeof DashboardIdAgentsAgentIdConversationStartersRoute;
+  DashboardIdAgentsAgentIdDelegationRoute: typeof DashboardIdAgentsAgentIdDelegationRoute;
+  DashboardIdAgentsAgentIdInstructionsRoute: typeof DashboardIdAgentsAgentIdInstructionsRoute;
+  DashboardIdAgentsAgentIdKnowledgeRoute: typeof DashboardIdAgentsAgentIdKnowledgeRoute;
+  DashboardIdAgentsAgentIdToolsRoute: typeof DashboardIdAgentsAgentIdToolsRoute;
+  DashboardIdAgentsAgentIdWebhookRoute: typeof DashboardIdAgentsAgentIdWebhookRoute;
+  DashboardIdAgentsAgentIdIndexRoute: typeof DashboardIdAgentsAgentIdIndexRoute;
 }
 
 const DashboardIdAgentsAgentIdRouteChildren: DashboardIdAgentsAgentIdRouteChildren =
@@ -1487,30 +1487,30 @@ const DashboardIdAgentsAgentIdRouteChildren: DashboardIdAgentsAgentIdRouteChildr
     DashboardIdAgentsAgentIdToolsRoute: DashboardIdAgentsAgentIdToolsRoute,
     DashboardIdAgentsAgentIdWebhookRoute: DashboardIdAgentsAgentIdWebhookRoute,
     DashboardIdAgentsAgentIdIndexRoute: DashboardIdAgentsAgentIdIndexRoute,
-  }
+  };
 
 const DashboardIdAgentsAgentIdRouteWithChildren =
   DashboardIdAgentsAgentIdRoute._addFileChildren(
     DashboardIdAgentsAgentIdRouteChildren,
-  )
+  );
 
 interface DashboardIdAgentsRouteChildren {
-  DashboardIdAgentsAgentIdRoute: typeof DashboardIdAgentsAgentIdRouteWithChildren
-  DashboardIdAgentsIndexRoute: typeof DashboardIdAgentsIndexRoute
+  DashboardIdAgentsAgentIdRoute: typeof DashboardIdAgentsAgentIdRouteWithChildren;
+  DashboardIdAgentsIndexRoute: typeof DashboardIdAgentsIndexRoute;
 }
 
 const DashboardIdAgentsRouteChildren: DashboardIdAgentsRouteChildren = {
   DashboardIdAgentsAgentIdRoute: DashboardIdAgentsAgentIdRouteWithChildren,
   DashboardIdAgentsIndexRoute: DashboardIdAgentsIndexRoute,
-}
+};
 
 const DashboardIdAgentsRouteWithChildren =
-  DashboardIdAgentsRoute._addFileChildren(DashboardIdAgentsRouteChildren)
+  DashboardIdAgentsRoute._addFileChildren(DashboardIdAgentsRouteChildren);
 
 interface DashboardIdAutomationsAmIdRouteChildren {
-  DashboardIdAutomationsAmIdConfigurationRoute: typeof DashboardIdAutomationsAmIdConfigurationRoute
-  DashboardIdAutomationsAmIdExecutionsRoute: typeof DashboardIdAutomationsAmIdExecutionsRoute
-  DashboardIdAutomationsAmIdTriggersRoute: typeof DashboardIdAutomationsAmIdTriggersRoute
+  DashboardIdAutomationsAmIdConfigurationRoute: typeof DashboardIdAutomationsAmIdConfigurationRoute;
+  DashboardIdAutomationsAmIdExecutionsRoute: typeof DashboardIdAutomationsAmIdExecutionsRoute;
+  DashboardIdAutomationsAmIdTriggersRoute: typeof DashboardIdAutomationsAmIdTriggersRoute;
 }
 
 const DashboardIdAutomationsAmIdRouteChildren: DashboardIdAutomationsAmIdRouteChildren =
@@ -1521,17 +1521,17 @@ const DashboardIdAutomationsAmIdRouteChildren: DashboardIdAutomationsAmIdRouteCh
       DashboardIdAutomationsAmIdExecutionsRoute,
     DashboardIdAutomationsAmIdTriggersRoute:
       DashboardIdAutomationsAmIdTriggersRoute,
-  }
+  };
 
 const DashboardIdAutomationsAmIdRouteWithChildren =
   DashboardIdAutomationsAmIdRoute._addFileChildren(
     DashboardIdAutomationsAmIdRouteChildren,
-  )
+  );
 
 interface DashboardIdAutomationsRouteChildren {
-  DashboardIdAutomationsAmIdRoute: typeof DashboardIdAutomationsAmIdRouteWithChildren
-  DashboardIdAutomationsMetricsRoute: typeof DashboardIdAutomationsMetricsRoute
-  DashboardIdAutomationsIndexRoute: typeof DashboardIdAutomationsIndexRoute
+  DashboardIdAutomationsAmIdRoute: typeof DashboardIdAutomationsAmIdRouteWithChildren;
+  DashboardIdAutomationsMetricsRoute: typeof DashboardIdAutomationsMetricsRoute;
+  DashboardIdAutomationsIndexRoute: typeof DashboardIdAutomationsIndexRoute;
 }
 
 const DashboardIdAutomationsRouteChildren: DashboardIdAutomationsRouteChildren =
@@ -1540,69 +1540,69 @@ const DashboardIdAutomationsRouteChildren: DashboardIdAutomationsRouteChildren =
       DashboardIdAutomationsAmIdRouteWithChildren,
     DashboardIdAutomationsMetricsRoute: DashboardIdAutomationsMetricsRoute,
     DashboardIdAutomationsIndexRoute: DashboardIdAutomationsIndexRoute,
-  }
+  };
 
 const DashboardIdAutomationsRouteWithChildren =
   DashboardIdAutomationsRoute._addFileChildren(
     DashboardIdAutomationsRouteChildren,
-  )
+  );
 
 interface DashboardIdChatRouteChildren {
-  DashboardIdChatThreadIdRoute: typeof DashboardIdChatThreadIdRoute
-  DashboardIdChatIndexRoute: typeof DashboardIdChatIndexRoute
-  DashboardIdChatSharedShareTokenRoute: typeof DashboardIdChatSharedShareTokenRoute
+  DashboardIdChatThreadIdRoute: typeof DashboardIdChatThreadIdRoute;
+  DashboardIdChatIndexRoute: typeof DashboardIdChatIndexRoute;
+  DashboardIdChatSharedShareTokenRoute: typeof DashboardIdChatSharedShareTokenRoute;
 }
 
 const DashboardIdChatRouteChildren: DashboardIdChatRouteChildren = {
   DashboardIdChatThreadIdRoute: DashboardIdChatThreadIdRoute,
   DashboardIdChatIndexRoute: DashboardIdChatIndexRoute,
   DashboardIdChatSharedShareTokenRoute: DashboardIdChatSharedShareTokenRoute,
-}
+};
 
 const DashboardIdChatRouteWithChildren = DashboardIdChatRoute._addFileChildren(
   DashboardIdChatRouteChildren,
-)
+);
 
 interface DashboardIdConversationsRouteChildren {
-  DashboardIdConversationsStatusRoute: typeof DashboardIdConversationsStatusRoute
+  DashboardIdConversationsStatusRoute: typeof DashboardIdConversationsStatusRoute;
 }
 
 const DashboardIdConversationsRouteChildren: DashboardIdConversationsRouteChildren =
   {
     DashboardIdConversationsStatusRoute: DashboardIdConversationsStatusRoute,
-  }
+  };
 
 const DashboardIdConversationsRouteWithChildren =
   DashboardIdConversationsRoute._addFileChildren(
     DashboardIdConversationsRouteChildren,
-  )
+  );
 
 interface DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteChildren {
-  DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute
+  DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute;
 }
 
 const DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteChildren: DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteChildren =
   {
     DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute:
       DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute,
-  }
+  };
 
 const DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren =
   DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute._addFileChildren(
     DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteChildren,
-  )
+  );
 
 interface DashboardIdSettingsGovernanceRouteRouteChildren {
-  DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren
-  DashboardIdSettingsGovernanceContentModelsRoute: typeof DashboardIdSettingsGovernanceContentModelsRoute
-  DashboardIdSettingsGovernanceFeedbackRoute: typeof DashboardIdSettingsGovernanceFeedbackRoute
-  DashboardIdSettingsGovernanceGuardrailsRoute: typeof DashboardIdSettingsGovernanceGuardrailsRoute
-  DashboardIdSettingsGovernanceLegalHoldRoute: typeof DashboardIdSettingsGovernanceLegalHoldRoute
-  DashboardIdSettingsGovernancePoliciesLimitsRoute: typeof DashboardIdSettingsGovernancePoliciesLimitsRoute
-  DashboardIdSettingsGovernanceSecurityMonitoringRoute: typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute
-  DashboardIdSettingsGovernanceTrashRoute: typeof DashboardIdSettingsGovernanceTrashRoute
-  DashboardIdSettingsGovernanceUsageRoute: typeof DashboardIdSettingsGovernanceUsageRoute
-  DashboardIdSettingsGovernanceIndexRoute: typeof DashboardIdSettingsGovernanceIndexRoute
+  DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
+  DashboardIdSettingsGovernanceContentModelsRoute: typeof DashboardIdSettingsGovernanceContentModelsRoute;
+  DashboardIdSettingsGovernanceFeedbackRoute: typeof DashboardIdSettingsGovernanceFeedbackRoute;
+  DashboardIdSettingsGovernanceGuardrailsRoute: typeof DashboardIdSettingsGovernanceGuardrailsRoute;
+  DashboardIdSettingsGovernanceLegalHoldRoute: typeof DashboardIdSettingsGovernanceLegalHoldRoute;
+  DashboardIdSettingsGovernancePoliciesLimitsRoute: typeof DashboardIdSettingsGovernancePoliciesLimitsRoute;
+  DashboardIdSettingsGovernanceSecurityMonitoringRoute: typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
+  DashboardIdSettingsGovernanceTrashRoute: typeof DashboardIdSettingsGovernanceTrashRoute;
+  DashboardIdSettingsGovernanceUsageRoute: typeof DashboardIdSettingsGovernanceUsageRoute;
+  DashboardIdSettingsGovernanceIndexRoute: typeof DashboardIdSettingsGovernanceIndexRoute;
 }
 
 const DashboardIdSettingsGovernanceRouteRouteChildren: DashboardIdSettingsGovernanceRouteRouteChildren =
@@ -1627,16 +1627,16 @@ const DashboardIdSettingsGovernanceRouteRouteChildren: DashboardIdSettingsGovern
       DashboardIdSettingsGovernanceUsageRoute,
     DashboardIdSettingsGovernanceIndexRoute:
       DashboardIdSettingsGovernanceIndexRoute,
-  }
+  };
 
 const DashboardIdSettingsGovernanceRouteRouteWithChildren =
   DashboardIdSettingsGovernanceRouteRoute._addFileChildren(
     DashboardIdSettingsGovernanceRouteRouteChildren,
-  )
+  );
 
 interface DashboardIdSettingsProvidersRouteChildren {
-  DashboardIdSettingsProvidersProviderNameRoute: typeof DashboardIdSettingsProvidersProviderNameRoute
-  DashboardIdSettingsProvidersIndexRoute: typeof DashboardIdSettingsProvidersIndexRoute
+  DashboardIdSettingsProvidersProviderNameRoute: typeof DashboardIdSettingsProvidersProviderNameRoute;
+  DashboardIdSettingsProvidersIndexRoute: typeof DashboardIdSettingsProvidersIndexRoute;
 }
 
 const DashboardIdSettingsProvidersRouteChildren: DashboardIdSettingsProvidersRouteChildren =
@@ -1645,27 +1645,27 @@ const DashboardIdSettingsProvidersRouteChildren: DashboardIdSettingsProvidersRou
       DashboardIdSettingsProvidersProviderNameRoute,
     DashboardIdSettingsProvidersIndexRoute:
       DashboardIdSettingsProvidersIndexRoute,
-  }
+  };
 
 const DashboardIdSettingsProvidersRouteWithChildren =
   DashboardIdSettingsProvidersRoute._addFileChildren(
     DashboardIdSettingsProvidersRouteChildren,
-  )
+  );
 
 interface DashboardIdSettingsRouteChildren {
-  DashboardIdSettingsGovernanceRouteRoute: typeof DashboardIdSettingsGovernanceRouteRouteWithChildren
-  DashboardIdSettingsAccountRoute: typeof DashboardIdSettingsAccountRoute
-  DashboardIdSettingsAgentsRoute: typeof DashboardIdSettingsAgentsRoute
-  DashboardIdSettingsApiKeysRoute: typeof DashboardIdSettingsApiKeysRoute
-  DashboardIdSettingsBrandingRoute: typeof DashboardIdSettingsBrandingRoute
-  DashboardIdSettingsIntegrationsRoute: typeof DashboardIdSettingsIntegrationsRoute
-  DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute
-  DashboardIdSettingsMcpServersRoute: typeof DashboardIdSettingsMcpServersRoute
-  DashboardIdSettingsOrganizationRoute: typeof DashboardIdSettingsOrganizationRoute
-  DashboardIdSettingsPersonalizationRoute: typeof DashboardIdSettingsPersonalizationRoute
-  DashboardIdSettingsProvidersRoute: typeof DashboardIdSettingsProvidersRouteWithChildren
-  DashboardIdSettingsTeamsRoute: typeof DashboardIdSettingsTeamsRoute
-  DashboardIdSettingsIndexRoute: typeof DashboardIdSettingsIndexRoute
+  DashboardIdSettingsGovernanceRouteRoute: typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
+  DashboardIdSettingsAccountRoute: typeof DashboardIdSettingsAccountRoute;
+  DashboardIdSettingsAgentsRoute: typeof DashboardIdSettingsAgentsRoute;
+  DashboardIdSettingsApiKeysRoute: typeof DashboardIdSettingsApiKeysRoute;
+  DashboardIdSettingsBrandingRoute: typeof DashboardIdSettingsBrandingRoute;
+  DashboardIdSettingsIntegrationsRoute: typeof DashboardIdSettingsIntegrationsRoute;
+  DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute;
+  DashboardIdSettingsMcpServersRoute: typeof DashboardIdSettingsMcpServersRoute;
+  DashboardIdSettingsOrganizationRoute: typeof DashboardIdSettingsOrganizationRoute;
+  DashboardIdSettingsPersonalizationRoute: typeof DashboardIdSettingsPersonalizationRoute;
+  DashboardIdSettingsProvidersRoute: typeof DashboardIdSettingsProvidersRouteWithChildren;
+  DashboardIdSettingsTeamsRoute: typeof DashboardIdSettingsTeamsRoute;
+  DashboardIdSettingsIndexRoute: typeof DashboardIdSettingsIndexRoute;
 }
 
 const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
@@ -1685,20 +1685,20 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
     DashboardIdSettingsProvidersRouteWithChildren,
   DashboardIdSettingsTeamsRoute: DashboardIdSettingsTeamsRoute,
   DashboardIdSettingsIndexRoute: DashboardIdSettingsIndexRoute,
-}
+};
 
 const DashboardIdSettingsRouteWithChildren =
-  DashboardIdSettingsRoute._addFileChildren(DashboardIdSettingsRouteChildren)
+  DashboardIdSettingsRoute._addFileChildren(DashboardIdSettingsRouteChildren);
 
 interface DashboardIdRouteChildren {
-  DashboardIdKnowledgeRoute: typeof DashboardIdKnowledgeRouteWithChildren
-  DashboardIdAgentsRoute: typeof DashboardIdAgentsRouteWithChildren
-  DashboardIdAutomationsRoute: typeof DashboardIdAutomationsRouteWithChildren
-  DashboardIdChatRoute: typeof DashboardIdChatRouteWithChildren
-  DashboardIdConversationsRoute: typeof DashboardIdConversationsRouteWithChildren
-  DashboardIdCustomAgentsRoute: typeof DashboardIdCustomAgentsRoute
-  DashboardIdSettingsRoute: typeof DashboardIdSettingsRouteWithChildren
-  DashboardIdIndexRoute: typeof DashboardIdIndexRoute
+  DashboardIdKnowledgeRoute: typeof DashboardIdKnowledgeRouteWithChildren;
+  DashboardIdAgentsRoute: typeof DashboardIdAgentsRouteWithChildren;
+  DashboardIdAutomationsRoute: typeof DashboardIdAutomationsRouteWithChildren;
+  DashboardIdChatRoute: typeof DashboardIdChatRouteWithChildren;
+  DashboardIdConversationsRoute: typeof DashboardIdConversationsRouteWithChildren;
+  DashboardIdCustomAgentsRoute: typeof DashboardIdCustomAgentsRoute;
+  DashboardIdSettingsRoute: typeof DashboardIdSettingsRouteWithChildren;
+  DashboardIdIndexRoute: typeof DashboardIdIndexRoute;
 }
 
 const DashboardIdRouteChildren: DashboardIdRouteChildren = {
@@ -1710,17 +1710,17 @@ const DashboardIdRouteChildren: DashboardIdRouteChildren = {
   DashboardIdCustomAgentsRoute: DashboardIdCustomAgentsRoute,
   DashboardIdSettingsRoute: DashboardIdSettingsRouteWithChildren,
   DashboardIdIndexRoute: DashboardIdIndexRoute,
-}
+};
 
 const DashboardIdRouteWithChildren = DashboardIdRoute._addFileChildren(
   DashboardIdRouteChildren,
-)
+);
 
 interface DashboardRouteChildren {
-  DashboardIdRoute: typeof DashboardIdRouteWithChildren
-  DashboardCreateOrganizationRoute: typeof DashboardCreateOrganizationRoute
-  DashboardSwitchingRoute: typeof DashboardSwitchingRoute
-  DashboardIndexRoute: typeof DashboardIndexRoute
+  DashboardIdRoute: typeof DashboardIdRouteWithChildren;
+  DashboardCreateOrganizationRoute: typeof DashboardCreateOrganizationRoute;
+  DashboardSwitchingRoute: typeof DashboardSwitchingRoute;
+  DashboardIndexRoute: typeof DashboardIndexRoute;
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
@@ -1728,11 +1728,11 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardCreateOrganizationRoute: DashboardCreateOrganizationRoute,
   DashboardSwitchingRoute: DashboardSwitchingRoute,
   DashboardIndexRoute: DashboardIndexRoute,
-}
+};
 
 const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
   DashboardRouteChildren,
-)
+);
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -1742,7 +1742,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRouteWithChildren,
   DocsRoute: DocsRoute,
   ForcedChangePasswordIdRoute: ForcedChangePasswordIdRoute,
-}
+};
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();
