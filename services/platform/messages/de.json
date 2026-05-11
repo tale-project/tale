@@ -3787,7 +3787,8 @@
       "trash": "Papierkorb",
       "guardrails": "Guardrails",
       "usage": "Nutzung",
-      "feedback": "Feedback"
+      "feedback": "Feedback",
+      "dataSubjectRequests": "Anfragen betroffener Personen"
     },
     "trash": {
       "title": "Papierkorb",
@@ -4059,6 +4060,251 @@
       "removeDefaultConfirmTitle": "Berechtigung für aktives Standardmodell entfernen?",
       "removeDefaultConfirmBody": "Folgende Standardmodell-Regel(n) verwenden Modelle, die nicht mehr erlaubt wären: {rules}. Betroffene Benutzer weichen auf ein anderes erlaubtes Modell aus.",
       "removeDefaultConfirmAction": "Trotzdem speichern"
+    },
+    "dataSubjectRequests": {
+      "title": "Anfragen betroffener Personen",
+      "description": "DSGVO Art. 17 Löschungsbelege. Neue Anfragen einreichen, Fristen überwachen und Art. 12(3)-Verlängerungen gewähren, wenn komplexe Fälle mehr Zeit brauchen.",
+      "accessDenied": "Nur Administratoren.",
+      "filters": {
+        "statusTitle": "Status"
+      },
+      "sections": {
+        "requestsList": {
+          "title": "Anfragen",
+          "empty": {
+            "title": "Noch keine Löschungsanfragen",
+            "description": "Reiche oben eine Anfrage ein, um einen Art.-17-Beleg zu erfassen."
+          }
+        }
+      },
+      "columns": {
+        "status": "Status",
+        "sla": "Frist",
+        "target": "Person",
+        "reasonCode": "Rechtsgrund",
+        "requestedBy": "Eingereicht von",
+        "requestedAt": "Eingereicht"
+      },
+      "status": {
+        "pending": "Offen",
+        "pendingCoolingOff": "Offen · noch {hours, plural, one {# Std.} other {# Std.}} bis zur Ausführung",
+        "pendingAwaitingApproval": "Wartet auf Freigabe",
+        "running": "Läuft",
+        "done": "Abgeschlossen",
+        "partial": "Teilweise",
+        "failed": "Fehlgeschlagen",
+        "blocked": "Blockiert",
+        "cancelled": "Abgebrochen"
+      },
+      "slaBadge": {
+        "daysLeft": "noch {days}T",
+        "daysLeftOne": "noch 1T",
+        "overdue": "Überfällig {days}T",
+        "terminal": "—"
+      },
+      "reasonCodes": {
+        "consent_withdrawn": {
+          "label": "Einwilligung widerrufen"
+        },
+        "no_longer_necessary": {
+          "label": "Nicht mehr erforderlich"
+        },
+        "unlawful_processing": {
+          "label": "Unrechtmäßige Verarbeitung"
+        },
+        "legal_obligation": {
+          "label": "Rechtliche Verpflichtung"
+        },
+        "objection": {
+          "label": "Widerspruch der Person"
+        },
+        "child": {
+          "label": "Minderjährige Person"
+        },
+        "contract_termination": {
+          "label": "Vertragsbeendigung"
+        }
+      },
+      "actions": {
+        "fileRequest": "Anfrage einreichen",
+        "extendDeadline": "Frist verlängern",
+        "retry": "Erneut versuchen",
+        "cancel": "Anfrage abbrechen"
+      },
+      "drawer": {
+        "description": "Beleg mit Audit-Verlauf.",
+        "headerTitle": "Löschungsbeleg",
+        "subjectSection": "Person und Anfrage",
+        "countersSection": "Zähler",
+        "auditSection": "Audit-Verlauf",
+        "auditEmpty": "Noch keine Audit-Einträge.",
+        "reasonNarrative": "Begründung",
+        "slaDeadline": "Frist",
+        "extensionGrantedTitle": "Verlängerung gewährt von {name}",
+        "threadsErased": "Gelöschte Konversationen",
+        "threadsSkippedByHold": "Durch Legal Hold übersprungene Konversationen",
+        "threadsBlockedByHold": "Durch Legal Hold blockierte Konversationen",
+        "documentsBlockedByHold": "Durch Legal Hold blockierte Dokumente",
+        "ragDocumentsRemoved": "Aus RAG entfernte Dokumente",
+        "documentsErased": "Gelöschte Dokumente",
+        "documentsSkippedByHold": "Durch Legal Hold übersprungene Dokumente",
+        "wfExecutionsErased": "Gelöschte Workflow-Ausführungen",
+        "promptTemplatesErased": "Gelöschte persönliche Prompts",
+        "startedAt": "Gestartet",
+        "completedAt": "Abgeschlossen",
+        "errorMessage": "Fehler",
+        "errorState": {
+          "title": "Diese Anfrage konnte nicht geladen werden",
+          "description": "Der Beleg wurde möglicherweise gelöscht oder du hast keinen Zugriff darauf.",
+          "retry": "Erneut versuchen"
+        },
+        "coolingOffBanner": {
+          "title": "Karenzzeit läuft",
+          "description": "Diese Anfrage befindet sich in einer Karenzzeit, bevor die Kaskade läuft. Jeder Admin kann sie vor Ablauf abbrechen."
+        },
+        "cancelledBlock": {
+          "title": "Abgebrochen",
+          "attribution": "Abgebrochen von {name}"
+        },
+        "fullBreakdownTitle": "Vollständige Aufschlüsselung über alle Datenkategorien",
+        "fullBreakdownEntry": "{rows, plural, =0 {0 gelöscht} one {# gelöscht} other {# gelöscht}}{skippedByHold, plural, =0 {} other { · # durch Legal Hold übersprungen}}",
+        "fullBreakdownNoData": "Keine Daten in {count, plural, one {# weiteren Kategorie} other {# weiteren Kategorien}}."
+      },
+      "auditActions": {
+        "gdpr_erasure_requested": "Eingereicht",
+        "gdpr_erasure_denied": "Abgelehnt",
+        "gdpr_erasure_blocked_by_hold": "Durch Legal Hold blockiert",
+        "gdpr_erasure_executed": "Ausgeführt",
+        "gdpr_erasure_watchdog_failed": "Zeitüberschreitung (Watchdog)",
+        "gdpr_erasure_late_finalize_dropped": "Verspäteter Abschluss ignoriert",
+        "gdpr_erasure_cascade_attempts_exhausted": "Kaskaden-Versuche erschöpft",
+        "gdpr_erasure_extended": "Frist verlängert",
+        "gdpr_erasure_retried": "Wiederholt",
+        "gdpr_erasure_cancelled": "Abgebrochen"
+      },
+      "categories": {
+        "userMemories": "Persönliche Memos",
+        "userPreferences": "Nutzereinstellungen",
+        "messageFeedback": "Nachrichten-Feedback",
+        "fileMetadata": "Im Chat hochgeladene Dateien",
+        "usageLedger": "Token-Verbrauchsbuch",
+        "twoFactorAttempts": "2FA-Versuche",
+        "policyAcknowledgements": "Richtlinien-Bestätigungen",
+        "onedrive": "OneDrive-Sync-Konfigurationen",
+        "loginAttempts": "Login-Versuche und Sperren",
+        "notifications": "Sicherheitsbenachrichtigungen",
+        "wfExecutions": "Workflow-Ausführungen",
+        "promptTemplates": "Persönliche Prompts"
+      },
+      "legalHoldBlock": {
+        "title": "Löschung durch Legal Hold blockiert",
+        "orgHeld": "Ein organisationsweiter Legal Hold bewahrt jede Entität in diesem Tenant. Hebe ihn auf, bevor du es erneut versuchst.",
+        "userCustodianHeld": "Die Person steht unter einem Custodian-Legal-Hold. Hebe ihn auf, bevor du es erneut versuchst.",
+        "generic": "Ein aktiver Legal Hold bewahrt die Daten der Person.",
+        "threadsCount": "{count, plural, one {# bewahrte Konversation} other {# bewahrte Konversationen}}.",
+        "documentsCount": "{count, plural, one {# bewahrtes Dokument} other {# bewahrte Dokumente}}.",
+        "openLegalHold": "Legal-Hold-Einstellungen öffnen",
+        "openLegalHoldAria": "Legal-Hold-Einstellungen öffnen"
+      },
+      "dialogs": {
+        "fileRequest": {
+          "title": "Löschungsanfrage einreichen",
+          "description": "Erfasst einen Art.-17-Beleg für die ausgewählte Person und führt die Kaskade asynchron aus. Die Identitätsprüfung liegt beim einreichenden Admin — bestätige die Identität über euren Prozess, bevor du fortfährst.",
+          "userPickerLabel": "Person",
+          "userPickerPlaceholder": "Nach Name oder E-Mail suchen",
+          "userPickerEmpty": "Keine passenden Mitglieder.",
+          "reasonCodeLabel": "Rechtsgrund",
+          "reasonCodeDescription": "DSGVO Art. 17(1)(a)–(f) plus operativer Vertragsbeendigungs-Grund.",
+          "reasonLabel": "Begründung",
+          "reasonPlaceholder": "z. B. Person hat Einwilligung am 2026-05-08 widerrufen — HR-Ticket #4711",
+          "confirmLabel": "Tippe {phrase} zur Bestätigung",
+          "confirmDescription": "Für jede Löschungsanfrage erforderlich. Der Absende-Button bleibt deaktiviert, bis der Text exakt übereinstimmt.",
+          "submit": "Anfrage einreichen"
+        },
+        "extendDeadline": {
+          "title": "Art.-12(3)-Frist verlängern",
+          "description": "Bis zu 60 Tage zum Antwortfenster hinzufügen. Die Verlängerung selbst muss innerhalb des ursprünglichen Monats begründet mitgeteilt werden (Art. 12(3)). Jede Anfrage kann höchstens einmal verlängert werden.",
+          "extraDaysLabel": "Zusätzliche Tage ({min}–{max})",
+          "extraDaysDescription": "Ganze Tage zusätzlich zur ursprünglichen 30-Tage-Frist.",
+          "extraDaysError": "Gib eine ganze Zahl zwischen {min} und {max} ein.",
+          "extensionReasonLabel": "Verlängerungsgrund",
+          "extensionReasonPlaceholder": "z. B. grenzüberschreitende rechtliche Prüfung — Anwalt bittet um zwei zusätzliche Wochen",
+          "submit": "Verlängerung gewähren"
+        },
+        "retry": {
+          "title": "Löschung erneut versuchen",
+          "description": "Führt die Kaskade für diese Anfrage erneut aus. Nutze dies nach Aufhebung einer Sperre oder nach Behebung der vorherigen Fehlerursache.",
+          "confirm": "Erneut versuchen"
+        },
+        "cancel": {
+          "title": "Löschungsanfrage abbrechen",
+          "description": "Bricht diese Anfrage vor der Ausführung ab. Der Beleg bleibt als Nachweis des Abbruchs erhalten, es werden aber keine Daten gelöscht. Ein Abbruch ist nur während der Karenzzeit möglich.",
+          "reasonLabel": "Abbruchgrund",
+          "reasonPlaceholder": "z. B. Die Person hat ihren Antrag zurückgezogen — bestätigt über HR-Ticket Nr. 4712",
+          "confirm": "Anfrage abbrechen"
+        }
+      },
+      "toasts": {
+        "filedTitle": "Löschungsanfrage eingereicht",
+        "filedDescription": "Die Kaskade läuft. Öffne den Beleg, um den Fortschritt zu verfolgen.",
+        "extendedTitle": "Frist verlängert",
+        "extendedDescription": "{days, plural, =1 {# Tag} other {# Tage}} zum Antwortfenster hinzugefügt.",
+        "retryTitle": "Erneuter Löschversuch gestartet",
+        "retryDescription": "Die Kaskade wurde neu eingeplant.",
+        "cancelledTitle": "Löschungsanfrage abgebrochen",
+        "cancelledDescription": "Die Anfrage wird nicht ausgeführt. Der Beleg bleibt für den Audit-Trail erhalten."
+      },
+      "errors": {
+        "generic": {
+          "title": "Etwas ist schiefgelaufen",
+          "description": "Versuche es erneut. Wende dich an deinen Administrator, falls das Problem bestehen bleibt."
+        },
+        "unauthenticated": "Anmeldung erforderlich.",
+        "forbidden": "Du hast keine Berechtigung dafür.",
+        "validation": "Bitte überprüfe die Formularfelder.",
+        "notFound": "Nicht gefunden.",
+        "alreadyPending": "Für diese Person läuft bereits eine Löschungsanfrage.",
+        "legalHoldBlocked": "Ein aktiver Legal Hold bewahrt die Daten dieser Person.",
+        "notRetriable": "Diese Anfrage befindet sich nicht in einem wiederholbaren Zustand.",
+        "notExtendable": "Diese Anfrage ist in einem Endzustand und kann nicht verlängert werden.",
+        "alreadyExtended": "Diese Anfrage wurde bereits einmal verlängert. Art. 12(3) erlaubt eine einzige Verlängerung.",
+        "deadlineLapsed": "Die ursprüngliche Art.-12(3)-Frist ist bereits abgelaufen; eine rückwirkende Verlängerung ist nicht möglich.",
+        "reasonTooShort": "Gib eine Begründung mit mindestens 10 Zeichen an.",
+        "notCancellable": "Nur offene Anfragen innerhalb der Karenzzeit können abgebrochen werden.",
+        "cannotCancelAfterCooldown": "Die Karenzzeit ist abgelaufen; der Prozessor wurde bereits gestartet.",
+        "rateLimited": "Du hast das tägliche Limit für Löschungsanfragen erreicht. Versuche es später erneut.",
+        "dualApprovalRequired": "Doppelfreigabe erforderlich: Die einreichende Person kann ihre eigene Anfrage nicht freigeben."
+      }
+    },
+    "dsarPolicy": {
+      "title": "Governance für Anfragen betroffener Personen",
+      "description": "Karenzzeit, Doppelfreigabe und tägliches Limit pro Admin für DSGVO-Art.-17-Löschungsanfragen.",
+      "coolingOffHours": {
+        "label": "Karenzzeit (Stunden)",
+        "description": "Stunden zwischen Einreichung und tatsächlicher Ausführung der Kaskade. Jeder Admin kann innerhalb dieses Fensters abbrechen. 0 = sofortige Ausführung. Bereich: 0–72."
+      },
+      "requireDualApproval": {
+        "label": "Doppelfreigabe erforderlich",
+        "description": "Wenn aktiviert, muss jede eingereichte Anfrage von einem zweiten Admin freigegeben werden (die einreichende Person kann nicht selbst freigeben), bevor die Karenzzeit beginnt. Empfohlen für sensible Deployments mit zwei oder mehr Admins."
+      },
+      "dailyLimitPerAdmin": {
+        "label": "Tägliches Limit pro Admin",
+        "description": "Maximale Anzahl an Löschungsanfragen, die ein einzelner Admin pro Tag einreichen darf. Begrenzt den Schaden bei kompromittierten Admin-Zugängen. Bereich: 1–50."
+      },
+      "saved": "Governance für Anfragen betroffener Personen aktualisiert.",
+      "saveFailed": "Die Governance-Richtlinie konnte nicht gespeichert werden. Versuche es erneut.",
+      "invalidCoolingOffHours": "Die Karenzzeit muss eine ganze Zahl zwischen 0 und 72 sein.",
+      "invalidDailyLimit": "Das tägliche Limit muss eine ganze Zahl zwischen 1 und 50 sein.",
+      "ownerOnlyNotice": "Nur der Owner kann diese Richtlinie ändern. Admins können sie lesen. Jede Lockerung der Schutzmaßnahmen (kürzere Karenzzeit, Deaktivieren der Doppelfreigabe, Anheben des täglichen Limits) wird 24 Stunden lang gestaffelt, damit jeder Admin sie zurücksetzen kann.",
+      "loosenProposedTitle": "Änderung vorgemerkt — 24-Stunden-Prüffenster gestartet",
+      "loosenProposedDescription": "Lockernde Änderungen werden erst nach einem 24-Stunden-Karenzfenster wirksam. Jeder Admin kann sie vorher abbrechen.",
+      "loosenCancelledTitle": "Vorgemerkte Änderung abgebrochen.",
+      "pendingFieldLocked": "Während des Prüffensters gesperrt",
+      "pendingBanner": {
+        "title": "Vorgemerkte Richtlinien-Lockerung",
+        "description": "Vorgeschlagen von {name}. Jeder Admin kann sie vor Wirksamwerden abbrechen.",
+        "cancel": "Vorgemerkte Änderung abbrechen"
+      }
     }
   },
   "prompts": {
@@ -4198,7 +4444,21 @@
     "loadMore": "Mehr laden",
     "loading": "Lädt…",
     "accountLocked": "Konto vorübergehend gesperrt: {email}",
-    "lockoutDetails": "{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}."
+    "lockoutDetails": "{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}.",
+    "dsarScheduled": "Löschungsanfrage geplant",
+    "dsarScheduledBody": "Eine Löschungsanfrage wurde für eine Person in dieser Organisation eingereicht. Sie wird in {coolingOffHours} Stunden ausgeführt. Öffne den Beleg zur Prüfung oder zum Abbruch.",
+    "dsarApprovalNeeded": "Löschungsanfrage wartet auf deine Freigabe",
+    "dsarApprovalNeededBody": "Eine Löschungsanfrage wurde eingereicht und benötigt die Freigabe eines zweiten Admins, bevor sie ausgeführt werden kann.",
+    "dsarCancelled": "Löschungsanfrage abgebrochen",
+    "dsarCancelledBody": "Eine offene Löschungsanfrage wurde vor Ablauf der Karenzzeit abgebrochen.",
+    "dsarPolicyTightened": "DSAR-Governance verschärft",
+    "dsarPolicyTightenedBody": "Die DSAR-Governance-Richtlinie wurde strenger eingestellt. Strengere Änderungen werden sofort wirksam.",
+    "dsarPolicyLoosenProposed": "Lockerung der DSAR-Governance vorgeschlagen",
+    "dsarPolicyLoosenProposedBody": "Eine Lockerung der DSAR-Governance wurde vorgeschlagen. Jeder Admin kann sie vor Ablauf des 24-Stunden-Karenzfensters abbrechen.",
+    "dsarPolicyLoosenApplied": "DSAR-Governance gelockert",
+    "dsarPolicyLoosenAppliedBody": "Die vorgeschlagene Lockerung der DSAR-Governance wurde nach Ablauf des 24-Stunden-Karenzfensters wirksam.",
+    "dsarPolicyLoosenCancelled": "Vorgemerkte DSAR-Richtlinienänderung abgebrochen",
+    "dsarPolicyLoosenCancelledBody": "Die vorgemerkte Lockerung der DSAR-Governance wurde abgebrochen, bevor sie wirksam wurde."
   },
   "analytics": {
     "usage": {

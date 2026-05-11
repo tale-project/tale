@@ -59,6 +59,12 @@ export function useGovernancePolicy(
   });
 }
 
+export function useDsarPolicyForUi(organizationId: string) {
+  return useConvexQuery(api.governance.dsar_policy.getDsarPolicyForUi, {
+    organizationId,
+  });
+}
+
 export function useMyFeatureFlags(organizationId: string) {
   return useConvexQuery(api.governance.queries.getMyFeatureFlags, {
     organizationId,

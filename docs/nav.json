@@ -132,6 +132,7 @@
             "platform/admin/providers",
             "platform/admin/branding",
             "platform/admin/governance",
+            "platform/admin/data-subject-requests",
             "platform/admin/two-factor-authentication",
             "platform/admin/usage-analytics"
           ]

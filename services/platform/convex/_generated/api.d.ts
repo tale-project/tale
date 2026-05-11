@@ -315,9 +315,12 @@ import type * as governance_chat_filter_enforcer from "../governance/chat_filter
 import type * as governance_chat_filter_index from "../governance/chat_filter/index.js";
 import type * as governance_cost_estimation from "../governance/cost_estimation.js";
 import type * as governance_default_model_query from "../governance/default_model_query.js";
+import type * as governance_dsar_policy from "../governance/dsar_policy.js";
 import type * as governance_entra_attribute_matcher from "../governance/entra_attribute_matcher.js";
 import type * as governance_erase_document_blobs from "../governance/erase_document_blobs.js";
 import type * as governance_erasure from "../governance/erasure.js";
+import type * as governance_erasure_constants from "../governance/erasure_constants.js";
+import type * as governance_erasure_queries from "../governance/erasure_queries.js";
 import type * as governance_feature_enforcement from "../governance/feature_enforcement.js";
 import type * as governance_filter_outcome from "../governance/filter_outcome.js";
 import type * as governance_get_org_usage_metrics from "../governance/get_org_usage_metrics.js";
@@ -1364,9 +1367,12 @@ declare const fullApi: ApiFromModules<{
   "governance/chat_filter/index": typeof governance_chat_filter_index;
   "governance/cost_estimation": typeof governance_cost_estimation;
   "governance/default_model_query": typeof governance_default_model_query;
+  "governance/dsar_policy": typeof governance_dsar_policy;
   "governance/entra_attribute_matcher": typeof governance_entra_attribute_matcher;
   "governance/erase_document_blobs": typeof governance_erase_document_blobs;
   "governance/erasure": typeof governance_erasure;
+  "governance/erasure_constants": typeof governance_erasure_constants;
+  "governance/erasure_queries": typeof governance_erasure_queries;
   "governance/feature_enforcement": typeof governance_feature_enforcement;
   "governance/filter_outcome": typeof governance_filter_outcome;
   "governance/get_org_usage_metrics": typeof governance_get_org_usage_metrics;

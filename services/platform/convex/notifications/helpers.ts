@@ -11,6 +11,13 @@ interface WriteNotificationArgs {
   titleKey: string;
   bodyKey: string;
   params?: Record<string, unknown>;
+  /**
+   * The data subject this notification is *about* (distinct from the
+   * audience — admins reading the notifications bell). Populating this
+   * lets `eraseSubjectNotifications` (GDPR Art 17) match by userId
+   * regardless of audit-pepper rotation or email change.
+   */
+  subjectUserId?: string;
 }
 
 /**
@@ -31,6 +38,7 @@ export async function writeNotificationForOrgs(
       titleKey: args.titleKey,
       bodyKey: args.bodyKey,
       params: args.params,
+      subjectUserId: args.subjectUserId,
       createdAt: now,
       readBy: [],
     });

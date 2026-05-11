@@ -27,6 +27,7 @@ import { messageFeedbackTable } from './feedback/schema';
 import { fileMetadataTable } from './file_metadata/schema';
 import { foldersTable } from './folders/schema';
 import {
+  activeErasureClaimsTable,
   activeLegalHoldClaimsTable,
   auditLogCheckpointsTable,
   gdprErasureRequestsTable,
@@ -101,6 +102,7 @@ export default defineSchema({
   retentionPolicyPendingChanges: retentionPolicyPendingChangesTable,
   retentionAppliedBounds: retentionAppliedBoundsTable,
   gdprErasureRequests: gdprErasureRequestsTable,
+  activeErasureClaims: activeErasureClaimsTable,
   policyAcknowledgements: policyAcknowledgementsTable,
   chatFilterEvents: chatFilterEventsTable,
   usageLedger: usageLedgerTable,

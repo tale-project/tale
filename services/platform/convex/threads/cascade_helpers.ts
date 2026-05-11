@@ -95,7 +95,7 @@ export async function cascadeDeleteThreadChildren(
     visited?: Set<string>;
     depth?: number;
   },
-): Promise<{ done: boolean; remaining: number }> {
+): Promise<{ done: boolean; remaining: number; skippedByHold?: boolean }> {
   const { threadId, organizationId } = args;
   const depth = args.depth ?? 0;
   if (depth >= MAX_CASCADE_DEPTH) {
@@ -166,7 +166,11 @@ export async function cascadeDeleteThreadChildren(
           userCustodianHeld,
         },
       });
-      return { done: true, remaining: 0 };
+      // Report the skip back to the caller (GDPR Art 17 erasure
+      // distinguishes "thread cascade completed" from "preserved by
+      // mid-flight hold" so the receipt's `threadsSkippedByHold`
+      // counter reflects what was actually preserved).
+      return { done: true, remaining: 0, skippedByHold: true };
     }
     // Stash for the sub-thread recursion below so we don't re-fetch.
     args.holds = holds;

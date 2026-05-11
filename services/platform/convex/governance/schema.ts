@@ -2,6 +2,7 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../lib/validators/json';
+import { ERASURE_REASON_CODES } from './erasure_constants';
 import { lifecycleStatusValidator } from './soft_delete_validators';
 
 export const GOVERNANCE_POLICY_TYPES = [
@@ -23,6 +24,10 @@ export const GOVERNANCE_POLICY_TYPES = [
   // chat composer + upload dialog footers. Default copy is fetched from
   // i18n; this policy lets per-org admins override per locale.
   'data_classification_notice',
+  // GDPR DSAR governance: cooling-off window, dual-approval requirement,
+  // and per-admin daily filing rate limit. Defaults live in
+  // `governance/dsar_policy.ts`.
+  'dsar_governance',
 ] as const;
 
 const policyTypeValidator = v.union(
@@ -42,6 +47,20 @@ export const governancePoliciesTable = defineTable({
   // first time an enforcement-bearing field transitions to an active
   // value; preserved across unrelated edits.
   effectiveAt: v.optional(v.number()),
+  // Loosen-grace fields. When an admin proposes a change that *weakens*
+  // the policy (e.g. shortening the DSAR cooling-off window, disabling
+  // dual approval, raising the daily limit), the change is staged here
+  // instead of writing through to `config`. A scheduled internal
+  // mutation flips `config = pendingConfig` at `pendingEffectiveAt`,
+  // unless any admin calls `cancelPendingPolicyChange` first.
+  // Tightening (stricter values) bypasses this and applies immediately.
+  // Today only `dsar_governance` uses this mechanism.
+  pendingConfig: v.optional(jsonRecordValidator),
+  pendingEffectiveAt: v.optional(v.number()),
+  pendingProposedBy: v.optional(v.string()),
+  pendingProposedByEmail: v.optional(v.string()),
+  pendingProposedAt: v.optional(v.number()),
+  pendingScheduledJobId: v.optional(v.id('_scheduled_functions')),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_org_policyType', ['organizationId', 'policyType']);
@@ -518,6 +537,10 @@ export const retentionAppliedBoundsTable = defineTable({
   rejectedBy: v.optional(v.string()),
 }).index('by_organizationId', ['organizationId']);
 
+const erasureReasonCodeValidator = v.union(
+  ...ERASURE_REASON_CODES.map((c) => v.literal(c)),
+);
+
 /**
  * GDPR Art 17 erasure request state machine.
  *
@@ -540,16 +563,31 @@ export const retentionAppliedBoundsTable = defineTable({
  *   - failed   → unrecoverable error (e.g. RAG service permanently
  *                unreachable); operator must inspect `errorMessage`
  *
- * `slaDeadlineAt = requestedAt + 30 days` per Art 12(3); operators
- * see overdue requests in the admin UI.
+ * `slaDeadlineAt = requestedAt + 30 days` per Art 12(3); the controller
+ * may grant a single extension of up to 60 additional days for complex
+ * requests, persisted via the `extension*` fields below. The extension
+ * must be granted before the original deadline lapses (Art 12(3)
+ * requires the extension to be communicated within the original month).
  */
 export const gdprErasureRequestsTable = defineTable({
   organizationId: v.string(),
   targetUserId: v.string(),
   reason: v.string(),
+  /** Structured lawful ground for the erasure (Art 17(1)(a)–(f) plus the
+   *  operational `contract_termination`). Required for new requests at
+   *  the mutation layer; schema-optional so pre-feature rows still load. */
+  reasonCode: v.optional(erasureReasonCodeValidator),
   requestedBy: v.string(),
   requestedAt: v.number(),
   slaDeadlineAt: v.number(),
+  /** Single Art 12(3) extension. Granted at most once per request, by an
+   *  admin, before `slaDeadlineAt` lapses. `extensionDeadlineAt =
+   *  slaDeadlineAt + extraDays * 86_400_000`; the SLA badge derives from
+   *  `extensionDeadlineAt ?? slaDeadlineAt`. */
+  extensionGrantedAt: v.optional(v.number()),
+  extensionGrantedBy: v.optional(v.string()),
+  extensionReason: v.optional(v.string()),
+  extensionDeadlineAt: v.optional(v.number()),
   status: v.union(
     v.literal('pending'),
     v.literal('running'),
@@ -564,6 +602,12 @@ export const gdprErasureRequestsTable = defineTable({
      * call `retryErasureRequest` to re-schedule.
      */
     v.literal('blocked'),
+    /**
+     * Cancelled by an org admin before the cooling-off window elapsed.
+     * Terminal — does NOT execute the cascade. Receipt preserved with
+     * `cancelledBy` / `cancellationReason` for the audit trail.
+     */
+    v.literal('cancelled'),
   ),
   /** Snapshot of the threads list at request time. Processed
    *  iteratively; resume token if status='partial'. */
@@ -585,9 +629,49 @@ export const gdprErasureRequestsTable = defineTable({
    *  processor's mid-flight re-read. Non-zero forces `status='partial'`
    *  so operators see the gap. */
   documentsSkippedByHold: v.optional(v.number()),
+  /** Count of threads the cascade encountered but skipped because a
+   *  legal hold landed mid-run (between scheduling and the per-thread
+   *  cascade call). Distinct from `threadsBlockedByHold` (set at
+   *  scheduling time when the whole request is `'blocked'`). Non-zero
+   *  forces `status='partial'` so the receipt does not over-report
+   *  `threadsErased`. */
+  threadsSkippedByHold: v.optional(v.number()),
+  /** Count of `wfExecutions` rows erased for this subject. */
+  wfExecutionsErased: v.optional(v.number()),
+  /** Count of personal-scope `promptTemplates` rows erased for this subject. */
+  promptTemplatesErased: v.optional(v.number()),
   errorMessage: v.optional(v.string()),
   startedAt: v.optional(v.number()),
   completedAt: v.optional(v.number()),
+  /** When set, `finalizeProcessing` arrived AFTER the watchdog had
+   *  already marked this row `'failed'` due to action timeout. The
+   *  watchdog's verdict is preserved (`status='failed'`,
+   *  `errorMessage` unchanged), but the count fields are updated to
+   *  reflect work the action actually completed before timing out so
+   *  the receipt does not under-report. Distinct from `completedAt`
+   *  (which the watchdog already set). */
+  lateFinalizeAt: v.optional(v.number()),
+  /** Self-contained snapshot of the per-category cascade outcome,
+   *  written at `finalizeProcessing` time. Mirrors what the audit
+   *  log's `gdpr_erasure_executed` newState carries, but persisted
+   *  on the receipt row itself so the regulator-facing receipt is
+   *  self-contained and survives any future audit-log PII scrub. */
+  perCategorySnapshot: v.optional(jsonRecordValidator),
+  /** Cooling-off window: `requestErasure` sets
+   *  `effectiveAt = now + dsarPolicy.coolingOffHours * 3600_000` and
+   *  schedules the processor for that time. `beginProcessing` refuses
+   *  to start before this timestamp. Any admin can `cancelErasureRequest`
+   *  while `status='pending'` AND `effectiveAt > now`. */
+  effectiveAt: v.optional(v.number()),
+  /** ID returned by `ctx.scheduler.runAfter` when scheduling the
+   *  cooling-off processor. Stored so `cancelErasureRequest` can call
+   *  `ctx.scheduler.cancel(jobId)` to abort the pending run. */
+  scheduledJobId: v.optional(v.id('_scheduled_functions')),
+  /** Set by `cancelErasureRequest` when an admin aborts during the
+   *  cooling-off window. Terminal: cascade does NOT run. */
+  cancelledAt: v.optional(v.number()),
+  cancelledBy: v.optional(v.string()),
+  cancellationReason: v.optional(v.string()),
 })
   .index('by_organizationId_status', ['organizationId', 'status'])
   // Concurrency probe: `requestErasure` rejects with `ALREADY_PENDING`
@@ -601,3 +685,32 @@ export const gdprErasureRequestsTable = defineTable({
   // admins can `retryErasureRequest`. Without an indexed scan, the
   // cron pays a full-table read on every tick.
   .index('by_status', ['status']);
+
+/**
+ * Per-subject active-erasure claim row.
+ *
+ * Mirrors `activeLegalHoldClaimsTable` for the same OCC reason: a bare
+ * range query over `gdprErasureRequests.by_org_target_status` cannot
+ * detect range-phantom inserts, so two concurrent `requestErasure`
+ * calls on the same `(organizationId, targetUserId)` both observe "no
+ * pending row" and both insert + schedule a processor — duplicate
+ * receipts plus a duplicate cascade racing the same subject's data.
+ *
+ * This table maintains exactly one row per `(organizationId,
+ * targetUserId)` (lazily created on first request). `requestErasure`
+ * reads + patches `requestId` in the same transaction; concurrent
+ * placers contend on the single claim row and serialize via OCC.
+ * Terminal transitions (`done`, `failed` via watchdog) clear
+ * `requestId` so the next `requestErasure` can take over; the row
+ * itself is preserved so subsequent placements take the patch path
+ * (no insert race).
+ */
+export const activeErasureClaimsTable = defineTable({
+  organizationId: v.string(),
+  targetUserId: v.string(),
+  /** When set, points at the currently-active erasure request for
+   *  this subject. Cleared by terminal-state transitions so the next
+   *  `requestErasure` can take over. */
+  requestId: v.optional(v.id('gdprErasureRequests')),
+  claimedAt: v.number(),
+}).index('by_org_target', ['organizationId', 'targetUserId']);

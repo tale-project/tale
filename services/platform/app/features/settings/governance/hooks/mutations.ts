@@ -8,6 +8,16 @@ export function useUpsertGovernancePolicy() {
   return useConvexMutation(api.governance.mutations.upsertPolicy);
 }
 
+export function useProposeDsarPolicy() {
+  return useConvexMutation(api.governance.dsar_policy.proposeDsarPolicy);
+}
+
+export function useCancelPendingDsarPolicyChange() {
+  return useConvexMutation(
+    api.governance.dsar_policy.cancelPendingDsarPolicyChange,
+  );
+}
+
 /**
  * Retention is the one policy type that can't go through the generic
  * `upsertPolicy` mutation: bounds validation needs to read the per-org

@@ -3699,7 +3699,8 @@
       "trash": "Corbeille",
       "guardrails": "Guardrails",
       "usage": "Utilisation",
-      "feedback": "Retours"
+      "feedback": "Retours",
+      "dataSubjectRequests": "Personnes concernées"
     },
     "trash": {
       "title": "Corbeille",
@@ -3984,6 +3985,251 @@
       "invalidGrace": "La période de grâce doit être un entier compris entre 0 et 30.",
       "saved": "La politique de double facteur a été mise à jour",
       "saveFailed": "Échec de l'enregistrement de la politique de double facteur"
+    },
+    "dataSubjectRequests": {
+      "title": "Demandes de personnes concernées",
+      "description": "Reçus d'effacement RGPD art. 17. Dépose de nouvelles demandes, surveille les délais et accorde des prolongations art. 12(3) lorsque les dossiers complexes l'exigent.",
+      "accessDenied": "Réservé aux administrateurs.",
+      "filters": {
+        "statusTitle": "Statut"
+      },
+      "sections": {
+        "requestsList": {
+          "title": "Demandes",
+          "empty": {
+            "title": "Aucune demande d'effacement",
+            "description": "Dépose une demande depuis l'action ci-dessus pour enregistrer un reçu art. 17."
+          }
+        }
+      },
+      "columns": {
+        "status": "Statut",
+        "sla": "Délai",
+        "target": "Personne concernée",
+        "reasonCode": "Motif",
+        "requestedBy": "Déposée par",
+        "requestedAt": "Déposée"
+      },
+      "status": {
+        "pending": "En attente",
+        "pendingCoolingOff": "En attente · plus que {hours, plural, one {# h} other {# h}} avant exécution",
+        "pendingAwaitingApproval": "En attente d'approbation",
+        "running": "En cours",
+        "done": "Terminé",
+        "partial": "Partiel",
+        "failed": "Échoué",
+        "blocked": "Bloqué",
+        "cancelled": "Annulé"
+      },
+      "slaBadge": {
+        "daysLeft": "il reste {days}j",
+        "daysLeftOne": "il reste 1j",
+        "overdue": "En retard de {days}j",
+        "terminal": "—"
+      },
+      "reasonCodes": {
+        "consent_withdrawn": {
+          "label": "Consentement retiré"
+        },
+        "no_longer_necessary": {
+          "label": "Plus nécessaire"
+        },
+        "unlawful_processing": {
+          "label": "Traitement illicite"
+        },
+        "legal_obligation": {
+          "label": "Obligation légale"
+        },
+        "objection": {
+          "label": "Opposition de la personne"
+        },
+        "child": {
+          "label": "Personne mineure"
+        },
+        "contract_termination": {
+          "label": "Fin de contrat"
+        }
+      },
+      "actions": {
+        "fileRequest": "Déposer une demande",
+        "extendDeadline": "Prolonger le délai",
+        "retry": "Réessayer",
+        "cancel": "Annuler la demande"
+      },
+      "drawer": {
+        "description": "Détail du reçu avec piste d'audit.",
+        "headerTitle": "Reçu d'effacement",
+        "subjectSection": "Personne concernée et demande",
+        "countersSection": "Compteurs",
+        "auditSection": "Piste d'audit",
+        "auditEmpty": "Aucune entrée d'audit pour le moment.",
+        "reasonNarrative": "Motif détaillé",
+        "slaDeadline": "Échéance",
+        "extensionGrantedTitle": "Prolongation accordée par {name}",
+        "threadsErased": "Conversations effacées",
+        "threadsSkippedByHold": "Conversations ignorées (rétention)",
+        "threadsBlockedByHold": "Conversations bloquées (rétention)",
+        "documentsBlockedByHold": "Documents bloqués (rétention)",
+        "ragDocumentsRemoved": "Documents retirés du RAG",
+        "documentsErased": "Documents effacés",
+        "documentsSkippedByHold": "Documents ignorés (rétention)",
+        "wfExecutionsErased": "Exécutions de workflow effacées",
+        "promptTemplatesErased": "Prompts personnels effacés",
+        "startedAt": "Démarré",
+        "completedAt": "Terminé",
+        "errorMessage": "Erreur",
+        "errorState": {
+          "title": "Impossible de charger cette demande",
+          "description": "Le reçu a peut-être été supprimé ou tu n'as pas les droits requis.",
+          "retry": "Réessayer"
+        },
+        "coolingOffBanner": {
+          "title": "Délai de réflexion en cours",
+          "description": "Cette demande est en attente d'un délai de réflexion avant l'exécution de la cascade. Tout admin peut l'annuler avant l'expiration."
+        },
+        "cancelledBlock": {
+          "title": "Annulée",
+          "attribution": "Annulée par {name}"
+        },
+        "fullBreakdownTitle": "Détail complet par catégorie de données",
+        "fullBreakdownEntry": "{rows, plural, =0 {0 effacé} one {# effacé} other {# effacés}}{skippedByHold, plural, =0 {} other { · # ignoré(s) (rétention)}}",
+        "fullBreakdownNoData": "Aucune donnée dans {count, plural, one {# autre catégorie} other {# autres catégories}}."
+      },
+      "auditActions": {
+        "gdpr_erasure_requested": "Déposée",
+        "gdpr_erasure_denied": "Refusée",
+        "gdpr_erasure_blocked_by_hold": "Bloquée par rétention légale",
+        "gdpr_erasure_executed": "Exécutée",
+        "gdpr_erasure_watchdog_failed": "Délai dépassé (watchdog)",
+        "gdpr_erasure_late_finalize_dropped": "Finalisation tardive ignorée",
+        "gdpr_erasure_cascade_attempts_exhausted": "Tentatives de cascade épuisées",
+        "gdpr_erasure_extended": "Échéance prolongée",
+        "gdpr_erasure_retried": "Réessayée",
+        "gdpr_erasure_cancelled": "Annulée"
+      },
+      "categories": {
+        "userMemories": "Mémoires personnelles",
+        "userPreferences": "Préférences utilisateur",
+        "messageFeedback": "Retours sur messages",
+        "fileMetadata": "Fichiers déposés en chat",
+        "usageLedger": "Journal de consommation de tokens",
+        "twoFactorAttempts": "Tentatives 2FA",
+        "policyAcknowledgements": "Accusés de réception de politiques",
+        "onedrive": "Configurations de synchronisation OneDrive",
+        "loginAttempts": "Tentatives de connexion et verrouillages",
+        "notifications": "Notifications de sécurité",
+        "wfExecutions": "Exécutions de workflow",
+        "promptTemplates": "Prompts personnels"
+      },
+      "legalHoldBlock": {
+        "title": "Effacement bloqué par une rétention légale",
+        "orgHeld": "Une rétention organisationnelle préserve toutes les entités de ce tenant. Lève-la avant de réessayer.",
+        "userCustodianHeld": "La personne est sous rétention de garde. Lève-la avant de réessayer.",
+        "generic": "Une rétention légale active préserve les données de la personne.",
+        "threadsCount": "{count, plural, =1 {# conversation préservée} other {# conversations préservées}}.",
+        "documentsCount": "{count, plural, =1 {# document préservé} other {# documents préservés}}.",
+        "openLegalHold": "Ouvrir les paramètres de rétention légale",
+        "openLegalHoldAria": "Ouvrir les paramètres de rétention légale"
+      },
+      "dialogs": {
+        "fileRequest": {
+          "title": "Déposer une demande d'effacement",
+          "description": "Enregistre un reçu art. 17 pour la personne choisie et exécute la cascade de manière asynchrone. La vérification d'identité incombe à l'admin déposant — confirme l'identité via le processus de ton organisation avant de continuer.",
+          "userPickerLabel": "Personne concernée",
+          "userPickerPlaceholder": "Recherche par nom ou e-mail",
+          "userPickerEmpty": "Aucun membre correspondant.",
+          "reasonCodeLabel": "Fondement légal",
+          "reasonCodeDescription": "RGPD art. 17(1)(a)–(f) plus le motif opérationnel de fin de contrat.",
+          "reasonLabel": "Motif détaillé",
+          "reasonPlaceholder": "ex. Personne a retiré son consentement le 2026-05-08 — ticket RH #4711",
+          "confirmLabel": "Tape {phrase} pour confirmer",
+          "confirmDescription": "Requis pour chaque demande d'effacement. Le bouton d'envoi reste désactivé tant que la phrase ne correspond pas exactement.",
+          "submit": "Déposer la demande"
+        },
+        "extendDeadline": {
+          "title": "Prolonger le délai art. 12(3)",
+          "description": "Ajoute jusqu'à 60 jours à la fenêtre de réponse. La prolongation elle-même doit être communiquée à la personne dans le mois initial, avec motifs (art. 12(3)). Chaque demande ne peut être prolongée qu'une seule fois.",
+          "extraDaysLabel": "Jours supplémentaires ({min}–{max})",
+          "extraDaysDescription": "Jours entiers ajoutés au délai initial de 30 jours.",
+          "extraDaysError": "Saisis un nombre entier entre {min} et {max}.",
+          "extensionReasonLabel": "Motif de prolongation",
+          "extensionReasonPlaceholder": "ex. Revue juridique transfrontalière — le conseil demande deux semaines de plus",
+          "submit": "Accorder la prolongation"
+        },
+        "retry": {
+          "title": "Réessayer l'effacement",
+          "description": "Réexécute la cascade pour cette demande. À utiliser après avoir levé une rétention bloquante ou corrigé la cause de l'échec précédent.",
+          "confirm": "Réessayer"
+        },
+        "cancel": {
+          "title": "Annuler la demande d'effacement",
+          "description": "Annule cette demande avant son exécution. Le reçu reste comme trace de l'annulation, mais aucune donnée n'est supprimée. L'annulation n'est possible que pendant le délai de réflexion.",
+          "reasonLabel": "Motif d'annulation",
+          "reasonPlaceholder": "ex. La personne a retiré sa demande — vérifié via ticket RH n° 4712",
+          "confirm": "Annuler la demande"
+        }
+      },
+      "toasts": {
+        "filedTitle": "Demande d'effacement déposée",
+        "filedDescription": "La cascade est en cours. Ouvre le reçu pour suivre la progression.",
+        "extendedTitle": "Délai prolongé",
+        "extendedDescription": "{days, plural, =1 {# jour} other {# jours}} ajoutés à la fenêtre de réponse.",
+        "retryTitle": "Nouvelle tentative d'effacement lancée",
+        "retryDescription": "La cascade a été reprogrammée.",
+        "cancelledTitle": "Demande d'effacement annulée",
+        "cancelledDescription": "La demande ne sera pas exécutée. Le reçu est conservé pour l'audit."
+      },
+      "errors": {
+        "generic": {
+          "title": "Quelque chose s'est mal passé",
+          "description": "Réessaie. Contacte ton administrateur si le problème persiste."
+        },
+        "unauthenticated": "Connexion requise.",
+        "forbidden": "Tu n'as pas la permission.",
+        "validation": "Vérifie les champs du formulaire.",
+        "notFound": "Introuvable.",
+        "alreadyPending": "Une demande d'effacement est déjà en cours pour cette personne.",
+        "legalHoldBlocked": "Une rétention légale active préserve les données de cette personne.",
+        "notRetriable": "Cette demande n'est pas dans un état qui permet une nouvelle tentative.",
+        "notExtendable": "Cette demande est dans un état terminal et ne peut pas être prolongée.",
+        "alreadyExtended": "Cette demande a déjà été prolongée une fois. Art. 12(3) n'autorise qu'une seule prolongation.",
+        "deadlineLapsed": "Le délai initial art. 12(3) est déjà dépassé ; aucune prolongation rétroactive n'est possible.",
+        "reasonTooShort": "Saisis un motif d'au moins 10 caractères.",
+        "notCancellable": "Seules les demandes en attente dans la fenêtre de réflexion peuvent être annulées.",
+        "cannotCancelAfterCooldown": "Le délai de réflexion est expiré ; le processeur a déjà été lancé.",
+        "rateLimited": "Tu as atteint la limite quotidienne de demandes d'effacement pour ton compte. Réessaie plus tard.",
+        "dualApprovalRequired": "Approbation à double signature requise : la personne qui dépose la demande ne peut pas l'approuver elle-même."
+      }
+    },
+    "dsarPolicy": {
+      "title": "Gouvernance des demandes des personnes concernées",
+      "description": "Délai de réflexion, approbation à double signature et limite quotidienne par admin pour les demandes d'effacement RGPD art. 17.",
+      "coolingOffHours": {
+        "label": "Délai de réflexion (heures)",
+        "description": "Heures entre le dépôt d'une demande et l'exécution effective de la cascade. Tout admin peut annuler dans cette fenêtre. 0 = exécution immédiate. Plage : 0–72."
+      },
+      "requireDualApproval": {
+        "label": "Exiger une approbation à double signature",
+        "description": "Lorsque activé, chaque demande déposée doit être approuvée par un second admin (la personne qui dépose ne peut pas approuver sa propre demande) avant le démarrage du délai de réflexion. Recommandé pour les déploiements à enjeux élevés avec deux admins ou plus."
+      },
+      "dailyLimitPerAdmin": {
+        "label": "Limite quotidienne par admin",
+        "description": "Nombre maximal de demandes d'effacement qu'un admin peut déposer par jour. Limite l'impact d'identifiants admin compromis. Plage : 1–50."
+      },
+      "saved": "Gouvernance des demandes mise à jour.",
+      "saveFailed": "Impossible d'enregistrer la politique. Réessaie.",
+      "invalidCoolingOffHours": "Le délai de réflexion doit être un nombre entier entre 0 et 72.",
+      "invalidDailyLimit": "La limite quotidienne doit être un nombre entier entre 1 et 50.",
+      "ownerOnlyNotice": "Seul le propriétaire de l'organisation peut modifier cette politique. Les admins peuvent la lire. Tout assouplissement (réduction du délai de réflexion, désactivation de la double approbation ou augmentation de la limite quotidienne) est différé pendant 24 heures pour qu'un admin puisse l'annuler.",
+      "loosenProposedTitle": "Modification mise en attente — fenêtre de revue de 24h démarrée",
+      "loosenProposedDescription": "Les modifications d'assouplissement prennent effet après un délai de grâce de 24 heures. Tout admin peut les annuler avant.",
+      "loosenCancelledTitle": "Modification en attente annulée.",
+      "pendingFieldLocked": "Verrouillé pendant la fenêtre de revue",
+      "pendingBanner": {
+        "title": "Assouplissement de politique en attente",
+        "description": "Proposé par {name}. Tout admin peut l'annuler avant qu'il ne prenne effet.",
+        "cancel": "Annuler la modification en attente"
+      }
     }
   },
   "prompts": {
@@ -4123,7 +4369,21 @@
     "loadMore": "Charger plus",
     "loading": "Chargement…",
     "accountLocked": "Compte temporairement verrouillé : {email}",
-    "lockoutDetails": "{consecutiveFailures} tentatives de connexion échouées depuis {ip}."
+    "lockoutDetails": "{consecutiveFailures} tentatives de connexion échouées depuis {ip}.",
+    "dsarScheduled": "Demande d'effacement planifiée",
+    "dsarScheduledBody": "Une demande d'effacement a été déposée pour une personne dans cette organisation. Elle s'exécutera dans {coolingOffHours} h. Ouvre le reçu pour la consulter ou l'annuler.",
+    "dsarApprovalNeeded": "Demande d'effacement en attente de ton approbation",
+    "dsarApprovalNeededBody": "Une demande d'effacement a été déposée et nécessite l'approbation d'un second admin avant de pouvoir s'exécuter.",
+    "dsarCancelled": "Demande d'effacement annulée",
+    "dsarCancelledBody": "Une demande d'effacement en attente a été annulée avant l'expiration de son délai de réflexion.",
+    "dsarPolicyTightened": "Gouvernance DSAR renforcée",
+    "dsarPolicyTightenedBody": "La politique de gouvernance DSAR a été modifiée vers un réglage plus strict. Les modifications strictes prennent effet immédiatement.",
+    "dsarPolicyLoosenProposed": "Assouplissement de la gouvernance DSAR proposé",
+    "dsarPolicyLoosenProposedBody": "Un assouplissement de la gouvernance DSAR a été proposé. Tout admin peut l'annuler avant l'expiration du délai de grâce de 24 heures.",
+    "dsarPolicyLoosenApplied": "Gouvernance DSAR assouplie",
+    "dsarPolicyLoosenAppliedBody": "L'assouplissement proposé de la gouvernance DSAR a pris effet après le délai de grâce de 24 heures.",
+    "dsarPolicyLoosenCancelled": "Modification de politique DSAR en attente annulée",
+    "dsarPolicyLoosenCancelledBody": "L'assouplissement en attente de la gouvernance DSAR a été annulé avant de prendre effet."
   },
   "changelog": {
     "toast": {

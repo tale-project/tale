@@ -269,6 +269,23 @@ export const upsertPolicy = mutation({
       }
     }
 
+    if (args.policyType === 'dsar_governance') {
+      // Routed through `governance/dsar_policy.proposeDsarPolicy`
+      // instead. That mutation enforces:
+      //   1. owner-only writes (admins can only read), and
+      //   2. 24h loosen-grace window for weakening changes
+      //      (shorter cooling-off / disabling dual approval / higher
+      //      daily limit), with cross-admin notification, so a single
+      //      compromised owner cannot both weaken the safeguard and
+      //      use it inside the same window.
+      // Refusing the generic path keeps that logic single-source.
+      throw new ConvexError({
+        code: 'use_dsar_policy_mutation',
+        message:
+          'Use governance/dsar_policy.proposeDsarPolicy for dsar_governance — that path enforces owner-only writes and a 24h loosen-grace window for weakening changes.',
+      });
+    }
+
     const existing = await ctx.db
       .query('governancePolicies')
       .withIndex('by_org_policyType', (q) =>

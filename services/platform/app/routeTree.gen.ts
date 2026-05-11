@@ -79,6 +79,8 @@ import { Route as DashboardIdAgentsAgentIdKnowledgeRouteImport } from './routes/
 import { Route as DashboardIdAgentsAgentIdInstructionsRouteImport } from './routes/dashboard/$id/agents/$agentId/instructions'
 import { Route as DashboardIdAgentsAgentIdDelegationRouteImport } from './routes/dashboard/$id/agents/$agentId/delegation'
 import { Route as DashboardIdAgentsAgentIdConversationStartersRouteImport } from './routes/dashboard/$id/agents/$agentId/conversation-starters'
+import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/route'
+import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/$requestId'
 
 const DocsRoute = DocsRouteImport.update({
   id: '/docs',
@@ -474,6 +476,19 @@ const DashboardIdAgentsAgentIdConversationStartersRoute =
     path: '/conversation-starters',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
   } as any)
+const DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute =
+  DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteImport.update({
+    id: '/data-subject-requests',
+    path: '/data-subject-requests',
+    getParentRoute: () => DashboardIdSettingsGovernanceRouteRoute,
+  } as any)
+const DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute =
+  DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRouteImport.update({
+    id: '/$requestId',
+    path: '/$requestId',
+    getParentRoute: () =>
+      DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -522,6 +537,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute
   '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute
   '/dashboard/$id/settings/': typeof DashboardIdSettingsIndexRoute
+  '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren
   '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute
   '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute
@@ -544,6 +560,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute
   '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute
   '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute
+  '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -583,6 +600,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/automations': typeof DashboardIdAutomationsIndexRoute
   '/dashboard/$id/chat': typeof DashboardIdChatIndexRoute
   '/dashboard/$id/settings': typeof DashboardIdSettingsIndexRoute
+  '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren
   '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute
   '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute
@@ -605,6 +623,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdIndexRoute
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceIndexRoute
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersIndexRoute
+  '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -656,6 +675,7 @@ export interface FileRoutesById {
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute
   '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute
   '/dashboard/$id/settings/': typeof DashboardIdSettingsIndexRoute
+  '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren
   '/dashboard/$id/agents/$agentId/conversation-starters': typeof DashboardIdAgentsAgentIdConversationStartersRoute
   '/dashboard/$id/agents/$agentId/delegation': typeof DashboardIdAgentsAgentIdDelegationRoute
   '/dashboard/$id/agents/$agentId/instructions': typeof DashboardIdAgentsAgentIdInstructionsRoute
@@ -678,6 +698,7 @@ export interface FileRoutesById {
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute
   '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute
   '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute
+  '/dashboard/$id/settings/governance/data-subject-requests/$requestId': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -728,6 +749,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/'
     | '/dashboard/$id/chat/'
     | '/dashboard/$id/settings/'
+    | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/agents/$agentId/conversation-starters'
     | '/dashboard/$id/agents/$agentId/delegation'
     | '/dashboard/$id/agents/$agentId/instructions'
@@ -750,6 +772,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/$agentId/'
     | '/dashboard/$id/settings/governance/'
     | '/dashboard/$id/settings/providers/'
+    | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -789,6 +812,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations'
     | '/dashboard/$id/chat'
     | '/dashboard/$id/settings'
+    | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/agents/$agentId/conversation-starters'
     | '/dashboard/$id/agents/$agentId/delegation'
     | '/dashboard/$id/agents/$agentId/instructions'
@@ -811,6 +835,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/$agentId'
     | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/settings/providers'
+    | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
   id:
     | '__root__'
     | '/'
@@ -861,6 +886,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/'
     | '/dashboard/$id/chat/'
     | '/dashboard/$id/settings/'
+    | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/agents/$agentId/conversation-starters'
     | '/dashboard/$id/agents/$agentId/delegation'
     | '/dashboard/$id/agents/$agentId/instructions'
@@ -883,6 +909,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/agents/$agentId/'
     | '/dashboard/$id/settings/governance/'
     | '/dashboard/$id/settings/providers/'
+    | '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1387,6 +1414,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdAgentsAgentIdConversationStartersRouteImport
       parentRoute: typeof DashboardIdAgentsAgentIdRoute
     }
+    '/dashboard/$id/settings/governance/data-subject-requests': {
+      id: '/dashboard/$id/settings/governance/data-subject-requests'
+      path: '/data-subject-requests'
+      fullPath: '/dashboard/$id/settings/governance/data-subject-requests'
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteImport
+      parentRoute: typeof DashboardIdSettingsGovernanceRouteRoute
+    }
+    '/dashboard/$id/settings/governance/data-subject-requests/$requestId': {
+      id: '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
+      path: '/$requestId'
+      fullPath: '/dashboard/$id/settings/governance/data-subject-requests/$requestId'
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRouteImport
+      parentRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute
+    }
   }
 }
 
@@ -1536,7 +1577,23 @@ const DashboardIdConversationsRouteWithChildren =
     DashboardIdConversationsRouteChildren,
   )
 
+interface DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteChildren {
+  DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute
+}
+
+const DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteChildren: DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteChildren =
+  {
+    DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute:
+      DashboardIdSettingsGovernanceDataSubjectRequestsRequestIdRoute,
+  }
+
+const DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren =
+  DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute._addFileChildren(
+    DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteChildren,
+  )
+
 interface DashboardIdSettingsGovernanceRouteRouteChildren {
+  DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute: typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren
   DashboardIdSettingsGovernanceContentModelsRoute: typeof DashboardIdSettingsGovernanceContentModelsRoute
   DashboardIdSettingsGovernanceFeedbackRoute: typeof DashboardIdSettingsGovernanceFeedbackRoute
   DashboardIdSettingsGovernanceGuardrailsRoute: typeof DashboardIdSettingsGovernanceGuardrailsRoute
@@ -1550,6 +1607,8 @@ interface DashboardIdSettingsGovernanceRouteRouteChildren {
 
 const DashboardIdSettingsGovernanceRouteRouteChildren: DashboardIdSettingsGovernanceRouteRouteChildren =
   {
+    DashboardIdSettingsGovernanceDataSubjectRequestsRouteRoute:
+      DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren,
     DashboardIdSettingsGovernanceContentModelsRoute:
       DashboardIdSettingsGovernanceContentModelsRoute,
     DashboardIdSettingsGovernanceFeedbackRoute:

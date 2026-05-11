@@ -25,6 +25,9 @@ export const approvalsTable = defineTable({
     v.literal('document_write'),
     v.literal('location_request'),
     v.literal('mcp_tool_call'),
+    // GDPR Art 17 erasure request awaiting dual-admin approval. Used when
+    // `dsar_governance.requireDualApproval` is enabled at the org level.
+    v.literal('erasure'),
   ),
   resourceId: v.string(),
   threadId: v.optional(v.string()),

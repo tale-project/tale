@@ -18,6 +18,7 @@ export const GOVERNANCE_GROUPS = [
   'policies-limits',
   'security-monitoring',
   'legal-hold',
+  'data-subject-requests',
   'trash',
   'guardrails',
   'usage',
@@ -94,6 +95,7 @@ function GovernanceLayout() {
   const policiesLimits = linkClass(`${basePath}/policies-limits`);
   const securityMonitoring = linkClass(`${basePath}/security-monitoring`);
   const legalHold = linkClass(`${basePath}/legal-hold`);
+  const dataSubjectRequests = linkClass(`${basePath}/data-subject-requests`);
   const trash = linkClass(`${basePath}/trash`);
   const guardrails = linkClass(`${basePath}/guardrails`);
   const usage = linkClass(`${basePath}/usage`);
@@ -135,12 +137,20 @@ function GovernanceLayout() {
           {t('groups.legalHold')}
         </Link>
         <Link
+          to="/dashboard/$id/settings/governance/data-subject-requests"
+          params={{ id: organizationId }}
+          className={dataSubjectRequests.className}
+          aria-current={dataSubjectRequests.isActive ? 'page' : undefined}
+        >
+          {t('groups.dataSubjectRequests')}
+        </Link>
+        <Link
           to="/dashboard/$id/settings/governance/trash"
           params={{ id: organizationId }}
           className={trash.className}
           aria-current={trash.isActive ? 'page' : undefined}
         >
-          {t('groups.trash', 'Trash')}
+          {t('groups.trash')}
         </Link>
         <Link
           to="/dashboard/$id/settings/governance/guardrails"

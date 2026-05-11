@@ -190,7 +190,11 @@ export const wfExecutionsTable = defineTable({
   .index('by_org_status', ['organizationId', 'status'])
   .index('by_org_triggeredBy', ['organizationId', 'triggeredBy'])
   .index('by_component_workflow', ['componentWorkflowId'])
-  .index('by_org_workflowSlug', ['organizationId', 'workflowSlug']);
+  .index('by_org_workflowSlug', ['organizationId', 'workflowSlug'])
+  // Subject-scoped scan for GDPR Art 17 erasure (`eraseSubjectWfExecutions`).
+  // Walks rows where the subject was the executing user. Combined with
+  // `by_org_triggeredBy` for the trigger-author scope.
+  .index('by_org_user', ['organizationId', 'userId']);
 
 export const wfInstallationsTable = defineTable({
   organizationId: v.string(),
