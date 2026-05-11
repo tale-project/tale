@@ -47,7 +47,6 @@
     "@convex-dev/react-query": "0.1.0",
     "@convex-dev/workflow": "0.3.9",
     "@convex-dev/workpool": "0.4.6",
-    "@fontsource/inter": "5.2.8",
     "@hookform/resolvers": "5.2.2",
     "@microlink/react-json-view": "1.31.18",
     "@milkdown/crepe": "7.20.0",
@@ -74,6 +73,7 @@
     "@tailwindcss/postcss": "4.2.2",
     "@tale/i18n": "workspace:*",
     "@tale/ui": "workspace:*",
+    "@tale/webui": "workspace:*",
     "@tanstack/react-query": "5.97.0",
     "@tanstack/react-router": "1.168.10",
     "@tanstack/react-table": "8.21.3",
@@ -137,12 +137,6 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@storybook/addon-a11y": "10.3.5",
-    "@storybook/addon-docs": "10.3.5",
-    "@storybook/addon-themes": "10.3.5",
-    "@storybook/addon-vitest": "10.3.5",
-    "@storybook/react": "10.3.5",
-    "@storybook/react-vite": "10.3.5",
     "@tanstack/router-plugin": "1.167.12",
     "@testing-library/dom": "10.4.1",
     "@testing-library/jest-dom": "6.9.1",
@@ -168,7 +162,6 @@
     "convex-test": "0.0.47",
     "jsdom": "29.0.2",
     "postcss-load-config": "6.0.1",
-    "storybook": "10.3.5",
     "tree-kill": "1.2.2",
     "vitest-axe": "1.0.0-pre.5",
     "yaml": "2.8.3"

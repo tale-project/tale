@@ -44,11 +44,13 @@ export function registerReactPackage(plop: NodePlopAPI): void {
       const baseFiles = [
         'package.json.hbs',
         'tsconfig.json.hbs',
+        'vitest.config.ts.hbs',
         '.gitignore',
         '.oxlintrc.json',
         'README.md.hbs',
         'src/index.ts',
         'src/globals.css',
+        'src/test/setup.ts',
         'tailwind-preset.ts',
       ];
       const storybookFiles = [

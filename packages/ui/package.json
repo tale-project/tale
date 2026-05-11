@@ -29,6 +29,7 @@
     "./i18n/client": "./src/i18n/client.tsx",
     "./i18n/config": "./src/i18n/config.ts",
     "./i18n/init": "./src/i18n/init.ts",
+    "./i18n/init-service": "./src/i18n/init-service.ts",
     "./i18n/locales": "./src/i18n/locales.ts",
     "./i18n/provider": "./src/i18n/provider.tsx",
     "./i18n/regional-bundles": "./src/i18n/regional-bundles.ts",
@@ -74,6 +75,7 @@
     "storybook:build": "bunx --bun storybook build -o storybook-static"
   },
   "dependencies": {
+    "@fontsource/inter": "5.2.8",
     "@radix-ui/react-separator": "1.1.8",
     "@radix-ui/react-slot": "1.2.4",
     "@tale/i18n": "workspace:*",

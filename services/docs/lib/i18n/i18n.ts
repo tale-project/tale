@@ -1,5 +1,4 @@
-import { initI18n } from '@tale/ui/i18n/init';
-import { collectRegionalBundles } from '@tale/ui/i18n/regional-bundles';
+import { initServiceI18n } from '@tale/ui/i18n/init-service';
 
 import deMessages from '@/messages/de.json';
 import enMessages from '@/messages/en.json';
@@ -8,23 +7,12 @@ import globalMessages from '@/messages/global.json';
 
 type Bundle = Record<string, Record<string, unknown>>;
 
-// Auto-discover regional variants (e.g. `de-CH.json`, future `fr-CA.json`).
-// Drop a `xx-YY.json` file in `messages/` and Vite picks it up here.
-// Vite requires `import.meta.glob` patterns to be literal relative or
-// absolute paths — aliases (`@/...`) are rejected at build time.
-const regionalBundles = collectRegionalBundles(
-  import.meta.glob<Bundle>('../../messages/*-*.json', {
+export const i18n = initServiceI18n({
+  bundles: { en: enMessages, de: deMessages, fr: frMessages },
+  // Vite requires the glob pattern to be a literal at the call site.
+  regional: import.meta.glob<Bundle>('../../messages/*-*.json', {
     eager: true,
     import: 'default',
   }),
-);
-
-export const i18n = initI18n({
-  bundles: {
-    en: enMessages,
-    de: deMessages,
-    fr: frMessages,
-    ...regionalBundles,
-  },
   global: globalMessages,
 });

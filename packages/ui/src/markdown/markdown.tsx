@@ -14,6 +14,7 @@ import { CodeBlock } from './code-block';
 import { Callout } from './components/callout';
 import { Mermaid } from './components/mermaid';
 import { rehypeNumericColumns } from './plugins/rehype-numeric-columns';
+import { rehypePreserveCodeMeta } from './plugins/rehype-preserve-code-meta';
 
 type AlertTone = 'note' | 'tip' | 'info' | 'warning' | 'danger';
 
@@ -262,11 +263,18 @@ export const baseComponents: Components = {
   thead: ({ children }) => (
     <thead className="bg-bg-elevated sticky top-0 z-10">{children}</thead>
   ),
-  tbody: ({ children }) => <tbody>{children}</tbody>,
-  tr: ({ children }) => (
-    <tr className="hover:bg-bg-elevated/70 border-border-base border-b transition-colors last:border-b-0">
+  // Zebra-strip body rows and reserve the hover affordance for body rows
+  // only — the header is already sticky-elevated, so a hover change there
+  // is noise. Applying via tbody descendant selectors keeps the `tr`
+  // component itself stateless so it stays valid in both <thead> and
+  // <tbody> contexts.
+  tbody: ({ children }) => (
+    <tbody className="[&>tr:nth-child(even)]:bg-bg-elevated/40 [&>tr:hover]:bg-bg-elevated/70 [&>tr]:transition-colors">
       {children}
-    </tr>
+    </tbody>
+  ),
+  tr: ({ children }) => (
+    <tr className="border-border-base border-b last:border-b-0">{children}</tr>
   ),
   th: ({ children, className }: ComponentPropsWithoutRef<'th'>) => (
     <th
@@ -369,6 +377,12 @@ export function Markdown({ children, components, className }: MarkdownProps) {
     <div className={className}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        // `rehypePreserveCodeMeta` lifts each code fence's metastring
+        // (the part after the language, e.g. `` ```python Python ``) onto
+        // a `data-meta` attribute. It must run before `rehype-raw`, which
+        // serialises and reparses the tree and would otherwise drop the
+        // parser-only `data.meta` field. Consumers (e.g. CodeGroup tab
+        // labels) then read it back as `child.props['data-meta']`.
         // `rehype-raw` reparses raw HTML embedded in markdown so authored
         // tags like `<CodeGroup>`, `<Note>`, `<Card>` survive as hast nodes
         // and reach the components map below. Without it those tags are
@@ -376,7 +390,11 @@ export function Markdown({ children, components, className }: MarkdownProps) {
         // `rehypeNumericColumns` walks each table and tags columns whose
         // body cells are all numeric-like with `text-right`, so finance /
         // metric tables read aligned without any author opt-in.
-        rehypePlugins={[rehypeRaw, rehypeNumericColumns]}
+        rehypePlugins={[
+          rehypePreserveCodeMeta,
+          rehypeRaw,
+          rehypeNumericColumns,
+        ]}
         components={{ ...baseComponents, ...components }}
       >
         {children}

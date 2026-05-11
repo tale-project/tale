@@ -1,8 +1,8 @@
-import webuiPreset from '@tale/webui/tailwind-preset';
+import uiPreset from '@tale/ui/tailwind-preset';
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
-  presets: [webuiPreset],
+  presets: [uiPreset],
   content: [
     './app/**/*.{ts,tsx}',
     './lib/**/*.{ts,tsx}',

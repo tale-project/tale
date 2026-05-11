@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./server": "./src/server.ts",
     "./layout/site-container": "./src/layout/site-container.tsx",
     "./layout/site-header": "./src/layout/site-header.tsx",
     "./layout/site-footer": "./src/layout/site-footer.tsx",

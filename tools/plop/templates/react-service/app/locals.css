@@ -1,0 +1,9 @@
+/*
+ * Service-local stylesheet. Loaded after globals.css in main.tsx.
+ *
+ * This is where service-specific overrides and rules live — e.g. third-party
+ * library CSS imports, a fullscreen layout lock, a temporary light-mode lock,
+ * marketing-brand accent overrides, etc. The shared design tokens, base
+ * layer, utilities, and animations all live in `@tale/ui/globals.css` and
+ * are inherited via the one-line globals.css.
+ */

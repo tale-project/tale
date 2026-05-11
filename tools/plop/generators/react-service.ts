@@ -57,7 +57,6 @@ const storybookFiles = [
   '.storybook/main.ts.hbs',
   '.storybook/preview.tsx',
   '.storybook/manager.ts',
-  '.storybook/vitest.setup.ts',
 ];
 
 const files = [
@@ -68,7 +67,6 @@ const files = [
   'vitest.ui.config.ts.hbs',
   'tailwind.config.ts.hbs',
   'postcss.config.mjs',
-  'components.json',
   'index.html.hbs',
   'vite-env.d.ts',
   'tsr.config.json',
@@ -82,6 +80,7 @@ const files = [
   'app/main.tsx.hbs',
   'app/router.tsx.hbs',
   'app/globals.css',
+  'app/locals.css',
   'app/routes/__root.tsx.hbs',
   'app/routes/index.tsx.hbs',
   'lib/i18n/client.tsx',

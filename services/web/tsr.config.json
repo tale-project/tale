@@ -3,6 +3,7 @@
   "routesDirectory": "./app/routes",
   "generatedRouteTree": "./app/routeTree.gen.ts",
   "routeFileIgnorePrefix": "-",
+  "routeFileIgnorePattern": "__tests__",
   "quoteStyle": "single",
   "semicolons": true
 }

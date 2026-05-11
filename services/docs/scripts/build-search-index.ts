@@ -42,7 +42,9 @@ function toSearchDoc(record: {
   const headings: string[] = [];
   for (const line of record.body.split(/\r?\n/)) {
     const m = /^(#{1,4})\s+(.+?)\s*#*\s*$/.exec(line);
-    if (m) headings.push(m[2]);
+    // Drop heading-anchor extensions like `### Title {#anchor}` — the
+    // anchor is a doc-tool artefact and would otherwise leak into search.
+    if (m) headings.push(m[2].replace(/\s*\{#[^}]+\}\s*$/, ''));
   }
   const url =
     record.locale === 'en'
@@ -53,13 +55,23 @@ function toSearchDoc(record: {
   const firstSegment = record.slug.split('/')[0];
   const section =
     firstSegment && firstSegment !== 'index' ? firstSegment : undefined;
+  // Mix URL slug tokens into the searchable headings text. The URL is a
+  // curated signal that the page is *about* its slug words — e.g.
+  // `/configuration/retention` should match queries for "configuration" or
+  // "retention" even when those words aren't in the markdown headings.
+  // Uses the headings field (not a new one) so MiniSearch's existing
+  // headings-boost applies, no runtime index schema change.
+  const slugTokens = record.slug
+    .replace(/\/index$/, '')
+    .split(/[/_-]/)
+    .filter((t) => t && t !== 'index');
   return {
     id: `${record.locale}:${record.slug}`,
     title:
       typeof record.frontmatter.title === 'string'
         ? record.frontmatter.title
         : record.slug,
-    headings: headings.join(' '),
+    headings: [...headings, ...slugTokens].join(' '),
     body: stripMarkdown(record.body),
     url,
     section,

@@ -1,21 +1,36 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <link rel="icon" href="%BASE_URL%favicon.ico" sizes="any" />
     <link
+      id="favicon-light"
       rel="icon"
       type="image/png"
-      href="%BASE_URL%images/favicon-light.png"
+      href="%BASE_URL%favicon-light.png"
+      media="(prefers-color-scheme: light)"
     />
     <link
+      id="favicon-dark"
       rel="icon"
       type="image/png"
-      href="%BASE_URL%images/favicon-dark.png"
+      href="%BASE_URL%favicon-dark.png"
       media="(prefers-color-scheme: dark)"
     />
-    <meta name="theme-color" content="#ffffff" />
+    <meta
+      id="theme-color"
+      name="theme-color"
+      content="#ffffff"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      id="theme-color-dark"
+      name="theme-color"
+      content="#0a0a0a"
+      media="(prefers-color-scheme: dark)"
+    />
     <title>Tale documentation</title>
     <meta
       name="description"
@@ -47,6 +62,8 @@
     <script>
       // Apply theme synchronously before React hydrates to avoid FOUC.
       // Mirrors logic in @tale/ui ThemeProvider (storage key, system fallback).
+      // Also forces favicon + theme-color to match the chosen theme so they
+      // follow the user's explicit pick instead of the OS preference.
       (function () {
         try {
           var stored = localStorage.getItem('tale-theme');
@@ -63,6 +80,14 @@
           var root = document.documentElement;
           if (resolved === 'dark') root.classList.add('dark');
           root.style.colorScheme = resolved;
+          var light = document.getElementById('favicon-light');
+          var dark = document.getElementById('favicon-dark');
+          if (light) light.media = resolved === 'light' ? 'all' : 'not all';
+          if (dark) dark.media = resolved === 'dark' ? 'all' : 'not all';
+          var tcLight = document.getElementById('theme-color');
+          var tcDark = document.getElementById('theme-color-dark');
+          if (tcLight) tcLight.media = resolved === 'light' ? 'all' : 'not all';
+          if (tcDark) tcDark.media = resolved === 'dark' ? 'all' : 'not all';
         } catch (_e) {
           /* localStorage unavailable; fall through to React default */
         }

@@ -9,9 +9,14 @@ interface SearchEmptyProps {
   onPickRecent: (recent: RecentSearch) => void;
   onRemoveRecent: (query: string) => void;
   onClearRecents: () => void;
+  /** When non-empty, the user has typed something below `minQueryLength`.
+   *  We render a "keep typing" hint instead of recents so they don't have
+   *  to clear the field to navigate by recents anyway. */
+  shortQuery?: string;
   labels: {
     empty: string;
     emptyHint: string;
+    keepTyping: string;
     recent: string;
     clearRecent: string;
     removeRecent: string;
@@ -28,9 +33,12 @@ export function SearchEmpty({
   onPickRecent,
   onRemoveRecent,
   onClearRecents,
+  shortQuery,
   labels,
   reduceMotion,
 }: SearchEmptyProps) {
+  const isShortQuery = !!shortQuery && shortQuery.length > 0;
+
   return (
     <motion.div
       initial={reduceMotion ? false : { opacity: 0, y: 4 }}
@@ -38,7 +46,19 @@ export function SearchEmpty({
       transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
       className="px-4 py-6"
     >
-      {recents.length > 0 ? (
+      {isShortQuery ? (
+        <div
+          className="text-fg-muted mb-6 flex flex-col items-center justify-center gap-2 px-4 py-6 text-center"
+          aria-live="polite"
+        >
+          <span className="border-border-base bg-bg-elevated/40 inline-flex size-10 items-center justify-center rounded-full border">
+            <Search aria-hidden className="size-4" />
+          </span>
+          <p className="text-fg-base text-sm font-medium">
+            {labels.keepTyping}
+          </p>
+        </div>
+      ) : recents.length > 0 ? (
         <section aria-label={labels.recent} className="mb-6">
           <header className="mb-2 flex items-center justify-between px-1">
             <span className="text-fg-subtle inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase">

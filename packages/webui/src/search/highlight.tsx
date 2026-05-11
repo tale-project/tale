@@ -12,10 +12,18 @@ function escapeRegex(value: string): string {
 }
 
 /** Render `text` with case-insensitive runs of any `terms` wrapped in a
- *  `<mark>`. Empty/whitespace-only terms are ignored. */
+ *  `<mark>`. Empty/whitespace-only terms are ignored. Longer terms are
+ *  tried first in the regex alternation so a `config|configuration` set
+ *  doesn't leave "uration" un-marked when the input contains the longer
+ *  word — important for prefix-expansion matches where MiniSearch returns
+ *  both the user's literal token and the index term that fired. */
 export function Highlight({ text, terms, className }: HighlightProps) {
   if (!text) return null;
-  const filtered = terms.filter((t) => t.length > 0).map(escapeRegex);
+  const filtered = terms
+    .filter((t) => t.trim().length > 0)
+    .slice()
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegex);
   if (filtered.length === 0) return <>{text}</>;
 
   const regex = new RegExp(`(${filtered.join('|')})`, 'gi');

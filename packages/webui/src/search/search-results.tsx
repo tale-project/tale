@@ -1,6 +1,11 @@
 import { cn } from '@tale/ui/cn';
-import { motion } from 'framer-motion';
-import { CornerDownLeft, FileText, Hash } from 'lucide-react';
+import {
+  ChevronRight,
+  CornerDownLeft,
+  FileText,
+  Hash,
+  Type,
+} from 'lucide-react';
 import { type RefObject, useMemo } from 'react';
 
 import { Highlight } from './highlight';
@@ -9,6 +14,9 @@ import type { SearchResult } from './types';
 
 interface SearchResultsProps {
   results: SearchResult[];
+  /** Fallback highlight terms used only when a result has no per-result
+   *  `matchedTerms` — e.g. tests or callers that don't go through the
+   *  rerank pipeline. */
   terms: readonly string[];
   activeIndex: number;
   setActiveIndex: (index: number) => void;
@@ -18,7 +26,6 @@ interface SearchResultsProps {
   /** For aria + keyboard nav glue. */
   optionIdPrefix: string;
   optionRefs: RefObject<Array<HTMLButtonElement | null>>;
-  reduceMotion: boolean;
 }
 
 interface ResultGroup {
@@ -31,7 +38,7 @@ interface ResultGroup {
 
 const FALLBACK_SECTION = '__other';
 
-function groupBySection(
+export function groupBySection(
   results: SearchResult[],
   sectionLabel?: (key: string) => string,
 ): ResultGroup[] {
@@ -60,6 +67,40 @@ function humanize(key: string): string {
     .join(' ');
 }
 
+/** Resolve which fields a result matched in. Drives the leading icon: a
+ *  page is "title hit", "heading hit", or "body hit" — meaningful labels,
+ *  unlike the old "has section vs no section" distinction. */
+function matchKind(result: SearchResult): 'title' | 'heading' | 'body' {
+  const fields = new Set(Object.values(result.match ?? {}).flat());
+  if (fields.has('title')) return 'title';
+  if (fields.has('headings')) return 'heading';
+  return 'body';
+}
+
+/** Build a breadcrumb from a URL path. Drops the last segment (it duplicates
+ *  the page title) and the locale prefix (e.g. `/de`) so users see context
+ *  like `Self-hosted › Configuration` instead of a raw URL. */
+export function urlToBreadcrumb(
+  url: string,
+  sectionLabel?: (key: string) => string,
+): string[] {
+  if (!url || url === '/') return [];
+  const segments = url
+    .replace(/^https?:\/\/[^/]+/i, '')
+    .split('/')
+    .filter(Boolean);
+  if (segments.length === 0) return [];
+  // Drop a leading 2-letter locale segment (`/de/...`, `/fr/...`).
+  const head = segments[0] ?? '';
+  if (/^[a-z]{2}(-[a-z]{2})?$/i.test(head)) segments.shift();
+  // The last segment is usually the page slug — already shown as the title.
+  // Keep it only when it's the *only* segment (we'd otherwise show nothing).
+  const trail = segments.length > 1 ? segments.slice(0, -1) : segments;
+  return trail.map((seg, i) =>
+    i === 0 && sectionLabel ? sectionLabel(seg) : humanize(seg),
+  );
+}
+
 export function SearchResults({
   results,
   terms,
@@ -69,7 +110,6 @@ export function SearchResults({
   sectionLabel,
   optionIdPrefix,
   optionRefs,
-  reduceMotion,
 }: SearchResultsProps) {
   const groups = useMemo(
     () => groupBySection(results, sectionLabel),
@@ -88,7 +128,7 @@ export function SearchResults({
               <SearchResultItem
                 key={result.id}
                 result={result}
-                terms={terms}
+                fallbackTerms={terms}
                 isActive={flatIndex === activeIndex}
                 onHover={() => setActiveIndex(flatIndex)}
                 onSelect={() => onSelect(result)}
@@ -96,7 +136,7 @@ export function SearchResults({
                 refCallback={(node) => {
                   optionRefs.current[flatIndex] = node;
                 }}
-                reduceMotion={reduceMotion}
+                sectionLabel={sectionLabel}
               />
             ))}
           </ul>
@@ -108,36 +148,55 @@ export function SearchResults({
 
 interface ResultItemProps {
   result: SearchResult;
-  terms: readonly string[];
+  fallbackTerms: readonly string[];
   isActive: boolean;
   onHover: () => void;
   onSelect: () => void;
   optionId: string;
   refCallback: (node: HTMLButtonElement | null) => void;
-  reduceMotion: boolean;
+  sectionLabel?: (key: string) => string;
 }
 
 function SearchResultItem({
   result,
-  terms,
+  fallbackTerms,
   isActive,
   onHover,
   onSelect,
   optionId,
   refCallback,
-  reduceMotion,
+  sectionLabel,
 }: ResultItemProps) {
+  // Highlight the union of "what MiniSearch matched" + "what the user typed
+  // that fired" — so a fuzzy/prefix match like config→configuration shows a
+  // mark on configuration, while exact matches stay marked too. Defensive
+  // against malformed results (tests, future callers) where these arrays
+  // might be missing.
+  const highlightTerms = useMemo(() => {
+    const matched = Array.isArray(result.matchedTerms)
+      ? result.matchedTerms
+      : [];
+    const queried = Array.isArray(result.queryTerms) ? result.queryTerms : [];
+    const merged = [...matched, ...queried];
+    if (merged.length === 0) return fallbackTerms;
+    return Array.from(new Set(merged));
+  }, [result.matchedTerms, result.queryTerms, fallbackTerms]);
+
   const snippet = useMemo(
-    () => (result.body ? extractSnippet(result.body, terms, 150) : ''),
-    [result.body, terms],
+    () => (result.body ? extractSnippet(result.body, highlightTerms, 150) : ''),
+    [result.body, highlightTerms],
   );
 
-  const Icon = result.section ? Hash : FileText;
+  const kind = matchKind(result);
+  const Icon = kind === 'heading' ? Hash : kind === 'title' ? Type : FileText;
+  const breadcrumb = useMemo(
+    () => urlToBreadcrumb(result.url, sectionLabel),
+    [result.url, sectionLabel],
+  );
 
   return (
     <li>
-      <motion.button
-        layout={!reduceMotion ? 'position' : false}
+      <button
         type="button"
         role="option"
         id={optionId}
@@ -146,6 +205,7 @@ function SearchResultItem({
         onMouseEnter={onHover}
         onFocus={onHover}
         onClick={onSelect}
+        data-match-kind={kind}
         className={cn(
           'group relative flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
           'focus-visible:outline-none',
@@ -167,16 +227,33 @@ function SearchResultItem({
         <span className="min-w-0 flex-1">
           <span className="text-fg-base flex items-center gap-2 text-sm font-medium">
             <span className="truncate">
-              <Highlight text={result.title} terms={terms} />
+              <Highlight text={result.title} terms={highlightTerms} />
             </span>
           </span>
           {snippet ? (
             <span className="text-fg-muted mt-0.5 line-clamp-2 text-xs leading-relaxed">
-              <Highlight text={snippet} terms={terms} />
+              <Highlight text={snippet} terms={highlightTerms} />
             </span>
           ) : null}
-          <span className="text-fg-subtle mt-1 block truncate font-mono text-[10.5px]">
-            {result.url}
+          <span
+            className="text-fg-subtle mt-1 flex min-w-0 items-center gap-1 truncate text-[10.5px]"
+            aria-label={result.url}
+          >
+            {breadcrumb.length > 0 ? (
+              breadcrumb.map((segment, i) => (
+                <span
+                  key={`${segment}-${i}`}
+                  className="inline-flex shrink-0 items-center gap-1"
+                >
+                  {i > 0 ? (
+                    <ChevronRight aria-hidden className="size-2.5 opacity-60" />
+                  ) : null}
+                  <span className="truncate">{segment}</span>
+                </span>
+              ))
+            ) : (
+              <span className="font-mono">{result.url}</span>
+            )}
           </span>
         </span>
         <span
@@ -190,7 +267,7 @@ function SearchResultItem({
         >
           <CornerDownLeft className="size-3" />
         </span>
-      </motion.button>
+      </button>
     </li>
   );
 }

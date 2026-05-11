@@ -14,13 +14,13 @@ Tu peux joindre plusieurs fichiers à la fois. Chaque fichier affiche un indicat
 
 ## Types de fichiers pris en charge
 
-| Catégorie     | Extensions                                      | Ce que fait l’IA                                                                                                 |
-| ------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **Images**    | PNG, JPEG, GIF, WebP                            | regarde le contenu visuel — mise en page, graphiques, photos, texte dans l’image.                                |
-| **Documents** | PDF, DOCX, XLSX, PPTX, TXT, Markdown            | lit le contenu textuel, y compris tableaux et titres.                                                            |
-| **Code**      | JS, TS, Python et la plupart des formats source | lit le code source avec conscience syntaxique.                                                                   |
-| **Audio**     | MP3, M4A, WAV, OGG, WebM audio                  | transcrit la piste audio et transmet le texte à l’agent. Les octets bruts n’atteignent jamais le modèle de chat. |
-| **Vidéo**     | MP4, MOV, MKV, WebM, AVI, MPEG, 3GP, M4V        | extrait la piste audio, la transcrit et transmet le texte à l’agent. Le contenu visuel n’est **pas** envoyé.     |
+| Catégorie     | Extensions                                               | Ce que fait l’IA                                                                                                 |
+| ------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Images**    | `PNG`, `JPEG`, `GIF`, `WebP`                             | regarde le contenu visuel — mise en page, graphiques, photos, texte dans l’image.                                |
+| **Documents** | `PDF`, `DOCX`, `XLSX`, `PPTX`, `TXT`, `Markdown`         | lit le contenu textuel, y compris tableaux et titres.                                                            |
+| **Code**      | `JS`, `TS`, `Python` et la plupart des formats source    | lit le code source avec conscience syntaxique.                                                                   |
+| **Audio**     | `MP3`, `M4A`, `WAV`, `OGG`, `WebM` audio                 | transcrit la piste audio et transmet le texte à l’agent. Les octets bruts n’atteignent jamais le modèle de chat. |
+| **Vidéo**     | `MP4`, `MOV`, `MKV`, `WebM`, `AVI`, `MPEG`, `3GP`, `M4V` | extrait la piste audio, la transcrit et transmet le texte à l’agent. Le contenu visuel n’est **pas** envoyé.     |
 
 ### Transcription audio et vidéo
 

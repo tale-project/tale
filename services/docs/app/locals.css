@@ -1,0 +1,13 @@
+/*
+ * Marketing-brand accent for the docs site. Replaces the @tale/ui default
+ * (slate near-black) with marketing blue so every @tale/ui component that
+ * reads `--color-accent-base` (buttons, focus rings, links, tooltips,
+ * accordions, sliders) picks up the brand color automatically.
+ */
+:root {
+  --color-accent-base: hsl(214 90% 56%);
+}
+
+html.dark {
+  --color-accent-base: hsl(214 95% 65%);
+}

@@ -3,7 +3,7 @@ title: Deine Einstellungen
 description: Passwort, Sprache und persönliche Einstellungen ändern.
 ---
 
-Deine persönlichen Einstellungen findest du unter **Account-Einstellungen**, erreichbar über dein Avatar oben rechts. Jeder Nutzer — Mitglied, Redakteur, Entwickler, Admin oder Inhaber — hat Zugriff auf diese Seite.
+Deine persönlichen Einstellungen findest du unter **Account-Einstellungen**, erreichbar über dein Avatar unten links. Jeder Nutzer — Mitglied, Redakteur, Entwickler, Admin oder Inhaber — hat Zugriff auf diese Seite.
 
 ## Passwort
 

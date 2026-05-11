@@ -3,7 +3,7 @@ title: Your preferences
 description: Change your password, language, and personal settings.
 ---
 
-Your personal preferences are under **Account settings**, reachable from your avatar in the top-right corner. Any user — Member, Editor, Developer, Admin, or Owner — can access this page.
+Your personal preferences are under **Account settings**, reachable from your avatar in the bottom-left corner. Any user — Member, Editor, Developer, Admin, or Owner — can access this page.
 
 ## Password
 

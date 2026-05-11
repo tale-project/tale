@@ -36,6 +36,7 @@
     "placeholder": "Rechercher dans la documentation…",
     "empty": "Commence à taper pour explorer la doc.",
     "emptyHint": "Trouve des guides, des références et des concepts dans toutes les sections.",
+    "keepTyping": "Continue à taper pour lancer la recherche…",
     "noResultsTitle": "Aucun résultat",
     "noResultsHint": "Essaie d'autres mots-clés ou parcours la navigation.",
     "loading": "Recherche en cours…",
