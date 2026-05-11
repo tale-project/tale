@@ -624,6 +624,7 @@ import type * as organizations_delete_cleanup from "../organizations/delete_clea
 import type * as organizations_delete_organization from "../organizations/delete_organization.js";
 import type * as organizations_delete_organization_logo from "../organizations/delete_organization_logo.js";
 import type * as organizations_get_organization from "../organizations/get_organization.js";
+import type * as organizations_has_any_organization from "../organizations/has_any_organization.js";
 import type * as organizations_helpers from "../organizations/helpers.js";
 import type * as organizations_internal_queries from "../organizations/internal_queries.js";
 import type * as organizations_queries from "../organizations/queries.js";
@@ -1676,6 +1677,7 @@ declare const fullApi: ApiFromModules<{
   "organizations/delete_organization": typeof organizations_delete_organization;
   "organizations/delete_organization_logo": typeof organizations_delete_organization_logo;
   "organizations/get_organization": typeof organizations_get_organization;
+  "organizations/has_any_organization": typeof organizations_has_any_organization;
   "organizations/helpers": typeof organizations_helpers;
   "organizations/internal_queries": typeof organizations_internal_queries;
   "organizations/queries": typeof organizations_queries;
