@@ -64,7 +64,6 @@ COPY services/platform/vite.config.ts \
      services/platform/index.html \
      services/platform/vite-env.d.ts \
      services/platform/tsr.config.json \
-     services/platform/components.json \
      services/platform/package.json \
      ./services/platform/
 
