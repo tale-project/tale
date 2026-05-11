@@ -1332,7 +1332,12 @@
       },
       "chart": {
         "trendTitle": "Runs over time",
+        "trendTooltip": "Number of workflow executions over the selected time period",
         "statusTitle": "Status breakdown",
+        "statusTooltip": "Distribution of workflow run outcomes",
+        "totalLabel": "Total runs",
+        "noData": "No data",
+        "noDataDescription": "Run a workflow to see breakdown",
         "completed": "Completed",
         "failed": "Failed",
         "running": "Running"
