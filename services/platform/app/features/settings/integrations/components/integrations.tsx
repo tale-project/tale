@@ -161,6 +161,11 @@ export function Integrations({
               title={integration.title}
               description={integration.description}
               isActive={integration.isActive === true}
+              status={
+                typeof integration.status === 'string'
+                  ? integration.status
+                  : undefined
+              }
               iconUrl={
                 typeof integration.iconUrl === 'string'
                   ? integration.iconUrl

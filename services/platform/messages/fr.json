@@ -817,7 +817,8 @@
       "searchPlaceholder": "Rechercher des intégrations...",
       "badge": {
         "connected": "Connectée",
-        "connect": "Connecter"
+        "connect": "Connecter",
+        "reconnectNeeded": "Reconnexion requise"
       },
       "empty": {
         "connectedTitle": "Aucune intégration connectée",
@@ -871,6 +872,7 @@
         "configureCredentialsHint": "Configure les identifiants dans les paramètres de l'intégration pour l'activer.",
         "active": "Actif",
         "inactive": "Inactif",
+        "reconnectNeeded": "Reconnexion requise",
         "changeIcon": "Changer l'icône",
         "iconTooLarge": "L'icône doit faire moins de 256 Ko",
         "invalidIconFormat": "L'icône doit être au format PNG, SVG, JPG ou WebP"

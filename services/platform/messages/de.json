@@ -817,7 +817,8 @@
       "searchPlaceholder": "Integrationen suchen...",
       "badge": {
         "connected": "Verbunden",
-        "connect": "Verbinden"
+        "connect": "Verbinden",
+        "reconnectNeeded": "Erneut verbinden"
       },
       "empty": {
         "connectedTitle": "Keine verbundenen Integrationen",
@@ -871,6 +872,7 @@
         "configureCredentialsHint": "Konfiguriere die Zugangsdaten in den Integrationseinstellungen, um sie zu aktivieren.",
         "active": "Aktiv",
         "inactive": "Inaktiv",
+        "reconnectNeeded": "Erneut verbinden",
         "changeIcon": "Symbol ändern",
         "iconTooLarge": "Symbol muss unter 256 KB sein",
         "invalidIconFormat": "Symbol muss PNG, SVG, JPG oder WebP sein"

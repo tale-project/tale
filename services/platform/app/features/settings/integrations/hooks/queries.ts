@@ -9,10 +9,15 @@ import { api } from '@/convex/_generated/api';
 // ---------------------------------------------------------------------------
 
 export function useIntegrations(orgSlug: string) {
+  // Skip the action while the caller is still resolving the org's slug
+  // (e.g. /dashboard/$id/settings/integrations on first render before
+  // useOrganization resolves). Firing with orgSlug='' would throw
+  // "Invalid org slug:" on the server — noise only, but pollutes logs.
   const { data, isLoading, error, refetch } = useActionQuery(
     configKeys.list('integrations', orgSlug),
     api.integrations.file_actions.listIntegrations,
     { orgSlug, filter: 'all' },
+    { enabled: orgSlug !== '' },
   );
   return { integrations: data ?? [], isLoading, error, refetch };
 }
