@@ -2579,6 +2579,7 @@
   },
   "products": {
     "title": "Produkte",
+    "searchPlaceholder": "Produkte suchen",
     "addButton": "Produkt hinzufügen",
     "importMenu": {
       "fromDevice": "Von deinem Gerät",
@@ -2663,6 +2664,7 @@
   },
   "customers": {
     "title": "Kunden",
+    "searchPlaceholder": "Kunden suchen",
     "filter": {
       "source": {
         "manual": "Manuell",
@@ -2728,6 +2730,7 @@
   },
   "vendors": {
     "title": "Lieferanten",
+    "searchPlaceholder": "Lieferanten suchen",
     "addVendors": "Lieferanten hinzufügen",
     "uploadVendors": "Lieferanten hochladen",
     "importForm": {
@@ -2778,6 +2781,7 @@
   },
   "websites": {
     "title": "Websites",
+    "searchPlaceholder": "Websites suchen",
     "addButton": "Website hinzufügen",
     "addWebsite": "Website hinzufügen",
     "editWebsite": "Website bearbeiten",
