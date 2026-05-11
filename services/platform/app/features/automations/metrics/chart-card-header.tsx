@@ -21,7 +21,7 @@ export function ChartCardHeader({ title, tooltip }: ChartCardHeaderProps) {
           <button
             type="button"
             aria-label={tooltip}
-            className="text-muted-foreground hover:text-foreground inline-flex h-4 w-4 items-center justify-center"
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex h-6 w-6 items-center justify-center rounded focus-visible:ring-2 focus-visible:outline-none"
           >
             <Info className="h-4 w-4" aria-hidden />
           </button>

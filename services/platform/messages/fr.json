@@ -1337,7 +1337,7 @@
         "statusTooltip": "Distribution des résultats d'exécution des workflows",
         "totalLabel": "Total",
         "noData": "Aucune donnée",
-        "noDataDescription": "Exécutez un workflow pour voir la répartition",
+        "noDataDescription": "Exécute un workflow pour voir la répartition",
         "completed": "Terminées",
         "failed": "Échouées",
         "running": "En cours"

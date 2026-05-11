@@ -143,9 +143,7 @@ export function TopWorkflowsTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <Text as="div" className="text-base font-semibold">
-        {t('metrics.table.title')}
-      </Text>
+      <h2 className="text-base font-semibold">{t('metrics.table.title')}</h2>
       <DataTable
         columns={columns}
         data={rows}

@@ -36,7 +36,7 @@ export function MetricsSummaryCards({
   const successRateDisplay = total > 0 ? `${successRate.toFixed(1)}%` : '—';
 
   return (
-    <div className="border-border bg-card grid grid-cols-2 divide-x divide-y rounded-lg border md:grid-cols-4 md:divide-y-0">
+    <div className="border-border bg-card grid grid-cols-2 divide-y rounded-lg border md:grid-cols-4 md:divide-x md:divide-y-0">
       <StatCell
         label={t('metrics.cards.totalRuns')}
         value={formatNumber(total)}

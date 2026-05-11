@@ -51,9 +51,7 @@ export function WorkflowMetricsPage({
     <Stack gap={6} className="p-6">
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <Text as="div" className="text-base font-semibold">
-            {t('metrics.title')}
-          </Text>
+          <h1 className="text-base font-semibold">{t('metrics.title')}</h1>
           <Text variant="caption" className="text-muted-foreground text-sm">
             {t('metrics.description')}
           </Text>
