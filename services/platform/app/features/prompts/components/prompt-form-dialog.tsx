@@ -1,5 +1,6 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { useState, useCallback, useMemo } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
@@ -24,6 +25,8 @@ interface PromptFormDialogProps {
   onSubmit: (data: PromptFormData) => void;
   isSubmitting: boolean;
   initialData?: PromptTemplate;
+  /** Optional render slot above the form (e.g. "View history" link). */
+  headerActions?: React.ReactNode;
 }
 
 export interface PromptFormData {
@@ -42,6 +45,7 @@ function PromptFormDialogContent({
   onSubmit,
   isSubmitting,
   initialData,
+  headerActions,
 }: PromptFormDialogProps) {
   const { t } = useT('prompts');
   const { teams } = useTeams();
@@ -62,6 +66,8 @@ function PromptFormDialogContent({
     initialData?.tags?.join(', ') ?? '',
   );
   const [localCategories, setLocalCategories] = useState<string[]>([]);
+
+  const isEditing = !!initialData;
 
   const existingCategories = useMemo(() => {
     const fromPrompts = prompts
@@ -147,16 +153,28 @@ function PromptFormDialogContent({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={initialData ? t('form.editTitle') : t('form.createTitle')}
+      title={isEditing ? t('form.editTitle') : t('form.createTitle')}
       description={
-        initialData ? t('form.editDescription') : t('form.createDescription')
+        isEditing ? t('form.editDescription') : t('form.createDescription')
       }
       onSubmit={handleSubmit}
       isSubmitting={isSubmitting}
       isDirty={isDirty && isValid}
-      submitText={initialData ? t('form.save') : t('form.create')}
+      submitText={isEditing ? t('form.save') : t('form.create')}
       large
     >
+      {isEditing && (
+        <HStack gap={2} align="center" justify="between">
+          <HStack gap={2} align="center">
+            {initialData?.version !== undefined && (
+              <Badge variant="outline">
+                {t('version.badge', { version: initialData.version })}
+              </Badge>
+            )}
+          </HStack>
+          {headerActions}
+        </HStack>
+      )}
       <Input
         label={t('form.titleLabel')}
         value={title}

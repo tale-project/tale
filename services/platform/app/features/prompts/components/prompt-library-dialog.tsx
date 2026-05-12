@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { BookOpen, Plus, Search } from 'lucide-react';
+import { BookOpen, History, Plus, Search } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -13,6 +13,7 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -24,6 +25,7 @@ import type { PromptTemplate } from '../hooks/queries';
 import { usePrompts } from '../hooks/queries';
 import { CategoryFilterPopover } from './category-filter-popover';
 import { PromptFormDialog, type PromptFormData } from './prompt-form-dialog';
+import { PromptHistoryDialog } from './prompt-history-dialog';
 import { PromptListRow } from './prompt-list-row';
 import { SavePromptDialog } from './save-prompt-dialog';
 
@@ -39,6 +41,7 @@ function PromptLibraryDialogContent({
   onSelectPrompt,
 }: PromptLibraryDialogProps) {
   const { t } = useT('prompts');
+  const { toast } = useToast();
   const organizationId = useOrganizationId();
   const { data: currentUser } = useCurrentUser();
   const { data: memberContext } = useCurrentMemberContext(organizationId);
@@ -54,6 +57,9 @@ function PromptLibraryDialogContent({
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<PromptTemplate | null>(
+    null,
+  );
+  const [historyPrompt, setHistoryPrompt] = useState<PromptTemplate | null>(
     null,
   );
   const [deletingPrompt, setDeletingPrompt] = useState<PromptTemplate | null>(
@@ -121,7 +127,7 @@ function PromptLibraryDialogContent({
   const handleEditSubmit = useCallback(
     async (data: PromptFormData) => {
       if (!editingPrompt) return;
-      await updatePrompt.mutateAsync({
+      const result = await updatePrompt.mutateAsync({
         promptId: editingPrompt._id,
         title: data.title,
         content: data.content,
@@ -131,9 +137,16 @@ function PromptLibraryDialogContent({
         category: data.category || undefined,
         tags: data.tags.length > 0 ? data.tags : undefined,
       });
+      const contentChanged = data.content !== editingPrompt.content;
+      if (contentChanged) {
+        toast({
+          title: t('toast.saved', { version: String(result?.version ?? '') }),
+          variant: 'success',
+        });
+      }
       setEditingPrompt(null);
     },
-    [editingPrompt, updatePrompt],
+    [editingPrompt, updatePrompt, toast, t],
   );
 
   const handleDeleteConfirm = useCallback(async () => {
@@ -229,6 +242,11 @@ function PromptLibraryDialogContent({
                         ? (p) => setDeletingPrompt(p)
                         : undefined
                     }
+                    onViewHistory={
+                      canModifyPrompt(prompt)
+                        ? (p) => setHistoryPrompt(p)
+                        : undefined
+                    }
                     canModify={canModifyPrompt(prompt)}
                     isLast={index === filteredPrompts.length - 1}
                   />
@@ -253,7 +271,30 @@ function PromptLibraryDialogContent({
         onSubmit={handleEditSubmit}
         isSubmitting={updatePrompt.isPending}
         initialData={editingPrompt ?? undefined}
+        headerActions={
+          editingPrompt && (editingPrompt.version ?? 0) > 1 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setHistoryPrompt(editingPrompt)}
+            >
+              <History className="mr-1 size-3" />
+              {t('actions.viewHistory')}
+            </Button>
+          ) : undefined
+        }
       />
+
+      {historyPrompt && (
+        <PromptHistoryDialog
+          open={!!historyPrompt}
+          onOpenChange={(o) => {
+            if (!o) setHistoryPrompt(null);
+          }}
+          prompt={historyPrompt}
+        />
+      )}
 
       <ConfirmDialog
         open={!!deletingPrompt}

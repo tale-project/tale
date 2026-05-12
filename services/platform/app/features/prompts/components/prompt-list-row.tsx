@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Copy, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Copy, History, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { HStack } from '@/app/components/ui/layout/layout';
@@ -21,6 +21,7 @@ interface PromptListRowProps {
   onUse: (prompt: PromptTemplate) => void;
   onEdit?: (prompt: PromptTemplate) => void;
   onDelete?: (prompt: PromptTemplate) => void;
+  onViewHistory?: (prompt: PromptTemplate) => void;
   canModify: boolean;
   isLast: boolean;
 }
@@ -30,6 +31,7 @@ export function PromptListRow({
   onUse,
   onEdit,
   onDelete,
+  onViewHistory,
   canModify,
   isLast,
 }: PromptListRowProps) {
@@ -63,6 +65,14 @@ export function PromptListRow({
         onClick: () => onEdit(prompt),
       });
     }
+    if (onViewHistory && (prompt.version ?? 0) > 1) {
+      group.push({
+        type: 'item',
+        label: t('actions.viewHistory'),
+        icon: History,
+        onClick: () => onViewHistory(prompt),
+      });
+    }
     if (onDelete) {
       group.push({
         type: 'item',
@@ -73,12 +83,12 @@ export function PromptListRow({
       });
     }
     return [group];
-  }, [handleCopy, onEdit, onDelete, prompt, t]);
+  }, [handleCopy, onEdit, onDelete, onViewHistory, prompt, t]);
 
   return (
     <div
       className={cn(
-        'group flex w-full items-center gap-3 p-3 transition-colors hover:bg-accent/50',
+        'group hover:bg-accent/50 flex w-full items-center gap-3 p-3 transition-colors',
         !isLast && 'border-border border-b',
       )}
     >

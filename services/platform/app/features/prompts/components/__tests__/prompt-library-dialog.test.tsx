@@ -51,6 +51,8 @@ vi.mock('../../hooks/queries', () => ({
     ],
     isLoading: false,
   }),
+  usePrompt: () => ({ data: null, isLoading: false }),
+  usePromptHistory: () => ({ data: null, isLoading: false }),
 }));
 
 vi.mock('../../hooks/mutations', () => ({
@@ -58,6 +60,10 @@ vi.mock('../../hooks/mutations', () => ({
   useUpdatePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeletePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useIncrementPromptUsage: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRestorePromptFromVersion: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 import { PromptLibraryDialog } from '../prompt-library-dialog';

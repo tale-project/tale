@@ -4339,7 +4339,8 @@
       "delete": "Delete",
       "more": "More actions",
       "copy": "Copy",
-      "copied": "Copied!"
+      "copied": "Copied!",
+      "viewHistory": "Version history"
     },
     "deleteConfirm": {
       "title": "Delete prompt",
@@ -4377,7 +4378,30 @@
       "cancel": "Cancel"
     },
     "toast": {
-      "savedTo": "Saved to {scope}"
+      "savedTo": "Saved to {scope}",
+      "saved": "Saved as v{version}",
+      "restored": "Restored as new version v{version}",
+      "restoreFailed": "Could not restore version"
+    },
+    "version": {
+      "badge": "v{version}"
+    },
+    "history": {
+      "dialogTitle": "Version history — {name}",
+      "dialogDescription": "Compare and restore past versions of this prompt.",
+      "loading": "Loading history...",
+      "current": "Current",
+      "compare": "Compare",
+      "compareTitle": "Compare with v{version}",
+      "compareDescription": "Published {date}",
+      "currentVersion": "Current (v{version})",
+      "snapshotVersion": "v{version}",
+      "noDifferences": "No differences between these versions.",
+      "backToList": "Back to history",
+      "restore": "Restore",
+      "restoreConfirmTitle": "Restore previous version",
+      "restoreConfirmDescription": "This will create a new version v{target} with the content of v{source}. Existing versions are preserved.",
+      "empty": "No previous versions"
     },
     "categoryFilter": {
       "title": "By category"

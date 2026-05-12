@@ -4339,7 +4339,8 @@
       "delete": "Löschen",
       "more": "Weitere Aktionen",
       "copy": "Kopieren",
-      "copied": "Kopiert!"
+      "copied": "Kopiert!",
+      "viewHistory": "Versionsverlauf"
     },
     "deleteConfirm": {
       "title": "Prompt löschen",
@@ -4377,7 +4378,30 @@
       "cancel": "Abbrechen"
     },
     "toast": {
-      "savedTo": "Gespeichert unter {scope}"
+      "savedTo": "Gespeichert unter {scope}",
+      "saved": "Gespeichert als v{version}",
+      "restored": "Als neue Version v{version} wiederhergestellt",
+      "restoreFailed": "Version konnte nicht wiederhergestellt werden"
+    },
+    "version": {
+      "badge": "v{version}"
+    },
+    "history": {
+      "dialogTitle": "Versionsverlauf — {name}",
+      "dialogDescription": "Frühere Versionen dieses Prompts vergleichen und wiederherstellen.",
+      "loading": "Verlauf wird geladen...",
+      "current": "Aktuell",
+      "compare": "Vergleichen",
+      "compareTitle": "Mit v{version} vergleichen",
+      "compareDescription": "Veröffentlicht {date}",
+      "currentVersion": "Aktuell (v{version})",
+      "snapshotVersion": "v{version}",
+      "noDifferences": "Keine Unterschiede zwischen diesen Versionen.",
+      "backToList": "Zurück zum Verlauf",
+      "restore": "Wiederherstellen",
+      "restoreConfirmTitle": "Frühere Version wiederherstellen",
+      "restoreConfirmDescription": "Dies erstellt eine neue Version v{target} mit dem Inhalt von v{source}. Bestehende Versionen bleiben erhalten.",
+      "empty": "Keine früheren Versionen"
     },
     "categoryFilter": {
       "title": "Nach Kategorie"

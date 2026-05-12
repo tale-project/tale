@@ -4264,7 +4264,8 @@
       "delete": "Supprimer",
       "more": "Plus d'actions",
       "copy": "Copier",
-      "copied": "Copié !"
+      "copied": "Copié !",
+      "viewHistory": "Historique des versions"
     },
     "deleteConfirm": {
       "title": "Supprimer le prompt",
@@ -4302,7 +4303,30 @@
       "cancel": "Annuler"
     },
     "toast": {
-      "savedTo": "Enregistré sous {scope}"
+      "savedTo": "Enregistré sous {scope}",
+      "saved": "Enregistré en tant que v{version}",
+      "restored": "Restauré en tant que nouvelle version v{version}",
+      "restoreFailed": "Impossible de restaurer la version"
+    },
+    "version": {
+      "badge": "v{version}"
+    },
+    "history": {
+      "dialogTitle": "Historique des versions — {name}",
+      "dialogDescription": "Comparer et restaurer les versions précédentes de ce prompt.",
+      "loading": "Chargement de l'historique...",
+      "current": "Actuelle",
+      "compare": "Comparer",
+      "compareTitle": "Comparer avec v{version}",
+      "compareDescription": "Publié {date}",
+      "currentVersion": "Actuelle (v{version})",
+      "snapshotVersion": "v{version}",
+      "noDifferences": "Aucune différence entre ces versions.",
+      "backToList": "Retour à l'historique",
+      "restore": "Restaurer",
+      "restoreConfirmTitle": "Restaurer une version précédente",
+      "restoreConfirmDescription": "Ceci créera une nouvelle version v{target} avec le contenu de v{source}. Les versions existantes sont conservées.",
+      "empty": "Aucune version précédente"
     },
     "categoryFilter": {
       "title": "Par catégorie"

@@ -14,6 +14,10 @@ export function useSavePrompt() {
   return useConvexAction(api.prompts.actions.savePrompt);
 }
 
+/**
+ * Update prompt metadata and/or content. Each content change is an instant
+ * publish that bumps the version and pushes the prior content into history.
+ */
 export function useUpdatePrompt() {
   return useConvexMutation(api.prompts.mutations.updatePrompt);
 }
@@ -24,4 +28,8 @@ export function useDeletePrompt() {
 
 export function useIncrementPromptUsage() {
   return useConvexMutation(api.prompts.mutations.incrementUsage);
+}
+
+export function useRestorePromptFromVersion() {
+  return useConvexMutation(api.prompts.mutations.restoreFromVersion);
 }

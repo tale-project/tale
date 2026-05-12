@@ -7,6 +7,7 @@ export const promptTemplatesTable = defineTable({
   organizationId: v.string(),
   createdBy: v.string(),
   title: v.string(),
+  /** The currently published content (the version visible to all consumers). */
   content: v.string(),
   description: v.optional(v.string()),
   scope: v.union(v.literal('global'), v.literal('team'), v.literal('personal')),
@@ -19,6 +20,26 @@ export const promptTemplatesTable = defineTable({
   sourceMessageId: v.optional(v.string()),
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),
+
+  // --- Versioning ---
+  /** Denormalized pointer to the current version number. Always equal to
+   * versionHistory[0].version; kept at the row level for fast list queries. */
+  version: v.optional(v.number()),
+
+  /** Full edit log, newest first. `versionHistory[0]` IS the current
+   * version — its content matches the row's top-level `content`.
+   * Capped by MAX_PROMPT_VERSION_HISTORY. */
+  versionHistory: v.optional(
+    v.array(
+      v.object({
+        version: v.number(),
+        content: v.string(),
+        publishedAt: v.number(),
+        publishedBy: v.string(),
+        publishNote: v.optional(v.string()),
+      }),
+    ),
+  ),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_lifecycleStatus', [
