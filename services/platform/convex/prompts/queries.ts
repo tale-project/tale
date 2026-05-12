@@ -30,7 +30,6 @@ function toListItem(prompt: PromptDoc) {
     category: prompt.category,
     tags: prompt.tags,
     usageCount: prompt.usageCount,
-    isPublished: prompt.isPublished,
     sourceMessageId: prompt.sourceMessageId,
     lifecycleStatus: prompt.lifecycleStatus,
     statusChangedAt: prompt.statusChangedAt,
@@ -80,9 +79,6 @@ export const listPrompts = queryWithRLS({
         continue;
       }
       if (!hasTeamAccess(prompt, userTeamIds)) {
-        continue;
-      }
-      if (!prompt.isPublished && prompt.createdBy !== user.userId) {
         continue;
       }
 

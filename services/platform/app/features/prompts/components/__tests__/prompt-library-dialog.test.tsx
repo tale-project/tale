@@ -46,7 +46,6 @@ vi.mock('../../hooks/queries', () => ({
         category: 'testing',
         tags: ['test'],
         usageCount: 5,
-        isPublished: true,
       },
     ],
     isLoading: false,

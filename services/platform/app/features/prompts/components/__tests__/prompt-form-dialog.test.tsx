@@ -66,7 +66,6 @@ describe('PromptFormDialog', () => {
             category: 'general',
             tags: ['tag1'],
             usageCount: 3,
-            isPublished: true,
           }}
         />,
       );
@@ -102,7 +101,6 @@ describe('PromptFormDialog', () => {
           content: 'Some content',
           scope: 'personal',
           usageCount: 0,
-          isPublished: true,
         }}
       />,
     );

@@ -32,7 +32,6 @@ function makePromptDoc(
     content: 'current content',
     scope: 'personal',
     usageCount: 0,
-    isPublished: true,
     version: 1,
     versionHistory: [
       {

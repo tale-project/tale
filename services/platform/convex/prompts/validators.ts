@@ -39,7 +39,8 @@ const promptTemplateBaseFields = {
   category: v.optional(v.string()),
   tags: v.optional(v.array(v.string())),
   usageCount: v.number(),
-  isPublished: v.boolean(),
+  /** @deprecated No longer used; retained as optional for backwards compatibility with existing rows. */
+  isPublished: v.optional(v.boolean()),
   sourceMessageId: v.optional(v.string()),
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),

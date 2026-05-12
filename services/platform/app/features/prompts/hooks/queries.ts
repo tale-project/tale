@@ -22,7 +22,8 @@ export interface PromptTemplate {
   category?: string;
   tags?: string[];
   usageCount: number;
-  isPublished: boolean;
+  /** @deprecated */
+  isPublished?: boolean;
   sourceMessageId?: string;
   version?: number;
   /** Only present in `getPrompt` detail for creator/admin viewers. */

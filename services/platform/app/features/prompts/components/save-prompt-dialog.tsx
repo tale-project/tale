@@ -120,7 +120,6 @@ function SavePromptDialogContent({
         scope,
         teamId: scope === 'team' ? teamId : undefined,
         category: category || undefined,
-        isPublished: true,
         sourceMessageId,
       });
 

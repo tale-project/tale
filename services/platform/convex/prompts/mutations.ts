@@ -50,7 +50,6 @@ export const createPrompt = mutationWithRLS({
     teamId: v.optional(v.string()),
     category: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
-    isPublished: v.optional(v.boolean()),
     sourceMessageId: v.optional(v.string()),
   },
   returns: promptTemplateValidator,
@@ -88,7 +87,6 @@ export const createPrompt = mutationWithRLS({
       category: args.category,
       tags: args.tags,
       usageCount: 0,
-      isPublished: args.isPublished ?? true,
       sourceMessageId: args.sourceMessageId,
       version: 1,
       versionHistory: [
@@ -138,7 +136,6 @@ export const updatePrompt = mutationWithRLS({
     teamId: v.optional(v.string()),
     category: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
-    isPublished: v.optional(v.boolean()),
   },
   returns: v.union(promptTemplateValidator, v.null()),
   handler: async (ctx, args) => {
@@ -174,7 +171,6 @@ export const updatePrompt = mutationWithRLS({
     if (args.teamId !== undefined) updates.teamId = args.teamId;
     if (args.category !== undefined) updates.category = args.category;
     if (args.tags !== undefined) updates.tags = args.tags;
-    if (args.isPublished !== undefined) updates.isPublished = args.isPublished;
     if (args.scope && args.scope !== 'team') {
       updates.teamId = undefined;
     }

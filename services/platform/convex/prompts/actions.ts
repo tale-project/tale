@@ -33,7 +33,6 @@ export const savePrompt = action({
     teamId: v.optional(v.string()),
     category: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
-    isPublished: v.optional(v.boolean()),
     sourceMessageId: v.optional(v.string()),
   },
   returns: promptTemplateValidator,
@@ -55,7 +54,6 @@ export const savePrompt = action({
       teamId: args.teamId,
       category: args.category,
       tags: args.tags,
-      isPublished: args.isPublished,
       sourceMessageId: args.sourceMessageId,
     });
   },

@@ -92,7 +92,6 @@ const basePrompt: PromptTemplate = {
   content: 'current content',
   scope: 'personal',
   usageCount: 0,
-  isPublished: true,
   version: 3,
 };
 
