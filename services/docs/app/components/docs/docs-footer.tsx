@@ -22,6 +22,8 @@ export function DocsFooter() {
       ]}
       llmsTxtUrl={`${import.meta.env.BASE_URL}llms.txt`}
       llmsTxtLabel={t('llmsTxtLabel')}
+      llmsFullTxtUrl={`${import.meta.env.BASE_URL}llms-full.txt`}
+      llmsFullTxtLabel={t('llmsFullTxtLabel')}
       bottomTrailing={
         <a
           href="https://github.com/tale-project/tale"

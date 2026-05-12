@@ -287,8 +287,11 @@
         "customDpa": "DPA personnalisé",
         "customDpaInfo": "Nous acceptons également des accords de traitement des données personnalisés avec nos clients.",
         "emailSupport": "Support par email",
+        "emailSupportInfo": "Réponses durant les heures ouvrables : lun.–ven., 08h00–17h00 (CET/CEST).",
         "phoneSupport": "Support téléphone",
-        "remoteSupport": "Support à distance"
+        "phoneSupportInfo": "Disponible durant les heures ouvrables : lun.–ven., 08h00–17h00 (CET/CEST).",
+        "remoteSupport": "Support à distance",
+        "remoteSupportInfo": "Disponible durant les heures ouvrables : lun.–ven., 08h00–17h00 (CET/CEST)."
       },
       "cellLabels": {
         "yes": "Inclus",
@@ -440,7 +443,6 @@
       "customAiTraining": "Entraînement de modèle IA sur mesure",
       "aiHardware": "Matériel IA"
     },
-    "messageHelp": "Tous les détails partagés restent confidentiels.",
     "submit": "Prendre contact"
   },
   "contact": {

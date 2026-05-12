@@ -142,7 +142,10 @@ export function SiteFooter() {
         </LocalizedLink>
       }
       address={
-        <address className="leading-relaxed not-italic">
+        <address
+          className="not-italic"
+          style={{ lineHeight: 1.4286, letterSpacing: '-0.14px' }}
+        >
           {t('address.company')}
           <br />
           {t('address.street')}
@@ -174,9 +177,9 @@ export function SiteFooter() {
           target="_blank"
           rel="noopener noreferrer"
           aria-label={t('githubAriaLabel')}
-          className="text-fg-muted hover:bg-bg-muted hover:text-fg-base inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors"
+          className="text-fg-muted hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base sm:hover:bg-bg-muted inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none sm:h-10 sm:w-10 sm:rounded-md"
         >
-          <GithubIcon className="h-5 w-5" />
+          <GithubIcon className="h-6 w-6 sm:h-5 sm:w-5" />
         </a>
       }
     />

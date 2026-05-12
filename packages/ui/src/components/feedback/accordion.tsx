@@ -60,14 +60,7 @@ export function Accordion({
   );
   return (
     <AccordionContext.Provider value={value}>
-      <div
-        className={cn(
-          'flex flex-col divide-y divide-[color:var(--color-border-base)]',
-          className,
-        )}
-      >
-        {children}
-      </div>
+      <div className={cn('flex flex-col', className)}>{children}</div>
     </AccordionContext.Provider>
   );
 }
@@ -93,25 +86,26 @@ export function AccordionItem({
   const reduceMotion = useReducedMotion();
 
   return (
-    <div className={cn('px-5 py-5', className)}>
+    <div className={cn('border-border-base border-b px-5 py-5', className)}>
       <button
         type="button"
         onClick={() => ctx.toggle(itemId)}
         aria-expanded={isOpen}
         aria-controls={`${itemId}-content`}
-        className="flex w-full items-center justify-between gap-4 text-left font-semibold text-[color:var(--color-fg-base)] transition-colors hover:text-[color:var(--color-accent-base)]"
+        className="flex w-full items-center justify-between gap-4 text-left font-medium text-[color:var(--color-fg-base)] transition-colors hover:text-[color:var(--color-accent-base)]"
         style={{
-          fontSize: '1.125rem',
-          letterSpacing: '-0.27px',
+          fontSize: '1.25rem',
+          letterSpacing: '-0.2px',
           lineHeight: 1.4,
         }}
       >
         <span>{question}</span>
         <ChevronDown
           aria-hidden
+          strokeWidth={2}
           className={cn(
-            'h-5 w-5 shrink-0 text-[color:var(--color-fg-muted)] motion-safe:transition-transform motion-safe:duration-300 motion-reduce:transition-none',
-            isOpen && 'rotate-180',
+            'h-6 w-6 shrink-0 text-[color:var(--color-fg-muted)] motion-safe:transition-transform motion-safe:duration-300 motion-reduce:transition-none',
+            isOpen ? 'rotate-180' : '',
           )}
         />
       </button>
@@ -134,11 +128,11 @@ export function AccordionItem({
             className="overflow-hidden"
           >
             <div
-              className="pt-3 text-[color:var(--color-fg-muted)]"
+              className="text-fg-muted max-w-xl pt-3"
               style={{
-                fontSize: '0.9375rem',
-                letterSpacing: '-0.084px',
-                lineHeight: 1.6,
+                fontSize: '1rem',
+                letterSpacing: '-0.0072em',
+                lineHeight: 1.5,
               }}
             >
               {children}

@@ -21,9 +21,9 @@ export function FaqAccordion() {
   const reduceMotion = useReducedMotion();
 
   return (
-    <section className="border-border-base border-b py-20">
+    <section className="border-border-base border-b py-12 lg:py-20">
       <SiteContainer>
-        <div className="mx-auto grid max-w-[1120px] grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,640px)] lg:gap-12">
+        <div className="mx-auto grid max-w-[1120px] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,640px)] lg:gap-10">
           <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -34,8 +34,8 @@ export function FaqAccordion() {
             className="lg:pl-10"
           >
             <h2
-              className="text-fg-base text-3xl font-medium md:text-[48px]"
-              style={{ letterSpacing: '-2.14px', lineHeight: 1.083 }}
+              className="text-fg-base text-[28px] font-medium tracking-[-0.05em] md:text-[48px] md:tracking-[-0.0446em]"
+              style={{ lineHeight: 1.1 }}
             >
               {t('faq.title')}
             </h2>
@@ -51,9 +51,17 @@ export function FaqAccordion() {
                 : { delay: 0.08, duration: 0.6, ease: easeOut }
             }
           >
-            <Accordion type="multiple">
+            <Accordion
+              type="multiple"
+              className="[&_[id$='-content']_div]:!text-[15px] lg:[&_[id$='-content']_div]:!text-[16px] [&_button]:!text-[18px] lg:[&_button]:!text-[20px] [&_button>span]:!text-[18px] lg:[&_button>span]:!text-[20px]"
+            >
               {FAQ_KEYS.map((key) => (
-                <AccordionItem key={key} id={key} question={t(`faq.${key}.q`)}>
+                <AccordionItem
+                  key={key}
+                  id={key}
+                  question={t(`faq.${key}.q`)}
+                  className="px-0 py-8 lg:px-5 lg:py-5"
+                >
                   {t(`faq.${key}.a`)}
                 </AccordionItem>
               ))}

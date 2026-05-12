@@ -140,7 +140,7 @@
                       "fill": "#4b5563ff",
                       "textGrowth": "fixed-width",
                       "width": "fill_container",
-                      "content": "An AI chat interface trained on your company’s data, history, and documents.\n\nAsk questions, search across systems, and get instant, accurate answers without digging through dashboards or files.",
+                      "content": "An AI chat interface trained on your company's data, history, and documents — ask questions, search across systems, and get instant, accurate answers.",
                       "lineHeight": 1.5,
                       "fontFamily": "Inter",
                       "fontSize": 16,
@@ -284,7 +284,7 @@
                       "fill": "#1f2937ff",
                       "textGrowth": "fixed-width",
                       "width": "fill_container",
-                      "content": "Workflows",
+                      "content": "Automations",
                       "lineHeight": 1.1666666666666667,
                       "fontFamily": "Inter",
                       "fontSize": 24,
@@ -772,7 +772,7 @@
                       "fill": "#1f2937ff",
                       "textGrowth": "fixed-width",
                       "width": "fill_container",
-                      "content": "Workflows",
+                      "content": "Automations",
                       "lineHeight": 1.1666666666666667,
                       "fontFamily": "Inter",
                       "fontSize": 24,
@@ -1212,7 +1212,7 @@
                           "fill": "#1f2937ff",
                           "textGrowth": "fixed-width",
                           "width": "fill_container",
-                          "content": "Workflows",
+                          "content": "Automations",
                           "lineHeight": 1.1666666666666667,
                           "fontFamily": "Inter",
                           "fontSize": 24,
@@ -1656,7 +1656,7 @@
                       "fill": "#1f2937ff",
                       "textGrowth": "fixed-width",
                       "width": "fill_container",
-                      "content": "Workflows",
+                      "content": "Automations",
                       "lineHeight": 1.1666666666666667,
                       "fontFamily": "Inter",
                       "fontSize": 24,
@@ -3331,7 +3331,7 @@
                   "fill": "#1f2937",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "Workflows",
+                  "content": "Automations",
                   "lineHeight": 1.1666666666666667,
                   "fontFamily": "Inter",
                   "fontSize": 24,
@@ -38924,7 +38924,7 @@
                               "fill": "#4b5563ff",
                               "textGrowth": "fixed-width",
                               "width": "fill_container",
-                              "content": "An AI chat interface trained on your company’s data, history, and documents.\n\nAsk questions, search across systems, and get instant, accurate answers without digging through dashboards or files.",
+                              "content": "An AI chat interface trained on your company's data, history, and documents — ask questions, search across systems, and get instant, accurate answers.",
                               "lineHeight": 1.5,
                               "fontFamily": "Inter",
                               "fontSize": 16,
@@ -39068,7 +39068,7 @@
                               "fill": "#1f2937ff",
                               "textGrowth": "fixed-width",
                               "width": "fill_container",
-                              "content": "Workflows",
+                              "content": "Automations",
                               "lineHeight": 1.1666666666666667,
                               "fontFamily": "Inter",
                               "fontSize": 24,
@@ -46367,10 +46367,10 @@
                           "name": "acc5",
                           "descendants": {
                             "WMQpa": {
-                              "content": "Is there any usage-based or seat-based pricing?"
+                              "content": "How does Enterprise pricing work?"
                             },
                             "lMDiq": {
-                              "content": "No. We don't charge per user or per seat — the plan price stays the same."
+                              "content": "Enterprise is billed per user/month, with two months free when paying yearly. Storage beyond the included quota is billed per TB/month. The Community edition stays free for self-hosted use."
                             }
                           }
                         },
@@ -46385,7 +46385,7 @@
                               "content": "Are there additional features in the Enterprise plan?"
                             },
                             "lMDiq": {
-                              "content": "No. All product features are available in the open source version too. Pro and Enterprise add extended support and services."
+                              "content": "No. All product features are available in the open source version too. Enterprise adds extended support and services."
                             }
                           }
                         },
@@ -49102,7 +49102,7 @@
               "type": "ref",
               "ref": "JeAEC",
               "x": 0,
-              "y": 6468,
+              "y": 6516,
               "width": "fill_container"
             }
           ]
@@ -56766,13 +56766,13 @@
                           "gap": 12
                         },
                         "WMQpa": {
-                          "content": "Is there any usage-based or seat-based pricing?",
+                          "content": "How does Enterprise pricing work?",
                           "textGrowth": "fixed-width",
                           "width": "fill_container",
                           "fontSize": 18
                         },
                         "lMDiq": {
-                          "content": "No. We don't charge per user or per seat — the plan price stays the same.",
+                          "content": "Enterprise is billed per user/month, with two months free when paying yearly. Storage beyond the included quota is billed per TB/month. The Community edition stays free for self-hosted use.",
                           "width": "fill_container",
                           "fontSize": 15
                         }
@@ -56799,7 +56799,7 @@
                           "fontSize": 18
                         },
                         "lMDiq": {
-                          "content": "No. All product features are available in the open source version too. Pro and Enterprise add extended support and services.",
+                          "content": "No. All product features are available in the open source version too. Enterprise adds extended support and services.",
                           "width": "fill_container",
                           "fontSize": 15
                         }
@@ -59899,7 +59899,8 @@
                               "fill": "#4B5563",
                               "content": "I confirm that I have read the",
                               "fontFamily": "Inter",
-                              "fontSize": 14
+                              "fontSize": 14,
+                              "fontWeight": "normal"
                             },
                             {
                               "type": "frame",
@@ -60146,7 +60147,7 @@
                                   "id": "w7iRR",
                                   "name": "cb1Lbl",
                                   "fill": "#374151",
-                                  "content": "Pro/Enterprise solutions",
+                                  "content": "Enterprise solutions",
                                   "fontFamily": "Inter",
                                   "fontSize": 14,
                                   "fontWeight": "500"
@@ -60273,7 +60274,8 @@
                       "fill": "#4B5563",
                       "content": "I confirm that I have read the",
                       "fontFamily": "Inter",
-                      "fontSize": 14
+                      "fontSize": 14,
+                      "fontWeight": "normal"
                     },
                     {
                       "type": "frame",
@@ -60544,7 +60546,8 @@
                               "fill": "#4B5563",
                               "content": "I confirm that I have read the",
                               "fontFamily": "Inter",
-                              "fontSize": 14
+                              "fontSize": 14,
+                              "fontWeight": "normal"
                             },
                             {
                               "type": "frame",
@@ -60769,7 +60772,8 @@
                       "fill": "#4B5563",
                       "content": "I confirm that I have read the",
                       "fontFamily": "Inter",
-                      "fontSize": 14
+                      "fontSize": 14,
+                      "fontWeight": "normal"
                     },
                     {
                       "type": "frame",

@@ -51,40 +51,43 @@ export function SiteHeader() {
 
   const desktopActions = (
     <>
-      <Button asChild variant="secondary" size="sm">
+      <Button
+        asChild
+        variant="secondary"
+        size="sm"
+        className="text-fg-muted hover:text-fg-base text-sm"
+      >
         <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
           {t('readDocs')}
         </a>
       </Button>
-      <Button asChild size="sm">
+      <Button asChild size="sm" className="text-sm">
         <LocalizedLink to="/request-demo">{t('requestDemo')}</LocalizedLink>
       </Button>
     </>
   );
 
   const mobileNav = (
-    <>
+    <div className="flex flex-col gap-6">
       {NAV_ITEMS.map((item) => (
         <LocalizedLink
           key={item.key}
           to={item.to}
           hash={item.hash}
-          className="text-fg-base hover:bg-bg-muted rounded-md px-3 py-3 text-base font-medium transition-colors"
+          className="text-fg-base text-2xl font-semibold tracking-tight transition-colors"
         >
           {t(item.key)}
         </LocalizedLink>
       ))}
-      <div className="mt-2 flex flex-col gap-2">
-        <Button asChild variant="secondary" fullWidth>
-          <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
-            {t('readDocs')}
-          </a>
-        </Button>
-        <Button asChild fullWidth>
-          <LocalizedLink to="/request-demo">{t('requestDemo')}</LocalizedLink>
-        </Button>
-      </div>
-    </>
+      <Button asChild variant="secondary" fullWidth>
+        <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
+          {t('readDocs')}
+        </a>
+      </Button>
+      <Button asChild fullWidth>
+        <LocalizedLink to="/request-demo">{t('requestDemo')}</LocalizedLink>
+      </Button>
+    </div>
   );
 
   return (

@@ -71,7 +71,7 @@ export function RequestDemoPage() {
       description={
         <>
           <p>{t('paragraph1')}</p>
-          <p className="mt-3">{t('paragraph2')}</p>
+          <p className="mt-6">{t('paragraph2')}</p>
         </>
       }
       // oxlint-disable-next-line typescript/no-explicit-any -- FormCard expects a base shape; runtime payload is shape-compatible
@@ -144,10 +144,10 @@ export function RequestDemoPage() {
         label={t('fieldInterests')}
         error={errors.interests?.message as string | undefined}
       >
-        <ul role="list" className="flex flex-col gap-2">
+        <ul role="list" className="flex flex-col gap-4">
           {REQUEST_DEMO_INTERESTS.map((key) => (
             <li key={key}>
-              <label className="flex items-center gap-3 text-sm text-[color:var(--color-fg-base)]">
+              <label className="flex items-center gap-2 text-sm text-[color:var(--color-fg-base)]">
                 <Checkbox
                   checked={interests.includes(key)}
                   onCheckedChange={() => toggleInterest(key)}
@@ -162,7 +162,6 @@ export function RequestDemoPage() {
       <Field
         label={t('fieldMessage')}
         htmlFor="rd-message"
-        description={t('messageHelp')}
         error={errors.message?.message}
       >
         <Textarea

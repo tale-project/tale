@@ -96,6 +96,7 @@
     "homeAriaLabel": "Accueil Tale",
     "githubAriaLabel": "GitHub",
     "llmsTxtLabel": "llms.txt",
+    "llmsFullTxtLabel": "llms-full.txt",
     "address": {
       "company": "Ruler GmbH",
       "street": "Seestrasse 4",

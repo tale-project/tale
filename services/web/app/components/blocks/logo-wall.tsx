@@ -8,14 +8,14 @@ export function LogoWall() {
   const { t } = useT('home');
 
   return (
-    <section className="border-border-base border-b py-12">
+    <section className="border-border-base border-b py-6 md:py-12">
       <SiteContainer>
         <p
-          className="text-fg-muted flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-center text-base"
+          className="text-fg-muted flex flex-col items-center justify-center gap-3 text-center text-sm md:flex-row md:flex-wrap md:gap-x-4 md:gap-y-2 md:text-base"
           style={{ letterSpacing: '-0.24px' }}
         >
           <span>{t('logoWall.prefix')}</span>
-          <span className="inline-flex items-center gap-4">
+          <span className="inline-flex items-center gap-6">
             <MicrosoftIcon className="h-6 w-6" />
             <GoogleIcon className="h-6 w-6" />
             <AtlassianIcon className="h-6 w-6" />
