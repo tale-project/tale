@@ -1332,7 +1332,12 @@
       },
       "chart": {
         "trendTitle": "Exécutions dans le temps",
+        "trendTooltip": "Nombre d'exécutions de workflows sur la période sélectionnée",
         "statusTitle": "Répartition par statut",
+        "statusTooltip": "Distribution des résultats d'exécution des workflows",
+        "totalLabel": "Total",
+        "noData": "Aucune donnée",
+        "noDataDescription": "Exécute un workflow pour voir la répartition",
         "completed": "Terminées",
         "failed": "Échouées",
         "running": "En cours"
@@ -1348,8 +1353,7 @@
       },
       "empty": {
         "title": "Aucune exécution",
-        "description": "Aucun workflow n'a été exécuté sur la période sélectionnée.",
-        "noRuns": "Aucune exécution sur cette période"
+        "description": "Aucun workflow n'a été exécuté sur la période sélectionnée."
       }
     },
     "createButton": "Créer une automatisation",

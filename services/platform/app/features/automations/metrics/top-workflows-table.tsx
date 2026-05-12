@@ -142,10 +142,8 @@ export function TopWorkflowsTable({
   );
 
   return (
-    <div className="border-border flex flex-col gap-3 rounded-lg border px-5 py-4">
-      <Text variant="label" as="h3" className="text-sm">
-        {t('metrics.table.title')}
-      </Text>
+    <div className="flex flex-col gap-3">
+      <h2 className="text-base font-semibold">{t('metrics.table.title')}</h2>
       <DataTable
         columns={columns}
         data={rows}

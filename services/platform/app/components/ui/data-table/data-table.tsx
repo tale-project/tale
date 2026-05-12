@@ -742,7 +742,7 @@ export function DataTable<TData, TValue = unknown>({
       >
         <div className={cn('space-y-4', className)}>
           {headerContent}
-          <div className="border-border overflow-hidden rounded-xl border">
+          <div className="border-border overflow-hidden rounded-lg border">
             {tableContent}
             {infiniteScrollContent}
             {entityCountFooter}
@@ -772,7 +772,7 @@ export function DataTable<TData, TValue = unknown>({
         )}
         <div
           ref={scrollContainerRef}
-          className="border-border min-h-0 overflow-auto overscroll-contain rounded-xl border"
+          className="border-border min-h-0 overflow-auto overscroll-contain rounded-lg border"
         >
           {tableContent}
           {infiniteScrollContent}

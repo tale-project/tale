@@ -292,8 +292,8 @@ describe('DataTable loading states', () => {
         />,
       );
 
-      // The border container has the rounded-xl border class
-      const borderContainer = container.querySelector('.rounded-xl.border');
+      // The border container has the rounded-lg border class
+      const borderContainer = container.querySelector('.rounded-lg.border');
       expect(borderContainer).toBeInTheDocument();
     });
   });

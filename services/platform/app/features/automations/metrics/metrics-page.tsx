@@ -48,10 +48,15 @@ export function WorkflowMetricsPage({
   const topWorkflows = data?.topWorkflows ?? [];
 
   return (
-    <Stack gap={4} className="p-4">
-      <div className="flex items-center justify-between gap-4">
-        <Text variant="caption">{t('metrics.description')}</Text>
-        <div className="w-44">
+    <Stack gap={6} className="p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-base font-semibold">{t('metrics.title')}</h1>
+          <Text variant="caption" className="text-muted-foreground text-sm">
+            {t('metrics.description')}
+          </Text>
+        </div>
+        <div className="w-44 shrink-0">
           <Select
             options={periodOptions}
             value={String(periodDays)}

@@ -13,11 +13,15 @@ interface MetricsSummaryCardsProps {
   failed: number;
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <Text className="text-muted-foreground text-xs">{label}</Text>
-      <Text className="font-mono text-lg font-semibold">{value}</Text>
+    <div className="flex flex-1 flex-col gap-1 px-5 py-4 first:pl-6 last:pr-6">
+      <Text className="text-muted-foreground text-[13px] font-normal">
+        {label}
+      </Text>
+      <Text className="text-2xl font-semibold tracking-tight tabular-nums">
+        {value}
+      </Text>
     </div>
   );
 }
@@ -32,20 +36,20 @@ export function MetricsSummaryCards({
   const successRateDisplay = total > 0 ? `${successRate.toFixed(1)}%` : '—';
 
   return (
-    <div className="border-border grid grid-cols-2 gap-8 rounded-lg border px-5 py-3 md:grid-cols-4">
-      <StatCard
+    <div className="border-border bg-card grid grid-cols-2 divide-y rounded-lg border md:grid-cols-4 md:divide-x md:divide-y-0">
+      <StatCell
         label={t('metrics.cards.totalRuns')}
         value={formatNumber(total)}
       />
-      <StatCard
+      <StatCell
         label={t('metrics.cards.successRate')}
         value={successRateDisplay}
       />
-      <StatCard
+      <StatCell
         label={t('metrics.cards.avgDuration')}
         value={formatDurationSeconds(avgExecutionTimeSeconds)}
       />
-      <StatCard
+      <StatCell
         label={t('metrics.cards.failedRuns')}
         value={formatNumber(failed)}
       />
