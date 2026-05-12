@@ -164,6 +164,13 @@ export const updatePrompt = mutationWithRLS({
     teamId: v.optional(v.string()),
     category: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
+    /**
+     * Optimistic-concurrency token. When set, the mutation throws
+     * `version_conflict` if the stored version differs — i.e. another writer
+     * saved a newer version while this client was editing. Clients should
+     * surface the conflict and let the user reload before resubmitting.
+     */
+    expectedVersion: v.optional(v.number()),
   },
   returns: v.union(promptTemplateValidator, v.null()),
   handler: async (ctx, args) => {
@@ -178,6 +185,20 @@ export const updatePrompt = mutationWithRLS({
     const existing = await ctx.db.get(args.promptId);
     if (!existing) return null;
     if (existing.lifecycleStatus === 'expired') return null;
+
+    if (
+      args.expectedVersion !== undefined &&
+      existing.version !== args.expectedVersion
+    ) {
+      throw new ConvexError({
+        code: 'version_conflict',
+        message: `Prompt has been updated to v${existing.version ?? '?'}; reload to see the latest.`,
+        data: {
+          expectedVersion: args.expectedVersion,
+          currentVersion: existing.version,
+        },
+      });
+    }
 
     // Mirror getPrompt's personal-scope gate: an org admin who is not the
     // creator must not be able to mutate another user's personal prompt

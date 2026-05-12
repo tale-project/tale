@@ -3,19 +3,25 @@ import { ConvexError } from 'convex/values';
 /**
  * Cap on how many entries the inlined `versionHistory` array on each
  * promptTemplates row keeps. When a publish would push past this, the oldest
- * entry is dropped (FIFO) and a console.warn is emitted once.
- * MAX_PROMPT_CONTENT_BYTES × MAX_PROMPT_VERSION_HISTORY ≈ 800 KB, staying
- * comfortably under the 1 MiB Convex per-document limit.
+ * entry is dropped (FIFO) and a `prompt_template.history_truncated` audit
+ * event is emitted (see version_history.ts + mutations.ts).
+ *
+ * Budget math: MAX_PROMPT_CONTENT_BYTES (64 KiB) × (MAX_PROMPT_VERSION_HISTORY +
+ * 1 row-level current) ≈ 832 KB, leaving ~190 KB headroom for title,
+ * description, tags, and per-entry metadata under the 1 MiB Convex per-document
+ * limit. The history depth was traded down (50 → 12) to make room for larger
+ * per-version content; users editing complex LLM prompts care more about
+ * having room to write than about keeping decades of history.
  */
-export const MAX_PROMPT_VERSION_HISTORY = 50;
+export const MAX_PROMPT_VERSION_HISTORY = 12;
 
 /**
- * Per-version content byte cap. Mirrors the artifact pattern
- * (artifacts/internal_mutations.ts MAX_ARTIFACT_BYTES): we cap below the
- * 1 MiB Convex doc limit so a single update — which also pushes a snapshot
- * into versionHistory — stays under the limit even at the 50-entry cap.
+ * Per-version content byte cap. UTF-8 byte count, not char count, so emoji /
+ * CJK consume their true storage size. Mirrors the artifact pattern
+ * (artifacts/internal_mutations.ts MAX_ARTIFACT_BYTES) at a smaller cap to
+ * stay inside the per-document budget after multiplying by the history depth.
  */
-export const MAX_PROMPT_CONTENT_BYTES = 16_000;
+export const MAX_PROMPT_CONTENT_BYTES = 65_536;
 export const MAX_PROMPT_TITLE_LEN = 200;
 export const MAX_PROMPT_DESCRIPTION_LEN = 2_000;
 

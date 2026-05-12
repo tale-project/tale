@@ -1,7 +1,8 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { useState, useCallback, useMemo } from 'react';
+import { AlertTriangle } from 'lucide-react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
@@ -9,12 +10,15 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
+import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import { MAX_PROMPT_CONTENT_BYTES } from '@/convex/prompts/constants';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import type { PromptTemplate } from '../hooks/queries';
-import { usePrompts } from '../hooks/queries';
+import { usePrompt, usePrompts } from '../hooks/queries';
 import { AddCategoryPopover } from './add-category-popover';
 
 type PromptScope = 'global' | 'team' | 'personal';
@@ -37,6 +41,13 @@ export interface PromptFormData {
   teamId?: string;
   category: string;
   tags: string[];
+  /** Version the form was opened against. Server uses this for OCC. */
+  expectedVersion?: number;
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  return `${(n / 1024).toFixed(1)} KB`;
 }
 
 function PromptFormDialogContent({
@@ -69,6 +80,22 @@ function PromptFormDialogContent({
 
   const isEditing = !!initialData;
 
+  // OCC banner: watch live server state for the prompt being edited, compare
+  // against the version the form was opened with. If a concurrent writer
+  // (another tab, another user) saves a newer version, surface a warning so
+  // the user knows their save will be rejected with version_conflict.
+  // The outer <PromptFormDialog> unmounts the content on close, so the ref
+  // is freshly captured each time the dialog opens — no re-anchor needed.
+  const startVersionRef = useRef(initialData?.version);
+
+  const liveQuery = usePrompt(isEditing ? initialData?._id : undefined);
+  const liveVersion = liveQuery.data?.version;
+  const hasNewerVersion =
+    isEditing &&
+    typeof startVersionRef.current === 'number' &&
+    typeof liveVersion === 'number' &&
+    liveVersion > startVersionRef.current;
+
   const existingCategories = useMemo(() => {
     const fromPrompts = prompts
       .map((p) => p.category)
@@ -97,6 +124,14 @@ function PromptFormDialogContent({
     { value: 'global', label: t('scope.global') },
   ];
 
+  const contentBytes = useMemo(
+    () => new TextEncoder().encode(content).byteLength,
+    [content],
+  );
+  const overByteLimit = contentBytes > MAX_PROMPT_CONTENT_BYTES;
+  const approachingLimit =
+    !overByteLimit && contentBytes >= MAX_PROMPT_CONTENT_BYTES * 0.9;
+
   const isDirty =
     title !== (initialData?.title ?? '') ||
     content !== (initialData?.content ?? '') ||
@@ -109,6 +144,7 @@ function PromptFormDialogContent({
   const isValid =
     title.trim().length > 0 &&
     content.trim().length > 0 &&
+    !overByteLimit &&
     (scope !== 'team' || !!teamId);
 
   const handleSubmit = useCallback(
@@ -129,6 +165,7 @@ function PromptFormDialogContent({
         teamId: scope === 'team' ? teamId : undefined,
         category: category.trim(),
         tags,
+        expectedVersion: startVersionRef.current,
       });
     },
     [
@@ -175,6 +212,25 @@ function PromptFormDialogContent({
           {headerActions}
         </HStack>
       )}
+      {hasNewerVersion && (
+        <div
+          role="alert"
+          className="border-warning bg-warning/10 text-warning-foreground flex items-start gap-2 rounded-md border p-3 text-sm"
+        >
+          <AlertTriangle
+            className="mt-0.5 size-4 shrink-0"
+            aria-hidden="true"
+          />
+          <div className="flex-1">
+            <div className="font-medium">{t('form.versionConflictTitle')}</div>
+            <Text variant="muted" className="mt-0.5 text-xs">
+              {t('form.versionConflictDescription', {
+                version: String(liveVersion),
+              })}
+            </Text>
+          </div>
+        </div>
+      )}
       <Input
         label={t('form.titleLabel')}
         value={title}
@@ -183,15 +239,32 @@ function PromptFormDialogContent({
         required
         aria-required
       />
-      <Textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        placeholder={t('form.contentPlaceholder')}
-        className="min-h-[120px] font-mono text-sm"
-        required
-        aria-required
-        aria-label={t('form.contentLabel')}
-      />
+      <div className="flex flex-col gap-1">
+        <Textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder={t('form.contentPlaceholder')}
+          className="min-h-[120px] font-mono text-sm"
+          required
+          aria-required
+          aria-label={t('form.contentLabel')}
+        />
+        <Text
+          variant="muted"
+          className={cn(
+            'text-right text-xs',
+            overByteLimit && 'text-destructive',
+            approachingLimit && 'text-warning-foreground',
+          )}
+          aria-live="polite"
+        >
+          {t('form.bytesUsed', {
+            used: formatBytes(contentBytes),
+            max: formatBytes(MAX_PROMPT_CONTENT_BYTES),
+          })}
+          {overByteLimit && ` · ${t('form.bytesOverLimit')}`}
+        </Text>
+      </div>
       <Input
         label={t('form.descriptionLabel')}
         value={description}

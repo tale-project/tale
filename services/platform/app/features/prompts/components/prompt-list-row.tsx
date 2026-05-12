@@ -65,12 +65,16 @@ export function PromptListRow({
         onClick: () => onEdit(prompt),
       });
     }
-    if (onViewHistory && (prompt.version ?? 0) > 1) {
+    if (onViewHistory) {
+      const hasHistory = (prompt.version ?? 0) > 1;
       group.push({
         type: 'item',
-        label: t('actions.viewHistory'),
+        label: hasHistory
+          ? t('actions.viewHistory')
+          : t('actions.viewHistoryDisabled'),
         icon: History,
-        onClick: () => onViewHistory(prompt),
+        onClick: hasHistory ? () => onViewHistory(prompt) : undefined,
+        disabled: !hasHistory,
       });
     }
     if (onDelete) {
@@ -109,7 +113,13 @@ export function PromptListRow({
         gap={1}
         className={cn(
           'shrink-0 transition-opacity',
-          menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+          // Hover-reveal for mouse users; always-visible for touch (coarse
+          // pointers) and keyboard-focus-within so the menu isn't reachable
+          // only by hover. Without these, the row's actions are invisible to
+          // touch and keyboard-only users.
+          menuOpen
+            ? 'opacity-100'
+            : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100',
         )}
       >
         {canModify && (

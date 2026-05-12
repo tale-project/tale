@@ -1,5 +1,6 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { RotateCcw } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -15,12 +16,20 @@ import { useT } from '@/lib/i18n/client';
 import { useRestorePromptFromVersion } from '../hooks/mutations';
 import type { PromptTemplate, PromptVersionEntry } from '../hooks/queries';
 import { usePromptHistory } from '../hooks/queries';
-import { PromptCompareDialog } from './prompt-compare-dialog';
+import { PromptCompareView } from './prompt-compare-view';
 
 interface PromptHistoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   prompt: PromptTemplate;
+}
+
+const PREVIEW_CHARS = 80;
+
+function previewSnippet(content: string): string {
+  const collapsed = content.replace(/\s+/g, ' ').trim();
+  if (collapsed.length <= PREVIEW_CHARS) return collapsed;
+  return `${collapsed.slice(0, PREVIEW_CHARS)}…`;
 }
 
 export function PromptHistoryDialog({
@@ -35,6 +44,10 @@ export function PromptHistoryDialog({
   const historyQuery = usePromptHistory(open ? prompt._id : undefined);
   const history = historyQuery.data;
 
+  // The dialog has two internal views: the list of versions, and a
+  // compare-against-current view. Flattening these into one Dialog (instead
+  // of nesting a second Dialog for compare) keeps focus-trap behavior sane
+  // and Esc keypress unambiguous.
   const [comparingVersion, setComparingVersion] =
     useState<PromptVersionEntry | null>(null);
   const [restoring, setRestoring] = useState<PromptVersionEntry | null>(null);
@@ -66,24 +79,46 @@ export function PromptHistoryDialog({
     return [history.current, ...history.history];
   }, [history]);
 
-  // Live restore target: prefer the freshest server state so the confirm
-  // dialog doesn't drift if a concurrent edit lands while the dialog is open.
+  // Stay reactive to fresh server state so the confirm copy doesn't drift if
+  // a concurrent edit lands while the dialog is open.
   const restoreTargetVersion =
     (history?.current.version ?? prompt.version ?? 0) + 1;
+
+  const dialogTitle = comparingVersion
+    ? t('history.compareTitle', { version: String(comparingVersion.version) })
+    : t('history.dialogTitle', { name: prompt.title });
+  const dialogDescription = comparingVersion
+    ? undefined
+    : t('history.dialogDescription');
 
   return (
     <>
       <Dialog
         open={open}
         onOpenChange={onOpenChange}
-        title={t('history.dialogTitle', { name: prompt.title })}
-        description={t('history.dialogDescription')}
-        className="w-[95vw] max-w-[640px]"
+        title={dialogTitle}
+        description={dialogDescription}
+        className="w-[95vw] max-w-[720px]"
       >
-        {historyQuery.isLoading ? (
-          <Text variant="muted" className="py-4 text-center text-sm">
-            {t('history.loading')}
-          </Text>
+        {comparingVersion && history ? (
+          <PromptCompareView
+            current={history.current}
+            snapshot={comparingVersion}
+            onRestore={() => setRestoring(comparingVersion)}
+            isRestoring={restore.isPending}
+            onBack={() => setComparingVersion(null)}
+          />
+        ) : historyQuery.isLoading ? (
+          <div className="flex flex-col gap-2 py-2">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="bg-muted h-12 animate-pulse rounded-md"
+                aria-hidden="true"
+              />
+            ))}
+            <span className="sr-only">{t('history.loading')}</span>
+          </div>
         ) : historyQuery.isError ? (
           <div className="flex flex-col items-center gap-3 py-6">
             <Text variant="muted" className="text-sm">
@@ -109,7 +144,7 @@ export function PromptHistoryDialog({
               return (
                 <li
                   key={entry.version}
-                  className="flex items-center justify-between py-3"
+                  className="flex items-start justify-between gap-3 py-3"
                 >
                   <div className="min-w-0 flex-1">
                     <HStack gap={2} align="center">
@@ -117,19 +152,23 @@ export function PromptHistoryDialog({
                         v{entry.version}
                       </Text>
                       {isCurrent && (
-                        <Text
-                          variant="muted"
-                          className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 uppercase"
-                        >
+                        <Badge variant="outline" className="text-[10px]">
                           {t('history.current')}
-                        </Text>
+                        </Badge>
                       )}
                       <Text variant="muted" className="text-xs">
                         {formatDate(new Date(entry.publishedAt), 'long')}
                       </Text>
                     </HStack>
+                    <Text
+                      as="div"
+                      variant="muted"
+                      className="mt-1 line-clamp-1 text-xs"
+                    >
+                      {previewSnippet(entry.content)}
+                    </Text>
                   </div>
-                  <HStack gap={1}>
+                  <HStack gap={1} className="shrink-0">
                     {!isCurrent && (
                       <>
                         <Button
@@ -137,6 +176,9 @@ export function PromptHistoryDialog({
                           variant="ghost"
                           size="sm"
                           onClick={() => setComparingVersion(entry)}
+                          aria-label={t('history.compareVersionAria', {
+                            version: String(entry.version),
+                          })}
                         >
                           {t('history.compare')}
                         </Button>
@@ -145,6 +187,9 @@ export function PromptHistoryDialog({
                           variant="ghost"
                           size="sm"
                           onClick={() => setRestoring(entry)}
+                          aria-label={t('history.restoreVersionAria', {
+                            version: String(entry.version),
+                          })}
                         >
                           <RotateCcw className="mr-1 size-3" />
                           {t('history.restore')}
@@ -159,24 +204,16 @@ export function PromptHistoryDialog({
         )}
       </Dialog>
 
-      {comparingVersion && history && (
-        <PromptCompareDialog
-          open={!!comparingVersion}
-          onOpenChange={(o) => {
-            if (!o) setComparingVersion(null);
-          }}
-          current={history.current}
-          snapshot={comparingVersion}
-          onRestore={() => setRestoring(comparingVersion)}
-          isRestoring={restore.isPending}
-          onBack={() => setComparingVersion(null)}
-        />
-      )}
-
       <ConfirmDialog
         open={!!restoring}
         onOpenChange={(o) => !o && setRestoring(null)}
-        title={t('history.restoreConfirmTitle')}
+        title={
+          restoring
+            ? t('history.restoreConfirmTitleVersioned', {
+                version: String(restoring.version),
+              })
+            : ''
+        }
         description={
           restoring
             ? t('history.restoreConfirmDescription', {

@@ -4265,7 +4265,8 @@
       "more": "Plus d'actions",
       "copy": "Copier",
       "copied": "Copié !",
-      "viewHistory": "Historique des versions"
+      "viewHistory": "Historique des versions",
+      "viewHistoryDisabled": "Aucune version antérieure"
     },
     "deleteConfirm": {
       "title": "Supprimer le prompt",
@@ -4295,7 +4296,11 @@
       "tagsLabel": "Étiquettes",
       "tagsPlaceholder": "Étiquettes séparées par des virgules...",
       "save": "Enregistrer",
-      "create": "Créer"
+      "create": "Créer",
+      "bytesUsed": "{used} / {max}",
+      "bytesOverLimit": "Limite dépassée",
+      "versionConflictTitle": "Nouvelle version disponible",
+      "versionConflictDescription": "Quelqu'un a enregistré v{version} pendant votre édition. L'enregistrement sera rejeté — fermez et rouvrez pour repartir de la dernière version."
     },
     "saveAs": {
       "title": "Enregistrer le prompt",
@@ -4305,7 +4310,10 @@
     "toast": {
       "savedTo": "Enregistré sous {scope}",
       "saved": "Enregistré en tant que v{version}",
-      "restored": "Restauré en tant que nouvelle version v{version}",
+      "saveFailed": "Impossible d'enregistrer le prompt",
+      "deleteFailed": "Impossible de supprimer le prompt",
+      "versionConflict": "Nouvelle version détectée — veuillez rouvrir pour éditer la dernière",
+      "restored": "Restauré en tant que v{version}",
       "restoreFailed": "Impossible de restaurer la version"
     },
     "version": {
@@ -4324,8 +4332,11 @@
       "noDifferences": "Aucune différence entre ces versions.",
       "backToList": "Retour à l'historique",
       "restore": "Restaurer",
-      "restoreConfirmTitle": "Restaurer une version précédente",
-      "restoreConfirmDescription": "Restaurer le contenu de v{source} comme nouvelle version actuelle. Les versions existantes sont conservées.",
+      "restoreConfirmTitleVersioned": "Restaurer v{version} ?",
+      "restoreConfirmDescription": "Restaurer le contenu de v{source} en tant que v{target}. Les versions existantes sont conservées.",
+      "compareVersionAria": "Comparer v{version} avec la version actuelle",
+      "restoreVersionAria": "Restaurer v{version}",
+      "diffAriaLabel": "Différence de contenu",
       "empty": "Aucune version précédente",
       "loadFailed": "Impossible de charger l'historique des versions",
       "retry": "Réessayer"

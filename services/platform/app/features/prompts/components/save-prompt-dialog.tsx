@@ -6,9 +6,11 @@ import { useState, useCallback, useMemo } from 'react';
 import { Dialog, DialogClose } from '@/app/components/ui/dialog/dialog';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
+import { MAX_PROMPT_CONTENT_BYTES } from '@/convex/prompts/constants';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -17,6 +19,11 @@ import { usePrompts } from '../hooks/queries';
 import { AddCategoryPopover } from './add-category-popover';
 
 type PromptScope = 'personal' | 'team' | 'global';
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  return `${(n / 1024).toFixed(1)} KB`;
+}
 
 export interface SavePromptDialogProps {
   open: boolean;
@@ -100,7 +107,18 @@ function SavePromptDialogContent({
     [teams],
   );
 
-  const isValid = content.trim().length > 0 && (scope !== 'team' || !!teamId);
+  const contentBytes = useMemo(
+    () => new TextEncoder().encode(content).byteLength,
+    [content],
+  );
+  const overByteLimit = contentBytes > MAX_PROMPT_CONTENT_BYTES;
+  const approachingLimit =
+    !overByteLimit && contentBytes >= MAX_PROMPT_CONTENT_BYTES * 0.9;
+
+  const isValid =
+    content.trim().length > 0 &&
+    !overByteLimit &&
+    (scope !== 'team' || !!teamId);
 
   const scopeLabel =
     scope === 'personal'
@@ -114,21 +132,29 @@ function SavePromptDialogContent({
       e?.preventDefault();
       if (!isValid || !organizationId) return;
 
-      await savePrompt.mutateAsync({
-        organizationId,
-        content: content.trim(),
-        scope,
-        teamId: scope === 'team' ? teamId : undefined,
-        category: category || undefined,
-        sourceMessageId,
-      });
+      try {
+        await savePrompt.mutateAsync({
+          organizationId,
+          content: content.trim(),
+          scope,
+          teamId: scope === 'team' ? teamId : undefined,
+          category: category || undefined,
+          sourceMessageId,
+        });
 
-      toast({
-        title: t('toast.savedTo', { scope: scopeLabel }),
-        variant: 'success',
-      });
+        toast({
+          title: t('toast.savedTo', { scope: scopeLabel }),
+          variant: 'success',
+        });
 
-      onOpenChange(false);
+        onOpenChange(false);
+      } catch (err) {
+        console.error('[save-prompt-dialog] save failed', err);
+        toast({
+          title: t('toast.saveFailed'),
+          variant: 'destructive',
+        });
+      }
     },
     [
       isValid,
@@ -171,14 +197,31 @@ function SavePromptDialogContent({
       }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          className="min-h-[120px] text-sm"
-          required
-          aria-required
-          aria-label={t('form.contentLabel')}
-        />
+        <div className="flex flex-col gap-1">
+          <Textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            className="min-h-[120px] text-sm"
+            required
+            aria-required
+            aria-label={t('form.contentLabel')}
+          />
+          <Text
+            variant="muted"
+            className={cn(
+              'text-right text-xs',
+              overByteLimit && 'text-destructive',
+              approachingLimit && 'text-warning-foreground',
+            )}
+            aria-live="polite"
+          >
+            {t('form.bytesUsed', {
+              used: formatBytes(contentBytes),
+              max: formatBytes(MAX_PROMPT_CONTENT_BYTES),
+            })}
+            {overByteLimit && ` · ${t('form.bytesOverLimit')}`}
+          </Text>
+        </div>
 
         <div className="flex flex-col gap-2">
           <label className="text-muted-foreground text-sm font-medium">

@@ -4340,7 +4340,8 @@
       "more": "More actions",
       "copy": "Copy",
       "copied": "Copied!",
-      "viewHistory": "Version history"
+      "viewHistory": "Version history",
+      "viewHistoryDisabled": "No previous versions"
     },
     "deleteConfirm": {
       "title": "Delete prompt",
@@ -4370,7 +4371,11 @@
       "tagsLabel": "Tags",
       "tagsPlaceholder": "Comma-separated tags...",
       "save": "Save",
-      "create": "Create"
+      "create": "Create",
+      "bytesUsed": "{used} / {max}",
+      "bytesOverLimit": "Over limit",
+      "versionConflictTitle": "Newer version available",
+      "versionConflictDescription": "Someone saved v{version} while you were editing. Saving will be rejected — close and reopen to start from the latest."
     },
     "saveAs": {
       "title": "Save prompt",
@@ -4380,7 +4385,10 @@
     "toast": {
       "savedTo": "Saved to {scope}",
       "saved": "Saved as v{version}",
-      "restored": "Restored as new version v{version}",
+      "saveFailed": "Could not save prompt",
+      "deleteFailed": "Could not delete prompt",
+      "versionConflict": "Newer version detected — please reopen to edit the latest",
+      "restored": "Restored as v{version}",
       "restoreFailed": "Could not restore version"
     },
     "version": {
@@ -4399,10 +4407,13 @@
       "noDifferences": "No differences between these versions.",
       "backToList": "Back to history",
       "restore": "Restore",
-      "restoreConfirmTitle": "Restore previous version",
-      "restoreConfirmDescription": "Restore content from v{source} as the new current version. Existing versions are preserved.",
+      "restoreConfirmTitleVersioned": "Restore v{version}?",
+      "restoreConfirmDescription": "Restore content from v{source} as v{target}. Existing versions are preserved.",
+      "compareVersionAria": "Compare v{version} with current",
+      "restoreVersionAria": "Restore v{version}",
+      "diffAriaLabel": "Content difference",
       "empty": "No previous versions",
-      "loadFailed": "Couldn't load version history",
+      "loadFailed": "Could not load version history",
       "retry": "Try again"
     },
     "categoryFilter": {

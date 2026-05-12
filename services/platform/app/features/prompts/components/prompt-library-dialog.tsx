@@ -127,35 +127,76 @@ function PromptLibraryDialogContent({
   const handleEditSubmit = useCallback(
     async (data: PromptFormData) => {
       if (!editingPrompt) return;
-      const result = await updatePrompt.mutateAsync({
-        promptId: editingPrompt._id,
-        title: data.title,
-        content: data.content,
-        description: data.description || undefined,
-        scope: data.scope,
-        teamId: data.teamId,
-        category: data.category || undefined,
-        tags: data.tags.length > 0 ? data.tags : undefined,
-      });
-      const contentChanged = data.content !== editingPrompt.content;
-      if (contentChanged) {
-        toast({
-          title: t('toast.saved', { version: String(result?.version ?? '') }),
-          variant: 'success',
+      try {
+        const result = await updatePrompt.mutateAsync({
+          promptId: editingPrompt._id,
+          title: data.title,
+          content: data.content,
+          description: data.description || undefined,
+          scope: data.scope,
+          teamId: data.teamId,
+          category: data.category || undefined,
+          tags: data.tags.length > 0 ? data.tags : undefined,
+          expectedVersion: data.expectedVersion,
         });
+        // Trust server's truth: bump-toast iff version actually advanced.
+        // Comparing `data.content !== editingPrompt.content` could disagree
+        // with the server's content-change detection (e.g. whitespace).
+        if (
+          result?.version !== undefined &&
+          result.version !== editingPrompt.version
+        ) {
+          toast({
+            title: t('toast.saved', { version: String(result.version) }),
+            variant: 'success',
+          });
+        }
+        setEditingPrompt(null);
+      } catch (err) {
+        // Duck-type the ConvexError data; Vite chunk splitting can produce
+        // multiple ConvexError class copies that break instanceof.
+        const errData =
+          err && typeof err === 'object' && 'data' in err
+            ? (err as { data: unknown }).data
+            : undefined;
+        const code =
+          errData && typeof errData === 'object' && 'code' in errData
+            ? (errData as { code: unknown }).code
+            : undefined;
+        if (code === 'version_conflict') {
+          toast({
+            title: t('toast.versionConflict'),
+            variant: 'destructive',
+          });
+          // Close so the next open binds against fresh server state.
+          setEditingPrompt(null);
+        } else {
+          console.error('[prompt-library] update failed', err);
+          toast({
+            title: t('toast.saveFailed'),
+            variant: 'destructive',
+          });
+        }
       }
-      setEditingPrompt(null);
     },
     [editingPrompt, updatePrompt, toast, t],
   );
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!deletingPrompt) return;
-    await deletePrompt.mutateAsync({
-      promptId: deletingPrompt._id,
-    });
-    setDeletingPrompt(null);
-  }, [deletingPrompt, deletePrompt]);
+    try {
+      await deletePrompt.mutateAsync({
+        promptId: deletingPrompt._id,
+      });
+      setDeletingPrompt(null);
+    } catch (err) {
+      console.error('[prompt-library] delete failed', err);
+      toast({
+        title: t('toast.deleteFailed'),
+        variant: 'destructive',
+      });
+    }
+  }, [deletingPrompt, deletePrompt, toast, t]);
 
   const tabItems = [
     { value: 'all', label: t('tabs.all') },
