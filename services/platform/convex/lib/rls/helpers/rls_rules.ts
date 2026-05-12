@@ -512,6 +512,7 @@ export async function rlsRules(
       insert: async ({ user: ruleUser }, prompt) => {
         if (!ruleUser) return false;
         if (!userOrgIds.has(prompt.organizationId)) return false;
+        if (!hasTeamAccess(prompt, userTeamIds)) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === prompt.organizationId,
         );

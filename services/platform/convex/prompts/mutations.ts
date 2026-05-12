@@ -2,6 +2,7 @@ import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
+import { getUserTeamIds } from '../lib/get_user_teams';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import { mutationWithRLS } from '../lib/rls/helpers/mutation_with_rls';
 import { validateOrganizationAccess } from '../lib/rls/organization/validate_organization_access';
@@ -40,6 +41,25 @@ async function emitPromptAudit(
   });
 }
 
+/**
+ * Asserts the actor is a member of `teamId`. Throws `forbidden` otherwise.
+ * Used by createPrompt/updatePrompt to prevent planting a team-scoped prompt
+ * onto a team the actor doesn't belong to.
+ */
+async function assertTeamMembership(
+  ctx: MutationCtx,
+  userId: string,
+  teamId: string,
+): Promise<void> {
+  const userTeamIds = await getUserTeamIds(ctx, userId);
+  if (!userTeamIds.includes(teamId)) {
+    throw new ConvexError({
+      code: 'forbidden',
+      message: 'You are not a member of this team',
+    });
+  }
+}
+
 export const createPrompt = mutationWithRLS({
   args: {
     organizationId: v.string(),
@@ -54,8 +74,9 @@ export const createPrompt = mutationWithRLS({
   },
   returns: promptTemplateValidator,
   handler: async (ctx, args) => {
+    const content = args.content.trim();
     assertPromptSizes({
-      content: args.content,
+      content,
       title: args.title,
       description: args.description,
     });
@@ -67,6 +88,10 @@ export const createPrompt = mutationWithRLS({
       undefined,
       user,
     );
+
+    if (args.scope === 'team' && args.teamId) {
+      await assertTeamMembership(ctx, user.userId, args.teamId);
+    }
 
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     const randomId = Array.from(
@@ -80,7 +105,7 @@ export const createPrompt = mutationWithRLS({
       organizationId: args.organizationId,
       createdBy: user.userId,
       title,
-      content: args.content,
+      content,
       description: args.description,
       scope: args.scope,
       teamId: args.scope === 'team' ? args.teamId : undefined,
@@ -92,7 +117,7 @@ export const createPrompt = mutationWithRLS({
       versionHistory: [
         {
           version: 1,
-          content: args.content,
+          content,
           publishedAt: now,
           publishedBy: user.userId,
         },
@@ -102,8 +127,8 @@ export const createPrompt = mutationWithRLS({
     const prompt = await ctx.db.get(id);
     if (!prompt) {
       throw new ConvexError({
-        code: 'not_found',
-        message: 'Failed to create prompt template',
+        code: 'internal_error',
+        message: 'Failed to read prompt after insert',
       });
     }
 
@@ -125,6 +150,9 @@ export const createPrompt = mutationWithRLS({
  * currently saved content, a new version entry is prepended to versionHistory
  * (which always has the current version at index 0) and the version counter
  * increments. Each content change is an instant publish — no draft layer.
+ *
+ * Access-control-relevant metadata changes (scope, teamId) emit a distinct
+ * `metadata_updated` audit event when no content change accompanies them.
  */
 export const updatePrompt = mutationWithRLS({
   args: {
@@ -139,8 +167,9 @@ export const updatePrompt = mutationWithRLS({
   },
   returns: v.union(promptTemplateValidator, v.null()),
   handler: async (ctx, args) => {
+    const nextContent = args.content?.trim();
     assertPromptSizes({
-      content: args.content,
+      content: nextContent,
       title: args.title,
       description: args.description,
     });
@@ -148,6 +177,14 @@ export const updatePrompt = mutationWithRLS({
     const user = await requireAuthenticatedUser(ctx);
     const existing = await ctx.db.get(args.promptId);
     if (!existing) return null;
+    if (existing.lifecycleStatus === 'expired') return null;
+
+    // Mirror getPrompt's personal-scope gate: an org admin who is not the
+    // creator must not be able to mutate another user's personal prompt
+    // even though they pass the org-membership check below.
+    if (existing.scope === 'personal' && existing.createdBy !== user.userId) {
+      return null;
+    }
 
     const rlsContext = await validateOrganizationAccess(
       ctx,
@@ -164,6 +201,15 @@ export const updatePrompt = mutationWithRLS({
       });
     }
 
+    // teamId membership check applies whether `scope` is being changed to
+    // 'team' or `teamId` is being reassigned within an already-team prompt.
+    const targetScope = args.scope ?? existing.scope;
+    const targetTeamId =
+      args.teamId !== undefined ? args.teamId : existing.teamId;
+    if (targetScope === 'team' && targetTeamId) {
+      await assertTeamMembership(ctx, user.userId, targetTeamId);
+    }
+
     const updates: Record<string, unknown> = {};
     if (args.title !== undefined) updates.title = args.title;
     if (args.description !== undefined) updates.description = args.description;
@@ -175,10 +221,10 @@ export const updatePrompt = mutationWithRLS({
       updates.teamId = undefined;
     }
 
-    const nextContent = args.content;
     const contentChanged =
       nextContent !== undefined && nextContent !== existing.content;
     let newVersion: number | undefined;
+    let droppedVersions: number[] = [];
 
     if (contentChanged && nextContent !== undefined) {
       const built = buildNextVersionEntry({
@@ -187,6 +233,7 @@ export const updatePrompt = mutationWithRLS({
         publishedBy: user.userId,
       });
       newVersion = built.newVersion;
+      droppedVersions = built.droppedVersions;
       updates.content = nextContent;
       updates.version = newVersion;
       updates.versionHistory = built.nextHistory;
@@ -205,12 +252,43 @@ export const updatePrompt = mutationWithRLS({
         existing.title,
         { version: newVersion, fromVersion: existing.version ?? 0 },
       );
+      if (droppedVersions.length > 0) {
+        await emitPromptAudit(
+          ctx,
+          rlsContext,
+          'prompt_template.history_truncated',
+          args.promptId,
+          existing.title,
+          { droppedVersions },
+        );
+      }
+    } else if (
+      !contentChanged &&
+      ((args.scope !== undefined && args.scope !== existing.scope) ||
+        (args.teamId !== undefined && args.teamId !== existing.teamId))
+    ) {
+      await emitPromptAudit(
+        ctx,
+        rlsContext,
+        'prompt_template.metadata_updated',
+        args.promptId,
+        existing.title,
+        {
+          scope: { from: existing.scope, to: targetScope },
+          teamId: { from: existing.teamId, to: targetTeamId },
+        },
+      );
     }
 
     return await ctx.db.get(args.promptId);
   },
 });
 
+/**
+ * Soft-deletes the prompt by flipping `lifecycleStatus` to `'expired'`.
+ * The row stays in the table (with versionHistory intact) and is hard-deleted
+ * later by the retention pipeline after the deletion grace period.
+ */
 export const deletePrompt = mutationWithRLS({
   args: {
     promptId: v.id('promptTemplates'),
@@ -220,6 +298,11 @@ export const deletePrompt = mutationWithRLS({
     const user = await requireAuthenticatedUser(ctx);
     const existing = await ctx.db.get(args.promptId);
     if (!existing) return null;
+    if (existing.lifecycleStatus === 'expired') return null;
+
+    if (existing.scope === 'personal' && existing.createdBy !== user.userId) {
+      return null;
+    }
 
     const rlsContext = await validateOrganizationAccess(
       ctx,
@@ -236,6 +319,11 @@ export const deletePrompt = mutationWithRLS({
       });
     }
 
+    await ctx.db.patch(args.promptId, {
+      lifecycleStatus: 'expired',
+      statusChangedAt: Date.now(),
+    });
+
     await emitPromptAudit(
       ctx,
       rlsContext,
@@ -244,8 +332,6 @@ export const deletePrompt = mutationWithRLS({
       existing.title,
       { scope: existing.scope, lastVersion: existing.version ?? 1 },
     );
-
-    await ctx.db.delete(args.promptId);
     return null;
   },
 });
@@ -259,6 +345,7 @@ export const incrementUsage = mutationWithRLS({
     await requireAuthenticatedUser(ctx);
     const existing = await ctx.db.get(args.promptId);
     if (!existing) return null;
+    if (existing.lifecycleStatus === 'expired') return null;
 
     await ctx.db.patch(args.promptId, {
       usageCount: existing.usageCount + 1,
@@ -270,7 +357,9 @@ export const incrementUsage = mutationWithRLS({
 /**
  * Restores a historical version by cloning its content into a new version.
  * Forward-only: the historical row stays in versionHistory; this prepends
- * v(current+1) with the target version's content.
+ * v(current+1) with the target version's content. A no-op when target
+ * content equals the current content (returns existing without creating
+ * a duplicate version entry).
  */
 export const restoreFromVersion = mutationWithRLS({
   args: {
@@ -287,10 +376,13 @@ export const restoreFromVersion = mutationWithRLS({
         message: 'Prompt not found',
       });
     }
+    if (existing.lifecycleStatus === 'expired') {
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'Prompt not found',
+      });
+    }
 
-    // Mirror getPrompt's personal-scope gate: an org admin who is not the
-    // creator must not be able to mutate another user's personal prompt
-    // history even though they pass the org-membership check.
     if (existing.scope === 'personal' && existing.createdBy !== user.userId) {
       throw new ConvexError({
         code: 'not_found',
@@ -323,6 +415,13 @@ export const restoreFromVersion = mutationWithRLS({
       });
     }
 
+    // Same-content guard: restoring a version whose content equals the
+    // current content would create a duplicate v(n+1) entry, wasting a
+    // FIFO slot. Return the existing row unchanged.
+    if (target.content === existing.content) {
+      return existing;
+    }
+
     assertPromptSizes({ content: target.content });
 
     const built = buildNextVersionEntry({
@@ -345,11 +444,21 @@ export const restoreFromVersion = mutationWithRLS({
       existing.title,
       { newVersion: built.newVersion, sourceVersion: args.targetVersion },
     );
+    if (built.droppedVersions.length > 0) {
+      await emitPromptAudit(
+        ctx,
+        rlsContext,
+        'prompt_template.history_truncated',
+        args.promptId,
+        existing.title,
+        { droppedVersions: built.droppedVersions },
+      );
+    }
 
     const updated = await ctx.db.get(args.promptId);
     if (!updated) {
       throw new ConvexError({
-        code: 'not_found',
+        code: 'internal_error',
         message: 'Failed to read prompt after restore',
       });
     }

@@ -47,14 +47,22 @@ function makePromptDoc(
 
 describe('prependVersionEntry', () => {
   it('prepends the entry to an empty history', () => {
-    const next = prependVersionEntry(undefined, makeEntry(1));
-    expect(next).toHaveLength(1);
-    expect(next[0].version).toBe(1);
+    const { history, droppedVersions } = prependVersionEntry(
+      undefined,
+      makeEntry(1),
+    );
+    expect(history).toHaveLength(1);
+    expect(history[0].version).toBe(1);
+    expect(droppedVersions).toEqual([]);
   });
 
   it('prepends in front of existing entries (newest-first order)', () => {
-    const next = prependVersionEntry([makeEntry(1)], makeEntry(2));
-    expect(next.map((e) => e.version)).toEqual([2, 1]);
+    const { history, droppedVersions } = prependVersionEntry(
+      [makeEntry(1)],
+      makeEntry(2),
+    );
+    expect(history.map((e) => e.version)).toEqual([2, 1]);
+    expect(droppedVersions).toEqual([]);
   });
 
   it('caps the array at MAX_PROMPT_VERSION_HISTORY and drops the oldest', () => {
@@ -65,11 +73,16 @@ describe('prependVersionEntry', () => {
       (_, i) => makeEntry(MAX_PROMPT_VERSION_HISTORY - i),
     );
     const newest = makeEntry(MAX_PROMPT_VERSION_HISTORY + 1);
-    const next = prependVersionEntry(existing, newest, 'prompt_1');
-    expect(next).toHaveLength(MAX_PROMPT_VERSION_HISTORY);
-    expect(next[0].version).toBe(MAX_PROMPT_VERSION_HISTORY + 1);
+    const { history, droppedVersions } = prependVersionEntry(
+      existing,
+      newest,
+      'prompt_1',
+    );
+    expect(history).toHaveLength(MAX_PROMPT_VERSION_HISTORY);
+    expect(history[0].version).toBe(MAX_PROMPT_VERSION_HISTORY + 1);
     // The oldest entry (version 1) should have been dropped.
-    expect(next.find((e) => e.version === 1)).toBeUndefined();
+    expect(history.find((e) => e.version === 1)).toBeUndefined();
+    expect(droppedVersions).toEqual([1]);
     expect(warn).toHaveBeenCalledTimes(1);
     warn.mockRestore();
   });

@@ -75,6 +75,9 @@ export const listPrompts = queryWithRLS({
           );
 
     for await (const prompt of iterable) {
+      if (prompt.lifecycleStatus === 'expired') {
+        continue;
+      }
       if (prompt.scope === 'personal' && prompt.createdBy !== user.userId) {
         continue;
       }

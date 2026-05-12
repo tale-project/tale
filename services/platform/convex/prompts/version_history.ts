@@ -19,22 +19,31 @@ export type VersionHistoryEntry = {
  * MAX_PROMPT_VERSION_HISTORY (FIFO drop of the oldest). Pure function — no
  * I/O, safe to unit test. `versionHistory[0]` is always the current version
  * of a prompt, so this is called on every save / restore.
+ *
+ * Returns `droppedVersions` (the version numbers of evicted entries) so the
+ * caller can emit a `prompt_template.history_truncated` audit event;
+ * silent FIFO eviction would otherwise hide history loss from audit consumers.
  */
 export function prependVersionEntry(
   prevHistory: VersionHistoryEntry[] | undefined,
   entry: VersionHistoryEntry,
   promptId?: string,
-): VersionHistoryEntry[] {
+): { history: VersionHistoryEntry[]; droppedVersions: number[] } {
   const next = [entry, ...(prevHistory ?? [])];
   if (next.length > MAX_PROMPT_VERSION_HISTORY) {
+    const dropped = next.slice(MAX_PROMPT_VERSION_HISTORY);
+    const droppedVersions = dropped.map((e) => e.version);
     console.warn(
       `[prompts] versionHistory truncated for ${promptId ?? 'prompt'}: dropping ${
-        next.length - MAX_PROMPT_VERSION_HISTORY
-      } oldest entries`,
+        droppedVersions.length
+      } oldest entries (v${droppedVersions.join(', v')})`,
     );
-    return next.slice(0, MAX_PROMPT_VERSION_HISTORY);
+    return {
+      history: next.slice(0, MAX_PROMPT_VERSION_HISTORY),
+      droppedVersions,
+    };
   }
-  return next;
+  return { history: next, droppedVersions: [] };
 }
 
 export interface BuildVersionEntryArgs {
@@ -52,6 +61,9 @@ export interface BuildVersionEntryArgs {
  * `versionHistory`), its current content is captured as v1 before the new
  * entry is recorded as v2 — otherwise the original pre-versioning content
  * would be silently overwritten on first edit and lost from history.
+ *
+ * `droppedVersions` propagates the FIFO eviction list from
+ * `prependVersionEntry` so the caller can audit history truncation.
  */
 export function buildNextVersionEntry({
   existing,
@@ -61,6 +73,7 @@ export function buildNextVersionEntry({
   entry: VersionHistoryEntry;
   newVersion: number;
   nextHistory: VersionHistoryEntry[];
+  droppedVersions: number[];
 } {
   const isLegacy = existing.version === undefined;
   const baseHistory: VersionHistoryEntry[] = isLegacy
@@ -81,6 +94,10 @@ export function buildNextVersionEntry({
     publishedAt: Date.now(),
     publishedBy,
   };
-  const nextHistory = prependVersionEntry(baseHistory, entry, existing._id);
-  return { entry, newVersion, nextHistory };
+  const { history: nextHistory, droppedVersions } = prependVersionEntry(
+    baseHistory,
+    entry,
+    existing._id,
+  );
+  return { entry, newVersion, nextHistory, droppedVersions };
 }
