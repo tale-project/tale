@@ -72,10 +72,13 @@ describe('toSerializableConfig', () => {
 
   it('should handle delegates as string array', () => {
     const config = createMockConfig({
-      delegates: ['web-assistant', 'file-assistant'],
+      delegates: ['crm-assistant', 'integration-assistant'],
     });
     const result = toSerializableConfig('a', config);
-    expect(result.delegateSlugs).toEqual(['web-assistant', 'file-assistant']);
+    expect(result.delegateSlugs).toEqual([
+      'crm-assistant',
+      'integration-assistant',
+    ]);
   });
 
   it('should default knowledgeMode to off', () => {

@@ -4,8 +4,8 @@
   "timeoutMs": 180000,
   "outputReserve": 2048,
   "supportedModels": [
-    "openrouter:qwen/qwen3-next-80b-a3b-instruct",
-    "openrouter:qwen/qwen3.5-35b-a3b"
+    "openrouter:qwen/qwen3-235b-a22b-2507",
+    "openrouter:qwen/qwen3.6-35b-a3b"
   ],
   "roleRestriction": "admin_developer",
   "i18n": {
