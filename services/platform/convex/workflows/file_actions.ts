@@ -120,7 +120,9 @@ function extractWorkflowIntegrations(
   const found = new Set<string>();
 
   for (const dep of config.requires?.integrations ?? []) {
-    if (dep.name) found.add(dep.name);
+    if (typeof dep.name === 'string' && dep.name && !dep.name.includes('{{')) {
+      found.add(dep.name);
+    }
   }
 
   for (const step of config.steps) {
