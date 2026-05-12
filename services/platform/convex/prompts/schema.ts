@@ -42,7 +42,9 @@ export const promptTemplatesTable = defineTable({
     ),
   ),
 })
-  .index('by_organizationId', ['organizationId'])
+  // `by_organizationId_and_scope` doubles as the org-prefix index — Convex
+  // prefix scans honor a partial column list, so callers that only filter by
+  // organizationId can use this composite without a dedicated index.
   .index('by_organizationId_and_lifecycleStatus', [
     'organizationId',
     'lifecycleStatus',

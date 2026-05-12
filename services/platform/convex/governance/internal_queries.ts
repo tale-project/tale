@@ -525,7 +525,7 @@ export const listExpiredPromptTemplates = internalQuery({
     const rows = [];
     for await (const row of ctx.db
       .query('promptTemplates')
-      .withIndex('by_organizationId', (q) =>
+      .withIndex('by_organizationId_and_scope', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
       // Skip global-scope templates — they're operator content, not

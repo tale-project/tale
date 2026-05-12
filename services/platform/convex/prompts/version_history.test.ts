@@ -109,6 +109,34 @@ describe('buildNextVersionEntry', () => {
     expect(built.nextHistory.map((e) => e.version)).toEqual([4, 3, 2, 1]);
     // entries from existing history are not mutated
     expect(built.nextHistory[1].content).toBe('old');
+    // nothing was truncated since we're well under the cap
+    expect(built.droppedVersions).toEqual([]);
+  });
+
+  it('propagates droppedVersions when prepending past the FIFO cap', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    // Build a saturated history at MAX (versions MAX..1, newest first).
+    const fullHistory = Array.from(
+      { length: MAX_PROMPT_VERSION_HISTORY },
+      (_, i) => makeEntry(MAX_PROMPT_VERSION_HISTORY - i),
+    );
+    const existing = makePromptDoc({
+      version: MAX_PROMPT_VERSION_HISTORY,
+      content: `v${MAX_PROMPT_VERSION_HISTORY}`,
+      versionHistory: fullHistory,
+    });
+
+    const built = buildNextVersionEntry({
+      existing,
+      content: 'next',
+      publishedBy: 'user_b',
+    });
+
+    expect(built.newVersion).toBe(MAX_PROMPT_VERSION_HISTORY + 1);
+    expect(built.nextHistory).toHaveLength(MAX_PROMPT_VERSION_HISTORY);
+    // The oldest (v1) was evicted to make room.
+    expect(built.droppedVersions).toEqual([1]);
+    warn.mockRestore();
   });
 
   it('JIT-seeds a legacy prompt: original content becomes v1, edit becomes v2', () => {

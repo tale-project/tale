@@ -62,17 +62,13 @@ export const listPrompts = queryWithRLS({
     const results = [];
 
     const { scope } = args;
-    const iterable = scope
-      ? ctx.db
-          .query('promptTemplates')
-          .withIndex('by_organizationId_and_scope', (q) =>
-            q.eq('organizationId', args.organizationId).eq('scope', scope),
-          )
-      : ctx.db
-          .query('promptTemplates')
-          .withIndex('by_organizationId', (q) =>
-            q.eq('organizationId', args.organizationId),
-          );
+    const iterable = ctx.db
+      .query('promptTemplates')
+      .withIndex('by_organizationId_and_scope', (q) =>
+        scope
+          ? q.eq('organizationId', args.organizationId).eq('scope', scope)
+          : q.eq('organizationId', args.organizationId),
+      );
 
     for await (const prompt of iterable) {
       if (prompt.lifecycleStatus === 'expired') {
@@ -156,7 +152,22 @@ export const getPromptHistory = queryWithRLS({
     if (prompt.createdBy !== user.userId && !isAdmin) return null;
 
     const all = prompt.versionHistory ?? [];
-    if (all.length === 0) return null;
+    if (all.length === 0) {
+      // Legacy or freshly-seeded row with no inline history yet. Synthesize
+      // a v1 from the row's current content so the dialog shows the baseline
+      // instead of an empty-state. The JIT seed in `buildNextVersionEntry`
+      // promotes this same shape into the persisted array on first edit.
+      return {
+        current: {
+          version: prompt.version ?? 1,
+          content: prompt.content,
+          publishedAt: prompt._creationTime,
+          publishedBy: prompt.createdBy,
+        },
+        history: [],
+        totalCount: 1,
+      };
+    }
 
     const sorted = all.slice().sort((a, b) => b.version - a.version);
     const [current, ...rest] = sorted;
