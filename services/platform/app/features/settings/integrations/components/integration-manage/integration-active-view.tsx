@@ -10,12 +10,12 @@ import {
   StatGrid,
 } from '@/app/components/ui/data-display/stat-grid';
 import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
-import { Stack } from '@/app/components/ui/layout/layout';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import type { Integration } from '../../hooks/use-integration-manage';
-import { SENSITIVE_KEYS, maskValue } from '../../hooks/use-integration-manage';
+import { maskValue } from '../../hooks/use-integration-manage';
 import { TestResultFeedback } from './test-result-feedback';
 
 interface IntegrationActiveViewProps {
@@ -23,15 +23,16 @@ interface IntegrationActiveViewProps {
   isSql: boolean;
   busy: boolean;
   isSavingOAuth2: boolean;
+  isTesting: boolean;
   hasOAuth2Config: boolean;
   testResult: { success: boolean; message: string } | null;
-  secretBindings: string[];
   editableConfigFields: Array<{
     key: string;
     type: 'string' | 'number';
     defaultValue: string | number;
   }>;
   onReauthorize: () => void;
+  onTestConnection: () => void;
   onDismissTestResult: () => void;
 }
 
@@ -40,11 +41,12 @@ export function IntegrationActiveView({
   isSql,
   busy,
   isSavingOAuth2,
+  isTesting,
   hasOAuth2Config,
   testResult,
-  secretBindings,
   editableConfigFields,
   onReauthorize,
+  onTestConnection,
   onDismissTestResult,
 }: IntegrationActiveViewProps) {
   const { t } = useT('settings');
@@ -74,29 +76,6 @@ export function IntegrationActiveView({
                   {maskValue(integration.basicAuth.username ?? '')}
                 </Text>
               ),
-            },
-            {
-              label: t('integrations.manageDialog.password'),
-              value: <Text variant="code">{'\u00d7'.repeat(8)}</Text>,
-            },
-          ]
-        : []),
-      ...(integration.authMethod === 'api_key' && integration.apiKeyAuth
-        ? [
-            {
-              label:
-                secretBindings.find((b) => SENSITIVE_KEYS.has(b)) ?? 'apiKey',
-              value: <Text variant="code">{'\u00d7'.repeat(8)}</Text>,
-            },
-          ]
-        : []),
-      ...(integration.authMethod === 'oauth2' && integration.oauth2Auth
-        ? [
-            {
-              label: hasOAuth2Config
-                ? t('integrations.manageDialog.connectedViaOAuth2')
-                : 'accessToken',
-              value: <Text variant="code">{'\u00d7'.repeat(8)}</Text>,
             },
           ]
         : []),
@@ -136,14 +115,7 @@ export function IntegrationActiveView({
           ),
         })),
     ],
-    [
-      integration,
-      isSql,
-      secretBindings,
-      hasOAuth2Config,
-      editableConfigFields,
-      t,
-    ],
+    [integration, isSql, editableConfigFields, t],
   );
 
   return (
@@ -153,33 +125,72 @@ export function IntegrationActiveView({
           {t('integrations.manageDialog.authentication')}
         </Text>
 
+        {integration.authMethod === 'oauth2' &&
+          integration.oauth2Auth &&
+          hasOAuth2Config && (
+            <Text variant="muted" className="text-sm">
+              {t('integrations.manageDialog.connectedViaOAuth2')}
+            </Text>
+          )}
+
         {authItems.length > 0 && (
           <StatGrid items={authItems} className="text-sm" />
         )}
       </BorderedSection>
 
-      {hasOAuth2Config &&
-        integration.authMethod === 'oauth2' &&
-        integration.oauth2Config?.clientId && (
-          <Button
-            variant="secondary"
-            onClick={onReauthorize}
-            disabled={busy}
-            className="w-full"
-          >
-            {isSavingOAuth2 ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                {t('integrations.manageDialog.savingCredentials')}
-              </>
-            ) : (
-              <>
-                <ExternalLink className="mr-2 size-4" />
-                {t('integrations.manageDialog.reauthorize')}
-              </>
-            )}
-          </Button>
-        )}
+      {(() => {
+        const showReauthorize =
+          hasOAuth2Config &&
+          integration.authMethod === 'oauth2' &&
+          !!integration.oauth2Config?.clientId;
+        if (!showReauthorize) {
+          return (
+            <HStack justify="end" align="center">
+              <Button
+                variant="secondary"
+                onClick={onTestConnection}
+                disabled={busy}
+              >
+                {isTesting
+                  ? t('integrations.manageDialog.testingConnection')
+                  : t('integrations.manageDialog.testConnection')}
+              </Button>
+            </HStack>
+          );
+        }
+        return (
+          <HStack gap={2} align="center" className="w-full">
+            <Button
+              variant="secondary"
+              onClick={onReauthorize}
+              disabled={busy}
+              className="flex-1"
+            >
+              {isSavingOAuth2 ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  {t('integrations.manageDialog.savingCredentials')}
+                </>
+              ) : (
+                <>
+                  <ExternalLink className="mr-2 size-4" />
+                  {t('integrations.manageDialog.reauthorize')}
+                </>
+              )}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={onTestConnection}
+              disabled={busy}
+              className="flex-1"
+            >
+              {isTesting
+                ? t('integrations.manageDialog.testingConnection')
+                : t('integrations.manageDialog.testConnection')}
+            </Button>
+          </HStack>
+        );
+      })()}
 
       {testResult && (
         <TestResultFeedback

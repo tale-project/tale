@@ -12,6 +12,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
+import { Popover } from '@/app/components/ui/overlays/popover';
 import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -71,6 +72,7 @@ export function ScheduleCreateDialog({
   const [naturalLanguage, setNaturalLanguage] = useState('');
   const [cronDescription, setCronDescription] = useState('');
   const [generateError, setGenerateError] = useState('');
+  const [isGeneratePopoverOpen, setIsGeneratePopoverOpen] = useState(false);
   const isEdit = !!schedule;
 
   // Pull the workflow's start-node inputSchema so we can pre-fill the variables
@@ -141,6 +143,7 @@ export function ScheduleCreateDialog({
       setNaturalLanguage('');
       setCronDescription('');
       setGenerateError('');
+      setIsGeneratePopoverOpen(false);
       setVariablesJson(initialVariablesJson);
       setVariablesError('');
     }
@@ -160,6 +163,7 @@ export function ScheduleCreateDialog({
         shouldValidate: true,
       });
       setCronDescription(result.description);
+      setIsGeneratePopoverOpen(false);
     } catch {
       setGenerateError(t('triggers.schedules.form.ai.generateError'));
     }
@@ -236,48 +240,6 @@ export function ScheduleCreateDialog({
     >
       <FormSection>
         <FormSection>
-          <div className="flex gap-2">
-            <Input
-              id="naturalLanguage"
-              label={t('triggers.schedules.form.ai.label')}
-              placeholder={t('triggers.schedules.form.ai.placeholder')}
-              value={naturalLanguage}
-              onChange={(e) => setNaturalLanguage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  void handleGenerate();
-                }
-              }}
-              disabled={isGenerating}
-              wrapperClassName="flex-1"
-              errorMessage={generateError}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              size="default"
-              onClick={handleGenerate}
-              disabled={!naturalLanguage.trim() || isGenerating}
-              isLoading={isGenerating}
-              icon={Sparkles}
-              className="mt-7 shrink-0"
-              aria-label={t('triggers.schedules.form.ai.generateButton')}
-            >
-              {t('triggers.schedules.form.ai.generateButton')}
-            </Button>
-          </div>
-          {cronDescription && (
-            <output
-              className="text-muted-foreground text-xs"
-              aria-live="polite"
-            >
-              {cronDescription}
-            </output>
-          )}
-        </FormSection>
-
-        <FormSection>
           <Input
             id="cronExpression"
             label={t('triggers.schedules.form.cronExpression')}
@@ -305,7 +267,65 @@ export function ScheduleCreateDialog({
                 {t(`triggers.schedules.form.presets.${preset.label}`)}
               </Button>
             ))}
+            <Popover
+              open={isGeneratePopoverOpen}
+              onOpenChange={(next) => {
+                setIsGeneratePopoverOpen(next);
+                if (!next) setGenerateError('');
+              }}
+              align="start"
+              contentClassName="w-80 max-w-[20rem]"
+              trigger={
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  icon={Sparkles}
+                  aria-label={t('triggers.schedules.form.ai.generateButton')}
+                >
+                  {t('triggers.schedules.form.ai.generateButton')}
+                </Button>
+              }
+            >
+              <div className="flex flex-col gap-3">
+                <Input
+                  id="naturalLanguage"
+                  label={t('triggers.schedules.form.ai.label')}
+                  placeholder={t('triggers.schedules.form.ai.placeholder')}
+                  value={naturalLanguage}
+                  onChange={(e) => setNaturalLanguage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void handleGenerate();
+                    }
+                  }}
+                  disabled={isGenerating}
+                  errorMessage={generateError}
+                />
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={handleGenerate}
+                  disabled={!naturalLanguage.trim() || isGenerating}
+                  isLoading={isGenerating}
+                  icon={Sparkles}
+                  className="self-end"
+                >
+                  {t('triggers.schedules.form.ai.generateButton')}
+                </Button>
+              </div>
+            </Popover>
           </div>
+          {cronDescription && (
+            <output
+              className="text-muted-foreground text-xs"
+              aria-live="polite"
+            >
+              {cronDescription}
+            </output>
+          )}
         </FormSection>
 
         {hasInputSchema && (

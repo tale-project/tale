@@ -32,6 +32,10 @@ function AutomationAssistantContent({
     uploadingFiles,
     uploadFiles,
     removeAttachment,
+    isIndexing,
+    indexingStatuses,
+    isTranscribing,
+    transcriptionStatuses,
     previewImage,
     setPreviewImage,
     containerRef,
@@ -93,6 +97,10 @@ function AutomationAssistantContent({
         removeAttachment={removeAttachment}
         fileInputRef={fileInputRef}
         onFileInputChange={handleFileInputChange}
+        isIndexing={isIndexing}
+        indexingStatuses={indexingStatuses}
+        isTranscribing={isTranscribing}
+        transcriptionStatuses={transcriptionStatuses}
       />
 
       {previewImage && (

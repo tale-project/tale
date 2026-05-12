@@ -1,5 +1,6 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { ChevronRight, type LucideIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
@@ -10,6 +11,7 @@ interface CollapsibleSectionProps {
   id: string;
   icon: LucideIcon;
   title: string;
+  count?: number;
   defaultOpen?: boolean;
   children: ReactNode;
 }
@@ -18,6 +20,7 @@ export function CollapsibleSection({
   id,
   icon: Icon,
   title,
+  count,
   defaultOpen = false,
   children,
 }: CollapsibleSectionProps) {
@@ -42,10 +45,15 @@ export function CollapsibleSection({
           />
           <Icon className="text-muted-foreground size-4" />
           <span>{title}</span>
+          {typeof count === 'number' && (
+            <Badge variant="outline" className="ml-1 text-xs">
+              {count}
+            </Badge>
+          )}
         </button>
       </Heading>
       {isOpen && (
-        <div id={`${id}-content`} className="mt-3">
+        <div id={`${id}-content`} className="mt-2">
           {children}
         </div>
       )}

@@ -27,7 +27,7 @@ export function useAutomationsTableConfig(organizationId: string) {
         cell: ({ row }) => {
           if (row.original.type === 'folder') {
             return (
-              <div className="flex items-center gap-3">
+              <div className="flex min-h-8 items-center gap-3">
                 <Folder className="text-muted-foreground size-4 shrink-0" />
                 <Text as="span" variant="label" truncate>
                   {row.original.name}
@@ -37,7 +37,7 @@ export function useAutomationsTableConfig(organizationId: string) {
             );
           }
           return (
-            <div className="flex items-center gap-3">
+            <div className="flex min-h-8 items-center gap-3">
               <Workflow className="text-muted-foreground size-4 shrink-0" />
               <Text as="span" variant="label" truncate>
                 {row.original.name}

@@ -14,6 +14,7 @@ import {
   useInvalidateWorkflows,
 } from '../hooks/file-mutations';
 import { useListWorkflows } from '../hooks/file-queries';
+import { getIntegrationBrandIcon } from '../utils/integration-brand-icon';
 
 interface WorkflowTemplateGridProps {
   organizationId: string;
@@ -38,7 +39,12 @@ export function WorkflowTemplateGrid({
 
   const filteredTemplates = useMemo(() => {
     if (!workflows) return [];
-    const valid: { slug: string; name: string; description?: string }[] = [];
+    const valid: {
+      slug: string;
+      name: string;
+      description?: string;
+      integrations: string[];
+    }[] = [];
     for (const w of workflows) {
       if (
         w &&
@@ -48,6 +54,14 @@ export function WorkflowTemplateGrid({
         typeof w.slug === 'string' &&
         typeof w.name === 'string'
       ) {
+        const rawIntegrations: unknown =
+          'integrations' in w ? w.integrations : undefined;
+        const filtered = Array.isArray(rawIntegrations)
+          ? rawIntegrations.filter((v): v is string => typeof v === 'string')
+          : [];
+        // Inbuilt templates with no third-party integration: show the Tale
+        // logo so the card still gets a brand chip.
+        const integrations = filtered.length > 0 ? filtered : ['tale'];
         valid.push({
           slug: w.slug,
           name: w.name,
@@ -55,6 +69,7 @@ export function WorkflowTemplateGrid({
             'description' in w && typeof w.description === 'string'
               ? w.description
               : undefined,
+          integrations,
         });
       }
     }
@@ -125,7 +140,7 @@ export function WorkflowTemplateGrid({
       )}
 
       <div
-        className="grid max-h-80 grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2"
+        className="flex max-h-80 flex-col gap-2.5 overflow-y-auto"
         aria-busy={!!installingSlug}
       >
         {filteredTemplates.map((template) => (
@@ -135,7 +150,7 @@ export function WorkflowTemplateGrid({
             onClick={() => handleSelectTemplate(template.slug)}
             disabled={!!installingSlug}
             className={cn(
-              'border-border hover:border-primary/50 flex items-start gap-3 rounded-lg border p-3 text-left transition-colors',
+              'border-border hover:border-primary/50 bg-background flex w-full items-start gap-3 rounded-lg border p-2 text-left transition-colors',
               installingSlug === template.slug && 'border-primary/50',
               installingSlug &&
                 installingSlug !== template.slug &&
@@ -153,11 +168,27 @@ export function WorkflowTemplateGrid({
                 </Text>
               )}
             </Stack>
+            {template.integrations.length > 0 && (
+              <div className="flex shrink-0 items-center gap-1">
+                {template.integrations.map((integration) => {
+                  const Icon = getIntegrationBrandIcon(integration);
+                  return (
+                    <div
+                      key={integration}
+                      className="border-border bg-background text-foreground flex size-5 items-center justify-center rounded border p-1"
+                      aria-label={integration}
+                    >
+                      <Icon className="size-3" />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {installingSlug === template.slug && (
               <Spinner
                 size="sm"
                 label={t('templates.fetching')}
-                className="mt-0.5 shrink-0"
+                className="shrink-0"
               />
             )}
           </button>

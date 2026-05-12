@@ -173,40 +173,19 @@ export function IntegrationPanel({
           </Stack>
 
           {isDetailsMode ? (
-            <Stack gap={4}>
-              <IntegrationActiveView
-                integration={integration}
-                isSql={manage.isSql}
-                busy={manage.busy}
-                isSavingOAuth2={manage.isSavingOAuth2}
-                hasOAuth2Config={manage.hasOAuth2Config}
-                testResult={manage.testResult}
-                secretBindings={manage.secretBindings}
-                editableConfigFields={manage.editableConfigFields}
-                onReauthorize={manage.handleReauthorize}
-                onDismissTestResult={() => manage.setTestResult(null)}
-              />
-              <HStack justify="end" align="center">
-                <Button
-                  variant="secondary"
-                  onClick={manage.handleTestConnection}
-                  disabled={manage.busy}
-                >
-                  {manage.isTesting
-                    ? t('integrations.manageDialog.testingConnection')
-                    : t('integrations.manageDialog.testConnection')}
-                </Button>
-              </HStack>
-              <button
-                type="button"
-                onClick={() => manage.setConfirmDelete(true)}
-                disabled={manage.busy}
-                className="text-destructive hover:text-destructive/80 flex items-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                <Trash2 className="size-3.5" />
-                {t('integrations.panel.deleteIntegration')}
-              </button>
-            </Stack>
+            <IntegrationActiveView
+              integration={integration}
+              isSql={manage.isSql}
+              busy={manage.busy}
+              isSavingOAuth2={manage.isSavingOAuth2}
+              isTesting={manage.isTesting}
+              hasOAuth2Config={manage.hasOAuth2Config}
+              testResult={manage.testResult}
+              editableConfigFields={manage.editableConfigFields}
+              onReauthorize={manage.handleReauthorize}
+              onTestConnection={manage.handleTestConnection}
+              onDismissTestResult={() => manage.setTestResult(null)}
+            />
           ) : (
             <IntegrationCredentialsForm
               integration={integration}
@@ -259,12 +238,12 @@ export function IntegrationPanel({
 
       <div className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4">
         {isDetailsMode ? (
-          <HStack justify="start" align="center">
-            <button
+          <HStack justify="between" align="center">
+            <Button
               type="button"
               onClick={() => setConfirmDisconnect(true)}
               disabled={manage.busy}
-              className="text-muted-foreground hover:text-foreground text-sm font-medium transition-colors disabled:opacity-50"
+              className="flex-1"
             >
               {manage.isSubmitting ? (
                 <HStack gap={2} align="center">
@@ -274,7 +253,16 @@ export function IntegrationPanel({
               ) : (
                 t('integrations.disconnect')
               )}
-            </button>
+            </Button>
+            <Button
+              type="button"
+              onClick={() => manage.setConfirmDelete(true)}
+              disabled={manage.busy}
+              variant="destructive"
+            >
+              <Trash2 className="mr-2 size-3.5" />
+              {t('integrations.panel.deleteIntegration')}
+            </Button>
           </HStack>
         ) : (
           <HStack justify="end" align="center">

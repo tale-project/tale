@@ -252,6 +252,7 @@ export function EventsSection({
       id="events"
       icon={Zap}
       title={t('triggers.events.title')}
+      count={subscriptions?.length ?? 0}
       defaultOpen={(subscriptions?.length ?? 0) > 0}
     >
       <DataTable

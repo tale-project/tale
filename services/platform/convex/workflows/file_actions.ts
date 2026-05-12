@@ -106,6 +106,50 @@ async function resolveCreatedAtMs(
   }
 }
 
+/**
+ * Best-effort list of integrations a workflow touches, used to render brand
+ * icon chips on template cards. Reads `requires.integrations[].name` when
+ * present, then falls back to integration-type step parameters and the slug
+ * category prefix. Template placeholders like `{{integrationName}}` are
+ * skipped — they don't pin to a specific brand.
+ */
+function extractWorkflowIntegrations(
+  slug: string,
+  config: WorkflowJsonConfig,
+): string[] {
+  const found = new Set<string>();
+
+  for (const dep of config.requires?.integrations ?? []) {
+    if (typeof dep.name === 'string' && dep.name && !dep.name.includes('{{')) {
+      found.add(dep.name);
+    }
+  }
+
+  for (const step of config.steps) {
+    const stepConfig = step.config as Record<string, unknown> | undefined;
+    if (!stepConfig || stepConfig.type !== 'integration') continue;
+    const params: unknown = stepConfig.parameters;
+    if (!params || typeof params !== 'object' || !('name' in params)) continue;
+    const name = (params as { name: unknown }).name;
+    if (typeof name === 'string' && name && !name.includes('{{')) {
+      found.add(name);
+    }
+  }
+
+  if (found.size === 0) {
+    const category = slug.includes('/') ? slug.split('/')[0] : '';
+    if (category && category !== 'general') {
+      found.add(category);
+    } else {
+      // Inbuilt / general templates have no third-party integration — surface
+      // the Tale brand so the template card still shows an icon chip.
+      found.add('tale');
+    }
+  }
+
+  return [...found];
+}
+
 // ---------------------------------------------------------------------------
 // Public actions (called from frontend)
 // ---------------------------------------------------------------------------
@@ -189,6 +233,7 @@ export const listWorkflows = action({
 
           const filePath = resolveWorkflowFilePath(orgSlug, slug);
           const createdAtMs = await resolveCreatedAtMs(orgSlug, slug, filePath);
+          const integrations = extractWorkflowIntegrations(slug, result.config);
 
           return {
             slug,
@@ -197,6 +242,7 @@ export const listWorkflows = action({
             installed,
             version: result.config.version,
             stepCount: result.config.steps.length,
+            integrations,
             hash: result.hash,
             createdAtMs,
           };
