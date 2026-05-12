@@ -1,3 +1,4 @@
+import { Image } from '@tale/ui/image';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Layers, Shield } from 'lucide-react';
 
@@ -60,10 +61,9 @@ export function ComplianceTrust() {
               {t('compliance.independent.description')}
             </p>
             <div className="pointer-events-none mt-auto flex aspect-16/10 w-full items-end justify-center overflow-hidden pt-6 md:pt-12">
-              <img
+              <Image
                 src="/marketing/trust-blocks.png"
                 alt=""
-                aria-hidden
                 draggable={false}
                 className="block h-auto w-auto max-w-84.5 object-contain"
               />
@@ -101,10 +101,9 @@ export function ComplianceTrust() {
               {t('compliance.certified.description')}
             </p>
             <div className="pointer-events-none mt-auto flex aspect-16/10 w-full items-end justify-center overflow-hidden pt-6 md:pt-12">
-              <img
+              <Image
                 src="/marketing/trust-network.png"
                 alt=""
-                aria-hidden
                 draggable={false}
                 className="block h-auto w-full object-contain"
               />

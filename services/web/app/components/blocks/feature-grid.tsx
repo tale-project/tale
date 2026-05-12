@@ -1,3 +1,4 @@
+import { Image } from '@tale/ui/image';
 import { motion, useReducedMotion } from 'framer-motion';
 import type { ComponentType, SVGProps } from 'react';
 
@@ -90,10 +91,9 @@ export function FeatureGrid({ title, description, items }: FeatureGridProps) {
               </div>
               {item.illustration ? (
                 <div className="mt-auto flex aspect-[16/10] w-full items-end justify-center overflow-hidden pt-6 md:pt-10">
-                  <img
+                  <Image
                     src={item.illustration}
                     alt=""
-                    aria-hidden
                     draggable={false}
                     className="block h-full max-h-full w-full object-contain object-bottom"
                   />

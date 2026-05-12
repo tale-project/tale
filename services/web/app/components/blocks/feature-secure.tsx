@@ -1,3 +1,4 @@
+import { Image } from '@tale/ui/image';
 import { cva } from 'class-variance-authority';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { type ComponentType, type SVGProps, useState } from 'react';
@@ -114,12 +115,10 @@ export function FeatureSecure() {
       <div aria-hidden className={panelGradient({ tab: item.key })} />
       <div aria-hidden className={panelGlassCard}>
         <div className={panelStage}>
-          <img
+          <Image
             src={item.illustration}
             alt=""
-            aria-hidden
             draggable={false}
-            loading="lazy"
             className={panelImage}
           />
         </div>

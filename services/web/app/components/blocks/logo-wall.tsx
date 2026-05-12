@@ -16,9 +16,9 @@ export function LogoWall() {
         >
           <span>{t('logoWall.prefix')}</span>
           <span className="inline-flex items-center gap-6">
-            <MicrosoftIcon className="h-6 w-6" />
-            <GoogleIcon className="h-6 w-6" />
-            <AtlassianIcon className="h-6 w-6" />
+            <MicrosoftIcon className="h-6 w-6" aria-hidden="true" />
+            <GoogleIcon className="h-6 w-6" aria-hidden="true" />
+            <AtlassianIcon className="h-6 w-6" aria-hidden="true" />
           </span>
           <span>{t('logoWall.suffix')}</span>
         </p>

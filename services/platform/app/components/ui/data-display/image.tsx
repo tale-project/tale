@@ -1,70 +1,23 @@
 'use client';
 
-import {
-  ComponentPropsWithoutRef,
-  forwardRef,
-  useEffect,
-  useState,
-} from 'react';
+import { Image as BaseImage } from '@tale/ui/image';
+import { type ComponentPropsWithoutRef, forwardRef } from 'react';
 
 import { getEnv } from '@/lib/env';
-import { cn } from '@/lib/utils/cn';
 
-const PLACEHOLDER_IMAGE = `${getEnv('BASE_PATH')}/assets/placeholder-image.png`;
-
-interface ImageProps extends Omit<ComponentPropsWithoutRef<'img'>, 'onError'> {
-  /**
-   * Fallback image URL to use when the primary image fails to load.
-   * Defaults to '/assets/placeholder-image.png'.
-   */
-  fallbackSrc?: string;
-  /**
-   * When true, disables lazy loading (uses loading="eager").
-   * Use for above-the-fold images.
-   */
-  priority?: boolean;
-}
+type BaseImageProps = ComponentPropsWithoutRef<typeof BaseImage>;
 
 /**
- * Custom Image component that uses native img element.
+ * Platform-flavored Image component.
  *
- * Features:
- * - Automatic fallback on error
- * - Lazy loading by default (disable with priority prop)
- * - Full control over styling
+ * Wraps the shared `@tale/ui/image` primitive and prefixes the default
+ * placeholder fallback with `BASE_PATH` so subpath deployments resolve the
+ * placeholder asset correctly.
  */
-export const Image = forwardRef<HTMLImageElement, ImageProps>(function Image(
-  {
-    src,
-    alt,
-    className,
-    fallbackSrc = PLACEHOLDER_IMAGE,
-    priority = false,
-    ...props
+export const Image = forwardRef<HTMLImageElement, BaseImageProps>(
+  function Image({ fallbackSrc, ...props }, ref) {
+    const resolvedFallback =
+      fallbackSrc ?? `${getEnv('BASE_PATH')}/assets/placeholder-image.png`;
+    return <BaseImage ref={ref} fallbackSrc={resolvedFallback} {...props} />;
   },
-  ref,
-) {
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const currentSrc = failedSrc === src ? fallbackSrc : src || fallbackSrc;
-
-  useEffect(() => {
-    setFailedSrc(null);
-  }, [src]);
-
-  const handleError = () => {
-    setFailedSrc(src ?? null);
-  };
-
-  return (
-    <img
-      key={src}
-      ref={ref}
-      src={currentSrc}
-      alt={alt}
-      className={cn(className)}
-      loading={priority ? 'eager' : 'lazy'}
-      onError={handleError}
-      {...props}
-    />
-  );
-});
+);

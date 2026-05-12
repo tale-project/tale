@@ -1,12 +1,15 @@
 import { cn } from '@tale/ui/cn';
+import type { SVGProps } from 'react';
 
-export const GoogleIcon = ({ className }: { className?: string }) => (
+export const GoogleIcon = ({
+  className,
+  ...props
+}: SVGProps<SVGSVGElement>) => (
   <svg
     className={cn('size-full', className)}
     viewBox="0 0 24 24"
     xmlns="http://www.w3.org/2000/svg"
-    aria-label="Google"
-    role="img"
+    {...props}
   >
     <path
       fill="#4285F4"

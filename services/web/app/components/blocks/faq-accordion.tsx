@@ -51,16 +51,15 @@ export function FaqAccordion() {
                 : { delay: 0.08, duration: 0.6, ease: easeOut }
             }
           >
-            <Accordion
-              type="multiple"
-              className="[&_[id$='-content']_div]:!text-[15px] lg:[&_[id$='-content']_div]:!text-[16px] [&_button]:!text-[18px] lg:[&_button]:!text-[20px] [&_button>span]:!text-[18px] lg:[&_button>span]:!text-[20px]"
-            >
+            <Accordion type="multiple">
               {FAQ_KEYS.map((key) => (
                 <AccordionItem
                   key={key}
                   id={key}
                   question={t(`faq.${key}.q`)}
                   className="px-0 py-8 lg:px-5 lg:py-5"
+                  triggerClassName="text-[18px] lg:text-[20px]"
+                  contentClassName="text-[15px] lg:text-[16px]"
                 >
                   {t(`faq.${key}.a`)}
                 </AccordionItem>

@@ -69,7 +69,12 @@ export interface AccordionItemProps {
   id?: string;
   question: ReactNode;
   children: ReactNode;
+  /** Wrapper class applied to the outer item container. */
   className?: string;
+  /** Class applied to the trigger button — overrides the default typography. */
+  triggerClassName?: string;
+  /** Class applied to the expanded content. */
+  contentClassName?: string;
 }
 
 export function AccordionItem({
@@ -77,6 +82,8 @@ export function AccordionItem({
   question,
   children,
   className,
+  triggerClassName,
+  contentClassName,
 }: AccordionItemProps) {
   const ctx = useContext(AccordionContext);
   if (!ctx) throw new Error('AccordionItem must be used inside Accordion');
@@ -92,12 +99,11 @@ export function AccordionItem({
         onClick={() => ctx.toggle(itemId)}
         aria-expanded={isOpen}
         aria-controls={`${itemId}-content`}
-        className="flex w-full items-center justify-between gap-4 text-left font-medium text-[color:var(--color-fg-base)] transition-colors hover:text-[color:var(--color-accent-base)]"
-        style={{
-          fontSize: '1.25rem',
-          letterSpacing: '-0.2px',
-          lineHeight: 1.4,
-        }}
+        className={cn(
+          'flex w-full items-center justify-between gap-4 text-left text-xl font-medium text-[color:var(--color-fg-base)] transition-colors hover:text-[color:var(--color-accent-base)]',
+          triggerClassName,
+        )}
+        style={{ letterSpacing: '-0.2px', lineHeight: 1.4 }}
       >
         <span>{question}</span>
         <ChevronDown
@@ -128,12 +134,11 @@ export function AccordionItem({
             className="overflow-hidden"
           >
             <div
-              className="text-fg-muted max-w-xl pt-3"
-              style={{
-                fontSize: '1rem',
-                letterSpacing: '-0.0072em',
-                lineHeight: 1.5,
-              }}
+              className={cn(
+                'text-fg-muted max-w-xl pt-3 text-base',
+                contentClassName,
+              )}
+              style={{ letterSpacing: '-0.0072em', lineHeight: 1.5 }}
             >
               {children}
             </div>

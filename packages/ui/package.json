@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./button": "./src/components/primitives/button.tsx",
     "./icon-button": "./src/components/primitives/icon-button.tsx",
+    "./image": "./src/components/primitives/image.tsx",
     "./input": "./src/components/forms/input.tsx",
     "./textarea": "./src/components/forms/textarea.tsx",
     "./label": "./src/components/forms/label.tsx",

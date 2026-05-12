@@ -1,4 +1,5 @@
 import { Button } from '@tale/ui/button';
+import { Image } from '@tale/ui/image';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { CircleDollarSign, Hotel, Scale, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
@@ -154,12 +155,8 @@ export function FeatureSectors() {
             </div>
             <div className="border-border-base bg-bg-base relative h-125 overflow-hidden border-t lg:h-auto lg:border-t-0 lg:border-l">
               <AnimatePresence mode="wait" initial={false}>
-                <motion.img
+                <motion.div
                   key={active}
-                  src={ILLUSTRATIONS[active]}
-                  alt=""
-                  aria-hidden
-                  draggable={false}
                   initial={reduceMotion ? false : { opacity: 0, scale: 1.02 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={
@@ -170,8 +167,15 @@ export function FeatureSectors() {
                       ? { duration: 0 }
                       : { duration: 0.4, ease: easeOut }
                   }
-                  className="absolute inset-8 m-auto block max-h-[calc(100%-4rem)] max-w-[calc(100%-4rem)] object-contain"
-                />
+                  className="absolute inset-0"
+                >
+                  <Image
+                    src={ILLUSTRATIONS[active]}
+                    alt=""
+                    draggable={false}
+                    className="absolute inset-8 m-auto block max-h-[calc(100%-4rem)] max-w-[calc(100%-4rem)] object-contain"
+                  />
+                </motion.div>
               </AnimatePresence>
             </div>
           </div>
