@@ -1,12 +1,9 @@
 /*
- * TEMPORARY: lock the marketing site to light mode until a dark-mode design
- * pass ships. `color-scheme: light` forces native UI (form controls,
- * scrollbars, autofill) to render light even when the OS is dark, and the
- * `.dark` selector below is intentionally neutered so any stray class on
- * `<html>` cannot flip our tokens. Remove this block when ThemeProvider is
- * re-enabled in `app/main.tsx` and `app/entry-server.tsx`.
+ * Service-local stylesheet. Loaded after globals.css in main.tsx.
+ *
+ * This is where service-specific overrides and rules live — e.g. third-party
+ * library CSS imports, a fullscreen layout lock, a temporary light-mode lock,
+ * marketing-brand accent overrides, etc. The shared design tokens, base
+ * layer, utilities, and animations all live in `@tale/ui/globals.css` and
+ * are inherited via the one-line globals.css.
  */
-html,
-html.dark {
-  color-scheme: light;
-}

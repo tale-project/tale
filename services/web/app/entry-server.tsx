@@ -13,10 +13,6 @@ import { detectInitialLocale, resolveRegionalLocale } from '@/lib/i18n/locales';
 
 import { routeTree } from './routeTree.gen';
 
-// TEMPORARY: marketing pages are pinned to light mode. Mirror any change here
-// in `app/main.tsx`. Re-add `<ThemeProvider>` from `@tale/ui/theme` once a
-// dark-mode design pass lands for the marketing site.
-
 export interface RenderResult {
   html: string;
 }
