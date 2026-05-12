@@ -235,6 +235,7 @@ export function WebhooksSection({
       id="webhooks"
       icon={Webhook}
       title={t('triggers.webhooks.title')}
+      count={webhooks?.length ?? 0}
       defaultOpen={(webhooks?.length ?? 0) > 0}
     >
       <DataTable

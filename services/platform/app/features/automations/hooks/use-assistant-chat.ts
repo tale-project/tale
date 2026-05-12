@@ -16,6 +16,8 @@ import {
   useWorkflowUpdateApprovals,
 } from '@/app/features/chat/hooks/queries';
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
+import { useFileIndexingStatus } from '@/app/features/chat/hooks/use-file-indexing-status';
+import { useFileTranscriptionStatus } from '@/app/features/chat/hooks/use-file-transcription-status';
 import {
   extractFileAttachments,
   stripInternalFileReferences,
@@ -81,6 +83,13 @@ export function useAssistantChat({
     removeAttachment,
     clearAttachments,
   } = useConvexFileUpload({ organizationId });
+  const { isIndexing, statusMap: indexingStatuses } =
+    useFileIndexingStatus(attachments);
+  const {
+    isTranscribing,
+    isQueryLoading: isTranscriptionQueryLoading,
+    statusMap: transcriptionStatuses,
+  } = useFileTranscriptionStatus(attachments);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isPending, setIsPending] = useState(false);
@@ -366,7 +375,10 @@ export function useAssistantChat({
     if (
       (!inputValue.trim() && attachments.length === 0) ||
       isLoading ||
-      !organizationId
+      !organizationId ||
+      isIndexing ||
+      isTranscribing ||
+      isTranscriptionQueryLoading
     )
       return;
 
@@ -469,6 +481,10 @@ export function useAssistantChat({
     uploadingFiles,
     uploadFiles,
     removeAttachment,
+    isIndexing,
+    indexingStatuses,
+    isTranscribing: isTranscribing || isTranscriptionQueryLoading,
+    transcriptionStatuses,
     previewImage,
     setPreviewImage,
     containerRef,
