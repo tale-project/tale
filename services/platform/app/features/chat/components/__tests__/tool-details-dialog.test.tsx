@@ -21,7 +21,7 @@ describe('ToolDetailsDialog', () => {
           isOpen={true}
           onOpenChange={vi.fn()}
           usage={{
-            toolName: 'file_assistant',
+            toolName: 'integration_assistant',
             model: 'gpt-4',
             provider: 'openai',
             inputTokens: 150,

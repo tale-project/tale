@@ -17,7 +17,6 @@ import type { ToolUsage } from '../hooks/queries';
 
 function formatToolName(toolName: string): string {
   const nameMap: Record<string, string> = {
-    file_assistant: 'File',
     crm_assistant: 'CRM',
     integration_assistant: 'Integration',
     workflow_assistant: 'Workflow',

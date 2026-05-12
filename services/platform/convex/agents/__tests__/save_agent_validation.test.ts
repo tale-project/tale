@@ -12,11 +12,11 @@ const BASE_CONFIG = {
 
 describe('agentJsonSchema validation', () => {
   it('accepts config with delegates array', () => {
-    const config = { ...BASE_CONFIG, delegates: ['web-assistant'] };
+    const config = { ...BASE_CONFIG, delegates: ['integration-assistant'] };
     const result = agentJsonSchema.safeParse(config);
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.delegates).toEqual(['web-assistant']);
+      expect(result.data.delegates).toEqual(['integration-assistant']);
     }
   });
 
@@ -137,14 +137,16 @@ describe('stripNulls', () => {
   });
 
   it('filters null elements from arrays', () => {
-    const input = { delegates: ['web-assistant', null] };
-    expect(stripNulls(input)).toEqual({ delegates: ['web-assistant'] });
+    const input = { delegates: ['integration-assistant', null] };
+    expect(stripNulls(input)).toEqual({ delegates: ['integration-assistant'] });
   });
 
   it('filters undefined elements from arrays', () => {
-    const input = { delegates: ['web-assistant', undefined, 'crm-assistant'] };
+    const input = {
+      delegates: ['integration-assistant', undefined, 'crm-assistant'],
+    };
     expect(stripNulls(input)).toEqual({
-      delegates: ['web-assistant', 'crm-assistant'],
+      delegates: ['integration-assistant', 'crm-assistant'],
     });
   });
 
@@ -196,7 +198,7 @@ describe('full save round-trip with stripNulls', () => {
   it('handles config with delegation and visibility changes', () => {
     const config = {
       ...BASE_CONFIG,
-      delegates: ['web-assistant', 'crm-assistant'],
+      delegates: ['integration-assistant', 'crm-assistant'],
       visibleInChat: false,
       toolNames: ['rag_search', 'web'],
       knowledgeMode: 'tool',
@@ -209,7 +211,10 @@ describe('full save round-trip with stripNulls', () => {
     const result = agentJsonSchema.safeParse(stripNulls(config));
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.delegates).toEqual(['web-assistant', 'crm-assistant']);
+      expect(result.data.delegates).toEqual([
+        'integration-assistant',
+        'crm-assistant',
+      ]);
       expect(result.data.visibleInChat).toBe(false);
     }
   });

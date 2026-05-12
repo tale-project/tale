@@ -56,10 +56,10 @@ describe('useAgentConfig', () => {
     });
 
     act(() => {
-      result.current.updateConfig({ delegates: ['web-assistant'] });
+      result.current.updateConfig({ delegates: ['integration-assistant'] });
     });
 
-    expect(result.current.config.delegates).toEqual(['web-assistant']);
+    expect(result.current.config.delegates).toEqual(['integration-assistant']);
     expect(result.current.isDirty).toBe(true);
   });
 
@@ -136,7 +136,7 @@ describe('useAgentConfig', () => {
 
     // Simulate: user adds delegates
     act(() => {
-      result.current.updateConfig({ delegates: ['web-assistant'] });
+      result.current.updateConfig({ delegates: ['integration-assistant'] });
     });
     expect(result.current.isDirty).toBe(true);
 
@@ -157,7 +157,7 @@ describe('useAgentConfig', () => {
 
     expect(result.current.isDirty).toBe(false);
     expect(result.current.isSaving).toBe(false);
-    expect(result.current.config.delegates).toEqual(['web-assistant']);
+    expect(result.current.config.delegates).toEqual(['integration-assistant']);
   });
 
   it('overrideConfig clears isDirty even when persisted shape differs from working config', () => {
@@ -197,7 +197,7 @@ describe('useAgentConfig', () => {
 
     act(() => {
       result.current.updateConfig({ visibleInChat: false });
-      result.current.updateConfig({ delegates: ['web-assistant'] });
+      result.current.updateConfig({ delegates: ['integration-assistant'] });
     });
     expect(result.current.isDirty).toBe(true);
 

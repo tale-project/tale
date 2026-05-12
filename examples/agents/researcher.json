@@ -3,7 +3,7 @@
   "integrationBindings": ["tavily"],
   "supportedModels": [
     "openrouter:deepseek/deepseek-v4-flash",
-    "openrouter:deepseek/deepseek-v3.2",
+    "openrouter:deepseek/deepseek-v4-pro",
     "openrouter:anthropic/claude-opus-4.6",
     "openrouter:openai/gpt-5.2-pro",
     "openrouter:google/gemini-3.1-pro-preview"

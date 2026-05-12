@@ -25,7 +25,6 @@ import type { MessageMetadata, ToolUsage } from '../hooks/queries';
 
 function formatAgentName(toolName: string): string {
   const nameMap: Record<string, string> = {
-    file_assistant: 'File',
     crm_assistant: 'CRM',
     integration_assistant: 'Integration',
     workflow_assistant: 'Workflow',
