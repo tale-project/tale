@@ -4325,8 +4325,10 @@
       "backToList": "Retour à l'historique",
       "restore": "Restaurer",
       "restoreConfirmTitle": "Restaurer une version précédente",
-      "restoreConfirmDescription": "Ceci créera une nouvelle version v{target} avec le contenu de v{source}. Les versions existantes sont conservées.",
-      "empty": "Aucune version précédente"
+      "restoreConfirmDescription": "Restaurer le contenu de v{source} comme nouvelle version actuelle. Les versions existantes sont conservées.",
+      "empty": "Aucune version précédente",
+      "loadFailed": "Impossible de charger l'historique des versions",
+      "retry": "Réessayer"
     },
     "categoryFilter": {
       "title": "Par catégorie"

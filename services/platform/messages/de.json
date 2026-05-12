@@ -4400,8 +4400,10 @@
       "backToList": "Zurück zum Verlauf",
       "restore": "Wiederherstellen",
       "restoreConfirmTitle": "Frühere Version wiederherstellen",
-      "restoreConfirmDescription": "Dies erstellt eine neue Version v{target} mit dem Inhalt von v{source}. Bestehende Versionen bleiben erhalten.",
-      "empty": "Keine früheren Versionen"
+      "restoreConfirmDescription": "Inhalt von v{source} als neue aktuelle Version wiederherstellen. Bestehende Versionen bleiben erhalten.",
+      "empty": "Keine früheren Versionen",
+      "loadFailed": "Versionsverlauf konnte nicht geladen werden",
+      "retry": "Erneut versuchen"
     },
     "categoryFilter": {
       "title": "Nach Kategorie"

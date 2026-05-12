@@ -101,6 +101,7 @@ export const getPrompt = queryWithRLS({
   handler: async (ctx, args) => {
     const prompt = await ctx.db.get(args.promptId);
     if (!prompt) return null;
+    if (prompt.lifecycleStatus === 'expired') return null;
 
     const user = await getAuthUserIdentity(ctx);
     if (!user) return null;
@@ -134,9 +135,17 @@ export const getPromptHistory = queryWithRLS({
   handler: async (ctx, args) => {
     const prompt = await ctx.db.get(args.promptId);
     if (!prompt) return null;
+    if (prompt.lifecycleStatus === 'expired') return null;
 
     const user = await getAuthUserIdentity(ctx);
     if (!user) return null;
+
+    // Mirror getPrompt's personal-scope gate: an org admin who is not the
+    // creator must not be able to read another user's personal-scope prompt
+    // history just by knowing its id.
+    if (prompt.scope === 'personal' && prompt.createdBy !== user.userId) {
+      return null;
+    }
 
     const userOrganizations = await getUserOrganizations(ctx, user);
     const membership = userOrganizations.find(

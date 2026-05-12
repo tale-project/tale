@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
@@ -6,8 +6,9 @@ import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_
 import { mutationWithRLS } from '../lib/rls/helpers/mutation_with_rls';
 import { validateOrganizationAccess } from '../lib/rls/organization/validate_organization_access';
 import type { RLSContext } from '../lib/rls/types';
+import { assertPromptSizes } from './constants';
 import { promptScopeValidator, promptTemplateValidator } from './validators';
-import { prependVersionEntry } from './version_history';
+import { buildNextVersionEntry } from './version_history';
 
 /**
  * Audit emitter that bypasses RLS by routing through an internal mutation.
@@ -54,8 +55,19 @@ export const createPrompt = mutationWithRLS({
   },
   returns: promptTemplateValidator,
   handler: async (ctx, args) => {
+    assertPromptSizes({
+      content: args.content,
+      title: args.title,
+      description: args.description,
+    });
+
     const user = await requireAuthenticatedUser(ctx);
-    await validateOrganizationAccess(ctx, args.organizationId, undefined, user);
+    const rlsContext = await validateOrganizationAccess(
+      ctx,
+      args.organizationId,
+      undefined,
+      user,
+    );
 
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     const randomId = Array.from(
@@ -91,8 +103,21 @@ export const createPrompt = mutationWithRLS({
 
     const prompt = await ctx.db.get(id);
     if (!prompt) {
-      throw new Error('Failed to create prompt template');
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'Failed to create prompt template',
+      });
     }
+
+    await emitPromptAudit(
+      ctx,
+      rlsContext,
+      'prompt_template.created',
+      id,
+      title,
+      { scope: args.scope, version: 1 },
+    );
+
     return prompt;
   },
 });
@@ -114,10 +139,15 @@ export const updatePrompt = mutationWithRLS({
     category: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     isPublished: v.optional(v.boolean()),
-    note: v.optional(v.string()),
   },
   returns: v.union(promptTemplateValidator, v.null()),
   handler: async (ctx, args) => {
+    assertPromptSizes({
+      content: args.content,
+      title: args.title,
+      description: args.description,
+    });
+
     const user = await requireAuthenticatedUser(ctx);
     const existing = await ctx.db.get(args.promptId);
     if (!existing) return null;
@@ -131,7 +161,10 @@ export const updatePrompt = mutationWithRLS({
 
     const isCreator = existing.createdBy === user.userId;
     if (!isCreator && !rlsContext.isAdmin) {
-      throw new Error('Only the creator or an admin can edit this prompt');
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only the creator or an admin can edit this prompt',
+      });
     }
 
     const updates: Record<string, unknown> = {};
@@ -152,23 +185,15 @@ export const updatePrompt = mutationWithRLS({
     let newVersion: number | undefined;
 
     if (contentChanged && nextContent !== undefined) {
-      const fromVersion = existing.version ?? 0;
-      newVersion = fromVersion + 1;
-      const now = Date.now();
-      const entry = {
-        version: newVersion,
+      const built = buildNextVersionEntry({
+        existing,
         content: nextContent,
-        publishedAt: now,
         publishedBy: user.userId,
-        publishNote: args.note,
-      };
+      });
+      newVersion = built.newVersion;
       updates.content = nextContent;
       updates.version = newVersion;
-      updates.versionHistory = prependVersionEntry(
-        existing.versionHistory,
-        entry,
-        existing._id,
-      );
+      updates.versionHistory = built.nextHistory;
     }
 
     if (Object.keys(updates).length > 0) {
@@ -209,8 +234,20 @@ export const deletePrompt = mutationWithRLS({
 
     const isCreator = existing.createdBy === user.userId;
     if (!isCreator && !rlsContext.isAdmin) {
-      throw new Error('Only the creator or an admin can delete this prompt');
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only the creator or an admin can delete this prompt',
+      });
     }
+
+    await emitPromptAudit(
+      ctx,
+      rlsContext,
+      'prompt_template.deleted',
+      args.promptId,
+      existing.title,
+      { scope: existing.scope, lastVersion: existing.version ?? 1 },
+    );
 
     await ctx.db.delete(args.promptId);
     return null;
@@ -243,14 +280,26 @@ export const restoreFromVersion = mutationWithRLS({
   args: {
     promptId: v.id('promptTemplates'),
     targetVersion: v.number(),
-    note: v.optional(v.string()),
   },
   returns: promptTemplateValidator,
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
     const existing = await ctx.db.get(args.promptId);
     if (!existing) {
-      throw new Error('Prompt not found');
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'Prompt not found',
+      });
+    }
+
+    // Mirror getPrompt's personal-scope gate: an org admin who is not the
+    // creator must not be able to mutate another user's personal prompt
+    // history even though they pass the org-membership check.
+    if (existing.scope === 'personal' && existing.createdBy !== user.userId) {
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'Prompt not found',
+      });
     }
 
     const rlsContext = await validateOrganizationAccess(
@@ -262,35 +311,34 @@ export const restoreFromVersion = mutationWithRLS({
 
     const isCreator = existing.createdBy === user.userId;
     if (!isCreator && !rlsContext.isAdmin) {
-      throw new Error('Only the creator or an admin can restore this prompt');
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only the creator or an admin can restore this prompt',
+      });
     }
 
     const target = existing.versionHistory?.find(
       (h) => h.version === args.targetVersion,
     );
     if (!target) {
-      throw new Error(`VERSION_NOT_FOUND: v${args.targetVersion}`);
+      throw new ConvexError({
+        code: 'version_not_found',
+        message: `Version v${args.targetVersion} not found`,
+      });
     }
 
-    const fromVersion = existing.version ?? 0;
-    const newVersion = fromVersion + 1;
-    const now = Date.now();
-    const entry = {
-      version: newVersion,
+    assertPromptSizes({ content: target.content });
+
+    const built = buildNextVersionEntry({
+      existing,
       content: target.content,
-      publishedAt: now,
       publishedBy: user.userId,
-      publishNote: args.note ?? `Restored from v${args.targetVersion}`,
-    };
+    });
 
     await ctx.db.patch(args.promptId, {
       content: target.content,
-      version: newVersion,
-      versionHistory: prependVersionEntry(
-        existing.versionHistory,
-        entry,
-        existing._id,
-      ),
+      version: built.newVersion,
+      versionHistory: built.nextHistory,
     });
 
     await emitPromptAudit(
@@ -299,12 +347,15 @@ export const restoreFromVersion = mutationWithRLS({
       'prompt_template.restored_from_version',
       args.promptId,
       existing.title,
-      { newVersion, sourceVersion: args.targetVersion },
+      { newVersion: built.newVersion, sourceVersion: args.targetVersion },
     );
 
     const updated = await ctx.db.get(args.promptId);
     if (!updated) {
-      throw new Error('Failed to read prompt after restore');
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'Failed to read prompt after restore',
+      });
     }
     return updated;
   },

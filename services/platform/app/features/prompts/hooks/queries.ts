@@ -2,6 +2,13 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 
+export interface PromptVersionEntry {
+  version: number;
+  content: string;
+  publishedAt: number;
+  publishedBy: string;
+}
+
 export interface PromptTemplate {
   _id: Id<'promptTemplates'>;
   _creationTime: number;
@@ -19,27 +26,7 @@ export interface PromptTemplate {
   sourceMessageId?: string;
   version?: number;
   /** Only present in `getPrompt` detail for creator/admin viewers. */
-  versionHistory?: Array<{
-    version: number;
-    content: string;
-    publishedAt: number;
-    publishedBy: string;
-    publishNote?: string;
-  }>;
-}
-
-export interface PromptVersionEntry {
-  version: number;
-  content: string;
-  publishedAt: number;
-  publishedBy: string;
-  publishNote?: string;
-}
-
-export interface PromptHistoryResult {
-  current: PromptVersionEntry;
-  history: PromptVersionEntry[];
-  totalCount: number;
+  versionHistory?: PromptVersionEntry[];
 }
 
 export function usePrompts(organizationId: string) {

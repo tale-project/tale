@@ -4400,8 +4400,10 @@
       "backToList": "Back to history",
       "restore": "Restore",
       "restoreConfirmTitle": "Restore previous version",
-      "restoreConfirmDescription": "This will create a new version v{target} with the content of v{source}. Existing versions are preserved.",
-      "empty": "No previous versions"
+      "restoreConfirmDescription": "Restore content from v{source} as the new current version. Existing versions are preserved.",
+      "empty": "No previous versions",
+      "loadFailed": "Couldn't load version history",
+      "retry": "Try again"
     },
     "categoryFilter": {
       "title": "By category"
