@@ -1,10 +1,8 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
-import { Loader2 } from 'lucide-react';
 import { useCallback, useId, useMemo, useState } from 'react';
 
-import { Dialog, DialogClose } from '@/app/components/ui/dialog/dialog';
+import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -47,7 +45,6 @@ function SavePromptDialogContent({
   sourceMessageId,
 }: SavePromptDialogProps) {
   const { t } = useT('prompts');
-  const { t: tCommon } = useT('common');
   const organizationId = useOrganizationId();
   const savePrompt = useSavePrompt();
   const { toast } = useToast();
@@ -99,6 +96,13 @@ function SavePromptDialogContent({
     !overByteLimit &&
     (scope !== 'team' || !!teamId);
 
+  // Used by FormDialog to decide whether to prompt before discarding edits.
+  const isDirty =
+    content !== initialContent ||
+    scope !== 'personal' ||
+    !!teamId ||
+    category !== '';
+
   const scopeLabel =
     scope === 'personal'
       ? t('scope.personal')
@@ -107,8 +111,8 @@ function SavePromptDialogContent({
         : t('scope.global');
 
   const handleSubmit = useCallback(
-    async (e?: React.FormEvent) => {
-      e?.preventDefault();
+    async (e: React.FormEvent) => {
+      e.preventDefault();
       if (!isValid || isPending || !organizationId) return;
 
       try {
@@ -167,131 +171,101 @@ function SavePromptDialogContent({
     setCategory(newCategory);
   }, []);
 
-  // M11: while the AI-title save is running, block dialog close so a stray
-  // ESC / overlay-click / Cancel doesn't unmount the toast handler.
-  const handleOpenChange = useCallback(
-    (next: boolean) => {
-      if (!next && isPending) return;
-      onOpenChange(next);
-    },
-    [isPending, onOpenChange],
-  );
-
   return (
-    <Dialog
+    <FormDialog
       open={open}
-      onOpenChange={handleOpenChange}
+      onOpenChange={onOpenChange}
       title={t('saveAs.title')}
-      footer={
-        <>
-          <DialogClose asChild>
-            <Button variant="secondary" disabled={isPending}>
-              {t('saveAs.cancel')}
-            </Button>
-          </DialogClose>
-          <Button onClick={handleSubmit} disabled={!isValid || isPending}>
-            {isPending && (
-              <Loader2
-                className="mr-2 size-3 animate-spin"
-                role="status"
-                aria-label={tCommon('saving')}
-              />
-            )}
-            {isPending ? tCommon('saving') : t('form.save')}
-          </Button>
-        </>
-      }
+      onSubmit={handleSubmit}
+      isSubmitting={isPending}
+      isDirty={isDirty}
+      isValid={isValid}
+      submitText={t('form.save')}
     >
-      <form
-        onSubmit={handleSubmit}
-        className="flex flex-col gap-4"
-        aria-busy={isPending || undefined}
-      >
-        <div className="flex flex-col gap-1">
-          <Textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="min-h-[120px] text-sm"
-            required
-            aria-required
-            aria-label={t('form.contentLabel')}
-            aria-describedby={`${bytesId}${overByteLimit ? ` ${bytesErrorId}` : ''}`}
-            aria-invalid={overByteLimit || undefined}
-          />
-          <Text
-            id={bytesId}
-            variant="muted"
-            className={cn(
-              'text-right text-xs',
-              overByteLimit && 'text-destructive',
-              approachingLimit && 'text-warning-foreground',
-            )}
-            aria-live="polite"
-          >
-            {t('form.bytesUsed', {
-              used: formatBytes(contentBytes),
-              max: formatBytes(MAX_PROMPT_CONTENT_BYTES),
-            })}
-          </Text>
-          {overByteLimit && (
-            <Text
-              id={bytesErrorId}
-              role="alert"
-              className="text-destructive text-right text-xs"
-            >
-              {t('form.bytesOverLimitAlert')}
-            </Text>
-          )}
-        </div>
-
-        <RadioGroup
-          label={t('saveAs.saveTo')}
-          value={scope}
-          onValueChange={(v) => {
-            if (isPromptScope(v)) setScope(v);
-          }}
-          options={scopeOptions}
+      <div className="flex flex-col gap-1">
+        <Textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          className="min-h-[120px] text-sm"
+          required
+          aria-required
+          aria-label={t('form.contentLabel')}
+          aria-describedby={`${bytesId}${overByteLimit ? ` ${bytesErrorId}` : ''}`}
+          aria-invalid={overByteLimit || undefined}
         />
-
-        {scope === 'team' && teamOptions.length > 0 && (
-          <Select
-            label={t('form.teamLabel')}
-            options={teamOptions}
-            value={teamId ?? ''}
-            onValueChange={(v) => setTeamId(v || undefined)}
-            placeholder={t('form.teamPlaceholder')}
-            required
-          />
+        <Text
+          id={bytesId}
+          variant="muted"
+          className={cn(
+            'text-right text-xs',
+            overByteLimit && 'text-destructive',
+            approachingLimit && 'text-warning-foreground',
+          )}
+          aria-live="polite"
+        >
+          {t('form.bytesUsed', {
+            used: formatBytes(contentBytes),
+            max: formatBytes(MAX_PROMPT_CONTENT_BYTES),
+          })}
+        </Text>
+        {overByteLimit && (
+          <Text
+            id={bytesErrorId}
+            role="alert"
+            className="text-destructive text-right text-xs"
+          >
+            {t('form.bytesOverLimitAlert')}
+          </Text>
         )}
+      </div>
 
-        <div className="flex flex-col gap-2">
-          <label className="text-muted-foreground text-sm font-medium">
-            {t('form.categoryLabel')}
-          </label>
-          <div className="flex flex-wrap items-center gap-2">
-            {existingCategories.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setCategory((prev) => (prev === cat ? '' : cat))}
-                className={cn(
-                  'rounded-full px-2.5 py-1.5 text-[13px] font-medium transition-colors',
-                  category === cat
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-accent',
-                )}
-              >
-                {cat}
-              </button>
-            ))}
-            <AddCategoryPopover
-              existingCategories={existingCategories}
-              onAddCategory={handleAddCategory}
-            />
-          </div>
+      <RadioGroup
+        label={t('saveAs.saveTo')}
+        value={scope}
+        onValueChange={(v) => {
+          if (isPromptScope(v)) setScope(v);
+        }}
+        options={scopeOptions}
+      />
+
+      {scope === 'team' && teamOptions.length > 0 && (
+        <Select
+          label={t('form.teamLabel')}
+          options={teamOptions}
+          value={teamId ?? ''}
+          onValueChange={(v) => setTeamId(v || undefined)}
+          placeholder={t('form.teamPlaceholder')}
+          required
+        />
+      )}
+
+      <div className="flex flex-col gap-2">
+        <label className="text-muted-foreground text-sm font-medium">
+          {t('form.categoryLabel')}
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          {existingCategories.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setCategory((prev) => (prev === cat ? '' : cat))}
+              className={cn(
+                'rounded-full px-2.5 py-1.5 text-[13px] font-medium transition-colors',
+                category === cat
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-accent',
+              )}
+            >
+              {cat}
+            </button>
+          ))}
+          <AddCategoryPopover
+            existingCategories={existingCategories}
+            onAddCategory={handleAddCategory}
+          />
         </div>
-      </form>
-    </Dialog>
+      </div>
+    </FormDialog>
   );
 }
 

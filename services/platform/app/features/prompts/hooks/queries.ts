@@ -103,3 +103,17 @@ export function usePromptHistory(promptId: Id<'promptTemplates'> | undefined) {
     { enabled: !!promptId },
   );
 }
+
+/**
+ * Lookup of {promptId, sourceMessageId} pairs for the caller's saved prompts.
+ * Lightweight (no content/metadata), bounded by the user's save history —
+ * safe to fetch all in one shot. Used by the chat to render "saved" badges
+ * on messages without missing rows past page 1 of usePrompts.
+ */
+export function useSavedSourceMessageIds(organizationId: string | undefined) {
+  return useConvexQuery(
+    api.prompts.queries.getSavedSourceMessageIds,
+    organizationId ? { organizationId } : 'skip',
+    { enabled: !!organizationId },
+  );
+}

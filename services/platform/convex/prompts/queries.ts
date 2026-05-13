@@ -299,3 +299,48 @@ export const getPromptHistory = queryWithRLS({
     };
   },
 });
+
+/**
+ * Lightweight lookup used by the chat to mark which of the user's own
+ * messages have been saved as a prompt. Returns only the `(promptId,
+ * sourceMessageId)` pairs the caller authored — bounded by the user's own
+ * save history, so it doesn't need pagination. Used instead of iterating the
+ * paginated `listPrompts` results which would miss saved prompts past the
+ * first page.
+ */
+export const getSavedSourceMessageIds = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.array(
+    v.object({
+      promptId: v.id('promptTemplates'),
+      sourceMessageId: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const user = await getAuthUserIdentity(ctx);
+    if (!user) return [];
+
+    const userOrganizations = await getUserOrganizations(ctx, user);
+    const membership = userOrganizations.find(
+      (m) => m.organizationId === args.organizationId,
+    );
+    if (!membership) return [];
+
+    const rows = await ctx.db
+      .query('promptTemplates')
+      .withIndex('by_org_createdBy', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('createdBy', user.userId),
+      )
+      .collect();
+
+    return rows
+      .filter((p): p is typeof p & { sourceMessageId: string } =>
+        Boolean(p.sourceMessageId),
+      )
+      .map((p) => ({ promptId: p._id, sourceMessageId: p.sourceMessageId }));
+  },
+});

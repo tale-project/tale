@@ -82,6 +82,11 @@ export function TagChipInput({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
+      // IME composition: keyCode 229 (or nativeEvent.isComposing) marks a
+      // keypress mid-candidate-selection in CJK input methods. Treat Enter
+      // as a no-op here so users selecting a candidate via Enter don't
+      // accidentally commit a partial draft as a chip.
+      if (e.nativeEvent.isComposing || e.keyCode === 229) return;
       if (e.key === 'Enter' || e.key === ',') {
         e.preventDefault();
         commit(draft);
@@ -132,7 +137,20 @@ export function TagChipInput({
         label={label}
         value={draft}
         onChange={(e) => {
-          setDraft(e.target.value);
+          const raw = e.target.value;
+          // Comma anywhere in the value (typed, pasted, drag-dropped) splits
+          // the buffer: every complete segment commits as its own chip; the
+          // trailing fragment stays in the input. Only the keydown path
+          // intercepts a single `,` keystroke; this covers paste + IME-safe
+          // input where the keydown event never fires for the comma.
+          if (raw.includes(',')) {
+            const parts = raw.split(',');
+            const tail = parts.pop() ?? '';
+            for (const segment of parts) commit(segment);
+            setDraft(tail);
+          } else {
+            setDraft(raw);
+          }
           if (error) setError(null);
         }}
         onKeyDown={handleKeyDown}

@@ -18,6 +18,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import {
+  useCreatePrompt,
   useDeletePrompt,
   useIncrementPromptUsage,
   useUpdatePrompt,
@@ -29,7 +30,7 @@ import { CategoryFilterPopover } from './category-filter-popover';
 import { PromptFormDialog, type PromptFormData } from './prompt-form-dialog';
 import { PromptHistoryDialog } from './prompt-history-dialog';
 import { PromptListRow } from './prompt-list-row';
-import { SavePromptDialog } from './save-prompt-dialog';
+import { TagFilterPopover } from './tag-filter-popover';
 
 export interface PromptLibraryDialogProps {
   open: boolean;
@@ -59,6 +60,7 @@ function PromptLibraryDialogContent({
   const [activeTab, setActiveTab] = useState<TabValue>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<PromptTemplate | null>(
     null,
@@ -80,6 +82,7 @@ function PromptLibraryDialogContent({
       searchPrefix: debouncedSearch || undefined,
     });
 
+  const createPrompt = useCreatePrompt();
   const updatePrompt = useUpdatePrompt();
   const deletePrompt = useDeletePrompt();
   const incrementUsage = useIncrementPromptUsage();
@@ -92,20 +95,36 @@ function PromptLibraryDialogContent({
     return [...new Set(cats)].sort((a, b) => a.localeCompare(b));
   }, [prompts]);
 
-  // Category filtering is still client-side: server pushes scope + search,
-  // category remains a derived facet from the loaded page. Acceptable since
-  // most orgs have a small set of categories and the server-side prefix
-  // search already narrows results.
-  const visiblePrompts = useMemo(() => {
-    if (selectedCategories.length === 0) return prompts;
-    return prompts.filter(
-      (p) => p.category && selectedCategories.includes(p.category),
-    );
-  }, [prompts, selectedCategories]);
+  const availableTags = useMemo(() => {
+    const tags = prompts.flatMap((p) => p.tags ?? []);
+    return [...new Set(tags)].sort((a, b) => a.localeCompare(b));
+  }, [prompts]);
 
-  const isFiltered =
-    debouncedSearch.length > 0 || selectedCategories.length > 0;
-  const filtersActive = isFiltered;
+  // Category + tag filtering is client-side: server pushes scope + search,
+  // these remain derived facets of the loaded page. Acceptable since most
+  // orgs have a small set of categories/tags and search already narrows.
+  const visiblePrompts = useMemo(() => {
+    return prompts.filter((p) => {
+      if (
+        selectedCategories.length > 0 &&
+        (!p.category || !selectedCategories.includes(p.category))
+      ) {
+        return false;
+      }
+      if (
+        selectedTags.length > 0 &&
+        !(p.tags ?? []).some((tag) => selectedTags.includes(tag))
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [prompts, selectedCategories, selectedTags]);
+
+  const filtersActive =
+    debouncedSearch.length > 0 ||
+    selectedCategories.length > 0 ||
+    selectedTags.length > 0;
 
   const handleUsePrompt = useCallback(
     (prompt: PromptTemplate) => {
@@ -129,6 +148,43 @@ function PromptLibraryDialogContent({
       return prompt.createdBy === currentUser.userId;
     },
     [currentUser, isAdmin],
+  );
+
+  const handleCreateSubmit = useCallback(
+    async (data: PromptFormData) => {
+      if (!organizationId) return;
+      try {
+        await createPrompt.mutateAsync({
+          organizationId,
+          title: data.title,
+          content: data.content,
+          description: data.description || undefined,
+          scope: data.scope,
+          teamId: data.teamId,
+          category: data.category || undefined,
+          tags: data.tags.length > 0 ? data.tags : undefined,
+        });
+        toast({ title: t('toast.created'), variant: 'success' });
+        setFormOpen(false);
+      } catch (err) {
+        const code = extractErrorCode(err);
+        const toastKey =
+          code === 'forbidden'
+            ? 'toast.forbidden'
+            : code === 'rate_limited'
+              ? 'toast.rateLimited'
+              : code === 'too_large'
+                ? 'toast.tooLarge'
+                : code === 'empty_content'
+                  ? 'toast.emptyContent'
+                  : 'toast.saveFailed';
+        if (toastKey === 'toast.saveFailed') {
+          console.error('[prompt-library] create failed', err);
+        }
+        toast({ title: t(toastKey), variant: 'destructive' });
+      }
+    },
+    [organizationId, createPrompt, toast, t],
   );
 
   const handleEditSubmit = useCallback(
@@ -213,6 +269,7 @@ function PromptLibraryDialogContent({
   const clearFilters = useCallback(() => {
     setSearchQuery('');
     setSelectedCategories([]);
+    setSelectedTags([]);
   }, []);
 
   const tabItems = [
@@ -264,6 +321,11 @@ function PromptLibraryDialogContent({
               categories={availableCategories}
               selectedCategories={selectedCategories}
               onSelectedCategoriesChange={setSelectedCategories}
+            />
+            <TagFilterPopover
+              tags={availableTags}
+              selectedTags={selectedTags}
+              onSelectedTagsChange={setSelectedTags}
             />
           </HStack>
 
@@ -355,19 +417,18 @@ function PromptLibraryDialogContent({
         </div>
       </Dialog>
 
-      <SavePromptDialog
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        initialContent=""
-      />
-
       <PromptFormDialog
-        open={!!editingPrompt}
+        open={formOpen || !!editingPrompt}
         onOpenChange={(isOpen) => {
-          if (!isOpen) setEditingPrompt(null);
+          if (!isOpen) {
+            setFormOpen(false);
+            setEditingPrompt(null);
+          }
         }}
-        onSubmit={handleEditSubmit}
-        isSubmitting={updatePrompt.isPending}
+        onSubmit={editingPrompt ? handleEditSubmit : handleCreateSubmit}
+        isSubmitting={
+          editingPrompt ? updatePrompt.isPending : createPrompt.isPending
+        }
         initialData={editingPrompt ?? undefined}
         isOrgAdmin={isAdmin}
         headerActions={

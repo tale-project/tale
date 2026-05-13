@@ -4,11 +4,19 @@ import { api } from '@/convex/_generated/api';
 
 /**
  * Save a prompt with an AI-generated title (10s timeout, PROMPT-XXXXX fallback).
- * The only create path used by the UI — direct callers of createPrompt are
- * server-side (e.g. the chat "save as prompt" action).
+ * Used by the chat "save from message bubble" flow where the user hasn't
+ * authored a title yet.
  */
 export function useSavePrompt() {
   return useConvexAction(api.prompts.actions.savePrompt);
+}
+
+/**
+ * Create a prompt directly with a user-supplied title. Used by the library
+ * "Create prompt" flow which renders the full PromptFormDialog.
+ */
+export function useCreatePrompt() {
+  return useConvexMutation(api.prompts.mutations.createPrompt);
 }
 
 /**

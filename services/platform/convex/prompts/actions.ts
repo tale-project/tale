@@ -13,6 +13,8 @@ import { v } from 'convex/values';
 import { api, internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { action } from '../_generated/server';
+import { checkUserRateLimit } from '../lib/rate_limiter/helpers';
+import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import { promptScopeValidator, promptTemplateValidator } from './validators';
 
 function generateFallbackTitle(): string {
@@ -37,6 +39,14 @@ export const savePrompt = action({
   },
   returns: promptTemplateValidator,
   handler: async (ctx, args): Promise<Doc<'promptTemplates'>> => {
+    // Gate the LLM call (provider tokens, ~10s budget) behind auth + per-user
+    // rate-limit so unauthenticated callers can't drain quota. The downstream
+    // `createPrompt` mutation re-checks org membership and re-consumes
+    // `prompt:create` only on the real create path, so this consume is the
+    // only cost-bounded gate the action itself enforces.
+    const user = await requireAuthenticatedUser(ctx);
+    await checkUserRateLimit(ctx, 'prompt:create', user.userId);
+
     // Try AI-generated title first (10s timeout enforced in the action)
     const aiTitle = await ctx.runAction(
       internal.prompts.generate_title.generatePromptTitle,

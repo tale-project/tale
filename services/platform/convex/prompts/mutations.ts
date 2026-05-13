@@ -3,7 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
-import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
+import { checkUserRateLimit } from '../lib/rate_limiter/helpers';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import { mutationWithRLS } from '../lib/rls/helpers/mutation_with_rls';
 import { validateOrganizationAccess } from '../lib/rls/organization/validate_organization_access';
@@ -102,9 +102,15 @@ export const createPrompt = mutationWithRLS({
       user,
     );
 
-    await checkOrganizationRateLimit(ctx, 'prompt:create', args.organizationId);
+    await checkUserRateLimit(ctx, 'prompt:create', user.userId);
 
-    if (args.scope === 'team' && args.teamId) {
+    if (args.scope === 'team') {
+      if (!args.teamId) {
+        throw new ConvexError({
+          code: 'forbidden',
+          message: 'Team-scoped prompts must specify a team',
+        });
+      }
       await assertTeamMembership(ctx, user.userId, args.teamId);
     }
 
@@ -239,7 +245,7 @@ export const updatePrompt = mutationWithRLS({
 
     if (
       args.expectedVersion !== undefined &&
-      existing.version !== args.expectedVersion
+      (existing.version ?? 1) !== args.expectedVersion
     ) {
       throw new ConvexError({
         code: 'version_conflict',
@@ -251,11 +257,7 @@ export const updatePrompt = mutationWithRLS({
       });
     }
 
-    await checkOrganizationRateLimit(
-      ctx,
-      'prompt:update',
-      existing.organizationId,
-    );
+    await checkUserRateLimit(ctx, 'prompt:update', user.userId);
 
     // Resolve target metadata: caller-supplied fields override existing.
     const targetScope = args.scope ?? existing.scope;
@@ -265,7 +267,13 @@ export const updatePrompt = mutationWithRLS({
           ? args.teamId
           : existing.teamId
         : undefined;
-    if (targetScope === 'team' && targetTeamId) {
+    if (targetScope === 'team') {
+      if (!targetTeamId) {
+        throw new ConvexError({
+          code: 'forbidden',
+          message: 'Team-scoped prompts must specify a team',
+        });
+      }
       await assertTeamMembership(ctx, user.userId, targetTeamId);
     }
 
@@ -383,6 +391,8 @@ export const deletePrompt = mutationWithRLS({
       });
     }
 
+    await checkUserRateLimit(ctx, 'prompt:delete', user.userId);
+
     await ctx.db.delete(args.promptId);
 
     await emitPromptAudit(
@@ -413,6 +423,8 @@ export const incrementUsage = mutationWithRLS({
     if (existing.scope === 'personal' && existing.createdBy !== user.userId) {
       return null;
     }
+
+    await checkUserRateLimit(ctx, 'prompt:incrementUsage', user.userId);
 
     await ctx.db.patch(args.promptId, {
       usageCount: existing.usageCount + 1,
@@ -476,7 +488,7 @@ export const restoreFromVersion = mutationWithRLS({
 
     if (
       args.expectedVersion !== undefined &&
-      existing.version !== args.expectedVersion
+      (existing.version ?? 1) !== args.expectedVersion
     ) {
       throw new ConvexError({
         code: 'version_conflict',
@@ -488,11 +500,7 @@ export const restoreFromVersion = mutationWithRLS({
       });
     }
 
-    await checkOrganizationRateLimit(
-      ctx,
-      'prompt:restore',
-      existing.organizationId,
-    );
+    await checkUserRateLimit(ctx, 'prompt:restore', user.userId);
 
     const target = existing.versionHistory?.find(
       (h) => h.version === args.targetVersion,
@@ -538,7 +546,13 @@ export const restoreFromVersion = mutationWithRLS({
     // Team membership re-check: even on restore, the actor must be a member
     // of the target team. If the snapshot's team is no longer accessible,
     // surface forbidden.
-    if (targetMetadata.scope === 'team' && targetMetadata.teamId) {
+    if (targetMetadata.scope === 'team') {
+      if (!targetMetadata.teamId) {
+        throw new ConvexError({
+          code: 'forbidden',
+          message: 'Team-scoped prompts must specify a team',
+        });
+      }
       await assertTeamMembership(ctx, user.userId, targetMetadata.teamId);
     }
 

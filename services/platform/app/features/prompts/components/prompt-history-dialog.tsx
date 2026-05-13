@@ -75,9 +75,24 @@ export function PromptHistoryDialog({
   // and Esc keypress unambiguous.
   const [comparingVersion, setComparingVersion] =
     useState<PromptVersionEntry | null>(null);
-  const [restoring, setRestoring] = useState<PromptVersionEntry | null>(null);
+  // Restore captures BOTH the target entry AND the expectedVersion at the
+  // moment the user opens the confirm. Reading `history.current.version` live
+  // at confirm time would silently re-anchor the OCC token if a concurrent
+  // edit lands between dialog open and confirm — exactly the scenario the
+  // server's `restoreFromVersion` JSDoc claims to prevent.
+  const [restoring, setRestoring] = useState<{
+    entry: PromptVersionEntry;
+    expectedVersion: number | undefined;
+  } | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const listboxRef = useRef<HTMLUListElement | null>(null);
+
+  const startRestore = useCallback(
+    (entry: PromptVersionEntry) => {
+      setRestoring({ entry, expectedVersion: history?.current.version });
+    },
+    [history],
+  );
 
   const allVersions = useMemo<PromptVersionEntry[]>(() => {
     if (!history) return [];
@@ -92,15 +107,17 @@ export function PromptHistoryDialog({
   }, [activeIndex, allVersions.length]);
 
   const handleRestoreConfirm = useCallback(async () => {
-    if (!restoring || !history) return;
+    if (!restoring) return;
     try {
       await restore.mutateAsync({
         promptId: prompt._id,
-        targetVersion: restoring.version,
-        expectedVersion: history.current.version,
+        targetVersion: restoring.entry.version,
+        expectedVersion: restoring.expectedVersion,
       });
       toast({
-        title: t('toast.restored', { version: String(restoring.version) }),
+        title: t('toast.restored', {
+          version: String(restoring.entry.version),
+        }),
         variant: 'success',
       });
       setRestoring(null);
@@ -128,7 +145,7 @@ export function PromptHistoryDialog({
       // so the user lands back on the refreshed list.
       if (code === 'version_conflict') setComparingVersion(null);
     }
-  }, [restoring, history, restore, prompt._id, toast, t]);
+  }, [restoring, restore, prompt._id, toast, t]);
 
   const handleListKeyDown = useCallback(
     (e: KeyboardEvent<HTMLUListElement>) => {
@@ -197,7 +214,7 @@ export function PromptHistoryDialog({
           <PromptCompareView
             current={history.current}
             snapshot={comparingVersion}
-            onRestore={() => setRestoring(comparingVersion)}
+            onRestore={() => startRestore(comparingVersion)}
             isRestoring={restore.isPending}
             onBack={() => setComparingVersion(null)}
           />
@@ -309,7 +326,7 @@ export function PromptHistoryDialog({
                             variant="ghost"
                             size="sm"
                             tabIndex={-1}
-                            onClick={() => setRestoring(entry)}
+                            onClick={() => startRestore(entry)}
                             aria-label={t('history.restoreVersionAria', {
                               version: String(entry.version),
                             })}
@@ -334,14 +351,14 @@ export function PromptHistoryDialog({
         title={
           restoring
             ? t('history.restoreConfirmTitleVersioned', {
-                version: String(restoring.version),
+                version: String(restoring.entry.version),
               })
             : ''
         }
         description={
           restoring
             ? t('history.restoreConfirmDescription', {
-                source: String(restoring.version),
+                source: String(restoring.entry.version),
                 target: String(restoreTargetVersion),
               })
             : ''

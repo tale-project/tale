@@ -195,7 +195,7 @@
       "autoTranslate": "Automatisch übersetzen"
     },
     "retry": "Erneut versuchen",
-    "saving": "Speichere…"
+    "discardChangesConfirm": "Ungespeicherte Änderungen verwerfen?"
   },
   "navigation": {
     "chatWithAI": "Chat mit KI",
@@ -4386,12 +4386,12 @@
     },
     "saveAs": {
       "title": "Prompt speichern",
-      "saveTo": "Speichern unter",
-      "cancel": "Abbrechen"
+      "saveTo": "Speichern unter"
     },
     "toast": {
       "savedTo": "Gespeichert unter {scope}",
       "saved": "Gespeichert als v{version}",
+      "created": "Prompt erstellt",
       "saveFailed": "Prompt konnte nicht gespeichert werden",
       "deleteFailed": "Prompt konnte nicht gelöscht werden",
       "versionConflict": "Neuere Version erkannt — lade die neueste, bevor du speicherst",
@@ -4412,8 +4412,8 @@
       "dialogDescription": "Frühere Versionen dieses Prompts vergleichen und wiederherstellen.",
       "loading": "Verlauf wird geladen...",
       "current": "Aktuell",
-      "compare": "Vergleichen",
-      "compareTitle": "Mit v{version} vergleichen",
+      "compare": "Mit aktueller vergleichen",
+      "compareTitle": "Aktuelle mit v{version} vergleichen",
       "compareDescription": "Veröffentlicht {date}",
       "noDifferences": "Keine Unterschiede zwischen diesen Versionen.",
       "backToList": "Zurück zum Verlauf",
@@ -4440,6 +4440,9 @@
     },
     "categoryFilter": {
       "title": "Nach Kategorie"
+    },
+    "tagFilter": {
+      "title": "Nach Tag"
     },
     "addCategory": {
       "inputPlaceholder": "Kategoriename",

@@ -148,6 +148,24 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     capacity: 20,
     shards: 4,
   },
+  // Bounds destructive churn from scripted delete loops; also caps audit-log
+  // spam from a malicious member walking the org's prompts.
+  'prompt:delete': {
+    kind: 'token bucket',
+    rate: 10,
+    period: MINUTE,
+    capacity: 20,
+    shards: 4,
+  },
+  // Caps counter-spam on a popular global/team prompt; not security-critical
+  // but prevents trivial leaderboard manipulation.
+  'prompt:incrementUsage': {
+    kind: 'token bucket',
+    rate: 60,
+    period: MINUTE,
+    capacity: 120,
+    shards: 4,
+  },
 
   // ============================================
   // TIER 4: Security (Fixed Window - strict)

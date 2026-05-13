@@ -195,7 +195,7 @@
       "autoTranslate": "Auto-translate"
     },
     "retry": "Retry",
-    "saving": "Saving…"
+    "discardChangesConfirm": "Discard unsaved changes?"
   },
   "navigation": {
     "chatWithAI": "Chat with AI",
@@ -4386,12 +4386,12 @@
     },
     "saveAs": {
       "title": "Save prompt",
-      "saveTo": "Save to",
-      "cancel": "Cancel"
+      "saveTo": "Save to"
     },
     "toast": {
       "savedTo": "Saved to {scope}",
       "saved": "Saved as v{version}",
+      "created": "Prompt created",
       "saveFailed": "Could not save prompt",
       "deleteFailed": "Could not delete prompt",
       "versionConflict": "Newer version detected — load the latest before saving",
@@ -4412,8 +4412,8 @@
       "dialogDescription": "Compare and restore past versions of this prompt.",
       "loading": "Loading history...",
       "current": "Current",
-      "compare": "Compare",
-      "compareTitle": "Compare with v{version}",
+      "compare": "Compare with current",
+      "compareTitle": "Compare current with v{version}",
       "compareDescription": "Published {date}",
       "noDifferences": "No differences between these versions.",
       "backToList": "Back to history",
@@ -4440,6 +4440,9 @@
     },
     "categoryFilter": {
       "title": "By category"
+    },
+    "tagFilter": {
+      "title": "By tag"
     },
     "addCategory": {
       "inputPlaceholder": "Category name",

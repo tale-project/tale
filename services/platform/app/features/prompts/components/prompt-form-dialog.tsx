@@ -239,7 +239,8 @@ function PromptFormDialogContent({
       }
       onSubmit={handleSubmit}
       isSubmitting={isSubmitting}
-      isDirty={isDirty && isValid}
+      isDirty={isDirty}
+      isValid={isValid}
       submitText={isEditing ? t('form.save') : t('form.create')}
       large
     >

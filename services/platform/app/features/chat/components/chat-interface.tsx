@@ -22,13 +22,14 @@ import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import { stripModelRefQualifier } from '../../../../lib/shared/utils/model-ref';
 import { useDeletePrompt } from '../../prompts/hooks/mutations';
-import { usePrompts } from '../../prompts/hooks/queries';
+import { useSavedSourceMessageIds } from '../../prompts/hooks/queries';
 import { useMyFeatureFlags } from '../../settings/governance/hooks/queries';
 import { useListProviders } from '../../settings/providers/hooks/queries';
 import { useBranchContext } from '../context/branch-context';
@@ -217,19 +218,20 @@ export function ChatInterface({
   } | null>(null);
   const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
 
-  // Build a lookup of messageId → promptId for saved prompts
-  const { prompts } = usePrompts(organizationId);
+  // Build a lookup of messageId → promptId for saved prompts. Uses a
+  // dedicated lightweight query (no content/metadata payload, no pagination)
+  // so that saves past the listPrompts page-1 boundary still register as
+  // "saved" in the chat.
+  const { data: savedPairs } = useSavedSourceMessageIds(organizationId);
   const deletePrompt = useDeletePrompt();
 
   const savedMessageMap = useMemo(() => {
-    const map = new Map<string, (typeof prompts)[number]['_id']>();
-    for (const prompt of prompts) {
-      if (prompt.sourceMessageId) {
-        map.set(prompt.sourceMessageId, prompt._id);
-      }
+    const map = new Map<string, Id<'promptTemplates'>>();
+    for (const pair of savedPairs ?? []) {
+      map.set(pair.sourceMessageId, pair.promptId);
     }
     return map;
-  }, [prompts]);
+  }, [savedPairs]);
 
   const handleUnsavePrompt = useCallback(
     async (messageId: string) => {
