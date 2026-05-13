@@ -70,7 +70,6 @@ export function buildNextVersionEntry({
   content,
   publishedBy,
 }: BuildVersionEntryArgs): {
-  entry: VersionHistoryEntry;
   newVersion: number;
   nextHistory: VersionHistoryEntry[];
   droppedVersions: number[];
@@ -99,5 +98,5 @@ export function buildNextVersionEntry({
     entry,
     existing._id,
   );
-  return { entry, newVersion, nextHistory, droppedVersions };
+  return { newVersion, nextHistory, droppedVersions };
 }

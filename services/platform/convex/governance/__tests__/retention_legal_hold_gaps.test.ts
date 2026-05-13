@@ -233,10 +233,9 @@ describe('retention mutations thread the right authorUserId (source-grep regress
     expect(body).toMatch(/authorUserId:\s*row\.userId/);
   });
 
-  it('deleteExpiredPromptTemplate cascades through row.createdBy', () => {
-    const body = bodyOf('deleteExpiredPromptTemplate');
-    expect(body).toMatch(/authorUserId:\s*row\.createdBy/);
-  });
+  // `deleteExpiredPromptTemplate` was removed when promptTemplate left the
+  // soft-delete + retention pipeline (prompts are now hard-deleted on user
+  // action). No cascade test needed since there's no retention mutation.
 });
 
 describe('retention_cleanup action-layer pre-filters via custodian cascade (source-grep regression)', () => {

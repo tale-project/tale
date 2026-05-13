@@ -39,6 +39,7 @@ const historyData = {
     content: 'current content',
     publishedAt: 1700000300000,
     publishedBy: 'user-1',
+    publishedByName: 'Alice',
   },
   history: [
     {
@@ -46,12 +47,14 @@ const historyData = {
       content: 'second content',
       publishedAt: 1700000200000,
       publishedBy: 'user-1',
+      publishedByName: 'Alice',
     },
     {
       version: 1,
       content: 'first content',
       publishedAt: 1700000100000,
       publishedBy: 'user-1',
+      publishedByName: 'Alice',
     },
   ],
   totalCount: 3,
@@ -141,6 +144,7 @@ describe('PromptHistoryDialog', () => {
       expect(restoreMock).toHaveBeenCalledWith({
         promptId: 'prompt-1',
         targetVersion: 2,
+        expectedVersion: 3,
       });
     });
   });

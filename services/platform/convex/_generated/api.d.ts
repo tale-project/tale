@@ -661,6 +661,7 @@ import type * as products_validators from "../products/validators.js";
 import type * as prompts_actions from "../prompts/actions.js";
 import type * as prompts_constants from "../prompts/constants.js";
 import type * as prompts_generate_title from "../prompts/generate_title.js";
+import type * as prompts_internal_mutations from "../prompts/internal_mutations.js";
 import type * as prompts_mutations from "../prompts/mutations.js";
 import type * as prompts_queries from "../prompts/queries.js";
 import type * as prompts_validators from "../prompts/validators.js";
@@ -1716,6 +1717,7 @@ declare const fullApi: ApiFromModules<{
   "prompts/actions": typeof prompts_actions;
   "prompts/constants": typeof prompts_constants;
   "prompts/generate_title": typeof prompts_generate_title;
+  "prompts/internal_mutations": typeof prompts_internal_mutations;
   "prompts/mutations": typeof prompts_mutations;
   "prompts/queries": typeof prompts_queries;
   "prompts/validators": typeof prompts_validators;

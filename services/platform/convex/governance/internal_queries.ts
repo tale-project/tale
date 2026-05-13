@@ -514,59 +514,6 @@ export const getPendingRetentionChange = internalQuery({
   },
 });
 
-export const listExpiredPromptTemplates = internalQuery({
-  args: {
-    organizationId: v.string(),
-    cutoffMs: v.number(),
-    batchSize: v.number(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    const rows = [];
-    for await (const row of ctx.db
-      .query('promptTemplates')
-      .withIndex('by_organizationId_and_scope', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      // Skip global-scope templates — they're operator content, not
-      // org content, so per-org retention shouldn't reach them.
-      if (row.scope === 'global') continue;
-      const status = row.lifecycleStatus ?? 'active';
-      if (status !== 'active') continue;
-      if (row._creationTime >= args.cutoffMs) continue;
-      rows.push(row);
-      if (rows.length >= args.batchSize) break;
-    }
-    return rows;
-  },
-});
-
-export const listGraceExpiredPromptTemplates = internalQuery({
-  args: {
-    organizationId: v.string(),
-    graceCutoffMs: v.number(),
-    batchSize: v.number(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    const rows = [];
-    for await (const row of ctx.db
-      .query('promptTemplates')
-      .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      if (row.scope === 'global') continue;
-      const status = row.lifecycleStatus ?? 'active';
-      if (status !== 'trashed' && status !== 'expired') continue;
-      const ts = row.statusChangedAt ?? Date.now();
-      if (ts >= args.graceCutoffMs) continue;
-      rows.push(row);
-      if (rows.length >= args.batchSize) break;
-    }
-    return rows;
-  },
-});
-
 export const listExpiredMessageFeedback = internalQuery({
   args: {
     organizationId: v.string(),

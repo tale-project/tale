@@ -1,5 +1,6 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Copy, History, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -101,9 +102,26 @@ export function PromptListRow({
         onClick={handleUse}
         className="min-w-0 flex-1 cursor-pointer text-left"
       >
-        <Text as="div" variant="label" className="truncate text-sm font-medium">
-          {prompt.title}
-        </Text>
+        <HStack gap={2} align="center" className="min-w-0">
+          <Text
+            as="div"
+            variant="label"
+            className="truncate text-sm font-medium"
+          >
+            {prompt.title}
+          </Text>
+          {prompt.version !== undefined && prompt.version > 1 && (
+            <Badge
+              variant="outline"
+              className="shrink-0 px-1.5 py-0 text-[10px] font-normal"
+              aria-label={t('list.versionBadgeAria', {
+                version: String(prompt.version),
+              })}
+            >
+              v{prompt.version}
+            </Badge>
+          )}
+        </HStack>
         <Text as="div" variant="muted" className="mt-0.5 line-clamp-1 text-xs">
           {prompt.content}
         </Text>

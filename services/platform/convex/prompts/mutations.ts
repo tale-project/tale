@@ -3,6 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import { mutationWithRLS } from '../lib/rls/helpers/mutation_with_rls';
 import { validateOrganizationAccess } from '../lib/rls/organization/validate_organization_access';
@@ -79,6 +80,8 @@ export const createPrompt = mutationWithRLS({
       content,
       title: args.title,
       description: args.description,
+      category: args.category,
+      tags: args.tags,
     });
 
     const user = await requireAuthenticatedUser(ctx);
@@ -88,6 +91,10 @@ export const createPrompt = mutationWithRLS({
       undefined,
       user,
     );
+
+    // Org-scoped rate limit: each row can be ~218 KiB at full history depth,
+    // so storage abuse is the real concern, not request volume.
+    await checkOrganizationRateLimit(ctx, 'prompt:create', args.organizationId);
 
     if (args.scope === 'team' && args.teamId) {
       await assertTeamMembership(ctx, user.userId, args.teamId);
@@ -179,12 +186,21 @@ export const updatePrompt = mutationWithRLS({
       content: nextContent,
       title: args.title,
       description: args.description,
+      category: args.category,
+      tags: args.tags,
     });
 
     const user = await requireAuthenticatedUser(ctx);
     const existing = await ctx.db.get(args.promptId);
     if (!existing) return null;
-    if (existing.lifecycleStatus === 'expired') return null;
+
+    // Personal-scope creator gate runs BEFORE the OCC check so a non-creator
+    // probing with a wrong expectedVersion can't learn the current version
+    // through the version_conflict error data — the row should look "not
+    // found" to anyone but its owner.
+    if (existing.scope === 'personal' && existing.createdBy !== user.userId) {
+      return null;
+    }
 
     if (
       args.expectedVersion !== undefined &&
@@ -198,13 +214,6 @@ export const updatePrompt = mutationWithRLS({
           currentVersion: existing.version,
         },
       });
-    }
-
-    // Mirror getPrompt's personal-scope gate: an org admin who is not the
-    // creator must not be able to mutate another user's personal prompt
-    // even though they pass the org-membership check below.
-    if (existing.scope === 'personal' && existing.createdBy !== user.userId) {
-      return null;
     }
 
     const rlsContext = await validateOrganizationAccess(
@@ -306,9 +315,10 @@ export const updatePrompt = mutationWithRLS({
 });
 
 /**
- * Soft-deletes the prompt by flipping `lifecycleStatus` to `'expired'`.
- * The row stays in the table (with versionHistory intact) and is hard-deleted
- * later by the retention pipeline after the deletion grace period.
+ * Hard-deletes the prompt and its inlined version history. Final — there is
+ * no admin recovery path. The `prompt_template.deleted` audit row persists
+ * independently in `auditLogs`, capturing actor, title at time of deletion,
+ * scope, and last version for forensics.
  */
 export const deletePrompt = mutationWithRLS({
   args: {
@@ -319,7 +329,6 @@ export const deletePrompt = mutationWithRLS({
     const user = await requireAuthenticatedUser(ctx);
     const existing = await ctx.db.get(args.promptId);
     if (!existing) return null;
-    if (existing.lifecycleStatus === 'expired') return null;
 
     if (existing.scope === 'personal' && existing.createdBy !== user.userId) {
       return null;
@@ -340,10 +349,7 @@ export const deletePrompt = mutationWithRLS({
       });
     }
 
-    await ctx.db.patch(args.promptId, {
-      lifecycleStatus: 'expired',
-      statusChangedAt: Date.now(),
-    });
+    await ctx.db.delete(args.promptId);
 
     await emitPromptAudit(
       ctx,
@@ -363,10 +369,16 @@ export const incrementUsage = mutationWithRLS({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const user = await requireAuthenticatedUser(ctx);
     const existing = await ctx.db.get(args.promptId);
     if (!existing) return null;
-    if (existing.lifecycleStatus === 'expired') return null;
+
+    // Personal prompts are owner-only — silently ignore counter bumps from
+    // anyone else (matches updatePrompt / restoreFromVersion / deletePrompt
+    // gating, so a probing org member can't tell the row exists either).
+    if (existing.scope === 'personal' && existing.createdBy !== user.userId) {
+      return null;
+    }
 
     await ctx.db.patch(args.promptId, {
       usageCount: existing.usageCount + 1,
@@ -386,6 +398,13 @@ export const restoreFromVersion = mutationWithRLS({
   args: {
     promptId: v.id('promptTemplates'),
     targetVersion: v.number(),
+    /**
+     * Optimistic-concurrency token. Mirrors `updatePrompt.expectedVersion`:
+     * if set and the stored version differs, throws `version_conflict`.
+     * Prevents a "restore v5 → v9" click from silently stacking on top of a
+     * concurrent v9 written between dialog open and confirm.
+     */
+    expectedVersion: v.optional(v.number()),
   },
   returns: promptTemplateValidator,
   handler: async (ctx, args) => {
@@ -397,17 +416,25 @@ export const restoreFromVersion = mutationWithRLS({
         message: 'Prompt not found',
       });
     }
-    if (existing.lifecycleStatus === 'expired') {
+
+    if (existing.scope === 'personal' && existing.createdBy !== user.userId) {
       throw new ConvexError({
         code: 'not_found',
         message: 'Prompt not found',
       });
     }
 
-    if (existing.scope === 'personal' && existing.createdBy !== user.userId) {
+    if (
+      args.expectedVersion !== undefined &&
+      existing.version !== args.expectedVersion
+    ) {
       throw new ConvexError({
-        code: 'not_found',
-        message: 'Prompt not found',
+        code: 'version_conflict',
+        message: `Prompt has been updated to v${existing.version ?? '?'}; reload history before restoring.`,
+        data: {
+          expectedVersion: args.expectedVersion,
+          currentVersion: existing.version,
+        },
       });
     }
 

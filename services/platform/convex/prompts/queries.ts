@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
+import { getUserNamesBatch } from '../documents/get_user_names_batch';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { queryWithRLS } from '../lib/rls/helpers/query_with_rls';
@@ -14,6 +15,13 @@ import {
 } from './validators';
 
 type PromptDoc = Doc<'promptTemplates'>;
+
+/**
+ * Hard cap on rows returned by `listPrompts`. Demo-stage orgs have far fewer
+ * than 500 prompts; this is a guard rail against unbounded scans. When hit,
+ * we log so an ops/PR review can decide whether to introduce true pagination.
+ */
+const LIST_PROMPTS_HARD_CAP = 500;
 
 /** List view: strip versionHistory (use getPromptHistory for that). */
 function toListItem(prompt: PromptDoc) {
@@ -71,9 +79,6 @@ export const listPrompts = queryWithRLS({
       );
 
     for await (const prompt of iterable) {
-      if (prompt.lifecycleStatus === 'expired') {
-        continue;
-      }
       if (prompt.scope === 'personal' && prompt.createdBy !== user.userId) {
         continue;
       }
@@ -82,6 +87,12 @@ export const listPrompts = queryWithRLS({
       }
 
       results.push(toListItem(prompt));
+      if (results.length >= LIST_PROMPTS_HARD_CAP) {
+        console.warn(
+          `[prompts] listPrompts hit hard cap (${LIST_PROMPTS_HARD_CAP}) for org ${args.organizationId}; older rows omitted.`,
+        );
+        break;
+      }
     }
 
     return results;
@@ -96,7 +107,6 @@ export const getPrompt = queryWithRLS({
   handler: async (ctx, args) => {
     const prompt = await ctx.db.get(args.promptId);
     if (!prompt) return null;
-    if (prompt.lifecycleStatus === 'expired') return null;
 
     const user = await getAuthUserIdentity(ctx);
     if (!user) return null;
@@ -130,7 +140,6 @@ export const getPromptHistory = queryWithRLS({
   handler: async (ctx, args) => {
     const prompt = await ctx.db.get(args.promptId);
     if (!prompt) return null;
-    if (prompt.lifecycleStatus === 'expired') return null;
 
     const user = await getAuthUserIdentity(ctx);
     if (!user) return null;
@@ -152,6 +161,15 @@ export const getPromptHistory = queryWithRLS({
     if (prompt.createdBy !== user.userId && !isAdmin) return null;
 
     const all = prompt.versionHistory ?? [];
+
+    // Server-side resolve userId → displayName once for the whole result, so
+    // the UI can render "Published by Alice" without N+1 lookups.
+    const publisherIds = new Set<string>();
+    publisherIds.add(prompt.createdBy);
+    for (const entry of all) publisherIds.add(entry.publishedBy);
+    const nameMap = await getUserNamesBatch(ctx, [...publisherIds]);
+    const resolveName = (id: string): string | null => nameMap.get(id) ?? null;
+
     if (all.length === 0) {
       // Legacy or freshly-seeded row with no inline history yet. Synthesize
       // a v1 from the row's current content so the dialog shows the baseline
@@ -163,13 +181,24 @@ export const getPromptHistory = queryWithRLS({
           content: prompt.content,
           publishedAt: prompt._creationTime,
           publishedBy: prompt.createdBy,
+          publishedByName: resolveName(prompt.createdBy),
         },
         history: [],
         totalCount: 1,
       };
     }
 
-    const sorted = all.slice().sort((a, b) => b.version - a.version);
+    const sorted = all
+      .slice()
+      .sort((a, b) => b.version - a.version)
+      .map((entry) => ({
+        version: entry.version,
+        content: entry.content,
+        publishedAt: entry.publishedAt,
+        publishedBy: entry.publishedBy,
+        publishedByName: resolveName(entry.publishedBy),
+        publishNote: entry.publishNote,
+      }));
     const [current, ...rest] = sorted;
     return {
       current,

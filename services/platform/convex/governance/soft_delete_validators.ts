@@ -43,7 +43,9 @@ export const SOFT_DELETE_RESOURCE_TYPES = [
   'thread',
   'document',
   'fileMetadata',
-  'promptTemplate',
+  // `promptTemplate` was removed from this registry — prompt deletion is
+  // now hard-delete (see prompts/mutations.ts deletePrompt). The retention
+  // pipeline + Trash UI no longer touch promptTemplates rows.
   'messageFeedback',
   'customer',
   'vendor',

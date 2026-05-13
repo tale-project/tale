@@ -164,12 +164,14 @@ function PromptLibraryDialogContent({
             ? (errData as { code: unknown }).code
             : undefined;
         if (code === 'version_conflict') {
+          // Keep the dialog open with the user's draft intact. The live
+          // `usePrompt` subscription in PromptFormDialog will surface the
+          // banner with a "Load latest" affordance so the user can re-anchor
+          // and re-apply their edits instead of losing them on auto-close.
           toast({
             title: t('toast.versionConflict'),
             variant: 'destructive',
           });
-          // Close so the next open binds against fresh server state.
-          setEditingPrompt(null);
         } else {
           console.error('[prompt-library] update failed', err);
           toast({

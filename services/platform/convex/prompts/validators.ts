@@ -8,7 +8,11 @@ export const promptScopeValidator = v.union(
   v.literal('personal'),
 );
 
-export const promptVersionEntryValidator = v.object({
+/**
+ * Stored shape (matches `versionHistory` array entries on disk). Used by
+ * `promptTemplateValidator` since the row itself only stores `publishedBy`.
+ */
+const promptVersionEntryStoredValidator = v.object({
   version: v.number(),
   content: v.string(),
   publishedAt: v.number(),
@@ -17,6 +21,20 @@ export const promptVersionEntryValidator = v.object({
    * Vestigial — older rows persisted a `publishNote`. New writes no longer
    * set this field, but reads must still validate cleanly on legacy data.
    */
+  publishNote: v.optional(v.string()),
+});
+
+/**
+ * History-API shape returned by `getPromptHistory`. Includes a server-resolved
+ * `publishedByName` so the UI doesn't have to do an N+1 user lookup. Null when
+ * the user record has been deleted or the userId can't be resolved.
+ */
+export const promptVersionEntryValidator = v.object({
+  version: v.number(),
+  content: v.string(),
+  publishedAt: v.number(),
+  publishedBy: v.string(),
+  publishedByName: v.union(v.string(), v.null()),
   publishNote: v.optional(v.string()),
 });
 
@@ -42,6 +60,11 @@ const promptTemplateBaseFields = {
   /** @deprecated No longer used; retained as optional for backwards compatibility with existing rows. */
   isPublished: v.optional(v.boolean()),
   sourceMessageId: v.optional(v.string()),
+  /**
+   * @deprecated Prompt deletion is now hard-delete; these fields are kept
+   * as optional only so legacy rows that still carry a `lifecycleStatus`
+   * value pass validation. Drop after `purgeLegacyExpiredPrompts` runs.
+   */
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),
   version: v.optional(v.number()),
@@ -49,7 +72,7 @@ const promptTemplateBaseFields = {
 
 export const promptTemplateValidator = v.object({
   ...promptTemplateBaseFields,
-  versionHistory: v.optional(v.array(promptVersionEntryValidator)),
+  versionHistory: v.optional(v.array(promptVersionEntryStoredValidator)),
 });
 
 /** listPrompts return shape: visible to all viewers; versionHistory stripped

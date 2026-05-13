@@ -11,6 +11,7 @@ import { HStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
+import { MAX_PROMPT_VERSION_HISTORY } from '@/convex/prompts/constants';
 import { useT } from '@/lib/i18n/client';
 
 import { useRestorePromptFromVersion } from '../hooks/mutations';
@@ -53,11 +54,16 @@ export function PromptHistoryDialog({
   const [restoring, setRestoring] = useState<PromptVersionEntry | null>(null);
 
   const handleRestoreConfirm = useCallback(async () => {
-    if (!restoring) return;
+    if (!restoring || !history) return;
     try {
       await restore.mutateAsync({
         promptId: prompt._id,
         targetVersion: restoring.version,
+        // OCC: refuse restore if the current version moved since the
+        // dialog opened. Server throws `version_conflict`; we toast and
+        // bail. Live `usePromptHistory` subscription will refresh on its
+        // own and the user can retry.
+        expectedVersion: history.current.version,
       });
       toast({
         title: t('toast.restored', { version: String(restoring.version) }),
@@ -67,12 +73,23 @@ export function PromptHistoryDialog({
       setComparingVersion(null);
     } catch (err) {
       console.error('[prompt-history] restore failed', err);
+      const isConflict =
+        err !== null &&
+        typeof err === 'object' &&
+        'data' in err &&
+        err.data !== null &&
+        typeof err.data === 'object' &&
+        'code' in err.data &&
+        (err.data as { code: unknown }).code === 'version_conflict';
       toast({
-        title: t('toast.restoreFailed'),
+        title: isConflict ? t('toast.restoreStale') : t('toast.restoreFailed'),
         variant: 'destructive',
       });
+      if (isConflict) {
+        setRestoring(null);
+      }
     }
-  }, [restoring, restore, prompt._id, toast, t]);
+  }, [restoring, history, restore, prompt._id, toast, t]);
 
   const allVersions = useMemo<PromptVersionEntry[]>(() => {
     if (!history) return [];
@@ -138,69 +155,87 @@ export function PromptHistoryDialog({
             {t('history.empty')}
           </Text>
         ) : (
-          <ul className="divide-border max-h-[60vh] divide-y overflow-y-auto">
-            {allVersions.map((entry, idx) => {
-              const isCurrent = idx === 0;
-              return (
-                <li
-                  key={entry.version}
-                  className="flex items-start justify-between gap-3 py-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <HStack gap={2} align="center">
-                      <Text variant="label" className="text-sm font-medium">
-                        v{entry.version}
+          <>
+            <ul className="divide-border max-h-[60vh] divide-y overflow-y-auto">
+              {allVersions.map((entry, idx) => {
+                const isCurrent = idx === 0;
+                return (
+                  <li
+                    key={entry.version}
+                    className="flex items-start justify-between gap-3 py-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <HStack gap={2} align="center">
+                        <Text variant="label" className="text-sm font-medium">
+                          v{entry.version}
+                        </Text>
+                        {isCurrent && (
+                          <Badge variant="outline" className="text-[10px]">
+                            {t('history.current')}
+                          </Badge>
+                        )}
+                        <Text variant="muted" className="text-xs">
+                          {entry.publishedByName
+                            ? t('history.publishedByOn', {
+                                name: entry.publishedByName,
+                                date: formatDate(
+                                  new Date(entry.publishedAt),
+                                  'long',
+                                ),
+                              })
+                            : formatDate(new Date(entry.publishedAt), 'long')}
+                        </Text>
+                      </HStack>
+                      <Text
+                        as="div"
+                        variant="muted"
+                        className="mt-1 line-clamp-1 text-xs"
+                      >
+                        {previewSnippet(entry.content)}
                       </Text>
-                      {isCurrent && (
-                        <Badge variant="outline" className="text-[10px]">
-                          {t('history.current')}
-                        </Badge>
+                    </div>
+                    <HStack gap={1} className="shrink-0">
+                      {!isCurrent && (
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setComparingVersion(entry)}
+                            aria-label={t('history.compareVersionAria', {
+                              version: String(entry.version),
+                            })}
+                          >
+                            {t('history.compare')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setRestoring(entry)}
+                            aria-label={t('history.restoreVersionAria', {
+                              version: String(entry.version),
+                            })}
+                          >
+                            <RotateCcw className="mr-1 size-3" />
+                            {t('history.restore')}
+                          </Button>
+                        </>
                       )}
-                      <Text variant="muted" className="text-xs">
-                        {formatDate(new Date(entry.publishedAt), 'long')}
-                      </Text>
                     </HStack>
-                    <Text
-                      as="div"
-                      variant="muted"
-                      className="mt-1 line-clamp-1 text-xs"
-                    >
-                      {previewSnippet(entry.content)}
-                    </Text>
-                  </div>
-                  <HStack gap={1} className="shrink-0">
-                    {!isCurrent && (
-                      <>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setComparingVersion(entry)}
-                          aria-label={t('history.compareVersionAria', {
-                            version: String(entry.version),
-                          })}
-                        >
-                          {t('history.compare')}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setRestoring(entry)}
-                          aria-label={t('history.restoreVersionAria', {
-                            version: String(entry.version),
-                          })}
-                        >
-                          <RotateCcw className="mr-1 size-3" />
-                          {t('history.restore')}
-                        </Button>
-                      </>
-                    )}
-                  </HStack>
-                </li>
-              );
-            })}
-          </ul>
+                  </li>
+                );
+              })}
+            </ul>
+            {history.current.version > MAX_PROMPT_VERSION_HISTORY && (
+              <Text variant="muted" className="px-1 pt-2 text-xs">
+                {t('history.truncated', {
+                  shown: String(allVersions.length),
+                  total: String(history.current.version),
+                })}
+              </Text>
+            )}
+          </>
         )}
       </Dialog>
 

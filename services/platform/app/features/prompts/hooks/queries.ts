@@ -7,6 +7,8 @@ export interface PromptVersionEntry {
   content: string;
   publishedAt: number;
   publishedBy: string;
+  /** Server-resolved display name; `null` when the user can't be resolved. */
+  publishedByName: string | null;
 }
 
 export interface PromptTemplate {

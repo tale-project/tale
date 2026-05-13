@@ -770,46 +770,6 @@ export const deleteExpiredMessageMetadata = internalMutation({
   },
 });
 
-export const deleteExpiredPromptTemplate = internalMutation({
-  args: {
-    rowId: v.id('promptTemplates'),
-    organizationId: v.string(),
-    cutoffMs: v.optional(v.number()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.rowId);
-    if (!row) return null;
-    const guard = await assertSafeRetentionDelete(ctx, {
-      rowOrganizationId: row.organizationId,
-      expectedOrganizationId: args.organizationId,
-      rowEffectiveMs: row._creationTime,
-      cutoffMs: args.cutoffMs,
-      authorUserId: row.createdBy,
-    });
-    if (!guard.proceed) {
-      console.info(
-        `[RetentionCleanup] skipping deleteExpiredPromptTemplate(${String(args.rowId)}): ${guard.reason}`,
-      );
-      return null;
-    }
-    await ctx.db.delete(args.rowId);
-    await createAuditLog(ctx, {
-      organizationId: args.organizationId,
-      actorId: 'system',
-      actorEmail: 'system@tale.so',
-      actorType: 'system',
-      action: 'prompt_template.retention_deleted',
-      category: 'data',
-      resourceType: 'prompt_template',
-      resourceId: String(args.rowId),
-      resourceName: row.title ?? 'Untitled',
-      status: 'success',
-    });
-    return null;
-  },
-});
-
 export const deleteExpiredMessageFeedback = internalMutation({
   args: {
     rowId: v.id('messageFeedback'),

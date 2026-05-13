@@ -4375,7 +4375,8 @@
       "bytesUsed": "{used} / {max}",
       "bytesOverLimit": "Limit überschritten",
       "versionConflictTitle": "Neuere Version verfügbar",
-      "versionConflictDescription": "Während deiner Bearbeitung wurde v{version} gespeichert. Das Speichern wird abgelehnt — schließe und öffne erneut, um auf der neuesten Version zu beginnen."
+      "versionConflictDescription": "Während deiner Bearbeitung wurde v{version} gespeichert. Lade die neueste Version, bevor du speicherst.",
+      "loadLatest": "Neueste laden"
     },
     "saveAs": {
       "title": "Prompt speichern",
@@ -4387,9 +4388,11 @@
       "saved": "Gespeichert als v{version}",
       "saveFailed": "Prompt konnte nicht gespeichert werden",
       "deleteFailed": "Prompt konnte nicht gelöscht werden",
-      "versionConflict": "Neuere Version erkannt — bitte erneut öffnen, um die neueste zu bearbeiten",
+      "versionConflict": "Neuere Version erkannt — lade die neueste, bevor du speicherst",
       "restored": "Als v{version} wiederhergestellt",
-      "restoreFailed": "Version konnte nicht wiederhergestellt werden"
+      "restoreFailed": "Version konnte nicht wiederhergestellt werden",
+      "restoreStale": "Versionsverlauf hat sich geändert — aktualisiere und versuche es erneut",
+      "rateLimited": "Zu schnelles Speichern — bitte warte einen Moment"
     },
     "version": {
       "badge": "v{version}"
@@ -4414,7 +4417,12 @@
       "diffAriaLabel": "Inhaltsdifferenz",
       "empty": "Keine früheren Versionen",
       "loadFailed": "Versionsverlauf konnte nicht geladen werden",
-      "retry": "Erneut versuchen"
+      "retry": "Erneut versuchen",
+      "publishedByOn": "Von {name} · {date}",
+      "truncated": "Es werden die neuesten {shown} von {total} Versionen angezeigt. Ältere wurden entfernt."
+    },
+    "list": {
+      "versionBadgeAria": "Version {version}"
     },
     "categoryFilter": {
       "title": "Nach Kategorie"

@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import { AlertTriangle } from 'lucide-react';
 import { useState, useCallback, useMemo, useRef } from 'react';
 
@@ -13,7 +14,12 @@ import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { MAX_PROMPT_CONTENT_BYTES } from '@/convex/prompts/constants';
+import {
+  MAX_PROMPT_CATEGORY_LEN,
+  MAX_PROMPT_CONTENT_BYTES,
+  MAX_PROMPT_DESCRIPTION_LEN,
+  MAX_PROMPT_TITLE_LEN,
+} from '@/convex/prompts/constants';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -89,12 +95,28 @@ function PromptFormDialogContent({
   const startVersionRef = useRef(initialData?.version);
 
   const liveQuery = usePrompt(isEditing ? initialData?._id : undefined);
-  const liveVersion = liveQuery.data?.version;
+  const live = liveQuery.data;
+  const liveVersion = live?.version;
   const hasNewerVersion =
     isEditing &&
     typeof startVersionRef.current === 'number' &&
     typeof liveVersion === 'number' &&
     liveVersion > startVersionRef.current;
+
+  // M5: pull the server's current content into the form and re-anchor the OCC
+  // ref to the live version. The user can then re-apply their edits on top of
+  // the latest base. Submit becomes possible again (banner disappears).
+  const handleLoadLatest = useCallback(() => {
+    if (!live) return;
+    setTitle(live.title);
+    setContent(live.content);
+    setDescription(live.description ?? '');
+    setScope(live.scope);
+    setTeamId(live.teamId);
+    setCategory(live.category ?? '');
+    setTagsInput(live.tags?.join(', ') ?? '');
+    startVersionRef.current = live.version;
+  }, [live]);
 
   const existingCategories = useMemo(() => {
     const fromPrompts = prompts
@@ -229,6 +251,15 @@ function PromptFormDialogContent({
               })}
             </Text>
           </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={handleLoadLatest}
+            disabled={!live}
+          >
+            {t('form.loadLatest')}
+          </Button>
         </div>
       )}
       <Input
@@ -236,6 +267,7 @@ function PromptFormDialogContent({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder={t('form.titlePlaceholder')}
+        maxLength={MAX_PROMPT_TITLE_LEN}
         required
         aria-required
       />
@@ -270,6 +302,7 @@ function PromptFormDialogContent({
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder={t('form.descriptionPlaceholder')}
+        maxLength={MAX_PROMPT_DESCRIPTION_LEN}
       />
       <div className="flex flex-col gap-2">
         <label className="text-sm font-medium">{t('form.scopeLabel')}</label>
@@ -313,6 +346,7 @@ function PromptFormDialogContent({
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             placeholder={t('form.categoryPlaceholder')}
+            maxLength={MAX_PROMPT_CATEGORY_LEN}
           />
         )}
       </div>

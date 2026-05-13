@@ -19,6 +19,13 @@ export const promptTemplatesTable = defineTable({
   isPublished: v.optional(v.boolean()),
   /** The message ID this prompt was saved from, if any. */
   sourceMessageId: v.optional(v.string()),
+  /**
+   * @deprecated promptTemplates are now hard-deleted on user action. These
+   * two fields are retained as optional only so legacy rows that still carry
+   * a `lifecycleStatus` value pass schema validation; new code never reads
+   * or writes them. Schedule removal after `purgeLegacyExpiredPrompts` has
+   * run in all environments.
+   */
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),
 
@@ -45,12 +52,5 @@ export const promptTemplatesTable = defineTable({
   // `by_organizationId_and_scope` doubles as the org-prefix index — Convex
   // prefix scans honor a partial column list, so callers that only filter by
   // organizationId can use this composite without a dedicated index.
-  .index('by_organizationId_and_lifecycleStatus', [
-    'organizationId',
-    'lifecycleStatus',
-  ])
   .index('by_organizationId_and_scope', ['organizationId', 'scope'])
-  .index('by_org_createdBy', ['organizationId', 'createdBy'])
-  .index('by_org_teamId', ['organizationId', 'teamId'])
-  .index('by_org_category', ['organizationId', 'category'])
-  .index('by_org_sourceMessageId', ['organizationId', 'sourceMessageId']);
+  .index('by_org_createdBy', ['organizationId', 'createdBy']);

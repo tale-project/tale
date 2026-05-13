@@ -5,30 +5,35 @@ import { ConvexError } from 'convex/values';
  * promptTemplates row keeps. When a publish would push past this, the oldest
  * entry is dropped (FIFO) and a `prompt_template.history_truncated` audit
  * event is emitted (see version_history.ts + mutations.ts).
- *
- * Budget math: MAX_PROMPT_CONTENT_BYTES (64 KiB) × (MAX_PROMPT_VERSION_HISTORY +
- * 1 row-level current) ≈ 832 KB, leaving ~190 KB headroom for title,
- * description, tags, and per-entry metadata under the 1 MiB Convex per-document
- * limit. The history depth was traded down (50 → 12) to make room for larger
- * per-version content; users editing complex LLM prompts care more about
- * having room to write than about keeping decades of history.
  */
 export const MAX_PROMPT_VERSION_HISTORY = 12;
 
 /**
- * Per-version content byte cap. UTF-8 byte count, not char count, so emoji /
- * CJK consume their true storage size. Mirrors the artifact pattern
- * (artifacts/internal_mutations.ts MAX_ARTIFACT_BYTES) at a smaller cap to
- * stay inside the per-document budget after multiplying by the history depth.
+ * Per-version content byte cap (UTF-8). 16 KiB ≈ 4,000 tokens, which covers
+ * ~95% of real-world prompt templates including modest few-shot. Production
+ * system prompts typically run ~1,200 tokens (~5 KB); the upper-bound
+ * industry guidance is ~2,500 tokens (~10 KB) for analytical tools. Above
+ * that range, content is usually a document that belongs in RAG, not in a
+ * prompt template.
+ *
+ * Doc-size budget (Convex per-document limit is 1 MiB):
+ *   row metadata: 200 (title) + 2000 (desc) + 100 (category) + 20×50 (tags) ≈ 3.3 KB
+ * + versionHistory (current + history): 13 × (16,384 + ~200 metadata) ≈ 215 KB
+ * = ≈ 218 KB total, leaving ~800 KB headroom.
  */
-export const MAX_PROMPT_CONTENT_BYTES = 65_536;
+export const MAX_PROMPT_CONTENT_BYTES = 16_384;
 export const MAX_PROMPT_TITLE_LEN = 200;
 export const MAX_PROMPT_DESCRIPTION_LEN = 2_000;
+export const MAX_PROMPT_CATEGORY_LEN = 100;
+export const MAX_PROMPT_TAG_LEN = 50;
+export const MAX_PROMPT_TAGS_COUNT = 20;
 
 export function assertPromptSizes(args: {
   content?: string;
   title?: string;
   description?: string;
+  category?: string;
+  tags?: string[];
 }): void {
   if (args.content !== undefined) {
     const size = new TextEncoder().encode(args.content).byteLength;
@@ -56,5 +61,33 @@ export function assertPromptSizes(args: {
       field: 'description',
       message: `Prompt description exceeds ${MAX_PROMPT_DESCRIPTION_LEN} chars.`,
     });
+  }
+  if (
+    args.category !== undefined &&
+    args.category.length > MAX_PROMPT_CATEGORY_LEN
+  ) {
+    throw new ConvexError({
+      code: 'too_large',
+      field: 'category',
+      message: `Prompt category exceeds ${MAX_PROMPT_CATEGORY_LEN} chars.`,
+    });
+  }
+  if (args.tags !== undefined) {
+    if (args.tags.length > MAX_PROMPT_TAGS_COUNT) {
+      throw new ConvexError({
+        code: 'too_large',
+        field: 'tags',
+        message: `Prompt has ${args.tags.length} tags; max ${MAX_PROMPT_TAGS_COUNT}.`,
+      });
+    }
+    for (const tag of args.tags) {
+      if (tag.length > MAX_PROMPT_TAG_LEN) {
+        throw new ConvexError({
+          code: 'too_large',
+          field: 'tags',
+          message: `Tag exceeds ${MAX_PROMPT_TAG_LEN} chars: "${tag.slice(0, 20)}…".`,
+        });
+      }
+    }
   }
 }

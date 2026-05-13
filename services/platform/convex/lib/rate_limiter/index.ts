@@ -121,6 +121,17 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 20,
     period: MINUTE,
   },
+  // Prevents an authenticated org member from looping createPrompt to bloat
+  // the org. Each prompt row can be ~218 KiB at the configured caps, so the
+  // bound matters. Token bucket gives a 20-burst headroom for legitimate
+  // batch imports, refilling at 10/min.
+  'prompt:create': {
+    kind: 'token bucket',
+    rate: 10,
+    period: MINUTE,
+    capacity: 20,
+    shards: 4,
+  },
 
   // ============================================
   // TIER 4: Security (Fixed Window - strict)

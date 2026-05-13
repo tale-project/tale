@@ -4300,7 +4300,8 @@
       "bytesUsed": "{used} / {max}",
       "bytesOverLimit": "Limite dépassée",
       "versionConflictTitle": "Nouvelle version disponible",
-      "versionConflictDescription": "Quelqu'un a enregistré v{version} pendant votre édition. L'enregistrement sera rejeté — fermez et rouvrez pour repartir de la dernière version."
+      "versionConflictDescription": "Quelqu'un a enregistré v{version} pendant votre édition. Chargez la dernière version avant d'enregistrer.",
+      "loadLatest": "Charger la dernière"
     },
     "saveAs": {
       "title": "Enregistrer le prompt",
@@ -4312,9 +4313,11 @@
       "saved": "Enregistré en tant que v{version}",
       "saveFailed": "Impossible d'enregistrer le prompt",
       "deleteFailed": "Impossible de supprimer le prompt",
-      "versionConflict": "Nouvelle version détectée — veuillez rouvrir pour éditer la dernière",
+      "versionConflict": "Nouvelle version détectée — chargez la dernière avant d'enregistrer",
       "restored": "Restauré en tant que v{version}",
-      "restoreFailed": "Impossible de restaurer la version"
+      "restoreFailed": "Impossible de restaurer la version",
+      "restoreStale": "L'historique des versions a changé — actualisez et réessayez",
+      "rateLimited": "Enregistrement trop rapide — patientez un instant avant de réessayer"
     },
     "version": {
       "badge": "v{version}"
@@ -4339,7 +4342,12 @@
       "diffAriaLabel": "Différence de contenu",
       "empty": "Aucune version précédente",
       "loadFailed": "Impossible de charger l'historique des versions",
-      "retry": "Réessayer"
+      "retry": "Réessayer",
+      "publishedByOn": "Par {name} · {date}",
+      "truncated": "{shown} des {total} dernières versions affichées. Les plus anciennes ont été supprimées."
+    },
+    "list": {
+      "versionBadgeAria": "Version {version}"
     },
     "categoryFilter": {
       "title": "Par catégorie"

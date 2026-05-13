@@ -149,9 +149,14 @@ function SavePromptDialogContent({
 
         onOpenChange(false);
       } catch (err) {
+        // RateLimitExceededError throws with the literal "Rate limit exceeded"
+        // prefix; duck-typing by message keeps this resilient to cross-chunk
+        // class identity issues (same pattern used for ConvexError).
+        const message = err instanceof Error ? err.message : '';
+        const isRateLimited = message.startsWith('Rate limit exceeded');
         console.error('[save-prompt-dialog] save failed', err);
         toast({
-          title: t('toast.saveFailed'),
+          title: isRateLimited ? t('toast.rateLimited') : t('toast.saveFailed'),
           variant: 'destructive',
         });
       }

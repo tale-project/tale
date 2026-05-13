@@ -771,81 +771,6 @@ async function cleanupChatFilterEvents(
   return processed;
 }
 
-async function cleanupPromptTemplates(
-  ctx: ActionCtx,
-  org: OrgPolicy,
-  batchSize: number,
-  holds: ActiveHolds,
-): Promise<number> {
-  if (!org.config.promptTemplatesEnabled) return 0;
-  const days = org.config.promptTemplatesRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
-  if (holds.orgHeld) {
-    console.info(
-      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping prompt templates cleanup`,
-    );
-    return 0;
-  }
-  const cutoffMs = Date.now() - days * DAY_MS;
-  const graceDays = org.config.deletionGraceDays ?? 0;
-  let processed = 0;
-
-  if (graceDays > 0) {
-    const passA = await ctx.runQuery(
-      internal.governance.internal_queries.listExpiredPromptTemplates,
-      { organizationId: org.organizationId, cutoffMs, batchSize },
-    );
-    for (const row of passA) {
-      if (row.createdBy && holds.userMembershipIds.has(row.createdBy)) continue;
-      await ctx.runMutation(
-        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
-        {
-          resourceType: 'promptTemplate',
-          rowId: String(row._id),
-          organizationId: org.organizationId,
-          cutoffMs,
-          timestampField: '_creationTime',
-        },
-      );
-      processed += 1;
-    }
-  }
-
-  const expired =
-    graceDays > 0
-      ? await ctx.runQuery(
-          internal.governance.internal_queries.listGraceExpiredPromptTemplates,
-          {
-            organizationId: org.organizationId,
-            graceCutoffMs: Date.now() - graceDays * DAY_MS,
-            batchSize,
-          },
-        )
-      : await ctx.runQuery(
-          internal.governance.internal_queries.listExpiredPromptTemplates,
-          { organizationId: org.organizationId, cutoffMs, batchSize },
-        );
-  for (const row of expired) {
-    if (row.createdBy && holds.userMembershipIds.has(row.createdBy)) {
-      console.info(
-        `[RetentionCleanup] prompt template ${row._id} authored by user ${row.createdBy} on user-custodian hold — skipping`,
-      );
-      continue;
-    }
-    await ctx.runMutation(
-      internal.governance.internal_mutations_retention
-        .deleteExpiredPromptTemplate,
-      {
-        rowId: row._id,
-        organizationId: org.organizationId,
-        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
-      },
-    );
-    processed += 1;
-  }
-  return processed;
-}
-
 async function cleanupMessageFeedback(
   ctx: ActionCtx,
   org: OrgPolicy,
@@ -1591,10 +1516,6 @@ export const runOrgRetentionCleanup = internalAction({
         {
           name: 'chatFilterEvents',
           run: () => cleanupChatFilterEvents(ctx, org, batchSize, holds),
-        },
-        {
-          name: 'promptTemplates',
-          run: () => cleanupPromptTemplates(ctx, org, batchSize, holds),
         },
         {
           name: 'messageFeedback',

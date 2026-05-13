@@ -103,9 +103,9 @@ describe('buildNextVersionEntry', () => {
     });
 
     expect(built.newVersion).toBe(4);
-    expect(built.entry.version).toBe(4);
-    expect(built.entry.content).toBe('new');
-    expect(built.entry.publishedBy).toBe('user_b');
+    expect(built.nextHistory[0].version).toBe(4);
+    expect(built.nextHistory[0].content).toBe('new');
+    expect(built.nextHistory[0].publishedBy).toBe('user_b');
     expect(built.nextHistory.map((e) => e.version)).toEqual([4, 3, 2, 1]);
     // entries from existing history are not mutated
     expect(built.nextHistory[1].content).toBe('old');
@@ -156,9 +156,9 @@ describe('buildNextVersionEntry', () => {
     });
 
     expect(built.newVersion).toBe(2);
-    expect(built.entry.version).toBe(2);
-    expect(built.entry.content).toBe('edited');
-    expect(built.entry.publishedBy).toBe('user_editor');
+    expect(built.nextHistory[0].version).toBe(2);
+    expect(built.nextHistory[0].content).toBe('edited');
+    expect(built.nextHistory[0].publishedBy).toBe('user_editor');
     expect(built.nextHistory).toHaveLength(2);
     // v2 (newest) is first; v1 (seeded original) is second.
     expect(built.nextHistory[0].version).toBe(2);

@@ -4375,7 +4375,8 @@
       "bytesUsed": "{used} / {max}",
       "bytesOverLimit": "Over limit",
       "versionConflictTitle": "Newer version available",
-      "versionConflictDescription": "Someone saved v{version} while you were editing. Saving will be rejected — close and reopen to start from the latest."
+      "versionConflictDescription": "Someone saved v{version} while you were editing. Load the latest to re-anchor before saving.",
+      "loadLatest": "Load latest"
     },
     "saveAs": {
       "title": "Save prompt",
@@ -4387,9 +4388,11 @@
       "saved": "Saved as v{version}",
       "saveFailed": "Could not save prompt",
       "deleteFailed": "Could not delete prompt",
-      "versionConflict": "Newer version detected — please reopen to edit the latest",
+      "versionConflict": "Newer version detected — load the latest before saving",
       "restored": "Restored as v{version}",
-      "restoreFailed": "Could not restore version"
+      "restoreFailed": "Could not restore version",
+      "restoreStale": "Version history changed — refresh to retry",
+      "rateLimited": "Saving too quickly — wait a moment before trying again"
     },
     "version": {
       "badge": "v{version}"
@@ -4414,7 +4417,12 @@
       "diffAriaLabel": "Content difference",
       "empty": "No previous versions",
       "loadFailed": "Could not load version history",
-      "retry": "Try again"
+      "retry": "Try again",
+      "publishedByOn": "By {name} · {date}",
+      "truncated": "Showing latest {shown} of {total} versions. Older versions were pruned."
+    },
+    "list": {
+      "versionBadgeAria": "Version {version}"
     },
     "categoryFilter": {
       "title": "By category"
