@@ -12,6 +12,7 @@ import { useT } from '@/lib/i18n/client';
 import { REGION_FORMAT_LOCALE, type Region } from '@/lib/pricing/region';
 
 const MIN_USERS = 25;
+const SLIDER_MIN_USERS = 0;
 const SLIDER_MAX_USERS = 1000;
 const SLIDER_TICKS: readonly number[] = [
   100, 200, 300, 400, 500, 600, 700, 800, 900,
@@ -71,6 +72,11 @@ export function UserCountControl({
   function handleSliderChange(event: ChangeEvent<HTMLInputElement>) {
     const next = Number(event.target.value);
     if (!Number.isFinite(next)) return;
+    if (next < MIN_USERS) {
+      flashMinTip();
+      onChange(MIN_USERS);
+      return;
+    }
     setShowMinTip(false);
     onChange(next);
   }
@@ -101,7 +107,10 @@ export function UserCountControl({
     setShowMinTip(false);
   }
 
-  const sliderValue = Math.min(Math.max(value, MIN_USERS), SLIDER_MAX_USERS);
+  const sliderValue = Math.min(
+    Math.max(value, SLIDER_MIN_USERS),
+    SLIDER_MAX_USERS,
+  );
   const label = t('users.label');
   const minTooltip = t('users.minTooltip');
 
@@ -138,7 +147,7 @@ export function UserCountControl({
       </div>
       <Slider
         value={sliderValue}
-        min={MIN_USERS}
+        min={SLIDER_MIN_USERS}
         max={SLIDER_MAX_USERS}
         step={5}
         onChange={handleSliderChange}
@@ -148,14 +157,14 @@ export function UserCountControl({
       />
       <div className="text-fg-muted relative text-xs">
         <div className="flex justify-between">
-          <span>{formatCount(MIN_USERS, region)}</span>
+          <span>{formatCount(SLIDER_MIN_USERS, region)}</span>
           <span>{formatCount(SLIDER_MAX_USERS, region)}+</span>
         </div>
         <span
           aria-hidden
           className="absolute top-0 -translate-x-1/2"
           style={{
-            left: tickPositionLeft(500, MIN_USERS, SLIDER_MAX_USERS),
+            left: tickPositionLeft(500, SLIDER_MIN_USERS, SLIDER_MAX_USERS),
           }}
         >
           {formatCount(500, region)}

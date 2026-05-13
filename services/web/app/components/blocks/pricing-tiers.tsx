@@ -26,7 +26,7 @@ const easeOut = [0.22, 1, 0.36, 1] as const;
 const PER_USER_MONTHLY: Record<Region, number> = { CH: 12, DE: 14 };
 const STORAGE_PER_TB_MONTHLY: Record<Region, number> = { CH: 10, DE: 12 };
 
-const DEFAULT_USERS = 50;
+const DEFAULT_USERS = 25;
 
 const BILLINGS: readonly Billing[] = ['yearly', 'monthly'] as const;
 
