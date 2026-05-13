@@ -193,7 +193,9 @@
       "default": "défaut",
       "untranslated": "non traduit",
       "autoTranslate": "Traduire automatiquement"
-    }
+    },
+    "retry": "Réessayer",
+    "saving": "Enregistrement…"
   },
   "navigation": {
     "chatWithAI": "Discuter avec l'IA",
@@ -4242,7 +4244,8 @@
     "tabs": {
       "all": "Tous",
       "team": "Équipe",
-      "personal": "Personnel"
+      "personal": "Personnel",
+      "global": "Global"
     },
     "library": {
       "title": "Bibliothèque de prompts",
@@ -4254,7 +4257,10 @@
     },
     "emptyState": {
       "title": "Aucun prompt pour le moment",
-      "description": "Crée ton premier prompt pour le sauvegarder et le réutiliser dans tes conversations"
+      "description": "Crée ton premier prompt pour le sauvegarder et le réutiliser dans tes conversations",
+      "filteredTitle": "Aucun prompt correspondant",
+      "filteredDescription": "Efface ta recherche ou tes filtres.",
+      "clearFilters": "Effacer les filtres"
     },
     "actions": {
       "create": "Créer un prompt",
@@ -4264,7 +4270,8 @@
       "copy": "Copier",
       "copied": "Copié !",
       "viewHistory": "Historique des versions",
-      "viewHistoryDisabled": "Aucune version antérieure"
+      "viewHistoryDisabled": "Aucune version antérieure",
+      "copyFailed": "Impossible de copier dans le presse-papiers"
     },
     "deleteConfirm": {
       "title": "Supprimer le prompt",
@@ -4296,11 +4303,11 @@
       "save": "Enregistrer",
       "create": "Créer",
       "bytesUsed": "{used} / {max}",
-      "bytesOverLimit": "Limite dépassée",
       "versionConflictTitle": "Nouvelle version disponible",
-      "versionConflictDescription": "Quelqu'un a enregistré v{version} pendant votre édition. Chargez la dernière version avant d'enregistrer.",
-      "versionConflictDirtyWarning": "Vos modifications non enregistrées seront perdues.",
-      "loadLatest": "Charger la dernière"
+      "versionConflictDescription": "Quelqu'un a enregistré v{version} pendant ton édition. Charge la dernière version avant d'enregistrer.",
+      "versionConflictDirtyWarning": "Tes modifications non enregistrées seront perdues.",
+      "loadLatest": "Charger la dernière",
+      "bytesOverLimitAlert": "Le contenu dépasse la limite. Raccourcis le prompt pour pouvoir enregistrer."
     },
     "saveAs": {
       "title": "Enregistrer le prompt",
@@ -4312,13 +4319,15 @@
       "saved": "Enregistré en tant que v{version}",
       "saveFailed": "Impossible d'enregistrer le prompt",
       "deleteFailed": "Impossible de supprimer le prompt",
-      "versionConflict": "Nouvelle version détectée — chargez la dernière avant d'enregistrer",
+      "versionConflict": "Nouvelle version détectée — charge la dernière avant d'enregistrer",
       "restored": "Restauré en tant que v{version}",
       "restoreFailed": "Impossible de restaurer la version",
-      "restoreStale": "L'historique des versions a changé — actualisez et réessayez",
-      "rateLimited": "Enregistrement trop rapide — patientez un instant avant de réessayer",
-      "forbidden": "Vous n'avez pas la permission pour ce prompt",
-      "notFound": "Ce prompt n'existe plus"
+      "restoreStale": "L'historique des versions a changé — actualise et réessaie",
+      "rateLimited": "Enregistrement trop rapide — patiente un instant avant de réessayer",
+      "forbidden": "Tu n'as pas la permission pour ce prompt",
+      "notFound": "Ce prompt n'existe plus",
+      "tooLarge": "Un champ dépasse la longueur autorisée",
+      "emptyContent": "Le contenu du prompt ne peut pas être vide"
     },
     "version": {
       "badge": "v{version}"
@@ -4331,8 +4340,6 @@
       "compare": "Comparer",
       "compareTitle": "Comparer avec v{version}",
       "compareDescription": "Publié {date}",
-      "currentVersion": "Actuelle (v{version})",
-      "snapshotVersion": "v{version}",
       "noDifferences": "Aucune différence entre ces versions.",
       "backToList": "Retour à l'historique",
       "restore": "Restaurer",
@@ -4343,9 +4350,18 @@
       "diffAriaLabel": "Différence de contenu",
       "empty": "Aucune version précédente",
       "loadFailed": "Impossible de charger l'historique des versions",
-      "retry": "Réessayer",
       "publishedByOn": "Par {name} · {date}",
-      "truncated": "Les {shown} versions les plus récentes sont affichées. Les plus anciennes ont été supprimées."
+      "versionsLabel": "Historique des versions",
+      "metadataChanged": "Métadonnées modifiées",
+      "metadataDiffLabel": "Modifications de métadonnées",
+      "diffLegend": "Différences avec v{snapshot} — − actuelle (v{current}), + instantané",
+      "metadataField": {
+        "title": "Titre",
+        "description": "Description",
+        "category": "Catégorie",
+        "tags": "Tags",
+        "scope": "Portée"
+      }
     },
     "categoryFilter": {
       "title": "Par catégorie"
@@ -4357,6 +4373,12 @@
     },
     "sidebar": {
       "sectionTitle": "Bibliothèque de prompts"
+    },
+    "tagsInput": {
+      "tooLong": "Le tag ne doit pas dépasser {max} caractères",
+      "atCap": "Tu as atteint la limite de {max} tags",
+      "removeAria": "Retirer le tag {tag}",
+      "counter": "{count} / {max} tags"
     }
   },
   "mcpServers": {

@@ -193,7 +193,9 @@
       "default": "Standard",
       "untranslated": "nicht übersetzt",
       "autoTranslate": "Automatisch übersetzen"
-    }
+    },
+    "retry": "Erneut versuchen",
+    "saving": "Speichere…"
   },
   "navigation": {
     "chatWithAI": "Chat mit KI",
@@ -4317,7 +4319,8 @@
     "tabs": {
       "all": "Alle",
       "team": "Team",
-      "personal": "Persönlich"
+      "personal": "Persönlich",
+      "global": "Global"
     },
     "library": {
       "title": "Prompt-Bibliothek",
@@ -4329,7 +4332,10 @@
     },
     "emptyState": {
       "title": "Noch keine Prompts",
-      "description": "Erstelle deinen ersten Prompt, um ihn in Unterhaltungen wiederzuverwenden"
+      "description": "Erstelle deinen ersten Prompt, um ihn in Unterhaltungen wiederzuverwenden",
+      "filteredTitle": "Keine passenden Prompts",
+      "filteredDescription": "Lösche deine Suche oder Filter.",
+      "clearFilters": "Filter zurücksetzen"
     },
     "actions": {
       "create": "Prompt erstellen",
@@ -4339,7 +4345,8 @@
       "copy": "Kopieren",
       "copied": "Kopiert!",
       "viewHistory": "Versionsverlauf",
-      "viewHistoryDisabled": "Keine früheren Versionen"
+      "viewHistoryDisabled": "Keine früheren Versionen",
+      "copyFailed": "Konnte nicht in die Zwischenablage kopieren"
     },
     "deleteConfirm": {
       "title": "Prompt löschen",
@@ -4371,11 +4378,11 @@
       "save": "Speichern",
       "create": "Erstellen",
       "bytesUsed": "{used} / {max}",
-      "bytesOverLimit": "Limit überschritten",
       "versionConflictTitle": "Neuere Version verfügbar",
       "versionConflictDescription": "Während deiner Bearbeitung wurde v{version} gespeichert. Lade die neueste Version, bevor du speicherst.",
       "versionConflictDirtyWarning": "Deine nicht gespeicherten Änderungen gehen verloren.",
-      "loadLatest": "Neueste laden"
+      "loadLatest": "Neueste laden",
+      "bytesOverLimitAlert": "Inhalt überschreitet das Größenlimit. Kürze den Prompt, um zu speichern."
     },
     "saveAs": {
       "title": "Prompt speichern",
@@ -4393,7 +4400,9 @@
       "restoreStale": "Versionsverlauf hat sich geändert — aktualisiere und versuche es erneut",
       "rateLimited": "Zu schnelles Speichern — bitte warte einen Moment",
       "forbidden": "Du hast keine Berechtigung für diesen Prompt",
-      "notFound": "Dieser Prompt existiert nicht mehr"
+      "notFound": "Dieser Prompt existiert nicht mehr",
+      "tooLarge": "Ein Feld überschreitet die zulässige Länge",
+      "emptyContent": "Prompt-Inhalt darf nicht leer sein"
     },
     "version": {
       "badge": "v{version}"
@@ -4406,8 +4415,6 @@
       "compare": "Vergleichen",
       "compareTitle": "Mit v{version} vergleichen",
       "compareDescription": "Veröffentlicht {date}",
-      "currentVersion": "Aktuell (v{version})",
-      "snapshotVersion": "v{version}",
       "noDifferences": "Keine Unterschiede zwischen diesen Versionen.",
       "backToList": "Zurück zum Verlauf",
       "restore": "Wiederherstellen",
@@ -4418,9 +4425,18 @@
       "diffAriaLabel": "Inhaltsdifferenz",
       "empty": "Keine früheren Versionen",
       "loadFailed": "Versionsverlauf konnte nicht geladen werden",
-      "retry": "Erneut versuchen",
       "publishedByOn": "Von {name} · {date}",
-      "truncated": "Es werden die neuesten {shown} Versionen angezeigt. Ältere wurden entfernt."
+      "versionsLabel": "Versionsverlauf",
+      "metadataChanged": "Metadaten geändert",
+      "metadataDiffLabel": "Metadaten-Änderungen",
+      "diffLegend": "Vergleich mit v{snapshot} — − aktuell (v{current}), + Snapshot",
+      "metadataField": {
+        "title": "Titel",
+        "description": "Beschreibung",
+        "category": "Kategorie",
+        "tags": "Tags",
+        "scope": "Geltungsbereich"
+      }
     },
     "categoryFilter": {
       "title": "Nach Kategorie"
@@ -4432,6 +4448,12 @@
     },
     "sidebar": {
       "sectionTitle": "Prompt-Bibliothek"
+    },
+    "tagsInput": {
+      "tooLong": "Tag muss höchstens {max} Zeichen lang sein",
+      "atCap": "Du hast die Grenze von {max} Tags erreicht",
+      "removeAria": "Tag {tag} entfernen",
+      "counter": "{count} / {max} Tags"
     }
   },
   "mcpServers": {

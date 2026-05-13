@@ -4,19 +4,35 @@ import type { Doc } from '../_generated/dataModel';
 import { MAX_PROMPT_VERSION_HISTORY } from './constants';
 import {
   buildNextVersionEntry,
+  metadataDiffers,
   prependVersionEntry,
+  type PromptVersionMetadata,
   type VersionHistoryEntry,
 } from './version_history';
 
 function makeEntry(
   version: number,
   content = `v${version}`,
+  overrides: Partial<VersionHistoryEntry> = {},
 ): VersionHistoryEntry {
   return {
     version,
     content,
     publishedAt: version * 1_000,
     publishedBy: 'user_a',
+    title: 'Test prompt',
+    scope: 'personal',
+    ...overrides,
+  };
+}
+
+function makeMetadata(
+  overrides: Partial<PromptVersionMetadata> = {},
+): PromptVersionMetadata {
+  return {
+    title: 'Test prompt',
+    scope: 'personal',
+    ...overrides,
   };
 }
 
@@ -39,6 +55,8 @@ function makePromptDoc(
         content: 'current content',
         publishedAt: 10_000,
         publishedBy: 'user_a',
+        title: 'Test prompt',
+        scope: 'personal',
       },
     ],
     ...overrides,
@@ -67,7 +85,6 @@ describe('prependVersionEntry', () => {
 
   it('caps the array at MAX_PROMPT_VERSION_HISTORY and drops the oldest', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    // newest-first history of MAX entries (versions MAX..1)
     const existing = Array.from(
       { length: MAX_PROMPT_VERSION_HISTORY },
       (_, i) => makeEntry(MAX_PROMPT_VERSION_HISTORY - i),
@@ -80,7 +97,6 @@ describe('prependVersionEntry', () => {
     );
     expect(history).toHaveLength(MAX_PROMPT_VERSION_HISTORY);
     expect(history[0].version).toBe(MAX_PROMPT_VERSION_HISTORY + 1);
-    // The oldest entry (version 1) should have been dropped.
     expect(history.find((e) => e.version === 1)).toBeUndefined();
     expect(droppedVersions).toEqual([1]);
     expect(warn).toHaveBeenCalledTimes(1);
@@ -89,33 +105,41 @@ describe('prependVersionEntry', () => {
 });
 
 describe('buildNextVersionEntry', () => {
-  it('increments version and prepends entry on a versioned prompt', () => {
+  it('increments version and prepends an entry with metadata snapshot', () => {
     const existing = makePromptDoc({
       version: 3,
       content: 'old',
-      versionHistory: [makeEntry(3, 'old'), makeEntry(2), makeEntry(1)],
+      title: 'Old title',
+      versionHistory: [
+        makeEntry(3, 'old', { title: 'Old title' }),
+        makeEntry(2),
+        makeEntry(1),
+      ],
     });
 
     const built = buildNextVersionEntry({
       existing,
       content: 'new',
       publishedBy: 'user_b',
+      metadata: makeMetadata({ title: 'New title', category: 'general' }),
     });
 
     expect(built.newVersion).toBe(4);
-    expect(built.nextHistory[0].version).toBe(4);
-    expect(built.nextHistory[0].content).toBe('new');
-    expect(built.nextHistory[0].publishedBy).toBe('user_b');
+    expect(built.nextHistory[0]).toMatchObject({
+      version: 4,
+      content: 'new',
+      publishedBy: 'user_b',
+      title: 'New title',
+      category: 'general',
+      scope: 'personal',
+    });
     expect(built.nextHistory.map((e) => e.version)).toEqual([4, 3, 2, 1]);
-    // entries from existing history are not mutated
     expect(built.nextHistory[1].content).toBe('old');
-    // nothing was truncated since we're well under the cap
     expect(built.droppedVersions).toEqual([]);
   });
 
   it('propagates droppedVersions when prepending past the FIFO cap', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    // Build a saturated history at MAX (versions MAX..1, newest first).
     const fullHistory = Array.from(
       { length: MAX_PROMPT_VERSION_HISTORY },
       (_, i) => makeEntry(MAX_PROMPT_VERSION_HISTORY - i),
@@ -130,21 +154,23 @@ describe('buildNextVersionEntry', () => {
       existing,
       content: 'next',
       publishedBy: 'user_b',
+      metadata: makeMetadata(),
     });
 
     expect(built.newVersion).toBe(MAX_PROMPT_VERSION_HISTORY + 1);
     expect(built.nextHistory).toHaveLength(MAX_PROMPT_VERSION_HISTORY);
-    // The oldest (v1) was evicted to make room.
     expect(built.droppedVersions).toEqual([1]);
     warn.mockRestore();
   });
 
-  it('JIT-seeds a legacy prompt: original content becomes v1, edit becomes v2', () => {
-    // Legacy = `version` undefined and no versionHistory.
+  it('JIT-seeds a legacy prompt with both content AND metadata', () => {
     const existing = makePromptDoc({
       version: undefined,
       versionHistory: undefined,
       content: 'original',
+      title: 'Legacy title',
+      category: 'legacy-cat',
+      tags: ['legacy'],
       _creationTime: 42,
       createdBy: 'user_legacy',
     });
@@ -153,27 +179,29 @@ describe('buildNextVersionEntry', () => {
       existing,
       content: 'edited',
       publishedBy: 'user_editor',
+      metadata: makeMetadata({ title: 'Edited title' }),
     });
 
     expect(built.newVersion).toBe(2);
-    expect(built.nextHistory[0].version).toBe(2);
-    expect(built.nextHistory[0].content).toBe('edited');
-    expect(built.nextHistory[0].publishedBy).toBe('user_editor');
+    expect(built.nextHistory[0]).toMatchObject({
+      version: 2,
+      content: 'edited',
+      publishedBy: 'user_editor',
+      title: 'Edited title',
+    });
     expect(built.nextHistory).toHaveLength(2);
-    // v2 (newest) is first; v1 (seeded original) is second.
-    expect(built.nextHistory[0].version).toBe(2);
     expect(built.nextHistory[1]).toMatchObject({
       version: 1,
       content: 'original',
       publishedAt: 42,
       publishedBy: 'user_legacy',
+      title: 'Legacy title',
+      category: 'legacy-cat',
+      tags: ['legacy'],
     });
   });
 
   it('does not seed when versionHistory is empty but version is defined', () => {
-    // Defensive: if version is set but history is empty, treat as non-legacy
-    // and just append. Should not happen in practice but the helper must not
-    // double-seed.
     const existing = makePromptDoc({
       version: 5,
       versionHistory: [],
@@ -184,10 +212,49 @@ describe('buildNextVersionEntry', () => {
       existing,
       content: 'next',
       publishedBy: 'user_b',
+      metadata: makeMetadata(),
     });
 
     expect(built.newVersion).toBe(6);
     expect(built.nextHistory).toHaveLength(1);
     expect(built.nextHistory[0].version).toBe(6);
+  });
+});
+
+describe('metadataDiffers', () => {
+  const base = {
+    title: 'a',
+    description: 'd',
+    category: 'c',
+    tags: ['x', 'y'],
+    scope: 'personal' as const,
+    teamId: undefined,
+  };
+
+  it('returns false when every field matches', () => {
+    expect(metadataDiffers(base, { ...base })).toBe(false);
+  });
+
+  it('returns true on title change', () => {
+    expect(metadataDiffers(base, { ...base, title: 'b' })).toBe(true);
+  });
+
+  it('returns true on tag reorder (order-sensitive by design)', () => {
+    expect(metadataDiffers(base, { ...base, tags: ['y', 'x'] })).toBe(true);
+  });
+
+  it('returns true on scope change', () => {
+    expect(
+      metadataDiffers(base, { ...base, scope: 'team', teamId: 't1' }),
+    ).toBe(true);
+  });
+
+  it('treats missing optional vs explicit-undefined as equal', () => {
+    expect(
+      metadataDiffers(
+        { ...base, description: undefined },
+        { ...base, description: undefined },
+      ),
+    ).toBe(false);
   });
 });

@@ -10,13 +10,20 @@ import { getUserOrganizations } from '../lib/rls/organization/get_user_organizat
 import { hasTeamAccess } from '../lib/team_access';
 import {
   promptHistoryResultValidator,
+  promptListItemValidator,
+  promptScopeValidator,
   promptTemplateValidator,
 } from './validators';
 
 type PromptDoc = Doc<'promptTemplates'>;
 
-/** List view: strip versionHistory and the deprecated lifecycle fields so
- * they don't leak to the wire (use getPromptHistory for full history). */
+/** Server-side cap on `paginationOpts.numItems`. Clients can request smaller
+ * pages; anything above this is clamped to prevent giant scans. */
+const MAX_LIST_PAGE_SIZE = 100;
+const DEFAULT_LIST_PAGE_SIZE = 30;
+
+/** List view: strip versionHistory so it doesn't bloat the wire (use
+ * getPromptHistory for full history). */
 function toListItem(prompt: PromptDoc) {
   return {
     _id: prompt._id,
@@ -43,11 +50,28 @@ function stripVersionHistory(prompt: PromptDoc): PromptDoc {
 
 const EMPTY_PAGE = { page: [], isDone: true, continueCursor: '' };
 
+const paginatedListResultValidator = v.object({
+  page: v.array(promptListItemValidator),
+  isDone: v.boolean(),
+  continueCursor: v.string(),
+});
+
+/**
+ * Paginated org-scoped list. The optional `scope` arg picks a dedicated
+ * index so personal-scope filtering is pushed into the scan (no more
+ * shrink-to-zero pages after post-paginate filtering). The optional
+ * `searchPrefix` filters by case-insensitive title substring on the
+ * paginated page — fine at MAX_LIST_PAGE_SIZE granularity; future search
+ * indexes can replace this.
+ */
 export const listPrompts = queryWithRLS({
   args: {
     organizationId: v.string(),
+    scope: v.optional(promptScopeValidator),
+    searchPrefix: v.optional(v.string()),
     paginationOpts: v.optional(paginationOptsValidator),
   },
+  returns: paginatedListResultValidator,
   handler: async (ctx, args) => {
     const user = await getAuthUserIdentity(ctx);
     if (!user) return EMPTY_PAGE;
@@ -58,31 +82,84 @@ export const listPrompts = queryWithRLS({
     );
     if (!membership) return EMPTY_PAGE;
 
-    const userTeamIds = await getUserTeamIds(ctx, user.userId);
+    const numItems = Math.min(
+      Math.max(args.paginationOpts?.numItems ?? DEFAULT_LIST_PAGE_SIZE, 1),
+      MAX_LIST_PAGE_SIZE,
+    );
+    const paginationOpts = {
+      cursor: args.paginationOpts?.cursor ?? null,
+      numItems,
+    };
 
-    // Single paginated scan keyed on org prefix; the index's `scope` segment
-    // is just a tail in the composite key so prefix scans across all scopes
-    // work without a dedicated org-only index. `.order('desc')` so the page
-    // is newest-first and cursored truncation drops the oldest, not the
-    // newest, rows.
-    const result = await ctx.db
-      .query('promptTemplates')
-      .withIndex('by_organizationId_and_scope', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .order('desc')
-      .paginate(args.paginationOpts ?? { cursor: null, numItems: 30 });
+    const userTeamIds =
+      args.scope === 'team' || args.scope === undefined
+        ? await getUserTeamIds(ctx, user.userId)
+        : [];
 
-    const visiblePage = result.page
-      .filter((prompt) => {
-        // Drop pre-hard-delete legacy rows so they don't leak into the UI
-        // until a future migration removes them from storage.
-        if (prompt.lifecycleStatus === 'expired') return false;
-        if (prompt.scope === 'personal' && prompt.createdBy !== user.userId) {
-          return false;
-        }
-        if (!hasTeamAccess(prompt, userTeamIds)) return false;
+    let result: { page: PromptDoc[]; isDone: boolean; continueCursor: string };
+    let postFilter: (p: PromptDoc) => boolean;
+
+    if (args.scope === 'personal') {
+      // Index-level filter to this user's personal prompts — no post-filter
+      // shrinks the page.
+      result = await ctx.db
+        .query('promptTemplates')
+        .withIndex('by_organizationId_and_scope_and_createdBy', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('scope', 'personal')
+            .eq('createdBy', user.userId),
+        )
+        .order('desc')
+        .paginate(paginationOpts);
+      postFilter = () => true;
+    } else if (args.scope === 'team') {
+      result = await ctx.db
+        .query('promptTemplates')
+        .withIndex('by_organizationId_and_scope', (q) =>
+          q.eq('organizationId', args.organizationId).eq('scope', 'team'),
+        )
+        .order('desc')
+        .paginate(paginationOpts);
+      // Team membership filter can't be expressed in the index — must
+      // post-filter. Acceptable: team prompt counts are bounded.
+      postFilter = (p) => hasTeamAccess(p, userTeamIds);
+    } else if (args.scope === 'global') {
+      result = await ctx.db
+        .query('promptTemplates')
+        .withIndex('by_organizationId_and_scope', (q) =>
+          q.eq('organizationId', args.organizationId).eq('scope', 'global'),
+        )
+        .order('desc')
+        .paginate(paginationOpts);
+      postFilter = () => true;
+    } else {
+      // No scope filter — newest-first across all scopes. Personal-scope
+      // rows owned by other users and team-scope rows the caller can't
+      // access are filtered out in memory (the alternative is per-scope
+      // queries merged client-side, which is far more complex).
+      result = await ctx.db
+        .query('promptTemplates')
+        .withIndex('by_organizationId', (q) =>
+          q.eq('organizationId', args.organizationId),
+        )
+        .order('desc')
+        .paginate(paginationOpts);
+      postFilter = (p) => {
+        if (p.scope === 'personal' && p.createdBy !== user.userId) return false;
+        if (p.scope === 'team' && !hasTeamAccess(p, userTeamIds)) return false;
         return true;
+      };
+    }
+
+    const search = args.searchPrefix?.trim().toLowerCase();
+    const visiblePage = result.page
+      .filter(postFilter)
+      .filter((p) => {
+        if (!search) return true;
+        if (p.title.toLowerCase().includes(search)) return true;
+        if (p.description?.toLowerCase().includes(search)) return true;
+        return false;
       })
       .map(toListItem);
 
@@ -102,8 +179,6 @@ export const getPrompt = queryWithRLS({
   handler: async (ctx, args) => {
     const prompt = await ctx.db.get(args.promptId);
     if (!prompt) return null;
-    // Reject legacy soft-deleted rows so a stale URL can't resurface them.
-    if (prompt.lifecycleStatus === 'expired') return null;
 
     const user = await getAuthUserIdentity(ctx);
     if (!user) return null;
@@ -137,7 +212,6 @@ export const getPromptHistory = queryWithRLS({
   handler: async (ctx, args) => {
     const prompt = await ctx.db.get(args.promptId);
     if (!prompt) return null;
-    if (prompt.lifecycleStatus === 'expired') return null;
 
     const user = await getAuthUserIdentity(ctx);
     if (!user) return null;
@@ -147,6 +221,11 @@ export const getPromptHistory = queryWithRLS({
     // history just by knowing its id.
     if (prompt.scope === 'personal' && prompt.createdBy !== user.userId) {
       return null;
+    }
+
+    if (prompt.scope === 'team') {
+      const userTeamIds = await getUserTeamIds(ctx, user.userId);
+      if (!hasTeamAccess(prompt, userTeamIds)) return null;
     }
 
     const userOrganizations = await getUserOrganizations(ctx, user);
@@ -170,7 +249,7 @@ export const getPromptHistory = queryWithRLS({
 
     if (all.length === 0) {
       // Legacy or freshly-seeded row with no inline history yet. Synthesize
-      // a v1 from the row's current content so the dialog shows the baseline
+      // a v1 from the row's current state so the dialog shows the baseline
       // instead of an empty-state. The JIT seed in `buildNextVersionEntry`
       // promotes this same shape into the persisted array on first edit.
       return {
@@ -180,6 +259,12 @@ export const getPromptHistory = queryWithRLS({
           publishedAt: prompt._creationTime,
           publishedBy: prompt.createdBy,
           publishedByName: resolveName(prompt.createdBy),
+          title: prompt.title,
+          description: prompt.description,
+          category: prompt.category,
+          tags: prompt.tags,
+          scope: prompt.scope,
+          teamId: prompt.teamId,
         },
         history: [],
         totalCount: 1,
@@ -196,6 +281,15 @@ export const getPromptHistory = queryWithRLS({
         publishedBy: entry.publishedBy,
         publishedByName: resolveName(entry.publishedBy),
         publishNote: entry.publishNote,
+        // Legacy entries (pre-metadata snapshot) fall back to row values so
+        // the history dialog always renders a complete state, never
+        // "undefined".
+        title: entry.title ?? prompt.title,
+        description: entry.description ?? prompt.description,
+        category: entry.category ?? prompt.category,
+        tags: entry.tags ?? prompt.tags,
+        scope: entry.scope ?? prompt.scope,
+        teamId: entry.teamId ?? prompt.teamId,
       }));
     const [current, ...rest] = sorted;
     return {

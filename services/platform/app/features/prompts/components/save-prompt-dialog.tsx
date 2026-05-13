@@ -1,7 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { useState, useCallback, useMemo } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useCallback, useId, useMemo, useState } from 'react';
 
 import { Dialog, DialogClose } from '@/app/components/ui/dialog/dialog';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
@@ -46,6 +47,7 @@ function SavePromptDialogContent({
   sourceMessageId,
 }: SavePromptDialogProps) {
   const { t } = useT('prompts');
+  const { t: tCommon } = useT('common');
   const organizationId = useOrganizationId();
   const savePrompt = useSavePrompt();
   const { toast } = useToast();
@@ -57,6 +59,10 @@ function SavePromptDialogContent({
   const [teamId, setTeamId] = useState<string | undefined>();
   const [category, setCategory] = useState('');
   const [localCategories, setLocalCategories] = useState<string[]>([]);
+
+  const bytesId = useId();
+  const bytesErrorId = `${bytesId}-error`;
+  const isPending = savePrompt.isPending;
 
   const existingCategories = useMemo(() => {
     const fromPrompts = prompts
@@ -103,7 +109,7 @@ function SavePromptDialogContent({
   const handleSubmit = useCallback(
     async (e?: React.FormEvent) => {
       e?.preventDefault();
-      if (!isValid || !organizationId) return;
+      if (!isValid || isPending || !organizationId) return;
 
       try {
         await savePrompt.mutateAsync({
@@ -128,7 +134,11 @@ function SavePromptDialogContent({
             ? 'toast.rateLimited'
             : code === 'forbidden'
               ? 'toast.forbidden'
-              : 'toast.saveFailed';
+              : code === 'too_large'
+                ? 'toast.tooLarge'
+                : code === 'empty_content'
+                  ? 'toast.emptyContent'
+                  : 'toast.saveFailed';
         if (toastKey === 'toast.saveFailed') {
           console.error('[save-prompt-dialog] save failed', err);
         }
@@ -137,6 +147,7 @@ function SavePromptDialogContent({
     },
     [
       isValid,
+      isPending,
       organizationId,
       content,
       scope,
@@ -156,26 +167,46 @@ function SavePromptDialogContent({
     setCategory(newCategory);
   }, []);
 
+  // M11: while the AI-title save is running, block dialog close so a stray
+  // ESC / overlay-click / Cancel doesn't unmount the toast handler.
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next && isPending) return;
+      onOpenChange(next);
+    },
+    [isPending, onOpenChange],
+  );
+
   return (
     <Dialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       title={t('saveAs.title')}
       footer={
         <>
           <DialogClose asChild>
-            <Button variant="secondary">{t('saveAs.cancel')}</Button>
+            <Button variant="secondary" disabled={isPending}>
+              {t('saveAs.cancel')}
+            </Button>
           </DialogClose>
-          <Button
-            onClick={handleSubmit}
-            disabled={!isValid || savePrompt.isPending}
-          >
-            {t('form.save')}
+          <Button onClick={handleSubmit} disabled={!isValid || isPending}>
+            {isPending && (
+              <Loader2
+                className="mr-2 size-3 animate-spin"
+                role="status"
+                aria-label={tCommon('saving')}
+              />
+            )}
+            {isPending ? tCommon('saving') : t('form.save')}
           </Button>
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-4"
+        aria-busy={isPending || undefined}
+      >
         <div className="flex flex-col gap-1">
           <Textarea
             value={content}
@@ -184,8 +215,11 @@ function SavePromptDialogContent({
             required
             aria-required
             aria-label={t('form.contentLabel')}
+            aria-describedby={`${bytesId}${overByteLimit ? ` ${bytesErrorId}` : ''}`}
+            aria-invalid={overByteLimit || undefined}
           />
           <Text
+            id={bytesId}
             variant="muted"
             className={cn(
               'text-right text-xs',
@@ -198,8 +232,16 @@ function SavePromptDialogContent({
               used: formatBytes(contentBytes),
               max: formatBytes(MAX_PROMPT_CONTENT_BYTES),
             })}
-            {overByteLimit && ` · ${t('form.bytesOverLimit')}`}
           </Text>
+          {overByteLimit && (
+            <Text
+              id={bytesErrorId}
+              role="alert"
+              className="text-destructive text-right text-xs"
+            >
+              {t('form.bytesOverLimitAlert')}
+            </Text>
+          )}
         </div>
 
         <RadioGroup

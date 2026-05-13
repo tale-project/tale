@@ -8,9 +8,13 @@ import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_
 import { mutationWithRLS } from '../lib/rls/helpers/mutation_with_rls';
 import { validateOrganizationAccess } from '../lib/rls/organization/validate_organization_access';
 import type { RLSContext } from '../lib/rls/types';
-import { assertPromptSizes } from './constants';
+import { assertPromptSizes, normalizePromptFields } from './size_guards';
 import { promptScopeValidator, promptTemplateValidator } from './validators';
-import { buildNextVersionEntry } from './version_history';
+import {
+  buildNextVersionEntry,
+  metadataDiffers,
+  type PromptVersionMetadata,
+} from './version_history';
 
 /**
  * Audit emitter that bypasses RLS by routing through an internal mutation.
@@ -75,14 +79,20 @@ export const createPrompt = mutationWithRLS({
   },
   returns: promptTemplateValidator,
   handler: async (ctx, args) => {
-    const content = args.content.trim();
-    assertPromptSizes({
-      content,
+    // Trim every field before measuring AND before persisting. Whitespace
+    // padding cannot bypass the caps. `assertPromptSizes` also rejects
+    // whitespace-only content as `empty_content`.
+    const normalized = normalizePromptFields({
       title: args.title,
+      content: args.content,
       description: args.description,
       category: args.category,
       tags: args.tags,
     });
+    assertPromptSizes(normalized);
+
+    // assertPromptSizes guarantees content non-empty when provided.
+    const content = normalized.content ?? '';
 
     const user = await requireAuthenticatedUser(ctx);
     const rlsContext = await validateOrganizationAccess(
@@ -92,8 +102,6 @@ export const createPrompt = mutationWithRLS({
       user,
     );
 
-    // Org-scoped rate limit: each row can be ~218 KiB at full history depth,
-    // so storage abuse is the real concern, not request volume.
     await checkOrganizationRateLimit(ctx, 'prompt:create', args.organizationId);
 
     if (args.scope === 'team' && args.teamId) {
@@ -105,7 +113,11 @@ export const createPrompt = mutationWithRLS({
       { length: 5 },
       () => chars[Math.floor(Math.random() * chars.length)],
     ).join('');
-    const title = args.title?.trim() || `PROMPT-${randomId}`;
+    const title =
+      normalized.title && normalized.title.length > 0
+        ? normalized.title
+        : `PROMPT-${randomId}`;
+    const teamId = args.scope === 'team' ? args.teamId : undefined;
     const now = Date.now();
 
     const id = await ctx.db.insert('promptTemplates', {
@@ -113,11 +125,11 @@ export const createPrompt = mutationWithRLS({
       createdBy: user.userId,
       title,
       content,
-      description: args.description,
+      description: normalized.description,
       scope: args.scope,
-      teamId: args.scope === 'team' ? args.teamId : undefined,
-      category: args.category,
-      tags: args.tags,
+      teamId,
+      category: normalized.category,
+      tags: normalized.tags,
       usageCount: 0,
       sourceMessageId: args.sourceMessageId,
       version: 1,
@@ -127,6 +139,12 @@ export const createPrompt = mutationWithRLS({
           content,
           publishedAt: now,
           publishedBy: user.userId,
+          title,
+          description: normalized.description,
+          category: normalized.category,
+          tags: normalized.tags,
+          scope: args.scope,
+          teamId,
         },
       ],
     });
@@ -153,13 +171,14 @@ export const createPrompt = mutationWithRLS({
 });
 
 /**
- * Updates prompt metadata and/or content. When `content` differs from the
- * currently saved content, a new version entry is prepended to versionHistory
- * (which always has the current version at index 0) and the version counter
- * increments. Each content change is an instant publish — no draft layer.
+ * Updates prompt metadata and/or content. Any change — content OR metadata
+ * — bumps the version and writes a new entry to versionHistory (which always
+ * has the current version at index 0). Each save is an instant publish —
+ * no draft layer.
  *
- * Access-control-relevant metadata changes (scope, teamId) emit a distinct
- * `metadata_updated` audit event when no content change accompanies them.
+ * Returns `null` when the prompt was deleted, the caller is not the personal-
+ * scope creator, or the caller is in another org. The client maps `null` to
+ * a `notFound` toast so silent no-ops don't drop user edits.
  */
 export const updatePrompt = mutationWithRLS({
   args: {
@@ -181,25 +200,41 @@ export const updatePrompt = mutationWithRLS({
   },
   returns: v.union(promptTemplateValidator, v.null()),
   handler: async (ctx, args) => {
-    const nextContent = args.content?.trim();
-    assertPromptSizes({
-      content: nextContent,
+    const normalized = normalizePromptFields({
       title: args.title,
+      content: args.content,
       description: args.description,
       category: args.category,
       tags: args.tags,
     });
+    assertPromptSizes(normalized);
 
     const user = await requireAuthenticatedUser(ctx);
     const existing = await ctx.db.get(args.promptId);
     if (!existing) return null;
 
-    // Personal-scope creator gate runs BEFORE the OCC check so a non-creator
-    // probing with a wrong expectedVersion can't learn the current version
-    // through the version_conflict error data — the row should look "not
-    // found" to anyone but its owner.
+    // Personal-scope creator gate runs first — a non-creator should see
+    // the row as "not found" rather than learning anything about it.
     if (existing.scope === 'personal' && existing.createdBy !== user.userId) {
       return null;
+    }
+
+    // Org boundary before OCC so a cross-org probe with a stale
+    // `expectedVersion` can't read the current version through the
+    // version_conflict error data.
+    const rlsContext = await validateOrganizationAccess(
+      ctx,
+      existing.organizationId,
+      undefined,
+      user,
+    );
+
+    const isCreator = existing.createdBy === user.userId;
+    if (!isCreator && !rlsContext.isAdmin) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only the creator or an admin can edit this prompt',
+      });
     }
 
     if (
@@ -216,97 +251,96 @@ export const updatePrompt = mutationWithRLS({
       });
     }
 
-    const rlsContext = await validateOrganizationAccess(
+    await checkOrganizationRateLimit(
       ctx,
+      'prompt:update',
       existing.organizationId,
-      undefined,
-      user,
     );
 
-    const isCreator = existing.createdBy === user.userId;
-    if (!isCreator && !rlsContext.isAdmin) {
-      throw new ConvexError({
-        code: 'forbidden',
-        message: 'Only the creator or an admin can edit this prompt',
-      });
-    }
-
-    // teamId membership check applies whether `scope` is being changed to
-    // 'team' or `teamId` is being reassigned within an already-team prompt.
+    // Resolve target metadata: caller-supplied fields override existing.
     const targetScope = args.scope ?? existing.scope;
     const targetTeamId =
-      args.teamId !== undefined ? args.teamId : existing.teamId;
+      targetScope === 'team'
+        ? args.teamId !== undefined
+          ? args.teamId
+          : existing.teamId
+        : undefined;
     if (targetScope === 'team' && targetTeamId) {
       await assertTeamMembership(ctx, user.userId, targetTeamId);
     }
 
-    const updates: Record<string, unknown> = {};
-    if (args.title !== undefined) updates.title = args.title;
-    if (args.description !== undefined) updates.description = args.description;
-    if (args.scope !== undefined) updates.scope = args.scope;
-    if (args.teamId !== undefined) updates.teamId = args.teamId;
-    if (args.category !== undefined) updates.category = args.category;
-    if (args.tags !== undefined) updates.tags = args.tags;
-    if (args.scope && args.scope !== 'team') {
-      updates.teamId = undefined;
+    const targetTitle =
+      normalized.title !== undefined ? normalized.title : existing.title;
+    const targetDescription =
+      normalized.description !== undefined
+        ? normalized.description
+        : existing.description;
+    const targetCategory =
+      normalized.category !== undefined
+        ? normalized.category
+        : existing.category;
+    const targetTags =
+      normalized.tags !== undefined ? normalized.tags : existing.tags;
+    const targetContent =
+      normalized.content !== undefined ? normalized.content : existing.content;
+
+    const nextMetadata: PromptVersionMetadata = {
+      title: targetTitle,
+      description: targetDescription,
+      category: targetCategory,
+      tags: targetTags,
+      scope: targetScope,
+      teamId: targetTeamId,
+    };
+
+    const contentChanged = targetContent !== existing.content;
+    const metaChanged = metadataDiffers(existing, nextMetadata);
+    if (!contentChanged && !metaChanged) {
+      // No-op edit — nothing to bump, no audit event.
+      return existing;
     }
 
-    const contentChanged =
-      nextContent !== undefined && nextContent !== existing.content;
-    let newVersion: number | undefined;
-    let droppedVersions: number[] = [];
+    const built = buildNextVersionEntry({
+      existing,
+      content: targetContent,
+      publishedBy: user.userId,
+      metadata: nextMetadata,
+    });
 
-    if (contentChanged && nextContent !== undefined) {
-      const built = buildNextVersionEntry({
-        existing,
-        content: nextContent,
-        publishedBy: user.userId,
-      });
-      newVersion = built.newVersion;
-      droppedVersions = built.droppedVersions;
-      updates.content = nextContent;
-      updates.version = newVersion;
-      updates.versionHistory = built.nextHistory;
-    }
+    await ctx.db.patch(args.promptId, {
+      title: targetTitle,
+      content: targetContent,
+      description: targetDescription,
+      category: targetCategory,
+      tags: targetTags,
+      scope: targetScope,
+      teamId: targetTeamId,
+      version: built.newVersion,
+      versionHistory: built.nextHistory,
+    });
 
-    if (Object.keys(updates).length > 0) {
-      await ctx.db.patch(args.promptId, updates);
-    }
-
-    if (contentChanged && newVersion !== undefined) {
+    await emitPromptAudit(
+      ctx,
+      rlsContext,
+      'prompt_template.saved',
+      args.promptId,
+      targetTitle,
+      {
+        version: built.newVersion,
+        fromVersion: existing.version ?? 0,
+        contentChanged,
+        metadataChanged: metaChanged,
+        scopeChanged: existing.scope !== targetScope,
+      },
+    );
+    if (built.droppedVersions.length > 0) {
       await emitPromptAudit(
         ctx,
         rlsContext,
-        'prompt_template.saved',
+        'prompt_template.history_truncated',
         args.promptId,
-        existing.title,
-        { version: newVersion, fromVersion: existing.version ?? 0 },
-      );
-      if (droppedVersions.length > 0) {
-        await emitPromptAudit(
-          ctx,
-          rlsContext,
-          'prompt_template.history_truncated',
-          args.promptId,
-          existing.title,
-          { droppedVersions },
-        );
-      }
-    } else if (
-      !contentChanged &&
-      ((args.scope !== undefined && args.scope !== existing.scope) ||
-        (args.teamId !== undefined && args.teamId !== existing.teamId))
-    ) {
-      await emitPromptAudit(
-        ctx,
-        rlsContext,
-        'prompt_template.metadata_updated',
-        args.promptId,
-        existing.title,
-        {
-          scope: { from: existing.scope, to: targetScope },
-          teamId: { from: existing.teamId, to: targetTeamId },
-        },
+        targetTitle,
+        { droppedVersions: built.droppedVersions },
       );
     }
 
@@ -388,11 +422,11 @@ export const incrementUsage = mutationWithRLS({
 });
 
 /**
- * Restores a historical version by cloning its content into a new version.
- * Forward-only: the historical row stays in versionHistory; this prepends
- * v(current+1) with the target version's content. A no-op when target
- * content equals the current content (returns existing without creating
- * a duplicate version entry).
+ * Restores a historical version by copying its full state — content AND
+ * metadata — into a new version. Forward-only: the historical entry stays
+ * in versionHistory; this prepends v(current+1) with the target version's
+ * snapshot. A no-op when target state already equals current state
+ * (returns existing without creating a duplicate version entry).
  */
 export const restoreFromVersion = mutationWithRLS({
   args: {
@@ -424,20 +458,7 @@ export const restoreFromVersion = mutationWithRLS({
       });
     }
 
-    if (
-      args.expectedVersion !== undefined &&
-      existing.version !== args.expectedVersion
-    ) {
-      throw new ConvexError({
-        code: 'version_conflict',
-        message: `Prompt has been updated to v${existing.version ?? '?'}; reload history before restoring.`,
-        data: {
-          expectedVersion: args.expectedVersion,
-          currentVersion: existing.version,
-        },
-      });
-    }
-
+    // Org boundary before OCC so cross-org probes can't read the version.
     const rlsContext = await validateOrganizationAccess(
       ctx,
       existing.organizationId,
@@ -453,6 +474,26 @@ export const restoreFromVersion = mutationWithRLS({
       });
     }
 
+    if (
+      args.expectedVersion !== undefined &&
+      existing.version !== args.expectedVersion
+    ) {
+      throw new ConvexError({
+        code: 'version_conflict',
+        message: `Prompt has been updated to v${existing.version ?? '?'}; reload history before restoring.`,
+        data: {
+          expectedVersion: args.expectedVersion,
+          currentVersion: existing.version,
+        },
+      });
+    }
+
+    await checkOrganizationRateLimit(
+      ctx,
+      'prompt:restore',
+      existing.organizationId,
+    );
+
     const target = existing.versionHistory?.find(
       (h) => h.version === args.targetVersion,
     );
@@ -463,23 +504,59 @@ export const restoreFromVersion = mutationWithRLS({
       });
     }
 
-    // Same-content guard: restoring a version whose content equals the
-    // current content would create a duplicate v(n+1) entry, wasting a
-    // FIFO slot. Return the existing row unchanged.
-    if (target.content === existing.content) {
+    // Defense in depth: legacy entries with no metadata fall back to existing
+    // row values so the restore can never erase metadata.
+    const targetMetadata: PromptVersionMetadata = {
+      title: target.title ?? existing.title,
+      description: target.description ?? existing.description,
+      category: target.category ?? existing.category,
+      tags: target.tags ?? existing.tags,
+      scope: target.scope ?? existing.scope,
+      teamId:
+        (target.scope ?? existing.scope) === 'team'
+          ? (target.teamId ?? existing.teamId)
+          : undefined,
+    };
+
+    // Same-state guard: if both content AND metadata already match the
+    // current row, restore is a no-op (avoids burning a FIFO slot).
+    if (
+      target.content === existing.content &&
+      !metadataDiffers(existing, targetMetadata)
+    ) {
       return existing;
     }
 
-    assertPromptSizes({ content: target.content });
+    assertPromptSizes({
+      content: target.content,
+      title: targetMetadata.title,
+      description: targetMetadata.description,
+      category: targetMetadata.category,
+      tags: targetMetadata.tags,
+    });
+
+    // Team membership re-check: even on restore, the actor must be a member
+    // of the target team. If the snapshot's team is no longer accessible,
+    // surface forbidden.
+    if (targetMetadata.scope === 'team' && targetMetadata.teamId) {
+      await assertTeamMembership(ctx, user.userId, targetMetadata.teamId);
+    }
 
     const built = buildNextVersionEntry({
       existing,
       content: target.content,
       publishedBy: user.userId,
+      metadata: targetMetadata,
     });
 
     await ctx.db.patch(args.promptId, {
+      title: targetMetadata.title,
       content: target.content,
+      description: targetMetadata.description,
+      category: targetMetadata.category,
+      tags: targetMetadata.tags,
+      scope: targetMetadata.scope,
+      teamId: targetMetadata.teamId,
       version: built.newVersion,
       versionHistory: built.nextHistory,
     });
@@ -489,7 +566,7 @@ export const restoreFromVersion = mutationWithRLS({
       rlsContext,
       'prompt_template.restored_from_version',
       args.promptId,
-      existing.title,
+      targetMetadata.title,
       { newVersion: built.newVersion, sourceVersion: args.targetVersion },
     );
     if (built.droppedVersions.length > 0) {
@@ -498,7 +575,7 @@ export const restoreFromVersion = mutationWithRLS({
         rlsContext,
         'prompt_template.history_truncated',
         args.promptId,
-        existing.title,
+        targetMetadata.title,
         { droppedVersions: built.droppedVersions },
       );
     }

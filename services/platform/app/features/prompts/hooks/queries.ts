@@ -5,12 +5,31 @@ import type { Id } from '@/convex/_generated/dataModel';
 
 const PROMPTS_PAGE_SIZE = 30;
 
-export interface PromptVersionEntry {
+/**
+ * Stored shape (matches versionHistory[] entries on the row). Each entry
+ * snapshots the row's full state at that version so restore re-applies
+ * content AND metadata, not just content.
+ */
+export interface PromptVersionStoredEntry {
   version: number;
   content: string;
   publishedAt: number;
   publishedBy: string;
-  /** Server-resolved display name; `null` when the user can't be resolved. */
+  publishNote?: string;
+  title: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+  scope: 'global' | 'team' | 'personal';
+  teamId?: string;
+}
+
+/**
+ * History-API shape returned by `getPromptHistory`. Wraps the stored entry
+ * with a server-resolved `publishedByName` so the UI doesn't have to do an
+ * N+1 user lookup.
+ */
+export interface PromptVersionEntry extends PromptVersionStoredEntry {
   publishedByName: string | null;
 }
 
@@ -27,19 +46,31 @@ export interface PromptTemplate {
   category?: string;
   tags?: string[];
   usageCount: number;
-  /** @deprecated */
-  isPublished?: boolean;
   sourceMessageId?: string;
   version?: number;
   /** Only present in `getPrompt` detail for creator/admin viewers. */
-  versionHistory?: PromptVersionEntry[];
+  versionHistory?: PromptVersionStoredEntry[];
 }
 
-export function usePrompts(organizationId: string) {
+export interface UsePromptsOptions {
+  scope?: 'global' | 'team' | 'personal';
+  searchPrefix?: string;
+}
+
+export function usePrompts(
+  organizationId: string,
+  options: UsePromptsOptions = {},
+) {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- paginationOpts is optional to handle Convex reconnection replays; usePaginatedQuery always provides it at runtime
   const listPromptsQuery = api.prompts.queries
     .listPrompts as unknown as Parameters<typeof useCachedPaginatedQuery>[0];
-  const queryArgs = organizationId ? { organizationId } : ('skip' as const);
+  const queryArgs = organizationId
+    ? {
+        organizationId,
+        scope: options.scope,
+        searchPrefix: options.searchPrefix,
+      }
+    : ('skip' as const);
   const { results, status, loadMore, isLoading } = useCachedPaginatedQuery(
     listPromptsQuery,
     queryArgs,

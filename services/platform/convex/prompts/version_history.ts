@@ -1,6 +1,17 @@
 import type { Doc } from '../_generated/dataModel';
 import { MAX_PROMPT_VERSION_HISTORY } from './constants';
 
+export type PromptScope = 'global' | 'team' | 'personal';
+
+export type PromptVersionMetadata = {
+  title: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+  scope: PromptScope;
+  teamId?: string;
+};
+
 export type VersionHistoryEntry = {
   version: number;
   content: string;
@@ -12,6 +23,12 @@ export type VersionHistoryEntry = {
    * restoreFromVersion) no longer set this field.
    */
   publishNote?: string;
+  title: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+  scope: PromptScope;
+  teamId?: string;
 };
 
 /**
@@ -46,10 +63,11 @@ export function prependVersionEntry(
   return { history: next, droppedVersions: [] };
 }
 
-export interface BuildVersionEntryArgs {
+interface BuildVersionEntryArgs {
   existing: Doc<'promptTemplates'>;
   content: string;
   publishedBy: string;
+  metadata: PromptVersionMetadata;
 }
 
 /**
@@ -58,9 +76,10 @@ export interface BuildVersionEntryArgs {
  * `updatePrompt` and `restoreFromVersion` stay in lockstep.
  *
  * Legacy JIT-seed: if `existing` predates this feature (no `version` /
- * `versionHistory`), its current content is captured as v1 before the new
- * entry is recorded as v2 — otherwise the original pre-versioning content
- * would be silently overwritten on first edit and lost from history.
+ * `versionHistory`), its current row state — content AND metadata — is
+ * captured as v1 before the new entry is recorded as v2. Otherwise the
+ * original pre-versioning content would be silently overwritten on first
+ * edit and lost from history.
  *
  * `droppedVersions` propagates the FIFO eviction list from
  * `prependVersionEntry` so the caller can audit history truncation.
@@ -69,6 +88,7 @@ export function buildNextVersionEntry({
   existing,
   content,
   publishedBy,
+  metadata,
 }: BuildVersionEntryArgs): {
   newVersion: number;
   nextHistory: VersionHistoryEntry[];
@@ -82,6 +102,12 @@ export function buildNextVersionEntry({
           content: existing.content,
           publishedAt: existing._creationTime,
           publishedBy: existing.createdBy,
+          title: existing.title,
+          description: existing.description,
+          category: existing.category,
+          tags: existing.tags,
+          scope: existing.scope,
+          teamId: existing.teamId,
         },
       ]
     : (existing.versionHistory ?? []);
@@ -92,6 +118,12 @@ export function buildNextVersionEntry({
     content,
     publishedAt: Date.now(),
     publishedBy,
+    title: metadata.title,
+    description: metadata.description,
+    category: metadata.category,
+    tags: metadata.tags,
+    scope: metadata.scope,
+    teamId: metadata.teamId,
   };
   const { history: nextHistory, droppedVersions } = prependVersionEntry(
     baseHistory,
@@ -99,4 +131,39 @@ export function buildNextVersionEntry({
     existing._id,
   );
   return { newVersion, nextHistory, droppedVersions };
+}
+
+/**
+ * True if `next` differs from `prev` on any versioned metadata field. Used
+ * by updatePrompt to decide whether a metadata-only edit should bump the
+ * version (instead of just patching the row in place).
+ */
+export function metadataDiffers(
+  prev: Pick<
+    Doc<'promptTemplates'>,
+    'title' | 'description' | 'category' | 'tags' | 'scope' | 'teamId'
+  >,
+  next: PromptVersionMetadata,
+): boolean {
+  if (prev.title !== next.title) return true;
+  if ((prev.description ?? undefined) !== (next.description ?? undefined)) {
+    return true;
+  }
+  if ((prev.category ?? undefined) !== (next.category ?? undefined)) {
+    return true;
+  }
+  if (!tagsEqual(prev.tags, next.tags)) return true;
+  if (prev.scope !== next.scope) return true;
+  if ((prev.teamId ?? undefined) !== (next.teamId ?? undefined)) return true;
+  return false;
+}
+
+function tagsEqual(a: string[] | undefined, b: string[] | undefined): boolean {
+  const aa = a ?? [];
+  const bb = b ?? [];
+  if (aa.length !== bb.length) return false;
+  for (let i = 0; i < aa.length; i++) {
+    if (aa[i] !== bb[i]) return false;
+  }
+  return true;
 }

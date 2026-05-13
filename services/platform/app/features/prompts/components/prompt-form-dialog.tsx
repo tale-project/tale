@@ -3,7 +3,7 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { AlertTriangle } from 'lucide-react';
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
@@ -18,6 +18,8 @@ import {
   MAX_PROMPT_CATEGORY_LEN,
   MAX_PROMPT_CONTENT_BYTES,
   MAX_PROMPT_DESCRIPTION_LEN,
+  MAX_PROMPT_TAG_LEN,
+  MAX_PROMPT_TAGS_COUNT,
   MAX_PROMPT_TITLE_LEN,
 } from '@/convex/prompts/constants';
 import { useT } from '@/lib/i18n/client';
@@ -26,6 +28,7 @@ import { cn } from '@/lib/utils/cn';
 import type { PromptTemplate } from '../hooks/queries';
 import { usePrompt, usePrompts } from '../hooks/queries';
 import { AddCategoryPopover } from './add-category-popover';
+import { TagChipInput } from './tag-chip-input';
 
 type PromptScope = 'global' | 'team' | 'personal';
 
@@ -35,6 +38,8 @@ interface PromptFormDialogProps {
   onSubmit: (data: PromptFormData) => void;
   isSubmitting: boolean;
   initialData?: PromptTemplate;
+  /** When true, the "global" scope tab is selectable. */
+  isOrgAdmin?: boolean;
   /** Optional render slot above the form (e.g. "View history" link). */
   headerActions?: React.ReactNode;
 }
@@ -62,12 +67,18 @@ function PromptFormDialogContent({
   onSubmit,
   isSubmitting,
   initialData,
+  isOrgAdmin = false,
   headerActions,
 }: PromptFormDialogProps) {
   const { t } = useT('prompts');
   const { teams } = useTeams();
   const organizationId = useOrganizationId();
   const { prompts } = usePrompts(organizationId ?? '');
+
+  const initialTags = useMemo(
+    () => initialData?.tags ?? [],
+    [initialData?.tags],
+  );
 
   const [title, setTitle] = useState(initialData?.title ?? '');
   const [content, setContent] = useState(initialData?.content ?? '');
@@ -79,19 +90,21 @@ function PromptFormDialogContent({
   );
   const [teamId, setTeamId] = useState(initialData?.teamId);
   const [category, setCategory] = useState(initialData?.category ?? '');
-  const [tagsInput, setTagsInput] = useState(
-    initialData?.tags?.join(', ') ?? '',
-  );
+  const [tags, setTags] = useState(initialTags);
   const [localCategories, setLocalCategories] = useState<string[]>([]);
+
+  const contentId = useId();
+  const bytesId = `${contentId}-bytes`;
+  const bytesErrorId = `${contentId}-bytes-error`;
 
   const isEditing = !!initialData;
 
   // OCC banner: watch live server state for the prompt being edited, compare
   // against the version the form was opened with. If a concurrent writer
-  // (another tab, another user) saves a newer version, surface a warning so
-  // the user knows their save will be rejected with version_conflict.
-  // The outer <PromptFormDialog> unmounts the content on close, so the ref
-  // is freshly captured each time the dialog opens — no re-anchor needed.
+  // saves a newer version, surface a warning so the user knows their save
+  // will be rejected with version_conflict. The outer <PromptFormDialog>
+  // unmounts the content on close, so the ref is freshly captured each time
+  // the dialog opens — no re-anchor needed.
   const startVersionRef = useRef(initialData?.version);
 
   const liveQuery = usePrompt(isEditing ? initialData?._id : undefined);
@@ -103,9 +116,6 @@ function PromptFormDialogContent({
     typeof liveVersion === 'number' &&
     liveVersion > startVersionRef.current;
 
-  // M5: pull the server's current content into the form and re-anchor the OCC
-  // ref to the live version. The user can then re-apply their edits on top of
-  // the latest base. Submit becomes possible again (banner disappears).
   const handleLoadLatest = useCallback(() => {
     if (!live) return;
     setTitle(live.title);
@@ -114,7 +124,7 @@ function PromptFormDialogContent({
     setScope(live.scope);
     setTeamId(live.teamId);
     setCategory(live.category ?? '');
-    setTagsInput(live.tags?.join(', ') ?? '');
+    setTags(live.tags ?? []);
     startVersionRef.current = live.version;
   }, [live]);
 
@@ -140,10 +150,17 @@ function PromptFormDialogContent({
     [teams],
   );
 
+  // M15: lock the "global" scope tab for non-admins. Existing globally-scoped
+  // prompts stay editable but no one can promote a personal/team prompt to
+  // global without admin rights.
   const scopeTabItems = [
     { value: 'personal', label: t('scope.personal') },
     { value: 'team', label: t('scope.team') },
-    { value: 'global', label: t('scope.global') },
+    {
+      value: 'global',
+      label: t('scope.global'),
+      disabled: !isOrgAdmin && scope !== 'global',
+    },
   ];
 
   const contentBytes = useMemo(
@@ -154,6 +171,11 @@ function PromptFormDialogContent({
   const approachingLimit =
     !overByteLimit && contentBytes >= MAX_PROMPT_CONTENT_BYTES * 0.9;
 
+  const tagsEqual = (a: string[], b: string[]): boolean => {
+    if (a.length !== b.length) return false;
+    return a.every((tag, i) => tag === b[i]);
+  };
+
   const isDirty =
     title !== (initialData?.title ?? '') ||
     content !== (initialData?.content ?? '') ||
@@ -161,23 +183,21 @@ function PromptFormDialogContent({
     scope !== (initialData?.scope ?? 'personal') ||
     teamId !== initialData?.teamId ||
     category !== (initialData?.category ?? '') ||
-    tagsInput !== (initialData?.tags?.join(', ') ?? '');
+    !tagsEqual(tags, initialTags);
 
+  // M5: block submit while OCC banner is showing — the user must Load latest
+  // first (which re-anchors startVersionRef so hasNewerVersion flips false).
   const isValid =
     title.trim().length > 0 &&
     content.trim().length > 0 &&
     !overByteLimit &&
-    (scope !== 'team' || !!teamId);
+    (scope !== 'team' || !!teamId) &&
+    !hasNewerVersion;
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      if (!isValid) return;
-
-      const tags = tagsInput
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter(Boolean);
+      if (!isValid || isSubmitting) return;
 
       onSubmit({
         title: title.trim(),
@@ -197,8 +217,9 @@ function PromptFormDialogContent({
       scope,
       teamId,
       category,
-      tagsInput,
+      tags,
       isValid,
+      isSubmitting,
       onSubmit,
     ],
   );
@@ -226,7 +247,12 @@ function PromptFormDialogContent({
         <HStack gap={2} align="center" justify="between">
           <HStack gap={2} align="center">
             {initialData?.version !== undefined && (
-              <Badge variant="outline">
+              <Badge
+                variant="outline"
+                aria-label={t('version.badge', {
+                  version: String(initialData.version),
+                })}
+              >
                 {t('version.badge', { version: initialData.version })}
               </Badge>
             )}
@@ -278,6 +304,7 @@ function PromptFormDialogContent({
       />
       <div className="flex flex-col gap-1">
         <Textarea
+          id={contentId}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder={t('form.contentPlaceholder')}
@@ -285,8 +312,11 @@ function PromptFormDialogContent({
           required
           aria-required
           aria-label={t('form.contentLabel')}
+          aria-describedby={`${bytesId}${overByteLimit ? ` ${bytesErrorId}` : ''}`}
+          aria-invalid={overByteLimit || undefined}
         />
         <Text
+          id={bytesId}
           variant="muted"
           className={cn(
             'text-right text-xs',
@@ -299,8 +329,16 @@ function PromptFormDialogContent({
             used: formatBytes(contentBytes),
             max: formatBytes(MAX_PROMPT_CONTENT_BYTES),
           })}
-          {overByteLimit && ` · ${t('form.bytesOverLimit')}`}
         </Text>
+        {overByteLimit && (
+          <Text
+            id={bytesErrorId}
+            role="alert"
+            className="text-destructive text-right text-xs"
+          >
+            {t('form.bytesOverLimitAlert')}
+          </Text>
+        )}
       </div>
       <Input
         label={t('form.descriptionLabel')}
@@ -355,10 +393,12 @@ function PromptFormDialogContent({
           />
         )}
       </div>
-      <Input
+      <TagChipInput
+        value={tags}
+        onChange={setTags}
+        maxTags={MAX_PROMPT_TAGS_COUNT}
+        maxTagLength={MAX_PROMPT_TAG_LEN}
         label={t('form.tagsLabel')}
-        value={tagsInput}
-        onChange={(e) => setTagsInput(e.target.value)}
         placeholder={t('form.tagsPlaceholder')}
       />
     </FormDialog>

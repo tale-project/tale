@@ -25,20 +25,22 @@ interface DiffRow {
   value: string;
 }
 
+interface MetadataDiffRow {
+  field: 'title' | 'description' | 'category' | 'tags' | 'scope';
+  before: string;
+  after: string;
+}
+
 /**
- * Build a unified-style diff using `diff`'s Myers-LCS algorithm. Lines that
- * exist in `snapshot` but not `current` are `added` (would appear on restore);
- * lines in `current` but not `snapshot` are `removed`. Operates on raw
- * unicode strings — CJK / emoji / RTL content roundtrips correctly because
- * we never split on whitespace.
+ * Build a unified-style diff using `diff`'s Myers-LCS algorithm. Lines in
+ * `snapshot` but not `current` are `added` (would appear on restore);
+ * lines in `current` but not `snapshot` are `removed`.
  */
 function buildDiffRows(current: string, snapshot: string): DiffRow[] {
   const changes = diffLines(current, snapshot);
   const rows: DiffRow[] = [];
   for (const change of changes) {
     const segments = change.value.split('\n');
-    // diffLines keeps a trailing '' when a chunk ends with '\n'; drop it so
-    // we don't render a phantom blank line per chunk boundary.
     if (segments.length > 0 && segments[segments.length - 1] === '') {
       segments.pop();
     }
@@ -52,6 +54,43 @@ function buildDiffRows(current: string, snapshot: string): DiffRow[] {
     }
   }
   return rows;
+}
+
+function tagsString(tags: string[] | undefined): string {
+  return tags && tags.length > 0 ? tags.join(', ') : '—';
+}
+
+function buildMetadataDiff(
+  current: PromptVersionEntry,
+  snapshot: PromptVersionEntry,
+): MetadataDiffRow[] {
+  const out: MetadataDiffRow[] = [];
+  if (current.title !== snapshot.title) {
+    out.push({ field: 'title', before: current.title, after: snapshot.title });
+  }
+  if ((current.description ?? '') !== (snapshot.description ?? '')) {
+    out.push({
+      field: 'description',
+      before: current.description ?? '—',
+      after: snapshot.description ?? '—',
+    });
+  }
+  if ((current.category ?? '') !== (snapshot.category ?? '')) {
+    out.push({
+      field: 'category',
+      before: current.category ?? '—',
+      after: snapshot.category ?? '—',
+    });
+  }
+  const beforeTags = tagsString(current.tags);
+  const afterTags = tagsString(snapshot.tags);
+  if (beforeTags !== afterTags) {
+    out.push({ field: 'tags', before: beforeTags, after: afterTags });
+  }
+  if (current.scope !== snapshot.scope) {
+    out.push({ field: 'scope', before: current.scope, after: snapshot.scope });
+  }
+  return out;
 }
 
 export function PromptCompareView({
@@ -68,7 +107,13 @@ export function PromptCompareView({
     () => buildDiffRows(current.content, snapshot.content),
     [current.content, snapshot.content],
   );
-  const hasChanges = rows.some((r) => r.type !== 'context');
+  const metadataDiff = useMemo(
+    () => buildMetadataDiff(current, snapshot),
+    [current, snapshot],
+  );
+  const hasContentChanges = rows.some((r) => r.type !== 'context');
+  const hasMetadataChanges = metadataDiff.length > 0;
+  const hasChanges = hasContentChanges || hasMetadataChanges;
 
   return (
     <div className="flex flex-col gap-3">
@@ -78,23 +123,47 @@ export function PromptCompareView({
         })}
       </Text>
 
-      {!hasChanges ? (
-        <Text variant="muted" className="py-4 text-center text-sm">
+      {hasMetadataChanges && (
+        <div className="bg-background overflow-hidden rounded-md border">
+          <div className="bg-muted text-muted-foreground border-b px-3 py-1.5 text-xs font-medium">
+            {t('history.metadataDiffLabel')}
+          </div>
+          <ul className="divide-border divide-y text-xs">
+            {metadataDiff.map((row) => (
+              <li
+                key={row.field}
+                className="grid grid-cols-[120px_1fr] gap-2 px-3 py-2"
+              >
+                <Text variant="label" className="text-muted-foreground">
+                  {t(`history.metadataField.${row.field}`)}
+                </Text>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-destructive">− {row.before}</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">
+                    + {row.after}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {!hasContentChanges && !hasMetadataChanges ? (
+        <Text
+          role="status"
+          variant="muted"
+          className="py-4 text-center text-sm"
+        >
           {t('history.noDifferences')}
         </Text>
-      ) : (
+      ) : hasContentChanges ? (
         <div className="bg-background max-h-[55vh] overflow-auto rounded-md border">
-          <div className="bg-muted text-muted-foreground sticky top-0 z-10 grid grid-cols-2 border-b text-xs font-medium">
-            <div className="px-3 py-1.5">
-              {t('history.currentVersion', {
-                version: String(current.version),
-              })}
-            </div>
-            <div className="border-l px-3 py-1.5">
-              {t('history.snapshotVersion', {
-                version: String(snapshot.version),
-              })}
-            </div>
+          <div className="bg-muted text-muted-foreground sticky top-0 z-10 border-b px-3 py-1.5 text-xs font-medium">
+            {t('history.diffLegend', {
+              current: String(current.version),
+              snapshot: String(snapshot.version),
+            })}
           </div>
           <div
             className="font-mono text-xs"
@@ -130,13 +199,13 @@ export function PromptCompareView({
                       : ' '}
                 </span>
                 <span className="min-w-0 flex-1 px-2 py-0.5 break-words whitespace-pre-wrap">
-                  {row.value || ' '}
+                  {row.value || ' '}
                 </span>
               </div>
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="flex items-center justify-between">
         <Button type="button" variant="ghost" onClick={onBack}>
@@ -147,6 +216,7 @@ export function PromptCompareView({
           type="button"
           onClick={onRestore}
           disabled={isRestoring || !hasChanges}
+          title={!hasChanges ? t('history.noDifferences') : undefined}
         >
           <RotateCcw className="mr-1 size-3" />
           {t('history.restore')}

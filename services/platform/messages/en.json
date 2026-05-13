@@ -193,7 +193,9 @@
       "default": "default",
       "untranslated": "untranslated",
       "autoTranslate": "Auto-translate"
-    }
+    },
+    "retry": "Retry",
+    "saving": "Saving…"
   },
   "navigation": {
     "chatWithAI": "Chat with AI",
@@ -4317,7 +4319,8 @@
     "tabs": {
       "all": "All",
       "team": "Team",
-      "personal": "Personal"
+      "personal": "Personal",
+      "global": "Global"
     },
     "library": {
       "title": "Prompt library",
@@ -4329,7 +4332,10 @@
     },
     "emptyState": {
       "title": "No prompts yet",
-      "description": "Create your first prompt to save and reuse it across conversations"
+      "description": "Create your first prompt to save and reuse it across conversations",
+      "filteredTitle": "No matching prompts",
+      "filteredDescription": "Try clearing your search or filters.",
+      "clearFilters": "Clear filters"
     },
     "actions": {
       "create": "Create prompt",
@@ -4339,7 +4345,8 @@
       "copy": "Copy",
       "copied": "Copied!",
       "viewHistory": "Version history",
-      "viewHistoryDisabled": "No previous versions"
+      "viewHistoryDisabled": "No previous versions",
+      "copyFailed": "Could not copy to clipboard"
     },
     "deleteConfirm": {
       "title": "Delete prompt",
@@ -4371,11 +4378,11 @@
       "save": "Save",
       "create": "Create",
       "bytesUsed": "{used} / {max}",
-      "bytesOverLimit": "Over limit",
       "versionConflictTitle": "Newer version available",
       "versionConflictDescription": "Someone saved v{version} while you were editing. Load the latest to re-anchor before saving.",
       "versionConflictDirtyWarning": "Your unsaved edits will be discarded.",
-      "loadLatest": "Load latest"
+      "loadLatest": "Load latest",
+      "bytesOverLimitAlert": "Content exceeds the size limit. Shorten the prompt to enable Save."
     },
     "saveAs": {
       "title": "Save prompt",
@@ -4393,7 +4400,9 @@
       "restoreStale": "Version history changed — refresh to retry",
       "rateLimited": "Saving too quickly — wait a moment before trying again",
       "forbidden": "You don't have permission for this prompt",
-      "notFound": "This prompt no longer exists"
+      "notFound": "This prompt no longer exists",
+      "tooLarge": "A field exceeds the allowed length",
+      "emptyContent": "Prompt content cannot be empty"
     },
     "version": {
       "badge": "v{version}"
@@ -4406,8 +4415,6 @@
       "compare": "Compare",
       "compareTitle": "Compare with v{version}",
       "compareDescription": "Published {date}",
-      "currentVersion": "Current (v{version})",
-      "snapshotVersion": "v{version}",
       "noDifferences": "No differences between these versions.",
       "backToList": "Back to history",
       "restore": "Restore",
@@ -4418,9 +4425,18 @@
       "diffAriaLabel": "Content difference",
       "empty": "No previous versions",
       "loadFailed": "Could not load version history",
-      "retry": "Try again",
       "publishedByOn": "By {name} · {date}",
-      "truncated": "Showing the latest {shown} versions. Older versions were pruned."
+      "versionsLabel": "Version history",
+      "metadataChanged": "Metadata changed",
+      "metadataDiffLabel": "Metadata changes",
+      "diffLegend": "Diff against v{snapshot} — − current (v{current}), + snapshot",
+      "metadataField": {
+        "title": "Title",
+        "description": "Description",
+        "category": "Category",
+        "tags": "Tags",
+        "scope": "Scope"
+      }
     },
     "categoryFilter": {
       "title": "By category"
@@ -4432,6 +4448,12 @@
     },
     "sidebar": {
       "sectionTitle": "Prompt library"
+    },
+    "tagsInput": {
+      "tooLong": "Tag must be {max} characters or fewer",
+      "atCap": "You’ve reached the {max}-tag limit",
+      "removeAria": "Remove tag {tag}",
+      "counter": "{count} / {max} tags"
     }
   },
   "mcpServers": {

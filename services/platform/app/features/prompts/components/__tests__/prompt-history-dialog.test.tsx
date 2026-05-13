@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { ConvexError } from 'convex/values';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
 import { render } from '@/test/utils/render';
 
-import type { PromptTemplate } from '../../hooks/queries';
+import type { PromptTemplate, PromptVersionEntry } from '../../hooks/queries';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -28,35 +29,31 @@ vi.mock('@/app/hooks/use-format-date', () => ({
   }),
 }));
 
+const toastMock = vi.fn();
 vi.mock('@/app/hooks/use-toast', () => ({
-  useToast: () => ({ toast: vi.fn() }),
+  useToast: () => ({ toast: toastMock }),
 }));
+
+function makeEntry(
+  version: number,
+  overrides: Partial<PromptVersionEntry> = {},
+): PromptVersionEntry {
+  return {
+    version,
+    content: `content ${version}`,
+    publishedAt: 1_700_000_000_000 + version * 1_000,
+    publishedBy: 'user-1',
+    publishedByName: 'Alice',
+    title: 'Test Prompt',
+    scope: 'personal',
+    ...overrides,
+  };
+}
 
 const refetchMock = vi.fn();
 const historyData = {
-  current: {
-    version: 3,
-    content: 'current content',
-    publishedAt: 1700000300000,
-    publishedBy: 'user-1',
-    publishedByName: 'Alice',
-  },
-  history: [
-    {
-      version: 2,
-      content: 'second content',
-      publishedAt: 1700000200000,
-      publishedBy: 'user-1',
-      publishedByName: 'Alice',
-    },
-    {
-      version: 1,
-      content: 'first content',
-      publishedAt: 1700000100000,
-      publishedBy: 'user-1',
-      publishedByName: 'Alice',
-    },
-  ],
+  current: makeEntry(3),
+  history: [makeEntry(2), makeEntry(1)],
   totalCount: 3,
 };
 
@@ -76,7 +73,7 @@ vi.mock('../../hooks/queries', () => ({
   usePromptHistory: () => mockHistoryResult,
 }));
 
-const restoreMock = vi.fn().mockResolvedValue(undefined);
+const restoreMock = vi.fn();
 vi.mock('../../hooks/mutations', () => ({
   useRestorePromptFromVersion: () => ({
     mutateAsync: restoreMock,
@@ -92,7 +89,7 @@ const basePrompt: PromptTemplate = {
   organizationId: 'org-1',
   createdBy: 'user-1',
   title: 'Test Prompt',
-  content: 'current content',
+  content: 'content 3',
   scope: 'personal',
   usageCount: 0,
   version: 3,
@@ -100,8 +97,10 @@ const basePrompt: PromptTemplate = {
 
 afterEach(() => {
   cleanup();
-  restoreMock.mockClear();
+  restoreMock.mockReset();
+  restoreMock.mockResolvedValue(undefined);
   refetchMock.mockClear();
+  toastMock.mockClear();
   mockHistoryResult = {
     data: historyData,
     isLoading: false,
@@ -127,13 +126,45 @@ describe('PromptHistoryDialog', () => {
     expect(screen.getByText('v1')).toBeInTheDocument();
   });
 
-  it('calls restore mutation with targetVersion on confirm', async () => {
+  it('exposes a listbox with role=option per version', () => {
     render(
       <PromptHistoryDialog open onOpenChange={vi.fn()} prompt={basePrompt} />,
     );
-    // Each non-current row has a Restore button. Click the v2 row's Restore
-    // (there are two Restore buttons total — one per non-current row, plus
-    // the confirm-dialog button after we open it).
+    const listbox = screen.getByRole('listbox', {
+      name: /prompts\.history\.versionsLabel/i,
+    });
+    expect(listbox).toBeInTheDocument();
+    expect(screen.getAllByRole('option')).toHaveLength(3);
+  });
+
+  it('arrow-key navigation updates aria-activedescendant', () => {
+    render(
+      <PromptHistoryDialog open onOpenChange={vi.fn()} prompt={basePrompt} />,
+    );
+    const listbox = screen.getByRole('listbox');
+    // initial: first option active
+    expect(listbox.getAttribute('aria-activedescendant')).toBe(
+      'prompt-version-option-0',
+    );
+    fireEvent.keyDown(listbox, { key: 'ArrowDown' });
+    expect(listbox.getAttribute('aria-activedescendant')).toBe(
+      'prompt-version-option-1',
+    );
+    fireEvent.keyDown(listbox, { key: 'End' });
+    expect(listbox.getAttribute('aria-activedescendant')).toBe(
+      'prompt-version-option-2',
+    );
+    fireEvent.keyDown(listbox, { key: 'Home' });
+    expect(listbox.getAttribute('aria-activedescendant')).toBe(
+      'prompt-version-option-0',
+    );
+  });
+
+  it('calls restore mutation with targetVersion and expectedVersion', async () => {
+    restoreMock.mockResolvedValueOnce(undefined);
+    render(
+      <PromptHistoryDialog open onOpenChange={vi.fn()} prompt={basePrompt} />,
+    );
     const restoreButtons = screen.getAllByText('prompts.history.restore');
     fireEvent.click(restoreButtons[0]);
     const confirmButton = await screen.findByRole('button', {
@@ -149,6 +180,32 @@ describe('PromptHistoryDialog', () => {
     });
   });
 
+  it('surfaces a restoreStale toast when server throws version_conflict', async () => {
+    restoreMock.mockRejectedValueOnce(
+      new ConvexError({
+        code: 'version_conflict',
+        currentVersion: 5,
+        expectedVersion: 3,
+      }),
+    );
+    render(
+      <PromptHistoryDialog open onOpenChange={vi.fn()} prompt={basePrompt} />,
+    );
+    fireEvent.click(screen.getAllByText('prompts.history.restore')[0]);
+    const confirmButton = await screen.findByRole('button', {
+      name: /prompts\.history\.restore/i,
+    });
+    fireEvent.click(confirmButton);
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'prompts.toast.restoreStale',
+          variant: 'destructive',
+        }),
+      );
+    });
+  });
+
   it('renders error state with retry when query fails', () => {
     mockHistoryResult = {
       data: null,
@@ -160,7 +217,7 @@ describe('PromptHistoryDialog', () => {
       <PromptHistoryDialog open onOpenChange={vi.fn()} prompt={basePrompt} />,
     );
     expect(screen.getByText('prompts.history.loadFailed')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('prompts.history.retry'));
+    fireEvent.click(screen.getByText('common.retry'));
     expect(refetchMock).toHaveBeenCalled();
   });
 });

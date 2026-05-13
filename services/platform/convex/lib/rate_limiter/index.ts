@@ -132,6 +132,22 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     capacity: 20,
     shards: 4,
   },
+  // Same shape as prompt:create — bounds storage churn from scripted edits
+  // that could FIFO-evict the version history (12 versions) within seconds.
+  'prompt:update': {
+    kind: 'token bucket',
+    rate: 10,
+    period: MINUTE,
+    capacity: 20,
+    shards: 4,
+  },
+  'prompt:restore': {
+    kind: 'token bucket',
+    rate: 10,
+    period: MINUTE,
+    capacity: 20,
+    shards: 4,
+  },
 
   // ============================================
   // TIER 4: Security (Fixed Window - strict)

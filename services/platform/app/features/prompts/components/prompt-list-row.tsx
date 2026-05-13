@@ -44,9 +44,14 @@ export function PromptListRow({
     onUse(prompt);
   }, [onUse, prompt]);
 
-  const handleCopy = useCallback(() => {
-    void navigator.clipboard.writeText(prompt.content);
-    toast({ title: t('actions.copied'), variant: 'success' });
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(prompt.content);
+      toast({ title: t('actions.copied'), variant: 'success' });
+    } catch (err) {
+      console.warn('[prompt-list-row] clipboard write failed', err);
+      toast({ title: t('actions.copyFailed'), variant: 'destructive' });
+    }
   }, [prompt.content, toast, t]);
 
   const menuItems: DropdownMenuGroup[] = useMemo(() => {
@@ -55,7 +60,9 @@ export function PromptListRow({
         type: 'item',
         label: t('actions.copy'),
         icon: Copy,
-        onClick: handleCopy,
+        onClick: () => {
+          void handleCopy();
+        },
       },
     ];
     if (onEdit) {
@@ -92,6 +99,7 @@ export function PromptListRow({
 
   return (
     <div
+      role="listitem"
       className={cn(
         'group hover:bg-accent/50 flex w-full items-center gap-3 p-3 transition-colors',
         !isLast && 'border-border border-b',
@@ -100,27 +108,29 @@ export function PromptListRow({
       <button
         type="button"
         onClick={handleUse}
-        className="min-w-0 flex-1 cursor-pointer text-left"
+        className="focus-visible:ring-ring min-w-0 flex-1 cursor-pointer rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
         <HStack gap={2} align="center" className="min-w-0">
-          <Text
-            as="div"
-            variant="label"
-            className="truncate text-sm font-medium"
-          >
+          <Text as="span" className="truncate text-sm font-medium">
             {prompt.title}
           </Text>
           {prompt.version !== undefined && prompt.version > 1 && (
             <Badge
               variant="outline"
               className="shrink-0 px-1.5 py-0 text-[10px] font-normal"
-              aria-hidden="true"
+              aria-label={t('version.badge', {
+                version: String(prompt.version),
+              })}
             >
               v{prompt.version}
             </Badge>
           )}
         </HStack>
-        <Text as="div" variant="muted" className="mt-0.5 line-clamp-1 text-xs">
+        <Text
+          as="span"
+          variant="muted"
+          className="mt-0.5 line-clamp-1 block text-xs"
+        >
           {prompt.content}
         </Text>
       </button>
@@ -131,8 +141,7 @@ export function PromptListRow({
           'shrink-0 transition-opacity',
           // Hover-reveal for mouse users; always-visible for touch (coarse
           // pointers) and keyboard-focus-within so the menu isn't reachable
-          // only by hover. Without these, the row's actions are invisible to
-          // touch and keyboard-only users.
+          // only by hover.
           menuOpen
             ? 'opacity-100'
             : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100',
@@ -144,7 +153,7 @@ export function PromptListRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7"
+                className="size-9"
                 aria-label={t('actions.more')}
                 onClick={(e) => e.stopPropagation()}
               >

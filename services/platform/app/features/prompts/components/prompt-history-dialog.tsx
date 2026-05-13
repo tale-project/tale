@@ -3,7 +3,14 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { RotateCcw } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -11,13 +18,15 @@ import { HStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
-import { MAX_PROMPT_VERSION_HISTORY } from '@/convex/prompts/constants';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import { useRestorePromptFromVersion } from '../hooks/mutations';
 import type { PromptTemplate, PromptVersionEntry } from '../hooks/queries';
 import { usePromptHistory } from '../hooks/queries';
+import { extractErrorCode } from '../lib/extract-error-code';
 import { PromptCompareView } from './prompt-compare-view';
+import { QueryErrorBlock } from './query-error-block';
 
 interface PromptHistoryDialogProps {
   open: boolean;
@@ -31,6 +40,21 @@ function previewSnippet(content: string): string {
   const collapsed = content.replace(/\s+/g, ' ').trim();
   if (collapsed.length <= PREVIEW_CHARS) return collapsed;
   return `${collapsed.slice(0, PREVIEW_CHARS)}…`;
+}
+
+/** Returns true if the entry's snapshot metadata differs from the current
+ * version — used to surface a "metadata changed" badge on the row. */
+function metadataChangedFromCurrent(
+  entry: PromptVersionEntry,
+  current: PromptVersionEntry,
+): boolean {
+  if (entry.title !== current.title) return true;
+  if (entry.scope !== current.scope) return true;
+  if (entry.category !== current.category) return true;
+  const aTags = entry.tags ?? [];
+  const bTags = current.tags ?? [];
+  if (aTags.length !== bTags.length) return true;
+  return aTags.some((t, i) => t !== bTags[i]);
 }
 
 export function PromptHistoryDialog({
@@ -52,6 +76,20 @@ export function PromptHistoryDialog({
   const [comparingVersion, setComparingVersion] =
     useState<PromptVersionEntry | null>(null);
   const [restoring, setRestoring] = useState<PromptVersionEntry | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const listboxRef = useRef<HTMLUListElement | null>(null);
+
+  const allVersions = useMemo<PromptVersionEntry[]>(() => {
+    if (!history) return [];
+    return [history.current, ...history.history];
+  }, [history]);
+
+  // Keep the active index in-bounds when the list shrinks (e.g. after restore).
+  useEffect(() => {
+    if (activeIndex >= allVersions.length && allVersions.length > 0) {
+      setActiveIndex(allVersions.length - 1);
+    }
+  }, [activeIndex, allVersions.length]);
 
   const handleRestoreConfirm = useCallback(async () => {
     if (!restoring || !history) return;
@@ -59,10 +97,6 @@ export function PromptHistoryDialog({
       await restore.mutateAsync({
         promptId: prompt._id,
         targetVersion: restoring.version,
-        // OCC: refuse restore if the current version moved since the
-        // dialog opened. Server throws `version_conflict`; we toast and
-        // bail. Live `usePromptHistory` subscription will refresh on its
-        // own and the user can retry.
         expectedVersion: history.current.version,
       });
       toast({
@@ -72,29 +106,66 @@ export function PromptHistoryDialog({
       setRestoring(null);
       setComparingVersion(null);
     } catch (err) {
-      console.error('[prompt-history] restore failed', err);
-      const isConflict =
-        err !== null &&
-        typeof err === 'object' &&
-        'data' in err &&
-        err.data !== null &&
-        typeof err.data === 'object' &&
-        'code' in err.data &&
-        (err.data as { code: unknown }).code === 'version_conflict';
-      toast({
-        title: isConflict ? t('toast.restoreStale') : t('toast.restoreFailed'),
-        variant: 'destructive',
-      });
-      if (isConflict) {
-        setRestoring(null);
+      const code = extractErrorCode(err);
+      const toastKey =
+        code === 'version_conflict'
+          ? 'toast.restoreStale'
+          : code === 'forbidden'
+            ? 'toast.forbidden'
+            : code === 'not_found' || code === 'version_not_found'
+              ? 'toast.notFound'
+              : code === 'rate_limited'
+                ? 'toast.rateLimited'
+                : code === 'too_large'
+                  ? 'toast.tooLarge'
+                  : 'toast.restoreFailed';
+      if (toastKey === 'toast.restoreFailed') {
+        console.error('[prompt-history] restore failed', err);
       }
+      toast({ title: t(toastKey), variant: 'destructive' });
+      setRestoring(null);
+      // If the snapshot we were comparing is now stale, close that view too
+      // so the user lands back on the refreshed list.
+      if (code === 'version_conflict') setComparingVersion(null);
     }
   }, [restoring, history, restore, prompt._id, toast, t]);
 
-  const allVersions = useMemo<PromptVersionEntry[]>(() => {
-    if (!history) return [];
-    return [history.current, ...history.history];
-  }, [history]);
+  const handleListKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLUListElement>) => {
+      if (allVersions.length === 0) return;
+      switch (e.key) {
+        case 'ArrowDown': {
+          e.preventDefault();
+          setActiveIndex((i) => Math.min(i + 1, allVersions.length - 1));
+          break;
+        }
+        case 'ArrowUp': {
+          e.preventDefault();
+          setActiveIndex((i) => Math.max(i - 1, 0));
+          break;
+        }
+        case 'Home': {
+          e.preventDefault();
+          setActiveIndex(0);
+          break;
+        }
+        case 'End': {
+          e.preventDefault();
+          setActiveIndex(allVersions.length - 1);
+          break;
+        }
+        case 'Enter': {
+          const entry = allVersions[activeIndex];
+          if (entry && activeIndex !== 0) {
+            e.preventDefault();
+            setComparingVersion(entry);
+          }
+          break;
+        }
+      }
+    },
+    [activeIndex, allVersions],
+  );
 
   // Stay reactive to fresh server state so the confirm copy doesn't drift if
   // a concurrent edit lands while the dialog is open.
@@ -107,6 +178,11 @@ export function PromptHistoryDialog({
   const dialogDescription = comparingVersion
     ? undefined
     : t('history.dialogDescription');
+
+  const optionId = useCallback(
+    (idx: number) => `prompt-version-option-${idx}`,
+    [],
+  );
 
   return (
     <>
@@ -126,7 +202,11 @@ export function PromptHistoryDialog({
             onBack={() => setComparingVersion(null)}
           />
         ) : historyQuery.isLoading ? (
-          <div className="flex flex-col gap-2 py-2">
+          <div
+            className="flex flex-col gap-2 py-2"
+            role="status"
+            aria-busy="true"
+          >
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
@@ -137,32 +217,42 @@ export function PromptHistoryDialog({
             <span className="sr-only">{t('history.loading')}</span>
           </div>
         ) : historyQuery.isError ? (
-          <div className="flex flex-col items-center gap-3 py-6">
-            <Text variant="muted" className="text-sm">
-              {t('history.loadFailed')}
-            </Text>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => historyQuery.refetch()}
-            >
-              {t('history.retry')}
-            </Button>
-          </div>
+          <QueryErrorBlock
+            message={t('history.loadFailed')}
+            onRetry={() => historyQuery.refetch()}
+          />
         ) : !history || allVersions.length === 0 ? (
           <Text variant="muted" className="py-4 text-center text-sm">
             {t('history.empty')}
           </Text>
         ) : (
           <>
-            <ul className="divide-border max-h-[60vh] divide-y overflow-y-auto">
+            <ul
+              ref={listboxRef}
+              role="listbox"
+              aria-label={t('history.versionsLabel')}
+              aria-activedescendant={optionId(activeIndex)}
+              tabIndex={0}
+              onKeyDown={handleListKeyDown}
+              className="divide-border focus-visible:ring-ring max-h-[60vh] divide-y overflow-y-auto rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+            >
               {allVersions.map((entry, idx) => {
                 const isCurrent = idx === 0;
+                const isActive = idx === activeIndex;
+                const metaChanged =
+                  !isCurrent &&
+                  history &&
+                  metadataChangedFromCurrent(entry, history.current);
                 return (
                   <li
                     key={entry.version}
-                    className="flex items-start justify-between gap-3 py-3"
+                    id={optionId(idx)}
+                    role="option"
+                    aria-selected={isActive}
+                    className={cn(
+                      'flex items-start justify-between gap-3 px-2 py-3',
+                      isActive && 'bg-muted/40',
+                    )}
                   >
                     <div className="min-w-0 flex-1">
                       <HStack gap={2} align="center">
@@ -172,6 +262,11 @@ export function PromptHistoryDialog({
                         {isCurrent && (
                           <Badge variant="outline" className="text-[10px]">
                             {t('history.current')}
+                          </Badge>
+                        )}
+                        {metaChanged && (
+                          <Badge variant="blue" className="text-[10px]">
+                            {t('history.metadataChanged')}
                           </Badge>
                         )}
                         <Text variant="muted" className="text-xs">
@@ -201,6 +296,7 @@ export function PromptHistoryDialog({
                             type="button"
                             variant="ghost"
                             size="sm"
+                            tabIndex={-1}
                             onClick={() => setComparingVersion(entry)}
                             aria-label={t('history.compareVersionAria', {
                               version: String(entry.version),
@@ -212,6 +308,7 @@ export function PromptHistoryDialog({
                             type="button"
                             variant="ghost"
                             size="sm"
+                            tabIndex={-1}
                             onClick={() => setRestoring(entry)}
                             aria-label={t('history.restoreVersionAria', {
                               version: String(entry.version),
@@ -227,13 +324,6 @@ export function PromptHistoryDialog({
                 );
               })}
             </ul>
-            {allVersions.length >= MAX_PROMPT_VERSION_HISTORY && (
-              <Text variant="muted" className="px-1 pt-2 text-xs">
-                {t('history.truncated', {
-                  shown: String(allVersions.length),
-                })}
-              </Text>
-            )}
           </>
         )}
       </Dialog>

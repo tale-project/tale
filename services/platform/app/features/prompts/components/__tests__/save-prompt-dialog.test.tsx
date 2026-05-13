@@ -32,7 +32,6 @@ vi.mock('@/app/hooks/use-toast', () => ({
 }));
 
 vi.mock('../../hooks/mutations', () => ({
-  useCreatePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSavePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 

@@ -1,7 +1,5 @@
 import { v } from 'convex/values';
 
-import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
-
 export const promptScopeValidator = v.union(
   v.literal('global'),
   v.literal('team'),
@@ -9,8 +7,9 @@ export const promptScopeValidator = v.union(
 );
 
 /**
- * Stored shape (matches `versionHistory` array entries on disk). Used by
- * `promptTemplateValidator` since the row itself only stores `publishedBy`.
+ * Stored shape (matches `versionHistory` array entries on disk). Each entry
+ * snapshots the full row state at that version — content + metadata — so
+ * Restore re-applies everything, not just content.
  */
 const promptVersionEntryStoredValidator = v.object({
   version: v.number(),
@@ -22,24 +21,37 @@ const promptVersionEntryStoredValidator = v.object({
    * set this field, but reads must still validate cleanly on legacy data.
    */
   publishNote: v.optional(v.string()),
+  title: v.string(),
+  description: v.optional(v.string()),
+  category: v.optional(v.string()),
+  tags: v.optional(v.array(v.string())),
+  scope: promptScopeValidator,
+  teamId: v.optional(v.string()),
 });
 
 /**
- * History-API shape returned by `getPromptHistory`. Includes a server-resolved
- * `publishedByName` so the UI doesn't have to do an N+1 user lookup. Null when
- * the user record has been deleted or the userId can't be resolved.
+ * History-API shape returned by `getPromptHistory`. Wraps the stored entry
+ * with a server-resolved `publishedByName` so the UI doesn't have to do an
+ * N+1 user lookup. `publishedByName` is null when the userId can't be
+ * resolved (deleted user, etc.).
  */
-export const promptVersionEntryValidator = v.object({
+const promptVersionEntryValidator = v.object({
   version: v.number(),
   content: v.string(),
   publishedAt: v.number(),
   publishedBy: v.string(),
   publishedByName: v.union(v.string(), v.null()),
   publishNote: v.optional(v.string()),
+  title: v.string(),
+  description: v.optional(v.string()),
+  category: v.optional(v.string()),
+  tags: v.optional(v.array(v.string())),
+  scope: promptScopeValidator,
+  teamId: v.optional(v.string()),
 });
 
 /**
- * Fields shared by full `getPrompt`/mutation returns and the
+ * Fields shared by full `getPrompt` / mutation returns and the
  * `listPrompts` list-item shape. Pulling these out keeps the two validators
  * in lock-step — the only intentional difference is that the list-item
  * shape omits `versionHistory` (use getPromptHistory for that).
@@ -57,25 +69,16 @@ const promptTemplateBaseFields = {
   category: v.optional(v.string()),
   tags: v.optional(v.array(v.string())),
   usageCount: v.number(),
-  /** @deprecated No longer used; retained as optional for backwards compatibility with existing rows. */
-  isPublished: v.optional(v.boolean()),
   sourceMessageId: v.optional(v.string()),
   version: v.optional(v.number()),
 } as const;
 
 export const promptTemplateValidator = v.object({
   ...promptTemplateBaseFields,
-  /**
-   * @deprecated Prompt deletion is now hard-delete; these fields are kept
-   * as optional only so legacy rows that still carry a `lifecycleStatus`
-   * value pass validation on full-doc reads. Note: `listPrompts` shapes its
-   * own payload via `toListItem` and intentionally omits these to keep them
-   * off the wire.
-   */
-  lifecycleStatus: v.optional(lifecycleStatusValidator),
-  statusChangedAt: v.optional(v.number()),
   versionHistory: v.optional(v.array(promptVersionEntryStoredValidator)),
 });
+
+export const promptListItemValidator = v.object(promptTemplateBaseFields);
 
 export const promptHistoryResultValidator = v.object({
   current: promptVersionEntryValidator,

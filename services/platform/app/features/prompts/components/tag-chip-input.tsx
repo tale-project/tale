@@ -1,0 +1,157 @@
+'use client';
+
+import { Badge } from '@tale/ui/badge';
+import { X } from 'lucide-react';
+import { useCallback, useId, useState, type KeyboardEvent } from 'react';
+
+import { Input } from '@/app/components/ui/forms/input';
+import { Text } from '@/app/components/ui/typography/text';
+import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+
+interface TagChipInputProps {
+  value: string[];
+  onChange: (next: string[]) => void;
+  /** Maximum number of tags. Counter turns destructive at the cap. */
+  maxTags: number;
+  /** Maximum characters per tag; over-length adds are rejected inline. */
+  maxTagLength: number;
+  /** Visible label rendered above the chips. */
+  label: string;
+  /** Optional placeholder for the text input. */
+  placeholder?: string;
+  /** Optional secondary description rendered below the counter. */
+  description?: string;
+  className?: string;
+}
+
+/**
+ * Controlled tag input with chip rendering and inline validation.
+ *
+ * - Enter or comma commits the current input (after trim + dedupe).
+ * - Backspace on an empty input removes the last chip.
+ * - Per-tag length is enforced; over-length attempts show an inline error.
+ * - Tag count is capped at `maxTags`; counter turns destructive at the cap.
+ *
+ * The component never throws. It is the caller's responsibility to clamp
+ * `value` (e.g. when hydrating from server data). Whitespace-only tags are
+ * silently dropped on commit.
+ */
+export function TagChipInput({
+  value,
+  onChange,
+  maxTags,
+  maxTagLength,
+  label,
+  placeholder,
+  description,
+  className,
+}: TagChipInputProps) {
+  const { t } = useT('prompts');
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const counterId = useId();
+  const errorId = useId();
+
+  const atCap = value.length >= maxTags;
+
+  const commit = useCallback(
+    (raw: string) => {
+      const tag = raw.trim();
+      if (tag === '') return;
+      if (tag.length > maxTagLength) {
+        setError(t('tagsInput.tooLong', { max: String(maxTagLength) }));
+        return;
+      }
+      if (atCap) {
+        setError(t('tagsInput.atCap', { max: String(maxTags) }));
+        return;
+      }
+      if (value.includes(tag)) {
+        // Silent dedupe — clear the draft, no error.
+        setDraft('');
+        setError(null);
+        return;
+      }
+      onChange([...value, tag]);
+      setDraft('');
+      setError(null);
+    },
+    [atCap, maxTagLength, maxTags, onChange, t, value],
+  );
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        commit(draft);
+        return;
+      }
+      if (e.key === 'Backspace' && draft === '' && value.length > 0) {
+        e.preventDefault();
+        const next = value.slice(0, -1);
+        onChange(next);
+        setError(null);
+      }
+    },
+    [commit, draft, onChange, value],
+  );
+
+  const removeAt = useCallback(
+    (idx: number) => {
+      onChange(value.filter((_, i) => i !== idx));
+      setError(null);
+    },
+    [onChange, value],
+  );
+
+  return (
+    <div className={cn('flex flex-col gap-1.5', className)}>
+      {value.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {value.map((tag, idx) => (
+            <Badge
+              key={`${tag}-${idx}`}
+              variant="outline"
+              className="gap-1 pr-1 pl-2"
+            >
+              <span>{tag}</span>
+              <button
+                type="button"
+                onClick={() => removeAt(idx)}
+                aria-label={t('tagsInput.removeAria', { tag })}
+                className="hover:bg-muted-foreground/20 focus-visible:ring-ring rounded-sm p-0.5 focus-visible:ring-2 focus-visible:outline-none"
+              >
+                <X className="size-3" aria-hidden="true" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+      <Input
+        label={label}
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          if (error) setError(null);
+        }}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        errorMessage={error ?? undefined}
+        aria-describedby={`${counterId}${error ? ` ${errorId}` : ''}`}
+        disabled={atCap}
+      />
+      <Text
+        id={counterId}
+        variant="muted"
+        className={cn('text-xs', atCap && 'text-destructive')}
+      >
+        {t('tagsInput.counter', {
+          count: String(value.length),
+          max: String(maxTags),
+        })}
+        {description ? ` · ${description}` : ''}
+      </Text>
+    </div>
+  );
+}
