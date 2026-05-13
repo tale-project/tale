@@ -1,10 +1,9 @@
 {
-  "_note": "Generated-by-hand (for now) glossary consumed by docs/scripts/lint-terminology.ts. Keep in sync with .agents/TERMINOLOGY_*.md — the markdown files are the human source of truth; this JSON is the machine-readable projection. Each entry in enToLocale[locale] maps an English product term to the shipped UI translation that docs in that locale must use. Entries where the English term equals the locale term are loanwords — not flagged. formalPronouns lists words that indicate the wrong politeness form; docs must use the informal form.",
+  "_note": "Generated-by-hand (for now) glossary consumed by services/docs/tests/terminology.test.ts. Keep in sync with .agents/terminology/TERMINOLOGY_*.md — the markdown files are the human source of truth; this JSON is the machine-readable projection. Each entry in enToLocale[locale] maps an English product term to the shipped UI translation that docs in that locale must use. Entries where the English term equals the locale term are loanwords — not flagged. formalPronouns lists words that indicate the wrong politeness form; docs must use the informal form.",
   "enToLocale": {
     "de": {
       "Prompt Library": "Prompt-Bibliothek",
       "Knowledge Base": "Wissensdatenbank",
-      "Arbeitsbereich": "Arbeitsbereich",
       "Workspace": "Arbeitsbereich",
       "Settings": "Einstellungen",
       "Chat with AI": "Chat mit KI",
@@ -17,6 +16,7 @@
       "Approvals": "Genehmigungen",
       "Research plan": "Recherche-Plan",
       "Todo list": "Recherche-Plan",
+      "Todo List": "Recherche-Plan",
       "Owner": "Inhaber",
       "Owners": "Inhaber",
       "Developer": "Entwickler",
@@ -47,6 +47,7 @@
       "Approvals": "Approbations",
       "Research plan": "Plan de recherche",
       "Todo list": "Plan de recherche",
+      "Todo List": "Plan de recherche",
       "Owner": "Propriétaire",
       "Owners": "Propriétaires",
       "Developer": "Développeur",

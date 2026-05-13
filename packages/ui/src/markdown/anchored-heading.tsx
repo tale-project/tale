@@ -134,9 +134,8 @@ export function AnchoredHeading({
         onClick={handleCopy}
         aria-label={copied ? 'Link copied' : 'Copy link to this section'}
         aria-live="polite"
-        // Hidden until hover/focus so the chrome stays calm on touch devices,
-        // matching the Mintlify pattern. `print:hidden` keeps printed pages
-        // free of the affordance.
+        // Hidden until hover/focus so the chrome stays calm on touch devices.
+        // `print:hidden` keeps printed pages free of the affordance.
         className={`text-fg-muted hover:text-fg-base ml-2 inline-flex size-6 items-center justify-center rounded-md align-middle opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-current/20 print:hidden ${
           copied ? 'text-emerald-600 opacity-100 dark:text-emerald-400' : ''
         }`}

@@ -8,8 +8,8 @@
  *
  *   <blank line>
  *
- * matches the format Mintlify currently emits at
- * https://docs.tale.dev/llms-full.txt so existing consumers stay happy.
+ * matches the format emitted at https://docs.tale.dev/llms-full.txt so
+ * existing consumers stay happy.
  */
 
 export interface LlmsFullTxtPage {

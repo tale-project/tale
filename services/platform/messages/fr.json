@@ -54,7 +54,7 @@
       "deleteSelected": "Supprimer la sélection"
     },
     "confirmDialog": {
-      "typeToConfirmLabel": "Tapez \"{phrase}\" pour confirmer"
+      "typeToConfirmLabel": "Tape \"{phrase}\" pour confirmer"
     },
     "bulkActions": {
       "itemsSelected": "{count, plural, one {# élément sélectionné} other {# éléments sélectionnés}}",
@@ -83,7 +83,7 @@
     },
     "labels": {
       "name": "Nom",
-      "email": "E-mail",
+      "email": "Email",
       "status": "Statut",
       "phone": "Téléphone",
       "source": "Source",
@@ -120,7 +120,7 @@
     },
     "validation": {
       "required": "{field} est requis",
-      "email": "Entre une adresse e-mail valide",
+      "email": "Entre une adresse email valide",
       "invalidJson": "Format JSON invalide",
       "uploadFile": "Téléverse un fichier",
       "unsupportedFileType": "Type de fichier non pris en charge",
@@ -297,7 +297,7 @@
       "actions": "Actions",
       "created": "Créé",
       "description": "Description",
-      "email": "E-mail",
+      "email": "Email",
       "product": "Produit",
       "scanned": "Analysé",
       "stock": "Stock",
@@ -307,7 +307,7 @@
     "cells": {
       "unknown": "Inconnu",
       "empty": "-",
-      "noEmail": "Aucun e-mail"
+      "noEmail": "Aucun email"
     }
   },
   "toast": {
@@ -365,16 +365,16 @@
     }
   },
   "auth": {
-    "email": "E-mail",
+    "email": "Email",
     "password": "Mot de passe",
-    "emailPlaceholder": "Entre ton adresse e-mail",
+    "emailPlaceholder": "Entre ton adresse email",
     "passwordPlaceholder": "Entre ton mot de passe",
     "login": {
       "loginTitle": "Connexion",
       "signingIn": "Connexion en cours...",
       "loginButton": "Se connecter",
       "continueWithSso": "Continuer avec SSO",
-      "wrongCredentials": "E-mail ou mot de passe incorrect",
+      "wrongCredentials": "Email ou mot de passe incorrect",
       "accountLockedGeneric": "Compte temporairement verrouillé en raison d'échecs répétés. Merci de réessayer plus tard ou de contacter un administrateur.",
       "accountLockedSeconds": "Compte temporairement verrouillé. Réessaie dans {seconds, plural, one {# seconde} other {# secondes}}, ou contacte un administrateur.",
       "accountLockedMinutes": "Compte temporairement verrouillé. Réessaie dans {minutes, plural, one {# minute} other {# minutes}}, ou contacte un administrateur.",
@@ -393,10 +393,10 @@
       "creating": "Création...",
       "createButton": "Créer",
       "accountCreated": "Compte créé avec succès !",
-      "wrongCredentials": "E-mail ou mot de passe incorrect"
+      "wrongCredentials": "Email ou mot de passe incorrect"
     },
     "validation": {
-      "emailRequired": "L'e-mail est requis",
+      "emailRequired": "L'email est requis",
       "passwordMinLength": "Le mot de passe doit contenir au moins {n} caractères",
       "passwordLowercase": "Le mot de passe doit contenir une lettre minuscule",
       "passwordUppercase": "Le mot de passe doit contenir une lettre majuscule",
@@ -466,7 +466,7 @@
     },
     "setPassword": {
       "title": "Définir un mot de passe",
-      "description": "Ton compte utilise une connexion externe. Définis un mot de passe pour te connecter également avec ton e-mail et un mot de passe.",
+      "description": "Ton compte utilise une connexion externe. Définis un mot de passe pour te connecter également avec ton email et un mot de passe.",
       "newPassword": "Nouveau mot de passe",
       "confirmPassword": "Confirmer le mot de passe"
     }
@@ -477,7 +477,7 @@
       "profile": {
         "name": "Nom d'affichage",
         "namePlaceholder": "Entre ton nom",
-        "email": "E-mail",
+        "email": "Email",
         "nameRequired": "Le nom est requis"
       },
       "security": {
@@ -518,7 +518,7 @@
       "memberUpdateFailed": "Échec de la mise à jour du membre",
       "memberRemoved": "Membre retiré avec succès",
       "memberRemoveFailed": "Échec du retrait du membre",
-      "emailCannotChange": "L'e-mail ne peut pas être modifié",
+      "emailCannotChange": "L'email ne peut pas être modifié",
       "cannotChangeOwnRole": "Tu ne peux pas modifier ton propre rôle",
       "updatePassword": "Mettre à jour le mot de passe",
       "enterNewPassword": "Entre le nouveau mot de passe",
@@ -1043,13 +1043,13 @@
       "saveFailed": "Échec de l'enregistrement du fournisseur",
       "deleteFailed": "Échec de la suppression du fournisseur",
       "secretSaveFailed": "Échec de l'enregistrement de la clé API",
-      "forbiddenDeveloperSettings": "Vous n'avez pas l'autorisation de modifier la configuration du fournisseur.",
+      "forbiddenDeveloperSettings": "Tu n'as pas l'autorisation de modifier la configuration du fournisseur.",
       "providerOptions": {
         "providerLevelTitle": "Avancé — Options du fournisseur",
-        "providerLevelDescription": "JSON libre transmis tel quel comme champs de corps de requête supplémentaires à chaque modèle de ce fournisseur. La forme est dictée par l'API en amont — Tale n'interprète pas ces champs, il les transmet simplement.\n\nLes options disponibles dépendent du type de fournisseur — passerelle de routage ou fournisseur d'inférence direct :\n\nLes passerelles agrègent plusieurs backends et exposent des contrôles de routage :\n• OpenRouter — les options de routage se trouvent sous une clé \"provider\" de premier niveau (choix de la quantisation, politique de repli, backends autorisés, etc.) :\n    { \"provider\": { \"quantizations\": [\"fp8\"], \"allow_fallbacks\": false } }\n• Vercel AI Gateway — route principalement via le préfixe d'ID de modèle et les en-têtes HTTP ; le passthrough au niveau du corps est limité aux champs d'observabilité comme \"metadata\" :\n    { \"metadata\": { \"tale_agent\": \"support\" } }\n\nLes fournisseurs directs hébergent leurs propres modèles — il n'y a pas de couche de routage ni de champ \"quantizations\" ; la précision est figée au déploiement. Leurs champs passthrough sont des paramètres de comportement du modèle au niveau supérieur du corps :\n• OpenAI :\n    { \"service_tier\": \"priority\", \"parallel_tool_calls\": false }\n• Together AI :\n    { \"safety_model\": \"meta-llama/Llama-Guard-4-12B\", \"repetition_penalty\": 1.1 }\n\nConsultez la documentation API de chaque fournisseur pour les noms de champs et valeurs acceptées exacts.",
+        "providerLevelDescription": "JSON libre transmis tel quel comme champs de corps de requête supplémentaires à chaque modèle de ce fournisseur. La forme est dictée par l'API en amont — Tale n'interprète pas ces champs, il les transmet simplement.\n\nLes options disponibles dépendent du type de fournisseur — passerelle de routage ou fournisseur d'inférence direct :\n\nLes passerelles agrègent plusieurs backends et exposent des contrôles de routage :\n• OpenRouter — les options de routage se trouvent sous une clé \"provider\" de premier niveau (choix de la quantisation, politique de repli, backends autorisés, etc.) :\n    { \"provider\": { \"quantizations\": [\"fp8\"], \"allow_fallbacks\": false } }\n• Vercel AI Gateway — route principalement via le préfixe d'ID de modèle et les en-têtes HTTP ; le passthrough au niveau du corps est limité aux champs d'observabilité comme \"metadata\" :\n    { \"metadata\": { \"tale_agent\": \"support\" } }\n\nLes fournisseurs directs hébergent leurs propres modèles — il n'y a pas de couche de routage ni de champ \"quantizations\" ; la précision est figée au déploiement. Leurs champs passthrough sont des paramètres de comportement du modèle au niveau supérieur du corps :\n• OpenAI :\n    { \"service_tier\": \"priority\", \"parallel_tool_calls\": false }\n• Together AI :\n    { \"safety_model\": \"meta-llama/Llama-Guard-4-12B\", \"repetition_penalty\": 1.1 }\n\nConsulte la documentation API de chaque fournisseur pour les noms de champs et valeurs acceptées exacts.",
         "modelLevelTitle": "Avancé — Options du fournisseur",
         "modelLevelDescription": "JSON libre fusionné par-dessus les valeurs par défaut du fournisseur et transmis comme champs de corps de requête supplémentaires. La forme suit l'API en amont et diffère selon le fournisseur — Tale transmet le JSON tel quel sans interprétation.",
-        "modelLevelHelp": "Exemples — passerelles et fournisseurs directs exposent des types d'options différents :\n• OpenRouter (passerelle) : { \"provider\": { \"quantizations\": [\"fp8\"] } } — épingle un backend par quantisation\n• Vercel AI Gateway (passerelle) : { \"metadata\": { \"tale_agent\": \"support\" } } — étiquette d'observabilité (routage principalement via en-têtes ou préfixe de modèle)\n• OpenAI (direct) : { \"service_tier\": \"priority\" } — choix d'un palier SLA\n• Together AI (direct) : { \"safety_model\": \"meta-llama/Llama-Guard-4-12B\" } — applique la modération\n\nLes fournisseurs directs n'exposent pas la quantisation comme champ de requête — choisissez un autre ID de modèle à la place. Les clés comme model / messages / max_tokens / temperature sont rejetées — configurez-les au niveau de l'agent. Une entrée vide efface la surcharge.",
+        "modelLevelHelp": "Exemples — passerelles et fournisseurs directs exposent des types d'options différents :\n• OpenRouter (passerelle) : { \"provider\": { \"quantizations\": [\"fp8\"] } } — épingle un backend par quantisation\n• Vercel AI Gateway (passerelle) : { \"metadata\": { \"tale_agent\": \"support\" } } — étiquette d'observabilité (routage principalement via en-têtes ou préfixe de modèle)\n• OpenAI (direct) : { \"service_tier\": \"priority\" } — choix d'un palier SLA\n• Together AI (direct) : { \"safety_model\": \"meta-llama/Llama-Guard-4-12B\" } — applique la modération\n\nLes fournisseurs directs n'exposent pas la quantisation comme champ de requête — choisis un autre ID de modèle à la place. Les clés comme model / messages / max_tokens / temperature sont rejetées — configure-les au niveau de l'agent. Une entrée vide efface la surcharge.",
         "notConfigured": "Non configuré — utilise les valeurs par défaut du fournisseur / d'exécution.",
         "indicator": "Options personnalisées",
         "save": "Enregistrer les options",
@@ -1071,7 +1071,7 @@
       "overwriteUndecryptableDescription": "Le fichier de secrets du fournisseur situé à {path} n'a pas pu être lu ({reason}). Enregistrer écrasera le fichier existant — la clé précédente ne pourra pas être récupérée. Continuer ?",
       "overwriteAnywayConfirm": "Écraser quand même",
       "encryptedNoKeyTitle": "Les secrets du fournisseur sont chiffrés mais aucune clé n'est définie",
-      "encryptedNoKeyDescription": "Le fichier de secrets situé à {path} est chiffré avec SOPS, mais ni SOPS_AGE_KEY ni SOPS_AGE_KEY_FILE n'est défini dans .env. Définissez l'un d'eux pour déchiffrer, ou enregistrez une nouvelle clé d'API ci-dessous pour écraser le fichier chiffré.",
+      "encryptedNoKeyDescription": "Le fichier de secrets situé à {path} est chiffré avec SOPS, mais ni SOPS_AGE_KEY ni SOPS_AGE_KEY_FILE n'est défini dans .env. Définis l'une de ces variables pour déchiffrer, ou enregistre une nouvelle clé d'API ci-dessous pour écraser le fichier chiffré.",
       "save": "Enregistrer",
       "saving": "Enregistrement...",
       "saveKey": "Enregistrer la clé",
@@ -1149,8 +1149,8 @@
     "form": {
       "name": "Nom",
       "namePlaceholder": "Saisis le nom complet",
-      "email": "E-mail",
-      "emailPlaceholder": "Saisis l'adresse e-mail",
+      "email": "Email",
+      "emailPlaceholder": "Saisis l'adresse email",
       "password": "Mot de passe",
       "passwordPlaceholder": "Saisis le mot de passe",
       "role": "Rôle",
@@ -1317,7 +1317,7 @@
     "metrics": {
       "link": "Voir les métriques",
       "title": "Métriques des workflows",
-      "description": "Indicateurs d'utilisation et de performance de vos automatisations.",
+      "description": "Indicateurs d'utilisation et de performance de tes automatisations.",
       "cappedNotice": "Affichage des 5 000 exécutions les plus récentes sur cette période. Les exécutions plus anciennes ne sont pas incluses dans ces totaux.",
       "period": {
         "last7Days": "7 derniers jours",
@@ -1764,7 +1764,7 @@
       "noMessages": "Aucun message pour l'instant",
       "invalidFileAttachment": "Pièce jointe de fichier invalide",
       "defaultSubject": "Re : Conversation",
-      "customerEmailNotFound": "Impossible d'envoyer l'e-mail : adresse e-mail du client introuvable",
+      "customerEmailNotFound": "Impossible d'envoyer l'email : adresse email du client introuvable",
       "replySubjectPrefix": "Re : {subject}",
       "loadFailed": "Échec du chargement de la conversation",
       "loadFailedDescription": "Une erreur s'est produite lors du chargement de cette conversation.",
@@ -1786,8 +1786,8 @@
     },
     "activate": {
       "title": "Activer les conversations",
-      "description": "Connecte ton e-mail pour commencer avec les conversations",
-      "connectEmail": "Connecter l'e-mail"
+      "description": "Connecte ton email pour commencer avec les conversations",
+      "connectEmail": "Connecter l'email"
     },
     "filter": {
       "label": "Filtrer par statut de lecture",
@@ -1980,7 +1980,7 @@
     "moreActions": "Plus d'actions",
     "deleteChat": "Supprimer le chat",
     "deleteConfirmation": "Es-tu sûr de vouloir supprimer {title} ?",
-    "deletePermanentMessage": "Déplacer le chat vers la corbeille. Vous pouvez le restaurer pendant la période de grâce de l'organisation ; ensuite la rétention supprime définitivement le chat et ses messages.",
+    "deletePermanentMessage": "Déplacer le chat vers la corbeille. Tu peux le restaurer pendant la période de grâce de l'organisation ; ensuite la rétention supprime définitivement le chat et ses messages.",
     "deleteFailed": "Échec de la suppression du chat",
     "archive": "Archiver",
     "unarchive": "Désarchiver",
@@ -2083,7 +2083,7 @@
     "searchConversations": "Rechercher dans les conversations",
     "invalidFiles": "Fichiers invalides",
     "fileSizeExceededMultiple": "{names} dépasse(nt) la limite de taille de fichier de {maxSize} Mo.",
-    "audioDurationExceeded": "{names} : l'audio dépasse la limite de {maxHours} heures. Veuillez le découper en segments plus courts.",
+    "audioDurationExceeded": "{names} : l'audio dépasse la limite de {maxHours} heures. Découpe-le en segments plus courts.",
     "fileTypeNotAllowed": "{names} : type de fichier non autorisé par la politique de téléversement.",
     "fileUploaded": "Fichier téléversé",
     "uploadedSuccessfully": "{filename} téléversé avec succès",
@@ -2133,9 +2133,9 @@
       "editingLatest": "Modifier la dernière image",
       "dismiss": "Ne pas référencer cette image",
       "change": "Changer",
-      "placeholder": "Décrivez la modification…",
-      "placeholderCreate": "Décrivez une image à créer…",
-      "modelCannotEdit": "Ce modèle ne crée que de nouvelles images. Passez à un modèle d'édition pour appliquer des modifications.",
+      "placeholder": "Décris la modification…",
+      "placeholderCreate": "Décris une image à créer…",
+      "modelCannotEdit": "Ce modèle ne crée que de nouvelles images. Passe à un modèle d'édition pour appliquer des modifications.",
       "pickAnImage": "Choisir une image à modifier",
       "noOtherImages": "Aucune autre image dans ce fil."
     },
@@ -2307,7 +2307,7 @@
       "streamingWriting": "L'IA écrit…",
       "streamingPatch": "L'IA modifie…",
       "cancel": "Annuler la modification",
-      "streamingDuringEdit": "L'agent met à jour cet artéfact — votre brouillon est conservé. Cliquez sur Annuler pour le rejeter."
+      "streamingDuringEdit": "L'agent met à jour cet artéfact — ton brouillon est conservé. Clique sur Annuler pour le rejeter."
     },
     "artifacts": {
       "barLabel": "Artéfacts dans ce fil",
@@ -2704,8 +2704,8 @@
     "updateError": "Échec de la mise à jour du client",
     "name": "Nom",
     "namePlaceholder": "Saisir le nom du client",
-    "email": "E-mail",
-    "emailPlaceholder": "Saisir l'adresse e-mail",
+    "email": "Email",
+    "emailPlaceholder": "Saisir l'adresse email",
     "locale": "Langue",
     "localePlaceholder": "ex. en-US",
     "status": "Statut",
@@ -2723,7 +2723,7 @@
       "uploadCustomers": "Téléverser des clients",
       "import": "Importer",
       "errorCodes": {
-        "duplicate_email": "Un client avec cette adresse e-mail existe déjà",
+        "duplicate_email": "Un client avec cette adresse email existe déjà",
         "duplicate_external_id": "Un client avec cet identifiant externe existe déjà",
         "unknown": "Une erreur inattendue s'est produite"
       }
@@ -2757,8 +2757,8 @@
     "updateSuccess": "Fournisseur mis à jour avec succès",
     "updateError": "Échec de la mise à jour du fournisseur",
     "namePlaceholder": "Saisir le nom du fournisseur",
-    "email": "E-mail",
-    "emailPlaceholder": "Saisir l'adresse e-mail",
+    "email": "Email",
+    "emailPlaceholder": "Saisir l'adresse email",
     "locale": "Langue",
     "localePlaceholder": "ex. en-US",
     "filter": {
@@ -2775,7 +2775,7 @@
       "successDescription": "Importation réussie de {success} fournisseurs{failed, select, 0 {} other {, {failed} échoué(s)}}",
       "error": "Échec de l'importation des fournisseurs",
       "errorCodes": {
-        "duplicate_email": "Un fournisseur avec cette adresse e-mail existe déjà",
+        "duplicate_email": "Un fournisseur avec cette adresse email existe déjà",
         "duplicate_external_id": "Un fournisseur avec cet identifiant externe existe déjà",
         "unknown": "Une erreur inattendue s'est produite"
       }
@@ -3165,17 +3165,17 @@
     },
     "retentionPolicy": {
       "title": "Politique de rétention",
-      "description": "Configurez la durée de conservation de chaque type de données avant suppression.",
+      "description": "Configure la durée de conservation de chaque type de données avant suppression.",
       "saved": "La politique de rétention a été mise à jour",
       "save": "Enregistrer les modifications",
       "reset": "Réinitialiser aux valeurs par défaut",
-      "unsavedHint": "Vous avez des modifications non enregistrées.",
+      "unsavedHint": "Tu as des modifications non enregistrées.",
       "summary": {
         "disabled": "Désactivé"
       },
       "drawer": {
         "title": "Modifier la politique de rétention",
-        "description": "Configurez la durée de conservation de chaque type de données avant suppression."
+        "description": "Configure la durée de conservation de chaque type de données avant suppression."
       },
       "enabled": "Activé",
       "retentionDays": "Jours de rétention",
@@ -3190,7 +3190,7 @@
       },
       "diff": {
         "title": "Confirmer les modifications de rétention",
-        "description": "Vérifiez les modifications avant d'enregistrer. Le nettoyage applique la nouvelle politique à sa prochaine exécution.",
+        "description": "Vérifie les modifications avant d'enregistrer. Le nettoyage applique la nouvelle politique à sa prochaine exécution.",
         "confirmLabel": "Enregistrer les modifications",
         "noChanges": "Aucune modification à enregistrer."
       },
@@ -3219,17 +3219,17 @@
       },
       "boundsProposal": {
         "title": "L'opérateur a proposé des modifications des limites de rétention.",
-        "firstApplyTitle": "Les limites de rétention de l'opérateur nécessitent votre approbation initiale.",
+        "firstApplyTitle": "Les limites de rétention de l'opérateur nécessitent ton approbation initiale.",
         "summary": "{tightened} modification(s) sur {total} resserrent la rétention. À examiner avant d'appliquer.",
-        "firstApplyDescription": "Aucune limite n'a encore été appliquée pour cette organisation. Examinez la configuration de l'opérateur et cliquez sur Appliquer pour activer la rétention.",
+        "firstApplyDescription": "Aucune limite n'a encore été appliquée pour cette organisation. Examine la configuration de l'opérateur et clique sur Appliquer pour activer la rétention.",
         "applyLabel": "Appliquer",
         "rejectLabel": "Refuser",
         "detailsLabel": "Voir les détails",
         "detailsTitle": "Modifications de limites proposées",
-        "detailsDescription": "Vérifiez les limites de rétention proposées par l'opérateur avant d'appliquer ou de refuser.",
+        "detailsDescription": "Vérifie les limites de rétention proposées par l'opérateur avant d'appliquer ou de refuser.",
         "detailsEmpty": "Aucune modification détaillée enregistrée.",
         "diffHeading": "Modifications des limites",
-        "impactHeading": "Impact sur vos valeurs enregistrées",
+        "impactHeading": "Impact sur tes valeurs enregistrées",
         "diffRow": "{category} : {field} {from} → {to} ({direction})",
         "impactRow": "{category} : {current} sera limité à {clamped}",
         "appliedToast": "Proposition de limites appliquée. Le nettoyage utilisera les nouvelles limites à la prochaine exécution.",
@@ -3249,15 +3249,15 @@
       },
       "customers": {
         "title": "Clients",
-        "description": "Fiches CRM par organisation : nom, e-mail, adresse, locale, métadonnées."
+        "description": "Fiches CRM par organisation : nom, email, adresse, locale, métadonnées."
       },
       "vendors": {
         "title": "Fournisseurs",
-        "description": "Fiches fournisseurs par organisation : nom, e-mail, téléphone, adresse, notes en texte libre."
+        "description": "Fiches fournisseurs par organisation : nom, email, téléphone, adresse, notes en texte libre."
       },
       "externalConversations": {
         "title": "Conversations externes",
-        "description": "Boîte de réception de canal client de haut niveau (intégrations e-mail/chat). Cascade vers les corps de messages."
+        "description": "Boîte de réception de canal client de haut niveau (intégrations email/chat). Cascade vers les corps de messages."
       },
       "messageMetadata": {
         "title": "Métadonnées de messages",
@@ -3409,7 +3409,7 @@
       "patternsTitle": "Modèles de détection",
       "patternsDescription": "Sélectionne les types de données personnelles à détecter.",
       "patterns": {
-        "email": "Adresses e-mail",
+        "email": "Adresses email",
         "phone": "Numéros de téléphone",
         "ssn": "Numéros de sécurité sociale",
         "creditCard": "Numéros de carte de crédit",
@@ -3453,7 +3453,7 @@
         },
         "pii": {
           "title": "Détection DCP",
-          "description": "Motifs intégrés pour e-mails, téléphones, identifiants, etc.",
+          "description": "Motifs intégrés pour emails, téléphones, identifiants, etc.",
           "disabled": "Désactivé — la détection DCP est désactivée pour cette organisation.",
           "mode": "Mode : {mode}",
           "patterns": "Motifs : {builtIn} intégrés + {custom} personnalisés"
@@ -3714,7 +3714,7 @@
     },
     "trash": {
       "title": "Corbeille",
-      "description": "Récupérez les enregistrements supprimés par la rétention avant leur suppression définitive à la fin de la fenêtre de grâce.",
+      "description": "Récupère les enregistrements supprimés par la rétention avant leur suppression définitive à la fin de la fenêtre de grâce.",
       "accessDenied": "Réservé aux administrateurs.",
       "empty": "Rien dans la corbeille. La rétention y déplacera les lignes expirées une fois leur fenêtre de grâce ouverte.",
       "filterTitle": "Catégorie",
@@ -3755,7 +3755,7 @@
         "trashedDescription": "Réactiver cet enregistrement. Il reviendra dans sa liste source.",
         "expiredTitle": "Restaurer un enregistrement supprimé par la rétention ?",
         "expiredDescription": "Cet enregistrement a été supprimé par la politique de rétention. Le restaurer outrepasse cette politique et le réactive. Audité.",
-        "expiredPhraseLabel": "Tapez \"restore\" pour confirmer",
+        "expiredPhraseLabel": "Tape \"restore\" pour confirmer",
         "restoredToast": "Restauré.",
         "failedToast": "Échec de la restauration"
       }
@@ -3858,7 +3858,7 @@
           "description": "Préserver le contenu pour litige, audit ou eDiscovery. Place une conservation custodian sur un utilisateur précis, ou une conservation à l'échelle de l'organisation. Une raison est obligatoire et enregistrée dans le journal d'audit.",
           "targetTypeLabel": "Type de cible",
           "userPickerLabel": "Utilisateur",
-          "userPickerPlaceholder": "Recherche par nom ou e-mail",
+          "userPickerPlaceholder": "Recherche par nom ou email",
           "userPickerEmpty": "Aucun utilisateur correspondant.",
           "orgWarning": "Les conservations à l'échelle de l'organisation gèlent TOUTE rétention pour chaque entité de ce tenant. C'est une action délibérée, enregistrée dans l'audit — vérifie le contexte du dossier avant de continuer.",
           "orgConfirmLabel": "Tape {phrase} pour confirmer",
@@ -4146,7 +4146,7 @@
           "title": "Déposer une demande d'effacement",
           "description": "Enregistre un reçu art. 17 pour la personne choisie et exécute la cascade de manière asynchrone. La vérification d'identité incombe à l'admin déposant — confirme l'identité via le processus de ton organisation avant de continuer.",
           "userPickerLabel": "Personne concernée",
-          "userPickerPlaceholder": "Recherche par nom ou e-mail",
+          "userPickerPlaceholder": "Recherche par nom ou email",
           "userPickerEmpty": "Aucun membre correspondant.",
           "reasonCodeLabel": "Fondement légal",
           "reasonCodeDescription": "RGPD art. 17(1)(a)–(f) plus le motif opérationnel de fin de contrat.",
@@ -4398,7 +4398,7 @@
   "changelog": {
     "toast": {
       "title": "Mis à jour vers v{version}",
-      "description": "Découvrez les changements de cette version.",
+      "description": "Découvre les changements de cette version.",
       "action": "Voir"
     }
   },
@@ -4481,7 +4481,7 @@
     "usage": {
       "title": "Analyse d'utilisation",
       "description": "Consommation de tokens, requêtes et utilisateurs actifs au fil du temps.",
-      "cappedNotice": "Les résultats sont limités car la plage temporelle contient trop d'enregistrements. Réduisez la plage pour obtenir des données complètes.",
+      "cappedNotice": "Les résultats sont limités car la plage temporelle contient trop d'enregistrements. Réduis la plage pour obtenir des données complètes.",
       "activeUsersTooltip": "Utilisateurs ayant effectué des requêtes IA durant cette période.",
       "directApi": "Appel API direct",
       "integration": "Intégration",
@@ -4730,7 +4730,7 @@
     }
   },
   "dataNotice": {
-    "default": "L'IA peut faire des erreurs – vérifiez les réponses et ne partagez pas de données sensibles.",
+    "default": "L'IA peut faire des erreurs – vérifie les réponses et ne partage pas de données sensibles.",
     "footer": {
       "ariaLabel": "Avis de confidentialité"
     }

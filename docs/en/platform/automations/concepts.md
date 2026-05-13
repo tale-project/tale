@@ -13,14 +13,14 @@ A workflow is the whole automation. It has a name, a description, a list of step
 
 A step is one unit of work. The platform ships six step types:
 
-| Step          | Colour | What it does                                                                         |
-| ------------- | ------ | ------------------------------------------------------------------------------------ |
-| **Start**     | Blue   | The entry point. Defines the input schema and which triggers start the workflow.     |
-| **Action**    | Orange | Runs one operation — call an API, query a database, send an e-mail, update a record. |
-| **LLM**       | Purple | Sends a prompt to an AI model and passes the response to the next step.              |
-| **Condition** | Amber  | Checks a condition and routes down different branches.                               |
-| **Loop**      | Cyan   | Repeats a set of steps for each item in a list.                                      |
-| **Output**    | Green  | Defines the shape of the data returned when the workflow finishes.                   |
+| Step          | Colour | What it does                                                                        |
+| ------------- | ------ | ----------------------------------------------------------------------------------- |
+| **Start**     | Blue   | The entry point. Defines the input schema and which triggers start the workflow.    |
+| **Action**    | Orange | Runs one operation — call an API, query a database, send an email, update a record. |
+| **LLM**       | Purple | Sends a prompt to an AI model and passes the response to the next step.             |
+| **Condition** | Amber  | Checks a condition and routes down different branches.                              |
+| **Loop**      | Cyan   | Repeats a set of steps for each item in a list.                                     |
+| **Output**    | Green  | Defines the shape of the data returned when the workflow finishes.                  |
 
 Steps are connected with directional links. Execution follows the links from Start to Output.
 

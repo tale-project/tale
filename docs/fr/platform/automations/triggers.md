@@ -23,7 +23,7 @@ Lance le workflow quand quelque chose se passe dans Tale.
 
 | Événement                 | Exemple d’usage                             |
 | ------------------------- | ------------------------------------------- |
-| Nouveau client ajouté     | envoyer un e-mail de bienvenue.             |
+| Nouveau client ajouté     | envoyer un email de bienvenue.              |
 | Nouvelle conversation     | taguer le fil selon l’historique du client. |
 | Approbation demandée      | notifier un canal Slack.                    |
 | Document téléversé        | extraire métadonnées et classifier.         |

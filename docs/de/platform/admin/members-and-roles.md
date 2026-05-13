@@ -7,9 +7,9 @@ Tale nutzt sechs Rollen. Jeder Nutzer hat genau eine Rolle innerhalb einer Organ
 
 ## Mitglieder verwalten
 
-Die Mitglieder-Tabelle unter **Einstellungen > Mitglieder** listet alle Nutzer der Organisation mit E-Mail, Anzeigename, Rolle und Beitrittsdatum. Admins können:
+Die Mitglieder-Tabelle unter **Einstellungen > Mitglieder** listet alle Nutzer der Organisation mit Email, Anzeigename, Rolle und Beitrittsdatum. Admins können:
 
-- **Mitglieder hinzufügen** — E-Mail, optionales Passwort, Anzeigename und Rolle eingeben. Existiert die E-Mail bereits in Tale, wird der Nutzer der Organisation hinzugefügt, ohne dass ein neues Konto entsteht.
+- **Mitglieder hinzufügen** — Email, optionales Passwort, Anzeigename und Rolle eingeben. Existiert die Email bereits in Tale, wird der Nutzer der Organisation hinzugefügt, ohne dass ein neues Konto entsteht.
 - **Mitglieder bearbeiten** — Anzeigename, Rolle oder ein neues Passwort für ein Mitglied setzen.
 - **Mitglieder entfernen** — das Mitglied aus der Organisation entfernen. Das Konto wird nicht gelöscht; der Nutzer verliert lediglich den Zugriff.
 
@@ -96,6 +96,6 @@ Für Authentifizierungsoptionen (Passwort, Microsoft Entra ID SSO, Trusted Heade
 
 ## Authentifizierung
 
-Tale unterstützt E-Mail/Passwort, Microsoft Entra ID SSO und Trusted Headers. Alle Methoden lassen sich gleichzeitig nutzen.
+Tale unterstützt Email/Passwort, Microsoft Entra ID SSO und Trusted Headers. Alle Methoden lassen sich gleichzeitig nutzen.
 
 Die vollständige Einrichtung beschreibt die [Authentifizierungs-Anleitung](/de/self-hosted/admin/authentication).

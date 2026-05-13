@@ -13,14 +13,14 @@ Un workflow est toute l’automatisation. Il a un nom, une description, une list
 
 Une étape est une unité de travail. La plateforme fournit six types :
 
-| Étape         | Couleur | Ce qu’elle fait                                                                                                   |
-| ------------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
-| **Start**     | Bleu    | point d’entrée. Définit le schéma d’entrée et quels triggers démarrent le workflow.                               |
-| **Action**    | Orange  | exécute une opération — appeler une API, interroger une base, envoyer un e-mail, mettre à jour un enregistrement. |
-| **LLM**       | Violet  | envoie un prompt à un modèle IA et passe la réponse à l’étape suivante.                                           |
-| **Condition** | Ambre   | vérifie une condition et route selon plusieurs branches.                                                          |
-| **Loop**      | Cyan    | répète un ensemble d’étapes pour chaque élément d’une liste.                                                      |
-| **Output**    | Vert    | définit la forme des données renvoyées quand le workflow finit.                                                   |
+| Étape         | Couleur | Ce qu’elle fait                                                                                                  |
+| ------------- | ------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Start**     | Bleu    | point d’entrée. Définit le schéma d’entrée et quels triggers démarrent le workflow.                              |
+| **Action**    | Orange  | exécute une opération — appeler une API, interroger une base, envoyer un email, mettre à jour un enregistrement. |
+| **LLM**       | Violet  | envoie un prompt à un modèle IA et passe la réponse à l’étape suivante.                                          |
+| **Condition** | Ambre   | vérifie une condition et route selon plusieurs branches.                                                         |
+| **Loop**      | Cyan    | répète un ensemble d’étapes pour chaque élément d’une liste.                                                     |
+| **Output**    | Vert    | définit la forme des données renvoyées quand le workflow finit.                                                  |
 
 Les étapes sont connectées par des liens orientés. L’exécution suit les liens de Start à Output.
 

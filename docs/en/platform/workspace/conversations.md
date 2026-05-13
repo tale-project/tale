@@ -3,9 +3,9 @@ title: Conversations
 description: Manage customer conversations from a unified inbox.
 ---
 
-Conversations is the customer inbox. When customers contact your team through a connected channel such as e-mail, their messages appear here as conversation threads. Your team can read, reply, close, and manage them from this one view.
+Conversations is the customer inbox. When customers contact your team through a connected channel such as email, their messages appear here as conversation threads. Your team can read, reply, close, and manage them from this one view.
 
-Channel connections are set up once by a Developer in [Integrations overview](/platform/integrations/overview) — the e-mail integration powers this inbox.
+Channel connections are set up once by a Developer in [Integrations overview](/platform/integrations/overview) — the email integration powers this inbox.
 
 ## Conversation statuses
 

@@ -13,14 +13,14 @@ Ein Workflow ist die gesamte Automatisierung. Er hat einen Namen, eine Beschreib
 
 Ein Schritt ist eine Arbeitseinheit. Die Plattform liefert sechs Schritttypen:
 
-| Schritt       | Farbe     | Funktion                                                                                                                  |
-| ------------- | --------- | ------------------------------------------------------------------------------------------------------------------------- |
-| **Start**     | Blau      | Der Einstiegspunkt. Definiert das Input-Schema und welche Trigger den Workflow starten.                                   |
-| **Action**    | Orange    | Führt eine Operation aus — eine API aufrufen, eine Datenbank abfragen, eine E-Mail senden, einen Datensatz aktualisieren. |
-| **LLM**       | Lila      | Schickt einen Prompt an ein KI-Modell und reicht die Antwort weiter.                                                      |
-| **Condition** | Bernstein | Prüft eine Bedingung und zweigt zu verschiedenen Ästen.                                                                   |
-| **Loop**      | Cyan      | Wiederholt eine Gruppe von Schritten für jedes Element einer Liste.                                                       |
-| **Output**    | Grün      | Definiert die Form der Daten, die zurückgegeben werden, wenn der Workflow fertig ist.                                     |
+| Schritt       | Farbe     | Funktion                                                                                                                 |
+| ------------- | --------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **Start**     | Blau      | Der Einstiegspunkt. Definiert das Input-Schema und welche Trigger den Workflow starten.                                  |
+| **Action**    | Orange    | Führt eine Operation aus — eine API aufrufen, eine Datenbank abfragen, eine Email senden, einen Datensatz aktualisieren. |
+| **LLM**       | Lila      | Schickt einen Prompt an ein KI-Modell und reicht die Antwort weiter.                                                     |
+| **Condition** | Bernstein | Prüft eine Bedingung und zweigt zu verschiedenen Ästen.                                                                  |
+| **Loop**      | Cyan      | Wiederholt eine Gruppe von Schritten für jedes Element einer Liste.                                                      |
+| **Output**    | Grün      | Definiert die Form der Daten, die zurückgegeben werden, wenn der Workflow fertig ist.                                    |
 
 Schritte werden mit gerichteten Links verbunden. Die Ausführung folgt den Links von Start zu Output.
 

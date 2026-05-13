@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { mintlifyComponents } from './components/registry';
+import { markdownComponents } from './components/registry';
 import { Markdown } from './markdown';
 
 const meta = {
@@ -45,11 +45,11 @@ export const Sample: Story = {
   args: { children: SAMPLE },
 };
 
-export const WithMintlifyComponents: Story = {
+export const WithMarkdownComponents: Story = {
   args: {
     children: SAMPLE,
-    // oxlint-disable-next-line typescript/no-explicit-any -- mintlify keys aren't HTML element tags
-    components: mintlifyComponents as any,
+    // oxlint-disable-next-line typescript/no-explicit-any -- custom component keys aren't HTML element tags
+    components: markdownComponents as any,
   },
 };
 

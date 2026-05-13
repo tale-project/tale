@@ -83,7 +83,7 @@
     },
     "labels": {
       "name": "Name",
-      "email": "E-Mail",
+      "email": "Email",
       "status": "Status",
       "phone": "Telefon",
       "source": "Quelle",
@@ -120,7 +120,7 @@
     },
     "validation": {
       "required": "{field} ist erforderlich",
-      "email": "Bitte gib eine gültige E-Mail-Adresse ein",
+      "email": "Bitte gib eine gültige Email-Adresse ein",
       "invalidJson": "Ungültiges JSON-Format",
       "uploadFile": "Bitte lade eine Datei hoch",
       "unsupportedFileType": "Nicht unterstützter Dateityp",
@@ -297,7 +297,7 @@
       "actions": "Aktionen",
       "created": "Erstellt",
       "description": "Beschreibung",
-      "email": "E-Mail",
+      "email": "Email",
       "product": "Produkt",
       "scanned": "Gescannt",
       "stock": "Bestand",
@@ -307,7 +307,7 @@
     "cells": {
       "unknown": "Unbekannt",
       "empty": "-",
-      "noEmail": "Keine E-Mail"
+      "noEmail": "Keine Email"
     }
   },
   "toast": {
@@ -342,7 +342,7 @@
     },
     "memberAdded": {
       "title": "Mitglied erfolgreich hinzugefügt",
-      "credentialsWarning": "Wichtig: Speichere diese Zugangsdaten jetzt. Sie werden nicht erneut angezeigt.",
+      "credentialsWarning": "Wichtig: Speichere diese Zugangsdaten jetzt — sie werden nicht erneut angezeigt.",
       "existingUserNotice": "Dieser Benutzer hatte bereits ein Konto, es wurden keine neuen Zugangsdaten erstellt. Er kann sich mit seinem bestehenden Passwort anmelden."
     },
     "searchChat": {
@@ -365,16 +365,16 @@
     }
   },
   "auth": {
-    "email": "E-Mail",
+    "email": "Email",
     "password": "Passwort",
-    "emailPlaceholder": "Gib deine E-Mail-Adresse ein",
+    "emailPlaceholder": "Gib deine Email-Adresse ein",
     "passwordPlaceholder": "Gib Dein Passwort ein",
     "login": {
       "loginTitle": "Anmelden",
       "signingIn": "Anmeldung läuft...",
       "loginButton": "Anmelden",
       "continueWithSso": "Weiter mit SSO",
-      "wrongCredentials": "Falsche E-Mail oder falsches Passwort",
+      "wrongCredentials": "Falsche Email oder falsches Passwort",
       "accountLockedGeneric": "Konto wegen wiederholter Fehlversuche vorübergehend gesperrt. Bitte später erneut versuchen oder einen Administrator kontaktieren.",
       "accountLockedSeconds": "Konto vorübergehend gesperrt. In {seconds, plural, one {# Sekunde} other {# Sekunden}} erneut versuchen oder einen Administrator kontaktieren.",
       "accountLockedMinutes": "Konto vorübergehend gesperrt. In {minutes, plural, one {# Minute} other {# Minuten}} erneut versuchen oder einen Administrator kontaktieren.",
@@ -393,10 +393,10 @@
       "creating": "Wird erstellt...",
       "createButton": "Erstellen",
       "accountCreated": "Konto erfolgreich erstellt!",
-      "wrongCredentials": "Falsche E-Mail oder falsches Passwort"
+      "wrongCredentials": "Falsche Email oder falsches Passwort"
     },
     "validation": {
-      "emailRequired": "E-Mail ist erforderlich",
+      "emailRequired": "Email ist erforderlich",
       "passwordMinLength": "Passwort muss mindestens {n} Zeichen lang sein",
       "passwordLowercase": "Passwort muss einen Kleinbuchstaben enthalten",
       "passwordUppercase": "Passwort muss einen Großbuchstaben enthalten",
@@ -466,7 +466,7 @@
     },
     "setPassword": {
       "title": "Passwort festlegen",
-      "description": "Dein Konto verwendet externe Anmeldung. Lege ein Passwort fest, um sich auch mit E-Mail und Passwort anmelden zu können.",
+      "description": "Dein Konto verwendet externe Anmeldung. Lege ein Passwort fest, um dich auch mit Email und Passwort anmelden zu können.",
       "newPassword": "Neues Passwort",
       "confirmPassword": "Passwort bestätigen"
     }
@@ -477,7 +477,7 @@
       "profile": {
         "name": "Anzeigename",
         "namePlaceholder": "Gib deinen Namen ein",
-        "email": "E-Mail",
+        "email": "Email",
         "nameRequired": "Name ist erforderlich"
       },
       "security": {
@@ -520,7 +520,7 @@
       "memberRemoveFailed": "Mitglied konnte nicht entfernt werden",
       "twoFactorResetSuccess": "Zwei-Faktor zurückgesetzt — das Mitglied muss sich bei der nächsten Anmeldung neu einrichten",
       "twoFactorResetFailed": "Zwei-Faktor-Authentifizierung konnte nicht zurückgesetzt werden",
-      "emailCannotChange": "E-Mail kann nicht geändert werden",
+      "emailCannotChange": "Email kann nicht geändert werden",
       "cannotChangeOwnRole": "Du kannst deine eigene Rolle nicht ändern",
       "updatePassword": "Passwort aktualisieren",
       "enterNewPassword": "Neues Passwort eingeben",
@@ -770,7 +770,7 @@
         "notPublished": "Veröffentliche diesen Agent, um Worker-Zugriff zu aktivieren.",
         "createButton": "Worker erstellen",
         "createdTitle": "Worker erstellt",
-        "urlWarning": "Kopiere diese URL jetzt. Sie wird nur einmal angezeigt.",
+        "urlWarning": "Kopiere diese URL jetzt — sie wird nur einmal angezeigt.",
         "webhookUrl": "Worker-URL",
         "copyUrl": "Worker-URL kopieren",
         "copyExample": "Beispiel kopieren",
@@ -1043,10 +1043,10 @@
       "saveFailed": "Anbieter konnte nicht gespeichert werden",
       "deleteFailed": "Anbieter konnte nicht gelöscht werden",
       "secretSaveFailed": "API-Schlüssel konnte nicht gespeichert werden",
-      "forbiddenDeveloperSettings": "Sie haben keine Berechtigung, die Anbieter-Konfiguration zu ändern.",
+      "forbiddenDeveloperSettings": "Du hast keine Berechtigung, die Anbieter-Konfiguration zu ändern.",
       "providerOptions": {
         "providerLevelTitle": "Erweitert — Provider-Optionen",
-        "providerLevelDescription": "Freies JSON, das wortgetreu als zusätzliche Request-Body-Felder an jedes Modell dieses Anbieters weitergeleitet wird. Die Struktur wird vom Upstream-API vorgegeben — Tale interpretiert diese Felder nicht, sondern reicht sie nur durch.\n\nWelche Knöpfe verfügbar sind, hängt davon ab, ob es sich beim Upstream um ein Routing-Gateway oder einen direkten Inferenz-Anbieter handelt:\n\nGateways aggregieren mehrere Backends und exponieren Routing-Steuerungen:\n• OpenRouter — Routing-Optionen unter einem Top-Level-Schlüssel \"provider\" (Quantisierung, Fallback-Richtlinie, erlaubte Backends usw. wählen):\n    { \"provider\": { \"quantizations\": [\"fp8\"], \"allow_fallbacks\": false } }\n• Vercel AI Gateway — routet primär über das Modell-ID-Präfix und HTTP-Header; Body-Level-Passthrough ist auf Observability-Felder wie \"metadata\" beschränkt:\n    { \"metadata\": { \"tale_agent\": \"support\" } }\n\nDirekte Anbieter hosten ihre eigenen Modelle — es gibt keine Routing-Schicht und kein \"quantizations\"-Feld; die Präzision ist beim Deployment festgelegt. Ihre Passthrough-Felder sind Modellverhaltens-Knöpfe auf oberster Body-Ebene:\n• OpenAI:\n    { \"service_tier\": \"priority\", \"parallel_tool_calls\": false }\n• Together AI:\n    { \"safety_model\": \"meta-llama/Llama-Guard-4-12B\", \"repetition_penalty\": 1.1 }\n\nFür die genauen Feldnamen und akzeptierten Werte die API-Dokumentation des jeweiligen Anbieters konsultieren.",
+        "providerLevelDescription": "Freies JSON, das wortgetreu als zusätzliche Request-Body-Felder an jedes Modell dieses Anbieters weitergeleitet wird. Die Struktur wird vom Upstream-API vorgegeben — Tale interpretiert diese Felder nicht, sondern reicht sie nur durch.\n\nWelche Knöpfe verfügbar sind, hängt davon ab, ob es sich beim Upstream um ein Routing-Gateway oder einen direkten Inferenz-Anbieter handelt:\n\nGateways aggregieren mehrere Backends und exponieren Routing-Steuerungen:\n• OpenRouter — Routing-Optionen unter einem Top-Level-Schlüssel \"provider\" (Quantisierung, Fallback-Richtlinie, erlaubte Backends usw. wählen):\n    { \"provider\": { \"quantizations\": [\"fp8\"], \"allow_fallbacks\": false } }\n• Vercel AI Gateway — routet primär über das Modell-ID-Präfix und HTTP-Header; Body-Level-Passthrough ist auf Observability-Felder wie \"metadata\" beschränkt:\n    { \"metadata\": { \"tale_agent\": \"support\" } }\n\nDirekte Anbieter hosten ihre eigenen Modelle — es gibt keine Routing-Schicht und kein \"quantizations\"-Feld; die Präzision ist beim Deployment festgelegt. Deren Passthrough-Felder sind Modellverhaltens-Knöpfe auf oberster Body-Ebene:\n• OpenAI:\n    { \"service_tier\": \"priority\", \"parallel_tool_calls\": false }\n• Together AI:\n    { \"safety_model\": \"meta-llama/Llama-Guard-4-12B\", \"repetition_penalty\": 1.1 }\n\nFür die genauen Feldnamen und akzeptierten Werte die API-Dokumentation des jeweiligen Anbieters konsultieren.",
         "modelLevelTitle": "Erweitert — Provider-Optionen",
         "modelLevelDescription": "Freies JSON, das mit den Anbieter-Standards zusammengeführt und als zusätzliche Request-Body-Felder weitergeleitet wird. Die Struktur folgt dem Upstream-API und unterscheidet sich je nach Anbieter — Tale reicht das JSON wortgetreu durch, ohne es zu interpretieren.",
         "modelLevelHelp": "Beispiele — Gateways und direkte Anbieter exponieren unterschiedliche Arten von Knöpfen:\n• OpenRouter (Gateway): { \"provider\": { \"quantizations\": [\"fp8\"] } } — ein Backend nach Quantisierung anpinnen\n• Vercel AI Gateway (Gateway): { \"metadata\": { \"tale_agent\": \"support\" } } — Observability-Tag (Routing meist über Header oder Modell-Präfix)\n• OpenAI (direkt): { \"service_tier\": \"priority\" } — eine SLA-Stufe wählen\n• Together AI (direkt): { \"safety_model\": \"meta-llama/Llama-Guard-4-12B\" } — Moderation anwenden\n\nDirekte Anbieter exponieren Quantisierung nicht als Request-Feld — stattdessen eine andere Modell-ID wählen. Schlüssel wie model / messages / max_tokens / temperature werden abgelehnt — diese auf Agent-Ebene konfigurieren. Leere Eingabe entfernt die Überschreibung.",
@@ -1058,7 +1058,7 @@
         "invalidJson": "Provider-Optionen sind kein gültiges JSON",
         "exampleLabel": "Beispiel",
         "discardConfirmTitle": "Nicht gespeicherte Änderungen verwerfen?",
-        "discardConfirmDescription": "Ihre Bearbeitungen der Provider-Optionen gehen verloren.",
+        "discardConfirmDescription": "Deine Bearbeitungen der Provider-Optionen gehen verloren.",
         "discardConfirmAction": "Verwerfen",
         "discardConfirmKeep": "Weiter bearbeiten",
         "objectRequiredError": "Provider-Optionen müssen ein JSON-Objekt sein."
@@ -1149,8 +1149,8 @@
     "form": {
       "name": "Name",
       "namePlaceholder": "Vollständigen Namen eingeben",
-      "email": "E-Mail",
-      "emailPlaceholder": "E-Mail-Adresse eingeben",
+      "email": "Email",
+      "emailPlaceholder": "Email-Adresse eingeben",
       "password": "Passwort",
       "passwordPlaceholder": "Passwort eingeben",
       "role": "Rolle",
@@ -1764,7 +1764,7 @@
       "noMessages": "Noch keine Nachrichten",
       "invalidFileAttachment": "Ungültiger Dateianhang",
       "defaultSubject": "Re: Konversation",
-      "customerEmailNotFound": "E-Mail kann nicht gesendet werden: Kunden-E-Mail nicht gefunden",
+      "customerEmailNotFound": "Email kann nicht gesendet werden: Kunden-Email nicht gefunden",
       "replySubjectPrefix": "Re: {subject}",
       "loadFailed": "Konversation konnte nicht geladen werden",
       "loadFailedDescription": "Beim Laden dieser Konversation ist ein Fehler aufgetreten.",
@@ -1786,8 +1786,8 @@
     },
     "activate": {
       "title": "Konversationen aktivieren",
-      "description": "Verbinde deine E-Mail, um mit Konversationen zu beginnen",
-      "connectEmail": "E-Mail verbinden"
+      "description": "Verbinde deine Email, um mit Konversationen zu beginnen",
+      "connectEmail": "Email verbinden"
     },
     "filter": {
       "label": "Nach Lesestatus filtern",
@@ -2687,7 +2687,7 @@
       "upload": "Upload",
       "fromShopify": "Von Shopify",
       "syncBusinessData": "Geschäftsdaten synchronisieren",
-      "formatHint": "Format: E-Mail, Name (optional), Sprache (optional). Ein Kunde pro Zeile.",
+      "formatHint": "Format: Email, Name (optional), Sprache (optional). Ein Kunde pro Zeile.",
       "localeHint": "Sprache kann ein beliebiger BCP 47-Tag sein (z. B. en, en-US, de-DE, zh-Hans).",
       "statusNote": "Importierte Kunden werden als (Aktiv) markiert",
       "expectedColumns": "Erwartete Spalten: email, name, locale"
@@ -2704,8 +2704,8 @@
     "updateError": "Kunde konnte nicht aktualisiert werden",
     "name": "Name",
     "namePlaceholder": "Kundenname eingeben",
-    "email": "E-Mail",
-    "emailPlaceholder": "E-Mail-Adresse eingeben",
+    "email": "Email",
+    "emailPlaceholder": "Email-Adresse eingeben",
     "locale": "Sprache",
     "localePlaceholder": "z. B. en-US",
     "status": "Status",
@@ -2723,7 +2723,7 @@
       "uploadCustomers": "Kunden hochladen",
       "import": "Importieren",
       "errorCodes": {
-        "duplicate_email": "Ein Kunde mit dieser E-Mail existiert bereits",
+        "duplicate_email": "Ein Kunde mit dieser Email existiert bereits",
         "duplicate_external_id": "Ein Kunde mit dieser externen ID existiert bereits",
         "unknown": "Ein unerwarteter Fehler ist aufgetreten"
       }
@@ -2757,8 +2757,8 @@
     "updateSuccess": "Lieferant erfolgreich aktualisiert",
     "updateError": "Lieferant konnte nicht aktualisiert werden",
     "namePlaceholder": "Lieferantenname eingeben",
-    "email": "E-Mail",
-    "emailPlaceholder": "E-Mail-Adresse eingeben",
+    "email": "Email",
+    "emailPlaceholder": "Email-Adresse eingeben",
     "locale": "Sprache",
     "localePlaceholder": "z. B. en-US",
     "filter": {
@@ -2775,7 +2775,7 @@
       "successDescription": "{success} Lieferanten erfolgreich importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
       "error": "Lieferanten konnten nicht importiert werden",
       "errorCodes": {
-        "duplicate_email": "Ein Lieferant mit dieser E-Mail existiert bereits",
+        "duplicate_email": "Ein Lieferant mit dieser Email existiert bereits",
         "duplicate_external_id": "Ein Lieferant mit dieser externen ID existiert bereits",
         "unknown": "Ein unerwarteter Fehler ist aufgetreten"
       }
@@ -3129,7 +3129,7 @@
     "toastSaveFailedTitle": "Änderungen konnten nicht gespeichert werden",
     "systemPrompt": {
       "title": "System-Prompt",
-      "description": "Legen Sie einen verbindlichen System-Prompt fest, der auf alle Agents angewendet wird und nicht von Benutzern überschrieben werden kann.",
+      "description": "Leg einen verbindlichen System-Prompt fest, der auf alle Agents angewendet wird und nicht von Benutzern überschrieben werden kann.",
       "prefixLabel": "Verbindliches Präfix",
       "prefixDescription": "Dieser Text wird vor die Anweisungen jedes Agents gestellt und kann nicht überschrieben werden.",
       "prefixPlaceholder": "Verbindliches Prompt-Präfix eingeben...",
@@ -3294,9 +3294,9 @@
       },
       "boundsProposal": {
         "title": "Der Betreiber hat Änderungen an den Aufbewahrungsgrenzen vorgeschlagen.",
-        "firstApplyTitle": "Die Aufbewahrungsgrenzen des Betreibers benötigen Ihre erste Freigabe.",
+        "firstApplyTitle": "Die Aufbewahrungsgrenzen des Betreibers benötigen deine erste Freigabe.",
         "summary": "{tightened} von {total} Änderung(en) verschärfen die Aufbewahrung. Vor dem Anwenden prüfen.",
-        "firstApplyDescription": "Für diese Organisation wurden noch keine Grenzen angewendet. Prüfen Sie die Betreiberkonfiguration und klicken Sie auf Anwenden, um die Aufbewahrung zu aktivieren.",
+        "firstApplyDescription": "Für diese Organisation wurden noch keine Grenzen angewendet. Prüfe die Betreiberkonfiguration und klicke auf Anwenden, um die Aufbewahrung zu aktivieren.",
         "applyLabel": "Anwenden",
         "rejectLabel": "Ablehnen",
         "detailsLabel": "Details anzeigen",
@@ -3304,7 +3304,7 @@
         "detailsDescription": "Prüfe die vom Betreiber vorgeschlagenen Aufbewahrungsgrenzen vor dem Anwenden oder Ablehnen.",
         "detailsEmpty": "Keine detaillierten Änderungen erfasst.",
         "diffHeading": "Grenzwertänderungen",
-        "impactHeading": "Auswirkung auf Ihre gespeicherten Werte",
+        "impactHeading": "Auswirkung auf deine gespeicherten Werte",
         "diffRow": "{category}: {field} {from} → {to} ({direction})",
         "impactRow": "{category}: {current} wird auf {clamped} begrenzt",
         "appliedToast": "Grenzwertvorschlag angewendet. Die Bereinigung verwendet beim nächsten Lauf die neuen Grenzen.",
@@ -3324,15 +3324,15 @@
       },
       "customers": {
         "title": "Kunden",
-        "description": "Pro-Org CRM-Datensätze: Name, E-Mail, Adresse, Locale, Metadaten."
+        "description": "Pro-Org CRM-Datensätze: Name, Email, Adresse, Locale, Metadaten."
       },
       "vendors": {
         "title": "Lieferanten",
-        "description": "Pro-Org Lieferantendatensätze: Name, E-Mail, Telefon, Adresse, Freitext-Notizen."
+        "description": "Pro-Org Lieferantendatensätze: Name, Email, Telefon, Adresse, Freitext-Notizen."
       },
       "externalConversations": {
         "title": "Externe Konversationen",
-        "description": "Top-Level-Kundenkanal-Posteingang (E-Mail/Chat-Integrationen). Kaskadiert zu Nachrichteninhalten."
+        "description": "Top-Level-Kundenkanal-Posteingang (Email/Chat-Integrationen). Kaskadiert zu Nachrichteninhalten."
       },
       "messageMetadata": {
         "title": "Nachrichten-Metadaten",
@@ -3497,7 +3497,7 @@
       "patternsTitle": "Erkennungsmuster",
       "patternsDescription": "Wähle aus, welche Arten von personenbezogenen Daten erkannt werden sollen.",
       "patterns": {
-        "email": "E-Mail-Adressen",
+        "email": "Email-Adressen",
         "phone": "Telefonnummern",
         "ssn": "Sozialversicherungsnummern",
         "creditCard": "Kreditkartennummern",
@@ -3541,7 +3541,7 @@
         },
         "pii": {
           "title": "PII-Erkennung",
-          "description": "Integrierte Muster für E-Mails, Telefonnummern, IDs usw.",
+          "description": "Integrierte Muster für Emails, Telefonnummern, IDs usw.",
           "disabled": "Deaktiviert — PII-Erkennung ist für diese Organisation aus.",
           "mode": "Modus: {mode}",
           "patterns": "Muster: {builtIn} integriert + {custom} benutzerdefiniert"
@@ -3946,7 +3946,7 @@
           "description": "Inhalte für Rechtsstreitigkeiten, Audits oder eDiscovery aufbewahren. Setze einen Custodian-Hold auf einen bestimmten Benutzer oder einen organisationsweiten Hold. Eine Begründung ist Pflicht und wird im Audit-Log erfasst.",
           "targetTypeLabel": "Zieltyp",
           "userPickerLabel": "Benutzer",
-          "userPickerPlaceholder": "Nach Name oder E-Mail suchen",
+          "userPickerPlaceholder": "Nach Name oder Email suchen",
           "userPickerEmpty": "Keine passenden Benutzer.",
           "orgWarning": "Organisationsweite Holds frieren ALLE Aufbewahrung für jede Entität in diesem Tenant ein. Es handelt sich um eine bewusste, im Audit-Log erfasste Aktion — prüfe den Fallkontext, bevor du fortfährst.",
           "orgConfirmLabel": "{phrase} eingeben, um zu bestätigen",
@@ -4221,7 +4221,7 @@
           "title": "Löschungsanfrage einreichen",
           "description": "Erfasst einen Art.-17-Beleg für die ausgewählte Person und führt die Kaskade asynchron aus. Die Identitätsprüfung liegt beim einreichenden Admin — bestätige die Identität über euren Prozess, bevor du fortfährst.",
           "userPickerLabel": "Person",
-          "userPickerPlaceholder": "Nach Name oder E-Mail suchen",
+          "userPickerPlaceholder": "Nach Name oder Email suchen",
           "userPickerEmpty": "Keine passenden Mitglieder.",
           "reasonCodeLabel": "Rechtsgrund",
           "reasonCodeDescription": "DSGVO Art. 17(1)(a)–(f) plus operativer Vertragsbeendigungs-Grund.",
@@ -4456,7 +4456,7 @@
     "accountLocked": "Konto vorübergehend gesperrt: {email}",
     "lockoutDetails": "{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}.",
     "dsarScheduled": "Löschungsanfrage geplant",
-    "dsarScheduledBody": "Eine Löschungsanfrage wurde für eine Person in dieser Organisation eingereicht. Sie wird in {coolingOffHours} Stunden ausgeführt. Öffne den Beleg zur Prüfung oder zum Abbruch.",
+    "dsarScheduledBody": "Eine Löschungsanfrage wurde für eine Person in dieser Organisation eingereicht. Die Anfrage wird in {coolingOffHours} Stunden ausgeführt. Öffne den Beleg zur Prüfung oder zum Abbruch.",
     "dsarApprovalNeeded": "Löschungsanfrage wartet auf deine Freigabe",
     "dsarApprovalNeededBody": "Eine Löschungsanfrage wurde eingereicht und benötigt die Freigabe eines zweiten Admins, bevor sie ausgeführt werden kann.",
     "dsarCancelled": "Löschungsanfrage abgebrochen",
@@ -4673,7 +4673,7 @@
   "changelog": {
     "toast": {
       "title": "Aktualisiert auf v{version}",
-      "description": "Sehen Sie sich die Änderungen in dieser Version an.",
+      "description": "Sieh dir die Änderungen in dieser Version an.",
       "action": "Anzeigen"
     }
   },

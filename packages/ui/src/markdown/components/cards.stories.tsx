@@ -78,7 +78,7 @@ export const ThreeColumns: Story = {
     ),
 };
 
-// Mintlify-style: icon prop is a kebab-case Lucide name string.
+// Markdown-authoring style: icon prop is a kebab-case Lucide name string.
 export const StringIcons: Story = {
   render: () =>
     withRouter(

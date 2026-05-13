@@ -15,12 +15,12 @@ import { Tab, Tabs } from './tabs';
 
 /**
  * Component table passed to react-markdown's `components` prop. The HTML
- * parser used by `rehype-raw` lowercases tag names, so authored Mintlify
- * tags like `<CodeGroup>` reach the map as `codegroup`. Keys here mirror
- * that lowercased form (and aliases keep PascalCase keys around so direct
- * JSX usage in the renderer also works).
+ * parser used by `rehype-raw` lowercases tag names, so authored tags like
+ * `<CodeGroup>` reach the map as `codegroup`. Keys here mirror that
+ * lowercased form (and aliases keep PascalCase keys around so direct JSX
+ * usage in the renderer also works).
  */
-export const mintlifyComponents = {
+export const markdownComponents = {
   // Lowercase keys — match the form rehype-raw produces from authored HTML.
   note: Note,
   tip: Tip,
@@ -38,8 +38,8 @@ export const mintlifyComponents = {
   codegroup: CodeGroup,
   accordion: Accordion,
   accordiongroup: AccordionGroup,
-  // PascalCase aliases — kept so that components can also be referenced by
-  // their original Mintlify spelling (e.g. when bypassing rehype-raw).
+  // PascalCase aliases — kept so that components can also be referenced
+  // directly (e.g. when bypassing rehype-raw).
   Note,
   Tip,
   Info: InfoCallout,
@@ -58,4 +58,4 @@ export const mintlifyComponents = {
   AccordionGroup,
 };
 
-export type MintlifyComponents = typeof mintlifyComponents;
+export type MarkdownComponents = typeof markdownComponents;

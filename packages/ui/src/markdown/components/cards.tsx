@@ -11,7 +11,7 @@ interface CardProps {
   title?: string;
   /**
    * Either a rendered ReactNode (Storybook / direct JSX usage) or a kebab-case
-   * Lucide icon name string (Mintlify-style markdown authoring, e.g.
+   * Lucide icon name string for markdown authoring (e.g.
    * `<Card icon="cloud" />`). Unknown names render nothing.
    */
   icon?: ReactNode | string;

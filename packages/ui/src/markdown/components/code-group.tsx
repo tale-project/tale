@@ -19,7 +19,7 @@ interface CodeGroupChildProps {
   filename?: string;
   /** Optional language identifier (Shiki + tab fallback label). */
   language?: string;
-  /** ` ```lang ` fence syntax sugar — preserved for Mintlify-style nesting. */
+  /** ` ```lang ` fence syntax sugar — preserved for fenced-code nesting. */
   className?: string;
   /** When `code` isn't passed directly, fall back to children text. */
   children?: ReactNode;
@@ -31,8 +31,8 @@ interface CodeGroupProps {
 }
 
 /**
- * Mintlify-compatible `<CodeGroup>` — the surrounding chrome is owned by
- * CodeGroup itself rather than nested under each `<CodeBlock>` child, so
+ * `<CodeGroup>` — the surrounding chrome is owned by CodeGroup itself
+ * rather than nested under each `<CodeBlock>` child, so
  * tabs sit flush with the code panel and the bordered card has a single
  * outline. Each child contributes a tab labelled by `filename` /
  * `language` and a panel rendering the highlighted source via the same

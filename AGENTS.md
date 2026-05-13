@@ -1,6 +1,6 @@
 # Tale — coding standards
 
-The single contract for writing code in this repository. Read this file in full before your first change. Documentation rules live in [`docs/AGENTS.md`](docs/AGENTS.md); cross-locale terminology in [`.agents/TERMINOLOGY.md`](.agents/TERMINOLOGY.md).
+The single contract for writing code in this repository. Read this file in full before your first change. Documentation rules live in the [`docs`](.agents/docs/AGENTS.md) skill; cross-locale terminology in the [`terminology`](.agents/terminology/AGENTS.md) skill.
 
 Tale is a monorepo on Bun workspaces (`@tale/platform`, `@tale/cli`, `@tale/crawler`, `@tale/rag`, `@tale/db`, `@tale/proxy`, `@tale/web`, `@tale/docs`, `@tale/ui`, `@tale/webui`). The marketing site lives at `services/web/`; the documentation site at `services/docs/`; cross-site UI primitives, the markdown pipeline, and SEO/LLM helpers live at `packages/webui/`. Every script runs through the workspace filter:
 
@@ -139,13 +139,13 @@ Every user-facing string goes through the translation layer. Never compare again
 - **Sentence case in every translation.**
 - **Informal form across all languages** — `du` in German, `tu` in French. Never `Sie` or `vous`.
 - **ICU placeholders are sacred.** `{count, plural, ...}`, `{field}`, `{error, select, ...}` copy exactly, including argument order.
-- **Brand names don't translate.** Tale, Convex, Gmail, Shopify, OpenRouter, Claude, GitHub, Slack, Mintlify.
+- **Brand names don't translate.** Tale, Convex, Gmail, Shopify, OpenRouter, Claude, GitHub, Slack.
 
-Read [`.agents/TERMINOLOGY.md`](.agents/TERMINOLOGY.md) for cross-locale rules and the per-locale `TERMINOLOGY_<LOCALE>.md` files for forms.
+Read [`.agents/terminology/TERMINOLOGY.md`](.agents/terminology/TERMINOLOGY.md) for cross-locale rules and the per-locale `TERMINOLOGY_<LOCALE>.md` files in the same directory for forms.
 
 ## Documentation
 
-Docs are not a follow-up task. Every change a user would notice updates the docs in every locale in the same PR. Full rules — taxonomy, writing depth, locale workflow, verification — live in [`services/docs/AGENTS.md`](services/docs/AGENTS.md) and are loaded automatically for agents working under `services/docs/`.
+Docs are not a follow-up task. Every change a user would notice updates the docs in every locale in the same PR. Full rules — taxonomy, writing depth, locale workflow, verification — live in the [`docs`](.agents/docs/AGENTS.md) skill.
 
 Before opening a PR that touches `services/docs/`:
 

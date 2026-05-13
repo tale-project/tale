@@ -1,18 +1,19 @@
 # Terminology — general rules
 
-Cross-locale rules that apply to every translation (both platform UI and Mintlify docs). Language-specific terminology tables and style quirks live alongside this file:
+Cross-locale rules that apply to every translation (both platform UI and the docs site). Language-specific terminology tables and style quirks live alongside this file:
 
 - Base locales: [`TERMINOLOGY_EN.md`](TERMINOLOGY_EN.md), [`TERMINOLOGY_DE.md`](TERMINOLOGY_DE.md), [`TERMINOLOGY_FR.md`](TERMINOLOGY_FR.md).
 - Regional variants: [`TERMINOLOGY_DE_AT.md`](TERMINOLOGY_DE_AT.md), [`TERMINOLOGY_DE_CH.md`](TERMINOLOGY_DE_CH.md), [`TERMINOLOGY_FR_CH.md`](TERMINOLOGY_FR_CH.md). Each variant file lists only what differs from its base — read the base file first.
 
 ## Scope
 
-Two surfaces follow these rules:
+Three surfaces follow these rules:
 
 1. **Platform UI** — `services/platform/messages/*.json`. Labels, buttons, status messages, errors. Space-constrained.
-2. **Mintlify docs** — `docs/**`. Long-form prose, tables, code blocks. More room, more rigour expected.
+2. **Marketing site** — `services/web/messages/*.json`. Long-form marketing copy, FAQs, CTAs.
+3. **Docs site** — `docs/**` (page bodies) and `services/docs/messages/*.json` (chrome strings: nav, search, 404, footer). Long-form prose, tables, code blocks. More room, more rigour expected.
 
-Where a rule differs between the two, the section calls it out.
+Where a rule differs between surfaces, the section calls it out. Notably, the **informal-form rule applies to the marketing site too** — Tale addresses prospective customers in the same voice it addresses signed-in users.
 
 ## Length
 
@@ -30,7 +31,7 @@ Where a rule differs between the two, the section calls it out.
 
 - WRITE error messages that tell the user what happened and what to do next.
 - END error messages with a period. One sentence is usually enough.
-- NEVER blame the user ("Invalid input" → "Enter a valid e-mail address").
+- NEVER blame the user ("Invalid input" → "Enter a valid email address").
 
 ## Abbreviations
 
@@ -44,7 +45,7 @@ Where a rule differs between the two, the section calls it out.
 ## Placeholders and brand names
 
 - PRESERVE ICU placeholders exactly (`{count, plural, ...}`, `{field}`, `{error, select, ...}`) — never translate placeholder names or reorder their arguments.
-- DO NOT translate brand names (Tale, Gmail, Outlook, Shopify, Microsoft, Convex, Mintlify, OpenRouter, Claude, GitHub, Slack, etc.).
+- DO NOT translate brand names (Tale, Gmail, Outlook, Shopify, Microsoft, Convex, OpenRouter, Claude, GitHub, Slack, etc.).
 - DO NOT translate code identifiers, environment variable names, CLI flags, file paths, or JSON keys. `TALE_CONFIG_DIR`, `--detach`, and `providers/openrouter.json` look the same in every locale.
 
 ## Product role names
@@ -82,4 +83,4 @@ Each language file specifies its quotation style. As a default:
 
 ## Anchor links across locales
 
-Mintlify generates heading anchors from the slugified heading text. When a heading's text differs between locales (which it will, since headings are translated), its anchor differs too. Keep cross-file links within the same locale; do not reuse an English anchor inside a German or French file.
+The markdown renderer generates heading anchors from the slugified heading text. When a heading's text differs between locales (which it will, since headings are translated), its anchor differs too. Keep cross-file links within the same locale; do not reuse an English anchor inside a German or French file.

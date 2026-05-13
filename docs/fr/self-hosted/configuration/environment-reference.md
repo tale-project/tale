@@ -9,7 +9,7 @@ Toute la configuration passe par des variables d’environnement dans `.env`. Co
 
 | Variable    | Requis | Défaut               | Description                                                                                                |
 | ----------- | ------ | -------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `HOST`      | Oui    | `tale.local`         | nom d’hôte sans protocole (utilisé pour le réseau Docker et les e-mails).                                  |
+| `HOST`      | Oui    | `tale.local`         | nom d’hôte sans protocole (utilisé pour le réseau Docker et les Emails).                                   |
 | `SITE_URL`  | Oui    | `https://tale.local` | URL canonique complète avec protocole (utilisée pour liens externes et callbacks d’auth).                  |
 | `BASE_PATH` | Non    |                      | chemin de base pour déploiement en sous-chemin (ex. `/app`). Laisser vide pour un déploiement à la racine. |
 
@@ -20,7 +20,7 @@ Toute la configuration passe par des variables d’environnement dans `.env`. Co
 | Variable    | Requis | Défaut       | Description                                                        |
 | ----------- | ------ | ------------ | ------------------------------------------------------------------ |
 | `TLS_MODE`  | Non    | `selfsigned` | gestion du certificat : `selfsigned`, `letsencrypt` ou `external`. |
-| `TLS_EMAIL` | Non    |              | e-mail pour les notifications Let’s Encrypt (recommandé en prod).  |
+| `TLS_EMAIL` | Non    |              | email pour les notifications Let’s Encrypt (recommandé en prod).   |
 
 - **selfsigned** : certificats auto-signés pour le dev. Le navigateur avertit.
 - **letsencrypt** : certificats gratuits de confiance. Exige un domaine public valide et les ports 80/443 joignables.
@@ -104,7 +104,7 @@ Ces variables ne sont nécessaires que si tu configures le SSO via environnement
 | --------------------------------- | ------ | --------------------------------------------------------------------------- |
 | `TRUSTED_HEADERS_ENABLED`         | Non    | `true` pour activer l’auth Trusted Headers.                                 |
 | `TRUSTED_HEADERS_INTERNAL_SECRET` | Non    | secret partagé pour valider les requêtes Trusted Header (defense-in-depth). |
-| `TRUSTED_EMAIL_HEADER`            | Non    | nom du header e-mail (défaut : `Remote-Email`).                             |
+| `TRUSTED_EMAIL_HEADER`            | Non    | nom du header email (défaut : `Remote-Email`).                              |
 | `TRUSTED_NAME_HEADER`             | Non    | nom du header nom affiché (défaut : `Remote-Name`).                         |
 | `TRUSTED_ROLE_HEADER`             | Non    | nom du header rôle (défaut : `Remote-Role`).                                |
 | `TRUSTED_TEAMS_HEADER`            | Non    | nom du header équipes (défaut : `Remote-Teams`).                            |

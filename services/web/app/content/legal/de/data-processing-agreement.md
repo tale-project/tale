@@ -43,7 +43,7 @@ Der Kunde ist Verantwortlicher und Tale ist Auftragsverarbeiter hinsichtlich der
 | **Zweck der Verarbeitung**             | Bereitstellung der Tale-Plattform und verbundener Leistungen gemäß Vereinbarung, einschließlich KI-gestützter Workflow-Automatisierung, Konversations-Verwaltung und zugehöriger Betriebsfunktionen. |
 | **Art der Verarbeitung**               | Speichern, Abrufen, Organisieren, Strukturieren, Berechnen, Übermitteln und Anzeigen von Daten, soweit für die Leistungserbringung erforderlich.                                                     |
 | **Kategorien Betroffener**             | vom Kunden bestimmt; kann Mitarbeitende, Endnutzer, Kunden, Auftragnehmer, Geschäftskontakte und andere Personen des Kunden umfassen, deren Daten dieser in die Leistungen einspeist.                |
-| **Kategorien personenbezogener Daten** | vom Kunden bestimmt; kann Namen, E-Mail-Adressen, Telefonnummern, Firmendaten, Nachrichteninhalte, Konversationsdaten, Workflow-Daten, Dokumente und weitere Daten umfassen.                         |
+| **Kategorien personenbezogener Daten** | vom Kunden bestimmt; kann Namen, Email-Adressen, Telefonnummern, Firmendaten, Nachrichteninhalte, Konversationsdaten, Workflow-Daten, Dokumente und weitere Daten umfassen.                          |
 | **Dauer der Verarbeitung**             | Für die Laufzeit der Vereinbarung, zuzüglich einer Frist zur Rückgabe oder Löschung personenbezogener Daten gemäß Abschnitt 12.                                                                      |
 
 ### 2.3 Pflichten des Kunden
@@ -96,7 +96,7 @@ Der Kunde erteilt Tale eine allgemeine schriftliche Genehmigung zum Einsatz von 
 
 ### 5.2 Benachrichtigung bei Änderungen
 
-Tale informiert den Kunden mindestens 30 Tage vor dem Einsatz eines neuen oder dem Austausch eines bestehenden Unterauftragsverarbeiters, indem die Liste aktualisiert und — wo der Kunde entsprechende Benachrichtigungen abonniert hat — per E-Mail informiert wird.
+Tale informiert den Kunden mindestens 30 Tage vor dem Einsatz eines neuen oder dem Austausch eines bestehenden Unterauftragsverarbeiters, indem die Liste aktualisiert und — wo der Kunde entsprechende Benachrichtigungen abonniert hat — per Email informiert wird.
 
 ### 5.3 Widerspruchsrecht
 

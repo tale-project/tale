@@ -43,7 +43,7 @@ Le Client est Responsable et Tale est Sous-traitant. Tale traite les données pe
 | **Finalité**                           | Fourniture de la plateforme Tale et des services liés selon le Contrat, y compris automatisation de workflows IA, gestion des conversations et fonctionnalités opérationnelles. |
 | **Nature**                             | Stockage, extraction, organisation, structuration, calcul, transmission et affichage nécessaires à la fourniture.                                                               |
 | **Catégories de personnes concernées** | Déterminées par le Client ; peuvent inclure employés, utilisateurs finaux, clients, prestataires, contacts commerciaux et toute personne dont les données sont soumises.        |
-| **Catégories de données**              | Déterminées par le Client ; peuvent inclure noms, e-mails, téléphones, informations sur l’entreprise, contenu de messages, conversations, workflows, documents, etc.            |
+| **Catégories de données**              | Déterminées par le Client ; peuvent inclure noms, emails, téléphones, informations sur l’entreprise, contenu de messages, conversations, workflows, documents, etc.             |
 | **Durée**                              | Pour la durée du Contrat, plus la période requise pour la restitution ou la suppression (voir section 12).                                                                      |
 
 ### 2.3 Responsabilités du Client
@@ -96,7 +96,7 @@ Le Client autorise de manière générale Tale à engager des Sous-traitants ult
 
 ### 5.2 Notification des changements
 
-Tale informe le Client au moins 30 jours avant d’engager un nouveau Sous-traitant ultérieur ou d’en remplacer un, par mise à jour de la liste et, si le Client a souscrit, par e-mail.
+Tale informe le Client au moins 30 jours avant d’engager un nouveau Sous-traitant ultérieur ou d’en remplacer un, par mise à jour de la liste et, si le Client a souscrit, par email.
 
 ### 5.3 Droit d’opposition
 

@@ -169,7 +169,7 @@ The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) pl
 - **[Create an agent](docs/platform/agents/create.md)** — specialised AI assistants
 - **[Workflows](docs/platform/automations/workflows.md)** — multi-step automations
 - **[Structured data](docs/platform/knowledge/structured-data.md)** — products, customers, vendors
-- **[Integrations overview](docs/platform/integrations/overview.md)** — REST, SQL, e-mail, OneDrive
+- **[Integrations overview](docs/platform/integrations/overview.md)** — REST, SQL, email, OneDrive
 
 ### For admins
 
@@ -205,7 +205,7 @@ The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) pl
 
 ## Contributing
 
-Read [`AGENTS.md`](AGENTS.md) before your first PR — it is the single contract for code style, security, testing, i18n, and documentation across every workspace. [`docs/AGENTS.md`](docs/AGENTS.md) covers the Mintlify documentation site; [`.agents/TERMINOLOGY.md`](.agents/TERMINOLOGY.md) covers cross-locale translation rules. Run `bun run check` (format, lint, typecheck, tests) before opening a PR; the [pull request template](.github/pull_request_template.md) lists the rest of the pre-merge checklist.
+Read [`AGENTS.md`](AGENTS.md) before your first PR — it is the single contract for code style, security, testing, i18n, and documentation across every workspace. The [`docs`](.agents/docs/AGENTS.md) skill covers the documentation site; the [`terminology`](.agents/terminology/AGENTS.md) skill covers cross-locale translation rules. Run `bun run check` (format, lint, typecheck, tests) before opening a PR; the [pull request template](.github/pull_request_template.md) lists the rest of the pre-merge checklist.
 
 ---
 

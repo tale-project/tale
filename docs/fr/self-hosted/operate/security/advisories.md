@@ -9,7 +9,7 @@ Comment Tale coordonne, dépose et publie les correctifs liés à la sécurité.
 
 - **Principal** : [GitHub Security Advisories](https://github.com/tale-project/tale/security/advisories) sur `tale-project/tale`. Les advisories sont préparées en privé, liées à un CVE quand applicable, puis publiées une fois une version patchée disponible.
 - **Secondaire** : chaque advisory est référencée dans les release notes GitHub correspondantes sous la section `## 🔒 Security` (voir [format des release notes](/fr/self-hosted/operate/release-notes/format)).
-- **Notification directe** (manuelle pour l’instant) : les advisories critiques sont envoyées par e-mail aux opérateurs connus. Il n’existe pas encore de liste e-mail automatisée — c’est prévu.
+- **Notification directe** (manuelle pour l’instant) : les advisories critiques sont envoyées par email aux opérateurs connus. Il n’existe pas encore de liste email automatisée — c’est prévu.
 
 ## Quand déposer une advisory
 
@@ -24,7 +24,7 @@ On dépose un GitHub Security Advisory quand l’un des points suivants s’appl
 
 ## Matrice gravité → escalade
 
-| CVSS             | Advisory    | Release notes            | E-mail direct aux opérateurs                                           |
+| CVSS             | Advisory    | Release notes            | Email direct aux opérateurs                                            |
 | ---------------- | ----------- | ------------------------ | ---------------------------------------------------------------------- |
 | Critical (9.0+)  | Requise     | Requise, résumé en avant | Oui — avant divulgation publique si coordonnée, sinon à la publication |
 | High (7.0–8.9)   | Requise     | Requise                  | Seulement si l’exploitation ne demande aucune action utilisateur       |

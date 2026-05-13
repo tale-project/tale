@@ -11,7 +11,7 @@ Si tu dois aussi installer ou faire tourner une instance Tale toi-même, va voir
 
 Rien à installer — Tale tourne entièrement dans le navigateur. Ton Admin te fait entrer via l’une des trois méthodes, selon la configuration de ton organisation.
 
-- **E-mail et mot de passe.** Ton Admin crée ton compte depuis **Paramètres → Membres** avec un mot de passe initial et te le transmet. Tu seras obligé·e de le changer à la première connexion.
+- **Email et mot de passe.** Ton Admin crée ton compte depuis **Paramètres → Membres** avec un mot de passe initial et te le transmet. Tu seras obligé·e de le changer à la première connexion.
 - **SSO (Microsoft Entra).** Connecte-toi avec ton compte Microsoft existant ; ton compte Tale est provisionné automatiquement à la première connexion.
 - **Reverse proxy (trusted headers).** Si Tale est derrière Authelia, Authentik, oauth2-proxy ou similaire, le proxy t’authentifie et ton compte est provisionné automatiquement à la première requête.
 

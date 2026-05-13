@@ -18,7 +18,7 @@ interface TabProps {
 
 export function Tab(_: TabProps) {
   // Rendered indirectly by <Tabs>; this exists only as a typed marker so MDX
-  // authors get the same prop API as Mintlify.
+  // authors get a typed prop API.
   return null;
 }
 

@@ -2965,7 +2965,7 @@
       "title": "The Sovereign AI Platform",
       "description": "Local AI models, agents, skills, and automations — on your own infrastructure, connected to your data"
     },
-    "keywords": "sovereign AI, local AI, self-hosted AI platform, AI agents, AI automations, on-premise AI, data sovereignty, private infrastructure, AI skills, local language models, enterprise AI, data privacy, agentic AI, workflow automation",
+    "keywords": "sovereign AI, local AI, self-hosted AI platform, AI agents, AI automations, on-premises AI, data sovereignty, private infrastructure, AI skills, local language models, enterprise AI, data privacy, agentic AI, workflow automation",
     "chat": {
       "title": "Chat",
       "description": "Chat with AI to get help with your tasks."
@@ -4388,7 +4388,7 @@
       "add": "Add"
     },
     "sidebar": {
-      "sectionTitle": "Prompt Library"
+      "sectionTitle": "Prompt library"
     }
   },
   "mcpServers": {

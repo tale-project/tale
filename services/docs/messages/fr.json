@@ -61,7 +61,7 @@
     "lastUpdated": "Mis à jour le {date}",
     "notFoundTitle": "Page introuvable",
     "notFoundBody": "Nous n'avons pas trouvé cette page. Une des suggestions ci-dessous correspond peut-être – sinon, lance la recherche.",
-    "notFoundSuggestions": "Vouliez-vous dire",
+    "notFoundSuggestions": "Tu voulais dire",
     "notFoundBackHome": "Retour à l'accueil de la documentation",
     "backToTop": "Retour en haut"
   },

@@ -12,7 +12,7 @@ Commence par [Membres et rôles](/fr/platform/admin/members-and-roles) — la ma
 - [Membres et rôles](/fr/platform/admin/members-and-roles) — modèle à six rôles avec matrice de permissions.
 - [Équipes](/fr/platform/admin/teams) — cloisonner l’accès aux connaissances et au chat.
 - [Authentification](/fr/self-hosted/admin/authentication) — mot de passe, SSO, en-têtes de confiance.
-- [Fournisseurs d’IA](/fr/platform/admin/providers) — configurer les fournisseurs LLM et e-mail.
+- [Fournisseurs d’IA](/fr/platform/admin/providers) — configurer les fournisseurs LLM et email.
 - [Image de marque](/fr/platform/admin/branding) — logos, couleurs, nom du produit.
 - [Gouvernance](/fr/platform/admin/governance) — règles de contenu et de politique.
 - [Analyses d’utilisation](/fr/platform/admin/usage-analytics) — activité par utilisateur et à l’échelle de l’organisation.

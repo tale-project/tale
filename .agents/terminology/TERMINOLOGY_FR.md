@@ -1,6 +1,6 @@
 # French (fr) terminology
 
-French base locale for the platform UI (`services/platform/messages/fr.json`) and the Mintlify docs (`docs/fr/`). Cross-locale rules — length, tone, plurals, placeholders — live in [`TERMINOLOGY.md`](TERMINOLOGY.md); read that file first. English source forms live in [`TERMINOLOGY_EN.md`](TERMINOLOGY_EN.md).
+French base locale for the platform UI (`services/platform/messages/fr.json`), the marketing site (`services/web/messages/fr.json`), and the docs site (`docs/fr/` page bodies plus `services/docs/messages/fr.json` chrome strings). Cross-locale rules — length, tone, plurals, placeholders — live in [`TERMINOLOGY.md`](TERMINOLOGY.md); read that file first. English source forms live in [`TERMINOLOGY_EN.md`](TERMINOLOGY_EN.md).
 
 The Swiss variant extends this file with deltas only:
 
@@ -55,7 +55,7 @@ Match the UI verbatim — if the two ever disagree, update the UI first, then th
 | MCP server                 | Serveur MCP  | Matches UI label `mcpServers.title`.                                                                        |
 | User                       | Utilisateur  | In mixed/generic use. Only reach for `utilisateur·rice` when gender inclusion is essential to the sentence. |
 | Browser                    | Navigateur   |                                                                                                             |
-| E-mail                     | E-mail       | Hyphenated, per the Académie française.                                                                     |
+| Email                      | Email        | One word, no hyphen. Lowercase `email` in prose, capitalize as a label. Matches the EN form.                |
 
 ## Actions and state verbs
 
