@@ -85,25 +85,25 @@ export function FormCard({
   return (
     <Section spacing="md">
       <Container size="lg">
-        <div className="grid gap-12 md:grid-cols-2 md:gap-16">
+        <div className="grid gap-10 md:grid-cols-2 md:gap-20">
           <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={
               reduceMotion ? { duration: 0 } : { duration: 0.5, ease: easeOut }
             }
-            className="flex flex-col gap-5"
+            className="flex flex-col gap-6"
           >
             {eyebrow ? (
               <p className="text-xs font-semibold tracking-wider text-[color:var(--color-fg-muted)] uppercase">
                 {eyebrow}
               </p>
             ) : null}
-            <h1 className="text-4xl font-semibold tracking-tight text-[color:var(--color-fg-base)] md:text-5xl">
+            <h1 className="text-accent-base text-[2rem] font-medium tracking-tight md:text-5xl md:tracking-[-0.02em]">
               {title}
             </h1>
             {description ? (
-              <div className="text-base leading-relaxed text-[color:var(--color-fg-muted)] md:text-lg">
+              <div className="text-fg-muted text-base leading-[1.55] md:text-lg md:tracking-[-0.015em]">
                 {description}
               </div>
             ) : null}
@@ -146,7 +146,7 @@ export function FormCard({
               <FormProvider {...form}>
                 <form
                   onSubmit={onSubmit}
-                  className="flex flex-col gap-5"
+                  className="flex flex-col gap-8"
                   noValidate
                 >
                   {/* Honeypot field — hidden from real users. */}
@@ -162,7 +162,7 @@ export function FormCard({
                     </label>
                   </div>
 
-                  {children}
+                  <div className="flex flex-col gap-6">{children}</div>
 
                   <Field
                     error={
@@ -171,7 +171,7 @@ export function FormCard({
                         : undefined
                     }
                   >
-                    <label className="flex items-start gap-3 text-sm text-[color:var(--color-fg-base)]">
+                    <label className="text-fg-muted flex items-center gap-2 text-sm">
                       <Checkbox
                         checked={Boolean(form.watch('privacy'))}
                         onCheckedChange={(checked) =>
@@ -185,7 +185,7 @@ export function FormCard({
                         {t('privacyPrefix')}{' '}
                         <a
                           href="/legal/privacy-policy"
-                          className="font-medium text-[color:var(--color-fg-base)] underline underline-offset-4"
+                          className="text-fg-muted font-semibold underline underline-offset-4"
                         >
                           {t('privacyLink')}
                         </a>

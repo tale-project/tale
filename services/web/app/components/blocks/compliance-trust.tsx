@@ -1,3 +1,4 @@
+import { Image } from '@tale/ui/image';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Layers, Shield } from 'lucide-react';
 
@@ -11,8 +12,8 @@ export function ComplianceTrust() {
   const reduceMotion = useReducedMotion();
 
   return (
-    <section className="border-border-base border-b py-12">
-      <SiteContainer>
+    <section className="border-border-base border-b py-0 md:py-12">
+      <SiteContainer className="px-0 md:px-20">
         <motion.header
           initial={reduceMotion ? false : { opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -23,14 +24,14 @@ export function ComplianceTrust() {
           className="mx-auto max-w-[1120px]"
         >
           <h2
-            className="text-fg-base text-3xl font-medium md:text-[52px]"
+            className="text-fg-base sr-only text-3xl font-medium md:not-sr-only md:text-[52px]"
             style={{ letterSpacing: '-2.14px', lineHeight: 1.077 }}
           >
             {t('compliance.title')}
           </h2>
         </motion.header>
 
-        <div className="border-border-base mx-auto mt-12 grid max-w-[1120px] grid-cols-1 overflow-hidden border md:grid-cols-2">
+        <div className="border-border-base mx-auto grid max-w-[1120px] grid-cols-1 overflow-hidden md:mt-12 md:grid-cols-2 md:border">
           <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -38,7 +39,7 @@ export function ComplianceTrust() {
             transition={
               reduceMotion ? { duration: 0 } : { duration: 0.6, ease: easeOut }
             }
-            className="border-border-base relative flex flex-col gap-4 border-b p-10 md:border-r md:border-b-0"
+            className="border-border-base relative flex h-125 flex-col gap-4 border-x border-t p-6 md:h-auto md:border-x-0 md:border-t-0 md:border-r md:border-b-0 md:p-10"
           >
             <div className="flex items-center gap-2">
               <Layers
@@ -59,13 +60,12 @@ export function ComplianceTrust() {
             >
               {t('compliance.independent.description')}
             </p>
-            <div className="mt-auto flex aspect-[16/10] w-full items-center justify-center overflow-hidden pt-12">
-              <img
-                src="/marketing/svg/mock-blocks.svg"
+            <div className="pointer-events-none mt-auto flex aspect-16/10 w-full items-end justify-center overflow-hidden pt-6 md:pt-12">
+              <Image
+                src="/marketing/trust-blocks.png"
                 alt=""
-                aria-hidden
                 draggable={false}
-                className="block max-h-full w-auto max-w-[360px] object-contain"
+                className="block h-auto w-auto max-w-84.5 object-contain"
               />
             </div>
           </motion.div>
@@ -79,7 +79,7 @@ export function ComplianceTrust() {
                 ? { duration: 0 }
                 : { delay: 0.08, duration: 0.6, ease: easeOut }
             }
-            className="relative flex flex-col gap-4 p-10"
+            className="border-border-base relative flex h-125 flex-col gap-4 overflow-hidden border p-6 md:h-auto md:border-0 md:p-10"
           >
             <div className="flex items-center gap-2">
               <Shield
@@ -100,13 +100,12 @@ export function ComplianceTrust() {
             >
               {t('compliance.certified.description')}
             </p>
-            <div className="mt-auto flex aspect-[16/10] w-full items-center justify-center overflow-hidden pt-12">
-              <img
-                src="/marketing/svg/mock-compliance-columns.svg"
+            <div className="pointer-events-none mt-auto flex aspect-16/10 w-full items-end justify-center overflow-hidden pt-6 md:pt-12">
+              <Image
+                src="/marketing/trust-network.png"
                 alt=""
-                aria-hidden
                 draggable={false}
-                className="block max-h-full w-auto max-w-[360px] object-contain"
+                className="block h-auto w-full object-contain"
               />
             </div>
           </motion.div>

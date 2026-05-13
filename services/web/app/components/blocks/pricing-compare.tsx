@@ -48,6 +48,36 @@ interface SectionRow {
 
 type Row = DataRow | SpanRow | SectionRow;
 
+function LabelWithInfo({
+  label,
+  info,
+}: {
+  label: string;
+  info: string;
+}): ReactNode {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {label}
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={info}
+              className="text-fg-muted hover:text-fg-base focus-visible:ring-accent-base/30 inline-flex h-4 w-4 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
+            >
+              <HelpCircle className="h-3.5 w-3.5" strokeWidth={2} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs text-center">
+            {info}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </span>
+  );
+}
+
 function renderCell(cell: Cell, yesLabel: string, noLabel: string): ReactNode {
   if (cell.kind === 'check') {
     return (
@@ -130,25 +160,10 @@ export function PricingCompare({ region }: PricingCompareProps) {
       kind: 'data',
       rowKey: 'customDpa',
       label: (
-        <span className="inline-flex items-center gap-1.5">
-          {t('compare.rows.customDpa')}
-          <TooltipProvider delayDuration={150}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label={t('compare.rows.customDpaInfo')}
-                  className="text-fg-muted hover:text-fg-base focus-visible:ring-accent-base/30 inline-flex h-4 w-4 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
-                >
-                  <HelpCircle className="h-3.5 w-3.5" strokeWidth={2} />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-xs text-center">
-                {t('compare.rows.customDpaInfo')}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </span>
+        <LabelWithInfo
+          label={t('compare.rows.customDpa')}
+          info={t('compare.rows.customDpaInfo')}
+        />
       ),
       cells: { community: dash, enterprise: check },
     },
@@ -156,17 +171,32 @@ export function PricingCompare({ region }: PricingCompareProps) {
     { kind: 'section', label: t('compare.categories.support') },
     {
       kind: 'data',
-      label: t('compare.rows.emailSupport'),
+      label: (
+        <LabelWithInfo
+          label={t('compare.rows.emailSupport')}
+          info={t('compare.rows.emailSupportInfo')}
+        />
+      ),
       cells: { community: dash, enterprise: check },
     },
     {
       kind: 'data',
-      label: t('compare.rows.phoneSupport'),
+      label: (
+        <LabelWithInfo
+          label={t('compare.rows.phoneSupport')}
+          info={t('compare.rows.phoneSupportInfo')}
+        />
+      ),
       cells: { community: dash, enterprise: check },
     },
     {
       kind: 'data',
-      label: t('compare.rows.remoteSupport'),
+      label: (
+        <LabelWithInfo
+          label={t('compare.rows.remoteSupport')}
+          info={t('compare.rows.remoteSupportInfo')}
+        />
+      ),
       cells: { community: dash, enterprise: check },
     },
 

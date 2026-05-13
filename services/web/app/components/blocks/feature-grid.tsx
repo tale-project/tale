@@ -1,3 +1,4 @@
+import { Image } from '@tale/ui/image';
 import { motion, useReducedMotion } from 'framer-motion';
 import type { ComponentType, SVGProps } from 'react';
 
@@ -35,16 +36,13 @@ export function FeatureGrid({ title, description, items }: FeatureGridProps) {
           className="mx-auto flex max-w-[720px] flex-col items-center gap-3 text-center"
         >
           <h2
-            className="text-fg-base text-3xl font-medium md:text-[52px]"
-            style={{ letterSpacing: '-2.14px', lineHeight: 1.077 }}
+            className="text-fg-base text-[32px] font-medium tracking-[-1.4px] md:text-[52px] md:tracking-[-2.14px]"
+            style={{ lineHeight: 1.08 }}
           >
             {title}
           </h2>
           {description ? (
-            <p
-              className="text-fg-muted max-w-[528px] text-base md:text-lg"
-              style={{ letterSpacing: '-0.27px', lineHeight: 1.556 }}
-            >
+            <p className="text-fg-muted max-w-[528px] text-[15px] leading-[1.55] tracking-[-0.1px] md:text-lg md:leading-[1.556] md:tracking-[-0.108px]">
               {description}
             </p>
           ) : null}
@@ -52,7 +50,7 @@ export function FeatureGrid({ title, description, items }: FeatureGridProps) {
 
         <div
           role="list"
-          className="border-border-base mx-auto mt-16 grid max-w-[1120px] grid-cols-1 overflow-hidden border md:grid-cols-2"
+          className="border-border-base mx-auto mt-12 grid max-w-[1120px] grid-cols-1 overflow-hidden border md:grid-cols-2"
         >
           {items.map((item, idx) => (
             <motion.div
@@ -66,13 +64,13 @@ export function FeatureGrid({ title, description, items }: FeatureGridProps) {
                   ? { duration: 0 }
                   : { duration: 0.5, delay: idx * 0.06, ease: easeOut }
               }
-              className="border-border-base flex flex-col border-t first:border-t-0 even:md:border-l md:[&:nth-child(2)]:border-t-0"
+              className="border-border-base flex flex-col border-t first:border-t-0 md:min-h-[532px] even:md:border-l md:[&:nth-child(2)]:border-t-0"
             >
-              <div className="flex flex-col gap-4 px-10 pt-10">
+              <div className="flex flex-col gap-4 px-6 pt-6 md:px-10 md:pt-10">
                 <div className="flex items-center gap-2">
                   <item.icon
                     className="text-fg-base h-6 w-6 shrink-0"
-                    strokeWidth={1.75}
+                    strokeWidth={2}
                     stroke="currentColor"
                     fill="none"
                     aria-hidden
@@ -92,11 +90,10 @@ export function FeatureGrid({ title, description, items }: FeatureGridProps) {
                 </p>
               </div>
               {item.illustration ? (
-                <div className="mt-auto flex aspect-[16/10] w-full items-end justify-center overflow-hidden pt-10">
-                  <img
+                <div className="mt-auto flex aspect-[16/10] w-full items-end justify-center overflow-hidden pt-6 md:pt-10">
+                  <Image
                     src={item.illustration}
                     alt=""
-                    aria-hidden
                     draggable={false}
                     className="block h-full max-h-full w-full object-contain object-bottom"
                   />

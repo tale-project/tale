@@ -23,39 +23,39 @@ function BurgerIcon({
   const transition = { duration, ease: easeOut };
   return (
     <svg
-      width="20"
-      height="20"
-      viewBox="0 0 20 20"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.75"
+      strokeWidth="2"
       strokeLinecap="round"
       aria-hidden
     >
       <motion.line
-        initial={{ x1: 3, y1: 6, x2: 17, y2: 6 }}
+        initial={{ x1: 4, y1: 8, x2: 20, y2: 8 }}
         animate={
           open
-            ? { x1: 4.5, y1: 4.5, x2: 15.5, y2: 15.5 }
-            : { x1: 3, y1: 6, x2: 17, y2: 6 }
+            ? { x1: 6, y1: 6, x2: 18, y2: 18 }
+            : { x1: 4, y1: 8, x2: 20, y2: 8 }
         }
         transition={transition}
       />
       <motion.line
-        initial={{ x1: 3, y1: 10, x2: 17, y2: 10, opacity: 1 }}
+        initial={{ x1: 4, y1: 12, x2: 20, y2: 12, opacity: 1 }}
         animate={
           open
-            ? { x1: 3, y1: 10, x2: 17, y2: 10, opacity: 0 }
-            : { x1: 3, y1: 10, x2: 17, y2: 10, opacity: 1 }
+            ? { x1: 4, y1: 12, x2: 20, y2: 12, opacity: 0 }
+            : { x1: 4, y1: 12, x2: 20, y2: 12, opacity: 1 }
         }
         transition={transition}
       />
       <motion.line
-        initial={{ x1: 3, y1: 14, x2: 17, y2: 14 }}
+        initial={{ x1: 4, y1: 16, x2: 20, y2: 16 }}
         animate={
           open
-            ? { x1: 4.5, y1: 15.5, x2: 15.5, y2: 4.5 }
-            : { x1: 3, y1: 14, x2: 17, y2: 14 }
+            ? { x1: 6, y1: 18, x2: 18, y2: 6 }
+            : { x1: 4, y1: 16, x2: 20, y2: 16 }
         }
         transition={transition}
       />
@@ -179,7 +179,7 @@ export function SiteHeader({
               aria-label={open ? closeMenuLabel : openMenuLabel}
               aria-expanded={open}
               aria-controls={mobileNavId}
-              className="text-fg-base hover:bg-bg-muted inline-flex h-11 w-11 items-center justify-center rounded-lg transition-colors lg:hidden"
+              className="text-fg-muted hover:text-fg-base -mr-2.5 inline-flex h-11 w-11 items-center justify-center rounded-lg transition-colors lg:hidden"
               onClick={() => setOpen((prev) => !prev)}
             >
               <BurgerIcon open={open} reduceMotion={reduceMotion} />

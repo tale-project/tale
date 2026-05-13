@@ -12,13 +12,13 @@ export function CtaDeploy() {
   const reduceMotion = useReducedMotion();
 
   return (
-    <section className="bg-bg-base relative overflow-hidden py-24">
+    <section className="bg-bg-base border-border-strong relative overflow-hidden border-b pt-10 pb-24 md:py-24">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-20"
         style={{
           backgroundImage:
-            'repeating-linear-gradient(135deg, var(--color-border-strong) 0, var(--color-border-strong) 1px, transparent 1px, transparent 8px)',
+            'repeating-linear-gradient(45deg, var(--color-border-strong) 0, var(--color-border-strong) 2px, transparent 2px, transparent 7px)',
         }}
       />
       <SiteContainer className="relative">
@@ -29,15 +29,15 @@ export function CtaDeploy() {
           transition={
             reduceMotion ? { duration: 0 } : { duration: 0.6, ease: easeOut }
           }
-          className="mx-auto flex max-w-[500px] flex-col items-center gap-10 text-center"
+          className="mx-auto flex max-w-[500px] flex-col items-center gap-8 text-center md:gap-10"
         >
           <h2
-            className="text-fg-base text-4xl font-medium md:text-[56px]"
-            style={{ letterSpacing: '-2.14px', lineHeight: 1.071 }}
+            className="text-accent-base text-[32px] font-medium tracking-[-0.044em] md:text-[56px] md:tracking-[-0.038em]"
+            style={{ lineHeight: 1.071 }}
           >
             {t('cta.title')}
           </h2>
-          <Button asChild>
+          <Button asChild className="text-base">
             <LocalizedLink to="/request-demo">{t('cta.primary')}</LocalizedLink>
           </Button>
         </motion.div>

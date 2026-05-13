@@ -1,5 +1,7 @@
 import { Button } from '@tale/ui/button';
+import { Image } from '@tale/ui/image';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { CircleDollarSign, Hotel, Scale, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 
 import { LocalizedLink } from '@/app/components/layout/localized-link';
@@ -16,16 +18,34 @@ const ILLUSTRATIONS: Record<SectorKey, string> = {
   finance: '/marketing/svg/mock-document-card.svg',
 };
 
+const ICONS: Record<SectorKey, LucideIcon> = {
+  hospitality: Hotel,
+  legal: Scale,
+  finance: CircleDollarSign,
+};
+
 export function FeatureSectors() {
   const { t } = useT('home');
   const reduceMotion = useReducedMotion();
   const fadeInitial = reduceMotion ? false : { opacity: 0, y: 24 };
   const [active, setActive] = useState<SectorKey>('hospitality');
 
-  const sectors: { key: SectorKey; label: string }[] = [
-    { key: 'hospitality', label: t('featureSectors.hospitality.label') },
-    { key: 'legal', label: t('featureSectors.legal.label') },
-    { key: 'finance', label: t('featureSectors.finance.label') },
+  const sectors: { key: SectorKey; label: string; icon: LucideIcon }[] = [
+    {
+      key: 'hospitality',
+      label: t('featureSectors.hospitality.label'),
+      icon: ICONS.hospitality,
+    },
+    {
+      key: 'legal',
+      label: t('featureSectors.legal.label'),
+      icon: ICONS.legal,
+    },
+    {
+      key: 'finance',
+      label: t('featureSectors.finance.label'),
+      icon: ICONS.finance,
+    },
   ];
 
   return (
@@ -65,13 +85,14 @@ export function FeatureSectors() {
               ? { duration: 0 }
               : { delay: 0.1, duration: 0.7, ease: easeOut }
           }
-          className="border-border-base bg-bg-base mx-auto mt-16 max-w-[1120px] overflow-hidden border"
+          className="border-border-base bg-bg-base mx-auto mt-15 max-w-[1120px] overflow-hidden border"
           role="tablist"
           aria-label={t('featureSectors.title')}
         >
           <div className="border-border-base relative grid grid-cols-3 border-b">
             {sectors.map((s) => {
               const isActive = active === s.key;
+              const Icon = s.icon;
               return (
                 <button
                   key={s.key}
@@ -79,24 +100,19 @@ export function FeatureSectors() {
                   role="tab"
                   aria-selected={isActive}
                   onClick={() => setActive(s.key)}
-                  className={`text-fg-base border-border-base relative flex items-center justify-center gap-2 border-r px-6 py-4 text-sm font-medium transition-colors last:border-r-0 ${
+                  className={`border-border-base relative flex items-center justify-center gap-2 border-r px-3 py-4 text-base font-medium transition-colors last:border-r-0 ${
                     isActive
-                      ? 'bg-bg-base'
-                      : 'bg-bg-muted hover:bg-bg-elevated cursor-pointer'
+                      ? 'text-fg-base bg-bg-base'
+                      : 'text-fg-subtle bg-bg-muted hover:bg-bg-elevated cursor-pointer'
                   }`}
+                  style={{ letterSpacing: '-0.096px' }}
                 >
+                  <Icon
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 shrink-0"
+                    strokeWidth={1.75}
+                  />
                   {s.label}
-                  {isActive ? (
-                    <motion.span
-                      layoutId="sector-tab-underline"
-                      className="bg-fg-base absolute right-0 bottom-0 left-0 h-px"
-                      transition={
-                        reduceMotion
-                          ? { duration: 0 }
-                          : { type: 'spring', stiffness: 380, damping: 32 }
-                      }
-                    />
-                  ) : null}
                 </button>
               );
             })}
@@ -124,8 +140,8 @@ export function FeatureSectors() {
                     {t(`featureSectors.${active}.label`)}
                   </h3>
                   <p
-                    className="text-fg-muted text-base"
-                    style={{ letterSpacing: '-0.24px', lineHeight: 1.5 }}
+                    className="text-fg-muted text-lg"
+                    style={{ letterSpacing: '-0.27px', lineHeight: 1.778 }}
                   >
                     {t(`featureSectors.${active}.description`)}
                   </p>
@@ -137,14 +153,10 @@ export function FeatureSectors() {
                 </motion.div>
               </AnimatePresence>
             </div>
-            <div className="border-border-base bg-bg-elevated relative overflow-hidden border-t lg:border-t-0 lg:border-l">
+            <div className="border-border-base bg-bg-base relative h-125 overflow-hidden border-t lg:h-auto lg:border-t-0 lg:border-l">
               <AnimatePresence mode="wait" initial={false}>
-                <motion.img
+                <motion.div
                   key={active}
-                  src={ILLUSTRATIONS[active]}
-                  alt=""
-                  aria-hidden
-                  draggable={false}
                   initial={reduceMotion ? false : { opacity: 0, scale: 1.02 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={
@@ -155,8 +167,15 @@ export function FeatureSectors() {
                       ? { duration: 0 }
                       : { duration: 0.4, ease: easeOut }
                   }
-                  className="absolute inset-8 m-auto block max-h-[calc(100%-4rem)] max-w-[calc(100%-4rem)] object-contain"
-                />
+                  className="absolute inset-0"
+                >
+                  <Image
+                    src={ILLUSTRATIONS[active]}
+                    alt=""
+                    draggable={false}
+                    className="absolute inset-8 m-auto block max-h-[calc(100%-4rem)] max-w-[calc(100%-4rem)] object-contain"
+                  />
+                </motion.div>
               </AnimatePresence>
             </div>
           </div>

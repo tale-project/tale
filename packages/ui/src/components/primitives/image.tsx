@@ -1,0 +1,68 @@
+import {
+  type ComponentPropsWithoutRef,
+  forwardRef,
+  useEffect,
+  useState,
+} from 'react';
+
+import { cn } from '../../lib/cn';
+
+const DEFAULT_PLACEHOLDER = '/assets/placeholder-image.png';
+
+interface ImageProps extends Omit<ComponentPropsWithoutRef<'img'>, 'onError'> {
+  /**
+   * Fallback image URL used when the primary image fails to load.
+   * Defaults to `/assets/placeholder-image.png`.
+   */
+  fallbackSrc?: string;
+  /**
+   * When true, disables lazy loading (uses `loading="eager"`).
+   * Use for above-the-fold images.
+   */
+  priority?: boolean;
+}
+
+/**
+ * Custom Image component built on the native `<img>` element.
+ *
+ * Features:
+ * - Automatic fallback on error
+ * - Lazy loading by default (disable with `priority`)
+ * - Full control over styling
+ */
+export const Image = forwardRef<HTMLImageElement, ImageProps>(function Image(
+  {
+    src,
+    alt,
+    className,
+    fallbackSrc = DEFAULT_PLACEHOLDER,
+    priority = false,
+    loading,
+    ...props
+  },
+  ref,
+) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const currentSrc = failedSrc === src ? fallbackSrc : src || fallbackSrc;
+
+  useEffect(() => {
+    setFailedSrc(null);
+  }, [src]);
+
+  const handleError = () => {
+    setFailedSrc(src ?? null);
+  };
+
+  return (
+    <img
+      key={src}
+      ref={ref}
+      src={currentSrc}
+      alt={alt}
+      className={cn(className)}
+      loading={loading ?? (priority ? 'eager' : 'lazy')}
+      onError={handleError}
+      {...props}
+    />
+  );
+});

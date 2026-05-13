@@ -1,3 +1,5 @@
+import { Bot, LaptopMinimal, ListMinus, Lock } from 'lucide-react';
+
 import { ComplianceTrust } from '@/app/components/blocks/compliance-trust';
 import { CtaDeploy } from '@/app/components/blocks/cta-deploy';
 import { FaqAccordion } from '@/app/components/blocks/faq-accordion';
@@ -6,12 +8,6 @@ import { FeatureSectors } from '@/app/components/blocks/feature-sectors';
 import { FeatureSecure } from '@/app/components/blocks/feature-secure';
 import { HeroHeadline } from '@/app/components/blocks/hero-headline';
 import { LogoWall } from '@/app/components/blocks/logo-wall';
-import {
-  BuiltForYouIcon,
-  IndependentIcon,
-  SecureIcon,
-  StackIcon,
-} from '@/app/components/icons/marketing-icons';
 import { useT } from '@/lib/i18n/client';
 import { localizedPath } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
@@ -44,25 +40,25 @@ export function HomePage() {
         description={t('featureGrid.description')}
         items={[
           {
-            icon: IndependentIcon,
+            icon: ListMinus,
             title: t('featureGrid.independent.title'),
             description: t('featureGrid.independent.description'),
             illustration: '/marketing/security-1-independent.png',
           },
           {
-            icon: StackIcon,
+            icon: Bot,
             title: t('featureGrid.stack.title'),
             description: t('featureGrid.stack.description'),
             illustration: '/marketing/svg/mock-integrations-stack.svg',
           },
           {
-            icon: SecureIcon,
+            icon: Lock,
             title: t('featureGrid.proven.title'),
             description: t('featureGrid.proven.description'),
             illustration: '/marketing/svg/mock-compliance-columns.svg',
           },
           {
-            icon: BuiltForYouIcon,
+            icon: LaptopMinimal,
             title: t('featureGrid.needs.title'),
             description: t('featureGrid.needs.description'),
             illustration: '/marketing/security-4-needs.png',

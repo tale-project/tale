@@ -79,10 +79,10 @@ export function SiteFooter({
   const compact = columnCount === 0;
   const gridCols =
     columnCount === 1
-      ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_minmax(0,1fr)]'
+      ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-[minmax(180px,1fr)_minmax(0,1fr)] lg:grid-cols-[minmax(220px,1fr)_minmax(0,1fr)]'
       : columnCount === 2
-        ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_repeat(2,minmax(0,1fr))]'
-        : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(0,1fr))]';
+        ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-[minmax(180px,1fr)_repeat(2,minmax(0,1fr))] lg:grid-cols-[minmax(220px,1fr)_repeat(2,minmax(0,1fr))]'
+        : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-[minmax(180px,1fr)_repeat(3,minmax(0,1fr))] lg:grid-cols-[minmax(220px,1fr)_repeat(3,minmax(0,1fr))]';
 
   const llmLinkClass =
     'text-fg-muted hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base rounded-sm px-2 py-1 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none';
@@ -125,8 +125,10 @@ export function SiteFooter({
           </div>
         ) : (
           <>
-            <div className={cn('grid gap-12 py-16', gridCols)}>
-              <div className="text-fg-muted flex flex-col gap-4 text-sm sm:col-span-2 lg:col-span-1">
+            <div
+              className={cn('grid gap-8 py-10 md:gap-12 md:py-16', gridCols)}
+            >
+              <div className="text-fg-muted flex flex-col gap-4 text-sm sm:col-span-2 md:col-span-1">
                 {logo}
                 {address}
               </div>
@@ -135,12 +137,15 @@ export function SiteFooter({
                 <nav
                   key={col.heading}
                   aria-label={col.heading}
-                  className="flex flex-col gap-3"
+                  className="flex flex-col gap-4"
                 >
-                  <h3 className="text-fg-base text-sm font-semibold">
+                  <h3
+                    className="text-fg-base text-base font-medium"
+                    style={{ letterSpacing: '-0.16px' }}
+                  >
                     {col.heading}
                   </h3>
-                  <ul role="list" className="flex flex-col gap-2">
+                  <ul role="list" className="flex flex-col gap-[14px]">
                     {col.links.map((link, i) => (
                       // oxlint-disable-next-line react/no-array-index-key -- link order is stable
                       <li key={i}>{link}</li>

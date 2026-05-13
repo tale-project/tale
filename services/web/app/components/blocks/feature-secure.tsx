@@ -1,3 +1,4 @@
+import { Image } from '@tale/ui/image';
 import { cva } from 'class-variance-authority';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { type ComponentType, type SVGProps, useState } from 'react';
@@ -41,11 +42,24 @@ const panelGradient = cva('absolute inset-0', {
   },
 });
 
-// Inner stage that holds the SVG mockup centered over the gradient.
-// `inset-X` keeps a comfortable margin on every side so the illustration
-// never bleeds to the panel edge regardless of its intrinsic aspect ratio.
+// Frosted glass inner card overlaying the gradient panel. Mirrors the
+// Pencil spec: flush-left, ~6% right margin, ~10% top inset, extends past
+// the bottom edge so it's clipped by the parent. Rounded only at the
+// top-right corner with a subtle gradient stroke (white/20 → white).
+const panelGlassCard =
+  'pointer-events-none absolute top-[10.4%] right-[6%] bottom-[-3.3%] left-0 overflow-hidden rounded-tr-3xl bg-white/10 backdrop-blur-md';
+
+// Gradient stroke for the glass card — top is fainter, bottom edge near
+// fully opaque white. Implemented as a separate absolute ring so it sits
+// on top of the backdrop-blurred surface.
+const panelGlassStroke =
+  'pointer-events-none absolute inset-0 rounded-tr-3xl [mask:linear-gradient(#000_0_0)_content-box,linear-gradient(#000_0_0)] [mask-composite:exclude] p-px [background:linear-gradient(180deg,rgba(255,255,255,0.2)_0%,rgba(255,255,255,1)_100%)]';
+
+// Inner stage that holds the SVG mockup centered inside the glass card.
+// `inset-X` keeps a comfortable margin so the illustration never bleeds
+// to the card edge regardless of its intrinsic aspect ratio.
 const panelStage =
-  'absolute inset-6 flex items-center justify-center sm:inset-10';
+  'absolute inset-4 flex items-center justify-center sm:inset-8';
 
 // SVGs are vector — clamp to 100% on both axes and use `object-contain`
 // so they keep their aspect ratio and never blow up beyond the stage.
@@ -90,21 +104,25 @@ export function FeatureSecure() {
 
   const activeItem = items.find((item) => item.key === active) ?? items[0];
 
+  const tabId = (key: RailKey) => `feature-secure-tab-${key}`;
+
   const renderPanel = (item: RailItem) => (
     <div
       role="tabpanel"
-      className="relative aspect-[671/559] w-full overflow-hidden"
+      aria-labelledby={tabId(item.key)}
+      className="relative aspect-square w-full overflow-hidden lg:aspect-671/559"
     >
       <div aria-hidden className={panelGradient({ tab: item.key })} />
-      <div className={panelStage}>
-        <img
-          src={item.illustration}
-          alt=""
-          aria-hidden
-          draggable={false}
-          loading="lazy"
-          className={panelImage}
-        />
+      <div aria-hidden className={panelGlassCard}>
+        <div className={panelStage}>
+          <Image
+            src={item.illustration}
+            alt=""
+            draggable={false}
+            className={panelImage}
+          />
+        </div>
+        <div aria-hidden className={panelGlassStroke} />
       </div>
     </div>
   );
@@ -112,7 +130,7 @@ export function FeatureSecure() {
   return (
     <section
       id="features"
-      className="border-border-base scroll-mt-16 border-b py-20"
+      className="border-border-base scroll-mt-16 border-b py-12 md:py-20"
     >
       <SiteContainer>
         <motion.div
@@ -124,16 +142,10 @@ export function FeatureSecure() {
           }
           className="mx-auto flex max-w-[678px] flex-col items-center gap-3 text-center"
         >
-          <h2
-            className="text-fg-base text-3xl font-medium md:text-[52px]"
-            style={{ letterSpacing: '-2.14px', lineHeight: 1.077 }}
-          >
+          <h2 className="text-fg-base text-[32px] leading-[1.08] font-medium tracking-[-1.4px] md:text-[52px] md:leading-[1.077] md:tracking-[-2.14px]">
             {t('featureSecure.title')}
           </h2>
-          <p
-            className="text-fg-muted max-w-[528px] text-base md:text-lg"
-            style={{ letterSpacing: '-0.27px', lineHeight: 1.556 }}
-          >
+          <p className="text-fg-muted max-w-[528px] text-[15px] leading-[1.55] tracking-[-0.22px] md:text-lg md:leading-[1.556] md:tracking-[-0.27px]">
             {t('featureSecure.description')}
           </p>
         </motion.div>
@@ -149,7 +161,7 @@ export function FeatureSecure() {
               ? { duration: 0 }
               : { delay: 0.1, duration: 0.7, ease: easeOut }
           }
-          className="border-border-base mx-auto mt-16 grid max-w-[1120px] overflow-hidden border lg:grid-cols-[400px_1fr]"
+          className="border-border-base mx-auto mt-8 grid max-w-[1120px] overflow-hidden border md:mt-16 lg:grid-cols-[400px_1fr]"
         >
           <ul
             role="tablist"
@@ -164,33 +176,23 @@ export function FeatureSecure() {
                   key={key}
                   className={`relative ${isActive ? 'flex-1' : ''}`}
                 >
-                  <motion.span
-                    aria-hidden
-                    className="bg-fg-base absolute top-0 bottom-0 left-0 w-px origin-top"
-                    initial={false}
-                    animate={{ scaleY: isActive ? 1 : 0 }}
-                    transition={
-                      reduceMotion
-                        ? { duration: 0 }
-                        : { duration: 0.4, ease: easeOut }
-                    }
-                  />
                   <button
                     type="button"
                     role="tab"
+                    id={tabId(key)}
                     aria-selected={isActive}
                     aria-controls="feature-secure-panel"
                     onClick={() => setActive(key)}
-                    className={`flex w-full items-start gap-3 px-6 py-9 text-left transition-colors ${
+                    className={`focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base flex w-full items-start gap-3 px-6 py-6 text-left transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none lg:py-9 ${
                       isActive
                         ? 'bg-bg-base'
                         : 'bg-bg-base hover:bg-bg-elevated cursor-pointer'
                     }`}
                   >
                     <Icon
-                      className="text-fg-base mt-1 h-6 w-6 shrink-0"
+                      className="text-fg-base h-6 w-6 shrink-0"
                       aria-hidden
-                      strokeWidth={1.75}
+                      strokeWidth={2}
                       stroke="currentColor"
                       fill="none"
                     />
@@ -225,7 +227,7 @@ export function FeatureSecure() {
                                 ? { duration: 0 }
                                 : { duration: 0.35, ease: easeOut }
                             }
-                            className="text-fg-muted overflow-hidden text-base whitespace-pre-line"
+                            className="text-fg-muted overflow-hidden text-base font-medium whitespace-pre-line"
                             style={{
                               letterSpacing: '-0.24px',
                               lineHeight: 1.5,

@@ -41,35 +41,3 @@ export function ApprovalsIcon(props: IconProps) {
     </svg>
   );
 }
-
-export function IndependentIcon(props: IconProps) {
-  return (
-    <svg viewBox="-1 -1 20 14" aria-hidden {...baseStrokeProps} {...props}>
-      <path d="M8 6H0M13 0H0M13 12H0M18 6H12" />
-    </svg>
-  );
-}
-
-export function StackIcon(props: IconProps) {
-  return (
-    <svg viewBox="-1 -1 22 18" aria-hidden {...baseStrokeProps} {...props}>
-      <path d="M10 4V0H6M0 10H2M18 10H20M13 9V11M7 9V11M4 4H16C17.1046 4 18 4.89543 18 6V14C18 15.1046 17.1046 16 16 16H4C2.89543 16 2 15.1046 2 14V6C2 4.89543 2.89543 4 4 4Z" />
-    </svg>
-  );
-}
-
-export function SecureIcon(props: IconProps) {
-  return (
-    <svg viewBox="-1 -1 20 22" aria-hidden {...baseStrokeProps} {...props}>
-      <path d="M4 9V5C4 3.67392 4.52678 2.40215 5.46447 1.46447C6.40215 0.526784 7.67392 0 9 0C10.3261 0 11.5979 0.526784 12.5355 1.46447C13.4732 2.40215 14 3.67392 14 5V9M2 9H16C17.1046 9 18 9.89543 18 11V18C18 19.1046 17.1046 20 16 20H2C0.89543 20 0 19.1046 0 18V11C0 9.89543 0.89543 9 2 9Z" />
-    </svg>
-  );
-}
-
-export function BuiltForYouIcon(props: IconProps) {
-  return (
-    <svg viewBox="-1 -1 22 18" aria-hidden {...baseStrokeProps} {...props}>
-      <path d="M0 16H20M3 0H17C18.1046 0 19 0.89543 19 2V10C19 11.1046 18.1046 12 17 12H3C1.89543 12 1 11.1046 1 10V2C1 0.89543 1.89543 0 3 0Z" />
-    </svg>
-  );
-}

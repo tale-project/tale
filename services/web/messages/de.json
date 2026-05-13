@@ -287,8 +287,11 @@
         "customDpa": "Individueller AVV",
         "customDpaInfo": "Wir akzeptieren auch individuelle Auftragsverarbeitungsverträge mit unseren Kunden.",
         "emailSupport": "E-Mail-Support",
+        "emailSupportInfo": "Antworten innerhalb Geschäftszeiten: Mo–Fr, 08:00–17:00 (MEZ/MESZ).",
         "phoneSupport": "Telefon-Support",
-        "remoteSupport": "Remote-Support"
+        "phoneSupportInfo": "Verfügbar innerhalb Geschäftszeiten: Mo–Fr, 08:00–17:00 (MEZ/MESZ).",
+        "remoteSupport": "Remote-Support",
+        "remoteSupportInfo": "Verfügbar innerhalb Geschäftszeiten: Mo–Fr, 08:00–17:00 (MEZ/MESZ)."
       },
       "cellLabels": {
         "yes": "Enthalten",
@@ -440,7 +443,6 @@
       "customAiTraining": "Individuelles KI-Modelltraining",
       "aiHardware": "KI-Hardware"
     },
-    "messageHelp": "Alle geteilten Projektdetails behandeln wir vertraulich.",
     "submit": "Kontakt aufnehmen"
   },
   "contact": {

@@ -1,12 +1,15 @@
 import { cn } from '@tale/ui/cn';
+import type { SVGProps } from 'react';
 
-export const AtlassianIcon = ({ className }: { className?: string }) => (
+export const AtlassianIcon = ({
+  className,
+  ...props
+}: SVGProps<SVGSVGElement>) => (
   <svg
     className={cn('size-full', className)}
     viewBox="0 0 24 24"
     xmlns="http://www.w3.org/2000/svg"
-    aria-label="Atlassian"
-    role="img"
+    {...props}
   >
     <defs>
       <linearGradient

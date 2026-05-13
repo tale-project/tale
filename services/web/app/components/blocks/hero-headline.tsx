@@ -13,9 +13,9 @@ export function HeroHeadline() {
   const fadeUpInitial = reduceMotion ? false : { opacity: 0, y: 20 };
 
   return (
-    <section className="border-border-base relative overflow-hidden border-b pt-[60px] pb-4">
+    <section className="border-border-base relative overflow-hidden border-b pt-[60px] pb-10 md:pb-4">
       <SiteContainer>
-        <div className="mx-auto flex max-w-[700px] flex-col items-center gap-9 text-center">
+        <div className="mx-auto flex max-w-[700px] flex-col items-center gap-7 text-center md:gap-9">
           <motion.div
             initial={fadeUpInitial}
             animate={{ opacity: 1, y: 0 }}
@@ -25,13 +25,13 @@ export function HeroHeadline() {
             className="flex flex-col items-center gap-3"
           >
             <h1
-              className="text-fg-base text-5xl font-medium md:text-[68px]"
+              className="text-fg-base text-[36px] font-medium md:text-[68px]"
               style={{ letterSpacing: '-2.94px', lineHeight: 1.1176 }}
             >
               {t('hero.title')}
             </h1>
             <p
-              className="text-fg-muted max-w-[548px] text-base md:text-xl"
+              className="text-fg-muted max-w-137 text-base md:text-xl"
               style={{ letterSpacing: '-0.3px', lineHeight: 1.6 }}
             >
               {t('hero.subtitle')}
@@ -46,7 +46,7 @@ export function HeroHeadline() {
                 : { delay: 0.15, duration: 0.6, ease: easeOut }
             }
           >
-            <Button asChild>
+            <Button asChild className="text-base">
               <LocalizedLink to="/request-demo">
                 {t('hero.ctaPrimary')}
               </LocalizedLink>
@@ -62,7 +62,7 @@ export function HeroHeadline() {
             ? { duration: 0 }
             : { delay: 0.35, duration: 0.8, ease: easeOut }
         }
-        className="mx-auto mt-[120px] w-full max-w-[1200px] px-5 md:px-10"
+        className="mx-auto mt-14.25 w-full max-w-[1200px] px-5 md:mt-24.75 md:px-10"
       >
         <img
           src="/marketing/hero-chat.png"
