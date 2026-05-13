@@ -1,6 +1,7 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
 import { promptScopeValidator } from './validators';
 
 export const promptTemplatesTable = defineTable({
@@ -17,6 +18,20 @@ export const promptTemplatesTable = defineTable({
   usageCount: v.number(),
   /** The message ID this prompt was saved from, if any. */
   sourceMessageId: v.optional(v.string()),
+
+  // --- Deprecated fields ---
+  // The fields below are no longer written by any active code path, but are
+  // retained as `v.optional` so existing rows from previous deploys still
+  // pass Convex's read-validator. Do not write to them. Remove only after
+  // a backfill confirms no row populates them.
+  /** @deprecated draft/publish was removed when versioning landed (every
+   * save is an instant publish). Kept for legacy-row read tolerance. */
+  isPublished: v.optional(v.boolean()),
+  /** @deprecated promptTemplates moved to hard-delete; lifecycle field is
+   * no longer populated. Kept for legacy-row read tolerance. */
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  /** @deprecated paired with lifecycleStatus; see above. */
+  statusChangedAt: v.optional(v.number()),
 
   // --- Versioning ---
   /** Denormalized pointer to the current version number. Always equal to

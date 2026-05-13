@@ -169,6 +169,12 @@ export const retentionPolicyConfigSchema = z.object({
   loginAttemptRetentionDays: z.number().int().nonnegative().optional(),
   chatFilterEventsEnabled: z.boolean().optional(),
   chatFilterEventsRetentionDays: z.number().int().nonnegative().optional(),
+  /** @deprecated promptTemplates moved to hard-delete; retention pipeline
+   * no longer reads these. Kept on the schema so existing policy docs
+   * that still set them parse without error. */
+  promptTemplatesEnabled: z.boolean().optional(),
+  /** @deprecated paired with promptTemplatesEnabled; see above. */
+  promptTemplatesRetentionDays: z.number().int().nonnegative().optional(),
   messageFeedbackEnabled: z.boolean().optional(),
   messageFeedbackRetentionDays: z.number().int().nonnegative().optional(),
   memoryAuditEnabled: z.boolean().optional(),
