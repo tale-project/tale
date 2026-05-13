@@ -78,6 +78,14 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     displayNameField: 'fileName',
     authorField: 'uploadedBy',
   },
+  promptTemplate: {
+    tableName: 'promptTemplates',
+    statusField: 'lifecycleStatus',
+    auditPrefix: 'prompt_template',
+    auditResourceType: 'prompt_template',
+    displayNameField: 'title',
+    authorField: 'createdBy',
+  },
   messageFeedback: {
     tableName: 'messageFeedback',
     statusField: 'lifecycleStatus',

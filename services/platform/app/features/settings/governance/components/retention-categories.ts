@@ -120,6 +120,12 @@ export const WIRE_MAPPING: readonly CategoryWireMapping[] = [
     i18nKey: 'chatFilterEvents',
   },
   {
+    id: 'promptTemplates',
+    configKey: 'promptTemplatesRetentionDays',
+    enabledKey: 'promptTemplatesEnabled',
+    i18nKey: 'promptTemplates',
+  },
+  {
     id: 'memoryAudit',
     configKey: 'memoryAuditRetentionDays',
     enabledKey: 'memoryAuditEnabled',

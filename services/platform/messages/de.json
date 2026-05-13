@@ -3312,6 +3312,10 @@
         "appliedToast": "Grenzwertvorschlag angewendet. Die Bereinigung verwendet beim nächsten Lauf die neuen Grenzen.",
         "rejectedToast": "Grenzwertvorschlag abgelehnt. Die Bereinigung verwendet weiterhin die bisherigen Grenzen."
       },
+      "promptTemplates": {
+        "title": "Prompt-Vorlagen",
+        "description": "Gespeicherte Prompts über alle Sichtbarkeitsebenen hinweg (persönlich, Team, global)."
+      },
       "messageFeedback": {
         "title": "Nachrichten-Feedback",
         "description": "Daumen/Kommentare zu Agenten-Nachrichten. Freitext-Kommentare können zitierten Nutzerinhalt enthalten."

@@ -3312,6 +3312,10 @@
         "appliedToast": "Bounds proposal applied. Cleanup will use new bounds on next run.",
         "rejectedToast": "Bounds proposal rejected. Cleanup continues with previous bounds."
       },
+      "promptTemplates": {
+        "title": "Prompt templates",
+        "description": "Saved prompts across all visibility scopes (personal, team, global)."
+      },
       "messageFeedback": {
         "title": "Message feedback",
         "description": "Thumbs/comments left on agent messages. Free-text comments may contain quoted user content."

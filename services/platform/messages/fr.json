@@ -3237,6 +3237,10 @@
         "appliedToast": "Proposition de limites appliquée. Le nettoyage utilisera les nouvelles limites à la prochaine exécution.",
         "rejectedToast": "Proposition de limites refusée. Le nettoyage continue avec les limites précédentes."
       },
+      "promptTemplates": {
+        "title": "Modèles de prompt",
+        "description": "Prompts enregistrés à tous les niveaux de visibilité (personnel, équipe, global)."
+      },
       "messageFeedback": {
         "title": "Feedback de messages",
         "description": "Pouces/commentaires laissés sur les messages d'agent. Les commentaires en texte libre peuvent contenir du contenu utilisateur cité."

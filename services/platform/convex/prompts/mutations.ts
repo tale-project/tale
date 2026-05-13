@@ -138,6 +138,8 @@ export const createPrompt = mutationWithRLS({
       tags: normalized.tags,
       usageCount: 0,
       sourceMessageId: args.sourceMessageId,
+      lifecycleStatus: 'active',
+      statusChangedAt: now,
       version: 1,
       versionHistory: [
         {

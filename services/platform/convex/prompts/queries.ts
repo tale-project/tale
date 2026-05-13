@@ -48,6 +48,15 @@ function stripVersionHistory(prompt: PromptDoc): PromptDoc {
   return rest;
 }
 
+/** True if the row is visible to normal user reads. Rows soft-deleted by
+ * the retention pipeline (trashed / expired) are surfaced only through the
+ * admin Trash UI — not through listPrompts / getPrompt. Rows missing the
+ * field (legacy or freshly created) are treated as active. */
+function isActivePrompt(p: PromptDoc): boolean {
+  const status = p.lifecycleStatus ?? 'active';
+  return status === 'active';
+}
+
 const EMPTY_PAGE = { page: [], isDone: true, continueCursor: '' };
 
 const paginatedListResultValidator = v.object({
@@ -112,7 +121,7 @@ export const listPrompts = queryWithRLS({
         )
         .order('desc')
         .paginate(paginationOpts);
-      postFilter = () => true;
+      postFilter = isActivePrompt;
     } else if (args.scope === 'team') {
       result = await ctx.db
         .query('promptTemplates')
@@ -123,7 +132,7 @@ export const listPrompts = queryWithRLS({
         .paginate(paginationOpts);
       // Team membership filter can't be expressed in the index — must
       // post-filter. Acceptable: team prompt counts are bounded.
-      postFilter = (p) => hasTeamAccess(p, userTeamIds);
+      postFilter = (p) => isActivePrompt(p) && hasTeamAccess(p, userTeamIds);
     } else if (args.scope === 'global') {
       result = await ctx.db
         .query('promptTemplates')
@@ -132,7 +141,7 @@ export const listPrompts = queryWithRLS({
         )
         .order('desc')
         .paginate(paginationOpts);
-      postFilter = () => true;
+      postFilter = isActivePrompt;
     } else {
       // No scope filter — newest-first across all scopes. Personal-scope
       // rows owned by other users and team-scope rows the caller can't
@@ -146,6 +155,7 @@ export const listPrompts = queryWithRLS({
         .order('desc')
         .paginate(paginationOpts);
       postFilter = (p) => {
+        if (!isActivePrompt(p)) return false;
         if (p.scope === 'personal' && p.createdBy !== user.userId) return false;
         if (p.scope === 'team' && !hasTeamAccess(p, userTeamIds)) return false;
         return true;
@@ -179,6 +189,9 @@ export const getPrompt = queryWithRLS({
   handler: async (ctx, args) => {
     const prompt = await ctx.db.get(args.promptId);
     if (!prompt) return null;
+    // Soft-deleted by retention: hidden from normal reads; admin sees it
+    // via the Trash UI queries instead.
+    if (!isActivePrompt(prompt)) return null;
 
     const user = await getAuthUserIdentity(ctx);
     if (!user) return null;
@@ -212,6 +225,7 @@ export const getPromptHistory = queryWithRLS({
   handler: async (ctx, args) => {
     const prompt = await ctx.db.get(args.promptId);
     if (!prompt) return null;
+    if (!isActivePrompt(prompt)) return null;
 
     const user = await getAuthUserIdentity(ctx);
     if (!user) return null;
@@ -338,6 +352,7 @@ export const getSavedSourceMessageIds = queryWithRLS({
       .collect();
 
     return rows
+      .filter(isActivePrompt)
       .filter((p): p is typeof p & { sourceMessageId: string } =>
         Boolean(p.sourceMessageId),
       )

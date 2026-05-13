@@ -169,11 +169,11 @@ export const retentionPolicyConfigSchema = z.object({
   loginAttemptRetentionDays: z.number().int().nonnegative().optional(),
   chatFilterEventsEnabled: z.boolean().optional(),
   chatFilterEventsRetentionDays: z.number().int().nonnegative().optional(),
-  /** @deprecated promptTemplates moved to hard-delete; retention pipeline
-   * no longer reads these. Kept on the schema so existing policy docs
-   * that still set them parse without error. */
+  /** Retention for `promptTemplates`. User-initiated `deletePrompt` is
+   * always hard-delete and ignores this; the retention cron uses these
+   * settings to soft-delete (Trash) and eventually hard-purge prompts
+   * older than the configured window. */
   promptTemplatesEnabled: z.boolean().optional(),
-  /** @deprecated paired with promptTemplatesEnabled; see above. */
   promptTemplatesRetentionDays: z.number().int().nonnegative().optional(),
   messageFeedbackEnabled: z.boolean().optional(),
   messageFeedbackRetentionDays: z.number().int().nonnegative().optional(),

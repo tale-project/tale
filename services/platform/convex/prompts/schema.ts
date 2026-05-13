@@ -19,19 +19,19 @@ export const promptTemplatesTable = defineTable({
   /** The message ID this prompt was saved from, if any. */
   sourceMessageId: v.optional(v.string()),
 
-  // --- Deprecated fields ---
-  // The fields below are no longer written by any active code path, but are
-  // retained as `v.optional` so existing rows from previous deploys still
-  // pass Convex's read-validator. Do not write to them. Remove only after
-  // a backfill confirms no row populates them.
-  /** @deprecated draft/publish was removed when versioning landed (every
-   * save is an instant publish). Kept for legacy-row read tolerance. */
-  isPublished: v.optional(v.boolean()),
-  /** @deprecated promptTemplates moved to hard-delete; lifecycle field is
-   * no longer populated. Kept for legacy-row read tolerance. */
+  /** Soft-delete state used by the retention pipeline (see
+   * governance/retention_cleanup.cleanupPromptTemplates). User-initiated
+   * `deletePrompt` is hard-delete and bypasses this field; only the
+   * scheduled retention cron writes 'trashed' / 'expired'. Rows missing
+   * this field are treated as `'active'`. */
   lifecycleStatus: v.optional(lifecycleStatusValidator),
-  /** @deprecated paired with lifecycleStatus; see above. */
+  /** Timestamp of the last `lifecycleStatus` transition; used by the
+   * grace-period check in the retention cleanup pass. */
   statusChangedAt: v.optional(v.number()),
+  /** @deprecated draft/publish was removed when versioning landed (every
+   * save is an instant publish). Kept as optional for legacy-row read
+   * tolerance — do not write to it. */
+  isPublished: v.optional(v.boolean()),
 
   // --- Versioning ---
   /** Denormalized pointer to the current version number. Always equal to
@@ -75,4 +75,11 @@ export const promptTemplatesTable = defineTable({
     'createdBy',
   ])
   // Used by erasure / per-author lookups.
-  .index('by_org_createdBy', ['organizationId', 'createdBy']);
+  .index('by_org_createdBy', ['organizationId', 'createdBy'])
+  // Used by the retention pipeline (listGraceExpiredPromptTemplates) to
+  // scan rows that have already been soft-deleted and are awaiting
+  // grace-period hard-purge.
+  .index('by_organizationId_and_lifecycleStatus', [
+    'organizationId',
+    'lifecycleStatus',
+  ]);
