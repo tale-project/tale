@@ -72,7 +72,7 @@ Cette page livre uniquement RGPD art. 17 (effacement). Hors périmètre v1, par 
 - Art. 16 rectification et art. 20 portabilité — atterriront plus tard comme valeurs `kind` supplémentaires sur la même page DSR, sans renommer la route.
 - Portail libre-service côté personne — Tale est administré par conception.
 - Vérification d'identité dans le produit — gérée hors-produit par l'admin.
-- Notification e-mail à la personne en fin de traitement — relève du chantier infra-e-mail.
+- Notification email à la personne en fin de traitement — relève du chantier infra-email.
 - Demandes massives (sociétés de gestion de réclamations).
 - Templates multi-juridictions (CCPA, LGPD, etc.) — RGPD d'abord.
 - Rédaction assistée par IA — Tale efface plutôt que rédiger.

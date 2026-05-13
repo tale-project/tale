@@ -19,7 +19,7 @@ Gültige Status-Werte: `active`, `inactive`, `draft`, `archived`. Ungültige Wer
 
 ## Kunden
 
-Der Bereich **Kunden** speichert deine Kundenliste. Jeder Kunde hat eine E-Mail-Adresse, ein Locale, einen Status und optionale benutzerdefinierte Metadaten. Importierte Kunden haben standardmäßig den Status `churned`.
+Der Bereich **Kunden** speichert deine Kundenliste. Jeder Kunde hat eine Email-Adresse, ein Locale, einen Status und optionale benutzerdefinierte Metadaten. Importierte Kunden haben standardmäßig den Status `churned`.
 
 CSV-Import in diesem Format:
 

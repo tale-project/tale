@@ -2,7 +2,7 @@
   "seo": {
     "home": {
       "title": "Tale: Die souveräne KI-Plattform",
-      "description": "Selbst gehostete KI-Plattform für datensensible Organisationen — lokale KI-Modelle, Agenten und Automatisierungen auf Ihrer eigenen Infrastruktur. ISO-27001- und SOC-2-zertifiziert."
+      "description": "Selbst gehostete KI-Plattform für datensensible Organisationen — lokale KI-Modelle, Agenten und Automatisierungen auf deiner eigenen Infrastruktur. ISO-27001- und SOC-2-zertifiziert."
     },
     "pricing": {
       "title": "Preise — einfach und transparent",
@@ -10,15 +10,15 @@
     },
     "contact": {
       "title": "Kontakt",
-      "description": "Nehmen Sie Kontakt mit dem Tale-Team auf. Sprechen Sie mit unseren Fachexperten über Ihre Ziele und die beste KI-Lösung für Ihre Organisation."
+      "description": "Nimm Kontakt mit dem Tale-Team auf. Sprich mit unseren Fachexperten über deine Ziele und die beste KI-Lösung für deine Organisation."
     },
     "requestDemo": {
       "title": "Demo anfragen",
-      "description": "Wir helfen datensensiblen Organisationen, Workflows mit privater, zuverlässiger KI zu automatisieren. Sprechen Sie mit unseren Fachexperten."
+      "description": "Wir helfen datensensiblen Organisationen, Workflows mit privater, zuverlässiger KI zu automatisieren. Sprich mit unseren Fachexperten."
     },
     "hardwarePricing": {
       "title": "Hardware-Preise",
-      "description": "Hochleistungs-KI-Hardware — fair bepreist. Betreiben Sie modernste Modelle, überall."
+      "description": "Hochleistungs-KI-Hardware — fair bepreist. Betreib modernste Modelle, überall."
     }
   },
   "nav": {
@@ -68,7 +68,7 @@
   "home": {
     "hero": {
       "title": "Die souveräne KI-Plattform",
-      "subtitle": "Lokale KI-Modelle, Agenten, Skills und Automatisierungen — auf Ihrer eigenen Infrastruktur, verbunden mit Ihren Daten",
+      "subtitle": "Lokale KI-Modelle, Agenten, Skills und Automatisierungen — auf deiner eigenen Infrastruktur, verbunden mit deinen Daten",
       "ctaPrimary": "Demo anfragen",
       "ctaSecondary": "Dokumentation lesen",
       "footNote": "Wir integrieren mit {logos} und mehr — unsere Expertise deckt den Rest ab.",
@@ -81,60 +81,60 @@
       "suffix": "und mehr — unsere Expertise deckt den Rest ab."
     },
     "featureSecure": {
-      "title": "Die sichere Plattform für all Ihre Abläufe",
-      "description": "Chatten Sie mit KI, automatisieren Sie Workflows, verwalten Sie Konversationen über alle Kanäle und behalten Sie den Menschen im Prozess — alles an einem Ort.",
+      "title": "Die sichere Plattform für all deine Abläufe",
+      "description": "Chatte mit KI, automatisiere Workflows, verwalte Konversationen über alle Kanäle und behalte den Menschen im Prozess — alles an einem Ort.",
       "chat": {
         "label": "Chat mit KI",
-        "description": "Eine KI-Chat-Oberfläche, die auf Daten, Verläufen und Dokumenten Ihres Unternehmens trainiert wurde — stellen Sie Fragen, durchsuchen Sie Systeme und erhalten Sie sofortige, präzise Antworten."
+        "description": "Eine KI-Chat-Oberfläche, die auf Daten, Verläufen und Dokumenten deines Unternehmens trainiert wurde — stell Fragen, durchsuche Systeme und erhalte sofortige, präzise Antworten."
       },
       "conversations": {
         "label": "Konversationen",
-        "description": "Beantworten Sie E-Mails, Chats und Anrufe aus einem Posteingang. Tale hält jeden Kanal auf Ihrer Infrastruktur — mit vollständigem Verlauf und Routing."
+        "description": "Beantworte Emails, Chats und Anrufe aus einem Posteingang. Tale hält jeden Kanal auf deiner Infrastruktur — mit vollständigem Verlauf und Routing."
       },
       "automations": {
         "label": "Automatisierungen",
-        "description": "Erstellen Sie mehrstufige Automatisierungen, die Tools, Modelle und Menschen verbinden. Starten Sie sie aus jedem Event und nehmen Sie sie auf Wunsch wieder auf."
+        "description": "Erstelle mehrstufige Automatisierungen, die Tools, Modelle und Menschen verbinden. Starte sie aus jedem Event und nimm sie auf Wunsch wieder auf."
       },
       "approvals": {
         "label": "Genehmigungen",
-        "description": "Halten Sie Menschen im Prozess mit expliziten Genehmigungsschritten. Tale leitet den passenden Kontext an die richtigen Prüfer weiter und auditiert jede Entscheidung."
+        "description": "Halte Menschen im Prozess mit expliziten Genehmigungsschritten. Tale leitet den passenden Kontext an die richtigen Prüfer weiter und auditiert jede Entscheidung."
       }
     },
     "featureSectors": {
       "title": "Für den echten operativen Einsatz gebaut",
-      "description": "Unterstützt von einem Team, das Verantwortung für Ihren Erfolg übernimmt — branchen- und anwendungsübergreifend.",
+      "description": "Unterstützt von einem Team, das Verantwortung für deinen Erfolg übernimmt — branchen- und anwendungsübergreifend.",
       "cta": "Demo anfordern",
       "hospitality": {
         "label": "Gastgewerbe",
-        "description": "Begleiten Sie Kunden. Automatisieren Sie Logistik. Unterstützen Sie After-Sales-Aufgaben. Tale passt sich an wechselnde Nachfrage an und wahrt das Markenvertrauen."
+        "description": "Begleite Kunden. Automatisiere Logistik. Unterstütze After-Sales-Aufgaben. Tale passt sich an wechselnde Nachfrage an und wahrt das Markenvertrauen."
       },
       "legal": {
         "label": "Recht",
-        "description": "Entwerfen, prüfen und routen Sie juristische Arbeit mit lückenloser Nachvollziehbarkeit. Tale hält sensible Inhalte auf Ihrer Infrastruktur und reduziert Bearbeitungszeiten."
+        "description": "Entwirf, prüfe und route juristische Arbeit mit lückenloser Nachvollziehbarkeit. Tale hält sensible Inhalte auf deiner Infrastruktur und reduziert Bearbeitungszeiten."
       },
       "finance": {
         "label": "Finanzen",
-        "description": "Abstimmen, analysieren und reporten — mit strikter Kontrolle. Tale verbindet sich mit Ihren Daten, ohne sie irgendwohin zu senden."
+        "description": "Abstimmen, analysieren und reporten — mit strikter Kontrolle. Tale verbindet sich mit deinen Daten, ohne sie irgendwohin zu senden."
       }
     },
     "featureGrid": {
       "title": "Sicherheit, Datenschutz & Zuverlässigkeit",
-      "description": "Grundprinzipien, die es Ihnen ermöglichen, private KI zu Ihren Bedingungen zu betreiben.",
+      "description": "Grundprinzipien, die es dir ermöglichen, private KI zu deinen Bedingungen zu betreiben.",
       "independent": {
         "title": "Unabhängig konzipiert",
-        "description": "Selbst betrieben, Open Source, On-Premises oder in der Cloud — so bleiben Sie unabhängig von Drittanbieter-SaaS, Anbietern und Lock-in."
+        "description": "Selbst betrieben, Open Source, On-Premises oder in der Cloud — so bleibst du unabhängig von Drittanbieter-SaaS, Anbietern und Lock-in."
       },
       "stack": {
         "title": "Alles aus einer Hand",
-        "description": "Von Hardware und Software bis zu Support, Beratung und Professional Services — alles, was Sie brauchen, um KI in Produktion zu betreiben."
+        "description": "Von Hardware und Software bis zu Support, Beratung und Professional Services — alles, was du brauchst, um KI in Produktion zu betreiben."
       },
       "proven": {
         "title": "Bewährt, sicher, zuverlässig",
         "description": "Eine sichere, zuverlässige und skalierbare Plattform mit nachgewiesener Genauigkeit, gebaut für geschäftskritische Workflows."
       },
       "needs": {
-        "title": "Auf Ihre Bedürfnisse zugeschnitten",
-        "description": "Nutzen Sie Workflows, die sich in Ihre bestehende Infrastruktur einfügen — passend zu Ihrer Arbeitsweise."
+        "title": "Auf deine Bedürfnisse zugeschnitten",
+        "description": "Nutze Workflows, die sich in deine bestehende Infrastruktur einfügen — passend zu deiner Arbeitsweise."
       }
     },
     "compliance": {
@@ -145,7 +145,7 @@
       },
       "certified": {
         "title": "Zertifiziert & konform",
-        "description": "Konform mit ISO 27001, SOC 2 und DSGVO, mit Audit-Logs und Datenkontrolle, damit Sie jederzeit wissen, wo Ihre Daten gespeichert sind."
+        "description": "Konform mit ISO 27001, SOC 2 und DSGVO, mit Audit-Logs und Datenkontrolle, damit du jederzeit weißt, wo deine Daten gespeichert sind."
       }
     },
     "faq": {
@@ -161,28 +161,28 @@
       },
       "deployment": {
         "q": "Muss ich eigene KI-Modelle mitbringen?",
-        "a": "Nein. Sie können eigene Modelle nutzen, müssen es aber nicht. Wir unterstützen die meisten großen KI-Anbieter und erheben keine Aufschläge — die Nutzung von Cloud-KI-Modellen wird zu den Preisen Ihres gewählten Anbieters abgerechnet und ist nicht in den Plänen enthalten."
+        "a": "Nein. Du kannst eigene Modelle nutzen, musst es aber nicht. Wir unterstützen die meisten großen KI-Anbieter und erheben keine Aufschläge — die Nutzung von Cloud-KI-Modellen wird zu den Preisen deines gewählten Anbieters abgerechnet und ist nicht in den Plänen enthalten."
       },
       "cloudProviders": {
         "q": "Kann ich meinen bevorzugten KI-Anbieter nutzen?",
-        "a": "Ja — wir unterstützen alle großen Cloud-KI-Anbieter, sodass Sie Ihren bevorzugten Anbieter nutzen und gleichzeitig von besseren Preisen, höherer Verfügbarkeit und nutzungsbasierter Abrechnung profitieren können."
+        "a": "Ja — wir unterstützen alle großen Cloud-KI-Anbieter, sodass du deinen bevorzugten Anbieter nutzen und gleichzeitig von besseren Preisen, höherer Verfügbarkeit und nutzungsbasierter Abrechnung profitieren kannst."
       },
       "pricing": {
-        "q": "Bieten Sie auch Hardware an?",
-        "a": "Ja, wir können auch Hardware bereitstellen (Miete, Leasing, Kauf usw.). Erwähnen Sie es einfach, wenn Sie uns kontaktieren."
+        "q": "Bietet ihr auch Hardware an?",
+        "a": "Ja, wir können auch Hardware bereitstellen (Miete, Leasing, Kauf usw.). Erwähn es einfach, wenn du uns kontaktierst."
       },
       "integrations": {
         "q": "Kann ich meine eigene Hardware und KI-Modelle nutzen?",
-        "a": "Ja. Wir sind hardware- und modellagnostisch — Sie können Ihre eigenen frei einsetzen."
+        "a": "Ja. Wir sind hardware- und modellagnostisch — du kannst deine eigenen frei einsetzen."
       },
       "support": {
-        "q": "Bieten Sie individuelles KI-Modelltraining an?",
-        "a": "Ja. Wir trainieren und feinjustieren individuelle Modelle für Kunden. Bei Interesse sprechen Sie es im Demo-Gespräch an."
+        "q": "Bietet ihr individuelles KI-Modelltraining an?",
+        "a": "Ja. Wir trainieren und feinjustieren individuelle Modelle für Kunden. Bei Interesse sprich es im Demo-Gespräch an."
       }
     },
     "cta": {
-      "title": "Private KI zu Ihren Bedingungen einsetzen",
-      "description": "Betreiben Sie einen souveränen KI-Stack auf Ihrer eigenen Infrastruktur — nehmen Sie Kontakt auf.",
+      "title": "Private KI zu deinen Bedingungen einsetzen",
+      "description": "Betreib einen souveränen KI-Stack auf deiner eigenen Infrastruktur — nimm Kontakt auf.",
       "primary": "Demo anfragen",
       "secondary": "Mit uns sprechen"
     }
@@ -196,7 +196,7 @@
   },
   "pricing": {
     "title": "Einfache, transparente Preise",
-    "description": "Zwei Arten, Tale zu betreiben. Enterprise — verwaltet, skalierbar und produktionsbereit. Community — flexibel und vollständig in Ihrer Hand.",
+    "description": "Zwei Arten, Tale zu betreiben. Enterprise — verwaltet, skalierbar und produktionsbereit. Community — flexibel und vollständig in deiner Hand.",
     "note": "Alle Produktfunktionen sind sowohl in Community als auch in Enterprise enthalten. Die zusätzliche Nutzung von Cloud-KI-Modellen wird zu den Tarifen des Anbieters berechnet.",
     "planIncludes": "Im Plan enthalten:",
     "billing": {
@@ -240,7 +240,7 @@
       "feature1": "Selbst gehostet oder Cloud",
       "feature2": "Professionell gewartet (ISO 27001 & SOC 2 zertifiziert)",
       "feature3": "DSGVO-konform",
-      "feature4": "E-Mail-, Telefon- und Remote-Support",
+      "feature4": "Email-, Telefon- und Remote-Support",
       "feature5": "Installation und laufende Wartung",
       "feature7": "Einfluss auf die Produkt-Roadmap"
     },
@@ -261,7 +261,7 @@
         "communityDeployment": "Selbst gehostet",
         "paidDeployment": "Cloud, selbst gehostet",
         "paidCompliance": "DSGVO-konform, ISO 27001 & SOC 2 zertifiziert",
-        "proSupport": "E-Mail-Support",
+        "proSupport": "Email-Support",
         "enterpriseSupport": "Telefon/SMS-Support, WhatsApp-Support, Remote-Support, Professional Services",
         "installationFee": {
           "CH": "CHF 1.990",
@@ -286,7 +286,7 @@
         "piiRedaction": "PII-Schwärzung",
         "customDpa": "Individueller AVV",
         "customDpaInfo": "Wir akzeptieren auch individuelle Auftragsverarbeitungsverträge mit unseren Kunden.",
-        "emailSupport": "E-Mail-Support",
+        "emailSupport": "Email-Support",
         "emailSupportInfo": "Antworten innerhalb Geschäftszeiten: Mo–Fr, 08:00–17:00 (MEZ/MESZ).",
         "phoneSupport": "Telefon-Support",
         "phoneSupportInfo": "Verfügbar innerhalb Geschäftszeiten: Mo–Fr, 08:00–17:00 (MEZ/MESZ).",
@@ -301,7 +301,7 @@
     "extras": {
       "training": {
         "title": "KI-Schulungen",
-        "description": "Schulungen, die Ihr Team befähigen, reale KI-Lösungen zu entwickeln und einzusetzen — entdecken Sie unsere",
+        "description": "Schulungen, die dein Team befähigen, reale KI-Lösungen zu entwickeln und einzusetzen — entdecke unsere",
         "linkLabel": "KI-Schulungen",
         "suffix": "."
       },
@@ -325,13 +325,13 @@
   },
   "hardwarePricing": {
     "title": "Hardware-Preise",
-    "description": "Hochleistungs-KI-Hardware — fair bepreist. Betreiben Sie modernste Modelle, überall.",
+    "description": "Hochleistungs-KI-Hardware — fair bepreist. Betreib modernste Modelle, überall.",
     "configIncludes": "Konfiguration enthält:",
     "billing": {
       "renting": "Miete",
       "buying": "Kauf (Finanzierung möglich)"
     },
-    "deploymentNote": "Alle Hardware-Konfigurationen sind geräuschlos und können bei Ihnen vor Ort installiert und remote von unserem Team gewartet werden — oder in unseren sicheren Rechenzentren gehostet werden.",
+    "deploymentNote": "Alle Hardware-Konfigurationen sind geräuschlos und können bei dir vor Ort installiert und remote von unserem Team gewartet werden — oder in unseren sicheren Rechenzentren gehostet werden.",
     "tiers": {
       "quality": {
         "name": "Quality",
@@ -424,19 +424,19 @@
   },
   "requestDemo": {
     "eyebrow": "Demo",
-    "title": "Was treibt Ihr Unternehmen an?",
+    "title": "Was treibt dein Unternehmen an?",
     "paragraph1": "Wir helfen datensensiblen Organisationen, Workflows mit privater, zuverlässiger KI zu automatisieren.",
-    "paragraph2": "Sprechen Sie mit einer unserer Fachpersonen, um KI-Lösungen zu erkunden und Ihre Ziele und Herausforderungen zu besprechen — wir finden gemeinsam die beste Lösung für Sie.",
+    "paragraph2": "Sprich mit einer unserer Fachpersonen, um KI-Lösungen zu erkunden und deine Ziele und Herausforderungen zu besprechen — wir finden gemeinsam die beste Lösung für dich.",
     "fieldName": "Name",
     "fieldPhone": "Telefon (optional)",
     "fieldCompany": "Unternehmen",
     "fieldInterests": "Interessiert an",
     "fieldMessage": "Zusätzlicher Kommentar (optional)",
     "placeholderName": "Vollständigen Namen eingeben",
-    "placeholderEmail": "E-Mail-Adresse eingeben",
+    "placeholderEmail": "Email-Adresse eingeben",
     "placeholderPhone": "Telefonnummer eingeben",
     "placeholderCompany": "Firmennamen eingeben",
-    "placeholderMessage": "Beschreiben Sie Ihr Projekt. Alle geteilten Projektdetails behandeln wir vertraulich.",
+    "placeholderMessage": "Beschreib dein Projekt. Alle geteilten Projektdetails behandeln wir vertraulich.",
     "interests": {
       "enterprise": "Enterprise-Lösungen",
       "professionalServices": "Professional Services",
@@ -448,26 +448,26 @@
   "contact": {
     "eyebrow": "Kontakt",
     "title": "Kontakt aufnehmen",
-    "description": "Sprechen Sie mit einer unserer Fachpersonen über Ihre Ziele und Herausforderungen und finden Sie die passende KI-Lösung für Ihre Organisation.",
+    "description": "Sprich mit einer unserer Fachpersonen über deine Ziele und Herausforderungen und finde die passende KI-Lösung für deine Organisation.",
     "fieldName": "Name",
     "fieldCompany": "Unternehmen (optional)",
     "fieldMessage": "Nachricht",
     "placeholderName": "Vollständigen Namen eingeben",
-    "placeholderEmail": "E-Mail-Adresse eingeben",
+    "placeholderEmail": "Email-Adresse eingeben",
     "placeholderCompany": "Firmennamen eingeben",
-    "placeholderMessage": "Teilen Sie uns ein paar Details mit, damit wir Ihre Anforderungen besser verstehen. Alle geteilten Projektdetails behandeln wir vertraulich.",
+    "placeholderMessage": "Teil uns ein paar Details mit, damit wir deine Anforderungen besser verstehen. Alle geteilten Projektdetails behandeln wir vertraulich.",
     "submit": "Kontakt aufnehmen"
   },
   "forms": {
-    "email": "E-Mail",
+    "email": "Email",
     "honeypotLabel": "Website",
     "privacyPrefix": "Ich bestätige, dass ich die",
     "privacyLink": "Datenschutzerklärung gelesen habe",
-    "privacyRequired": "Sie müssen die Datenschutzerklärung akzeptieren",
+    "privacyRequired": "Du musst die Datenschutzerklärung akzeptieren",
     "errors": {
       "generic": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
       "rateLimited": "Zu viele Anfragen. Bitte einen Moment warten und erneut versuchen.",
-      "tooFast": "Moment — bitte überprüfen Sie Ihre Angaben vor dem Absenden."
+      "tooFast": "Moment — bitte überprüf deine Angaben vor dem Absenden."
     },
     "success": {
       "title": "Danke — wir haben es erhalten",
@@ -477,9 +477,9 @@
   },
   "productMockChat": {
     "userMessage": "Wie sieht unsere Rückgaberegelung für KI-Hardware aus?",
-    "assistantMessage": "Unsere Hardware kommt mit einem 30-tägigen Rückgaberecht und einer 2-jährigen Garantie. Soll ich die E-Mail-Antwort entwerfen?",
+    "assistantMessage": "Unsere Hardware kommt mit einem 30-tägigen Rückgaberecht und einer 2-jährigen Garantie. Soll ich die Email-Antwort entwerfen?",
     "attachAriaLabel": "Anhängen",
-    "inputPlaceholder": "Stellen Sie eine Frage zu Ihren Daten…",
+    "inputPlaceholder": "Stell eine Frage zu deinen Daten…",
     "sendAriaLabel": "Senden"
   },
   "productMockOps": {

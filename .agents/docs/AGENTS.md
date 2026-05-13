@@ -1,6 +1,13 @@
+---
+name: docs
+description: Rules for writing and maintaining the Tale documentation under `docs/` and `services/docs/`. Use whenever a change touches a page in the docs tree, navigation, or docs scripts.
+---
+
 # Tale docs — contributor guide
 
-Rules for writing and maintaining the Mintlify documentation under [`docs/`](./). These rules are binding on every change that touches a page in the tree, supersede the shorter note in the root [`AGENTS.md`](../AGENTS.md), and are loaded automatically by agents working inside `docs/`.
+Rules for writing and maintaining the documentation under [`docs/`](../../docs/). These rules are binding on every change that touches a page in the tree, supersede the shorter note in the root [`AGENTS.md`](../../AGENTS.md), and apply to any agent working inside `docs/` or `services/docs/`.
+
+> **Companion skill:** every page (`docs/[locale]/**`) must also pass the [`terminology`](../terminology/AGENTS.md) skill's rules — informal pronouns (`du`/`tu`), UI labels quoted verbatim from `services/platform/messages/<locale>.json`, brand names not translated. **Read [`.agents/terminology/AGENTS.md`](../terminology/AGENTS.md) before editing or adding any page.** The terminology files are the source of truth; this docs skill quotes from them.
 
 ## The one rule
 
@@ -10,20 +17,20 @@ Everything below is mechanics for making that rule easy to follow.
 
 ## Where things live
 
-| Path                                 | Role                                                                                                                                                 |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/**/*.md`                       | English pages. The source tree.                                                                                                                      |
-| `docs/de/**/*.md`, `docs/fr/**/*.md` | Translated mirrors. Same tree shape as English.                                                                                                      |
-| `docs/<xx-YY>/**/*.md`               | Regional variant overrides (today `de-CH`). Sparse — only files that genuinely differ from the base. Missing files fall back to the base, then `en`. |
-| [`docs/docs.json`](docs.json)        | Mintlify navigation. Edited alongside every page addition/rename/deletion.                                                                           |
-| [`docs/scripts/`](scripts/)          | Bun + TypeScript tooling (frontmatter and terminology linters, broken-link checker bindings).                                                        |
-| [`docs/images/`](images/)            | Assets. Referenced from all locales.                                                                                                                 |
+| Path                                                 | Role                                                                                                                                                 |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/en/**/*.md`                                    | English pages. The source tree.                                                                                                                      |
+| `docs/de/**/*.md`, `docs/fr/**/*.md`                 | Translated mirrors. Same tree shape as English.                                                                                                      |
+| `docs/<xx-YY>/**/*.md`                               | Regional variant overrides (today `de-CH`). Sparse — only files that genuinely differ from the base. Missing files fall back to the base, then `en`. |
+| [`docs/nav.json`](../../docs/nav.json)               | Navigation tree — sidebar order and group labels. Edited alongside every page addition/rename/deletion.                                              |
+| [`services/docs/`](../../services/docs/)             | The docs service — Vite + React SSR app that prerenders the static site.                                                                             |
+| [`services/docs/tests/`](../../services/docs/tests/) | Vitest checks: frontmatter, locale parity, navigation parity, README parity, terminology.                                                            |
 
-Mintlify Cloud builds straight from the committed repo state. None of our scripts run on their side — if it is not in git at merge time, it does not exist on the site.
+The docs service builds straight from the committed repo state via `bun run --filter @tale/docs build` (search index, SSR, prerender, llms.txt, sitemap). If it is not in git at merge time, it does not exist on the site.
 
 ## Taxonomy
 
-Docs are organized on two axes. The first axis is the top-level Mintlify tab; the second axis applies only inside the Self-hosted tab, where readers split by platform role.
+Docs are organized on two axes. The first axis is the top-level docs tab; the second axis applies only inside the Self-hosted tab, where readers split by platform role.
 
 ### Top-level tabs
 
@@ -124,44 +131,44 @@ Rewritten to meet the bar:
 
 ### Locales we publish
 
-Three base locales, each with full coverage: `en`, `de`, `fr`. English lives at the `docs/` root; German and French live under `docs/de/` and `docs/fr/`. Regional variants layer on top under `docs/<xx-YY>/` — today only `docs/de-CH/` exists, but the loader generalizes: any new variant directory is picked up automatically. Variant trees are sparse — pages that don't override fall through to the base, then `en` (chain computed in [`services/docs/lib/content/loader.ts`](lib/content/loader.ts) from `ALL_LOCALES`).
+Three base locales, each with full coverage: `en`, `de`, `fr`. English lives at the `docs/` root; German and French live under `docs/de/` and `docs/fr/`. Regional variants layer on top under `docs/<xx-YY>/` — today only `docs/de-CH/` exists, but the loader generalizes: any new variant directory is picked up automatically. Variant trees are sparse — pages that don't override fall through to the base, then `en` (chain computed in [`services/docs/lib/content/loader.ts`](../../services/docs/lib/content/loader.ts) from `ALL_LOCALES`).
 
 ### Lifecycle rules
 
 When you **add** a page:
 
-1. Create the English file at `docs/<path>.md`.
+1. Create the English file at `docs/en/<path>.md`.
 2. Create translated mirrors at `docs/de/<path>.md` and `docs/fr/<path>.md`.
-3. Add the page to every `navigation.languages` block in [`docs/docs.json`](docs.json), using locale-prefixed paths.
+3. Add the page slug to [`docs/nav.json`](../../docs/nav.json) under the right group. The same slug serves every locale; the loader resolves it per language.
 4. Run `bun run --filter @tale/docs format` to normalize Markdown (tables, list spacing, etc.).
-5. Commit the locale files and `docs.json` together.
+5. Commit the locale files and `nav.json` together.
 
 When you **rename or move** a page:
 
 1. Rename the file in every locale tree.
-2. Update the `pages` entry in every `navigation.languages` block.
-3. Grep the repo for the old path (at minimum [`README.md`](../README.md) and the sibling locales) and update references.
+2. Update the slug in [`docs/nav.json`](../../docs/nav.json).
+3. Grep the repo for the old path (at minimum [`README.md`](../../README.md) and the sibling locales) and update references.
 
 When you **delete** a page:
 
 1. Delete from every locale tree.
-2. Remove from every `navigation.languages` block.
+2. Remove the slug from [`docs/nav.json`](../../docs/nav.json).
 
 ### Editing rules
 
 - **Locale-prefixed internal links** in non-English files. A link in `docs/de/build/agents/create.md` points to `/de/build/agents/concepts`, not `/build/agents/concepts`.
 - **Translate every frontmatter value.** Both `title` and `description`. A German page with an English title is a bug.
 - **Code and diagram syntax stays put.** Inside fenced code, `<CodeGroup>`, and Mermaid DSL, translate only human-readable node labels. Never the arrows, `participant` keywords, or block structure.
-- **Brand names never translate.** Tale, Convex, Mintlify, OpenRouter, Claude, GitHub, Slack, Gmail, Outlook, Shopify — all stay as-is in every locale.
-- **Keep anchors stable.** Mintlify slugs headings; when you change a heading in one locale, update every locale that links to the anchor, since the generated slug differs per locale.
+- **Brand names never translate.** Tale, Convex, OpenRouter, Claude, GitHub, Slack, Gmail, Outlook, Shopify — all stay as-is in every locale.
+- **Keep anchors stable.** Headings are slugged by the markdown renderer; when you change a heading in one locale, update every locale that links to the anchor, since the generated slug differs per locale.
 
 ### Translation style
 
-- [`.agents/TERMINOLOGY.md`](../.agents/TERMINOLOGY.md) — cross-locale rules: length parity, tone, plural handling, placeholder preservation.
-- [`.agents/TERMINOLOGY_EN.md`](../.agents/TERMINOLOGY_EN.md) — English source forms.
-- [`.agents/TERMINOLOGY_DE.md`](../.agents/TERMINOLOGY_DE.md) — German base.
-- [`.agents/TERMINOLOGY_DE_CH.md`](../.agents/TERMINOLOGY_DE_CH.md) — Swiss German overrides (mainly `ß` → `ss` and a few lexical shifts).
-- [`.agents/TERMINOLOGY_FR.md`](../.agents/TERMINOLOGY_FR.md) — French base.
+- [`.agents/terminology/TERMINOLOGY.md`](../terminology/TERMINOLOGY.md) — cross-locale rules: length parity, tone, plural handling, placeholder preservation.
+- [`.agents/terminology/TERMINOLOGY_EN.md`](../terminology/TERMINOLOGY_EN.md) — English source forms.
+- [`.agents/terminology/TERMINOLOGY_DE.md`](../terminology/TERMINOLOGY_DE.md) — German base.
+- [`.agents/terminology/TERMINOLOGY_DE_CH.md`](../terminology/TERMINOLOGY_DE_CH.md) — Swiss German overrides (mainly `ß` → `ss` and a few lexical shifts).
+- [`.agents/terminology/TERMINOLOGY_FR.md`](../terminology/TERMINOLOGY_FR.md) — French base.
 - Add a `TERMINOLOGY_<LOCALE>.md` for any new regional variant.
 
 Style rules in short:
@@ -190,7 +197,7 @@ Every user-facing term a doc page names — a button, a menu item, a panel title
 Rules:
 
 1. **`services/platform/messages/<locale>.json` is the single source of truth. Terminology files document it; docs quote it.** Before writing a UI term in a translated page, grep the locale JSON for its key (`navigation.*`, `settings.*.title`, `<entity>.title`, `chat.*`). If the UI string and the terminology file disagree, the UI wins — update the terminology file to match, then the doc. Never pick the English term because it "reads better".
-2. **Don't carry English over as a loanword unless the UI itself does.** `Canvas` stays `Canvas` in German (UI shows `Canvas`) but becomes `Canevas` in French (UI shows `Canevas`). The [`.agents/TERMINOLOGY_<LOCALE>.md`](../.agents/) tables are the authoritative mapping — update them if the UI changes.
+2. **Don't carry English over as a loanword unless the UI itself does.** `Canvas` stays `Canvas` in German (UI shows `Canvas`) but becomes `Canevas` in French (UI shows `Canevas`). The [`.agents/terminology/TERMINOLOGY_<LOCALE>.md`](../terminology/) tables are the authoritative mapping — update them if the UI changes.
 3. **Code identifiers stay English.** CLI flags (`tale deploy --detach`), env vars (`TALE_CONFIG_DIR`), file paths (`docker-compose.yml`), i18n keys (`chat.canvas.title`), API paths (`POST /api/v1/documents`) are international and never translate. Inside a sentence in a translated page, quote code as code — do not paraphrase the path.
 4. **Role names stay English in every locale.** `Owner`, `Admin`, `Developer`, `Editor`, `Member`, `Disabled` — because the UI ships them that way. Generic _members of a team_ becomes `Mitglieder` / `membres`; the capital-M role stays `Member`.
 5. **Parenthetical lists translate too.** When an English page writes `(Products, Customers, Vendors)` as examples, the German mirror writes `(Produkte, Kunden, Lieferanten)` and the French mirror writes `(Produits, Clients, Fournisseurs)`. Don't leave the English list behind — it contradicts the UI the reader just opened.
@@ -198,7 +205,7 @@ Rules:
 
 #### Canonical UI label reference
 
-Quote these values verbatim in every translated page. If a term you need is missing from the table, grep the locale JSON — then add the entry to the matching [`.agents/TERMINOLOGY_<LOCALE>.md`](../.agents/) file so the next edit is cheap.
+Quote these values verbatim in every translated page. If a term you need is missing from the table, grep the locale JSON — then add the entry to the matching [`.agents/terminology/TERMINOLOGY_<LOCALE>.md`](../terminology/) file so the next edit is cheap.
 
 | English          | German (`de`)     | French (`fr`)           | Source key                                               |
 | ---------------- | ----------------- | ----------------------- | -------------------------------------------------------- |
@@ -264,40 +271,28 @@ Before opening a PR that touches a translated page, grep your own diff for Engli
 ### Local preview
 
 ```bash
-cd docs
-bun install        # first time only
-bun run dev        # predev (table formatter) + mintlify dev
+bun install                          # first time only
+bun run --filter @tale/docs dev      # builds search index + llms artifacts, then starts the Vite dev server
 ```
 
-Click through the language switcher on every section on every locale. A 404 in any locale means a missing file or a stale `docs.json` entry.
+Click through the language switcher on every section on every locale. A 404 in any locale means a missing file or a stale [`docs/nav.json`](../../docs/nav.json) entry.
 
 ### Before every PR
 
-All three must pass:
+All four must pass:
 
 ```bash
-bun run --filter @tale/docs format         # oxfmt: normalize Markdown and JSON
-bun run --filter @tale/docs lint            # frontmatter + terminology + Mintlify broken-link check
+bun run --filter @tale/docs format    # oxfmt: normalize Markdown and JSON
+bun run --filter @tale/docs lint      # oxlint
+bun run --filter @tale/docs test      # frontmatter, locale parity, navigation parity, README parity, terminology
+bun run --filter @tale/docs build     # search index, prerender, llms.txt, sitemap, robots.txt
 ```
 
-### Navigation parity
-
-Every `pages` entry across the three `navigation.languages` blocks must resolve to a real `.md` / `.mdx` file. A quick drift check:
-
-```bash
-cd docs && node -e "
-const j = JSON.parse(require('fs').readFileSync('docs.json', 'utf8'));
-const fs = require('fs');
-function collect(n, o=[]) { for (const e of n) typeof e === 'string' ? o.push(e) : collect(e.pages, o); return o; }
-for (const l of j.navigation.languages) for (const p of collect(l.groups)) {
-  if (!fs.existsSync(p + '.md') && !fs.existsSync(p + '.mdx')) console.log('MISSING', l.language, p);
-}
-"
-```
+The `test` step covers navigation parity (every slug in [`docs/nav.json`](../../docs/nav.json) resolves to a real `.md`/`.mdx` in every base locale) and frontmatter parity (every page has `title` and `description`). Inspect [`services/docs/tests/`](../../services/docs/tests/) for the exact rules.
 
 ## Common pitfalls
 
-- **Forgetting a `navigation.languages` block.** A file on disk but not in `docs.json` is invisible in that locale.
+- **Forgetting [`docs/nav.json`](../../docs/nav.json).** A file on disk but not in the nav is invisible in the sidebar.
 - **Translated anchors that don't match their target.** `/de/bar#some-heading` only works if `docs/de/bar.md` has a heading whose German slug is `some-heading`.
 - **External links cast as internal.** `](/external-site)` is treated as in-site and 404s. External links are fully qualified (`https://…`).
 - **Committing without running `format`.** Run it first so reviewers don't wade through alignment or whitespace noise.

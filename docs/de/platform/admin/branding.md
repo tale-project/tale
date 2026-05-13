@@ -3,7 +3,7 @@ title: Branding
 description: Plattformname, Logo, Favicon und Markenfarben für deine Organisation anpassen.
 ---
 
-Mit Branding passen Admins an, wie Tale für alle in der Organisation aussieht. Änderungen gelten für Browser-Tab, Navigationsleiste, E-Mails und Benachrichtigungs-Header.
+Mit Branding passen Admins an, wie Tale für alle in der Organisation aussieht. Änderungen gelten für Browser-Tab, Navigationsleiste, Emails und Benachrichtigungs-Header.
 
 Verfügbare Optionen unter **Einstellungen > Branding**:
 

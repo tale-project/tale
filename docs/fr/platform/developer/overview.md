@@ -27,7 +27,7 @@ Voir [Données structurées](/fr/platform/knowledge/structured-data) et [Crawlin
 
 ## Intégrations
 
-Les intégrations connectent Tale aux systèmes où vivent tes vraies données — REST API, bases SQL, e-mail, Microsoft 365. Une fois configurées, les intégrations sont disponibles comme outils pour les agents et comme steps d’action dans les automatisations.
+Les intégrations connectent Tale aux systèmes où vivent tes vraies données — REST API, bases SQL, email, Microsoft 365. Une fois configurées, les intégrations sont disponibles comme outils pour les agents et comme steps d’action dans les automatisations.
 
 Voir [Intégrations — aperçu](/fr/platform/integrations/overview) et [Fournisseurs IA](/fr/platform/admin/providers).
 

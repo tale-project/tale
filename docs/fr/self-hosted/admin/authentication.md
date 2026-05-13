@@ -9,7 +9,7 @@ Pour activer la connexion self-service et le provisioning automatique des compte
 
 ## Mot de passe (par défaut)
 
-Aucune configuration requise. Les Admins créent les utilisateurs avec e-mail, mot de passe et rôle dans **Paramètres > Membres**. Les utilisateurs se connectent avec leurs credentials sur la page de login.
+Aucune configuration requise. Les Admins créent les utilisateurs avec email, mot de passe et rôle dans **Paramètres > Membres**. Les utilisateurs se connectent avec leurs credentials sur la page de login.
 
 Les utilisateurs venus par SSO ou Trusted Headers peuvent aussi définir un mot de passe depuis **Paramètres du compte** pour activer la connexion directe.
 
@@ -55,7 +55,7 @@ Par défaut, Tale lit ces headers :
 
 | Header      | Requis | Nom par défaut | Description                                                                               |
 | ----------- | ------ | -------------- | ----------------------------------------------------------------------------------------- |
-| E-mail      | Oui    | `Remote-Email` | adresse e-mail de l’utilisateur.                                                          |
+| Email       | Oui    | `Remote-Email` | adresse email de l’utilisateur.                                                           |
 | Nom affiché | Non    | `Remote-Name`  | nom affiché (retombe sur la partie avant `@`).                                            |
 | Rôle        | Non    | `Remote-Role`  | `admin`, `developer`, `editor` ou `member` (défaut : `member`).                           |
 | Équipes     | Non    | `Remote-Teams` | liste séparée par virgules au format `id:name` (ex. `abc123:Engineering, def456:Design`). |
@@ -71,7 +71,7 @@ TRUSTED_TEAMS_HEADER=X-Forwarded-Teams
 
 Configurations proxy courantes :
 
-| Proxy        | Header e-mail       | Header nom         | Header groupes/rôle  |
+| Proxy        | Header email        | Header nom         | Header groupes/rôle  |
 | ------------ | ------------------- | ------------------ | -------------------- |
 | Authelia     | `Remote-Email`      | `Remote-Name`      | `Remote-Groups`      |
 | Authentik    | `X-authentik-email` | `X-authentik-name` | `X-authentik-groups` |

@@ -18,7 +18,12 @@ type Glossary = {
 
 // services/docs/tests/  →  services/docs/  →  services/  →  <repo root>
 const REPO_ROOT = path.resolve(DOCS_ROOT, '..', '..');
-const glossaryPath = path.join(REPO_ROOT, '.agents', 'GLOSSARY.json');
+const glossaryPath = path.join(
+  REPO_ROOT,
+  '.agents',
+  'terminology',
+  'GLOSSARY.json',
+);
 const GLOSSARY: Glossary = JSON.parse(fs.readFileSync(glossaryPath, 'utf8'));
 
 type Finding = { file: string; line: number; kind: string; detail: string };

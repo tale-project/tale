@@ -23,7 +23,7 @@ Des connaissances plus étroites donnent des résultats plus pertinents — un a
 
 ## Outils
 
-Les outils sont des capacités que l’agent peut invoquer pendant une conversation. Les outils intégrés incluent la recherche dans les connaissances, la recherche web, le traitement de documents et l’analyse d’image. Les intégrations que tu as configurées (REST API, SQL, e-mail) apparaissent aussi comme outils.
+Les outils sont des capacités que l’agent peut invoquer pendant une conversation. Les outils intégrés incluent la recherche dans les connaissances, la recherche web, le traitement de documents et l’analyse d’image. Les intégrations que tu as configurées (REST API, SQL, email) apparaissent aussi comme outils.
 
 Tu peux activer ou désactiver chaque outil par agent. Un agent de recherche en lecture seule peut avoir la recherche web activée mais toutes les opérations d’écriture désactivées. Un agent billing n’a peut-être que l’intégration billing disponible.
 

@@ -23,7 +23,7 @@ Engere Wissensfilter führen zu relevanteren Treffern — ein Support-Agent, der
 
 ## Tools
 
-Tools sind Fähigkeiten, die der Agent in einer Konversation aufrufen kann. Eingebaute Tools sind Wissens-Suche, Web-Suche, Dokument-Verarbeitung und Bild-Analyse. Integrationen, die du konfiguriert hast (REST-API, SQL, E-Mail), erscheinen ebenfalls als Tools.
+Tools sind Fähigkeiten, die der Agent in einer Konversation aufrufen kann. Eingebaute Tools sind Wissens-Suche, Web-Suche, Dokument-Verarbeitung und Bild-Analyse. Integrationen, die du konfiguriert hast (REST-API, SQL, Email), erscheinen ebenfalls als Tools.
 
 Du kannst jedes Tool pro Agent einzeln an- und abschalten. Ein Nur-Lese-Research-Agent hat vielleicht Web-Suche an, aber alle Schreib-Operationen aus. Ein Billing-Agent hat eventuell nur die Billing-Integration verfügbar.
 

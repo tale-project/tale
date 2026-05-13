@@ -63,15 +63,15 @@ Universal tech terms. Most stay as-is across locales.
 
 These appear as button labels, menu items, and toast messages. Keep them short and imperative.
 
-| Term                 | Preferred form       | Notes                                                                    |
-| -------------------- | -------------------- | ------------------------------------------------------------------------ |
-| Log in / Log out     | Log in / Log out     | Two words as a verb. `Login` / `Logout` one word as a noun or adjective. |
-| Sign up              | Sign up              | Verb. `Signup` as noun or adjective.                                     |
-| Set up               | Set up               | Verb. `Setup` as noun.                                                   |
-| Back up              | Back up              | Verb. `Backup` as noun.                                                  |
-| Upload / Download    | Upload / Download    | Verb and noun use the same form.                                         |
-| Save / Delete / Edit | Save / Delete / Edit |                                                                          |
-| E-mail               | E-mail               | Hyphenated in Tale's prose. Keep consistent across docs and UI.          |
+| Term                 | Preferred form       | Notes                                                                                                                  |
+| -------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Log in / Log out     | Log in / Log out     | Two words as a verb. `Login` / `Logout` one word as a noun or adjective.                                               |
+| Sign up              | Sign up              | Verb. `Signup` as noun or adjective.                                                                                   |
+| Set up               | Set up               | Verb. `Setup` as noun.                                                                                                 |
+| Back up              | Back up              | Verb. `Backup` as noun.                                                                                                |
+| Upload / Download    | Upload / Download    | Verb and noun use the same form.                                                                                       |
+| Save / Delete / Edit | Save / Delete / Edit |                                                                                                                        |
+| Email                | Email                | One word, no hyphen. Capitalize as a label (`Email`), lowercase in prose (`email`). Reads more naturally than `Email`. |
 
 ## Deployment vocabulary
 

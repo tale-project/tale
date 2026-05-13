@@ -63,7 +63,7 @@ Ouvre **Paramètres > Gouvernance > Sécurité du contenu**. Définis des catég
 
 #### Détection DCP {#pii-detection}
 
-Active la détection automatique et le masquage (ou blocage) des données à caractère personnel dans les messages. Les patterns intégrés couvrent e-mail, téléphone, numéros de carte et IBAN, adresses au format US et quelques identifiants nationaux ; des regex personnalisées ajoutent des formats internes (matricule, numéros de ticket, références produit). Chaque pattern a son propre mode d’application. Les DCP détectées dans les pièces jointes passent par la même pipeline que les messages saisis.
+Active la détection automatique et le masquage (ou blocage) des données à caractère personnel dans les messages. Les patterns intégrés couvrent email, téléphone, numéros de carte et IBAN, adresses au format US et quelques identifiants nationaux ; des regex personnalisées ajoutent des formats internes (matricule, numéros de ticket, références produit). Chaque pattern a son propre mode d’application. Les DCP détectées dans les pièces jointes passent par la même pipeline que les messages saisis.
 
 #### Fournisseur de modération
 

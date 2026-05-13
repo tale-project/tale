@@ -19,7 +19,7 @@ Valeurs de statut valides : `active`, `inactive`, `draft`, `archived`. Valeurs i
 
 ## Clients
 
-La section Clients stocke ta liste de clients. Chaque client a une adresse e-mail, une locale, un statut et des métadonnées personnalisées optionnelles. Les clients importés ont par défaut le statut `churned`.
+La section Clients stocke ta liste de clients. Chaque client a une adresse email, une locale, un statut et des métadonnées personnalisées optionnelles. Les clients importés ont par défaut le statut `churned`.
 
 Import CSV :
 

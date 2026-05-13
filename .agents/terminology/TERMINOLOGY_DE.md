@@ -1,6 +1,6 @@
 # German (de) terminology
 
-German base locale for the platform UI (`services/platform/messages/de.json`) and the Mintlify docs (`docs/de/`). Cross-locale rules — length, tone, plurals, placeholders — live in [`TERMINOLOGY.md`](TERMINOLOGY.md); read that file first. English source forms live in [`TERMINOLOGY_EN.md`](TERMINOLOGY_EN.md).
+German base locale for the platform UI (`services/platform/messages/de.json`), the marketing site (`services/web/messages/de.json`), and the docs site (`docs/de/` page bodies plus `services/docs/messages/de.json` chrome strings). Cross-locale rules — length, tone, plurals, placeholders — live in [`TERMINOLOGY.md`](TERMINOLOGY.md); read that file first. English source forms live in [`TERMINOLOGY_EN.md`](TERMINOLOGY_EN.md).
 
 Regional variants extend this file with deltas only:
 
@@ -45,19 +45,19 @@ These are the feature names users see in the UI and read in the docs. Match the 
 
 ## Technical vocabulary
 
-| English                    | German         | Notes                                                     |
-| -------------------------- | -------------- | --------------------------------------------------------- |
-| AI                         | KI             | Künstliche Intelligenz.                                   |
-| API / LLM / Token / Prompt | Keep English   | Universal tech terms.                                     |
-| Webhook                    | Webhook        | Loanword.                                                 |
-| Provider                   | Anbieter       |                                                           |
-| Settings                   | Einstellungen  |                                                           |
-| PII                        | PII            | Expand on first use as `personenbezogene Daten (PII)`.    |
-| MCP server                 | MCP-Server     | Hyphenated compound. Matches UI label `mcpServers.title`. |
-| API key                    | API-Schlüssel  | Hyphenated compound.                                      |
-| Provider file              | Provider-Datei | Hyphenated compound.                                      |
-| Browser                    | Browser        | Loanword.                                                 |
-| E-mail                     | E-Mail         | Hyphen, capital `M`.                                      |
+| English                    | German         | Notes                                                                          |
+| -------------------------- | -------------- | ------------------------------------------------------------------------------ |
+| AI                         | KI             | Künstliche Intelligenz.                                                        |
+| API / LLM / Token / Prompt | Keep English   | Universal tech terms.                                                          |
+| Webhook                    | Webhook        | Loanword.                                                                      |
+| Provider                   | Anbieter       |                                                                                |
+| Settings                   | Einstellungen  |                                                                                |
+| PII                        | PII            | Expand on first use as `personenbezogene Daten (PII)`.                         |
+| MCP server                 | MCP-Server     | Hyphenated compound. Matches UI label `mcpServers.title`.                      |
+| API key                    | API-Schlüssel  | Hyphenated compound.                                                           |
+| Provider file              | Provider-Datei | Hyphenated compound.                                                           |
+| Browser                    | Browser        | Loanword.                                                                      |
+| Email                      | Email          | One word, no hyphen. Capitalize as a noun (`Email`) per standard German rules. |
 
 ## Actions and state verbs
 
@@ -105,7 +105,7 @@ The lint enforces these mappings for Owner, Developer, Member/Members, and Disab
 ## Style rules
 
 - **`du`, never `Sie`.** The informal form is used consistently across UI and docs.
-- **Compound nouns follow standard German rules.** Hyphenate when a component is an English loanword, an abbreviation, or when the hyphen improves readability: `API-Schlüssel`, `E-Mail-Anbieter`, `Docker-Service`, `JSON-Datei`.
+- **Compound nouns follow standard German rules.** Hyphenate when a component is an English loanword, an abbreviation, or when the hyphen improves readability: `API-Schlüssel`, `Email-Anbieter`, `Docker-Service`, `JSON-Datei`.
 - **Quotation marks:** `„Text“` (low-9 opening, high-9 closing) in running prose. Straight `"..."` inside UI labels and code blocks.
 - **Apostrophes:** straight ASCII `'` everywhere. German prose rarely needs an apostrophe (no French-style elision); when one does appear (Genitiv of names ending in `s`, contractions like `geht's`), use ASCII `'`, not the typographic `’`.
 - **Decimal comma** in docs prose (`2,5 GB`). Inside code blocks and env var values, keep the period (`2.5`) — the runtime expects it.

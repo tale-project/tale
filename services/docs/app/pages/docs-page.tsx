@@ -1,4 +1,4 @@
-import { mintlifyComponents } from '@tale/ui/markdown/components/registry';
+import { markdownComponents } from '@tale/ui/markdown/components/registry';
 import { extractToc } from '@tale/ui/markdown/extract-toc';
 import { readingTimeMinutes } from '@tale/ui/markdown/reading-time';
 import { RoutedMarkdown } from '@tale/ui/markdown/routed-markdown';
@@ -206,8 +206,8 @@ export function DocsPage({ locale, slug }: DocsPageProps) {
           </p>
         </header>
         <RoutedMarkdown
-          // oxlint-disable-next-line typescript/no-explicit-any -- mintlify keys aren't HTML element tags; react-markdown's `Components` type only models built-in elements
-          components={mintlifyComponents as any}
+          // oxlint-disable-next-line typescript/no-explicit-any -- custom component keys aren't HTML element tags; react-markdown's `Components` type only models built-in elements
+          components={markdownComponents as any}
           className="mt-6"
         >
           {doc.body}

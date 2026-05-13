@@ -63,7 +63,7 @@ Open **Settings > Governance > Content safety**. Define categories (for example 
 
 #### PII detection {#pii-detection}
 
-Enable automatic detection and masking (or blocking) of personally identifiable information in messages. Built-in patterns cover e-mail, phone, credit-card and IBAN numbers, US-style addresses, and a few national IDs; custom regex rules let you add internal formats (employee ID, ticket numbers, product SKUs). Each pattern picks its own enforcement mode. Detected PII in attachments goes through the same pipeline as typed messages.
+Enable automatic detection and masking (or blocking) of personally identifiable information in messages. Built-in patterns cover email, phone, credit-card and IBAN numbers, US-style addresses, and a few national IDs; custom regex rules let you add internal formats (employee ID, ticket numbers, product SKUs). Each pattern picks its own enforcement mode. Detected PII in attachments goes through the same pipeline as typed messages.
 
 #### Moderation provider
 

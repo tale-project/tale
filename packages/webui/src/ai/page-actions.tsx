@@ -47,8 +47,8 @@ function claudeUrl(markdownUrl: string): string {
   return `https://claude.ai/new?q=${encodeURIComponent(`Read ${markdownUrl} and answer my questions.`)}`;
 }
 function cursorUrl(markdownUrl: string): string {
-  // Mintlify uses the cursor:// deeplink scheme to hand the URL to Cursor's
-  // built-in /docs ingester. We mirror that.
+  // Cursor's built-in /docs ingester accepts pages via the cursor:// deeplink
+  // scheme.
   return `cursor://anysphere.cursor-deeplink/prompt?text=${encodeURIComponent(`Use ${markdownUrl} as documentation context.`)}`;
 }
 

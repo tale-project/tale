@@ -63,7 +63,7 @@ Eine blockierte Nachricht erreicht das Modell nie, ein blockiertes Token wird de
 
 #### PII-Erkennung {#pii-detection}
 
-Aktiviere automatische Erkennung und Maskierung (oder Blockierung) personenbezogener Daten in Nachrichten. Eingebaute Muster decken E-Mail, Telefon, Kreditkarten- und IBAN-Nummern, US-Adressen und einige nationale Ausweise ab; eigene Regex-Regeln ergänzen interne Formate (Mitarbeiter-ID, Ticket-Nummern, Produkt-SKUs). Jedes Muster wählt seinen eigenen Durchsetzungsmodus. Erkannte PII in Anhängen durchläuft dieselbe Pipeline wie getippte Nachrichten.
+Aktiviere automatische Erkennung und Maskierung (oder Blockierung) personenbezogener Daten in Nachrichten. Eingebaute Muster decken Email, Telefon, Kreditkarten- und IBAN-Nummern, US-Adressen und einige nationale Ausweise ab; eigene Regex-Regeln ergänzen interne Formate (Mitarbeiter-ID, Ticket-Nummern, Produkt-SKUs). Jedes Muster wählt seinen eigenen Durchsetzungsmodus. Erkannte PII in Anhängen durchläuft dieselbe Pipeline wie getippte Nachrichten.
 
 #### Moderations-Anbieter
 

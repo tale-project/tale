@@ -5,7 +5,7 @@ description: Connect Tale to REST APIs and SQL databases through developer-defin
 
 An integration is a developer-defined connector that exposes a remote system's capabilities — REST endpoints or SQL queries — as a fixed set of named operations. Once installed, those operations are tools the chat assistant, agents, and automation steps can call by name with typed parameters. Configuration lives in **Settings > Integrations** and requires the Developer role or higher; consumers just call the operations the connector publishes.
 
-The platform supports two connector types: `rest_api` for HTTP services and `sql` for direct database access. Anything else listed under **Settings > Integrations** in the UI — e-mail mailboxes, Microsoft OneDrive, API keys for the Tale API itself — is a related connection that uses its own configuration surface, not the connector model. Those are covered at the bottom of this page.
+The platform supports two connector types: `rest_api` for HTTP services and `sql` for direct database access. Anything else listed under **Settings > Integrations** in the UI — email mailboxes, Microsoft OneDrive, API keys for the Tale API itself — is a related connection that uses its own configuration surface, not the connector model. Those are covered at the bottom of this page.
 
 ## Integration types
 
@@ -32,7 +32,7 @@ Every integration exposes a list of operations. An operation has a `name` (the i
 
 ## Read, write, and approvals
 
-Operations marked `operationType: write` default to requiring approval before they execute. When an agent or automation invokes such an operation, an approval card appears in the chat — a human accepts or rejects it, and only on accept does the call run. See [Approvals](/platform/workspace/approvals) for the full flow. Use this for billing actions, mass e-mail, production data writes, and anything else where you want a human in the loop. Read operations execute directly with no approval step.
+Operations marked `operationType: write` default to requiring approval before they execute. When an agent or automation invokes such an operation, an approval card appears in the chat — a human accepts or rejects it, and only on accept does the call run. See [Approvals](/platform/workspace/approvals) for the full flow. Use this for billing actions, mass email, production data writes, and anything else where you want a human in the loop. Read operations execute directly with no approval step.
 
 ## Authentication and secrets
 
@@ -74,7 +74,7 @@ There are two ways to install a connector. Both end up with the same `config.jso
 
 A few other items live under **Settings > Integrations** for discoverability but are not `rest_api` or `sql` connectors — they have their own configuration surfaces.
 
-**E-mail (Conversations inbox).** Connect an IMAP+SMTP mailbox to power the [Conversations](/platform/workspace/conversations) inbox. Incoming e-mails become threads; replies sent from the platform are delivered as normal e-mails. Configured separately from connectors.
+**Email (Conversations inbox).** Connect an IMAP+SMTP mailbox to power the [Conversations](/platform/workspace/conversations) inbox. Incoming emails become threads; replies sent from the platform are delivered as normal emails. Configured separately from connectors.
 
 **Microsoft OneDrive.** Connect a Microsoft 365 account so users can import OneDrive files directly into the [knowledge base](/platform/workspace/knowledge-base) without downloading them first. Configured through the knowledge-base import flow, not as a connector.
 

@@ -23,7 +23,7 @@ Run the workflow when something happens inside Tale.
 
 | Event                     | Example use                                     |
 | ------------------------- | ----------------------------------------------- |
-| New customer added        | Send a welcome e-mail.                          |
+| New customer added        | Send a welcome email.                           |
 | New conversation opened   | Tag the thread based on the customer's history. |
 | Approval requested        | Notify a Slack channel.                         |
 | Document uploaded         | Extract metadata and classify.                  |

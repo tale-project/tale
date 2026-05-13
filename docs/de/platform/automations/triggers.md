@@ -23,7 +23,7 @@ Lasse den Workflow laufen, wenn in Tale etwas passiert.
 
 | Event                      | Beispiel-Einsatz                                          |
 | -------------------------- | --------------------------------------------------------- |
-| Neuer Kunde hinzugefügt    | Eine Willkommens-E-Mail senden.                           |
+| Neuer Kunde hinzugefügt    | Eine Willkommens-Email senden.                            |
 | Neue Konversation geöffnet | Die Konversation basierend auf der Kundenhistorie taggen. |
 | Genehmigung angefordert    | Einen Slack-Kanal benachrichtigen.                        |
 | Dokument hochgeladen       | Metadaten extrahieren und klassifizieren.                 |

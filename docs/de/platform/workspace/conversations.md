@@ -3,9 +3,9 @@ title: Konversationen
 description: Kundenkonversationen aus einem zentralen Posteingang verwalten.
 ---
 
-**Konversationen** ist der Kunden-Posteingang. Wenn Kunden dein Team über einen angebundenen Kanal wie E-Mail kontaktieren, erscheinen ihre Nachrichten hier als Konversationen. Dein Team kann sie aus dieser einen Ansicht heraus lesen, beantworten, schließen und verwalten.
+**Konversationen** ist der Kunden-Posteingang. Wenn Kunden dein Team über einen angebundenen Kanal wie Email kontaktieren, erscheinen ihre Nachrichten hier als Konversationen. Dein Team kann sie aus dieser einen Ansicht heraus lesen, beantworten, schließen und verwalten.
 
-Kanal-Anbindungen werden einmalig von einem Entwickler unter [Integrationen – Überblick](/de/platform/integrations/overview) eingerichtet — die E-Mail-Integration liefert diesen Posteingang.
+Kanal-Anbindungen werden einmalig von einem Entwickler unter [Integrationen – Überblick](/de/platform/integrations/overview) eingerichtet — die Email-Integration liefert diesen Posteingang.
 
 ## Konversations-Status
 

@@ -27,7 +27,7 @@ See [Structured data](/platform/knowledge/structured-data) and [Website crawling
 
 ## Integrations
 
-Integrations connect Tale to the systems where your real data lives — REST APIs, SQL databases, e-mail, Microsoft 365. Once configured, integrations are available as tools for agents to call and as action steps in automations.
+Integrations connect Tale to the systems where your real data lives — REST APIs, SQL databases, email, Microsoft 365. Once configured, integrations are available as tools for agents to call and as action steps in automations.
 
 See [Integrations overview](/platform/integrations/overview) and [AI providers](/platform/admin/providers).
 

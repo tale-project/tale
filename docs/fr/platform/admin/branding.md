@@ -3,7 +3,7 @@ title: Image de marque
 description: Personnalise le nom de l’application, le logo, la favicon et les couleurs de marque pour ton organisation.
 ---
 
-L’image de marque permet aux Admins de personnaliser l’apparence de Tale pour tous dans l’organisation. Les changements s’appliquent à l’onglet du navigateur, la barre de navigation, les e-mails et les en-têtes de notification.
+L’image de marque permet aux Admins de personnaliser l’apparence de Tale pour tous dans l’organisation. Les changements s’appliquent à l’onglet du navigateur, la barre de navigation, les Emails et les en-têtes de notification.
 
 Options disponibles dans **Paramètres > Image de marque** :
 

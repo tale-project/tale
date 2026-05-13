@@ -23,7 +23,7 @@ Narrower knowledge means more relevant search hits — a support agent that only
 
 ## Tools
 
-Tools are capabilities the agent can invoke during a conversation. Built-in tools include knowledge search, web search, document handling, and image analysis. Integrations you've configured (REST APIs, SQL, e-mail) also appear as tools.
+Tools are capabilities the agent can invoke during a conversation. Built-in tools include knowledge search, web search, document handling, and image analysis. Integrations you've configured (REST APIs, SQL, email) also appear as tools.
 
 You can toggle each tool on or off per agent. A read-only research agent might have web search on but all write operations off. A billing agent might only have the billing integration available.
 

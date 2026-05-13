@@ -7,9 +7,9 @@ Tale uses six roles. Every user belongs to exactly one role within an organisati
 
 ## Managing members
 
-The member table under **Settings > Members** lists all users in the organisation with their e-mail, display name, role, and join date. Admins can:
+The member table under **Settings > Members** lists all users in the organisation with their email, display name, role, and join date. Admins can:
 
-- **Add members** — enter an e-mail, optional password, display name, and role. If the e-mail already exists in Tale, the user is added to the organisation without creating a new account.
+- **Add members** — enter an email, optional password, display name, and role. If the email already exists in Tale, the user is added to the organisation without creating a new account.
 - **Edit members** — change a member's display name, role, or set a new password for them.
 - **Remove members** — remove the member from the organisation. Their account is not deleted; they simply lose access.
 

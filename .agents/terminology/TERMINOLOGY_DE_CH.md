@@ -35,7 +35,7 @@ Swiss German accepts more English loanwords than standard German, and has some d
 | Geldbörse / Brieftasche | Portemonnaie         | Unlikely in Tale content                              |
 | parken                  | parkieren            | Rarely applicable                                     |
 | Velo (bicycle)          | Velo                 | Same; only notable if comparing to standard "Fahrrad" |
-| E-Mail                  | E-Mail               | Same — no override needed                             |
+| Email                   | Email                | Same — no override needed                             |
 
 In practice, most Tale UI and docs strings need no lexical Swiss override. The "ß" → "ss" substitution is the main mechanical transform.
 
@@ -57,7 +57,7 @@ Where a doc mentions a supervisory authority:
 ## Style
 
 - SPELLING: "ss" everywhere for "ß". Otherwise identical to standard German.
-- QUOTATION marks: «Swiss guillemets» are the traditional form, but `„German quotes“` are also accepted. Use «guillemets» in running prose; straight quotes inside UI and code blocks. In shared Mintlify pages, matching the base German style (`„text“`) is acceptable.
+- QUOTATION marks: «Swiss guillemets» are the traditional form, but `„German quotes“` are also accepted. Use «guillemets» in running prose; straight quotes inside UI and code blocks. In shared docs pages, matching the base German style (`„text“`) is acceptable.
 - APOSTROPHES: straight ASCII `'` (same as base). The thousands-separator `'` in `1'000` is the same character — keep it ASCII so figures parse cleanly.
 - DECIMAL period, thousands apostrophe — override when a figure appears in prose that is meant to be read as Swiss.
 - CURRENCY: CHF in Swiss-specific examples.

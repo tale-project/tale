@@ -9,7 +9,7 @@ Deine persönlichen Einstellungen findest du unter **Account-Einstellungen**, er
 
 Ändere das Passwort, mit dem du dich anmeldest. Gib dein aktuelles Passwort zur Bestätigung ein.
 
-Wenn du dich per SSO oder Trusted Headers registriert hast und noch kein Passwort hast, kannst du hier eines setzen, um zusätzlich zur SSO-Anmeldung direkt mit E-Mail-Adresse und Passwort anmelden zu können.
+Wenn du dich per SSO oder Trusted Headers registriert hast und noch kein Passwort hast, kannst du hier eines setzen, um zusätzlich zur SSO-Anmeldung direkt mit Email-Adresse und Passwort anmelden zu können.
 
 ## Anzeigename
 
@@ -27,4 +27,4 @@ Wähle zwischen Hell, Dunkel und System. System folgt der Hell/Dunkel-Einstellun
 
 ## Benachrichtigungen
 
-Aktiviere oder deaktiviere E-Mail-Benachrichtigungen für Freigabeanfragen, Konversationszuweisungen und Workflow-Abschlüsse.
+Aktiviere oder deaktiviere Email-Benachrichtigungen für Freigabeanfragen, Konversationszuweisungen und Workflow-Abschlüsse.

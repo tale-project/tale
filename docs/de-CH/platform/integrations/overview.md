@@ -5,7 +5,7 @@ description: Tale per entwicklergebauten Konnektoren mit REST-APIs und SQL-Daten
 
 Eine Integration ist ein vom Entwickler definierter Konnektor, der die Fähigkeiten eines fremden Systems — REST-Endpoints oder SQL-Abfragen — als feste Liste benannter Operationen verfügbar macht. Einmal installiert, sind diese Operationen Werkzeuge, die der Chat-Assistent, Agents und Action-Schritte in Automatisierungen namentlich mit typisierten Parametern aufrufen. Die Konfiguration lebt unter **Einstellungen > Integrationen** und erfordert mindestens die Entwickler-Rolle; die Konsumenten rufen einfach die Operationen auf, die der Konnektor publiziert.
 
-Die Plattform unterstützt zwei Konnektor-Typen: `rest_api` für HTTP-Dienste und `sql` für direkten Datenbankzugriff. Alles andere, was unter **Einstellungen > Integrationen** in der UI auftaucht — E-Mail-Postfächer, Microsoft OneDrive, API-Schlüssel für die Tale-API selbst — sind verwandte Verbindungen mit eigener Konfigurationsoberfläche, kein Konnektor-Modell. Diese decken wir am Ende der Seite ab.
+Die Plattform unterstützt zwei Konnektor-Typen: `rest_api` für HTTP-Dienste und `sql` für direkten Datenbankzugriff. Alles andere, was unter **Einstellungen > Integrationen** in der UI auftaucht — Email-Postfächer, Microsoft OneDrive, API-Schlüssel für die Tale-API selbst — sind verwandte Verbindungen mit eigener Konfigurationsoberfläche, kein Konnektor-Modell. Diese decken wir am Ende der Seite ab.
 
 ## Integrationen-Typen
 
@@ -32,7 +32,7 @@ Jede Integration veröffentlicht eine Liste von Operationen. Eine Operation hat 
 
 ## Lesen, Schreiben und Genehmigungen
 
-Operationen mit `operationType: write` erfordern standardmässig eine Genehmigung vor der Ausführung. Wenn ein Agent oder eine Automatisierung eine solche Operation auslöst, erscheint eine Genehmigungs-Karte im Chat — ein Mensch akzeptiert oder lehnt ab, und nur bei Akzeptanz wird der Aufruf ausgeführt. Siehe [Genehmigungen](/de/platform/workspace/approvals) für den vollständigen Ablauf. Nutze das für Billing-Aktionen, Massen-E-Mails, Schreibvorgänge auf Produktionsdaten und alles, wo du einen Menschen in der Schleife willst. Lese-Operationen werden ohne Genehmigungsschritt ausgeführt.
+Operationen mit `operationType: write` erfordern standardmässig eine Genehmigung vor der Ausführung. Wenn ein Agent oder eine Automatisierung eine solche Operation auslöst, erscheint eine Genehmigungs-Karte im Chat — ein Mensch akzeptiert oder lehnt ab, und nur bei Akzeptanz wird der Aufruf ausgeführt. Siehe [Genehmigungen](/de/platform/workspace/approvals) für den vollständigen Ablauf. Nutze das für Billing-Aktionen, Massen-Emails, Schreibvorgänge auf Produktionsdaten und alles, wo du einen Menschen in der Schleife willst. Lese-Operationen werden ohne Genehmigungsschritt ausgeführt.
 
 ## Authentifizierung und Geheimnisse
 
@@ -74,7 +74,7 @@ Es gibt zwei Wege, einen Konnektor zu installieren. Beide enden mit derselben `c
 
 Ein paar weitere Punkte stehen unter **Einstellungen > Integrationen** zur besseren Auffindbarkeit, sind aber keine `rest_api`- oder `sql`-Konnektoren — sie haben eigene Konfigurationsoberflächen.
 
-**E-Mail (Konversationen-Posteingang).** Verbinde ein IMAP- und SMTP-Postfach, um den [Konversationen](/de/platform/workspace/conversations)-Posteingang zu versorgen. Eingehende E-Mails werden zu Threads; aus der Plattform versendete Antworten gehen als normale E-Mails raus. Konfiguration getrennt von Konnektoren.
+**Email (Konversationen-Posteingang).** Verbinde ein IMAP- und SMTP-Postfach, um den [Konversationen](/de/platform/workspace/conversations)-Posteingang zu versorgen. Eingehende Emails werden zu Threads; aus der Plattform versendete Antworten gehen als normale Emails raus. Konfiguration getrennt von Konnektoren.
 
 **Microsoft OneDrive.** Verbinde ein Microsoft-365-Konto, sodass Nutzer OneDrive-Dateien direkt in die [Wissensdatenbank](/de/platform/workspace/knowledge-base) importieren können, ohne sie vorher herunterzuladen. Konfiguriert über den Knowledge-Base-Importfluss, nicht als Konnektor.
 

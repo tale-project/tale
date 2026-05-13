@@ -9,7 +9,7 @@ Für Self-Service-Login und automatisches Bereitstellen von Konten verbinde Tale
 
 ## Passwort (Standard)
 
-Keine Konfiguration nötig. Admins legen Nutzer mit E-Mail, Passwort und Rolle unter **Einstellungen > Mitglieder** an. Nutzer melden sich auf der Login-Seite mit ihren Credentials an.
+Keine Konfiguration nötig. Admins legen Nutzer mit Email, Passwort und Rolle unter **Einstellungen > Mitglieder** an. Nutzer melden sich auf der Login-Seite mit ihren Credentials an.
 
 Nutzer, die per SSO oder Trusted Headers hinzugekommen sind, können auch unter **Account-Einstellungen** ein Passwort setzen, um direkt anmelden zu können.
 
@@ -55,7 +55,7 @@ Standardmäßig liest Tale diese Header:
 
 | Header      | Pflicht | Standard-Name  | Beschreibung                                                                           |
 | ----------- | ------- | -------------- | -------------------------------------------------------------------------------------- |
-| E-Mail      | Ja      | `Remote-Email` | E-Mail-Adresse des Nutzers.                                                            |
+| Email       | Ja      | `Remote-Email` | Email-Adresse des Nutzers.                                                             |
 | Anzeigename | Nein    | `Remote-Name`  | Anzeigename des Nutzers (fällt auf den Mail-Teil vor dem @ zurück).                    |
 | Rolle       | Nein    | `Remote-Role`  | Eine von `admin`, `developer`, `editor` oder `member` (Standard: `member`).            |
 | Teams       | Nein    | `Remote-Teams` | Komma-getrennte Liste im Format `id:name` (z. B. `abc123:Engineering, def456:Design`). |
@@ -71,7 +71,7 @@ TRUSTED_TEAMS_HEADER=X-Forwarded-Teams
 
 Gängige Proxy-Konfigurationen:
 
-| Proxy        | E-Mail-Header       | Name-Header        | Groups/Role-Header   |
+| Proxy        | Email-Header        | Name-Header        | Groups/Role-Header   |
 | ------------ | ------------------- | ------------------ | -------------------- |
 | Authelia     | `Remote-Email`      | `Remote-Name`      | `Remote-Groups`      |
 | Authentik    | `X-authentik-email` | `X-authentik-name` | `X-authentik-groups` |

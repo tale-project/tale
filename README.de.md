@@ -169,7 +169,7 @@ Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plu
 - **[Einen Agent erstellen](docs/de/platform/agents/create.md)** — spezialisierte KI-Assistenten
 - **[Workflows](docs/de/platform/automations/workflows.md)** — mehrstufige Automatisierungen
 - **[Strukturierte Daten](docs/de/platform/knowledge/structured-data.md)** — Produkte, Kunden, Lieferanten
-- **[Integrationen-Übersicht](docs/de/platform/integrations/overview.md)** — REST, SQL, E-Mail, OneDrive
+- **[Integrationen-Übersicht](docs/de/platform/integrations/overview.md)** — REST, SQL, Email, OneDrive
 
 ### Für Admins
 
@@ -205,7 +205,7 @@ Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plu
 
 ## Mitwirken
 
-Lies [`AGENTS.md`](AGENTS.md) vor deinem ersten PR — das ist der einzige Vertrag für Code-Stil, Security, Tests, i18n und Dokumentation über alle Workspaces hinweg. [`docs/AGENTS.md`](docs/AGENTS.md) deckt die Mintlify-Doku-Seite ab; [`.agents/TERMINOLOGY.md`](.agents/TERMINOLOGY.md) die sprachübergreifenden Übersetzungsregeln. Lass `bun run check` (Format, Lint, Typecheck, Tests) durchlaufen, bevor du einen PR öffnest; das [Pull-Request-Template](.github/pull_request_template.md) listet den Rest der Pre-Merge-Checkliste.
+Lies [`AGENTS.md`](AGENTS.md) vor deinem ersten PR — das ist der einzige Vertrag für Code-Stil, Security, Tests, i18n und Dokumentation über alle Workspaces hinweg. Der [`docs`](.agents/docs/AGENTS.md)-Skill deckt die Doku-Seite ab; der [`terminology`](.agents/terminology/AGENTS.md)-Skill die sprachübergreifenden Übersetzungsregeln. Lass `bun run check` (Format, Lint, Typecheck, Tests) durchlaufen, bevor du einen PR öffnest; das [Pull-Request-Template](.github/pull_request_template.md) listet den Rest der Pre-Merge-Checkliste.
 
 ---
 
