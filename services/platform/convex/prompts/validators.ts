@@ -60,26 +60,22 @@ const promptTemplateBaseFields = {
   /** @deprecated No longer used; retained as optional for backwards compatibility with existing rows. */
   isPublished: v.optional(v.boolean()),
   sourceMessageId: v.optional(v.string()),
-  /**
-   * @deprecated Prompt deletion is now hard-delete; these fields are kept
-   * as optional only so legacy rows that still carry a `lifecycleStatus`
-   * value pass validation. Drop after `purgeLegacyExpiredPrompts` runs.
-   */
-  lifecycleStatus: v.optional(lifecycleStatusValidator),
-  statusChangedAt: v.optional(v.number()),
   version: v.optional(v.number()),
 } as const;
 
 export const promptTemplateValidator = v.object({
   ...promptTemplateBaseFields,
+  /**
+   * @deprecated Prompt deletion is now hard-delete; these fields are kept
+   * as optional only so legacy rows that still carry a `lifecycleStatus`
+   * value pass validation on full-doc reads. Note: `listPrompts` shapes its
+   * own payload via `toListItem` and intentionally omits these to keep them
+   * off the wire.
+   */
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
   versionHistory: v.optional(v.array(promptVersionEntryStoredValidator)),
 });
-
-/** listPrompts return shape: visible to all viewers; versionHistory stripped
- * (creator/admin can fetch via getPromptHistory). */
-export const promptTemplateListItemValidator = v.object(
-  promptTemplateBaseFields,
-);
 
 export const promptHistoryResultValidator = v.object({
   current: promptVersionEntryValidator,

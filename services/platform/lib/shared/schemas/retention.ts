@@ -15,7 +15,6 @@ export const RETENTION_CATEGORIES = [
   'usageLedger',
   'loginAttempt',
   'chatFilterEvents',
-  'promptTemplates',
   'messageFeedback',
   'memoryAudit',
   'customers',

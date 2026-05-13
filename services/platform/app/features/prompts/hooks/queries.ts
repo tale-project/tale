@@ -1,6 +1,9 @@
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
+
+const PROMPTS_PAGE_SIZE = 30;
 
 export interface PromptVersionEntry {
   version: number;
@@ -33,15 +36,24 @@ export interface PromptTemplate {
 }
 
 export function usePrompts(organizationId: string) {
-  const { data, isLoading } = useConvexQuery(api.prompts.queries.listPrompts, {
-    organizationId,
-  });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- paginationOpts is optional to handle Convex reconnection replays; usePaginatedQuery always provides it at runtime
+  const listPromptsQuery = api.prompts.queries
+    .listPrompts as unknown as Parameters<typeof useCachedPaginatedQuery>[0];
+  const queryArgs = organizationId ? { organizationId } : ('skip' as const);
+  const { results, status, loadMore, isLoading } = useCachedPaginatedQuery(
+    listPromptsQuery,
+    queryArgs,
+    { initialNumItems: PROMPTS_PAGE_SIZE },
+  );
 
-  const prompts: PromptTemplate[] = data ?? [];
+  const prompts: PromptTemplate[] = results ?? [];
 
   return {
     prompts,
     isLoading,
+    canLoadMore: status === 'CanLoadMore',
+    isLoadingMore: status === 'LoadingMore',
+    loadMore: () => loadMore(PROMPTS_PAGE_SIZE),
   };
 }
 

@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
@@ -9,21 +10,13 @@ import { getUserOrganizations } from '../lib/rls/organization/get_user_organizat
 import { hasTeamAccess } from '../lib/team_access';
 import {
   promptHistoryResultValidator,
-  promptScopeValidator,
-  promptTemplateListItemValidator,
   promptTemplateValidator,
 } from './validators';
 
 type PromptDoc = Doc<'promptTemplates'>;
 
-/**
- * Hard cap on rows returned by `listPrompts`. Demo-stage orgs have far fewer
- * than 500 prompts; this is a guard rail against unbounded scans. When hit,
- * we log so an ops/PR review can decide whether to introduce true pagination.
- */
-const LIST_PROMPTS_HARD_CAP = 500;
-
-/** List view: strip versionHistory (use getPromptHistory for that). */
+/** List view: strip versionHistory and the deprecated lifecycle fields so
+ * they don't leak to the wire (use getPromptHistory for full history). */
 function toListItem(prompt: PromptDoc) {
   return {
     _id: prompt._id,
@@ -39,8 +32,6 @@ function toListItem(prompt: PromptDoc) {
     tags: prompt.tags,
     usageCount: prompt.usageCount,
     sourceMessageId: prompt.sourceMessageId,
-    lifecycleStatus: prompt.lifecycleStatus,
-    statusChangedAt: prompt.statusChangedAt,
     version: prompt.version,
   };
 }
@@ -50,52 +41,56 @@ function stripVersionHistory(prompt: PromptDoc): PromptDoc {
   return rest;
 }
 
+const EMPTY_PAGE = { page: [], isDone: true, continueCursor: '' };
+
 export const listPrompts = queryWithRLS({
   args: {
     organizationId: v.string(),
-    scope: v.optional(promptScopeValidator),
+    paginationOpts: v.optional(paginationOptsValidator),
   },
-  returns: v.array(promptTemplateListItemValidator),
   handler: async (ctx, args) => {
     const user = await getAuthUserIdentity(ctx);
-    if (!user) return [];
+    if (!user) return EMPTY_PAGE;
 
     const userOrganizations = await getUserOrganizations(ctx, user);
     const membership = userOrganizations.find(
       (m) => m.organizationId === args.organizationId,
     );
-    if (!membership) return [];
+    if (!membership) return EMPTY_PAGE;
 
     const userTeamIds = await getUserTeamIds(ctx, user.userId);
-    const results = [];
 
-    const { scope } = args;
-    const iterable = ctx.db
+    // Single paginated scan keyed on org prefix; the index's `scope` segment
+    // is just a tail in the composite key so prefix scans across all scopes
+    // work without a dedicated org-only index. `.order('desc')` so the page
+    // is newest-first and cursored truncation drops the oldest, not the
+    // newest, rows.
+    const result = await ctx.db
       .query('promptTemplates')
       .withIndex('by_organizationId_and_scope', (q) =>
-        scope
-          ? q.eq('organizationId', args.organizationId).eq('scope', scope)
-          : q.eq('organizationId', args.organizationId),
-      );
+        q.eq('organizationId', args.organizationId),
+      )
+      .order('desc')
+      .paginate(args.paginationOpts ?? { cursor: null, numItems: 30 });
 
-    for await (const prompt of iterable) {
-      if (prompt.scope === 'personal' && prompt.createdBy !== user.userId) {
-        continue;
-      }
-      if (!hasTeamAccess(prompt, userTeamIds)) {
-        continue;
-      }
+    const visiblePage = result.page
+      .filter((prompt) => {
+        // Drop pre-hard-delete legacy rows so they don't leak into the UI
+        // until a future migration removes them from storage.
+        if (prompt.lifecycleStatus === 'expired') return false;
+        if (prompt.scope === 'personal' && prompt.createdBy !== user.userId) {
+          return false;
+        }
+        if (!hasTeamAccess(prompt, userTeamIds)) return false;
+        return true;
+      })
+      .map(toListItem);
 
-      results.push(toListItem(prompt));
-      if (results.length >= LIST_PROMPTS_HARD_CAP) {
-        console.warn(
-          `[prompts] listPrompts hit hard cap (${LIST_PROMPTS_HARD_CAP}) for org ${args.organizationId}; older rows omitted.`,
-        );
-        break;
-      }
-    }
-
-    return results;
+    return {
+      page: visiblePage,
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
+    };
   },
 });
 
@@ -107,6 +102,8 @@ export const getPrompt = queryWithRLS({
   handler: async (ctx, args) => {
     const prompt = await ctx.db.get(args.promptId);
     if (!prompt) return null;
+    // Reject legacy soft-deleted rows so a stale URL can't resurface them.
+    if (prompt.lifecycleStatus === 'expired') return null;
 
     const user = await getAuthUserIdentity(ctx);
     if (!user) return null;
@@ -140,6 +137,7 @@ export const getPromptHistory = queryWithRLS({
   handler: async (ctx, args) => {
     const prompt = await ctx.db.get(args.promptId);
     if (!prompt) return null;
+    if (prompt.lifecycleStatus === 'expired') return null;
 
     const user = await getAuthUserIdentity(ctx);
     if (!user) return null;

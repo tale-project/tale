@@ -3310,10 +3310,6 @@
         "appliedToast": "Bounds proposal applied. Cleanup will use new bounds on next run.",
         "rejectedToast": "Bounds proposal rejected. Cleanup continues with previous bounds."
       },
-      "promptTemplates": {
-        "title": "Prompt templates",
-        "description": "Saved prompts (org-scoped). Global-scope templates are operator content and are not retention-managed."
-      },
       "messageFeedback": {
         "title": "Message feedback",
         "description": "Thumbs/comments left on agent messages. Free-text comments may contain quoted user content."
@@ -4327,7 +4323,9 @@
       "title": "Prompt library",
       "description": "Browse, save, and share prompt templates.",
       "searchPlaceholder": "Search prompts...",
-      "loading": "Loading prompts..."
+      "loading": "Loading prompts...",
+      "loadMore": "Load more",
+      "loadingMore": "Loading..."
     },
     "emptyState": {
       "title": "No prompts yet",
@@ -4376,6 +4374,7 @@
       "bytesOverLimit": "Over limit",
       "versionConflictTitle": "Newer version available",
       "versionConflictDescription": "Someone saved v{version} while you were editing. Load the latest to re-anchor before saving.",
+      "versionConflictDirtyWarning": "Your unsaved edits will be discarded.",
       "loadLatest": "Load latest"
     },
     "saveAs": {
@@ -4392,7 +4391,9 @@
       "restored": "Restored as v{version}",
       "restoreFailed": "Could not restore version",
       "restoreStale": "Version history changed — refresh to retry",
-      "rateLimited": "Saving too quickly — wait a moment before trying again"
+      "rateLimited": "Saving too quickly — wait a moment before trying again",
+      "forbidden": "You don't have permission for this prompt",
+      "notFound": "This prompt no longer exists"
     },
     "version": {
       "badge": "v{version}"
@@ -4419,10 +4420,7 @@
       "loadFailed": "Could not load version history",
       "retry": "Try again",
       "publishedByOn": "By {name} · {date}",
-      "truncated": "Showing latest {shown} of {total} versions. Older versions were pruned."
-    },
-    "list": {
-      "versionBadgeAria": "Version {version}"
+      "truncated": "Showing the latest {shown} versions. Older versions were pruned."
     },
     "categoryFilter": {
       "title": "By category"

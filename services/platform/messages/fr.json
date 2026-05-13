@@ -3235,10 +3235,6 @@
         "appliedToast": "Proposition de limites appliquée. Le nettoyage utilisera les nouvelles limites à la prochaine exécution.",
         "rejectedToast": "Proposition de limites refusée. Le nettoyage continue avec les limites précédentes."
       },
-      "promptTemplates": {
-        "title": "Modèles de prompts",
-        "description": "Prompts enregistrés (limités à l'organisation). Les modèles globaux sont du contenu opérateur et ne sont pas gérés par la rétention."
-      },
       "messageFeedback": {
         "title": "Feedback de messages",
         "description": "Pouces/commentaires laissés sur les messages d'agent. Les commentaires en texte libre peuvent contenir du contenu utilisateur cité."
@@ -4252,7 +4248,9 @@
       "title": "Bibliothèque de prompts",
       "description": "Parcours, enregistre et partage des modèles de prompts.",
       "searchPlaceholder": "Rechercher des prompts...",
-      "loading": "Chargement des prompts..."
+      "loading": "Chargement des prompts...",
+      "loadMore": "Charger plus",
+      "loadingMore": "Chargement..."
     },
     "emptyState": {
       "title": "Aucun prompt pour le moment",
@@ -4301,6 +4299,7 @@
       "bytesOverLimit": "Limite dépassée",
       "versionConflictTitle": "Nouvelle version disponible",
       "versionConflictDescription": "Quelqu'un a enregistré v{version} pendant votre édition. Chargez la dernière version avant d'enregistrer.",
+      "versionConflictDirtyWarning": "Vos modifications non enregistrées seront perdues.",
       "loadLatest": "Charger la dernière"
     },
     "saveAs": {
@@ -4317,7 +4316,9 @@
       "restored": "Restauré en tant que v{version}",
       "restoreFailed": "Impossible de restaurer la version",
       "restoreStale": "L'historique des versions a changé — actualisez et réessayez",
-      "rateLimited": "Enregistrement trop rapide — patientez un instant avant de réessayer"
+      "rateLimited": "Enregistrement trop rapide — patientez un instant avant de réessayer",
+      "forbidden": "Vous n'avez pas la permission pour ce prompt",
+      "notFound": "Ce prompt n'existe plus"
     },
     "version": {
       "badge": "v{version}"
@@ -4344,10 +4345,7 @@
       "loadFailed": "Impossible de charger l'historique des versions",
       "retry": "Réessayer",
       "publishedByOn": "Par {name} · {date}",
-      "truncated": "{shown} des {total} dernières versions affichées. Les plus anciennes ont été supprimées."
-    },
-    "list": {
-      "versionBadgeAria": "Version {version}"
+      "truncated": "Les {shown} versions les plus récentes sont affichées. Les plus anciennes ont été supprimées."
     },
     "categoryFilter": {
       "title": "Par catégorie"

@@ -4,6 +4,7 @@ import { Button } from '@tale/ui/button';
 import { useState, useCallback, useMemo } from 'react';
 
 import { Dialog, DialogClose } from '@/app/components/ui/dialog/dialog';
+import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Text } from '@/app/components/ui/typography/text';
@@ -16,9 +17,14 @@ import { cn } from '@/lib/utils/cn';
 
 import { useSavePrompt } from '../hooks/mutations';
 import { usePrompts } from '../hooks/queries';
+import { extractErrorCode } from '../lib/extract-error-code';
 import { AddCategoryPopover } from './add-category-popover';
 
 type PromptScope = 'personal' | 'team' | 'global';
+
+function isPromptScope(value: string): value is PromptScope {
+  return value === 'personal' || value === 'team' || value === 'global';
+}
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -31,48 +37,6 @@ export interface SavePromptDialogProps {
   initialContent: string;
   /** The message ID this prompt is being saved from. */
   sourceMessageId?: string;
-}
-
-function ScopeRadio({
-  checked,
-  label,
-  onClick,
-}: {
-  checked: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={checked}
-      onClick={onClick}
-      className="flex items-center gap-1.5"
-    >
-      <span
-        className={cn(
-          'flex size-4 items-center justify-center rounded-full',
-          checked ? 'bg-primary' : 'bg-border',
-        )}
-      >
-        <span
-          className={cn(
-            'rounded-full bg-background',
-            checked ? 'size-2.5' : 'size-3.5 shadow-sm',
-          )}
-        />
-      </span>
-      <span
-        className={cn(
-          'text-sm',
-          checked ? 'text-foreground font-medium' : 'text-muted-foreground',
-        )}
-      >
-        {label}
-      </span>
-    </button>
-  );
 }
 
 function SavePromptDialogContent({
@@ -105,6 +69,15 @@ function SavePromptDialogContent({
   const teamOptions = useMemo(
     () => (teams ?? []).map((team) => ({ value: team.id, label: team.name })),
     [teams],
+  );
+
+  const scopeOptions = useMemo(
+    () => [
+      { value: 'personal', label: t('scope.personal') },
+      { value: 'team', label: t('scope.team') },
+      { value: 'global', label: t('scope.global') },
+    ],
+    [t],
   );
 
   const contentBytes = useMemo(
@@ -149,16 +122,17 @@ function SavePromptDialogContent({
 
         onOpenChange(false);
       } catch (err) {
-        // RateLimitExceededError throws with the literal "Rate limit exceeded"
-        // prefix; duck-typing by message keeps this resilient to cross-chunk
-        // class identity issues (same pattern used for ConvexError).
-        const message = err instanceof Error ? err.message : '';
-        const isRateLimited = message.startsWith('Rate limit exceeded');
-        console.error('[save-prompt-dialog] save failed', err);
-        toast({
-          title: isRateLimited ? t('toast.rateLimited') : t('toast.saveFailed'),
-          variant: 'destructive',
-        });
+        const code = extractErrorCode(err);
+        const toastKey =
+          code === 'rate_limited'
+            ? 'toast.rateLimited'
+            : code === 'forbidden'
+              ? 'toast.forbidden'
+              : 'toast.saveFailed';
+        if (toastKey === 'toast.saveFailed') {
+          console.error('[save-prompt-dialog] save failed', err);
+        }
+        toast({ title: t(toastKey), variant: 'destructive' });
       }
     },
     [
@@ -228,28 +202,14 @@ function SavePromptDialogContent({
           </Text>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <label className="text-muted-foreground text-sm font-medium">
-            {t('saveAs.saveTo')}
-          </label>
-          <div className="flex flex-col gap-2 py-0.5" role="radiogroup">
-            <ScopeRadio
-              checked={scope === 'personal'}
-              label={t('scope.personal')}
-              onClick={() => setScope('personal')}
-            />
-            <ScopeRadio
-              checked={scope === 'team'}
-              label={t('scope.team')}
-              onClick={() => setScope('team')}
-            />
-            <ScopeRadio
-              checked={scope === 'global'}
-              label={t('scope.global')}
-              onClick={() => setScope('global')}
-            />
-          </div>
-        </div>
+        <RadioGroup
+          label={t('saveAs.saveTo')}
+          value={scope}
+          onValueChange={(v) => {
+            if (isPromptScope(v)) setScope(v);
+          }}
+          options={scopeOptions}
+        />
 
         {scope === 'team' && teamOptions.length > 0 && (
           <Select

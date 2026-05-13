@@ -23,8 +23,7 @@ export const promptTemplatesTable = defineTable({
    * @deprecated promptTemplates are now hard-deleted on user action. These
    * two fields are retained as optional only so legacy rows that still carry
    * a `lifecycleStatus` value pass schema validation; new code never reads
-   * or writes them. Schedule removal after `purgeLegacyExpiredPrompts` has
-   * run in all environments.
+   * or writes them.
    */
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),

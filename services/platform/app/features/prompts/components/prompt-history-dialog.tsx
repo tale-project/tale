@@ -227,11 +227,10 @@ export function PromptHistoryDialog({
                 );
               })}
             </ul>
-            {history.current.version > MAX_PROMPT_VERSION_HISTORY && (
+            {allVersions.length >= MAX_PROMPT_VERSION_HISTORY && (
               <Text variant="muted" className="px-1 pt-2 text-xs">
                 {t('history.truncated', {
                   shown: String(allVersions.length),
-                  total: String(history.current.version),
                 })}
               </Text>
             )}

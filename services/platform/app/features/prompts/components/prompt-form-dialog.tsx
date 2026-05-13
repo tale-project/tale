@@ -250,11 +250,16 @@ function PromptFormDialogContent({
                 version: String(liveVersion),
               })}
             </Text>
+            {isDirty && (
+              <Text variant="muted" className="mt-0.5 text-xs">
+                {t('form.versionConflictDirtyWarning')}
+              </Text>
+            )}
           </div>
           <Button
             type="button"
             size="sm"
-            variant="secondary"
+            variant={isDirty ? 'destructive' : 'secondary'}
             onClick={handleLoadLatest}
             disabled={!live}
           >

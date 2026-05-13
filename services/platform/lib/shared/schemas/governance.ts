@@ -169,8 +169,6 @@ export const retentionPolicyConfigSchema = z.object({
   loginAttemptRetentionDays: z.number().int().nonnegative().optional(),
   chatFilterEventsEnabled: z.boolean().optional(),
   chatFilterEventsRetentionDays: z.number().int().nonnegative().optional(),
-  promptTemplatesEnabled: z.boolean().optional(),
-  promptTemplatesRetentionDays: z.number().int().nonnegative().optional(),
   messageFeedbackEnabled: z.boolean().optional(),
   messageFeedbackRetentionDays: z.number().int().nonnegative().optional(),
   memoryAuditEnabled: z.boolean().optional(),

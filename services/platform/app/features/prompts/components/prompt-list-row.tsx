@@ -114,9 +114,7 @@ export function PromptListRow({
             <Badge
               variant="outline"
               className="shrink-0 px-1.5 py-0 text-[10px] font-normal"
-              aria-label={t('list.versionBadgeAria', {
-                version: String(prompt.version),
-              })}
+              aria-hidden="true"
             >
               v{prompt.version}
             </Badge>

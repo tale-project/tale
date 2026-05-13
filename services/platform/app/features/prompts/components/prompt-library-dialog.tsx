@@ -23,6 +23,7 @@ import {
 } from '../hooks/mutations';
 import type { PromptTemplate } from '../hooks/queries';
 import { usePrompts } from '../hooks/queries';
+import { extractErrorCode } from '../lib/extract-error-code';
 import { CategoryFilterPopover } from './category-filter-popover';
 import { PromptFormDialog, type PromptFormData } from './prompt-form-dialog';
 import { PromptHistoryDialog } from './prompt-history-dialog';
@@ -46,7 +47,8 @@ function PromptLibraryDialogContent({
   const { data: currentUser } = useCurrentUser();
   const { data: memberContext } = useCurrentMemberContext(organizationId);
 
-  const { prompts, isLoading } = usePrompts(organizationId ?? '');
+  const { prompts, isLoading, canLoadMore, isLoadingMore, loadMore } =
+    usePrompts(organizationId ?? '');
 
   const updatePrompt = useUpdatePrompt();
   const deletePrompt = useDeletePrompt();
@@ -153,32 +155,23 @@ function PromptLibraryDialogContent({
         }
         setEditingPrompt(null);
       } catch (err) {
-        // Duck-type the ConvexError data; Vite chunk splitting can produce
-        // multiple ConvexError class copies that break instanceof.
-        const errData =
-          err && typeof err === 'object' && 'data' in err
-            ? (err as { data: unknown }).data
-            : undefined;
-        const code =
-          errData && typeof errData === 'object' && 'code' in errData
-            ? (errData as { code: unknown }).code
-            : undefined;
-        if (code === 'version_conflict') {
-          // Keep the dialog open with the user's draft intact. The live
-          // `usePrompt` subscription in PromptFormDialog will surface the
-          // banner with a "Load latest" affordance so the user can re-anchor
-          // and re-apply their edits instead of losing them on auto-close.
-          toast({
-            title: t('toast.versionConflict'),
-            variant: 'destructive',
-          });
-        } else {
+        const code = extractErrorCode(err);
+        // Keep the dialog open on version_conflict so the user's draft and
+        // the PromptFormDialog's "Load latest" affordance stay reachable.
+        const toastKey =
+          code === 'version_conflict'
+            ? 'toast.versionConflict'
+            : code === 'forbidden'
+              ? 'toast.forbidden'
+              : code === 'not_found'
+                ? 'toast.notFound'
+                : code === 'rate_limited'
+                  ? 'toast.rateLimited'
+                  : 'toast.saveFailed';
+        if (toastKey === 'toast.saveFailed') {
           console.error('[prompt-library] update failed', err);
-          toast({
-            title: t('toast.saveFailed'),
-            variant: 'destructive',
-          });
         }
+        toast({ title: t(toastKey), variant: 'destructive' });
       }
     },
     [editingPrompt, updatePrompt, toast, t],
@@ -192,11 +185,17 @@ function PromptLibraryDialogContent({
       });
       setDeletingPrompt(null);
     } catch (err) {
-      console.error('[prompt-library] delete failed', err);
-      toast({
-        title: t('toast.deleteFailed'),
-        variant: 'destructive',
-      });
+      const code = extractErrorCode(err);
+      const toastKey =
+        code === 'forbidden'
+          ? 'toast.forbidden'
+          : code === 'not_found'
+            ? 'toast.notFound'
+            : 'toast.deleteFailed';
+      if (toastKey === 'toast.deleteFailed') {
+        console.error('[prompt-library] delete failed', err);
+      }
+      toast({ title: t(toastKey), variant: 'destructive' });
     }
   }, [deletingPrompt, deletePrompt, toast, t]);
 
@@ -294,6 +293,20 @@ function PromptLibraryDialogContent({
                     isLast={index === filteredPrompts.length - 1}
                   />
                 ))}
+                {canLoadMore && (
+                  <div className="flex justify-center py-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={loadMore}
+                      disabled={isLoadingMore}
+                    >
+                      {isLoadingMore
+                        ? t('library.loadingMore')
+                        : t('library.loadMore')}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>

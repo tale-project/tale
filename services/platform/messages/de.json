@@ -3310,10 +3310,6 @@
         "appliedToast": "Grenzwertvorschlag angewendet. Die Bereinigung verwendet beim nächsten Lauf die neuen Grenzen.",
         "rejectedToast": "Grenzwertvorschlag abgelehnt. Die Bereinigung verwendet weiterhin die bisherigen Grenzen."
       },
-      "promptTemplates": {
-        "title": "Prompt-Vorlagen",
-        "description": "Gespeicherte Prompts (org-scoped). Globale Vorlagen sind Operator-Inhalte und werden nicht aufbewahrungsverwaltet."
-      },
       "messageFeedback": {
         "title": "Nachrichten-Feedback",
         "description": "Daumen/Kommentare zu Agenten-Nachrichten. Freitext-Kommentare können zitierten Nutzerinhalt enthalten."
@@ -4327,7 +4323,9 @@
       "title": "Prompt-Bibliothek",
       "description": "Prompt-Vorlagen durchsuchen, speichern und teilen.",
       "searchPlaceholder": "Prompts suchen...",
-      "loading": "Prompts werden geladen..."
+      "loading": "Prompts werden geladen...",
+      "loadMore": "Mehr laden",
+      "loadingMore": "Wird geladen..."
     },
     "emptyState": {
       "title": "Noch keine Prompts",
@@ -4376,6 +4374,7 @@
       "bytesOverLimit": "Limit überschritten",
       "versionConflictTitle": "Neuere Version verfügbar",
       "versionConflictDescription": "Während deiner Bearbeitung wurde v{version} gespeichert. Lade die neueste Version, bevor du speicherst.",
+      "versionConflictDirtyWarning": "Deine nicht gespeicherten Änderungen gehen verloren.",
       "loadLatest": "Neueste laden"
     },
     "saveAs": {
@@ -4392,7 +4391,9 @@
       "restored": "Als v{version} wiederhergestellt",
       "restoreFailed": "Version konnte nicht wiederhergestellt werden",
       "restoreStale": "Versionsverlauf hat sich geändert — aktualisiere und versuche es erneut",
-      "rateLimited": "Zu schnelles Speichern — bitte warte einen Moment"
+      "rateLimited": "Zu schnelles Speichern — bitte warte einen Moment",
+      "forbidden": "Du hast keine Berechtigung für diesen Prompt",
+      "notFound": "Dieser Prompt existiert nicht mehr"
     },
     "version": {
       "badge": "v{version}"
@@ -4419,10 +4420,7 @@
       "loadFailed": "Versionsverlauf konnte nicht geladen werden",
       "retry": "Erneut versuchen",
       "publishedByOn": "Von {name} · {date}",
-      "truncated": "Es werden die neuesten {shown} von {total} Versionen angezeigt. Ältere wurden entfernt."
-    },
-    "list": {
-      "versionBadgeAria": "Version {version}"
+      "truncated": "Es werden die neuesten {shown} Versionen angezeigt. Ältere wurden entfernt."
     },
     "categoryFilter": {
       "title": "Nach Kategorie"
